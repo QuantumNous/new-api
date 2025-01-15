@@ -1,0 +1,136 @@
+{
+  "name": "wangeditor",
+  "version": "4.7.15",
+  "description": "wangEditor - 轻量级 web 富文本编辑器，配置方便，使用简单，开源免费",
+  "homepage": "http://www.wangeditor.com/",
+  "keywords": [
+    "wangEditor",
+    "富文本编辑器",
+    "富文本"
+  ],
+  "main": "dist/wangEditor.min.js",
+  "types": "dist/wangEditor.d.ts",
+  "module": "dist/wangEditor.js",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development webpack --watch --config build/webpack.dev.js",
+    "example": "cross-env PORT=8881 nodemon server/www.js",
+    "build": "cross-env NODE_ENV=production webpack --config build/webpack.prod.js",
+    "build:dev": "cross-env NODE_ENV=development webpack --config build/webpack.dev.js",
+    "build:un-min": "cross-env NODE_ENV=production webpack --config build/webpack.un-min.prod.js",
+    "build:analyzer": "cross-env NODE_ENV=production_analyzer webpack --config build/webpack.prod.js",
+    "lint": "eslint '{src,test,cypress,build}/**/*.{js,ts}'",
+    "lint-fix": "eslint --fix \"{src,test,cypress,build}/**/*.{js,ts}\"",
+    "prettier": "prettier --write --config .prettierrc.js \"{src,test,cypress,build}/**/*.{js,ts}\"",
+    "test": "cross-env NODE_ENV=test jest --passWithNoTests --runInBand",
+    "test-c": "cross-env NODE_ENV=test jest --coverage",
+    "all-check": "npm run prettier && npm run lint-fix && npm run test",
+    "start": "concurrently \"npm run dev\" \"npm run example\" ",
+    "release": "release-it",
+    "just-try-release": "release-it --dry-run",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "cypress:coverage": "nyc report --reporter=text-summary",
+    "size": "npm run build && size-limit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wangeditor-team/wangEditor.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/wangeditor-team/wangEditor/issues"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.11.6",
+    "@babel/plugin-proposal-class-properties": "^7.10.4",
+    "@babel/plugin-proposal-object-rest-spread": "^7.11.0",
+    "@babel/plugin-transform-runtime": "^7.11.5",
+    "@babel/preset-env": "^7.11.5",
+    "@cypress/code-coverage": "^3.8.3",
+    "@release-it/conventional-changelog": "^2.0.0",
+    "@size-limit/preset-app": "^4.10.2",
+    "@testing-library/jest-dom": "^5.11.6",
+    "@types/jest": "^25.2.1",
+    "@types/jquery": "^3.3.38",
+    "@types/lodash": "^4.14.150",
+    "@typescript-eslint/eslint-plugin": "^2.31.0",
+    "@typescript-eslint/parser": "^4.4.1",
+    "autoprefixer": "^9.7.6",
+    "babel-loader": "^8.1.0",
+    "babel-plugin-istanbul": "^6.0.0",
+    "clean-webpack-plugin": "^3.0.0",
+    "commitlint": "^11.0.0",
+    "commitlint-config-cz": "^0.13.2",
+    "concat-stream": "^2.0.0",
+    "concurrently": "^5.3.0",
+    "conventional-changelog": "^3.1.24",
+    "cross-env": "^7.0.2",
+    "css-loader": "^3.5.3",
+    "cypress": "^5.5.0",
+    "cz-customizable": "^6.3.0",
+    "eslint": "^6.8.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-prettier": "^3.1.3",
+    "formidable": "^1.2.2",
+    "fs-extra": "^9.1.0",
+    "highlight.js": "^10.1.2",
+    "husky": "^4.2.5",
+    "i18next": "^19.6.3",
+    "jest": "^26.0.1",
+    "jquery": "^3.5.1",
+    "koa": "^2.13.0",
+    "koa-logger": "^3.2.1",
+    "koa-onerror": "^4.1.0",
+    "koa-static": "^5.0.0",
+    "less": "^3.11.1",
+    "less-loader": "^6.0.0",
+    "lint-staged": "^10.2.2",
+    "multiparty": "^4.2.2",
+    "nodemon": "^2.0.6",
+    "nyc": "^15.1.0",
+    "postcss-loader": "^3.0.0",
+    "prepend-file": "^2.0.0",
+    "prettier": "^2.0.5",
+    "release-it": "^14.2.0",
+    "size-limit": "^4.10.2",
+    "style-loader": "^1.2.1",
+    "ts-jest": "^25.4.0",
+    "ts-loader": "^7.0.2",
+    "typescript": "^4.0.3",
+    "uglifyjs-webpack-plugin": "^2.2.0",
+    "url-loader": "^4.1.0",
+    "webpack": "^4.43.0",
+    "webpack-bundle-analyzer": "^3.9.0",
+    "webpack-cli": "^3.3.11",
+    "webpack-merge": "^4.2.2"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.11.2",
+    "@babel/runtime-corejs3": "^7.11.2",
+    "tslib": "^2.1.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "npm run all-check",
+      "git add ."
+    ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "node_modules/cz-customizable"
+    }
+  },
+  "size-limit": [
+    {
+      "path": "dist/wangEditor.min.js",
+      "limit": "100 kB"
+    }
+  ]
+}

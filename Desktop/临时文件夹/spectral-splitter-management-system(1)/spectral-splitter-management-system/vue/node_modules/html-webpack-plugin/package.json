@@ -1,0 +1,88 @@
+{
+  "name": "html-webpack-plugin",
+  "version": "5.5.3",
+  "license": "MIT",
+  "description": "Simplifies creation of HTML files to serve your webpack bundles",
+  "author": "Jan Nicklas <j.nicklas@me.com> (https://github.com/jantimon)",
+  "main": "index.js",
+  "types": "typings.d.ts",
+  "files": [
+    "lib/",
+    "index.js",
+    "default_index.ejs",
+    "typings.d.ts"
+  ],
+  "scripts": {
+    "pretest": "semistandard",
+    "posttest": "tsc",
+    "commit": "git-cz",
+    "build-examples": "node examples/build-examples.js",
+    "test": "jest --runInBand --verbose --coverage",
+    "test-watch": "jest --runInBand --watch",
+    "puml": "npx puml generate flow.puml -o flow.png",
+    "release": "standard-version"
+  },
+  "semistandard": {
+    "ignore": [
+      "examples/*/dist/**/*.*"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.2.5",
+    "commitizen": "^4.2.4",
+    "css-loader": "5.0.1",
+    "cz-conventional-changelog": "2.1.0",
+    "dir-compare": "^3.3.0",
+    "html-loader": "2.1.1",
+    "jest": "^27.2.5",
+    "mini-css-extract-plugin": "^1.6.0",
+    "pug": "3.0.2",
+    "pug-loader": "2.4.0",
+    "raw-loader": "4.0.2",
+    "rimraf": "2.6.3",
+    "semistandard": "^13.0.1",
+    "standard-version": "^9.3.0",
+    "style-loader": "2.0.0",
+    "typescript": "4.9.4",
+    "webpack": "^5.86.0",
+    "webpack-cli": "4.5.0",
+    "webpack-recompilation-simulator": "3.2.0"
+  },
+  "dependencies": {
+    "@types/html-minifier-terser": "^6.0.0",
+    "html-minifier-terser": "^6.0.2",
+    "lodash": "^4.17.21",
+    "pretty-error": "^4.0.0",
+    "tapable": "^2.0.0"
+  },
+  "peerDependencies": {
+    "webpack": "^5.20.0"
+  },
+  "keywords": [
+    "webpack",
+    "plugin",
+    "html",
+    "html-webpack-plugin"
+  ],
+  "bugs": "https://github.com/jantimon/html-webpack-plugin/issues",
+  "homepage": "https://github.com/jantimon/html-webpack-plugin",
+  "repository": "https://github.com/jantimon/html-webpack-plugin.git",
+  "engines": {
+    "node": ">=10.13.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "jest": {
+    "watchPathIgnorePatterns": [
+      "<rootDir>/dist"
+    ],
+    "testEnvironment": "node"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/html-webpack-plugin"
+  }
+}

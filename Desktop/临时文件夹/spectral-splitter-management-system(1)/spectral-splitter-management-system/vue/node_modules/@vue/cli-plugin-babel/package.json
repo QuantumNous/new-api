@@ -1,0 +1,41 @@
+{
+  "name": "@vue/cli-plugin-babel",
+  "version": "5.0.8",
+  "description": "babel plugin for vue-cli",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/vue-cli.git",
+    "directory": "packages/@vue/cli-plugin-babel"
+  },
+  "keywords": [
+    "vue",
+    "cli",
+    "babel"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/vue-cli/issues"
+  },
+  "homepage": "https://github.com/vuejs/vue-cli/tree/dev/packages/@vue/cli-plugin-babel#readme",
+  "dependencies": {
+    "@babel/core": "^7.12.16",
+    "@vue/babel-preset-app": "^5.0.8",
+    "@vue/cli-shared-utils": "^5.0.8",
+    "babel-loader": "^8.2.2",
+    "thread-loader": "^3.0.0",
+    "webpack": "^5.54.0"
+  },
+  "peerDependencies": {
+    "@vue/cli-service": "^3.0.0 || ^4.0.0 || ^5.0.0-0"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.12.16",
+    "jscodeshift": "^0.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "b154dbd7aca4b4538e6c483b1d4b817499d7b8eb"
+}

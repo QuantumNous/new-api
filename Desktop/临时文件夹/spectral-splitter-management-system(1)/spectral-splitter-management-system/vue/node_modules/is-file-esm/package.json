@@ -1,0 +1,44 @@
+{
+  "name": "is-file-esm",
+  "version": "1.0.0",
+  "description": "Determines whether a Node file is a Module (`import`) or a Script (`require`)",
+  "main": "index.js",
+  "scripts": {
+    "test": "tap -R classic --100",
+    "ci": "npm test"
+  },
+  "keywords": [
+    "esm",
+    "cjs",
+    "package.json",
+    "module",
+    "ecmascript modules",
+    "native modules",
+    "native ecmascript modules"
+  ],
+  "author": "David Mark Clements (@davidmarkclem)",
+  "license": "MIT",
+  "engineStrict": true,
+  "engine": {
+    "node": ">= 12.4.0"
+  },
+  "devDependencies": {
+    "nonsynchronous": "^1.2.0",
+    "standard": "^14.3.4",
+    "tap": "^14.10.8"
+  },
+  "dependencies": {
+    "read-pkg-up": "^7.0.1"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidmarkclements/is-file-esm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidmarkclements/is-file-esm/issues"
+  },
+  "homepage": "https://github.com/davidmarkclements/is-file-esm#readme"
+}

@@ -1,0 +1,46 @@
+{
+  "name": "@vue/babel-sugar-composition-api-render-instance",
+  "version": "1.4.0",
+  "description": "Babel syntactic sugar for replaceing `this` with `getCurrentInstance()` in Vue JSX with @vue/composition-api",
+  "main": "dist/plugin.js",
+  "repository": "https://github.com/vuejs/jsx/tree/master/packages/babel-sugar-composition-api-render-instance",
+  "author": "luwanquan <luwanquan@f-road.com.cn>",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [],
+  "scripts": {
+    "prepublish": "yarn build",
+    "build": "rollup -c",
+    "build:test": "rollup -c rollup.config.testing.js",
+    "pretest": "yarn build:test && cd ../babel-sugar-v-model && yarn build:test",
+    "test": "nyc --reporter=html --reporter=text-summary ava -v test/test.js"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.2.0",
+    "@babel/core": "^7.2.0",
+    "@babel/preset-env": "^7.2.0",
+    "ava": "^0.25.0",
+    "nyc": "^13.1.0",
+    "rollup": "^0.67.4",
+    "rollup-plugin-babel": "4.0.3",
+    "rollup-plugin-istanbul": "^2.0.1",
+    "rollup-plugin-uglify-es": "^0.0.1",
+    "vue": "^2.5.17"
+  },
+  "dependencies": {
+    "@babel/plugin-syntax-jsx": "^7.2.0"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0-0"
+  },
+  "nyc": {
+    "exclude": [
+      "dist",
+      "test"
+    ]
+  },
+  "gitHead": "6566e12067f5d6c02d3849b574a1b84de5634008"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "babel-helper-vue-jsx-merge-props",
+  "version": "2.0.3",
+  "description": "babel helper for vue jsx spread.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/babel-helper-vue-jsx-merge-props.git"
+  },
+  "keywords": [
+    "babel",
+    "vue",
+    "jsx"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/babel-helper-vue-jsx-merge-props/issues"
+  },
+  "homepage": "https://github.com/vuejs/babel-helper-vue-jsx-merge-props#readme"
+}

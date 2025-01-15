@@ -1,0 +1,24 @@
+{
+  "name": "launch-editor-middleware",
+  "version": "2.6.1",
+  "description": "express middleware for launching editor",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yyx990803/launch-editor.git"
+  },
+  "keywords": [
+    "express",
+    "middleware",
+    "editor"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yyx990803/launch-editor/issues"
+  },
+  "homepage": "https://github.com/yyx990803/launch-editor#readme",
+  "dependencies": {
+    "launch-editor": "^2.6.1"
+  }
+}

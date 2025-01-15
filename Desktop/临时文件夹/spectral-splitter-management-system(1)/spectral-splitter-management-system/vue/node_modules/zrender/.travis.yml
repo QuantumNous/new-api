@@ -1,0 +1,12 @@
+language: node_js
+
+node_js:
+  - "node"
+
+branches:
+  only:
+    - next
+
+script:
+  - npm i
+  - npm run build

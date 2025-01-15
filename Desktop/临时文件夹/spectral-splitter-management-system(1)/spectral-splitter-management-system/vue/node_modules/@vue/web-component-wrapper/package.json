@@ -1,0 +1,61 @@
+{
+  "name": "@vue/web-component-wrapper",
+  "version": "1.3.0",
+  "description": "wrap a vue component as a web component.",
+  "main": "dist/vue-wc-wrapper.js",
+  "unpkg": "dist/vue-wc-wrapper.global.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "dist",
+    "types/*.d.ts"
+  ],
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src",
+    "build": "rollup -c",
+    "prepare": "rollup -c",
+    "test:types": "tsc -p ./types/tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/web-component-wrapper.git"
+  },
+  "keywords": [
+    "vue",
+    "web-component"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/web-component-wrapper/issues"
+  },
+  "homepage": "https://github.com/vuejs/web-component-wrapper#readme",
+  "devDependencies": {
+    "eslint": "^4.16.0",
+    "eslint-plugin-vue-libs": "^2.1.0",
+    "http-server": "^0.11.1",
+    "jest": "^22.1.4",
+    "lint-staged": "^6.1.0",
+    "puppeteer": "^1.0.0",
+    "rollup": "^0.55.3",
+    "typescript": "^3.2.2",
+    "vue": "^2.5.13",
+    "yorkie": "^1.0.3"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "browser": true
+    },
+    "extends": "plugin:vue-libs/recommended"
+  },
+  "gitHooks": {
+    "pre-commit": "lint-staged"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "git add"
+    ]
+  }
+}

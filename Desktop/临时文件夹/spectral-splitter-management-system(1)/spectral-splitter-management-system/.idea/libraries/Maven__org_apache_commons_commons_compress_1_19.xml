@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.apache.commons:commons-compress:1.19">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/commons/commons-compress/1.19/commons-compress-1.19.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/commons/commons-compress/1.19/commons-compress-1.19-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/commons/commons-compress/1.19/commons-compress-1.19-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

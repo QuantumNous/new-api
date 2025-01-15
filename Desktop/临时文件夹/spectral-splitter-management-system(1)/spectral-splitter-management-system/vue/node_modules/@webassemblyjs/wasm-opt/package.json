@@ -1,0 +1,25 @@
+{
+  "name": "@webassemblyjs/wasm-opt",
+  "version": "1.11.6",
+  "description": "",
+  "main": "lib/index.js",
+  "module": "esm/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xtuc/webassemblyjs.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Sven Sauleau",
+  "license": "MIT",
+  "dependencies": {
+    "@webassemblyjs/ast": "1.11.6",
+    "@webassemblyjs/helper-buffer": "1.11.6",
+    "@webassemblyjs/wasm-gen": "1.11.6",
+    "@webassemblyjs/wasm-parser": "1.11.6"
+  }
+}

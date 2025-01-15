@@ -1,0 +1,23 @@
+{
+  "name": "@webassemblyjs/helper-buffer",
+  "version": "1.11.6",
+  "description": "Buffer manipulation utility",
+  "main": "lib/index.js",
+  "module": "esm/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xtuc/webassemblyjs.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Sven Sauleau",
+  "license": "MIT",
+  "devDependencies": {
+    "@webassemblyjs/wasm-parser": "1.11.6",
+    "jest-diff": "^24.0.0"
+  }
+}

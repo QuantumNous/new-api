@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.slf4j:jul-to-slf4j:1.7.33">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/slf4j/jul-to-slf4j/1.7.33/jul-to-slf4j-1.7.33.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/slf4j/jul-to-slf4j/1.7.33/jul-to-slf4j-1.7.33-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/slf4j/jul-to-slf4j/1.7.33/jul-to-slf4j-1.7.33-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

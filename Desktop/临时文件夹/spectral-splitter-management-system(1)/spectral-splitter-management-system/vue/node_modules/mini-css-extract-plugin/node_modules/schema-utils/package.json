@@ -1,0 +1,79 @@
+{
+  "name": "schema-utils",
+  "version": "4.2.0",
+  "description": "webpack Validation Utils",
+  "license": "MIT",
+  "repository": "webpack/schema-utils",
+  "author": "webpack Contrib (https://github.com/webpack-contrib)",
+  "homepage": "https://github.com/webpack/schema-utils",
+  "bugs": "https://github.com/webpack/schema-utils/issues",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/webpack"
+  },
+  "main": "dist/index.js",
+  "types": "declarations/index.d.ts",
+  "engines": {
+    "node": ">= 12.13.0"
+  },
+  "scripts": {
+    "start": "npm run build -- -w",
+    "clean": "del-cli dist declarations",
+    "prebuild": "npm run clean",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir declarations && prettier \"declarations/**/*.ts\" --write",
+    "build:code": "cross-env NODE_ENV=production babel src -d dist --copy-files",
+    "build": "npm-run-all -p \"build:**\"",
+    "commitlint": "commitlint --from=master",
+    "security": "npm audit --production",
+    "fmt:check": "prettier \"{**/*,*}.{js,json,md,yml,css,ts}\" --list-different",
+    "lint:js": "eslint --cache .",
+    "lint:types": "tsc --pretty --noEmit",
+    "lint": "npm-run-all lint:js lint:types fmt:check",
+    "fmt": "npm run fmt:check -- --write",
+    "fix:js": "npm run lint:js -- --fix",
+    "fix": "npm-run-all fix:js fmt",
+    "test:only": "cross-env NODE_ENV=test jest",
+    "test:watch": "npm run test:only -- --watch",
+    "test:coverage": "npm run test:only -- --collectCoverageFrom=\"src/**/*.js\" --coverage",
+    "pretest": "npm run lint",
+    "test": "npm run test:coverage",
+    "prepare": "npm run build && husky install",
+    "release": "standard-version"
+  },
+  "files": [
+    "dist",
+    "declarations"
+  ],
+  "dependencies": {
+    "@types/json-schema": "^7.0.9",
+    "ajv": "^8.9.0",
+    "ajv-formats": "^2.1.1",
+    "ajv-keywords": "^5.1.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.17.0",
+    "@babel/core": "^7.17.0",
+    "@babel/preset-env": "^7.16.11",
+    "@commitlint/cli": "^17.6.1",
+    "@commitlint/config-conventional": "^16.0.0",
+    "@webpack-contrib/eslint-config-webpack": "^3.0.0",
+    "babel-jest": "^27.4.6",
+    "cross-env": "^7.0.3",
+    "del": "^6.0.0",
+    "del-cli": "^4.0.1",
+    "eslint": "^8.8.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.25.4",
+    "husky": "^7.0.4",
+    "jest": "^27.4.7",
+    "lint-staged": "^13.2.1",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.5.1",
+    "standard-version": "^9.3.2",
+    "typescript": "^4.9.5",
+    "webpack": "^5.68.0"
+  },
+  "keywords": [
+    "webpack"
+  ]
+}

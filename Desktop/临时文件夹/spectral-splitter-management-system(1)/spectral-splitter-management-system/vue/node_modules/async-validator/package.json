@@ -1,0 +1,58 @@
+{
+  "name": "async-validator",
+  "version": "1.8.5",
+  "description": "validate form asynchronous",
+  "keywords": [
+    "validator",
+    "validate",
+    "async"
+  ],
+  "homepage": "http://github.com/yiminghe/async-validator",
+  "author": "yiminghe@gmail.com",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:yiminghe/async-validator.git"
+  },
+  "files": [
+    "lib",
+    "es"
+  ],
+  "main": "./lib/index",
+  "module": "./es/index",
+  "jest": {
+    "collectCoverageFrom": [
+      "src/*"
+    ],
+    "transform": {
+      "\\.jsx?$": "./node_modules/rc-tools/scripts/jestPreprocessor.js"
+    }
+  },
+  "bugs": {
+    "url": "http://github.com/yiminghe/async-validator/issues"
+  },
+  "licenses": "MIT",
+  "config": {
+    "port": 8010
+  },
+  "scripts": {
+    "build": "rc-tools run build",
+    "gh-pages": "rc-tools run gh-pages",
+    "start": "rc-tools run server",
+    "pub": "rc-tools run pub --babel-runtime",
+    "lint": "rc-tools run lint",
+    "test": "jest",
+    "coverage": "jest --coverage && cat ./coverage/lcov.info | coveralls"
+  },
+  "devDependencies": {
+    "coveralls": "^2.13.1",
+    "jest": "20.x",
+    "pre-commit": "1.x",
+    "rc-tools": "6.x"
+  },
+  "pre-commit": [
+    "lint"
+  ],
+  "dependencies": {
+    "babel-runtime": "6.x"
+  }
+}

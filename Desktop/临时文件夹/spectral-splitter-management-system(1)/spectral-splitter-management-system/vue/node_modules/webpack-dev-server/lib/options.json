@@ -1,0 +1,1266 @@
+{
+  "title": "Dev Server options",
+  "type": "object",
+  "definitions": {
+    "AllowedHosts": {
+      "anyOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/AllowedHostsItem"
+          }
+        },
+        {
+          "enum": ["auto", "all"]
+        },
+        {
+          "$ref": "#/definitions/AllowedHostsItem"
+        }
+      ],
+      "description": "Allows to enumerate the hosts from which access to the dev server are allowed (useful when you are proxying dev server, by default is 'auto').",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverallowedhosts"
+    },
+    "AllowedHostsItem": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Bonjour": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Disallows to broadcasts dev server via ZeroConf networking on start."
+          }
+        },
+        {
+          "type": "object",
+          "description": "Options for bonjour.",
+          "link": "https://github.com/watson/bonjour#initializing"
+        }
+      ],
+      "description": "Allows to broadcasts dev server via ZeroConf networking on start.",
+      "link": " https://webpack.js.org/configuration/dev-server/#devserverbonjour"
+    },
+    "Client": {
+      "description": "Allows to specify options for client script in the browser or disable client script.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverclient",
+      "anyOf": [
+        {
+          "enum": [false],
+          "cli": {
+            "negatedDescription": "Disables client script."
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "logging": {
+              "$ref": "#/definitions/ClientLogging"
+            },
+            "overlay": {
+              "$ref": "#/definitions/ClientOverlay"
+            },
+            "progress": {
+              "$ref": "#/definitions/ClientProgress"
+            },
+            "reconnect": {
+              "$ref": "#/definitions/ClientReconnect"
+            },
+            "webSocketTransport": {
+              "$ref": "#/definitions/ClientWebSocketTransport"
+            },
+            "webSocketURL": {
+              "$ref": "#/definitions/ClientWebSocketURL"
+            }
+          }
+        }
+      ]
+    },
+    "ClientLogging": {
+      "enum": ["none", "error", "warn", "info", "log", "verbose"],
+      "description": "Allows to set log level in the browser.",
+      "link": "https://webpack.js.org/configuration/dev-server/#logging"
+    },
+    "ClientOverlay": {
+      "anyOf": [
+        {
+          "description": "Enables a full-screen overlay in the browser when there are compiler errors or warnings.",
+          "link": "https://webpack.js.org/configuration/dev-server/#overlay",
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Disables the full-screen overlay in the browser when there are compiler errors or warnings."
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "errors": {
+              "anyOf": [
+                {
+                  "description": "Enables a full-screen overlay in the browser when there are compiler errors.",
+                  "type": "boolean",
+                  "cli": {
+                    "negatedDescription": "Disables the full-screen overlay in the browser when there are compiler errors."
+                  }
+                },
+                {
+                  "instanceof": "Function",
+                  "description": "Filter compiler errors. Return true to include and return false to exclude."
+                }
+              ]
+            },
+            "warnings": {
+              "anyOf": [
+                {
+                  "description": "Enables a full-screen overlay in the browser when there are compiler warnings.",
+                  "type": "boolean",
+                  "cli": {
+                    "negatedDescription": "Disables the full-screen overlay in the browser when there are compiler warnings."
+                  }
+                },
+                {
+                  "instanceof": "Function",
+                  "description": "Filter compiler warnings. Return true to include and return false to exclude."
+                }
+              ]
+            },
+            "runtimeErrors": {
+              "anyOf": [
+                {
+                  "description": "Enables a full-screen overlay in the browser when there are uncaught runtime errors.",
+                  "type": "boolean",
+                  "cli": {
+                    "negatedDescription": "Disables the full-screen overlay in the browser when there are uncaught runtime errors."
+                  }
+                },
+                {
+                  "instanceof": "Function",
+                  "description": "Filter uncaught runtime errors. Return true to include and return false to exclude."
+                }
+              ]
+            },
+            "trustedTypesPolicyName": {
+              "description": "The name of a Trusted Types policy for the overlay. Defaults to 'webpack-dev-server#overlay'.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "ClientProgress": {
+      "description": "Prints compilation progress in percentage in the browser.",
+      "link": "https://webpack.js.org/configuration/dev-server/#progress",
+      "type": "boolean",
+      "cli": {
+        "negatedDescription": "Does not print compilation progress in percentage in the browser."
+      }
+    },
+    "ClientReconnect": {
+      "description": "Tells dev-server the number of times it should try to reconnect the client.",
+      "link": "https://webpack.js.org/configuration/dev-server/#reconnect",
+      "anyOf": [
+        {
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Tells dev-server to not to try to reconnect the client."
+          }
+        },
+        {
+          "type": "number",
+          "minimum": 0
+        }
+      ]
+    },
+    "ClientWebSocketTransport": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ClientWebSocketTransportEnum"
+        },
+        {
+          "$ref": "#/definitions/ClientWebSocketTransportString"
+        }
+      ],
+      "description": "Allows to set custom web socket transport to communicate with dev server.",
+      "link": "https://webpack.js.org/configuration/dev-server/#websockettransport"
+    },
+    "ClientWebSocketTransportEnum": {
+      "enum": ["sockjs", "ws"]
+    },
+    "ClientWebSocketTransportString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ClientWebSocketURL": {
+      "description": "Allows to specify URL to web socket server (useful when you're proxying dev server and client script does not always know where to connect to).",
+      "link": "https://webpack.js.org/configuration/dev-server/#websocketurl",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hostname": {
+              "description": "Tells clients connected to devServer to use the provided hostname.",
+              "type": "string",
+              "minLength": 1
+            },
+            "pathname": {
+              "description": "Tells clients connected to devServer to use the provided path to connect.",
+              "type": "string"
+            },
+            "password": {
+              "description": "Tells clients connected to devServer to use the provided password to authenticate.",
+              "type": "string"
+            },
+            "port": {
+              "description": "Tells clients connected to devServer to use the provided port.",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "protocol": {
+              "description": "Tells clients connected to devServer to use the provided protocol.",
+              "anyOf": [
+                {
+                  "enum": ["auto"]
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "username": {
+              "description": "Tells clients connected to devServer to use the provided username to authenticate.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "Compress": {
+      "type": "boolean",
+      "description": "Enables gzip compression for everything served.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devservercompress",
+      "cli": {
+        "negatedDescription": "Disables gzip compression for everything served."
+      }
+    },
+    "DevMiddleware": {
+      "description": "Provide options to 'webpack-dev-middleware' which handles webpack assets.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverdevmiddleware",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "HTTP2": {
+      "type": "boolean",
+      "description": "Allows to serve over HTTP/2 using SPDY. Deprecated, use the `server` option.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverhttp2",
+      "cli": {
+        "negatedDescription": "Does not serve over HTTP/2 using SPDY."
+      }
+    },
+    "HTTPS": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Disallows to configure the server's listening socket for TLS (by default, dev server will be served over HTTP)."
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "passphrase": {
+              "type": "string",
+              "description": "Passphrase for a pfx file. Deprecated, use the `server.options.passphrase` option."
+            },
+            "requestCert": {
+              "type": "boolean",
+              "description": "Request for an SSL certificate. Deprecated, use the `server.options.requestCert` option.",
+              "cli": {
+                "negatedDescription": "Does not request for an SSL certificate."
+              }
+            },
+            "ca": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "instanceof": "Buffer"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "instanceof": "Buffer"
+                }
+              ],
+              "description": "Path to an SSL CA certificate or content of an SSL CA certificate. Deprecated, use the `server.options.ca` option."
+            },
+            "cacert": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "instanceof": "Buffer"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "instanceof": "Buffer"
+                }
+              ],
+              "description": "Path to an SSL CA certificate or content of an SSL CA certificate. Deprecated, use the `server.options.ca` option."
+            },
+            "cert": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "instanceof": "Buffer"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "instanceof": "Buffer"
+                }
+              ],
+              "description": "Path to an SSL certificate or content of an SSL certificate. Deprecated, use the `server.options.cert` option."
+            },
+            "crl": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "instanceof": "Buffer"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "instanceof": "Buffer"
+                }
+              ],
+              "description": "Path to PEM formatted CRLs (Certificate Revocation Lists) or content of PEM formatted CRLs (Certificate Revocation Lists). Deprecated, use the `server.options.crl` option."
+            },
+            "key": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "instanceof": "Buffer"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "instanceof": "Buffer"
+                }
+              ],
+              "description": "Path to an SSL key or content of an SSL key. Deprecated, use the `server.options.key` option."
+            },
+            "pfx": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "instanceof": "Buffer"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "instanceof": "Buffer"
+                }
+              ],
+              "description": "Path to an SSL pfx file or content of an SSL pfx file. Deprecated, use the `server.options.pfx` option."
+            }
+          }
+        }
+      ],
+      "description": "Allows to configure the server's listening socket for TLS (by default, dev server will be served over HTTP). Deprecated, use the `server` option.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverhttps"
+    },
+    "HeaderObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "key of header.",
+          "type": "string"
+        },
+        "value": {
+          "description": "value of header.",
+          "type": "string"
+        }
+      },
+      "cli": {
+        "exclude": true
+      }
+    },
+    "Headers": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HeaderObject"
+          },
+          "minItems": 1
+        },
+        {
+          "type": "object"
+        },
+        {
+          "instanceof": "Function"
+        }
+      ],
+      "description": "Allows to set custom headers on response.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverheaders"
+    },
+    "HistoryApiFallback": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Disallows to proxy requests through a specified index page."
+          }
+        },
+        {
+          "type": "object",
+          "description": "Options for `historyApiFallback`.",
+          "link": "https://github.com/bripkens/connect-history-api-fallback#options"
+        }
+      ],
+      "description": "Allows to proxy requests through a specified index page (by default 'index.html'), useful for Single Page Applications that utilise the HTML5 History API.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverhistoryapifallback"
+    },
+    "Host": {
+      "description": "Allows to specify a hostname to use.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverhost",
+      "anyOf": [
+        {
+          "enum": ["local-ip", "local-ipv4", "local-ipv6"]
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "Hot": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Disables Hot Module Replacement."
+          }
+        },
+        {
+          "enum": ["only"]
+        }
+      ],
+      "description": "Enables Hot Module Replacement.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverhot"
+    },
+    "IPC": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "boolean",
+          "enum": [true]
+        }
+      ],
+      "description": "Listen to a unix socket.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserveripc"
+    },
+    "LiveReload": {
+      "type": "boolean",
+      "description": "Enables reload/refresh the page(s) when file changes are detected (enabled by default).",
+      "cli": {
+        "negatedDescription": "Disables reload/refresh the page(s) when file changes are detected (enabled by default)."
+      },
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverlivereload"
+    },
+    "MagicHTML": {
+      "type": "boolean",
+      "description": "Tells dev-server whether to enable magic HTML routes (routes corresponding to your webpack output, for example '/main' for 'main.js').",
+      "cli": {
+        "negatedDescription": "Disables magic HTML routes (routes corresponding to your webpack output, for example '/main' for 'main.js')."
+      },
+      "link": "https://webpack.js.org/configuration/dev-server/#devservermagichtml"
+    },
+    "OnAfterSetupMiddleware": {
+      "instanceof": "Function",
+      "description": "Provides the ability to execute a custom function and apply custom middleware(s) after all other middlewares. Deprecated: please use the 'setupMiddlewares' option.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserveronaftersetupmiddleware"
+    },
+    "OnBeforeSetupMiddleware": {
+      "instanceof": "Function",
+      "description": "Provides the ability to execute a custom function and apply custom middleware(s) prior to all other middlewares. Deprecated: please use the 'setupMiddlewares' option.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserveronbeforesetupmiddleware"
+    },
+    "OnListening": {
+      "instanceof": "Function",
+      "description": "Provides the ability to execute a custom function when dev server starts listening.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserveronlistening"
+    },
+    "Open": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/OpenString"
+              },
+              {
+                "$ref": "#/definitions/OpenObject"
+              }
+            ]
+          }
+        },
+        {
+          "$ref": "#/definitions/OpenBoolean"
+        },
+        {
+          "$ref": "#/definitions/OpenString"
+        },
+        {
+          "$ref": "#/definitions/OpenObject"
+        }
+      ],
+      "description": "Allows to configure dev server to open the browser(s) and page(s) after server had been started (set it to true to open your default browser).",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserveropen"
+    },
+    "OpenBoolean": {
+      "type": "boolean",
+      "cli": {
+        "negatedDescription": "Does not open the default browser."
+      }
+    },
+    "OpenObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Opens specified page in browser."
+        },
+        "app": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  ]
+                },
+                "arguments": {
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Open specified browser.",
+              "cli": {
+                "description": "Open specified browser. Deprecated: please use '--open-app-name'."
+              }
+            }
+          ],
+          "description": "Open specified browser."
+        }
+      }
+    },
+    "OpenString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Port": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "enum": ["auto"]
+        }
+      ],
+      "description": "Allows to specify a port to use.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverport"
+    },
+    "Proxy": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "instanceof": "Function"
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Allows to proxy requests, can be useful when you have a separate API backend development server and you want to send API requests on the same domain.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverproxy"
+    },
+    "Server": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ServerEnum"
+        },
+        {
+          "$ref": "#/definitions/ServerString"
+        },
+        {
+          "$ref": "#/definitions/ServerObject"
+        }
+      ],
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverserver",
+      "description": "Allows to set server and options (by default 'http')."
+    },
+    "ServerType": {
+      "enum": ["http", "https", "spdy"]
+    },
+    "ServerEnum": {
+      "enum": ["http", "https", "spdy"],
+      "cli": {
+        "exclude": true
+      }
+    },
+    "ServerString": {
+      "type": "string",
+      "minLength": 1,
+      "cli": {
+        "exclude": true
+      }
+    },
+    "ServerObject": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ServerType"
+            },
+            {
+              "$ref": "#/definitions/ServerString"
+            }
+          ]
+        },
+        "options": {
+          "$ref": "#/definitions/ServerOptions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ServerOptions": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "passphrase": {
+          "type": "string",
+          "description": "Passphrase for a pfx file."
+        },
+        "requestCert": {
+          "type": "boolean",
+          "description": "Request for an SSL certificate.",
+          "cli": {
+            "negatedDescription": "Does not request for an SSL certificate."
+          }
+        },
+        "ca": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "instanceof": "Buffer"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Buffer"
+            }
+          ],
+          "description": "Path to an SSL CA certificate or content of an SSL CA certificate."
+        },
+        "cacert": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "instanceof": "Buffer"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Buffer"
+            }
+          ],
+          "description": "Path to an SSL CA certificate or content of an SSL CA certificate. Deprecated, use the `server.options.ca` option."
+        },
+        "cert": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "instanceof": "Buffer"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Buffer"
+            }
+          ],
+          "description": "Path to an SSL certificate or content of an SSL certificate."
+        },
+        "crl": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "instanceof": "Buffer"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Buffer"
+            }
+          ],
+          "description": "Path to PEM formatted CRLs (Certificate Revocation Lists) or content of PEM formatted CRLs (Certificate Revocation Lists)."
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "instanceof": "Buffer"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                ]
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Buffer"
+            }
+          ],
+          "description": "Path to an SSL key or content of an SSL key."
+        },
+        "pfx": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "instanceof": "Buffer"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                ]
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Buffer"
+            }
+          ],
+          "description": "Path to an SSL pfx file or content of an SSL pfx file."
+        }
+      }
+    },
+    "SetupExitSignals": {
+      "type": "boolean",
+      "description": "Allows to close dev server and exit the process on SIGINT and SIGTERM signals (enabled by default for CLI).",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserversetupexitsignals",
+      "cli": {
+        "exclude": true
+      }
+    },
+    "SetupMiddlewares": {
+      "instanceof": "Function",
+      "description": "Provides the ability to execute a custom function and apply custom middleware(s).",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserversetupmiddlewares"
+    },
+    "Static": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/StaticString"
+              },
+              {
+                "$ref": "#/definitions/StaticObject"
+              }
+            ]
+          }
+        },
+        {
+          "type": "boolean",
+          "cli": {
+            "negatedDescription": "Disallows to configure options for serving static files from directory."
+          }
+        },
+        {
+          "$ref": "#/definitions/StaticString"
+        },
+        {
+          "$ref": "#/definitions/StaticObject"
+        }
+      ],
+      "description": "Allows to configure options for serving static files from directory (by default 'public' directory).",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverstatic"
+    },
+    "StaticObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directory": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory for static contents.",
+          "link": "https://webpack.js.org/configuration/dev-server/#directory"
+        },
+        "staticOptions": {
+          "type": "object",
+          "link": "https://webpack.js.org/configuration/dev-server/#staticoptions",
+          "additionalProperties": true
+        },
+        "publicPath": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The static files will be available in the browser under this public path.",
+          "link": "https://webpack.js.org/configuration/dev-server/#publicpath"
+        },
+        "serveIndex": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "cli": {
+                "negatedDescription": "Does not tell dev server to use serveIndex middleware."
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": true
+            }
+          ],
+          "description": "Tells dev server to use serveIndex middleware when enabled.",
+          "link": "https://webpack.js.org/configuration/dev-server/#serveindex"
+        },
+        "watch": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "cli": {
+                "negatedDescription": "Does not watch for files in static content directory."
+              }
+            },
+            {
+              "type": "object",
+              "description": "Options for watch.",
+              "link": "https://github.com/paulmillr/chokidar#api"
+            }
+          ],
+          "description": "Watches for files in static content directory.",
+          "link": "https://webpack.js.org/configuration/dev-server/#watch"
+        }
+      }
+    },
+    "StaticString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "WatchFiles": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/WatchFilesString"
+              },
+              {
+                "$ref": "#/definitions/WatchFilesObject"
+              }
+            ]
+          }
+        },
+        {
+          "$ref": "#/definitions/WatchFilesString"
+        },
+        {
+          "$ref": "#/definitions/WatchFilesObject"
+        }
+      ],
+      "description": "Allows to configure list of globs/directories/files to watch for file changes.",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverwatchfiles"
+    },
+    "WatchFilesObject": {
+      "cli": {
+        "exclude": true
+      },
+      "type": "object",
+      "properties": {
+        "paths": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "description": "Path(s) of globs/directories/files to watch for file changes."
+        },
+        "options": {
+          "type": "object",
+          "description": "Configure advanced options for watching. See the chokidar documentation for the possible options.",
+          "link": "https://github.com/paulmillr/chokidar#api",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "WatchFilesString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "WebSocketServer": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WebSocketServerEnum"
+        },
+        {
+          "$ref": "#/definitions/WebSocketServerString"
+        },
+        {
+          "$ref": "#/definitions/WebSocketServerFunction"
+        },
+        {
+          "$ref": "#/definitions/WebSocketServerObject"
+        }
+      ],
+      "description": "Allows to set web socket server and options (by default 'ws').",
+      "link": "https://webpack.js.org/configuration/dev-server/#devserverwebsocketserver"
+    },
+    "WebSocketServerType": {
+      "enum": ["sockjs", "ws"]
+    },
+    "WebSocketServerEnum": {
+      "anyOf": [
+        {
+          "enum": [false],
+          "cli": {
+            "negatedDescription": "Disallows to set web socket server and options."
+          }
+        },
+        {
+          "$ref": "#/definitions/WebSocketServerType"
+        }
+      ],
+      "cli": {
+        "description": "Deprecated: please use '--web-socket-server-type' option."
+      }
+    },
+    "WebSocketServerFunction": {
+      "instanceof": "Function"
+    },
+    "WebSocketServerObject": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WebSocketServerType"
+            },
+            {
+              "$ref": "#/definitions/WebSocketServerString"
+            },
+            {
+              "$ref": "#/definitions/WebSocketServerFunction"
+            }
+          ]
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": true,
+          "cli": {
+            "exclude": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "WebSocketServerString": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "allowedHosts": {
+      "$ref": "#/definitions/AllowedHosts"
+    },
+    "bonjour": {
+      "$ref": "#/definitions/Bonjour"
+    },
+    "client": {
+      "$ref": "#/definitions/Client"
+    },
+    "compress": {
+      "$ref": "#/definitions/Compress"
+    },
+    "devMiddleware": {
+      "$ref": "#/definitions/DevMiddleware"
+    },
+    "headers": {
+      "$ref": "#/definitions/Headers"
+    },
+    "historyApiFallback": {
+      "$ref": "#/definitions/HistoryApiFallback"
+    },
+    "host": {
+      "$ref": "#/definitions/Host"
+    },
+    "hot": {
+      "$ref": "#/definitions/Hot"
+    },
+    "http2": {
+      "$ref": "#/definitions/HTTP2"
+    },
+    "https": {
+      "$ref": "#/definitions/HTTPS"
+    },
+    "ipc": {
+      "$ref": "#/definitions/IPC"
+    },
+    "liveReload": {
+      "$ref": "#/definitions/LiveReload"
+    },
+    "magicHtml": {
+      "$ref": "#/definitions/MagicHTML"
+    },
+    "onAfterSetupMiddleware": {
+      "$ref": "#/definitions/OnAfterSetupMiddleware"
+    },
+    "onBeforeSetupMiddleware": {
+      "$ref": "#/definitions/OnBeforeSetupMiddleware"
+    },
+    "onListening": {
+      "$ref": "#/definitions/OnListening"
+    },
+    "open": {
+      "$ref": "#/definitions/Open"
+    },
+    "port": {
+      "$ref": "#/definitions/Port"
+    },
+    "proxy": {
+      "$ref": "#/definitions/Proxy"
+    },
+    "server": {
+      "$ref": "#/definitions/Server"
+    },
+    "setupExitSignals": {
+      "$ref": "#/definitions/SetupExitSignals"
+    },
+    "setupMiddlewares": {
+      "$ref": "#/definitions/SetupMiddlewares"
+    },
+    "static": {
+      "$ref": "#/definitions/Static"
+    },
+    "watchFiles": {
+      "$ref": "#/definitions/WatchFiles"
+    },
+    "webSocketServer": {
+      "$ref": "#/definitions/WebSocketServer"
+    }
+  }
+}

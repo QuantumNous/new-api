@@ -1,0 +1,102 @@
+{
+  "name": "vue-loader",
+  "version": "17.3.0",
+  "license": "MIT",
+  "author": "Evan You",
+  "repository": "vuejs/vue-loader",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "pretest": "tsc",
+    "test": "jest",
+    "pretest:match-resource": "tsc",
+    "test:match-resource": "INLINE_MATCH_RESOURCE=true jest",
+    "pretest:webpack4": "tsc",
+    "test:webpack4": "WEBPACK4=true jest",
+    "dev-example": "node example/devServer.js --config example/webpack.config.js --inline --hot",
+    "build-example": "rm -rf example/dist && webpack --config example/webpack.config.js --env.prod",
+    "build-example-ssr": "rm -rf example/dist-ssr && webpack --config example/webpack.config.js --env.prod --env.ssr && node example/ssr.js",
+    "lint": "prettier --write --parser typescript \"{src,test}/**/*.{j,t}s\"",
+    "prepublishOnly": "tsc && conventional-changelog -p angular -i CHANGELOG.md -s -r 2"
+  },
+  "gitHooks": {
+    "pre-commit": "lint-staged"
+  },
+  "lint-staged": {
+    "*.js": [
+      "prettier --write"
+    ],
+    "*.ts": [
+      "prettier --parser=typescript --write"
+    ]
+  },
+  "dependencies": {
+    "chalk": "^4.1.0",
+    "hash-sum": "^2.0.0",
+    "watchpack": "^2.4.0"
+  },
+  "peerDependencies": {
+    "webpack": "^4.1.0 || ^5.0.0-0"
+  },
+  "peerDependenciesMeta": {
+    "@vue/compiler-sfc": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@babel/core": "^7.7.7",
+    "@babel/preset-env": "^7.11.5",
+    "@intlify/vue-i18n-loader": "^3.0.0",
+    "@types/estree": "^0.0.45",
+    "@types/hash-sum": "^1.0.0",
+    "@types/jest": "^26.0.13",
+    "@types/jsdom": "^16.2.13",
+    "@types/mini-css-extract-plugin": "^0.9.1",
+    "@types/webpack-merge": "^4.1.5",
+    "babel-loader": "^8.1.0",
+    "cache-loader": "^4.1.0",
+    "conventional-changelog-cli": "^2.1.1",
+    "css-loader": "^4.3.0",
+    "file-loader": "^6.1.0",
+    "html-webpack-plugin": "^4.5.0",
+    "html-webpack-plugin-v5": "npm:html-webpack-plugin@^5.3.2",
+    "jest": "^26.4.1",
+    "jsdom": "^16.4.0",
+    "lint-staged": "^10.3.0",
+    "markdown-loader": "^6.0.0",
+    "memfs": "^3.1.2",
+    "mini-css-extract-plugin": "^1.6.2",
+    "normalize-newline": "^3.0.0",
+    "null-loader": "^4.0.1",
+    "postcss-loader": "^4.0.4",
+    "prettier": "^2.1.1",
+    "pug": "^2.0.0",
+    "pug-plain-loader": "^1.0.0",
+    "source-map": "^0.6.1",
+    "style-loader": "^2.0.0",
+    "stylus": "^0.54.7",
+    "stylus-loader": "^4.1.1",
+    "sugarss": "^3.0.1",
+    "ts-jest": "^26.2.0",
+    "ts-loader": "^8.0.6",
+    "ts-loader-v9": "npm:ts-loader@^9.2.4",
+    "typescript": "^4.4.3",
+    "url-loader": "^4.1.0",
+    "vue": "^3.3.0",
+    "vue-i18n": "^9.1.7",
+    "webpack": "^5.79.0",
+    "webpack-cli": "^3.3.12",
+    "webpack-dev-server": "^3.11.3",
+    "webpack-merge": "^5.1.4",
+    "webpack4": "npm:webpack@^4.46.0",
+    "yorkie": "^2.0.0"
+  }
+}

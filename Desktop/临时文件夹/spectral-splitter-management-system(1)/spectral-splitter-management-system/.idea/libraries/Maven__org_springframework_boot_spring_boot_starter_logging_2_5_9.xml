@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.springframework.boot:spring-boot-starter-logging:2.5.9">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/springframework/boot/spring-boot-starter-logging/2.5.9/spring-boot-starter-logging-2.5.9.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/springframework/boot/spring-boot-starter-logging/2.5.9/spring-boot-starter-logging-2.5.9-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/springframework/boot/spring-boot-starter-logging/2.5.9/spring-boot-starter-logging-2.5.9-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

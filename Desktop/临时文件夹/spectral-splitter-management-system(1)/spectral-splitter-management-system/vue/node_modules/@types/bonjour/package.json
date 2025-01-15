@@ -1,0 +1,27 @@
+{
+    "name": "@types/bonjour",
+    "version": "3.5.11",
+    "description": "TypeScript definitions for bonjour",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/bonjour",
+    "license": "MIT",
+    "contributors": [
+        {
+            "name": "Quentin Lampin",
+            "url": "https://github.com/quentin-ol",
+            "githubUsername": "quentin-ol"
+        }
+    ],
+    "main": "",
+    "types": "index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/bonjour"
+    },
+    "scripts": {},
+    "dependencies": {
+        "@types/node": "*"
+    },
+    "typesPublisherContentHash": "6c9a19db1180b7ed5218e2993c73b93efdb2d4a153eb5403a116e2b6891a9989",
+    "typeScriptVersion": "4.5"
+}

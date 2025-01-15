@@ -1,0 +1,35 @@
+{
+  "name": "@soda/get-current-script",
+  "version": "1.0.2",
+  "description": "get the current executing script, with polyfills for IE9+ and Firefox",
+  "main": "index.js",
+  "scripts": {
+    "start": "serve .",
+    "test:chrome": "nightwatch -t test.js -e chrome",
+    "test:firefox": "nightwatch -t test.js -e firefox",
+    "test:ie": "nightwatch -t test.js -e ie",
+    "ci:chrome": "yarn start-test start http://localhost:5000 test:chrome",
+    "ci:firefox": "yarn start-test start http://localhost:5000 test:firefox",
+    "ci:ie": "yarn start-test start http://localhost:5000 test:ie",
+    "ci": "yarn ci:chrome && yarn ci:firefox && yarn ci:ie"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sodatea/get-current-script.git"
+  },
+  "author": "Haoqun Jiang",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "chromedriver": "^83.0.0",
+    "geckodriver": "^1.19.1",
+    "iedriver": "^3.14.1",
+    "nightwatch": "^1.3.4",
+    "selenium-server": "^3.141.59",
+    "serve": "^11.3.1",
+    "start-server-and-test": "^1.10.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

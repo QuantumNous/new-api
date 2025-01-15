@@ -1,0 +1,1 @@
+export { install$53 as CanvasRenderer, install$52 as SVGRenderer } from './shared';

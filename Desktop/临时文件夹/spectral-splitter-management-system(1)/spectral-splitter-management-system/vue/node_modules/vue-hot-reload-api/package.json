@@ -1,0 +1,34 @@
+{
+  "name": "vue-hot-reload-api",
+  "version": "2.3.4",
+  "description": "hot reload api for *.vue components",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "buble src -o dist",
+    "test": "jest",
+    "prepublishOnly": "npm run test && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/vue-hot-reload-api.git"
+  },
+  "keywords": [
+    "vue",
+    "hot",
+    "reload"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/vue-hot-reload-api/issues"
+  },
+  "homepage": "https://github.com/vuejs/vue-hot-reload-api#readme",
+  "devDependencies": {
+    "buble": "^0.19.6",
+    "jest": "^24.9.0",
+    "vue": "^2.5.21"
+  }
+}

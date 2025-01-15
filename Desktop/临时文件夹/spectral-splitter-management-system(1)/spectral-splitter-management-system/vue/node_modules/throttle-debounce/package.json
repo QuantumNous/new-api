@@ -1,0 +1,51 @@
+{
+  "name": "throttle-debounce",
+  "version": "1.1.0",
+  "description": "Throttle/debounce your functions.",
+  "main": "index.js",
+  "typings": "index.d.ts",
+  "author": "Ivan Nikolić <niksy5@gmail.com> (http://ivannikolic.com/)",
+  "contributors": [
+    "Ben Alman (http://benalman.com)"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=4"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "eslint {index,test/*}.js && karma start --single-run --browsers PhantomJS"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "browserify": "^13.0.0",
+    "eslint": "^1.10.3",
+    "eslint-config-niksy": "^1.0.6",
+    "karma": "^0.13.22",
+    "karma-browserify": "^5.0.4",
+    "karma-chrome-launcher": "^0.2.3",
+    "karma-firefox-launcher": "^0.1.7",
+    "karma-mocha-reporter": "^2.0.2",
+    "karma-phantomjs-launcher": "^1.0.0",
+    "karma-qunit": "^0.1.9",
+    "mocha": "^2.4.5",
+    "phantomjs-prebuilt": "^2.1.7",
+    "qunitjs": "^1.23.1",
+    "watchify": "^3.7.0"
+  },
+  "keywords": [
+    "throttle",
+    "debounce",
+    "browserify"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/niksy/throttle-debounce.git"
+  },
+  "bugs": {
+    "url": "https://github.com/niksy/throttle-debounce/issues"
+  },
+  "homepage": "https://github.com/niksy/throttle-debounce#readme"
+}

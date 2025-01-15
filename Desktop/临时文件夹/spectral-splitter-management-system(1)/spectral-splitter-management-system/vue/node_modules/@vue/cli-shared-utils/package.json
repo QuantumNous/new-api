@@ -1,0 +1,40 @@
+{
+  "name": "@vue/cli-shared-utils",
+  "version": "5.0.8",
+  "description": "shared utilities for vue-cli packages",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/vue-cli.git",
+    "directory": "packages/@vue/cli-shared-utils"
+  },
+  "keywords": [
+    "vue",
+    "cli",
+    "cli-shared-utils"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/vue-cli/issues"
+  },
+  "homepage": "https://github.com/vuejs/vue-cli/tree/dev/packages/@vue/cli-shared-utils#readme",
+  "dependencies": {
+    "@achrinza/node-ipc": "^9.2.5",
+    "chalk": "^4.1.2",
+    "execa": "^1.0.0",
+    "joi": "^17.4.0",
+    "launch-editor": "^2.2.1",
+    "lru-cache": "^6.0.0",
+    "node-fetch": "^2.6.7",
+    "open": "^8.0.2",
+    "ora": "^5.3.0",
+    "read-pkg": "^5.1.1",
+    "semver": "^7.3.4",
+    "strip-ansi": "^6.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "b154dbd7aca4b4538e6c483b1d4b817499d7b8eb"
+}

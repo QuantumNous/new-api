@@ -1,0 +1,129 @@
+{
+  "name": "@vue/cli-service",
+  "version": "5.0.8",
+  "description": "local service for vue-cli projects",
+  "main": "lib/Service.js",
+  "typings": "types/index.d.ts",
+  "bin": {
+    "vue-cli-service": "bin/vue-cli-service.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/vue-cli.git",
+    "directory": "packages/@vue/cli-service"
+  },
+  "keywords": [
+    "vue",
+    "cli"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vuejs/vue-cli/issues"
+  },
+  "homepage": "https://cli.vuejs.org/",
+  "dependencies": {
+    "@babel/helper-compilation-targets": "^7.12.16",
+    "@soda/friendly-errors-webpack-plugin": "^1.8.0",
+    "@soda/get-current-script": "^1.0.2",
+    "@types/minimist": "^1.2.0",
+    "@vue/cli-overlay": "^5.0.8",
+    "@vue/cli-plugin-router": "^5.0.8",
+    "@vue/cli-plugin-vuex": "^5.0.8",
+    "@vue/cli-shared-utils": "^5.0.8",
+    "@vue/component-compiler-utils": "^3.3.0",
+    "@vue/vue-loader-v15": "npm:vue-loader@^15.9.7",
+    "@vue/web-component-wrapper": "^1.3.0",
+    "acorn": "^8.0.5",
+    "acorn-walk": "^8.0.2",
+    "address": "^1.1.2",
+    "autoprefixer": "^10.2.4",
+    "browserslist": "^4.16.3",
+    "case-sensitive-paths-webpack-plugin": "^2.3.0",
+    "cli-highlight": "^2.1.10",
+    "clipboardy": "^2.3.0",
+    "cliui": "^7.0.4",
+    "copy-webpack-plugin": "^9.0.1",
+    "css-loader": "^6.5.0",
+    "css-minimizer-webpack-plugin": "^3.0.2",
+    "cssnano": "^5.0.0",
+    "debug": "^4.1.1",
+    "default-gateway": "^6.0.3",
+    "dotenv": "^10.0.0",
+    "dotenv-expand": "^5.1.0",
+    "fs-extra": "^9.1.0",
+    "globby": "^11.0.2",
+    "hash-sum": "^2.0.0",
+    "html-webpack-plugin": "^5.1.0",
+    "is-file-esm": "^1.0.0",
+    "launch-editor-middleware": "^2.2.1",
+    "lodash.defaultsdeep": "^4.6.1",
+    "lodash.mapvalues": "^4.6.0",
+    "mini-css-extract-plugin": "^2.5.3",
+    "minimist": "^1.2.5",
+    "module-alias": "^2.2.2",
+    "portfinder": "^1.0.26",
+    "postcss": "^8.2.6",
+    "postcss-loader": "^6.1.1",
+    "progress-webpack-plugin": "^1.0.12",
+    "ssri": "^8.0.1",
+    "terser-webpack-plugin": "^5.1.1",
+    "thread-loader": "^3.0.0",
+    "vue-loader": "^17.0.0",
+    "vue-style-loader": "^4.1.3",
+    "webpack": "^5.54.0",
+    "webpack-bundle-analyzer": "^4.4.0",
+    "webpack-chain": "^6.5.1",
+    "webpack-dev-server": "^4.7.3",
+    "webpack-merge": "^5.7.3",
+    "webpack-virtual-modules": "^0.4.2",
+    "whatwg-fetch": "^3.6.2"
+  },
+  "peerDependencies": {
+    "vue-template-compiler": "^2.0.0",
+    "webpack-sources": "*"
+  },
+  "peerDependenciesMeta": {
+    "cache-loader": {
+      "optional": true
+    },
+    "less-loader": {
+      "optional": true
+    },
+    "pug-plain-loader": {
+      "optional": true
+    },
+    "raw-loader": {
+      "optional": true
+    },
+    "sass-loader": {
+      "optional": true
+    },
+    "stylus-loader": {
+      "optional": true
+    },
+    "vue-template-compiler": {
+      "optional": true
+    },
+    "webpack-sources": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "cache-loader": "^4.1.0",
+    "sass": "^1.32.7",
+    "sass-loader": "^12.0.0",
+    "stylus-loader": "^6.1.0",
+    "vue": "^2.6.14",
+    "vue-router": "^3.5.1",
+    "vue-template-compiler": "^2.6.14",
+    "vuex": "^3.6.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^12.0.0 || >= 14.0.0"
+  },
+  "gitHead": "b154dbd7aca4b4538e6c483b1d4b817499d7b8eb"
+}

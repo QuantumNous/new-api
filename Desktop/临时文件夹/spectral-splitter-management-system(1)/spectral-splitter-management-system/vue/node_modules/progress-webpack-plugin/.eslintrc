@@ -1,0 +1,14 @@
+{
+  "env": {
+    "node": true
+  },
+  "parserOptions": {
+    "sourceType": "module"
+  },
+  "extends": "standard",
+  "rules": {
+    "eol-last": "off",
+    "import/no-dynamic-require": "off",
+    "space-before-function-paren":"off"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "name": "@soda/friendly-errors-webpack-plugin",
+  "version": "1.8.1",
+  "description": "Recognizes certain classes of webpack errors and cleans, aggregates and prioritizes them to provide a better Developer Experience",
+  "main": "index.js",
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "scripts": {
+    "test": "eslint --ignore-pattern \"test/**\" . && jest --testEnvironment node"
+  },
+  "files": [
+    "src",
+    "index.js"
+  ],
+  "keywords": [
+    "friendly",
+    "errors",
+    "webpack",
+    "plugin"
+  ],
+  "author": "Geoffroy Warin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sodatea/friendly-errors-webpack-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sodatea/friendly-errors-webpack-plugin/issues"
+  },
+  "license": "MIT",
+  "jest": {
+    "testEnvironment": "node",
+    "transformIgnorePatterns": [
+      "node_modules",
+      "src",
+      "index.js"
+    ]
+  },
+  "peerDependencies": {
+    "webpack": "^4.0.0 || ^5.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.5.4",
+    "@babel/plugin-transform-async-to-generator": "^7.5.0",
+    "autoprefixer": "^9.6.0",
+    "babel-core": "6.26.3",
+    "babel-eslint": "^10.0.1",
+    "babel-preset-react": "^6.23.0",
+    "babel-loader-7": "npm:babel-loader@7.1.5",
+    "babel-loader": "^8.0.6",
+    "css-loader": "^2.1.1",
+    "eslint": "^5.16.0",
+    "eslint-7": "npm:eslint@^7.14.0",
+    "eslint-loader": "^2.1.2",
+    "eslint-plugin-node": "^9.0.1",
+    "eslint-webpack-plugin": "^2.4.0",
+    "expect": "^24.8.0",
+    "jest": "^24.8.0",
+    "memory-fs": "^0.4.1",
+    "mini-css-extract-plugin": "^0.6.0",
+    "node-sass": "^4.12.0",
+    "postcss-loader": "^3.0.0",
+    "sass": "^1.20.1",
+    "sass-loader": "^7.1.0",
+    "style-loader": "^0.23.1",
+    "webpack": "^4.31.0"
+  },
+  "dependencies": {
+    "chalk": "^3.0.0",
+    "error-stack-parser": "^2.0.6",
+    "string-width": "^4.2.3",
+    "strip-ansi": "^6.0.1"
+  }
+}

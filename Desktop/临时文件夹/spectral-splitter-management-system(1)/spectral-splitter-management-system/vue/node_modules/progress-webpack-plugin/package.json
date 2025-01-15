@@ -1,0 +1,43 @@
+{
+  "name": "progress-webpack-plugin",
+  "version": "1.0.16",
+  "description": "progress webpack plugin",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ali322/progress-webpack-plugin.git"
+  },
+  "keywords": [
+    "progress"
+  ],
+  "author": "alichen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ali322/progress-webpack-plugin/issues"
+  },
+  "homepage": "https://github.com/ali322/progress-webpack-plugin#readme",
+  "engines": {
+    "node": ">= 10.13.0"
+  },
+  "dependencies": {
+    "chalk": "^2.1.0",
+    "figures": "^2.0.0",
+    "log-update": "^2.3.0"
+  },
+  "peerDependencies": {
+    "webpack": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0"
+  },
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "eslint": "^8.12.0",
+    "eslint-config-standard": "^11.0.0",
+    "eslint-plugin-import": "^2.9.0",
+    "eslint-plugin-node": "^6.0.1",
+    "eslint-plugin-promise": "^3.7.0",
+    "eslint-plugin-standard": "^3.0.1",
+    "mocha": "^9.2.2"
+  }
+}

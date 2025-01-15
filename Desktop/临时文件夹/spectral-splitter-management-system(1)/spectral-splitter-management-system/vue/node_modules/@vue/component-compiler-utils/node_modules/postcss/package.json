@@ -1,0 +1,37 @@
+{
+  "name": "postcss",
+  "version": "7.0.39",
+  "description": "Tool for transforming styles with JS plugins",
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "keywords": [
+    "css",
+    "postcss",
+    "rework",
+    "preprocessor",
+    "parser",
+    "source map",
+    "transform",
+    "manipulation",
+    "transpiler"
+  ],
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/postcss/"
+  },
+  "author": "Andrey Sitnik <andrey@sitnik.ru>",
+  "license": "MIT",
+  "homepage": "https://postcss.org/",
+  "repository": "postcss/postcss",
+  "dependencies": {
+    "picocolors": "^0.2.1",
+    "source-map": "^0.6.1"
+  },
+  "main": "lib/postcss",
+  "types": "lib/postcss.d.ts",
+  "browser": {
+    "./lib/terminal-highlight": false,
+    "fs": false
+  }
+}

@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.junit.jupiter:junit-jupiter:5.7.2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/junit/jupiter/junit-jupiter/5.7.2/junit-jupiter-5.7.2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/junit/jupiter/junit-jupiter/5.7.2/junit-jupiter-5.7.2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/junit/jupiter/junit-jupiter/5.7.2/junit-jupiter-5.7.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

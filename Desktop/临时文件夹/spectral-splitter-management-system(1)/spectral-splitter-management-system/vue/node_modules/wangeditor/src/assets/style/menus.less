@@ -1,0 +1,75 @@
+.w-e-toolbar {
+    display: flex;
+    padding: 0 6px;
+    flex-wrap: wrap;
+    position: relative;
+
+    /* 单个菜单 */
+    .w-e-menu {
+        position: relative;
+        display: flex;
+        width: 40px;
+        height: 40px;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        cursor: pointer;
+        i {
+            color: #999;
+        }
+
+        &:hover {
+            background-color: #F6F6F6;
+
+            i {
+                color: #333;
+            }
+        }
+    }
+    .w-e-active {
+        i {
+            color: #1e88e5;
+        }
+        &:hover {
+            i {
+                color: #1e88e5;
+            }
+        }
+    }
+}
+
+.w-e-menu-tooltip {
+    position: absolute;
+    display: flex;
+    color: #f1f1f1;
+    background-color: rgba(0, 0, 0, .75);
+    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, .15);
+    border-radius: 4px;
+    padding: 4px 5px 6px;
+    justify-content: center;
+    align-items: center;
+}
+// 下箭头
+.w-e-menu-tooltip-up::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border: 5px solid rgba(0, 0, 0, 0);
+    border-top-color: rgba(0, 0, 0, .73);
+}
+// 上箭头
+.w-e-menu-tooltip-down::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border: 5px solid rgba(0, 0, 0, 0);
+    border-bottom-color: rgba(0, 0, 0, .73);
+}
+.w-e-menu-tooltip-item-wrapper {
+    font-size: 14px;
+    margin: 0 5px;
+}

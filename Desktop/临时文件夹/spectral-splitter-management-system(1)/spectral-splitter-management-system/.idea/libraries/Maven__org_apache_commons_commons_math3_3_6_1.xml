@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.apache.commons:commons-math3:3.6.1">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/commons/commons-math3/3.6.1/commons-math3-3.6.1.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/commons/commons-math3/3.6.1/commons-math3-3.6.1-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/commons/commons-math3/3.6.1/commons-math3-3.6.1-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

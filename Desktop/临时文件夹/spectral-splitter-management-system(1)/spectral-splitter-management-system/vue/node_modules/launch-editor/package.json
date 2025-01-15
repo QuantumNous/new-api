@@ -1,0 +1,24 @@
+{
+  "name": "launch-editor",
+  "version": "2.6.1",
+  "description": "launch editor from node.js",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yyx990803/launch-editor.git"
+  },
+  "keywords": [
+    "launch",
+    "editor"
+  ],
+  "author": "Evan You",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yyx990803/launch-editor/issues"
+  },
+  "homepage": "https://github.com/yyx990803/launch-editor#readme",
+  "dependencies": {
+    "picocolors": "^1.0.0",
+    "shell-quote": "^1.8.1"
+  }
+}

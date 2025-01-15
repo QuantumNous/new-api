@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.xmlunit:xmlunit-core:2.8.4">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/xmlunit/xmlunit-core/2.8.4/xmlunit-core-2.8.4.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/xmlunit/xmlunit-core/2.8.4/xmlunit-core-2.8.4-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/xmlunit/xmlunit-core/2.8.4/xmlunit-core-2.8.4-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

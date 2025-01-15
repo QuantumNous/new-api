@@ -1,0 +1,48 @@
+{
+  "name": "clean-css",
+  "version": "5.3.2",
+  "author": "Jakub Pawlowicz <contact@jakubpawlowicz.com>",
+  "description": "A well-tested CSS minifier",
+  "license": "MIT",
+  "keywords": [
+    "css",
+    "minifier"
+  ],
+  "homepage": "https://github.com/clean-css/clean-css",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clean-css/clean-css.git"
+  },
+  "bugs": {
+    "url": "https://github.com/clean-css/clean-css/issues"
+  },
+  "main": "index.js",
+  "files": [
+    "lib",
+    "History.md",
+    "index.js",
+    "LICENSE"
+  ],
+  "scripts": {
+    "browserify": "browserify --standalone CleanCSS index.js | uglifyjs --compress --mangle -o cleancss-browser.js",
+    "bench": "node ./test/bench.js",
+    "lint": "eslint ./lib/ --ext .js",
+    "test": "vows"
+  },
+  "dependencies": {
+    "source-map": "~0.6.0"
+  },
+  "devDependencies": {
+    "browserify": "^17.0.0",
+    "eslint": "^8.8.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "http-proxy": "1.x",
+    "nock": "^13.0.0",
+    "server-destroy": "1.x",
+    "uglify-js": ">=2.6.1",
+    "vows": "0.8.x"
+  },
+  "engines": {
+    "node": ">= 10.0"
+  }
+}

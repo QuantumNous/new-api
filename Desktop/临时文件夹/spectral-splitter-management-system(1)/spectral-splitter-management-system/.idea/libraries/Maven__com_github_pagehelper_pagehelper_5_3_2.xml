@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: com.github.pagehelper:pagehelper:5.3.2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/github/pagehelper/pagehelper/5.3.2/pagehelper-5.3.2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/github/pagehelper/pagehelper/5.3.2/pagehelper-5.3.2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/github/pagehelper/pagehelper/5.3.2/pagehelper-5.3.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

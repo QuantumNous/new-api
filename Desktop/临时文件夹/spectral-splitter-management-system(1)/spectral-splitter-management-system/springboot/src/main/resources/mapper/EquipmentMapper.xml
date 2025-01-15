@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.EquipmentMapper">
+
+    <select id="selectAll" resultType="com.example.entity.Equipment">
+        select * from equipment
+        <where>
+            <if test="id != null"> and `id` = #{id}</if>
+            <if test="area != null"> and `area` like concat('%', #{area}, '%')</if>
+            <if test="classify != null"> and `classify` like concat('%', #{classify}, '%')</if>
+            <if test="oltCode != null"> and `olt_code` like concat('%', #{oltCode}, '%')</if>
+            <if test="oltName != null"> and `olt_name` like concat('%', #{oltName}, '%')</if>
+        </where>
+        order by id desc
+    </select>
+
+</mapper>

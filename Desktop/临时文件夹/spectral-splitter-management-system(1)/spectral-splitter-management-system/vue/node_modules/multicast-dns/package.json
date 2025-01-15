@@ -1,0 +1,43 @@
+{
+  "name": "multicast-dns",
+  "version": "7.2.5",
+  "description": "Low level multicast-dns implementation in pure javascript",
+  "main": "index.js",
+  "scripts": {
+    "test": "standard && tape test.js"
+  },
+  "bin": "cli.js",
+  "dependencies": {
+    "dns-packet": "^5.2.2",
+    "thunky": "^1.0.2"
+  },
+  "devDependencies": {
+    "standard": "^11.0.1",
+    "tape": "^4.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mafintosh/multicast-dns.git"
+  },
+  "author": "Mathias Buus (@mafintosh)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mafintosh/multicast-dns/issues"
+  },
+  "homepage": "https://github.com/mafintosh/multicast-dns",
+  "keywords": [
+    "multicast",
+    "dns",
+    "mdns",
+    "multicastdns",
+    "dns-sd",
+    "service",
+    "discovery",
+    "bonjour",
+    "avahi"
+  ],
+  "coordinates": [
+    55.6465878,
+    12.5492251
+  ]
+}

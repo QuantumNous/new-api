@@ -1,0 +1,46 @@
+{
+  "name": "@babel/plugin-proposal-decorators",
+  "version": "7.23.2",
+  "author": "The Babel Team (https://babel.dev/team)",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Compile class and object decorators to ES5",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babel/babel.git",
+    "directory": "packages/babel-plugin-proposal-decorators"
+  },
+  "homepage": "https://babel.dev/docs/en/next/babel-plugin-proposal-decorators",
+  "main": "./lib/index.js",
+  "keywords": [
+    "babel",
+    "babel-plugin",
+    "decorators"
+  ],
+  "dependencies": {
+    "@babel/helper-create-class-features-plugin": "^7.22.15",
+    "@babel/helper-plugin-utils": "^7.22.5",
+    "@babel/helper-replace-supers": "^7.22.20",
+    "@babel/helper-split-export-declaration": "^7.22.6",
+    "@babel/plugin-syntax-decorators": "^7.22.10"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0-0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/helper-plugin-test-runner": "^7.22.5",
+    "@babel/traverse": "^7.23.2",
+    "@types/charcodes": "^0.2.0",
+    "array.prototype.concat": "^1.0.2",
+    "babel-plugin-polyfill-es-shims": "^0.10.0",
+    "charcodes": "^0.2.0",
+    "object.getownpropertydescriptors": "^2.1.1"
+  },
+  "engines": {
+    "node": ">=6.9.0"
+  },
+  "type": "commonjs"
+}

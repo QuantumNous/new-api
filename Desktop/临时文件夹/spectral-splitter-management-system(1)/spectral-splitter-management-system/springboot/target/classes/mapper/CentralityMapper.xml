@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.CentralityMapper">
+
+    <select id="selectAll" resultType="com.example.entity.Centrality">
+        select * from centrality
+        <where>
+            <if test="id != null"> and `id` = #{id}</if>
+            <if test="orderSn != null"> and `order_sn` like concat('%', #{orderSn}, '%')</if>
+            <if test="equipmentId != null"> and `equipment_id` = #{equipmentId}</if>
+            <if test="startTime != null"> and `start_time` = #{startTime}</if>
+            <if test="content != null"> and `content` like concat('%', #{content}, '%')</if>
+        </where>
+        order by id desc
+    </select>
+
+</mapper>

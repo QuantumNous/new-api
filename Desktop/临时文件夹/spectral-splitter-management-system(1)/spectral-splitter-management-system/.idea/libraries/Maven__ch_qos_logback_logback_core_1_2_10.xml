@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: ch.qos.logback:logback-core:1.2.10">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/ch/qos/logback/logback-core/1.2.10/logback-core-1.2.10.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/ch/qos/logback/logback-core/1.2.10/logback-core-1.2.10-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/ch/qos/logback/logback-core/1.2.10/logback-core-1.2.10-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

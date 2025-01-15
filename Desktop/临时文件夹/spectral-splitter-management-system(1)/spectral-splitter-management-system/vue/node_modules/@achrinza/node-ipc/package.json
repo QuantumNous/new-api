@@ -1,0 +1,66 @@
+{
+  "name": "@achrinza/node-ipc",
+  "version": "9.2.7",
+  "description": "A nodejs module for local and remote Inter Process Communication (IPC), Neural Networking, and able to facilitate machine learning.",
+  "main": "node-ipc.js",
+  "directories": {
+    "example": "example"
+  },
+  "engines": {
+    "node": "8 || 9 || 10 || 11 || 12 || 13 || 14 || 15 || 16 || 17 || 18 || 19 || 20"
+  },
+  "dependencies": {
+    "@node-ipc/js-queue": "2.0.3",
+    "event-pubsub": "4.3.0",
+    "js-message": "1.0.7"
+  },
+  "devDependencies": {
+    "istanbul": "0.4.1",
+    "jasmine": "2.4.1",
+    "lockfile-lint": "^4.7.4",
+    "node-cmd": "2.0.0"
+  },
+  "scripts": {
+    "istanbul": "istanbul cover -x ./spec/**",
+    "test-windows": "npm run-script istanbul -- ./node_modules/jasmine/bin/jasmine.js",
+    "test": "npm run-script istanbul -- jasmine"
+  },
+  "keywords": [
+    "IPC",
+    "Neural Networking",
+    "Machine Learning",
+    "inter",
+    "process",
+    "communication",
+    "unix",
+    "windows",
+    "win",
+    "socket",
+    "TCP",
+    "UDP",
+    "domain",
+    "sockets",
+    "threaded",
+    "communication",
+    "multi",
+    "process",
+    "shared",
+    "memory"
+  ],
+  "author": "Brandon Nozaki Miller",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/achrinza/node-ipc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/achrinza/node-ipc/issues"
+  },
+  "files": [
+    "dao",
+    "entities",
+    "local-node-ipc-certs",
+    "services"
+  ],
+  "homepage": "https://github.com/achrinza/node-ipc"
+}

@@ -1,0 +1,164 @@
+{
+  "definitions": {
+    "ObjectPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Glob or path from where we copy files.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#from",
+          "minLength": 1
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "instanceof": "Function"
+            }
+          ],
+          "description": "Output path.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#to"
+        },
+        "context": {
+          "type": "string",
+          "description": "A path that determines how to interpret the 'from' path.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#context"
+        },
+        "globOptions": {
+          "type": "object",
+          "description": "Allows to configute the glob pattern matching library used by the plugin.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#globoptions"
+        },
+        "filter": {
+          "instanceof": "Function",
+          "description": "Allows to filter copied assets.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#filter"
+        },
+        "transformAll": {
+          "instanceof": "Function",
+          "description": "Allows you to modify the contents of multiple files and save the result to one file.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#transformall"
+        },
+        "toType": {
+          "enum": ["dir", "file", "template"],
+          "description": "Determinate what is to option - directory, file or template.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#totype"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Overwrites files already in 'compilation.assets' (usually added by other plugins/loaders).",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#force"
+        },
+        "priority": {
+          "type": "number",
+          "description": "Allows to specify the priority of copying files with the same destination name.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#priority"
+        },
+        "info": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "instanceof": "Function"
+            }
+          ],
+          "description": "Allows to add assets info.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#info"
+        },
+        "transform": {
+          "description": "Allows to modify the file contents.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#transform",
+          "anyOf": [
+            {
+              "instanceof": "Function"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "transformer": {
+                  "instanceof": "Function",
+                  "description": "Allows to modify the file contents.",
+                  "link": "https://github.com/webpack-contrib/copy-webpack-plugin#transformer"
+                },
+                "cache": {
+                  "description": "Enables/disables and configure caching.",
+                  "link": "https://github.com/webpack-contrib/copy-webpack-plugin#cache",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "keys": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": true
+                            },
+                            {
+                              "instanceof": "Function"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "transformPath": {
+          "instanceof": "Function"
+        },
+        "noErrorOnMissing": {
+          "type": "boolean",
+          "description": "Doesn't generate an error on missing file(s).",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#noerroronmissing"
+        }
+      },
+      "required": ["from"]
+    },
+    "StringPattern": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "patterns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/definitions/StringPattern"
+          },
+          {
+            "$ref": "#/definitions/ObjectPattern"
+          }
+        ]
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concurrency": {
+          "type": "number",
+          "description": "Limits the number of simultaneous requests to fs.",
+          "link": "https://github.com/webpack-contrib/copy-webpack-plugin#concurrency"
+        }
+      }
+    }
+  },
+  "required": ["patterns"]
+}

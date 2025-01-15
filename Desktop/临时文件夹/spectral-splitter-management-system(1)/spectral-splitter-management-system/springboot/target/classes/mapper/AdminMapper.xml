@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.AdminMapper">
+
+<!--    <sql id="Base_Column_List">-->
+<!--        id,username,password,name,phone,email,avatar,role-->
+<!--    </sql>-->
+
+    <select id="selectAll" resultType="com.example.entity.Admin">
+        select * from admin
+        <where>
+            <if test="id != null"> and id= #{id}</if>
+            <if test="username != null"> and username like concat('%', #{username}, '%')</if>
+            <if test="password != null"> and password= #{password}</if>
+            <if test="name != null"> and name= #{name}</if>
+            <if test="phone != null"> and phone= #{phone}</if>
+            <if test="email != null"> and email= #{email}</if>
+            <if test="avatar != null"> and avatar= #{avatar}</if>
+            <if test="role != null"> and role= #{role}</if>
+        </where>
+    </select>
+
+<!--    <select id="selectById" resultType="com.example.entity.Admin">-->
+<!--        select-->
+<!--        <include refid="Base_Column_List" />-->
+<!--        from admin-->
+<!--        where id = #{id}-->
+<!--    </select>-->
+
+<!--    <delete id="deleteById">-->
+<!--        delete from admin-->
+<!--        where  id = #{id}-->
+<!--    </delete>-->
+
+<!--    <insert id="insert" parameterType="com.example.entity.Admin" useGeneratedKeys="true">-->
+<!--        insert into admin-->
+<!--        <trim prefix="(" suffix=")" suffixOverrides=",">-->
+<!--                <if test="id != null">id,</if>-->
+<!--                <if test="username != null">username,</if>-->
+<!--                <if test="password != null">password,</if>-->
+<!--                <if test="name != null">name,</if>-->
+<!--                <if test="phone != null">phone,</if>-->
+<!--                <if test="email != null">email,</if>-->
+<!--                <if test="avatar != null">avatar,</if>-->
+<!--                <if test="role != null">role,</if>-->
+<!--        </trim>-->
+<!--        <trim prefix="values (" suffix=")" suffixOverrides=",">-->
+<!--                <if test="id != null">#{id},</if>-->
+<!--                <if test="username != null">#{username},</if>-->
+<!--                <if test="password != null">#{password},</if>-->
+<!--                <if test="name != null">#{name},</if>-->
+<!--                <if test="phone != null">#{phone},</if>-->
+<!--                <if test="email != null">#{email},</if>-->
+<!--                <if test="avatar != null">#{avatar},</if>-->
+<!--                <if test="role != null">#{role},</if>-->
+<!--        </trim>-->
+<!--    </insert>-->
+
+<!--    <update id="updateById" parameterType="com.example.entity.Admin">-->
+<!--        update admin-->
+<!--        <set>-->
+<!--            <if test="username != null">-->
+<!--                username = #{username},-->
+<!--            </if>-->
+<!--            <if test="password != null">-->
+<!--                password = #{password},-->
+<!--            </if>-->
+<!--            <if test="name != null">-->
+<!--                name = #{name},-->
+<!--            </if>-->
+<!--            <if test="phone != null">-->
+<!--                phone = #{phone},-->
+<!--            </if>-->
+<!--            <if test="email != null">-->
+<!--                email = #{email},-->
+<!--            </if>-->
+<!--            <if test="avatar != null">-->
+<!--                avatar = #{avatar},-->
+<!--            </if>-->
+<!--            <if test="role != null">-->
+<!--                role = #{role},-->
+<!--            </if>-->
+<!--        </set>-->
+<!--        where id = #{id} -->
+<!--    </update>-->
+
+</mapper>

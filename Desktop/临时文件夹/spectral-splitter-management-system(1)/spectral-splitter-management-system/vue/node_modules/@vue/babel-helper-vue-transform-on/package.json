@@ -1,0 +1,13 @@
+{
+  "name": "@vue/babel-helper-vue-transform-on",
+  "version": "1.1.5",
+  "description": "to help transform on",
+  "author": "Amour1688 <lcz_1996@foxmail.com>",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/babel-plugin-jsx"
+  }
+}

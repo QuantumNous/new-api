@@ -1,0 +1,32 @@
+{
+  "name": "event-pubsub",
+  "version": "4.3.0",
+  "description": "Super light and fast Extensible PubSub events and EventEmitters for Node and the browser with support for ES6 by default, and ES5 versions for older verions of node and older IE/Safari versions. Easy for any developer level. No frills, just high speed pubsub events!",
+  "main": "event-pubsub.js",
+  "directories": {
+    "example": "examples"
+  },
+  "engines": {
+    "node": ">=4.0.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RIAEvangelist/event-pubsub.git"
+  },
+  "keywords": [
+    "event",
+    "events",
+    "pubsub",
+    "node",
+    "browser"
+  ],
+  "author": "Brandon Nozaki Miller",
+  "license": "Unlicense",
+  "bugs": {
+    "url": "https://github.com/RIAEvangelist/event-pubsub/issues"
+  },
+  "homepage": "https://github.com/RIAEvangelist/event-pubsub"
+}

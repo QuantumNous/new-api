@@ -1,0 +1,95 @@
+{
+  "name": "html-minifier-terser",
+  "description": "Highly configurable, well-tested, JavaScript-based HTML minifier.",
+  "version": "6.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/terser/html-minifier-terser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/terser/html-minifier-terser/issues"
+  },
+  "homepage": "https://terser.org/html-minifier-terser/",
+  "author": "Daniel Ruf",
+  "maintainers": [
+    "Daniel Ruf <daniel@daniel-ruf.de",
+    "Alex Lam <alexlamsl@gmail.com>",
+    "Juriy Zaytsev <kangax@gmail.com> (http://perfectionkills.com/)",
+    "Sibiraj <sibiraj.dev>"
+  ],
+  "contributors": [
+    "Gilmore Davidson (https://github.com/gilmoreorless)",
+    "Hugo Wetterberg <hugo@wetterberg.nu>",
+    "Zoltan Frombach <tssajo@gmail.com>"
+  ],
+  "keywords": [
+    "cli",
+    "compress",
+    "compressor",
+    "css",
+    "html",
+    "htmlmin",
+    "javascript",
+    "min",
+    "minification",
+    "minifier",
+    "minify",
+    "optimize",
+    "optimizer",
+    "pack",
+    "packer",
+    "parse",
+    "parser",
+    "terser",
+    "uglifier",
+    "uglify"
+  ],
+  "bin": {
+    "html-minifier-terser": "./cli.js"
+  },
+  "main": "src/htmlminifier.js",
+  "engines": {
+    "node": ">=12"
+  },
+  "files": [
+    "src/*.js",
+    "cli.js",
+    "sample-cli-config-file.conf"
+  ],
+  "scripts": {
+    "dist": "grunt dist",
+    "test": "grunt test",
+    "prepare": "is-ci || husky install",
+    "serve": "npm run dist && serve . -p 6753"
+  },
+  "dependencies": {
+    "camel-case": "^4.1.2",
+    "clean-css": "^5.2.2",
+    "commander": "^8.3.0",
+    "he": "^1.2.0",
+    "param-case": "^3.0.4",
+    "relateurl": "^0.2.7",
+    "terser": "^5.10.0"
+  },
+  "devDependencies": {
+    "grunt": "^1.4.1",
+    "grunt-browserify": "^6.0.0",
+    "grunt-eslint": "^24.0.0",
+    "grunt-terser": "^2.0.0",
+    "husky": "^7.0.4",
+    "is-ci": "^3.0.1",
+    "lint-staged": "^12.1.2",
+    "node-qunit-puppeteer": "^2.1.0",
+    "qunit": "2.16.0",
+    "serve": "^13.0.2"
+  },
+  "benchmarkDependencies": {
+    "chalk": "^2.4.2",
+    "cli-table3": "^0.5.1",
+    "iltorb": "^2.4.4",
+    "lzma": "^2.3.2",
+    "minimize": "^2.2.0",
+    "progress": "^2.0.3"
+  }
+}

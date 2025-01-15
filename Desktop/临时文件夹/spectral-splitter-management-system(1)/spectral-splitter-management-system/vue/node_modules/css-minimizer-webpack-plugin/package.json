@@ -1,0 +1,122 @@
+{
+  "name": "css-minimizer-webpack-plugin",
+  "version": "3.4.1",
+  "description": "cssnano plugin for Webpack",
+  "license": "MIT",
+  "repository": "webpack-contrib/css-minimizer-webpack-plugin",
+  "author": "Loann Neveu",
+  "homepage": "https://github.com/webpack-contrib/css-minimizer-webpack-plugin",
+  "bugs": "https://github.com/webpack-contrib/css-minimizer-webpack-plugin/issues",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/webpack"
+  },
+  "main": "dist/index.js",
+  "types": "types/index.d.ts",
+  "engines": {
+    "node": ">= 12.13.0"
+  },
+  "scripts": {
+    "start": "npm run build -- -w",
+    "clean": "del-cli dist",
+    "prebuild": "npm run clean types",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir types && prettier \"types/**/*.ts\" --write",
+    "build:code": "cross-env NODE_ENV=production babel src -d dist --copy-files",
+    "build": "npm-run-all -p \"build:**\"",
+    "commitlint": "commitlint --from=master",
+    "security": "npm audit",
+    "lint:prettier": "prettier \"{**/*,*}.{js,json,md,yml,css,ts}\" --list-different",
+    "lint:js": "eslint --cache .",
+    "lint:types": "tsc --pretty --noEmit",
+    "lint": "npm-run-all -l -p \"lint:**\"",
+    "test:only": "cross-env NODE_ENV=test jest",
+    "test:watch": "npm run test:only -- --watch",
+    "test:coverage": "npm run test:only -- --collectCoverageFrom=\"src/**/*.js\" --coverage",
+    "pretest": "npm run lint",
+    "test": "npm run test:coverage",
+    "prepare": "husky install && npm run build",
+    "release": "standard-version"
+  },
+  "files": [
+    "dist",
+    "types"
+  ],
+  "peerDependencies": {
+    "webpack": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "clean-css": {
+      "optional": true
+    },
+    "csso": {
+      "optional": true
+    },
+    "esbuild": {
+      "optional": true
+    },
+    "@parcel/css": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "cssnano": "^5.0.6",
+    "jest-worker": "^27.0.2",
+    "postcss": "^8.3.5",
+    "schema-utils": "^4.0.0",
+    "serialize-javascript": "^6.0.0",
+    "source-map": "^0.6.1"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.16.7",
+    "@babel/core": "^7.16.7",
+    "@babel/preset-env": "^7.16.7",
+    "@commitlint/cli": "^15.0.0",
+    "@commitlint/config-conventional": "^15.0.0",
+    "@parcel/css": "^1.0.3",
+    "@types/clean-css": "^4.2.5",
+    "@types/csso": "^5.0.0",
+    "@types/serialize-javascript": "^5.0.2",
+    "@webpack-contrib/eslint-config-webpack": "^3.0.0",
+    "babel-jest": "^27.0.6",
+    "clean-css": "^5.1.5",
+    "copy-webpack-plugin": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "css-loader": "^6.2.0",
+    "cssnano-preset-simple": "^3.0.0",
+    "csso": "^5.0.0",
+    "del": "^6.0.0",
+    "del-cli": "^4.0.0",
+    "esbuild": "^0.14.10",
+    "eslint": "^8.6.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.25.4",
+    "husky": "^7.0.1",
+    "jest": "^27.0.6",
+    "lint-staged": "^12.1.5",
+    "memfs": "^3.4.1",
+    "mini-css-extract-plugin": "^2.2.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.3.2",
+    "sass": "^1.45.2",
+    "sass-loader": "^12.1.0",
+    "standard-version": "^9.3.0",
+    "sugarss": "^4.0.1",
+    "typescript": "^4.5.2",
+    "webpack": "^5.50.0"
+  },
+  "keywords": [
+    "cssnano",
+    "css",
+    "csso",
+    "clean-css",
+    "esbuild",
+    "webpack",
+    "webpack-plugin",
+    "minimize",
+    "minimizer",
+    "minify",
+    "minifier",
+    "optimize",
+    "optimizer"
+  ]
+}

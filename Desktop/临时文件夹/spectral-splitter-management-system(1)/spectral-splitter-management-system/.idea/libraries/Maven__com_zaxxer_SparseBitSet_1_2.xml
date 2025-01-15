@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: com.zaxxer:SparseBitSet:1.2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/zaxxer/SparseBitSet/1.2/SparseBitSet-1.2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/zaxxer/SparseBitSet/1.2/SparseBitSet-1.2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/zaxxer/SparseBitSet/1.2/SparseBitSet-1.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

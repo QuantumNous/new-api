@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: jakarta.activation:jakarta.activation-api:1.2.2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/jakarta/activation/jakarta.activation-api/1.2.2/jakarta.activation-api-1.2.2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/jakarta/activation/jakarta.activation-api/1.2.2/jakarta.activation-api-1.2.2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/jakarta/activation/jakarta.activation-api/1.2.2/jakarta.activation-api-1.2.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

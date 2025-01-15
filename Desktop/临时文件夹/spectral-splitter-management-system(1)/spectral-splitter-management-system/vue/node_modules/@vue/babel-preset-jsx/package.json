@@ -1,0 +1,42 @@
+{
+  "name": "@vue/babel-preset-jsx",
+  "version": "1.4.0",
+  "description": "Babel preset for Vue JSX",
+  "main": "dist/plugin.cjs.js",
+  "repository": "https://github.com/vuejs/jsx/tree/master/packages/babel-preset-jsx",
+  "author": "Nick Messing <dot.nick.dot.messing@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [],
+  "scripts": {
+    "build": "rollup -c",
+    "prerelease": "yarn build"
+  },
+  "dependencies": {
+    "@vue/babel-helper-vue-jsx-merge-props": "^1.4.0",
+    "@vue/babel-plugin-transform-vue-jsx": "^1.4.0",
+    "@vue/babel-sugar-composition-api-inject-h": "^1.4.0",
+    "@vue/babel-sugar-composition-api-render-instance": "^1.4.0",
+    "@vue/babel-sugar-functional-vue": "^1.4.0",
+    "@vue/babel-sugar-inject-h": "^1.4.0",
+    "@vue/babel-sugar-v-model": "^1.4.0",
+    "@vue/babel-sugar-v-on": "^1.4.0"
+  },
+  "devDependencies": {
+    "rollup": "^0.67.4",
+    "rollup-plugin-babel-minify": "^6.2.0"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0-0",
+    "vue": "*"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
+  "gitHead": "6566e12067f5d6c02d3849b574a1b84de5634008"
+}

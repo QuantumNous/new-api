@@ -1,0 +1,47 @@
+{
+  "name": "@leichtgewicht/ip-codec",
+  "version": "2.0.4",
+  "description": "Small package to encode or decode IP addresses from buffers to strings.",
+  "main": "index.cjs",
+  "types": "types",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.cjs"
+    }
+  },
+  "scripts": {
+    "lint": "standard && dtslint --localTs node_modules/typescript/lib types",
+    "test": "npm run lint && npm run unit",
+    "unit": "fresh-tape test.mjs",
+    "coverage": "c8 npm run unit",
+    "prepare": "node ./scripts/esm2umd.mjs ipCodec"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/martinheidegger/ip-codec.git"
+  },
+  "keywords": [
+    "ip",
+    "ipv4",
+    "ipv6",
+    "codec",
+    "codecs",
+    "buffer",
+    "conversion"
+  ],
+  "author": "Martin Heidegger",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/martinheidegger/ip-codec/issues"
+  },
+  "homepage": "https://github.com/martinheidegger/ip-codec#readme",
+  "devDependencies": {
+    "@definitelytyped/dtslint": "0.0.112",
+    "c8": "^7.11.2",
+    "esm2umd": "^0.2.0",
+    "fresh-tape": "^5.5.3",
+    "standard": "^17.0.0",
+    "typescript": "^4.6.4"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": "webpack-chain",
+  "version": "6.5.1",
+  "main": "src/Config.js",
+  "typings": "types/index.d.ts",
+  "repository": "neutrinojs/webpack-chain",
+  "keywords": [
+    "webpack",
+    "config",
+    "chain",
+    "fluent",
+    "api"
+  ],
+  "engines": {
+    "node": ">=8"
+  },
+  "files": [
+    "src",
+    "types/*.d.ts"
+  ],
+  "author": "Eli Perelman <eli@eliperelman.com>",
+  "license": "MPL-2.0",
+  "scripts": {
+    "fix": "yarn lint:fix && yarn style:fix",
+    "lint": "eslint --cache --max-warnings 0 --format codeframe .",
+    "lint:fix": "yarn lint --fix",
+    "style": "prettier --check .",
+    "style:fix": "prettier --write .",
+    "test": "jest",
+    "test:types": "tsc -p ./types/test/tsconfig.json",
+    "changelog": "auto-changelog --remote upstream --commit-limit false",
+    "version": "yarn changelog --package && git add CHANGELOG.md"
+  },
+  "dependencies": {
+    "deepmerge": "^1.5.2",
+    "javascript-stringify": "^2.0.1"
+  },
+  "devDependencies": {
+    "@types/enhanced-resolve": "^3.0.6",
+    "@types/tapable": "^1.0.6",
+    "@types/webpack": "^4.41.21",
+    "auto-changelog": "^2.2.0",
+    "eslint": "^7.5.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-jest": "^23.18.0",
+    "jest": "^25.3.0",
+    "prettier": "^2.0.5",
+    "typescript": "^3.9.7",
+    "webpack": "^4.43.0"
+  }
+}

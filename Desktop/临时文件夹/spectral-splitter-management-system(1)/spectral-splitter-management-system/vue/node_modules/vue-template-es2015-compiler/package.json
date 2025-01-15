@@ -1,0 +1,32 @@
+{
+  "name": "vue-template-es2015-compiler",
+  "version": "1.9.1",
+  "description": "Post compiler for Vue template render functions to support ES2015+ features",
+  "main": "index.js",
+  "author": "Evan You",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "buble.js"
+  ],
+  "scripts": {
+    "build": "cd buble && npm run build && cp dist/buble-browser-deps.umd.js ../buble.js",
+    "test": "jest",
+    "prepublishOnly": "jest && npm run build"
+  },
+  "devDependencies": {
+    "jest": "^24.1.0",
+    "vue": "^2.6.0",
+    "vue-template-compiler": "^2.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vuejs/vue-template-es2015-compiler"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/buble/"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.apache.logging.log4j:log4j-api:2.17.1">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/logging/log4j/log4j-api/2.17.1/log4j-api-2.17.1.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/logging/log4j/log4j-api/2.17.1/log4j-api-2.17.1-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/org/apache/logging/log4j/log4j-api/2.17.1/log4j-api-2.17.1-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

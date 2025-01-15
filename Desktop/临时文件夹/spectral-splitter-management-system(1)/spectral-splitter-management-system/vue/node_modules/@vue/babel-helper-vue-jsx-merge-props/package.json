@@ -1,0 +1,38 @@
+{
+  "name": "@vue/babel-helper-vue-jsx-merge-props",
+  "version": "1.4.0",
+  "description": "Babel helper for Vue JSX spread",
+  "main": "dist/helper.js",
+  "repository": "https://github.com/vuejs/jsx/tree/master/packages/babel-helper-vue-jsx-merge-props",
+  "author": "Evan You",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [],
+  "scripts": {
+    "build:testing": "rollup -c rollup.config.testing.js",
+    "build": "rollup -c",
+    "pretest": "yarn build:testing",
+    "test": "nyc --reporter=html --reporter=text-summary ava -v test/test.js",
+    "prepublish": "yarn build"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.2.0",
+    "@babel/preset-env": "^7.2.0",
+    "ava": "^0.25.0",
+    "nyc": "^13.1.0",
+    "rollup": "^0.67.4",
+    "rollup-plugin-babel": "4.0.3",
+    "rollup-plugin-babel-minify": "^6.2.0",
+    "rollup-plugin-istanbul": "^2.0.1"
+  },
+  "nyc": {
+    "exclude": [
+      "dist",
+      "test"
+    ]
+  },
+  "gitHead": "6566e12067f5d6c02d3849b574a1b84de5634008"
+}

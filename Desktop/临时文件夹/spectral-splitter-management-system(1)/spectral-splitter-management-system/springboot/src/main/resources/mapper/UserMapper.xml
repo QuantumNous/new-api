@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.UserMapper">
+
+    <select id="selectAll" resultType="com.example.entity.User">
+        select * from user
+        <where>
+            <if test="id != null"> and id = #{id}</if>
+            <if test="username != null"> and username like concat('%', #{username}, '%')</if>
+            <if test="password != null"> and password like concat('%', #{password}, '%')</if>
+            <if test="name != null"> and name like concat('%', #{name}, '%')</if>
+            <if test="avatar != null"> and avatar like concat('%', #{avatar}, '%')</if>
+            <if test="role != null"> and role like concat('%', #{role}, '%')</if>
+            <if test="phone != null"> and phone like concat('%', #{phone}, '%')</if>
+            <if test="email != null"> and email like concat('%', #{email}, '%')</if>
+        </where>
+        order by id desc
+    </select>
+
+</mapper>

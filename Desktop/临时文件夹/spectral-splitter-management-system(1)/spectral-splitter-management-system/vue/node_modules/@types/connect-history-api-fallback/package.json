@@ -1,0 +1,28 @@
+{
+    "name": "@types/connect-history-api-fallback",
+    "version": "1.5.1",
+    "description": "TypeScript definitions for connect-history-api-fallback",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/connect-history-api-fallback",
+    "license": "MIT",
+    "contributors": [
+        {
+            "name": "Douglas Duteil",
+            "url": "https://github.com/douglasduteil",
+            "githubUsername": "douglasduteil"
+        }
+    ],
+    "main": "",
+    "types": "index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/connect-history-api-fallback"
+    },
+    "scripts": {},
+    "dependencies": {
+        "@types/express-serve-static-core": "*",
+        "@types/node": "*"
+    },
+    "typesPublisherContentHash": "e240b5d1977225dacf798e827f354119f8792eaa834b668a0e26675a55fcd833",
+    "typeScriptVersion": "4.3"
+}

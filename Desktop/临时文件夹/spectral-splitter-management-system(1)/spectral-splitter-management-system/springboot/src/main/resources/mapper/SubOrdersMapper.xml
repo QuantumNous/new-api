@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.SubOrdersMapper">
+
+    <select id="selectAll" resultType="com.example.entity.SubOrders">
+        select * from sub_orders
+        <where>
+            <if test="id != null"> and `id` = #{id}</if>
+            <if test="orderId != null"> and `order_id` = #{orderId}</if>
+            <if test="customerId != null"> and `customer_id` = #{customerId}</if>
+            <if test="userId != null"> and `user_id` = #{userId}</if>
+            <if test="iamId != null"> and `iam_id` = #{iamId}</if>
+            <if test="repairTime != null"> and `repair_time` = #{repairTime}</if>
+            <if test="iamContent != null"> and `iam_content` like concat('%', #{iamContent}, '%')</if>
+            <if test="state != null"> and `state` = #{state}</if>
+        </where>
+        order by id desc
+    </select>
+
+</mapper>

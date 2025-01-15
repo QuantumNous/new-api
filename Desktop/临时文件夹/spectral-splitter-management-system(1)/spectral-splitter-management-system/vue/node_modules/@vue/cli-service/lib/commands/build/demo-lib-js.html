@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title><%- htmlWebpackPlugin.options.libName %> demo</title>
+<script src="./<%- htmlWebpackPlugin.options.assetsFileName %>.umd.js"></script>
+<% if (htmlWebpackPlugin.options.cssExtract) { %>
+<link rel="stylesheet" href="./<%- htmlWebpackPlugin.options.assetsFileName %>.css">
+<% } %>
+
+<script>
+console.log(<%- htmlWebpackPlugin.options.libName %>)
+</script>

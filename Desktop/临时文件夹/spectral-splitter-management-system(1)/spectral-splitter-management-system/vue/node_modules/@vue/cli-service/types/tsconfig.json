@@ -1,0 +1,22 @@
+{
+  "files": [
+    "cli-service-test.ts",
+    "index.d.ts",
+    "ProjectOptions.d.ts"
+  ],
+  "compilerOptions": {
+    "module": "commonjs",
+    "lib": [
+      "es6"
+    ],
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "esModuleInterop": true,
+    "strictFunctionTypes": true,
+    "types": [],
+    "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "."
+  }
+}

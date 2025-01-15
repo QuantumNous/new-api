@@ -1,0 +1,175 @@
+.manager-container {
+    background-color: #ffffff;
+    min-height: 100vh;
+}
+
+.manager-header {
+    display: flex;
+    background-color: #2c334c;
+}
+
+.manager-header-left {
+    width: 200px;
+    height: 60px;
+    padding-left: 10px;
+    display: flex;
+    align-items: center
+}
+
+.manager-header-left img {
+    width: 40px;
+    height: 40px;
+}
+
+.manager-header-left .title {
+    flex: 1;
+    margin-left: 5px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #ddd
+}
+
+.manager-header-center {
+    flex: 1;
+    width: 0;
+    display: flex;
+    align-items: center
+}
+
+.manager-header-right {
+    width: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.manager-header-right .avatar {
+    display: flex;
+    align-items: center;
+    padding-right: 10px;
+    color: #ccc;
+    cursor: default
+}
+
+.manager-header-right .avatar img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 5px
+}
+
+.manager-main {
+    display: flex;
+}
+
+.manager-main-left {
+    width: 200px;
+    min-height: calc(100vh - 60px);
+    box-shadow: 0 0 6px rgba(0, 21, 41, .35);
+}
+
+.manager-main-right {
+    flex: 1;
+    width: 0;
+    padding: 20px;
+}
+
+.manager-main-right .search {
+    background-color: #fff;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.manager-main-right .operation {
+    background-color: #fff;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.manager-main-right .table {
+    background-color: #fff;
+    border-radius: 5px;
+}
+
+.manager-main-right .table .pagination {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.card {
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* ElementUI */
+.manager-container .el-menu {
+    width: 200px;
+    height: 100%;
+    background-color: #222b40;
+}
+
+.manager-container .el-submenu__title {
+    color: #ccc;
+    height: 50px;
+    line-height: 50px;
+}
+
+.manager-container .el-menu-item {
+    color: #ccc;
+    height: 50px;
+    line-height: 50px;
+    background-color: #222b40 !important; /* 必须加上这个背景色，否则鼠标离开会出现白色 */
+}
+
+.manager-container .el-menu-item.is-active {
+    /*background-color: #2bb7e5 !important;*/
+    /*color: #fff;*/
+}
+
+.manager-container .el-menu--inline .el-menu-item {
+    padding-left: 50px !important;
+}
+
+.manager-container .el-menu .is-active {
+    color: #3399ff !important;
+}
+
+.manager-container .el-submenu__title:hover {
+    background-color: #222 !important;
+}
+
+.manager-container .el-menu-item:not(.is-active):hover {
+    /*background-color: #0376bf !important;*/
+    /*color: #fff;*/
+}
+
+.manager-container .el-menu-item:hover {
+    background-color: #222 !important;
+}
+
+.manager-container .el-submenu__icon-arrow {
+    margin-top: -5px;
+}
+
+.manager-container .el-breadcrumb__inner {
+    color: #ccc !important;
+}
+
+.manager-container .el-dropdown-menu {
+    margin-top: 20px !important;
+}
+
+.manager-container .el-breadcrumb {
+    margin-left: 10px;
+}
+
+.manager-container th.el-table__cell {
+    background-color: #eef1f6 !important;
+    color: #606266 !important;
+    text-align: left !important;
+    font-weight: bold !important;
+    border-width: 3px !important;
+    /*textAlign: 'left', fontWeight: 'bold', borderWidth: '3px'*/
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@node-ipc/js-queue",
+  "version": "2.0.3",
+  "description": "Simple JS queue with auto run for node and browsers",
+  "main": "queue.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/node-ipc/js-queue.git"
+  },
+  "keywords": [
+    "queue",
+    "node",
+    "js",
+    "auto",
+    "run",
+    "execute",
+    "browser",
+    "react"
+  ],
+  "author": "Brandon Nozaki Miller",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/node-ipc/js-queue/issues"
+  },
+  "homepage": "https://github.com/node-ipc/js-queue#readme",
+  "dependencies": {
+    "easy-stack": "1.0.1"
+  },
+  "packageManager": "yarn@3.2.0"
+}

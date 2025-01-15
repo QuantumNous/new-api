@@ -1,0 +1,50 @@
+{
+  "name": "@vue/babel-plugin-jsx",
+  "version": "1.1.5",
+  "description": "Babel plugin for Vue 3 JSX",
+  "author": "Amour1688 <lcz_1996@foxmail.com>",
+  "homepage": "https://github.com/vuejs/babel-plugin-jsx/tree/dev/packages/babel-plugin-jsx#readme",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vuejs/babel-plugin-jsx"
+  },
+  "bugs": {
+    "url": "https://github.com/vuejs/babel-plugin-jsx/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@babel/helper-module-imports": "^7.22.5",
+    "@babel/plugin-syntax-jsx": "^7.22.5",
+    "@babel/template": "^7.22.5",
+    "@babel/traverse": "^7.22.5",
+    "@babel/types": "^7.22.5",
+    "camelcase": "^6.3.0",
+    "html-tags": "^3.3.1",
+    "svg-tags": "^1.0.0",
+    "@vue/babel-helper-vue-transform-on": "^1.1.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.22.5",
+    "@babel/preset-env": "^7.22.5",
+    "@types/babel__template": "^7.4.1",
+    "@types/babel__traverse": "^7.20.1",
+    "@types/svg-tags": "^1.0.0",
+    "@vue/runtime-dom": "^3.3.4",
+    "@vue/test-utils": "^2.4.0",
+    "regenerator-runtime": "^0.13.11",
+    "vue": "^3.3.4"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0-0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "watch": "tsup --watch"
+  }
+}

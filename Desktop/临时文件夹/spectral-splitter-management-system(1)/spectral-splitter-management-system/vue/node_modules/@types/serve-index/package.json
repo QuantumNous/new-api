@@ -1,0 +1,27 @@
+{
+    "name": "@types/serve-index",
+    "version": "1.9.2",
+    "description": "TypeScript definitions for serve-index",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/serve-index",
+    "license": "MIT",
+    "contributors": [
+        {
+            "name": "Tanguy Krotoff",
+            "url": "https://github.com/tkrotoff",
+            "githubUsername": "tkrotoff"
+        }
+    ],
+    "main": "",
+    "types": "index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/serve-index"
+    },
+    "scripts": {},
+    "dependencies": {
+        "@types/express": "*"
+    },
+    "typesPublisherContentHash": "86213dbdd8422f92f964705ecbbe70e0da211d856fcc10e8c7cc3e428343ef1b",
+    "typeScriptVersion": "4.5"
+}

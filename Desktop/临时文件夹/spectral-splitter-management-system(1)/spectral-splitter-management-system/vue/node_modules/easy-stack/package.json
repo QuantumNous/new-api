@@ -1,0 +1,32 @@
+{
+  "name": "easy-stack",
+  "version": "1.0.1",
+  "description": "Simple JS stack with auto run for node and browsers",
+  "main": "stack.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines" : {
+      "node" : ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RIAEvangelist/easy-stack.git"
+  },
+  "keywords": [
+    "stack",
+    "node",
+    "js",
+    "auto",
+    "run",
+    "execute",
+    "browser",
+    "react"
+  ],
+  "author": "Brandon Nozaki Miller",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/RIAEvangelist/easy-stack/issues"
+  },
+  "homepage": "https://github.com/RIAEvangelist/easy-stack#readme"
+}

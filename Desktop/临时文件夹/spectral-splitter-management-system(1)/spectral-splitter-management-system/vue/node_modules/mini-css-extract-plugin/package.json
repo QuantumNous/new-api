@@ -1,0 +1,100 @@
+{
+  "name": "mini-css-extract-plugin",
+  "version": "2.7.6",
+  "description": "extracts CSS into separate files",
+  "license": "MIT",
+  "repository": "webpack-contrib/mini-css-extract-plugin",
+  "author": "Tobias Koppers @sokra",
+  "homepage": "https://github.com/webpack-contrib/mini-css-extract-plugin",
+  "bugs": "https://github.com/webpack-contrib/mini-css-extract-plugin/issues",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/webpack"
+  },
+  "main": "dist/index.js",
+  "types": "types/index.d.ts",
+  "engines": {
+    "node": ">= 12.13.0"
+  },
+  "scripts": {
+    "start": "npm run build -- -w",
+    "prebuild": "npm run clean",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir types && prettier \"types/**/*.ts\" --write",
+    "build:code": "cross-env NODE_ENV=production babel src -d dist --copy-files",
+    "build": "npm-run-all -p \"build:**\"",
+    "postbuild": "es-check es5 dist/hmr/hotModuleReplacement.js",
+    "clean": "del-cli dist",
+    "commitlint": "commitlint --from=master",
+    "lint:prettier": "prettier \"{**/*,*}.{js,json,md,yml,css,ts}\" --list-different",
+    "lint:js": "eslint --cache .",
+    "lint:spelling": "cspell \"**/*.*\"",
+    "lint:types": "tsc --pretty --noEmit",
+    "lint": "npm-run-all -l -p \"lint:**\"",
+    "fix:js": "npm run lint:js -- --fix",
+    "fix:prettier": "npm run lint:prettier -- --write",
+    "fix": "npm-run-all -l fix:js fix:prettier",
+    "prepare": "husky install && npm run build",
+    "release": "standard-version",
+    "security": "npm audit --production",
+    "test:only": "cross-env NODE_ENV=test jest",
+    "test:only:experimental": "EXPERIMENTAL_USE_IMPORT_MODULE=true cross-env NODE_ENV=test jest",
+    "test:watch": "npm run test:only -- --watch",
+    "test:coverage": "npm run test:only -- --collectCoverageFrom=\"src/**/*.js\" --coverage",
+    "test:manual": "npm run build && webpack serve ./test/manual/src/index.js --open --config ./test/manual/webpack.config.js",
+    "pretest": "npm run lint",
+    "test": "cross-env NODE_ENV=test npm run test:coverage"
+  },
+  "files": [
+    "dist",
+    "types"
+  ],
+  "peerDependencies": {
+    "webpack": "^5.0.0"
+  },
+  "dependencies": {
+    "schema-utils": "^4.0.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.21.0",
+    "@babel/core": "^7.21.4",
+    "@babel/eslint-parser": "^7.19.1",
+    "@babel/preset-env": "^7.21.4",
+    "@commitlint/cli": "^17.5.1",
+    "@commitlint/config-conventional": "^17.4.4",
+    "@types/node": "^18.15.11",
+    "@webpack-contrib/eslint-config-webpack": "^3.0.0",
+    "babel-jest": "^28.1.3",
+    "bootstrap": "^4.6.2",
+    "cross-env": "^7.0.3",
+    "cspell": "^6.31.1",
+    "css-loader": "^6.7.4",
+    "del": "^6.0.0",
+    "del-cli": "^4.0.0",
+    "es-check": "^7.1.0",
+    "eslint": "^8.37.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-import": "^2.27.5",
+    "file-loader": "^6.2.0",
+    "husky": "^7.0.0",
+    "jest": "^28.1.3",
+    "jest-environment-jsdom": "^28.1.3",
+    "jsdom": "^19.0.0",
+    "lint-staged": "^13.2.1",
+    "memfs": "^3.4.13",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.8.7",
+    "sass": "^1.60.0",
+    "sass-loader": "^12.6.0",
+    "standard-version": "^9.3.0",
+    "typescript": "^4.9.5",
+    "webpack": "^5.83.1",
+    "webpack-cli": "^4.9.2",
+    "webpack-dev-server": "^4.13.2"
+  },
+  "keywords": [
+    "webpack",
+    "css",
+    "extract",
+    "hmr"
+  ]
+}

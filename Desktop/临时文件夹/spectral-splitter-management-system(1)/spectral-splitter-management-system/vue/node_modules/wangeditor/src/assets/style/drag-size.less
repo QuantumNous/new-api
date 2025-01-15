@@ -1,0 +1,36 @@
+.w-e-text-container {
+  overflow: hidden;
+}
+
+.w-e-img-drag-mask {
+  position: absolute;
+  z-index: 1;
+  border: 1px dashed #ccc;
+  box-sizing: border-box;
+
+  .w-e-img-drag-rb {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ccc;
+    cursor: se-resize;
+  }
+
+  .w-e-img-drag-show-size {
+    min-width: 110px;
+    height: 22px;
+    line-height: 22px;
+    font-size: 14px;
+    color: #999;
+    position: absolute;
+    left: 0;
+    top: 0;
+    background-color: #999;
+    color: #fff;
+    border-radius: 2px;
+    padding: 0 5px;
+  }
+}

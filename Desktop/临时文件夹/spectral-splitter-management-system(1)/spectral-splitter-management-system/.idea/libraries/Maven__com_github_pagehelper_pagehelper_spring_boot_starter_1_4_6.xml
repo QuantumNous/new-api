@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: com.github.pagehelper:pagehelper-spring-boot-starter:1.4.6">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/github/pagehelper/pagehelper-spring-boot-starter/1.4.6/pagehelper-spring-boot-starter-1.4.6.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/github/pagehelper/pagehelper-spring-boot-starter/1.4.6/pagehelper-spring-boot-starter-1.4.6-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../environment/Maven/apache-maven-3.8.6/maven-repo/com/github/pagehelper/pagehelper-spring-boot-starter/1.4.6/pagehelper-spring-boot-starter-1.4.6-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

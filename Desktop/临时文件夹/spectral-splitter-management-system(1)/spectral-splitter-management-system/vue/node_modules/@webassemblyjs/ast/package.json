@@ -1,0 +1,31 @@
+{
+  "name": "@webassemblyjs/ast",
+  "version": "1.11.6",
+  "description": "AST utils for webassemblyjs",
+  "keywords": [
+    "webassembly",
+    "javascript",
+    "ast"
+  ],
+  "main": "lib/index.js",
+  "module": "esm/index.js",
+  "author": "Sven Sauleau",
+  "license": "MIT",
+  "dependencies": {
+    "@webassemblyjs/helper-numbers": "1.11.6",
+    "@webassemblyjs/helper-wasm-bytecode": "1.11.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xtuc/webassemblyjs.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@webassemblyjs/helper-test-framework": "1.11.6",
+    "array.prototype.flatmap": "^1.2.1",
+    "dump-exports": "^0.1.0",
+    "mamacro": "^0.0.7"
+  }
+}

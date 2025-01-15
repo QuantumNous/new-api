@@ -1,0 +1,39 @@
+.DS_Store
+node_modules
+/dist
+<%_ if (rootOptions.plugins && rootOptions.plugins['@vue/cli-plugin-e2e-nightwatch']) { _%>
+
+/tests/e2e/reports/
+selenium-debug.log
+chromedriver.log
+geckodriver.log
+<%_ } _%>
+<%_ if (rootOptions.plugins && rootOptions.plugins['@vue/cli-plugin-e2e-cypress']) { _%>
+
+/tests/e2e/videos/
+/tests/e2e/screenshots/
+<%_ } _%>
+
+<%_ if (rootOptions.plugins && rootOptions.plugins['@vue/cli-plugin-e2e-webdriverio']) { _%>
+
+/tests/e2e/logs/
+<%_ } _%>
+
+# local env files
+.env.local
+.env.*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

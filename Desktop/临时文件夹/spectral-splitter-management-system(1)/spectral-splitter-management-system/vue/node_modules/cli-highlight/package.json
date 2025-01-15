@@ -1,0 +1,129 @@
+{
+  "name": "cli-highlight",
+  "version": "2.1.11",
+  "description": "Syntax highlighting in your terminal",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE.txt"
+  ],
+  "bin": {
+    "highlight": "bin/highlight"
+  },
+  "engines": {
+    "node": ">=8.0.0",
+    "npm": ">=5.0.0"
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "npm run eslint && npm run prettier",
+    "eslint": "eslint 'src/**/*.ts'",
+    "prettier": "prettier --write --list-different '**/{*.ts,*.json,.prettierrc}'",
+    "build": "tsc -p .",
+    "watch": "tsc -p . -w",
+    "typedoc": "typedoc --media media --mode file --excludeNotExported --out typedoc src/index.ts",
+    "semantic-release": "semantic-release"
+  },
+  "jest": {
+    "collectCoverage": true,
+    "transform": {
+      "^.+\\.tsx?$": "ts-jest"
+    },
+    "testRegex": "(/test/.*|/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/dist/",
+      "/src/test/__fixtures__/"
+    ],
+    "coverageReporters": [
+      "json",
+      "text"
+    ],
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "json"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -e $HUSKY_GIT_PARAMS"
+    }
+  },
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/npm",
+      "@semantic-release/github",
+      [
+        "@eclass/semantic-release-surge",
+        {
+          "alias": "cli-highlight.surge.sh",
+          "assets": "./typedoc/",
+          "buildScriptName": "typedoc"
+        }
+      ]
+    ]
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/felixfbecker/cli-highlight.git"
+  },
+  "keywords": [
+    "terminal",
+    "syntax",
+    "highlight",
+    "color",
+    "cli",
+    "ansi"
+  ],
+  "author": "Felix Becker <felix.b@outlook.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/felixfbecker/cli-highlight/issues"
+  },
+  "homepage": "https://github.com/felixfbecker/cli-highlight#readme",
+  "dependencies": {
+    "chalk": "^4.0.0",
+    "highlight.js": "^10.7.1",
+    "mz": "^2.4.0",
+    "parse5": "^5.1.1",
+    "parse5-htmlparser2-tree-adapter": "^6.0.0",
+    "yargs": "^16.0.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^11.0.0",
+    "@commitlint/config-conventional": "^11.0.0",
+    "@eclass/semantic-release-surge": "^1.0.7",
+    "@sourcegraph/eslint-config": "^0.20.16",
+    "@sourcegraph/prettierrc": "^3.0.3",
+    "@types/jest": "^24.0.9",
+    "@types/mz": "0.0.32",
+    "@types/node": "^14.14.9",
+    "@types/parse5": "^5.0.2",
+    "@types/parse5-htmlparser2-tree-adapter": "^5.0.1",
+    "@types/yargs": "^13.0.0",
+    "eslint": "^7.14.0",
+    "husky": "^3.0.0",
+    "jest": "^24.1.0",
+    "prettier": "^2.2.0",
+    "semantic-release": "^17.2.4",
+    "ts-jest": "^24.0.0",
+    "typedoc": "^0.19.0",
+    "typescript": "^4.1.2"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "js-message",
+  "description": "normalized JS Object and JSON message and event protocol for node.js, vanialla js, react.js, components, actions, stores and dispatchers",
+  "main": "Message.js",
+  "authors": [
+    "Brandon Nozaki Miller"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "message",
+    "normalize",
+    "events",
+    "js",
+    "json",
+    "protocol",
+    "ipc",
+    "node",
+    "nodejs",
+    "node.js",
+    "react",
+    "react.js",
+    "reactjs",
+    "websocket",
+    "websockets",
+    "web",
+    "socket",
+    "sockets",
+    "ws",
+    "flux",
+    "reflux",
+    "component",
+    "components",
+    "store",
+    "stores",
+    "action",
+    "actions"
+  ],
+  "homepage": "https://github.com/RIAEvangelist/js-message",
+  "moduleType": [
+    "globals",
+    "node"
+  ],
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
