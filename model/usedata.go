@@ -170,6 +170,9 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 		dayStart := currentTime.Unix()
 		dayEnd := currentTime.Add(24 * time.Hour).Add(-time.Second).Unix()
 		tableName := fmt.Sprintf("logs_%04d_%02d_%02d", currentTime.Year(), currentTime.Month(), currentTime.Day())
+		if currentTime.Before(time.Date(2025, 3, 12, 23, 59, 59, 0, time.Local)) {
+			tableName = "logs"
+		}
 		if dayEnd > endTime {
 			dayEnd = endTime
 		}
