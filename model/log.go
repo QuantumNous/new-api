@@ -11,6 +11,8 @@ import (
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
+	"sync"
+	"sync/atomic"
 )
 
 type Log struct {
@@ -88,6 +90,51 @@ func RecordLog(userId int, logType int, content string) {
 	}
 }
 
+// 添加新的全局变量
+var (
+	currentLogTable  atomic.Value
+	tableCreateLock  sync.Mutex
+	nextDayTimestamp atomic.Int64
+)
+
+// 添加新的函数用于获取日志表名
+func GetLogTableName(timestamp int64) string {
+	// 获取下一天的时间戳
+	next := nextDayTimestamp.Load()
+	if timestamp >= next {
+		tableCreateLock.Lock()
+		defer tableCreateLock.Unlock()
+
+		// 双重检查
+		if timestamp >= nextDayTimestamp.Load() {
+			// 计算新的表名
+			t := time.Unix(timestamp, 0)
+			tableName := fmt.Sprintf("logs_%04d_%02d_%02d", t.Year(), t.Month(), t.Day())
+
+			// 创建新表
+			newTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s LIKE logs`, tableName)
+			if err := LOG_DB.Exec(newTableSQL).Error; err != nil {
+				common.SysError("failed to create new log table: " + err.Error())
+				return "logs"
+			}
+
+			// 更新下一天的时间戳
+			nextDay := time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, t.Location())
+			nextDayTimestamp.Store(nextDay.Unix())
+
+			// 存储当前表名
+			currentLogTable.Store(tableName)
+			return tableName
+		}
+	}
+
+	if current, ok := currentLogTable.Load().(string); ok && current != "" {
+		return current
+	}
+	return "logs"
+}
+
+// 修改 RecordConsumeLog 函数中的相关部分
 func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int,
 	modelName string, tokenName string, quota int, content string, tokenId int, userQuota int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
@@ -115,7 +162,11 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		Group:            group,
 		Other:            otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	tableName := GetLogTableName(log.CreatedAt)
+	if time.Now().Before(time.Date(2025, 3, 12, 23, 59, 59, 0, time.Local)) {
+		tableName = "logs"
+	}
+	err := LOG_DB.Table(tableName).Create(log).Error
 	if err != nil {
 		common.LogError(c, "failed to record log: "+err.Error())
 	}
@@ -243,71 +294,145 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+// 添加一个辅助函数用于获取时间范围内的所有表名
+func getTableNamesByTimeRange(startTimestamp, endTimestamp int64) []string {
+	if startTimestamp == 0 || endTimestamp == 0 {
+		return []string{"logs"}
+	}
 
-	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+	tables := make([]string, 0)
+	start := time.Unix(startTimestamp, 0)
+	end := time.Unix(endTimestamp, 0)
+
+	// 如果在同一天，直接返回一个表名
+	if start.Year() == end.Year() && start.Month() == end.Month() && start.Day() == end.Day() {
+		tableName := fmt.Sprintf("logs_%04d_%02d_%02d", start.Year(), start.Month(), start.Day())
+		return []string{tableName}
+	}
+
+	// 遍历日期范围内的每一天
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		tableName := fmt.Sprintf("logs_%04d_%02d_%02d", d.Year(), d.Month(), d.Day())
+		tables = append(tables, tableName)
+	}
+
+	return tables
+}
+
+// 修改 SumUsedQuota 函数
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat) {
+	// 获取需要查询的所有表名
+	tableNames := getTableNamesByTimeRange(startTimestamp, endTimestamp)
+	if len(tableNames) == 0 {
+		return stat
+	}
+	// 用于存储聚合结果
+	var totalQuota int64
+	// var totalRpm int64
+	// var totalTpm int64
+
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempStat Stat
+
+		// 配额查询
+		quotaQuery := LOG_DB.Table(tableName).Select("IFNULL(sum(quota), 0) as quota")
+		if username != "" {
+			quotaQuery = quotaQuery.Where("username = ?", username)
+		}
+		if tokenName != "" {
+			quotaQuery = quotaQuery.Where("token_name = ?", tokenName)
+		}
+		if startTimestamp != 0 {
+			quotaQuery = quotaQuery.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			quotaQuery = quotaQuery.Where("created_at <= ?", endTimestamp)
+		}
+		if modelName != "" {
+			quotaQuery = quotaQuery.Where("model_name like ?", modelName)
+		}
+		if channel != 0 {
+			quotaQuery = quotaQuery.Where("channel_id = ?", channel)
+		}
+		if group != "" {
+			quotaQuery = quotaQuery.Where(groupCol+" = ?", group)
+		}
+		quotaQuery = quotaQuery.Where("type = ?", LogTypeConsume)
+		quotaQuery.Scan(&tempStat)
+
+		totalQuota += int64(tempStat.Quota)
+	}
+
+	// RPM和TPM只需要查询最近的表
+	rpmTpmQuery := LOG_DB.Table(tableNames[len(tableNames)-1]).
+		Select("count(*) rpm, IFNULL(sum(prompt_tokens), 0) + IFNULL(sum(completion_tokens), 0) tpm")
 
 	if username != "" {
-		tx = tx.Where("username = ?", username)
 		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
 	}
 	if tokenName != "" {
-		tx = tx.Where("token_name = ?", tokenName)
 		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
 	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
-	}
 	if modelName != "" {
-		tx = tx.Where("model_name like ?", modelName)
 		rpmTpmQuery = rpmTpmQuery.Where("model_name like ?", modelName)
 	}
 	if channel != 0 {
-		tx = tx.Where("channel_id = ?", channel)
 		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
 	}
 	if group != "" {
-		tx = tx.Where(groupCol+" = ?", group)
 		rpmTpmQuery = rpmTpmQuery.Where(groupCol+" = ?", group)
 	}
 
-	tx = tx.Where("type = ?", LogTypeConsume)
-	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume).
+		Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
 
-	// 只统计最近60秒的rpm和tpm
-	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+	var tempStat Stat
+	rpmTpmQuery.Scan(&tempStat)
 
-	// 执行查询
-	tx.Scan(&stat)
-	rpmTpmQuery.Scan(&stat)
+	// 合并结果
+	stat.Quota = int(totalQuota)
+	stat.Rpm = tempStat.Rpm
+	stat.Tpm = tempStat.Tpm
 
 	return stat
 }
 
 func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {
-	tx := LOG_DB.Table("logs").Select("ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)")
-	if username != "" {
-		tx = tx.Where("username = ?", username)
+	// 获取需要查询的所有表名
+	tableNames := getTableNamesByTimeRange(startTimestamp, endTimestamp)
+	if len(tableNames) == 0 {
+		return 0
 	}
-	if tokenName != "" {
-		tx = tx.Where("token_name = ?", tokenName)
+
+	var totalTokens int64
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempToken int64
+		tx := LOG_DB.Table(tableName).
+			Select("IFNULL(sum(prompt_tokens), 0) + IFNULL(sum(completion_tokens), 0)")
+
+		if username != "" {
+			tx = tx.Where("username = ?", username)
+		}
+		if tokenName != "" {
+			tx = tx.Where("token_name = ?", tokenName)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("created_at <= ?", endTimestamp)
+		}
+		if modelName != "" {
+			tx = tx.Where("model_name = ?", modelName)
+		}
+		tx.Where("type = ?", LogTypeConsume).Scan(&tempToken)
+
+		totalTokens += tempToken
 	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
-	}
-	if modelName != "" {
-		tx = tx.Where("model_name = ?", modelName)
-	}
-	tx.Where("type = ?", LogTypeConsume).Scan(&token)
-	return token
+
+	return int(totalTokens)
 }
 
 func DeleteOldLog(targetTimestamp int64) (int64, error) {
@@ -315,8 +440,7 @@ func DeleteOldLog(targetTimestamp int64) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-
-// SELECT 
+// SELECT
 // logs.channel_id,
 // COALESCE(channels.name, logs.channel_name, '未知渠道') AS channel_name,
 // logs.model_name,
@@ -324,32 +448,55 @@ func DeleteOldLog(targetTimestamp int64) (int64, error) {
 // SUM(logs.completion_tokens) AS total_completion_tokens
 // FROM logs
 // LEFT JOIN channels ON logs.channel_id = channels.id
-// WHERE 
+// WHERE
 // logs.created_at BETWEEN 1741338023 AND 1741341623
-// GROUP BY 
+// GROUP BY
 // logs.channel_id,   -- 渠道ID作为主分组键
 // channel_name,      -- 直接使用SELECT中的别名（COALESCE表达式结果）
 // logs.model_name    -- 模型名称
-// ORDER BY 
+// ORDER BY
 // logs.channel_id;
 
 func GetAllChannelBilling(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {
-	tx := LOG_DB.Table("logs").Select("ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)")
-	if username != "" {
-		tx = tx.Where("username = ?", username)
+	// 获取需要查询的所有表名
+	tableNames := getTableNamesByTimeRange(startTimestamp, endTimestamp)
+	if len(tableNames) == 0 {
+		return 0
 	}
-	if tokenName != "" {
-		tx = tx.Where("token_name = ?", tokenName)
+
+	var totalTokens int
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempToken int
+		tx := LOG_DB.Table(tableName).Select("ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)")
+		if username != "" {
+			tx = tx.Where("username = ?", username)
+		}
+		if tokenName != "" {
+			tx = tx.Where("token_name = ?", tokenName)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("created_at <= ?", endTimestamp)
+		}
+		if modelName != "" {
+			tx = tx.Where("model_name = ?", modelName)
+		}
+		tx.Where("type = ?", LogTypeConsume).Scan(&tempToken)
+		totalTokens += tempToken
 	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
-	}
-	if modelName != "" {
-		tx = tx.Where("model_name = ?", modelName)
-	}
-	tx.Where("type = ?", LogTypeConsume).Scan(&token)
-	return token
+	return totalTokens
+}
+
+// 在 init 函数中初始化（添加新的 init 函数）
+func init() {
+	// 设置初始的下一天时间戳
+	now := time.Now()
+	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	nextDayTimestamp.Store(nextDay.Unix())
+
+	// 设置当前表名
+	currentLogTable.Store(fmt.Sprintf("logs_%04d_%02d_%02d", now.Year(), now.Month(), now.Day()))
 }
