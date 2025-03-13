@@ -497,12 +497,22 @@ func init() {
 	now := time.Now()
 	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 	nextDayTimestamp.Store(nextDay.Unix())
-
 	// 设置当前表名
 	currentLogTable.Store(fmt.Sprintf("logs_%04d_%02d_%02d", now.Year(), now.Month(), now.Day()))
-	newTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s LIKE logs`, currentLogTable.Load().(string))
+}
+
+func InitLogTable() error {
+	now := time.Now()
+	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	nextDayTimestamp.Store(nextDay.Unix())
+
+	tableName := fmt.Sprintf("logs_%04d_%02d_%02d", now.Year(), now.Month(), now.Day())
+	currentLogTable.Store(tableName)
+
+	newTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s LIKE logs`, tableName)
 	if err := LOG_DB.Exec(newTableSQL).Error; err != nil {
 		common.SysError("failed to create new log table: " + err.Error())
-		os.Exit(1)
+		return err
 	}
+	return nil
 }

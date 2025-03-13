@@ -59,6 +59,10 @@ func main() {
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 	}
+	err = model.InitLogTable()
+	if err != nil {
+		common.FatalLog("failed to initialize database: " + err.Error())
+	}
 	defer func() {
 		err := model.CloseDB()
 		if err != nil {
