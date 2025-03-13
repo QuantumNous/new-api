@@ -100,10 +100,6 @@ var (
 // 添加新的函数用于获取日志表名
 func GetLogTableName(timestamp int64) string {
 
-	//3-14上线
-	if time.Now().Before(time.Date(2025, 3, 13, 14, 30, 0, 0, time.Local)) {
-		return "logs"
-	}
 	// 获取下一天的时间戳
 	next := nextDayTimestamp.Load()
 	if timestamp >= next {
