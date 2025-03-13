@@ -62,19 +62,19 @@ var (
 			Subsystem: Namespace,
 			Name:      "relay_request_e2e_total",
 			Help:      "Total number of relay request e2e total",
-		}, []string{"channel", "model", "group"})
+		}, []string{"channel", "model", "group", "token_key", "token_name"})
 	relayRequestE2ESuccessCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
 			Name:      "relay_request_e2e_success",
 			Help:      "Total number of relay request e2e success",
-		}, []string{"channel", "model", "group"})
+		}, []string{"channel", "model", "group", "token_key", "token_name"})
 	relayRequestE2EFailedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
 			Name:      "relay_request_e2e_failed",
 			Help:      "Total number of relay request e2e failed",
-		}, []string{"channel", "model", "group", "code"})
+		}, []string{"channel", "model", "group", "code", "token_key", "token_name"})
 	relayRequestE2EDurationObsever = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Subsystem: Namespace,
@@ -82,7 +82,7 @@ var (
 			Help:      "Duration of relay request e2e",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 12),
 		},
-		[]string{"channel", "model", "group"},
+		[]string{"channel", "model", "group", "token_key", "token_name"},
 	)
 )
 
@@ -106,18 +106,18 @@ func ObserveRelayRequestDuration(channel, model, group string, duration float64)
 	relayRequestDurationObsever.WithLabelValues(channel, model, group).Observe(duration)
 }
 
-func IncrementRelayRequestE2ETotalCounter(channel, model, group string, add float64) {
-	relayRequestE2ETotalCounter.WithLabelValues(channel, model, group).Add(add)
+func IncrementRelayRequestE2ETotalCounter(channel, model, group, tokenKey, tokenName string, add float64) {
+	relayRequestE2ETotalCounter.WithLabelValues(channel, model, group, tokenKey, tokenName).Add(add)
 }
 
-func IncrementRelayRequestE2ESuccessCounter(channel, model, group string, add float64) {
-	relayRequestE2ESuccessCounter.WithLabelValues(channel, model, group).Add(add)
+func IncrementRelayRequestE2ESuccessCounter(channel, model, group, tokenKey, tokenName string, add float64) {
+	relayRequestE2ESuccessCounter.WithLabelValues(channel, model, group, tokenKey, tokenName).Add(add)
 }
 
-func IncrementRelayRequestE2EFailedCounter(channel, model, group, code string, add float64) {
-	relayRequestE2EFailedCounter.WithLabelValues(channel, model, group, code).Add(add)
+func IncrementRelayRequestE2EFailedCounter(channel, model, group, code, tokenKey, tokenName string, add float64) {
+	relayRequestE2EFailedCounter.WithLabelValues(channel, model, group, code, tokenKey, tokenName).Add(add)
 }
 
-func ObserveRelayRequestE2EDuration(channel, model, group string, duration float64) {
-	relayRequestE2EDurationObsever.WithLabelValues(channel, model, group).Observe(duration)
+func ObserveRelayRequestE2EDuration(channel, model, group, tokenKey, tokenName string, duration float64) {
+	relayRequestE2EDurationObsever.WithLabelValues(channel, model, group, tokenKey, tokenName).Observe(duration)
 }

@@ -111,6 +111,8 @@ func Relay(c *gin.Context) {
 	requestId := c.GetString(common.RequestIdKey)
 	group := c.GetString("group")
 	originalModel := c.GetString("original_model")
+	tokenKey := c.GetString("token_key")
+	tokenName := c.GetString("token_name")
 	var openaiErr *dto.OpenAIErrorWithStatusCode
 	for i := 0; i <= common.RetryTimes; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
