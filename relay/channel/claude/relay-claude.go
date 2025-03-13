@@ -105,12 +105,15 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeR
 		if claudeRequest.MaxTokens < 1280 {
 			claudeRequest.MaxTokens = 1280
 		}
-
-		// BudgetTokens 为 max_tokens 的 80%
-		claudeRequest.Thinking = &Thinking{
-			Type:         "enabled",
-			BudgetTokens: int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage),
+		claudeRequest.Thinking = &Thinking{Type: "enabled"}
+		// 支持用户覆盖 budget tokens
+		if textRequest.BudgetTokens > 0 {
+			claudeRequest.Thinking.BudgetTokens = textRequest.BudgetTokens
+		} else {
+			// BudgetTokens 为 max_tokens 的 80%
+			claudeRequest.Thinking.BudgetTokens = int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)
 		}
+
 		// TODO: 临时处理
 		// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
 		claudeRequest.TopP = 0
