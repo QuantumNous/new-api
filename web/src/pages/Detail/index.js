@@ -6,6 +6,7 @@ import { VChart } from "@visactor/react-vchart";
 import {
   API,
   isAdmin,
+    isRoot,
   showError,
   timestamp2string,
   timestamp2string1,
@@ -267,7 +268,11 @@ const Detail = (props) => {
     };
 
   const exportBilling = async () => {
-    await exportBillingData();
+    if (isRoot()) {
+      await exportBillingData();
+    }else{
+
+    }
   };
 
   const initChart = async () => {
