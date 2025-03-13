@@ -161,6 +161,9 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 
 func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonData, err error) {
 	// 将时间戳转换为当天的开始时间（00:00:00）
+	if endTime > time.Now().Unix() {
+		endTime = time.Now().Unix()
+	}
 	currentTime := time.Unix(startTime, 0)
 	currentTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, currentTime.Location())
 	endDateTime := time.Unix(endTime, 0)
@@ -169,7 +172,7 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 	for currentTime.Unix() <= endDateTime.Unix() {
 		dayStart := currentTime.Unix()
 		dayEnd := currentTime.Add(24 * time.Hour).Add(-time.Second).Unix()
-
+		tableName := fmt.Sprintf("logs_%04d_%02d_%02d", currentTime.Year(), currentTime.Month(), currentTime.Day())
 		if dayEnd > endTime {
 			dayEnd = endTime
 		}
@@ -190,7 +193,7 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 			}
 
 			// 分页查询原始日志数据
-			err = DB.Table("logs").
+			err = DB.Table(tableName).
 				Select("logs.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
 					"logs.model_name, logs.prompt_tokens, logs.completion_tokens").
 				Joins("JOIN channels ON logs.channel_id = channels.id").
