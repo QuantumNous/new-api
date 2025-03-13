@@ -161,6 +161,9 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 
 func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonData, err error) {
 	// 将时间戳转换为当天的开始时间（00:00:00）
+	if endTime > time.Now().Unix() {
+		endTime = time.Now().Unix()
+	}
 	currentTime := time.Unix(startTime, 0)
 	currentTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, currentTime.Location())
 	endDateTime := time.Unix(endTime, 0)
@@ -170,9 +173,6 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 		dayStart := currentTime.Unix()
 		dayEnd := currentTime.Add(24 * time.Hour).Add(-time.Second).Unix()
 		tableName := fmt.Sprintf("logs_%04d_%02d_%02d", currentTime.Year(), currentTime.Month(), currentTime.Day())
-		if currentTime.Before(time.Date(2025, 3, 12, 23, 59, 59, 0, time.Local)) {
-			tableName = "logs"
-		}
 		if dayEnd > endTime {
 			dayEnd = endTime
 		}
