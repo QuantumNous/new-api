@@ -130,7 +130,7 @@ func Relay(c *gin.Context) {
 		relayInfo, request, requestModel, openaiErr = relayInfoHandler(c, relayMode)
 		if i == 0 {
 			// e2e 用户请求计数
-			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), requestModel, group, 1)
+			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, 1)
 		} else {
 			// 重试计数
 			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), requestModel, group, 1)
@@ -138,8 +138,8 @@ func Relay(c *gin.Context) {
 		if openaiErr == nil {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
 			if openaiErr == nil {
-				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), requestModel, group, 1)
-				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), requestModel, group, time.Since(startTime).Seconds())
+				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, 1)
+				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, time.Since(startTime).Seconds())
 				return
 			}
 		}
@@ -148,7 +148,7 @@ func Relay(c *gin.Context) {
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
 			// e2e 失败计数
-			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), requestModel, group, strconv.Itoa(openaiErr.StatusCode), 1)
+			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), requestModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, 1)
 			break
 		}
 	}
