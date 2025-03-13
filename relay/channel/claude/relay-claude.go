@@ -30,7 +30,6 @@ func stopReasonClaude2OpenAI(reason string) string {
 }
 
 func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *ClaudeRequest {
-
 	claudeRequest := ClaudeRequest{
 		Model:         textRequest.Model,
 		Prompt:        "",
@@ -107,8 +106,12 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeR
 		}
 		claudeRequest.Thinking = &Thinking{Type: "enabled"}
 		// 支持用户覆盖 budget tokens
-		if textRequest.BudgetTokens > 0 {
-			claudeRequest.Thinking.BudgetTokens = textRequest.BudgetTokens
+		if textRequest.Thinking != nil {
+			// claude 对于 budget tokens 最小限制为 1024
+			if textRequest.Thinking.BudgetTokens < 1024 {
+				textRequest.Thinking.BudgetTokens = 1024
+			}
+			claudeRequest.Thinking.BudgetTokens = textRequest.Thinking.BudgetTokens
 		} else {
 			// BudgetTokens 为 max_tokens 的 80%
 			claudeRequest.Thinking.BudgetTokens = int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)

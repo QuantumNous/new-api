@@ -51,7 +51,12 @@ type GeneralOpenAIRequest struct {
 	Modalities          any               `json:"modalities,omitempty"`
 	Audio               any               `json:"audio,omitempty"`
 	ExtraBody           any               `json:"extra_body,omitempty"`
-	BudgetTokens        int               `json:"budget_tokens,omitempty"`
+	Thinking            *ThinkingOptions  `json:"thinking,omitempty"`
+}
+
+type ThinkingOptions struct {
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens"`
 }
 
 type ToolCallRequest struct {
