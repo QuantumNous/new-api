@@ -59,7 +59,7 @@ func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *ClaudeR
 	return &claudeRequest
 }
 
-func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeRequest, error) {
+func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*ClaudeRequest, error) {
 	claudeTools := make([]Tool, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
@@ -110,11 +110,14 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeR
 			// claude 对于 budget tokens 最小限制为 1024
 			if textRequest.Thinking.BudgetTokens < 1024 {
 				textRequest.Thinking.BudgetTokens = 1024
+				common.LogInfo(c, fmt.Sprintf("传入的 budget tokens %d 小于 1024，已设为 1024 ", textRequest.Thinking.BudgetTokens))
 			}
 			claudeRequest.Thinking.BudgetTokens = textRequest.Thinking.BudgetTokens
+			common.LogInfo(c, fmt.Sprintf("用户自定义 budget tokens 长度: %d", claudeRequest.Thinking.BudgetTokens))
 		} else {
 			// BudgetTokens 为 max_tokens 的 80%
 			claudeRequest.Thinking.BudgetTokens = int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)
+			common.LogInfo(c, fmt.Sprintf("budget tokens 使用系统 max tokens 的 80%%: %d", claudeRequest.Thinking.BudgetTokens))
 		}
 
 		// TODO: 临时处理
