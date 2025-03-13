@@ -500,4 +500,9 @@ func init() {
 
 	// 设置当前表名
 	currentLogTable.Store(fmt.Sprintf("logs_%04d_%02d_%02d", now.Year(), now.Month(), now.Day()))
+	newTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s LIKE logs`, currentLogTable.Load().(string))
+	if err := LOG_DB.Exec(newTableSQL).Error; err != nil {
+		common.SysError("failed to create new log table: " + err.Error())
+		os.Exit(1)
+	}
 }
