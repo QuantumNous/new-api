@@ -96,6 +96,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	if claudeRequest.MaxTokens == 0 {
 		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
 	}
+	common.LogInfo(c, fmt.Sprintf("使用 claude model: %s", claudeRequest.Model))
 
 	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
 		strings.HasSuffix(textRequest.Model, "-thinking") {
