@@ -30,7 +30,6 @@ func stopReasonClaude2OpenAI(reason string) string {
 }
 
 func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *ClaudeRequest {
-
 	claudeRequest := ClaudeRequest{
 		Model:         textRequest.Model,
 		Prompt:        "",
@@ -60,7 +59,7 @@ func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *ClaudeR
 	return &claudeRequest
 }
 
-func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeRequest, error) {
+func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*ClaudeRequest, error) {
 	claudeTools := make([]Tool, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
@@ -97,6 +96,7 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeR
 	if claudeRequest.MaxTokens == 0 {
 		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
 	}
+	common.LogInfo(c, fmt.Sprintf("使用 claude model: %s", claudeRequest.Model))
 
 	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
 		strings.HasSuffix(textRequest.Model, "-thinking") {
@@ -105,12 +105,22 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*ClaudeR
 		if claudeRequest.MaxTokens < 1280 {
 			claudeRequest.MaxTokens = 1280
 		}
-
-		// BudgetTokens 为 max_tokens 的 80%
-		claudeRequest.Thinking = &Thinking{
-			Type:         "enabled",
-			BudgetTokens: int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage),
+		claudeRequest.Thinking = &Thinking{Type: "enabled"}
+		// 支持用户覆盖 budget tokens
+		if textRequest.Thinking != nil {
+			// claude 对于 budget tokens 最小限制为 1024
+			if textRequest.Thinking.BudgetTokens < 1024 {
+				textRequest.Thinking.BudgetTokens = 1024
+				common.LogInfo(c, fmt.Sprintf("传入的 budget tokens %d 小于 1024，已设为 1024 ", textRequest.Thinking.BudgetTokens))
+			}
+			claudeRequest.Thinking.BudgetTokens = textRequest.Thinking.BudgetTokens
+			common.LogInfo(c, fmt.Sprintf("用户自定义 budget tokens 长度: %d", claudeRequest.Thinking.BudgetTokens))
+		} else {
+			// BudgetTokens 为 max_tokens 的 80%
+			claudeRequest.Thinking.BudgetTokens = int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)
+			common.LogInfo(c, fmt.Sprintf("budget tokens 使用系统 max tokens 的 80%%: %d", claudeRequest.Thinking.BudgetTokens))
 		}
+
 		// TODO: 临时处理
 		// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
 		claudeRequest.TopP = 0
