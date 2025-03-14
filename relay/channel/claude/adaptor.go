@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
-	"one-api/common"
 	"one-api/dto"
 	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
@@ -66,10 +65,8 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 		return nil, errors.New("request is nil")
 	}
 	if a.RequestMode == RequestModeCompletion {
-		common.LogInfo(c, fmt.Sprintf("使用 RequestModeCompletion"))
 		return RequestOpenAI2ClaudeComplete(*request), nil
 	} else {
-		common.LogInfo(c, fmt.Sprintf("使用 RequestOpenAI2ClaudeMessage"))
 		return RequestOpenAI2ClaudeMessage(c, *request)
 	}
 }
