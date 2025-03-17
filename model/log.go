@@ -2,15 +2,14 @@ package model
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/bytedance/gopkg/util/gopool"
-	"gorm.io/gorm"
 	"sync"
 	"sync/atomic"
 )
@@ -179,43 +178,75 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+	// 获取需要查询的所有表名
+	tableNames := getTableNamesByTimeRange(startTimestamp, endTimestamp)
+	if len(tableNames) == 0 {
+		return nil, 0, nil
 	}
 
-	if modelName != "" {
-		tx = tx.Where("logs.model_name like ?", modelName)
-	}
-	if username != "" {
-		tx = tx.Where("logs.username = ?", username)
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if channel != 0 {
-		tx = tx.Where("logs.channel_id = ?", channel)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+groupCol+" = ?", group)
-	}
-	err = tx.Model(&Log{}).Count(&total).Error
-	if err != nil {
-		return nil, 0, err
-	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
-	if err != nil {
-		return nil, 0, err
+	// 用于存储所有查询结果
+	allLogs := make([]*Log, 0)
+	total = 0
+
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempTotal int64
+		var tempLogs []*Log
+		var tx = LOG_DB.Table(tableName)
+
+		if logType != LogTypeUnknown {
+			tx = tx.Where("type = ?", logType)
+		}
+		if modelName != "" {
+			tx = tx.Where("model_name like ?", modelName)
+		}
+		if username != "" {
+			tx = tx.Where("username = ?", username)
+		}
+		if tokenName != "" {
+			tx = tx.Where("token_name = ?", tokenName)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("created_at <= ?", endTimestamp)
+		}
+		if channel != 0 {
+			tx = tx.Where("channel_id = ?", channel)
+		}
+		if group != "" {
+			tx = tx.Where(groupCol+" = ?", group)
+		}
+
+		// 获取当前表的总数
+		if err = tx.Count(&tempTotal).Error; err != nil {
+			return nil, 0, err
+		}
+		total += tempTotal
+
+		// 获取当前表的数据
+		if err = tx.Order("id desc").Find(&tempLogs).Error; err != nil {
+			return nil, 0, err
+		}
+		allLogs = append(allLogs, tempLogs...)
 	}
 
+	// 对所有结果按时间倒序排序
+	sort.Slice(allLogs, func(i, j int) bool {
+		return allLogs[i].CreatedAt > allLogs[j].CreatedAt
+	})
+
+	// 处理分页
+	end := startIdx + num
+	if end > len(allLogs) {
+		end = len(allLogs)
+	}
+	if startIdx < len(allLogs) {
+		logs = allLogs[startIdx:end]
+	}
+
+	// 处理渠道信息
 	channelIds := make([]int, 0)
 	channelMap := make(map[int]string)
 	for _, log := range logs {
@@ -239,54 +270,154 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
-	return logs, total, err
+	return logs, total, nil
 }
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+	// 获取需要查询的所有表名
+	tableNames := getTableNamesByTimeRange(startTimestamp, endTimestamp)
+	if len(tableNames) == 0 {
+		return nil, 0, nil
 	}
 
-	if modelName != "" {
-		tx = tx.Where("logs.model_name like ?", modelName)
+	// 用于存储所有查询结果
+	allLogs := make([]*Log, 0)
+	total = 0
+
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempTotal int64
+		var tempLogs []*Log
+		var tx = LOG_DB.Table(tableName)
+
+		if logType == LogTypeUnknown {
+			tx = tx.Where("user_id = ?", userId)
+		} else {
+			tx = tx.Where("user_id = ? and type = ?", userId, logType)
+		}
+
+		if modelName != "" {
+			tx = tx.Where("model_name like ?", modelName)
+		}
+		if tokenName != "" {
+			tx = tx.Where("token_name = ?", tokenName)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("created_at <= ?", endTimestamp)
+		}
+		if group != "" {
+			tx = tx.Where(groupCol+" = ?", group)
+		}
+
+		// 获取当前表的总数
+		if err = tx.Count(&tempTotal).Error; err != nil {
+			return nil, 0, err
+		}
+		total += tempTotal
+
+		// 获取当前表的数据
+		if err = tx.Order("id desc").Find(&tempLogs).Error; err != nil {
+			return nil, 0, err
+		}
+		allLogs = append(allLogs, tempLogs...)
 	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
+
+	// 对所有结果按时间倒序排序
+	sort.Slice(allLogs, func(i, j int) bool {
+		return allLogs[i].CreatedAt > allLogs[j].CreatedAt
+	})
+
+	// 处理分页
+	end := startIdx + num
+	if end > len(allLogs) {
+		end = len(allLogs)
 	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+groupCol+" = ?", group)
-	}
-	err = tx.Model(&Log{}).Count(&total).Error
-	if err != nil {
-		return nil, 0, err
-	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
-	if err != nil {
-		return nil, 0, err
+	if startIdx < len(allLogs) {
+		logs = allLogs[startIdx:end]
 	}
 
 	formatUserLogs(logs)
-	return logs, total, err
+	return logs, total, nil
 }
 
 func SearchAllLogs(keyword string) (logs []*Log, err error) {
-	err = LOG_DB.Where("type = ? or content LIKE ?", keyword, keyword+"%").Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
-	return logs, err
+	// 获取当前时间
+	now := time.Now()
+	// 获取一个月前的时间戳
+	oneMonthAgo := now.AddDate(0, -1, 0)
+
+	// 获取时间范围内的所有表名
+	tableNames := getTableNamesByTimeRange(oneMonthAgo.Unix(), now.Unix())
+
+	// 用于存储所有查询结果
+	allLogs := make([]*Log, 0)
+
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempLogs []*Log
+		err = LOG_DB.Table(tableName).
+			Where("type = ? or content LIKE ?", keyword, keyword+"%").
+			Order("id desc").
+			Find(&tempLogs).Error
+		if err != nil {
+			return nil, err
+		}
+		allLogs = append(allLogs, tempLogs...)
+	}
+
+	// 对所有结果按时间倒序排序
+	sort.Slice(allLogs, func(i, j int) bool {
+		return allLogs[i].CreatedAt > allLogs[j].CreatedAt
+	})
+
+	// 只返回最近的 MaxRecentItems 条记录
+	if len(allLogs) > common.MaxRecentItems {
+		allLogs = allLogs[:common.MaxRecentItems]
+	}
+
+	return allLogs, nil
 }
 
 func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
-	err = LOG_DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
-	formatUserLogs(logs)
-	return logs, err
+	// 获取当前时间
+	now := time.Now()
+	// 获取一个月前的时间戳
+	oneMonthAgo := now.AddDate(0, -1, 0)
+
+	// 获取时间范围内的所有表名
+	tableNames := getTableNamesByTimeRange(oneMonthAgo.Unix(), now.Unix())
+
+	// 用于存储所有查询结果
+	allLogs := make([]*Log, 0)
+
+	// 遍历每个表进行查询
+	for _, tableName := range tableNames {
+		var tempLogs []*Log
+		err = LOG_DB.Table(tableName).
+			Where("user_id = ? and type = ?", userId, keyword).
+			Order("id desc").
+			Find(&tempLogs).Error
+		if err != nil {
+			return nil, err
+		}
+		allLogs = append(allLogs, tempLogs...)
+	}
+
+	// 对所有结果按时间倒序排序
+	sort.Slice(allLogs, func(i, j int) bool {
+		return allLogs[i].CreatedAt > allLogs[j].CreatedAt
+	})
+
+	// 只返回最近的 MaxRecentItems 条记录
+	if len(allLogs) > common.MaxRecentItems {
+		allLogs = allLogs[:common.MaxRecentItems]
+	}
+
+	formatUserLogs(allLogs)
+	return allLogs, nil
 }
 
 type Stat struct {
