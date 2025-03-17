@@ -81,6 +81,7 @@ func ExportBillingExcel(c *gin.Context) {
 	// 从查询参数获取时间范围
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("user_name")
 	// 判断时间跨度是否超过 1 个月
 	if endTimestamp-startTimestamp > 2592000 {
 		c.JSON(http.StatusOK, gin.H{
@@ -110,7 +111,7 @@ func ExportBillingExcel(c *gin.Context) {
 	}
 
 	// 获取Excel数据
-	excelBytes, err := model.GetBillingAndExportExcel(startTime.Unix(), endTime.Unix())
+	excelBytes, err := model.GetBillingAndExportExcel(startTime.Unix(), endTime.Unix(), username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -118,11 +119,16 @@ func ExportBillingExcel(c *gin.Context) {
 		})
 		return
 	}
-
 	// 设置文件名
 	filename := fmt.Sprintf("billing_%s_%s.xlsx",
 		startTime.Format("20060102"),
 		endTime.Format("20060102"))
+	if username != "" {
+		filename = fmt.Sprintf("%s_billing_%s_%s.xlsx",
+			username,
+			startTime.Format("20060102"),
+			endTime.Format("20060102"))
+	}
 
 	// 设置响应头
 	c.Header("Content-Description", "File Transfer")

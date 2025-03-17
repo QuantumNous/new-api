@@ -236,7 +236,7 @@ const Detail = (props) => {
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
       if (isAdminUser) {
-        url = `/api/data/billing/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+        url = `/api/data/billing/?user_name=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
         
         const response = await fetch(url);
         if (!response.ok) throw new Error('导出失败');

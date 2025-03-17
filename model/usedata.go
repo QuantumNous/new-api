@@ -159,7 +159,7 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	return quotaDatas, err
 }
 
-func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonData, err error) {
+func GetBilling(startTime int64, endTime int64, userName string) (billingJsonData []*BillingJsonData, err error) {
 	// 将时间戳转换为当天的开始时间（00:00:00）
 	if endTime > time.Now().Unix() {
 		endTime = time.Now().Unix()
@@ -192,6 +192,7 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 				CompletionTokens int
 			}
 
+<<<<<<< HEAD
 			// 分页查询原始日志数据
 			err = DB.Table(tableName).
 				Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
@@ -202,6 +203,32 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 				Limit(pageSize).
 				Offset(offset).
 				Find(&tempData).Error
+=======
+			if userName != "" {
+				// 分页查询原始日志数据
+				err = DB.Table(tableName).
+					Select("logs.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
+						"logs.model_name, logs.prompt_tokens, logs.completion_tokens").
+					Joins("JOIN channels ON logs.channel_id = channels.id").
+					Where("logs.created_at BETWEEN ? AND ?", dayStart, dayEnd).
+					Where("user_name =  ?", userName).
+					Order("logs.id").
+					Limit(pageSize).
+					Offset(offset).
+					Find(&tempData).Error
+			} else {
+				// 分页查询原始日志数据
+				err = DB.Table(tableName).
+					Select("logs.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
+						"logs.model_name, logs.prompt_tokens, logs.completion_tokens").
+					Joins("JOIN channels ON logs.channel_id = channels.id").
+					Where("logs.created_at BETWEEN ? AND ?", dayStart, dayEnd).
+					Order("logs.id").
+					Limit(pageSize).
+					Offset(offset).
+					Find(&tempData).Error
+			}
+>>>>>>> cef2806 (export billing by username)
 
 			if err != nil {
 				return nil, err
@@ -296,8 +323,8 @@ func GetBilling(startTime int64, endTime int64) (billingJsonData []*BillingJsonD
 	return billingJsonData, nil
 }
 
-func GetBillingAndExportExcel(startTime int64, endTime int64) ([]byte, error) {
-	billingData, err := GetBilling(startTime, endTime)
+func GetBillingAndExportExcel(startTime int64, endTime int64, userName string) ([]byte, error) {
+	billingData, err := GetBilling(startTime, endTime, userName)
 	if err != nil {
 		return nil, err
 	}
