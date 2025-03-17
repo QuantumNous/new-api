@@ -44,7 +44,7 @@ type BillingJsonData struct {
 	CompletionsTokens  float32 `json:"completions_tokens"`
 	PromptPricing      float32 `json:"prompt_pricing"`
 	CompletionsPricing float32 `json:"completions_pricing"`
-	/**/ Cost float32 `json:"cost"`
+	/**/ Cost          float32 `json:"cost"`
 }
 
 func UpdateQuotaData() {
@@ -192,18 +192,6 @@ func GetBilling(startTime int64, endTime int64, userName string) (billingJsonDat
 				CompletionTokens int
 			}
 
-<<<<<<< HEAD
-			// 分页查询原始日志数据
-			err = DB.Table(tableName).
-				Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-														"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
-				Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
-				Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
-				Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
-				Limit(pageSize).
-				Offset(offset).
-				Find(&tempData).Error
-=======
 			if userName != "" {
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
@@ -228,7 +216,6 @@ func GetBilling(startTime int64, endTime int64, userName string) (billingJsonDat
 					Offset(offset).
 					Find(&tempData).Error
 			}
->>>>>>> cef2806 (export billing by username)
 
 			if err != nil {
 				return nil, err
