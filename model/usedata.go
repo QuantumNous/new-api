@@ -195,23 +195,23 @@ func GetBilling(startTime int64, endTime int64, userName string) (billingJsonDat
 			if userName != "" {
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
-					Select("logs.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-						"logs.model_name, logs.prompt_tokens, logs.completion_tokens").
-					Joins("JOIN channels ON logs.channel_id = channels.id").
-					Where("logs.created_at BETWEEN ? AND ?", dayStart, dayEnd).
-					Where("user_name =  ?", userName).
-					Order("logs.id").
+					Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
+						"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+					Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
+					Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
+					Where(fmt.Sprintf("%s.username = %s", tableName, userName)).
+					Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
 					Limit(pageSize).
 					Offset(offset).
 					Find(&tempData).Error
 			} else {
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
-					Select("logs.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-						"logs.model_name, logs.prompt_tokens, logs.completion_tokens").
-					Joins("JOIN channels ON logs.channel_id = channels.id").
-					Where("logs.created_at BETWEEN ? AND ?", dayStart, dayEnd).
-					Order("logs.id").
+					Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
+						"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+					Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
+					Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
+					Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
 					Limit(pageSize).
 					Offset(offset).
 					Find(&tempData).Error
