@@ -195,16 +195,28 @@ const Detail = (props) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   };
 
+  // 添加校验函数
+  const validateInputs = () => {
+    if (!username && tokenname) {
+      showError('选择令牌时必须指定用户名');
+      return false;
+    }
+    return true;
+  };
+
   const loadQuotaData = async () => {
+    if (!validateInputs()) {
+      return;
+    }
     setLoading(true);
     try {
       let url = '';
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
       if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/?username=${username}&token_name=${tokenname}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
       } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/self/?token_name=${tokenname}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
       }
       const res = await API.get(url);
       const { success, message, data } = res.data;
@@ -230,6 +242,9 @@ const Detail = (props) => {
   };
 
   const exportBillingData = async () => {
+    if (!validateInputs()) {
+      return;
+    }
     setLoading(true);
     try {
       let url = '';
