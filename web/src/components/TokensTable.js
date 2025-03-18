@@ -83,6 +83,10 @@ const TokensTable = () => {
       dataIndex: 'name',
     },
     {
+      title: t('创建者'),
+      dataIndex: 'user',
+    },
+    {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',
