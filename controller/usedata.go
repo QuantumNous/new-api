@@ -134,6 +134,13 @@ func ExportBillingExcel(c *gin.Context) {
 			username,
 			startTime.Format("20060102"),
 			endTime.Format("20060102"))
+		if tokenname != "" {
+			filename = fmt.Sprintf("%s_%s_billing_%s_%s.xlsx",
+				username,
+				tokenname,
+				startTime.Format("20060102"),
+				endTime.Format("20060102"))
+		}
 	}
 
 	// 设置响应头
