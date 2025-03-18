@@ -82,6 +82,7 @@ func ExportBillingExcel(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	username := c.Query("user_name")
+	tokenname := c.Query("token_name")
 	// 判断时间跨度是否超过 1 个月
 	if endTimestamp-startTimestamp > 2592000 {
 		c.JSON(http.StatusOK, gin.H{
@@ -90,7 +91,12 @@ func ExportBillingExcel(c *gin.Context) {
 		})
 		return
 	}
-
+	if tokenname != "" && username == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "令牌名称和用户名称需要同时填写",
+		})
+	}
 	// 转换时间戳为时间格式
 	startTime := time.Unix(startTimestamp, 0)
 	if startTime.IsZero() {
@@ -111,7 +117,7 @@ func ExportBillingExcel(c *gin.Context) {
 	}
 
 	// 获取Excel数据
-	excelBytes, err := model.GetBillingAndExportExcel(startTime.Unix(), endTime.Unix(), username)
+	excelBytes, err := model.GetBillingAndExportExcel(startTime.Unix(), endTime.Unix(), username, tokenname)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

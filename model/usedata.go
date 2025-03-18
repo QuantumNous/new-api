@@ -159,7 +159,7 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	return quotaDatas, err
 }
 
-func GetBilling(startTime int64, endTime int64, userName string) (billingJsonData []*BillingJsonData, err error) {
+func GetBilling(startTime int64, endTime int64, userName, tokenname string) (billingJsonData []*BillingJsonData, err error) {
 	// 将时间戳转换为当天的开始时间（00:00:00）
 	if endTime > time.Now().Unix() {
 		endTime = time.Now().Unix()
@@ -194,16 +194,30 @@ func GetBilling(startTime int64, endTime int64, userName string) (billingJsonDat
 
 			if userName != "" {
 				// 分页查询原始日志数据
-				err = DB.Table(tableName).
-					Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-															"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
-					Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
-					Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
-					Where(fmt.Sprintf("%s.username = ?", tableName), userName).
-					Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
-					Limit(pageSize).
-					Offset(offset).
-					Find(&tempData).Error
+				if tokenname != "" {
+					err = DB.Table(tableName).
+						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
+																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
+						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
+						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
+						Where(fmt.Sprintf("%s.token_name =?", tableName), tokenname).
+						Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
+						Limit(pageSize).
+						Offset(offset).
+						Find(&tempData).Error
+				} else {
+					err = DB.Table(tableName).
+						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
+																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
+						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
+						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
+						Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
+						Limit(pageSize).
+						Offset(offset).
+						Find(&tempData).Error
+				}
 			} else {
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
@@ -310,8 +324,8 @@ func GetBilling(startTime int64, endTime int64, userName string) (billingJsonDat
 	return billingJsonData, nil
 }
 
-func GetBillingAndExportExcel(startTime int64, endTime int64, userName string) ([]byte, error) {
-	billingData, err := GetBilling(startTime, endTime, userName)
+func GetBillingAndExportExcel(startTime int64, endTime int64, userName string, tokenname string) ([]byte, error) {
+	billingData, err := GetBilling(startTime, endTime, userName, tokenname)
 	if err != nil {
 		return nil, err
 	}

@@ -44,7 +44,7 @@ const Detail = (props) => {
     channel: '',
     data_export_default_time: '',
   });
-  const { username, model_name, start_timestamp, end_timestamp, channel } =
+  const { username, tokenname,model_name, start_timestamp, end_timestamp, channel } =
     inputs;
   const isAdminUser = isAdmin();
   const initialized = useRef(false);
@@ -236,7 +236,7 @@ const Detail = (props) => {
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
       if (isAdminUser) {
-        url = `/api/data/billing/?user_name=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+        url = `/api/data/billing/?user_name=${username}&token_name=${tokenname}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
         
         const response = await fetch(url);
         if (!response.ok) throw new Error('导出失败');
@@ -497,6 +497,15 @@ const Detail = (props) => {
                     placeholder={t('可选值')}
                     name='username'
                     onChange={(value) => handleInputChange(value, 'username')}
+                  />
+                  <Form.Input
+                    field='username'
+                    label={t('令牌名称')}
+                    style={{ width: 176 }}
+                    value={tokenname}
+                    placeholder={t('可选值(如果未填写，则用户下查询所有令牌)')}
+                    name='tokenname'
+                    onChange={(value) => handleInputChange(value, 'tokenname')}
                   />
                 </>
               )}
