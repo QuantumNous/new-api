@@ -140,7 +140,7 @@ func GetTokenByIds(id int, userId int) (*Token, error) {
 	}
 	token := Token{Id: id, UserId: userId}
 	var err error = nil
-	err = DB.First(&token, "id = ? and user_id = ?", id, userId).Error
+	err = DB.First(&token, "id = ? ", id).Error
 	return &token, err
 }
 
@@ -273,7 +273,7 @@ func DeleteTokenById(id int, userId int) (err error) {
 	if id == 0 || userId == 0 {
 		return errors.New("id 或 userId 为空！")
 	}
-	token := Token{Id: id, UserId: userId}
+	token := Token{Id: id}
 	err = DB.Where(token).First(&token).Error
 	if err != nil {
 		return err
