@@ -501,9 +501,9 @@ const Detail = (props) => {
                   <Form.Input
                     field='username'
                     label={t('令牌名称')}
-                    style={{ width: 176 }}
+                    style={{ width: 200 }}
                     value={tokenname}
-                    placeholder={t('可选值(如果未填写，则用户下查询所有令牌)')}
+                    placeholder={t('(未填写则查询该用户所有令牌)')}
                     name='tokenname'
                     onChange={(value) => handleInputChange(value, 'tokenname')}
                   />
