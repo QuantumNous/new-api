@@ -503,7 +503,7 @@ const Detail = (props) => {
                     label={t('令牌名称')}
                     style={{ width: 200 }}
                     value={tokenname}
-                    placeholder={t('(未填写则查询该用户所有令牌)')}
+                    placeholder={t('未填则查询该用户所有令牌')}
                     name='tokenname'
                     onChange={(value) => handleInputChange(value, 'tokenname')}
                   />
