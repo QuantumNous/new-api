@@ -67,7 +67,7 @@ func GetAllTokens(startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
 	var Users []*User
-	err = DB.Where("deleted_at i null").Order("id desc").Find(&Users).Error
+	err = DB.Where("1 = 1").Order("id desc").Find(&Users).Error
 	if err != nil {
 		return nil, err
 	}
