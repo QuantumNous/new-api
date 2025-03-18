@@ -16,6 +16,7 @@ type Token struct {
 	Key                string         `json:"key" gorm:"type:char(48);uniqueIndex"`
 	Status             int            `json:"status" gorm:"default:1"`
 	Name               string         `json:"name" gorm:"index" `
+	User               string         `json:"user"`
 	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
 	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
 	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
@@ -65,7 +66,19 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 func GetAllTokens(startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
+	var Users []*User
+	err = DB.Where("deleted_at i null").Order("id desc").Find(&Users).Error
+	if err != nil {
+		return nil, err
+	}
+	id2name := make(map[int]string)
+	for _, user := range Users {
+		id2name[user.Id] = user.Username
+	}
 	err = DB.Where("user_id is not null").Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	for _, token := range tokens {
+		token.User = id2name[token.UserId]
+	}
 	return tokens, err
 }
 
