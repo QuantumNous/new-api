@@ -71,6 +71,18 @@ func getAndValidateTextRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo)
 func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest, *dto.OpenAIErrorWithStatusCode) {
 	relayInfo := relaycommon.GenRelayInfo(c)
 
+	if relayInfo.Direct {
+		// support claude direct
+		if strings.HasPrefix(relayInfo.OriginModelName, "claude") {
+			textRequest, err := getAndValidateDirectRequest(c, relayInfo)
+			if err != nil {
+				common.LogError(c, fmt.Sprintf("getAndValidateDirectRequest failed: %s", err.Error()))
+				return nil, nil, service.OpenAIErrorWrapperLocal(err, "invalid_text_request", http.StatusBadRequest)
+			}
+			return relayInfo, textRequest, nil
+		}
+	}
+
 	// get & validate textRequest 获取并验证文本请求
 	textRequest, err := getAndValidateTextRequest(c, relayInfo)
 	if err != nil {

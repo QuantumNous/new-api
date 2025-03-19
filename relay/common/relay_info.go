@@ -58,6 +58,7 @@ type RelayInfo struct {
 	UserSetting          map[string]interface{}
 	UserEmail            string
 	UserQuota            int
+	Direct               bool
 	ThinkingContentInfo
 }
 
@@ -128,6 +129,11 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 			SendLastThinkingContent: false,
 		},
 	}
+	// 使用直连模式
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/messages") {
+		info.Direct = true
+	}
+
 	if strings.HasPrefix(c.Request.URL.Path, "/pg") {
 		info.IsPlayground = true
 		info.RequestURLPath = strings.TrimPrefix(info.RequestURLPath, "/pg")
