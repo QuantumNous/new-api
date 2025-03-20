@@ -95,13 +95,13 @@ func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest
 func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *dto.GeneralOpenAIRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, 1)
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, textRequest.Model, relayInfo.Group, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, textRequest.Model, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, textRequest.Model, relayInfo.Group, 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, textRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
 		}
 	}()
 

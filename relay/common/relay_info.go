@@ -20,6 +20,7 @@ type ThinkingContentInfo struct {
 type RelayInfo struct {
 	ChannelType       int
 	ChannelId         int
+	ChannelTag        string
 	TokenId           int
 	TokenKey          string
 	UserId            int
@@ -87,7 +88,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	channelType := c.GetInt("channel_type")
 	channelId := c.GetInt("channel_id")
 	channelSetting := c.GetStringMap("channel_setting")
-
+	channelTag := c.GetString("channel_tag")
 	tokenId := c.GetInt("token_id")
 	tokenKey := c.GetString("token_key")
 	userId := c.GetInt("id")
@@ -108,6 +109,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		RequestURLPath:    c.Request.URL.String(),
 		ChannelType:       channelType,
 		ChannelId:         channelId,
+		ChannelTag:        channelTag,
 		TokenId:           tokenId,
 		TokenKey:          tokenKey,
 		UserId:            userId,
