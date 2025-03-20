@@ -572,7 +572,6 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, requestMode int, info *r
 }
 
 func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRequest, error) {
-	// 基础字段映射
 	openaiReq := &dto.GeneralOpenAIRequest{
 		Model:         claudeReq.Model,
 		MaxTokens:     claudeReq.MaxTokens,
@@ -582,7 +581,6 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 		StreamOptions: &dto.StreamOptions{IncludeUsage: true},
 	}
 
-	// 逆向处理思考模式
 	if claudeReq.Thinking != nil {
 		openaiReq.Thinking = &dto.ThinkingOptions{
 			Type:         claudeReq.Thinking.Type,
@@ -590,12 +588,11 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 		}
 	}
 
-	// 工具调用逆向转换
 	if claudeReq.Tools != nil {
 		openaiTools := make([]dto.ToolCallRequest, 0)
 
 		switch tools := claudeReq.Tools.(type) {
-		case []Tool: // 处理严格类型
+		case []Tool:
 			for _, claudeTool := range tools {
 				params := make(map[string]interface{}, 3)
 				for _, key := range []string{"type", "properties", "required"} {
@@ -621,12 +618,10 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 					continue
 				}
 
-				// 提取工具基本信息
 				name, _ := tool["name"].(string)
 				desc, _ := tool["description"].(string)
 				schema, _ := tool["input_schema"].(map[string]interface{})
 
-				// 构建参数schema
 				params := make(map[string]interface{}, 3)
 				if schema != nil {
 					for _, key := range []string{"type", "properties", "required"} {
@@ -650,7 +645,6 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 		openaiReq.Tools = openaiTools
 	}
 
-	// 消息系统逆向处理
 	if claudeReq.System != "" {
 		systemMsg := dto.Message{
 			Role:    "system",
@@ -659,12 +653,12 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 		openaiReq.Messages = append(openaiReq.Messages, systemMsg)
 	}
 
-	// 多模态消息逆向转换
+	// 多模态
 	for _, claudeMsg := range claudeReq.Messages {
 		openaiMsg := dto.Message{Role: claudeMsg.Role}
 
 		switch content := claudeMsg.Content.(type) {
-		case string: // 纯文本消息
+		case string: // 纯文本
 			openaiMsg.SetStringContent(content)
 
 		case []ClaudeMediaMessage: // 复杂消息类型
@@ -706,13 +700,11 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 				}
 			}
 
-			// 处理工具调用
 			if len(toolCalls) > 0 {
 				toolCallData, _ := json.Marshal(toolCalls)
 				openaiMsg.ToolCalls = toolCallData
 			}
 
-			// 处理多模态内容
 			if len(mediaContents) > 0 {
 				openaiMsg.SetMediaContent(mediaContents)
 			}
@@ -721,7 +713,6 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 		openaiReq.Messages = append(openaiReq.Messages, openaiMsg)
 	}
 
-	// 停止序列逆向处理
 	if len(claudeReq.StopSequences) > 0 {
 		if len(claudeReq.StopSequences) == 1 {
 			openaiReq.Stop = claudeReq.StopSequences[0]
@@ -732,7 +723,6 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 		}
 	}
 
-	// 模型特殊处理
 	if strings.Contains(claudeReq.Model, "claude-3") {
 		openaiReq.ResponseFormat = &dto.ResponseFormat{
 			Type: "json_object",
