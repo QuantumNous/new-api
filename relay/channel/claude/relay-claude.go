@@ -11,6 +11,7 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting/model_setting"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,6 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	if claudeRequest.MaxTokens == 0 {
 		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
 	}
-	common.LogInfo(c, fmt.Sprintf("使用 claude model: %s", claudeRequest.Model))
 
 	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
 		strings.HasSuffix(textRequest.Model, "-thinking") {
@@ -569,4 +569,171 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, requestMode int, info *r
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, err = c.Writer.Write(jsonResponse)
 	return nil, &usage
+}
+
+func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRequest, error) {
+	openaiReq := &dto.GeneralOpenAIRequest{
+		Model:         claudeReq.Model,
+		MaxTokens:     claudeReq.MaxTokens,
+		Temperature:   claudeReq.Temperature,
+		TopP:          claudeReq.TopP,
+		Stream:        claudeReq.Stream,
+		StreamOptions: &dto.StreamOptions{IncludeUsage: true},
+	}
+
+	if claudeReq.Thinking != nil {
+		openaiReq.Thinking = &dto.ThinkingOptions{
+			Type:         claudeReq.Thinking.Type,
+			BudgetTokens: claudeReq.Thinking.BudgetTokens,
+		}
+	}
+
+	if claudeReq.Tools != nil {
+		openaiTools := make([]dto.ToolCallRequest, 0)
+
+		switch tools := claudeReq.Tools.(type) {
+		case []Tool:
+			for _, claudeTool := range tools {
+				params := make(map[string]interface{}, 3)
+				for _, key := range []string{"type", "properties", "required"} {
+					if val, exist := claudeTool.InputSchema[key]; exist {
+						params[key] = val
+					}
+				}
+
+				openaiTools = append(openaiTools, dto.ToolCallRequest{
+					Type: "function",
+					Function: dto.FunctionRequest{
+						Name:        claudeTool.Name,
+						Description: claudeTool.Description,
+						Parameters:  params,
+					},
+				})
+			}
+
+		case []interface{}: // 处理通用类型
+			for _, rawTool := range tools {
+				tool, ok := rawTool.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				name, _ := tool["name"].(string)
+				desc, _ := tool["description"].(string)
+				schema, _ := tool["input_schema"].(map[string]interface{})
+
+				params := make(map[string]interface{}, 3)
+				if schema != nil {
+					for _, key := range []string{"type", "properties", "required"} {
+						if val, exist := schema[key]; exist {
+							params[key] = val
+						}
+					}
+				}
+
+				openaiTools = append(openaiTools, dto.ToolCallRequest{
+					Type: "function",
+					Function: dto.FunctionRequest{
+						Name:        name,
+						Description: desc,
+						Parameters:  params,
+					},
+				})
+			}
+		}
+
+		openaiReq.Tools = openaiTools
+	}
+
+	if claudeReq.System != "" {
+		systemMsg := dto.Message{
+			Role:    "system",
+			Content: json.RawMessage([]byte(strconv.Quote(claudeReq.System))),
+		}
+		openaiReq.Messages = append(openaiReq.Messages, systemMsg)
+	}
+
+	// 多模态
+	for _, claudeMsg := range claudeReq.Messages {
+		openaiMsg := dto.Message{Role: claudeMsg.Role}
+
+		switch content := claudeMsg.Content.(type) {
+		case string: // 纯文本
+			openaiMsg.SetStringContent(content)
+
+		case []ClaudeMediaMessage: // 复杂消息类型
+			var mediaContents []dto.MediaContent
+			var toolCalls []dto.ToolCallRequest
+
+			for _, media := range content {
+				switch media.Type {
+				case "text":
+					mediaContents = append(mediaContents, dto.MediaContent{
+						Type: dto.ContentTypeText,
+						Text: media.Text,
+					})
+
+				case "image":
+					if media.Source != nil {
+						mediaContents = append(mediaContents, dto.MediaContent{
+							Type: dto.ContentTypeImageURL,
+							ImageUrl: dto.MessageImageUrl{
+								Url:    fmt.Sprintf("data:%s;base64,%s", media.Source.MediaType, media.Source.Data),
+								Detail: "auto",
+							},
+						})
+					}
+
+				case "tool_use":
+					args, _ := json.Marshal(media.Input)
+					toolCalls = append(toolCalls, dto.ToolCallRequest{
+						ID: media.Id,
+						Function: dto.FunctionRequest{
+							Name:      media.Name,
+							Arguments: string(args),
+						},
+					})
+
+				case "tool_result":
+					openaiMsg.ToolCallId = media.ToolUseId
+					openaiMsg.SetStringContent(media.Content)
+				}
+			}
+
+			if len(toolCalls) > 0 {
+				toolCallData, _ := json.Marshal(toolCalls)
+				openaiMsg.ToolCalls = toolCallData
+			}
+
+			if len(mediaContents) > 0 {
+				openaiMsg.SetMediaContent(mediaContents)
+			}
+		}
+
+		openaiReq.Messages = append(openaiReq.Messages, openaiMsg)
+	}
+
+	if len(claudeReq.StopSequences) > 0 {
+		if len(claudeReq.StopSequences) == 1 {
+			openaiReq.Stop = claudeReq.StopSequences[0]
+		} else {
+			stopSeq := make([]string, len(claudeReq.StopSequences))
+			copy(stopSeq, claudeReq.StopSequences)
+			openaiReq.Stop = stopSeq
+		}
+	}
+
+	if strings.Contains(claudeReq.Model, "claude-3") {
+		openaiReq.ResponseFormat = &dto.ResponseFormat{
+			Type: "json_object",
+			JsonSchema: &dto.FormatJsonSchema{
+				Schema: map[string]interface{}{
+					"type":       "object",
+					"properties": make(map[string]interface{}),
+				},
+			},
+		}
+	}
+
+	return openaiReq, nil
 }

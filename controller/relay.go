@@ -133,7 +133,11 @@ func Relay(c *gin.Context) {
 			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, 1)
 		} else {
 			// 重试计数
-			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), requestModel, group, 1)
+			channelTag := ""
+			if channel.Tag != nil {
+				channelTag = *channel.Tag
+			}
+			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channelTag, requestModel, group, 1)
 		}
 		if openaiErr == nil {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
@@ -261,10 +265,12 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 		if !autoBan {
 			autoBanInt = 0
 		}
+		channelTag := c.GetString("channel_tag")
 		return &model.Channel{
 			Id:      c.GetInt("channel_id"),
 			Type:    c.GetInt("channel_type"),
 			Name:    c.GetString("channel_name"),
+			Tag:     &channelTag,
 			AutoBan: &autoBanInt,
 		}, nil
 	}

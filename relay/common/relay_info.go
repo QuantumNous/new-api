@@ -20,6 +20,7 @@ type ThinkingContentInfo struct {
 type RelayInfo struct {
 	ChannelType       int
 	ChannelId         int
+	ChannelTag        string
 	TokenId           int
 	TokenKey          string
 	UserId            int
@@ -58,6 +59,7 @@ type RelayInfo struct {
 	UserSetting          map[string]interface{}
 	UserEmail            string
 	UserQuota            int
+	Direct               bool
 	ThinkingContentInfo
 }
 
@@ -86,7 +88,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	channelType := c.GetInt("channel_type")
 	channelId := c.GetInt("channel_id")
 	channelSetting := c.GetStringMap("channel_setting")
-
+	channelTag := c.GetString("channel_tag")
 	tokenId := c.GetInt("token_id")
 	tokenKey := c.GetString("token_key")
 	userId := c.GetInt("id")
@@ -107,6 +109,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		RequestURLPath:    c.Request.URL.String(),
 		ChannelType:       channelType,
 		ChannelId:         channelId,
+		ChannelTag:        channelTag,
 		TokenId:           tokenId,
 		TokenKey:          tokenKey,
 		UserId:            userId,
@@ -128,6 +131,11 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 			SendLastThinkingContent: false,
 		},
 	}
+	// 使用直连模式
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/messages") {
+		info.Direct = true
+	}
+
 	if strings.HasPrefix(c.Request.URL.Path, "/pg") {
 		info.IsPlayground = true
 		info.RequestURLPath = strings.TrimPrefix(info.RequestURLPath, "/pg")
