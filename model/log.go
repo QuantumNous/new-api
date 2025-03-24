@@ -16,6 +16,7 @@ import (
 
 type Log struct {
 	Id               int    `json:"id" gorm:"index:idx_created_at_id,priority:1"`
+	RequestID        string `json:"request_id" gorm:"request_id"`
 	UserId           int    `json:"user_id" gorm:"index"`
 	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
 	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
@@ -146,6 +147,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 	otherStr := common.MapToJsonStr(other)
 	log := &Log{
 		UserId:           userId,
+		RequestID:        c.GetHeader(common.RequestIdKey),
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
 		Type:             LogTypeConsume,

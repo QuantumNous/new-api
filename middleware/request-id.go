@@ -8,11 +8,14 @@ import (
 
 func RequestId() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		id := common.GetTimeString() + common.GetRandomString(8)
+		id := c.GetHeader(common.RequestIdKey)
+		if id == "" {
+			id = common.GetTimeString() + common.GetRandomString(8)
+			c.Header(common.RequestIdKey, id)
+		}
 		c.Set(common.RequestIdKey, id)
 		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, id)
 		c.Request = c.Request.WithContext(ctx)
-		c.Header(common.RequestIdKey, id)
 		c.Next()
 	}
 }
