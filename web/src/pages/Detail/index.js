@@ -32,6 +32,7 @@ const Detail = (props) => {
   const [styleState, styleDispatch] = useContext(StyleContext);
   const [inputs, setInputs] = useState({
     username: '',
+    tokenname : '',
     token_name: '',
     model_name: '',
     start_timestamp:
