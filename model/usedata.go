@@ -45,7 +45,7 @@ type BillingJsonData struct {
 	CompletionsTokens  float32 `json:"completions_tokens"`
 	PromptPricing      float32 `json:"prompt_pricing"`
 	CompletionsPricing float32 `json:"completions_pricing"`
-	/**/ Cost float32 `json:"cost"`
+	/**/ Cost          float32 `json:"cost"`
 }
 
 func UpdateQuotaData() {
@@ -135,11 +135,17 @@ func increaseQuotaData(userId int, tokenname, username string, modelName string,
 	}
 }
 
-func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+func GetQuotaDataByUsername(username, tokenName string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
-	return quotaDatas, err
+	if tokenName != "" {
+		err = DB.Table("quota_data").Where("username = ? and token_name = ? and created_at >= ? and created_at <= ?", username, tokenName, startTime, endTime).Find(&quotaDatas).Error
+		return quotaDatas, err
+	} else {
+		err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
+		return quotaDatas, err
+	}
+
 }
 
 func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
@@ -149,9 +155,9 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
-func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
+func GetAllQuotaDates(startTime int64, endTime int64, username, tokenName string) (quotaData []*QuotaData, err error) {
 	if username != "" {
-		return GetQuotaDataByUsername(username, startTime, endTime)
+		return GetQuotaDataByUsername(username, tokenName, startTime, endTime)
 	}
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
@@ -199,7 +205,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				if tokenname != "" {
 					err = DB.Table(tableName).
 						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+							"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
@@ -211,7 +217,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				} else {
 					err = DB.Table(tableName).
 						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+							"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
@@ -224,7 +230,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
 					Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-															"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+						"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 					Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 					Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 					Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
