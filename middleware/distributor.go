@@ -212,9 +212,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set("channel_name", channel.Name)
 	c.Set("channel_type", channel.Type)
 	c.Set("channel_setting", channel.GetSetting())
-	if channel.Tag != nil {
-		c.Set("channel_tag", *channel.Tag)
-	}
+	c.Set("channel_tag", channel.GetTag())
 	if nil != channel.OpenAIOrganization && "" != *channel.OpenAIOrganization {
 		c.Set("channel_organization", *channel.OpenAIOrganization)
 	}
