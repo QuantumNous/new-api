@@ -137,7 +137,7 @@ func Relay(c *gin.Context) {
 			if channel.Tag != nil {
 				channelTag = *channel.Tag
 			}
-			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channelTag, requestModel, group, 1)
+			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channelTag, channel.GetBaseURL(), requestModel, group, 1)
 		}
 		if openaiErr == nil {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
