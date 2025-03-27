@@ -204,6 +204,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		funcErr = service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
 		return funcErr
 	}
+	common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
 	requestBody = bytes.NewBuffer(jsonData)
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
