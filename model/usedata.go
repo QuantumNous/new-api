@@ -16,6 +16,7 @@ type QuotaData struct {
 	Id        int    `json:"id"`
 	UserID    int    `json:"user_id" gorm:"index"`
 	Username  string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
+	TokenName string `json:"token_name" gorm:"size:256;default:''"`
 	ModelName string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
 	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
 	TokenUsed int    `json:"token_used" gorm:"default:0"`
@@ -44,7 +45,7 @@ type BillingJsonData struct {
 	CompletionsTokens  float32 `json:"completions_tokens"`
 	PromptPricing      float32 `json:"prompt_pricing"`
 	CompletionsPricing float32 `json:"completions_pricing"`
-	/**/ Cost float32 `json:"cost"`
+	/**/ Cost          float32 `json:"cost"`
 }
 
 func UpdateQuotaData() {
@@ -66,8 +67,8 @@ func UpdateQuotaData() {
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
-func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
-	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
+func logQuotaDataCache(userId int, tokenName, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+	key := fmt.Sprintf("%d-%s-%s-%s-%d", userId, username, tokenName, modelName, createdAt)
 	quotaData, ok := CacheQuotaData[key]
 	if ok {
 		quotaData.Count += 1
@@ -77,6 +78,7 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 		quotaData = &QuotaData{
 			UserID:    userId,
 			Username:  username,
+			TokenName: tokenName,
 			ModelName: modelName,
 			CreatedAt: createdAt,
 			Count:     1,
@@ -87,13 +89,13 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 	CacheQuotaData[key] = quotaData
 }
 
-func LogQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func LogQuotaData(userId int, tokenName, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
 	// 只精确到小时
 	createdAt = createdAt - (createdAt % 3600)
 
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
-	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
+	logQuotaDataCache(userId, tokenName, username, modelName, quota, createdAt, tokenUsed)
 }
 
 func SaveQuotaDataCache() {
@@ -106,13 +108,13 @@ func SaveQuotaDataCache() {
 	// 3. 如果没有数据，就插入数据
 	for _, quotaData := range CacheQuotaData {
 		quotaDataDB := &QuotaData{}
-		DB.Table("quota_data").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
-			quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt).First(quotaDataDB)
+		DB.Table("quota_data").Where("user_id = ? and token_name = ? and username = ? and model_name = ? and created_at = ?",
+			quotaData.UserID, quotaData.TokenName, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt).First(quotaDataDB)
 		if quotaDataDB.Id > 0 {
 			//quotaDataDB.Count += quotaData.Count
 			//quotaDataDB.Quota += quotaData.Quota
 			//DB.Table("quota_data").Save(quotaDataDB)
-			increaseQuotaData(quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.Count, quotaData.Quota, quotaData.CreatedAt, quotaData.TokenUsed)
+			increaseQuotaData(quotaData.UserID, quotaData.TokenName, quotaData.Username, quotaData.ModelName, quotaData.Count, quotaData.Quota, quotaData.CreatedAt, quotaData.TokenUsed)
 		} else {
 			DB.Table("quota_data").Create(quotaData)
 		}
@@ -121,9 +123,9 @@ func SaveQuotaDataCache() {
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
 }
 
-func increaseQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, tokenUsed int) {
-	err := DB.Table("quota_data").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
-		userId, username, modelName, createdAt).Updates(map[string]interface{}{
+func increaseQuotaData(userId int, tokenname, username string, modelName string, count int, quota int, createdAt int64, tokenUsed int) {
+	err := DB.Table("quota_data").Where("user_id = ? and token_name = ? and username = ? and model_name = ? and created_at = ?",
+		userId, tokenname, username, modelName, createdAt).Updates(map[string]interface{}{
 		"count":      gorm.Expr("count + ?", count),
 		"quota":      gorm.Expr("quota + ?", quota),
 		"token_used": gorm.Expr("token_used + ?", tokenUsed),
@@ -133,11 +135,17 @@ func increaseQuotaData(userId int, username string, modelName string, count int,
 	}
 }
 
-func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+func GetQuotaDataByUsername(username, tokenName string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
-	return quotaDatas, err
+	if tokenName != "" {
+		err = DB.Table("quota_data").Where("username = ? and token_name = ? and created_at >= ? and created_at <= ?", username, tokenName, startTime, endTime).Find(&quotaDatas).Error
+		return quotaDatas, err
+	} else {
+		err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
+		return quotaDatas, err
+	}
+
 }
 
 func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
@@ -147,9 +155,9 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
-func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
+func GetAllQuotaDates(startTime int64, endTime int64, username, tokenName string) (quotaData []*QuotaData, err error) {
 	if username != "" {
-		return GetQuotaDataByUsername(username, startTime, endTime)
+		return GetQuotaDataByUsername(username, tokenName, startTime, endTime)
 	}
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
@@ -197,7 +205,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				if tokenname != "" {
 					err = DB.Table(tableName).
 						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+							"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
@@ -209,7 +217,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				} else {
 					err = DB.Table(tableName).
 						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+							"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
@@ -222,7 +230,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
 					Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-															"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+						"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 					Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 					Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 					Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
@@ -242,7 +250,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 
 			// 处理当前页的数据，进行内存聚合
 			for _, item := range tempData {
-				key := fmt.Sprintf("%s_%s_%d", item.ChannelTag, item.ModelName, item.ChannelId)
+				key := fmt.Sprintf("%s_%s", item.ChannelTag, item.ModelName)
 				if _, ok := tempBillingMap[key]; !ok {
 					tempBillingMap[key] = &BillingData{
 						ChannelId:         item.ChannelId,
@@ -281,15 +289,11 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 
 		// 处理当天的数据
 		for _, data := range billingData {
-			modelPrice1, ok1 := operation_setting.GetDefaultModelRatioMap()[data.ModelName]
-			modelPrice2, ok2 := operation_setting.GetNewModelRationMap()[data.ModelName]
+			modelPrice1, ok1 := operation_setting.GetModelRatio(data.ModelName)
 			modelPrice := 1.0
 
 			if ok1 {
 				modelPrice = modelPrice1
-			}
-			if ok2 {
-				modelPrice = modelPrice2
 			}
 
 			billingJsonData = append(billingJsonData, &BillingJsonData{
@@ -335,7 +339,7 @@ func GetBillingAndExportExcel(startTime int64, endTime int64, userName string, t
 	defer f.Close()
 
 	// 设置表头
-	headers := []string{"渠道Tag（Tag相同则聚合）", "渠道ID", "渠道名称", "日期", "调用次数", "模型名字",
+	headers := []string{"渠道Tag（Tag相同则聚合）", "日期", "调用次数", "模型名字",
 		"提示Tokens", "补全Tokens", "提示价格", "补全价格", "金额"}
 	for i, header := range headers {
 		cell := fmt.Sprintf("%c1", 'A'+i)
@@ -373,11 +377,9 @@ func GetBillingAndExportExcel(startTime int64, endTime int64, userName string, t
 			f.SetCellValue("Sheet1", fmt.Sprintf("F%d", row), "-")
 			f.SetCellValue("Sheet1", fmt.Sprintf("G%d", row), "-")
 			f.SetCellValue("Sheet1", fmt.Sprintf("H%d", row), "-")
-			f.SetCellValue("Sheet1", fmt.Sprintf("I%d", row), "-")
-			f.SetCellValue("Sheet1", fmt.Sprintf("J%d", row), "-")
-			f.SetCellValue("Sheet1", fmt.Sprintf("K%d", row), channelTotal)
+			f.SetCellValue("Sheet1", fmt.Sprintf("I%d", row), channelTotal)
 			// 为整行设置样式
-			for col := 'A'; col <= 'K'; col++ {
+			for col := 'A'; col <= 'I'; col++ {
 				f.SetCellStyle("Sheet1", fmt.Sprintf("%c%d", col, row), fmt.Sprintf("%c%d", col, row), style)
 			}
 			row += 3
@@ -386,16 +388,14 @@ func GetBillingAndExportExcel(startTime int64, endTime int64, userName string, t
 
 		// 写入详细数据
 		f.SetCellValue("Sheet1", fmt.Sprintf("A%d", row), data.ChannelTag)
-		f.SetCellValue("Sheet1", fmt.Sprintf("B%d", row), data.ChannelId)
-		f.SetCellValue("Sheet1", fmt.Sprintf("C%d", row), data.ChannelName)
-		f.SetCellValue("Sheet1", fmt.Sprintf("D%d", row), data.CurrentDate)
-		f.SetCellValue("Sheet1", fmt.Sprintf("E%d", row), data.Count)
-		f.SetCellValue("Sheet1", fmt.Sprintf("F%d", row), data.ModelName)
-		f.SetCellValue("Sheet1", fmt.Sprintf("G%d", row), data.PromptTokens)
-		f.SetCellValue("Sheet1", fmt.Sprintf("H%d", row), data.CompletionsTokens)
-		f.SetCellValue("Sheet1", fmt.Sprintf("I%d", row), data.PromptPricing)
-		f.SetCellValue("Sheet1", fmt.Sprintf("J%d", row), data.CompletionsPricing)
-		f.SetCellValue("Sheet1", fmt.Sprintf("K%d", row), data.Cost)
+		f.SetCellValue("Sheet1", fmt.Sprintf("B%d", row), data.CurrentDate)
+		f.SetCellValue("Sheet1", fmt.Sprintf("C%d", row), data.Count)
+		f.SetCellValue("Sheet1", fmt.Sprintf("D%d", row), data.ModelName)
+		f.SetCellValue("Sheet1", fmt.Sprintf("E%d", row), data.PromptTokens)
+		f.SetCellValue("Sheet1", fmt.Sprintf("F%d", row), data.CompletionsTokens)
+		f.SetCellValue("Sheet1", fmt.Sprintf("G%d", row), data.PromptPricing)
+		f.SetCellValue("Sheet1", fmt.Sprintf("H%d", row), data.CompletionsPricing)
+		f.SetCellValue("Sheet1", fmt.Sprintf("I%d", row), data.Cost)
 
 		channelTotal += data.Cost
 		currentChannelTag = data.ChannelTag
@@ -412,10 +412,8 @@ func GetBillingAndExportExcel(startTime int64, endTime int64, userName string, t
 		f.SetCellValue("Sheet1", fmt.Sprintf("F%d", row), "-")
 		f.SetCellValue("Sheet1", fmt.Sprintf("G%d", row), "-")
 		f.SetCellValue("Sheet1", fmt.Sprintf("H%d", row), "-")
-		f.SetCellValue("Sheet1", fmt.Sprintf("I%d", row), "-")
-		f.SetCellValue("Sheet1", fmt.Sprintf("J%d", row), "-")
-		f.SetCellValue("Sheet1", fmt.Sprintf("K%d", row), channelTotal)
-		for col := 'A'; col <= 'K'; col++ {
+		f.SetCellValue("Sheet1", fmt.Sprintf("I%d", row), channelTotal)
+		for col := 'A'; col <= 'I'; col++ {
 			f.SetCellStyle("Sheet1", fmt.Sprintf("%c%d", col, row), fmt.Sprintf("%c%d", col, row), style)
 		}
 	}

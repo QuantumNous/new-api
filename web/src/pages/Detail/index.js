@@ -35,13 +35,12 @@ const Detail = (props) => {
     tokenname : '',
     token_name: '',
     model_name: '',
-    start_timestamp:
-      localStorage.getItem('data_export_default_time') === 'hour'
-        ? timestamp2string(now.getTime() / 1000 - 86400)
-        : localStorage.getItem('data_export_default_time') === 'week'
-          ? timestamp2string(now.getTime() / 1000 - 86400 * 30)
-          : timestamp2string(now.getTime() / 1000 - 86400 * 7),
-    end_timestamp: timestamp2string(now.getTime() / 1000 + 3600),
+    start_timestamp: timestamp2string(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime() / 1000
+    ),
+    end_timestamp: timestamp2string(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime() / 1000
+    ),
     channel: '',
     data_export_default_time: '',
   });
