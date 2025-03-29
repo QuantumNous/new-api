@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
-  copy,
+  copy, getTodayEndTimestamp,
   getTodayStartTimestamp,
   isAdmin,
   showError,
@@ -499,7 +499,7 @@ const LogsTable = () => {
     token_name: '',
     model_name: '',
     start_timestamp: timestamp2string(getTodayStartTimestamp()),
-    end_timestamp: timestamp2string(now.getTime() / 1000 + 3600),
+    end_timestamp: timestamp2string(getTodayEndTimestamp()),
     channel: '',
     group: '',
   });
