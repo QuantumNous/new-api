@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"one-api/common"
 	"one-api/setting"
 	"one-api/setting/config"
@@ -20,6 +21,19 @@ func AllOption() ([]*Option, error) {
 	var err error
 	err = DB.Find(&options).Error
 	return options, err
+}
+
+func InitGroups() {
+	common.GroupRWMutex.Lock()
+	defer common.GroupRWMutex.Unlock()
+	var groups []*Group
+	err := DB.Find(&groups).Error
+	if err != nil {
+		panic(err)
+	}
+	for _, group := range groups {
+		common.Groups[group.Name] = group.Id
+	}
 }
 
 func InitOptionMap() {
@@ -161,6 +175,31 @@ func UpdateOption(key string, value string) error {
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
 	DB.Save(&option)
+	if key == "GroupRatio" {
+		groups := make(map[string]int)
+		err := json.Unmarshal([]byte(option.Value), &groups)
+		if err != nil {
+			return err
+		}
+
+		// 将 GroupRatio 数据同步到 group 表中
+		for groupName, ratio := range groups {
+			// 查询是否存在该记录
+			var count int64
+			DB.Table("groups").Where("name = ?", groupName).Count(&count)
+
+			if count > 0 {
+				// 存在记录，更新 ratio
+				DB.Table("groups").Where("name = ?", groupName).Update("ratio", ratio)
+			} else {
+				// 不存在记录，创建新记录
+				DB.Table("groups").Create(map[string]interface{}{
+					"name":  groupName,
+					"ratio": ratio,
+				})
+			}
+		}
+	}
 	// Update OptionMap
 	return updateOptionMap(key, value)
 }
