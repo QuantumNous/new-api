@@ -50,3 +50,11 @@ func GroupInUserUsableGroups(groupName string) bool {
 	_, ok := userUsableGroups[groupName]
 	return ok
 }
+
+func GetGroupId(groupName string) int {
+	id, ok := common.Groups[groupName]
+	if !ok {
+		return -1
+	}
+	return id
+}

@@ -1,12 +1,11 @@
 package common
 
 import (
+	"github.com/google/uuid"
 	"os"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 var StartTime = time.Now().Unix() // unit: second
@@ -32,6 +31,9 @@ var DefaultCollapseSidebar = false // default value of collapse sidebar
 var SessionSecret = uuid.New().String()
 var CryptoSecret = uuid.New().String()
 
+// 需要先导入 model 包
+var Groups = map[string]int{}
+var GroupRWMutex sync.RWMutex
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex
 

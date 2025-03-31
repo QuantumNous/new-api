@@ -44,12 +44,14 @@ func Distribute() func(c *gin.Context) {
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := setting.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("令牌分组 %s 已被禁用", tokenGroup))
+				tokenGroupId := setting.GetGroupId(tokenGroup)
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("令牌分组id %d 已被禁用", tokenGroupId))
 				return
 			}
 			// check group in common.GroupRatio
 			if !setting.ContainsGroupRatio(tokenGroup) {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+				tokenGroupId := setting.GetGroupId(tokenGroup)
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组id %d 已被弃用", tokenGroupId))
 				return
 			}
 			userGroup = tokenGroup
@@ -97,7 +99,8 @@ func Distribute() func(c *gin.Context) {
 			if shouldSelectChannel {
 				channel, err = model.CacheGetRandomSatisfiedChannel(userGroup, modelRequest.Model, 0)
 				if err != nil {
-					message := fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道", userGroup, modelRequest.Model)
+					userGroupId := setting.GetGroupId(userGroup)
+					message := fmt.Sprintf("当前分组id %d 下对于模型 %s 无可用渠道", userGroupId, modelRequest.Model)
 					// 如果错误，但是渠道不为空，说明是数据库一致性问题
 					if channel != nil {
 						common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
@@ -108,7 +111,8 @@ func Distribute() func(c *gin.Context) {
 					return
 				}
 				if channel == nil {
-					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道（数据库一致性已被破坏）", userGroup, modelRequest.Model))
+					userGroupId := setting.GetGroupId(userGroup)
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("当前分组id %d 下对于模型 %s 无可用渠道（数据库一致性已被破坏）", userGroupId, modelRequest.Model))
 					return
 				}
 			}

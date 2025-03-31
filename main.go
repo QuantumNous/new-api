@@ -80,6 +80,7 @@ func main() {
 	constant.InitEnv()
 	// Initialize options
 	model.InitOptionMap()
+	model.InitGroups()
 	if common.RedisEnabled {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
