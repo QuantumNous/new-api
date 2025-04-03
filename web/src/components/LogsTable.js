@@ -720,7 +720,12 @@ const LogsTable = () => {
     url = encodeURI(url);
     const res = await API.get(url);
     const { success, message, data } = res.data;
+    
     if (success) {
+      if (!data.items || data.items.length === 0) {
+        showError('该段时间没有使用记录');
+        return;
+      }
       const newPageData = data.items;
       setActivePage(data.page);
       setPageSize(data.page_size);
