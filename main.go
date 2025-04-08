@@ -3,8 +3,6 @@ package main
 import (
 	"embed"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"one-api/common"
@@ -17,6 +15,10 @@ import (
 	"one-api/service"
 	"os"
 	"strconv"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-contrib/sessions"
@@ -63,6 +65,15 @@ func main() {
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 	}
+	model.GetLogTableName(time.Now().Unix())
+	// 每5分钟执行一次GetLogTableName
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			model.GetLogTableName(time.Now().Unix())
+		}
+	}()
 	defer func() {
 		err := model.CloseDB()
 		if err != nil {
