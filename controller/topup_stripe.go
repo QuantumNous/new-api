@@ -28,7 +28,6 @@ var stripeAdaptor = &StripeAdaptor{}
 type StripePayRequest struct {
 	Amount        int64  `json:"amount"`
 	PaymentMethod string `json:"payment_method"`
-	TopUpCode     string `json:"top_up_code"`
 }
 
 type StripeAdaptor struct {
