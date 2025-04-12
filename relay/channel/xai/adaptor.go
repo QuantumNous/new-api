@@ -1,4 +1,4 @@
-package zhipu_4v
+package xai
 
 import (
 	"errors"
@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"one-api/dto"
 	"one-api/relay/channel"
-	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
+	"strings"
 )
 
 type Adaptor struct {
@@ -18,37 +17,30 @@ type Adaptor struct {
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
 	//TODO implement me
-	panic("implement me")
-	return nil, nil
+	//panic("implement me")
+	return nil, errors.New("not available")
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	//not available
+	return nil, errors.New("not available")
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	request.Size = ""
+	return request, nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	baseUrl := fmt.Sprintf("%s/api/paas/v4", info.BaseUrl)
-	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings:
-		return fmt.Sprintf("%s/embeddings", baseUrl), nil
-	default:
-		return fmt.Sprintf("%s/chat/completions", baseUrl), nil
-	}
+	return fmt.Sprintf("%s/v1/chat/completions", info.BaseUrl), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	token := getZhipuToken(info.ApiKey)
-	req.Set("Authorization", token)
+	req.Set("Authorization", "Bearer "+info.ApiKey)
 	return nil
 }
 
@@ -56,10 +48,25 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if request.TopP >= 1 {
-		request.TopP = 0.99
+	if strings.HasPrefix(request.Model, "grok-3-mini") {
+		if request.MaxCompletionTokens == 0 && request.MaxTokens != 0 {
+			request.MaxCompletionTokens = request.MaxTokens
+			request.MaxTokens = 0
+		}
+		if strings.HasSuffix(request.Model, "-high") {
+			request.ReasoningEffort = "high"
+			request.Model = strings.TrimSuffix(request.Model, "-high")
+		} else if strings.HasSuffix(request.Model, "-low") {
+			request.ReasoningEffort = "low"
+			request.Model = strings.TrimSuffix(request.Model, "-low")
+		} else if strings.HasSuffix(request.Model, "-medium") {
+			request.ReasoningEffort = "medium"
+			request.Model = strings.TrimSuffix(request.Model, "-medium")
+		}
+		info.ReasoningEffort = request.ReasoningEffort
+		info.UpstreamModelName = request.Model
 	}
-	return requestOpenAI2Zhipu(*request), nil
+	return request, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -67,7 +74,8 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return request, nil
+	//not available
+	return nil, errors.New("not available")
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -76,10 +84,14 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
 	if info.IsStream {
-		err, usage = openai.OaiStreamHandler(c, resp, info)
+		err, usage = xAIStreamHandler(c, resp, info)
 	} else {
-		err, usage = openai.OpenaiHandler(c, resp, info)
+		err, usage = xAIHandler(c, resp, info)
 	}
+	//if _, ok := usage.(*dto.Usage); ok && usage != nil {
+	//	usage.(*dto.Usage).CompletionTokens = usage.(*dto.Usage).TotalTokens - usage.(*dto.Usage).PromptTokens
+	//}
+
 	return
 }
 
