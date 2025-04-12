@@ -134,8 +134,8 @@ var defaultModelRatio = map[string]float64{
 	"gemini-1.5-pro-latest":               1.25, // $3.5 / 1M tokens
 	"gemini-1.5-flash-latest":             0.075,
 	"gemini-2.0-flash":                    0.05,
-	"gemini-2.5-pro-exp-03-25":            1.25,
-	"gemini-2.5-pro-preview-03-25":        1.25,
+	"gemini-2.5-pro-exp-03-25":            0.625,
+	"gemini-2.5-pro-preview-03-25":        0.625,
 	"text-embedding-004":                  0.001,
 	"chatglm_turbo":                       0.3572,     // ￥0.005 / 1k tokens
 	"chatglm_pro":                         0.7143,     // ￥0.01 / 1k tokens
@@ -199,6 +199,15 @@ var defaultModelRatio = map[string]float64{
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
 	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
 	"llama-3-sonar-large-32k-online": 1 / 1000 * USD,
+	// grok
+	"grok-3-beta":           1.5,
+	"grok-3-mini-beta":      0.15,
+	"grok-2":                1,
+	"grok-2-vision":         1,
+	"grok-beta":             2.5,
+	"grok-vision-beta":      2.5,
+	"grok-3-fast-beta":      2.5,
+	"grok-3-mini-fast-beta": 0.3,
 }
 
 var defaultModelPrice = map[string]float64{
@@ -245,17 +254,41 @@ var defaultCompletionRatio = map[string]float64{
 	"gpt-4-all":      2,
 }
 
-func GetModelPriceMap() map[string]float64 {
+// InitModelSettings initializes all model related settings maps
+func InitModelSettings() {
+	// Initialize modelPriceMap
 	modelPriceMapMutex.Lock()
-	defer modelPriceMapMutex.Unlock()
-	if modelPriceMap == nil {
-		modelPriceMap = defaultModelPrice
-	}
+	modelPriceMap = defaultModelPrice
+	modelPriceMapMutex.Unlock()
+
+	// Initialize modelRatioMap
+	modelRatioMapMutex.Lock()
+	modelRatioMap = defaultModelRatio
+	modelRatioMapMutex.Unlock()
+
+	// Initialize CompletionRatio
+	CompletionRatioMutex.Lock()
+	CompletionRatio = defaultCompletionRatio
+	CompletionRatioMutex.Unlock()
+
+	// Initialize cacheRatioMap
+	cacheRatioMapMutex.Lock()
+	cacheRatioMap = defaultCacheRatio
+	cacheRatioMapMutex.Unlock()
+
+	common.SysLog("model settings initialized")
+}
+
+func GetModelPriceMap() map[string]float64 {
+	modelPriceMapMutex.RLock()
+	defer modelPriceMapMutex.RUnlock()
 	return modelPriceMap
 }
 
 func ModelPrice2JSONString() string {
-	GetModelPriceMap()
+	modelPriceMapMutex.RLock()
+	defer modelPriceMapMutex.RUnlock()
+
 	jsonBytes, err := json.Marshal(modelPriceMap)
 	if err != nil {
 		common.SysError("error marshalling model price: " + err.Error())
@@ -272,7 +305,9 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 
 // GetModelPrice 返回模型的价格，如果模型不存在则返回-1，false
 func GetModelPrice(name string, printErr bool) (float64, bool) {
-	GetModelPriceMap()
+	modelPriceMapMutex.RLock()
+	defer modelPriceMapMutex.RUnlock()
+
 	if strings.HasPrefix(name, "gpt-4-gizmo") {
 		name = "gpt-4-gizmo-*"
 	}
@@ -289,24 +324,6 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	return price, true
 }
 
-func GetModelRatioMap() map[string]float64 {
-	modelRatioMapMutex.Lock()
-	defer modelRatioMapMutex.Unlock()
-	if modelRatioMap == nil {
-		modelRatioMap = defaultModelRatio
-	}
-	return modelRatioMap
-}
-
-func ModelRatio2JSONString() string {
-	GetModelRatioMap()
-	jsonBytes, err := json.Marshal(modelRatioMap)
-	if err != nil {
-		common.SysError("error marshalling model ratio: " + err.Error())
-	}
-	return string(jsonBytes)
-}
-
 func UpdateModelRatioByJSONString(jsonStr string) error {
 	modelRatioMapMutex.Lock()
 	defer modelRatioMapMutex.Unlock()
@@ -315,7 +332,9 @@ func UpdateModelRatioByJSONString(jsonStr string) error {
 }
 
 func GetModelRatio(name string) (float64, bool) {
-	GetModelRatioMap()
+	modelRatioMapMutex.RLock()
+	defer modelRatioMapMutex.RUnlock()
+
 	if strings.HasPrefix(name, "gpt-4-gizmo") {
 		name = "gpt-4-gizmo-*"
 	}
@@ -339,16 +358,15 @@ func GetDefaultModelRatioMap() map[string]float64 {
 }
 
 func GetCompletionRatioMap() map[string]float64 {
-	CompletionRatioMutex.Lock()
-	defer CompletionRatioMutex.Unlock()
-	if CompletionRatio == nil {
-		CompletionRatio = defaultCompletionRatio
-	}
+	CompletionRatioMutex.RLock()
+	defer CompletionRatioMutex.RUnlock()
 	return CompletionRatio
 }
 
 func CompletionRatio2JSONString() string {
-	GetCompletionRatioMap()
+	CompletionRatioMutex.RLock()
+	defer CompletionRatioMutex.RUnlock()
+
 	jsonBytes, err := json.Marshal(CompletionRatio)
 	if err != nil {
 		common.SysError("error marshalling completion ratio: " + err.Error())
@@ -364,7 +382,8 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 }
 
 func GetCompletionRatio(name string) float64 {
-	GetCompletionRatioMap()
+	CompletionRatioMutex.RLock()
+	defer CompletionRatioMutex.RUnlock()
 
 	if strings.Contains(name, "/") {
 		if ratio, ok := CompletionRatio[name]; ok {
@@ -439,7 +458,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		} else if strings.HasPrefix(name, "gemini-2.0") {
 			return 4, true
 		} else if strings.HasPrefix(name, "gemini-2.5-pro-preview") {
-			return 6, true
+			return 8, true
 		}
 		return 4, false
 	}
@@ -510,4 +529,15 @@ func GetAudioCompletionRatio(name string) float64 {
 		return 2
 	}
 	return 2
+}
+
+func ModelRatio2JSONString() string {
+	modelRatioMapMutex.RLock()
+	defer modelRatioMapMutex.RUnlock()
+
+	jsonBytes, err := json.Marshal(modelRatioMap)
+	if err != nil {
+		common.SysError("error marshalling model ratio: " + err.Error())
+	}
+	return string(jsonBytes)
 }

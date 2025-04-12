@@ -19,13 +19,18 @@ type ThinkingContentInfo struct {
 }
 
 const (
-	LastMessageTypeText  = "text"
-	LastMessageTypeTools = "tools"
+	LastMessageTypeNone     = "none"
+	LastMessageTypeText     = "text"
+	LastMessageTypeTools    = "tools"
+	LastMessageTypeThinking = "thinking"
 )
 
 type ClaudeConvertInfo struct {
 	LastMessagesType string
 	Index            int
+	Usage            *dto.Usage
+	FinishReason     string
+	Done             bool
 }
 
 const (
@@ -97,6 +102,7 @@ var streamSupportedChannels = map[int]bool{
 	common.ChannelTypeAzure:      true,
 	common.ChannelTypeVolcEngine: true,
 	common.ChannelTypeOllama:     true,
+	common.ChannelTypeXai:        true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -113,7 +119,7 @@ func GenRelayInfoClaude(c *gin.Context) *RelayInfo {
 	info.RelayFormat = RelayFormatClaude
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = ClaudeConvertInfo{
-		LastMessagesType: LastMessageTypeText,
+		LastMessagesType: LastMessageTypeNone,
 	}
 	return info
 }
