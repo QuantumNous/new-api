@@ -7,17 +7,18 @@ type ClaudeMetadata struct {
 }
 
 type ClaudeMediaMessage struct {
-	Type        string               `json:"type,omitempty"`
-	Text        *string              `json:"text,omitempty"`
-	Model       string               `json:"model,omitempty"`
-	Source      *ClaudeMessageSource `json:"source,omitempty"`
-	Usage       *ClaudeUsage         `json:"usage,omitempty"`
-	StopReason  *string              `json:"stop_reason,omitempty"`
-	PartialJson *string              `json:"partial_json,omitempty"`
-	Role        string               `json:"role,omitempty"`
-	Thinking    string               `json:"thinking,omitempty"`
-	Signature   string               `json:"signature,omitempty"`
-	Delta       string               `json:"delta,omitempty"`
+	Type         string               `json:"type,omitempty"`
+	Text         *string              `json:"text,omitempty"`
+	Model        string               `json:"model,omitempty"`
+	Source       *ClaudeMessageSource `json:"source,omitempty"`
+	Usage        *ClaudeUsage         `json:"usage,omitempty"`
+	StopReason   *string              `json:"stop_reason,omitempty"`
+	PartialJson  *string              `json:"partial_json,omitempty"`
+	Role         string               `json:"role,omitempty"`
+	Thinking     string               `json:"thinking,omitempty"`
+	Signature    string               `json:"signature,omitempty"`
+	Delta        string               `json:"delta,omitempty"`
+	CacheControl json.RawMessage      `json:"cache_control,omitempty"`
 	// tool_calls
 	Id        string          `json:"id,omitempty"`
 	Name      string          `json:"name,omitempty"`

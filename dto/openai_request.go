@@ -107,11 +107,12 @@ type Message struct {
 }
 
 type MediaContent struct {
-	Type       string `json:"type"`
-	Text       string `json:"text,omitempty"`
-	ImageUrl   any    `json:"image_url,omitempty"`
-	InputAudio any    `json:"input_audio,omitempty"`
-	File       any    `json:"file,omitempty"`
+	Type         string          `json:"type"`
+	Text         string          `json:"text,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
+	ImageUrl     any             `json:"image_url,omitempty"`
+	InputAudio   any             `json:"input_audio,omitempty"`
+	File         any             `json:"file,omitempty"`
 }
 
 func (m *MediaContent) GetImageMedia() *MessageImageUrl {
