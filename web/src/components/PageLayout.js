@@ -85,7 +85,6 @@ const PageLayout = () => {
         width: '100%', 
         top: 0, 
         zIndex: 100,
-        boxShadow: '0 1px 6px rgba(0, 0, 0, 0.08)'
       }}>
         <HeaderBar />
       </Header>
@@ -103,7 +102,7 @@ const PageLayout = () => {
             top: '56px',
             zIndex: 99,
             background: 'var(--semi-color-bg-1)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
             border: 'none',
             paddingRight: '0',
             height: 'calc(100vh - 56px)',

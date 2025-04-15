@@ -32,7 +32,6 @@ import { StatusContext } from '../context/Status/index.js';
 
 // 自定义顶部栏样式
 const headerStyle = {
-  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
   borderBottom: '1px solid var(--semi-color-border)',
   background: 'var(--semi-color-bg-0)',
   transition: 'all 0.3s ease',

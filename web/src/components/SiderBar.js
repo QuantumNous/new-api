@@ -328,7 +328,6 @@ const SiderBar = () => {
         className="custom-sidebar-nav"
         style={{ 
           width: isCollapsed ? '60px' : '200px',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
           borderRight: '1px solid var(--semi-color-border)',
           background: 'var(--semi-color-bg-1)',
           borderRadius: styleState.isMobile ? '0' : '0 8px 8px 0',
