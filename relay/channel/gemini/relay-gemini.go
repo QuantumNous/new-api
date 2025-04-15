@@ -553,6 +553,7 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
 	}
 	if len(geminiResponse.Candidates) == 0 {
+		common.SysError(fmt.Sprintf("no candidates returned: %s", string(responseBody)))
 		return &dto.OpenAIErrorWithStatusCode{
 			Error: dto.OpenAIError{
 				Message: "No candidates returned",
