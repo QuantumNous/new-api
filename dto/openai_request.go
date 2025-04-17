@@ -291,6 +291,19 @@ func (m *Message) ParseContent() []MediaContent {
 						})
 					}
 				}
+			case ContentTypeYoutube:
+				mimetype, ok1 := contentItem["mimetype"].(string)
+				url, ok2 := contentItem["url"].(string)
+				if ok1 && ok2 {
+					contentList = append(contentList, MediaContent{
+						Type: ContentTypeYoutube,
+						Text: mimetype,
+						ImageUrl: MessageImageUrl{
+							Url:    url,
+							Detail: "high",
+						},
+					})
+				}
 			}
 		}
 	}
