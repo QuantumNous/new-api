@@ -205,6 +205,13 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 					})
 				}
 			}
+		} else if part.Type == dto.ContentTypeYoutube {
+			parts = append(parts, GeminiPart{
+				FileData: &GeminiFileData{
+					MimeType: part.Text,
+					FileUri:  part.ImageUrl.(dto.MessageImageUrl).Url,
+				},
+			})
 		}
 
 		content.Parts = parts
