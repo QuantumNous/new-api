@@ -205,6 +205,13 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 					})
 				}
 			}
+		} else if part.Type == dto.ContentTypeYoutube {
+			parts = append(parts, GeminiPart{
+				FileData: &GeminiFileData{
+					MimeType: part.Text,
+					FileUri:  part.ImageUrl.(dto.MessageImageUrl).Url,
+				},
+			})
 		}
 
 		content.Parts = parts
@@ -553,6 +560,7 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
 	}
 	if len(geminiResponse.Candidates) == 0 {
+		common.SysError(fmt.Sprintf("no candidates returned: %s", string(responseBody)))
 		return &dto.OpenAIErrorWithStatusCode{
 			Error: dto.OpenAIError{
 				Message: "No candidates returned",

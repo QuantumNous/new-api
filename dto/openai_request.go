@@ -133,6 +133,7 @@ const (
 	ContentTypeText       = "text"
 	ContentTypeImageURL   = "image_url"
 	ContentTypeInputAudio = "input_audio"
+	ContentTypeYoutube    = "youtube"
 )
 
 func (m *Message) GetPrefix() bool {
