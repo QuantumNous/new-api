@@ -723,7 +723,6 @@ const LogsTable = () => {
     
     if (success) {
       if (!data.items || data.items.length === 0) {
-        showError('该段时间没有使用记录');
         setLoading(false);
         return;
       }
