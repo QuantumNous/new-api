@@ -67,7 +67,9 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					Role: "system",
 				}
 				for _, system := range systems {
-					systemStr += system.Type
+					if system.Text != nil {
+						systemStr += *system.Text
+					}
 				}
 				openAIMessage.SetStringContent(systemStr)
 				openAIMessages = append(openAIMessages, openAIMessage)

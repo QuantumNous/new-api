@@ -43,7 +43,7 @@ func InitTokenEncoders() {
 			} else {
 				tokenEncoderMap[model] = defaultTokenEncoder
 			}
-		} else if strings.HasPrefix(model, "o1") {
+		} else if strings.HasPrefix(model, "o") {
 			tokenEncoderMap[model] = o200kTokenEncoder
 		} else {
 			tokenEncoderMap[model] = defaultTokenEncoder

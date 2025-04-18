@@ -141,7 +141,6 @@ func OaiStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 			if err != nil {
 				common.SysError("error handling stream format: " + err.Error())
 			}
-			info.SetFirstResponseTime()
 		}
 		lastStreamData = data
 		streamItems = append(streamItems, data)

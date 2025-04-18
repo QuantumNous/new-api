@@ -6,8 +6,9 @@ import (
 
 // GeminiSettings 定义Gemini模型的配置
 type GeminiSettings struct {
-	SafetySettings  map[string]string `json:"safety_settings"`
-	VersionSettings map[string]string `json:"version_settings"`
+	SafetySettings         map[string]string `json:"safety_settings"`
+	VersionSettings        map[string]string `json:"version_settings"`
+	SupportedImagineModels []string          `json:"supported_imagine_models"`
 }
 
 // 默认配置
@@ -19,6 +20,10 @@ var defaultGeminiSettings = GeminiSettings{
 	VersionSettings: map[string]string{
 		"default":        "v1beta",
 		"gemini-1.0-pro": "v1",
+	},
+	SupportedImagineModels: []string{
+		"gemini-2.0-flash-exp-image-generation",
+		"gemini-2.0-flash-exp",
 	},
 }
 
@@ -49,4 +54,13 @@ func GetGeminiVersionSetting(key string) string {
 		return value
 	}
 	return geminiSettings.VersionSettings["default"]
+}
+
+func IsGeminiModelSupportImagine(model string) bool {
+	for _, v := range geminiSettings.SupportedImagineModels {
+		if v == model {
+			return true
+		}
+	}
+	return false
 }
