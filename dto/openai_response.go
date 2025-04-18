@@ -173,3 +173,17 @@ type Usage struct {
 	PromptTokensDetails    InputTokenDetails  `json:"prompt_tokens_details"`
 	CompletionTokenDetails OutputTokenDetails `json:"completion_tokens_details"`
 }
+
+type InputTokenDetails struct {
+	CachedTokens         int `json:"cached_tokens"`
+	CachedCreationTokens int `json:"-"`
+	TextTokens           int `json:"text_tokens"`
+	AudioTokens          int `json:"audio_tokens"`
+	ImageTokens          int `json:"image_tokens"`
+}
+
+type OutputTokenDetails struct {
+	TextTokens      int `json:"text_tokens"`
+	AudioTokens     int `json:"audio_tokens"`
+	ReasoningTokens int `json:"reasoning_tokens"`
+}

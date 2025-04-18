@@ -8,6 +8,15 @@ type GeminiChatRequest struct {
 	SystemInstructions *GeminiChatContent         `json:"system_instruction,omitempty"`
 }
 
+type GeminiThinkingConfig struct {
+	IncludeThoughts bool `json:"includeThoughts,omitempty"`
+	ThinkingBudget  *int `json:"thinkingBudget,omitempty"`
+}
+
+func (c *GeminiThinkingConfig) SetThinkingBudget(budget int) {
+	c.ThinkingBudget = &budget
+}
+
 type GeminiInlineData struct {
 	MimeType string `json:"mimeType"`
 	Data     string `json:"data"`
@@ -71,16 +80,17 @@ type GeminiChatTool struct {
 }
 
 type GeminiChatGenerationConfig struct {
-	Temperature        *float64 `json:"temperature,omitempty"`
-	TopP               float64  `json:"topP,omitempty"`
-	TopK               float64  `json:"topK,omitempty"`
-	MaxOutputTokens    uint     `json:"maxOutputTokens,omitempty"`
-	CandidateCount     int      `json:"candidateCount,omitempty"`
-	StopSequences      []string `json:"stopSequences,omitempty"`
-	ResponseMimeType   string   `json:"responseMimeType,omitempty"`
-	ResponseSchema     any      `json:"responseSchema,omitempty"`
-	Seed               int64    `json:"seed,omitempty"`
-	ResponseModalities []string `json:"responseModalities,omitempty"`
+	Temperature        *float64              `json:"temperature,omitempty"`
+	TopP               float64               `json:"topP,omitempty"`
+	TopK               float64               `json:"topK,omitempty"`
+	MaxOutputTokens    uint                  `json:"maxOutputTokens,omitempty"`
+	CandidateCount     int                   `json:"candidateCount,omitempty"`
+	StopSequences      []string              `json:"stopSequences,omitempty"`
+	ResponseMimeType   string                `json:"responseMimeType,omitempty"`
+	ResponseSchema     any                   `json:"responseSchema,omitempty"`
+	Seed               int64                 `json:"seed,omitempty"`
+	ResponseModalities []string              `json:"responseModalities,omitempty"`
+	ThinkingConfig     *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
 type GeminiChatCandidate struct {
@@ -109,6 +119,7 @@ type GeminiUsageMetadata struct {
 	PromptTokenCount     int `json:"promptTokenCount"`
 	CandidatesTokenCount int `json:"candidatesTokenCount"`
 	TotalTokenCount      int `json:"totalTokenCount"`
+	ThoughtsTokenCount   int `json:"thoughtsTokenCount"`
 }
 
 // Imagen related structs

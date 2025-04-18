@@ -49,11 +49,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 				}
 			}
 			if !acceptUnsetRatio {
-				if info.UserId == 1 {
-					return PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", info.OriginModelName, info.OriginModelName)
-				} else {
-					return PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置, 请联系管理员设置；Model %s ratio or price not set, please contact administrator to set", info.OriginModelName, info.OriginModelName)
-				}
+				return PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", info.OriginModelName, info.OriginModelName)
 			}
 		}
 		completionRatio = operation_setting.GetCompletionRatio(info.OriginModelName)
@@ -81,4 +77,16 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	return priceData, nil
+}
+
+func ContainPriceOrRatio(modelName string) bool {
+	_, ok := operation_setting.GetModelPrice(modelName, false)
+	if ok {
+		return true
+	}
+	_, ok = operation_setting.GetModelRatio(modelName)
+	if ok {
+		return true
+	}
+	return false
 }
