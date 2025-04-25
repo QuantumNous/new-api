@@ -2,6 +2,7 @@ package operation_setting
 
 import (
 	"encoding/json"
+	"fmt"
 	"one-api/common"
 	"strings"
 	"sync"
@@ -479,11 +480,14 @@ func CompletionRatio2JSONString() string {
 	return string(jsonBytes)
 }
 
-func UpdateCompletionRatioByJSONString(jsonStr string) error {
+func UpdateCompletionRatioByJSONString(jsonStr string) (err error) {
 	CompletionRatioMutex.Lock()
 	defer CompletionRatioMutex.Unlock()
 	CompletionRatio = make(map[string]float64)
-	return json.Unmarshal([]byte(jsonStr), &CompletionRatio)
+	common.SysLog("Updating completion ratio, " + jsonStr)
+	err = json.Unmarshal([]byte(jsonStr), &CompletionRatio)
+	common.SysLog("Updated completion ratio success, " + fmt.Sprintf("%v", CompletionRatio["gemini-2.5-pro-preview-03-25"]))
+	return err
 }
 
 func GetCompletionRatio(name string) float64 {
