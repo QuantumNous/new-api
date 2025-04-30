@@ -108,6 +108,7 @@ type GeminiUsageMetadata struct {
 	PromptTokenCount     int `json:"promptTokenCount"`
 	CandidatesTokenCount int `json:"candidatesTokenCount"`
 	TotalTokenCount      int `json:"totalTokenCount"`
+	ThoughtsTokenCount   int `json:"thoughtsTokenCount"`
 }
 
 // Imagen related structs

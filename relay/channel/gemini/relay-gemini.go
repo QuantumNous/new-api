@@ -578,6 +578,7 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount,
 		TotalTokens:      geminiResponse.UsageMetadata.TotalTokenCount,
 	}
+	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 	fullTextResponse.Usage = usage
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {

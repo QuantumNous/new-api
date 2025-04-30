@@ -349,7 +349,9 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	promptTokens := usage.PromptTokens
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
-	completionTokens := usage.CompletionTokens
+	//
+	completionTokens := usage.CompletionTokens + usage.CompletionTokenDetails.ReasoningTokens
+	thinkingTokens := usage.CompletionTokenDetails.ReasoningTokens
 	modelName := relayInfo.OriginModelName
 
 	tokenName := ctx.GetString("token_name")
@@ -371,7 +373,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	} else {
 		quota = int(modelPrice * common.QuotaPerUnit * groupRatio)
 	}
-	totalTokens := promptTokens + completionTokens
+	totalTokens := promptTokens + completionTokens + thinkingTokens
 
 	var logContent string
 	if !priceData.UsePrice {
@@ -416,7 +418,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		logContent += ", " + extraContent
 	}
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
-	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, logModel,
+	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
 
 	//if quota != 0 {

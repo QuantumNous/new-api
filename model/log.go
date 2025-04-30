@@ -27,6 +27,7 @@ type Log struct {
 	Quota            int    `json:"quota" gorm:"default:0"`
 	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
+	ThinkingTokens   int    `json:"thinking_tokens" gorm:"default:0"`
 	UseTime          int    `json:"use_time" gorm:"default:0"`
 	IsStream         bool   `json:"is_stream" gorm:"default:false"`
 	ChannelId        int    `json:"channel" gorm:"index"`
@@ -136,7 +137,7 @@ func GetLogTableName(timestamp int64) string {
 }
 
 // 修改 RecordConsumeLog 函数中的相关部分
-func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int,
+func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int, thinkingTokens int,
 	modelName string, tokenName string, quota int, content string, tokenId int, userQuota int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	common.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, 用户调用前余额=%d, channelId=%d, promptTokens=%d, completionTokens=%d, modelName=%s, tokenName=%s, quota=%d, content=%s", userId, userQuota, channelId, promptTokens, completionTokens, modelName, tokenName, quota, content))
@@ -154,6 +155,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		Content:          content,
 		PromptTokens:     promptTokens,
 		CompletionTokens: completionTokens,
+		ThinkingTokens:   thinkingTokens,
 		TokenName:        tokenName,
 		ModelName:        modelName,
 		Quota:            quota,
