@@ -31,6 +31,8 @@ const (
 	APITypeVolcEngine
 	APITypeBaiduV2
 	APITypeOpenRouter
+	APITypeXinference
+	APITypeXai
 	APITypeDummy // this one is only for count, do not add any channel after this
 )
 
@@ -89,6 +91,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = APITypeBaiduV2
 	case common.ChannelTypeOpenRouter:
 		apiType = APITypeOpenRouter
+	case common.ChannelTypeXai:
+		apiType = APITypeXai
 	}
 	if apiType == -1 {
 		return APITypeOpenAI, false
