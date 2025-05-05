@@ -2,9 +2,11 @@ package helper
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"one-api/relay/common"
+
+	"github.com/gin-gonic/gin"
 )
 
 func ModelMappedHelper(c *gin.Context, info *common.RelayInfo) error {
@@ -16,9 +18,26 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo) error {
 		if err != nil {
 			return fmt.Errorf("unmarshal_model_mapping_failed")
 		}
-		if modelMap[info.OriginModelName] != "" {
-			info.UpstreamModelName = modelMap[info.OriginModelName]
-			info.IsModelMapped = true
+		currentModel := info.OriginModelName
+		// 支持链式模型重定向，最终使用链尾的模型
+		for {
+			if mappedModel, exists := modelMap[currentModel]; exists && mappedModel != "" {
+				// 模型重定向循环检测，避免无限循环
+				if mappedModel == info.OriginModelName {
+					if currentModel == info.OriginModelName {
+						return nil
+					} else {
+						return errors.New("model_mapping_contains_cycle")
+					}
+				}
+				currentModel = mappedModel
+				info.IsModelMapped = true
+			} else {
+				break
+			}
+		}
+		if info.IsModelMapped {
+			info.UpstreamModelName = currentModel
 		}
 	}
 	return nil
