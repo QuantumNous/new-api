@@ -236,8 +236,7 @@ const (
 	ChannelTypeMokaAI         = 44
 	ChannelTypeVolcEngine     = 45
 	ChannelTypeBaiduV2        = 46
-	ChannelTypeXinference     = 47
-	ChannelTypeXai            = 48
+	ChannelTypeXai            = 47
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
