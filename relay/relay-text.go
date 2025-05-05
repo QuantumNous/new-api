@@ -352,7 +352,8 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	promptTokens := usage.PromptTokens
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
 	//
-	completionTokens := usage.CompletionTokens + usage.CompletionTokenDetails.ReasoningTokens
+
+	completionTokens := usage.CompletionTokens
 	thinkingTokens := usage.CompletionTokenDetails.ReasoningTokens
 	modelName := relayInfo.OriginModelName
 
@@ -418,6 +419,9 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	}
 	if extraContent != "" {
 		logContent += ", " + extraContent
+	}
+	if usage.CompletionTokens+usage.PromptTokens < usage.TotalTokens {
+		completionTokens = completionTokens + thinkingTokens
 	}
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
