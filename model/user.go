@@ -405,6 +405,8 @@ func (user *User) ValidateAndFill() (err error) {
 	// When querying with struct, GORM will only query with non-zero fields,
 	// that means if your field's value is 0, '', false or other zero values,
 	// it won't be used to build query conditions
+	// that means if your field's value is 0, '', false or other zero values,
+	// it won't be used to build query conditions
 	password := user.Password
 	username := strings.TrimSpace(user.Username)
 	if username == "" || password == "" {
@@ -807,6 +809,11 @@ func (user *User) FillUserByLinuxDOId() error {
 		return errors.New("linux do id is empty")
 	}
 	err := DB.Where("linux_do_id = ?", user.LinuxDOId).First(user).Error
+	return err
+}
+
+func (user *User) FillUserByUsername() error {
+	err := DB.First(user, "username = ?", user.Username).Error
 	return err
 }
 

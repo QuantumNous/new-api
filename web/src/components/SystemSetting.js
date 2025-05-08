@@ -19,7 +19,7 @@ import {
   verifyJSON,
 } from '../helpers/utils';
 import { API } from '../helpers/api';
-import axios from "axios";
+import axios from 'axios';
 
 const SystemSetting = () => {
   let [inputs, setInputs] = useState({
@@ -72,6 +72,16 @@ const SystemSetting = () => {
     LinuxDOOAuthEnabled: '',
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
+    // LDAP Auth
+    LDAPAuthEnabled: '',
+    LDAPHost: '',
+    LDAPPort: '',
+    LDAPBaseDN: '',
+    LDAPBindUsername: '',
+    LDAPBindPassword: '',
+    LDAPUserFilter: '',
+    LDAPEmailAttr: 'mail',
+    LDAPNameAttr: 'displayName',
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -111,6 +121,7 @@ const SystemSetting = () => {
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
           case 'oidc.enabled':
+          case 'LDAPAuthEnabled':
             item.value = item.value === 'true';
             break;
           case 'Price':
@@ -204,9 +215,7 @@ const SystemSetting = () => {
 
   const submitWorker = async () => {
     let WorkerUrl = removeTrailingSlash(inputs.WorkerUrl);
-    const options = [
-      { key: 'WorkerUrl', value: WorkerUrl },
-    ]
+    const options = [{ key: 'WorkerUrl', value: WorkerUrl }];
     if (inputs.WorkerValidKey !== '' || WorkerUrl === '') {
       options.push({ key: 'WorkerValidKey', value: inputs.WorkerValidKey });
     }
@@ -302,7 +311,8 @@ const SystemSetting = () => {
       const domain = emailToAdd.trim();
 
       // 验证域名格式
-      const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+      const domainRegex =
+        /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
       if (!domainRegex.test(domain)) {
         showError('邮箱域名格式不正确，请输入有效的域名，如 gmail.com');
         return;
@@ -492,6 +502,45 @@ const SystemSetting = () => {
         key: 'LinuxDOClientSecret',
         value: inputs.LinuxDOClientSecret,
       });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  const submitLDAPSettings = async () => {
+    const options = [];
+
+    if (originInputs['LDAPHost'] !== inputs.LDAPHost) {
+      options.push({ key: 'LDAPHost', value: inputs.LDAPHost });
+    }
+    if (
+      originInputs['LDAPPort'] !== inputs.LDAPPort &&
+      inputs.LDAPPort !== ''
+    ) {
+      options.push({ key: 'LDAPPort', value: inputs.LDAPPort });
+    }
+    if (originInputs['LDAPBaseDN'] !== inputs.LDAPBaseDN) {
+      options.push({ key: 'LDAPBaseDN', value: inputs.LDAPBaseDN });
+    }
+    if (originInputs['LDAPBindUsername'] !== inputs.LDAPBindUsername) {
+      options.push({ key: 'LDAPBindUsername', value: inputs.LDAPBindUsername });
+    }
+    if (
+      originInputs['LDAPBindPassword'] !== inputs.LDAPBindPassword &&
+      inputs.LDAPBindPassword !== ''
+    ) {
+      options.push({ key: 'LDAPBindPassword', value: inputs.LDAPBindPassword });
+    }
+    if (originInputs['LDAPUserFilter'] !== inputs.LDAPUserFilter) {
+      options.push({ key: 'LDAPUserFilter', value: inputs.LDAPUserFilter });
+    }
+    if (originInputs['LDAPEmailAttr'] !== inputs.LDAPEmailAttr) {
+      options.push({ key: 'LDAPEmailAttr', value: inputs.LDAPEmailAttr });
+    }
+    if (originInputs['LDAPNameAttr'] !== inputs.LDAPNameAttr) {
+      options.push({ key: 'LDAPNameAttr', value: inputs.LDAPNameAttr });
     }
 
     if (options.length > 0) {
@@ -747,6 +796,15 @@ const SystemSetting = () => {
                       >
                         允许通过 OIDC 进行登录
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field='LDAPAuthEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('LDAPAuthEnabled', e)
+                        }
+                      >
+                        允许通过 LDAP 账户登录 & 注册
+                      </Form.Checkbox>
                     </Col>
                   </Row>
                 </Form.Section>
@@ -799,7 +857,13 @@ const SystemSetting = () => {
                     onChange={(value) => setEmailToAdd(value)}
                     style={{ marginTop: 16 }}
                     suffix={
-                      <Button theme="solid" type="primary" onClick={handleAddEmail}>添加</Button>
+                      <Button
+                        theme='solid'
+                        type='primary'
+                        onClick={handleAddEmail}
+                      >
+                        添加
+                      </Button>
                     }
                     onEnterPress={handleAddEmail}
                   />
@@ -1092,6 +1156,84 @@ const SystemSetting = () => {
                     </Col>
                   </Row>
                   <Button onClick={submitTurnstile}>保存 Turnstile 设置</Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text='配置 LDAP 认证'>
+                  <Text>
+                    用以支持通过 LDAP 进行用户认证，请确保 LDAP 服务器配置正确
+                  </Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPHost'
+                        label='LDAP 服务器地址'
+                        placeholder='例如: ldap.example.com'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPPort'
+                        label='LDAP 端口'
+                        placeholder='默认: 389'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPBaseDN'
+                        label='LDAP Base DN'
+                        placeholder='例如：dc=example,dc=com'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPBindUsername'
+                        label='LDAP Bind DN'
+                        placeholder='例如：uid=admin,ou=people,dc=example,dc=com'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPBindPassword'
+                        label='LDAP Bind Password'
+                        type='password'
+                        placeholder='敏感信息不会发送到前端显示'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPUserFilter'
+                        label='LDAP User DN Search Filter'
+                        placeholder='例如：(&(uid=%s)(memberOf=cn=newapi,ou=groups,dc=example,dc=com))'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPEmailAttr'
+                        label='LDAP Email Attribute'
+                        placeholder='例如：mail'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='LDAPNameAttr'
+                        label='LDAP Name Attribute'
+                        placeholder='例如：displayName'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitLDAPSettings}>保存 LDAP 设置</Button>
                 </Form.Section>
               </Card>
 
