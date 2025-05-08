@@ -214,6 +214,10 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	err = DB.AutoMigrate(&Group{})
+	if err != nil {
+		return err
+	}
 	common.SysLog("database migrated")
 	err = createRootAccountIfNeed()
 	return err
