@@ -40,6 +40,16 @@ func getAndValidateTextRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo)
 	if relayInfo.RelayMode == relayconstant.RelayModeEmbeddings && textRequest.Model == "" {
 		textRequest.Model = c.Param("model")
 	}
+	if textRequest.ExtraBody != nil {
+		textRequest.ChatTemplateKwargs = textRequest.ExtraBody
+	}
+
+	if textRequest.EnableThinking != nil {
+		if textRequest.ChatTemplateKwargs == nil {
+			textRequest.ChatTemplateKwargs = make(map[string]interface{})
+		}
+		textRequest.ChatTemplateKwargs["enable_thinking"] = textRequest.EnableThinking
+	}
 
 	if textRequest.MaxTokens > math.MaxInt32/2 {
 		return nil, errors.New("max_tokens is invalid")

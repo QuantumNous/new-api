@@ -29,30 +29,31 @@ type GeneralOpenAIRequest struct {
 	MaxCompletionTokens uint           `json:"max_completion_tokens,omitempty"`
 	ReasoningEffort     string         `json:"reasoning_effort,omitempty"`
 	//Reasoning           json.RawMessage   `json:"reasoning,omitempty"`
-	Temperature      *float64          `json:"temperature,omitempty"`
-	TopP             float64           `json:"top_p,omitempty"`
-	TopK             int               `json:"top_k,omitempty"`
-	Stop             any               `json:"stop,omitempty"`
-	N                int               `json:"n,omitempty"`
-	Input            any               `json:"input,omitempty"`
-	Instruction      string            `json:"instruction,omitempty"`
-	Size             string            `json:"size,omitempty"`
-	Functions        any               `json:"functions,omitempty"`
-	FrequencyPenalty float64           `json:"frequency_penalty,omitempty"`
-	PresencePenalty  float64           `json:"presence_penalty,omitempty"`
-	ResponseFormat   *ResponseFormat   `json:"response_format,omitempty"`
-	EncodingFormat   any               `json:"encoding_format,omitempty"`
-	Seed             float64           `json:"seed,omitempty"`
-	Tools            []ToolCallRequest `json:"tools,omitempty"`
-	ToolChoice       any               `json:"tool_choice,omitempty"`
-	User             string            `json:"user,omitempty"`
-	LogProbs         bool              `json:"logprobs,omitempty"`
-	TopLogProbs      int               `json:"top_logprobs,omitempty"`
-	Dimensions       int               `json:"dimensions,omitempty"`
-	Modalities       any               `json:"modalities,omitempty"`
-	Audio            any               `json:"audio,omitempty"`
-	EnableThinking   any               `json:"enable_thinking,omitempty"` // ali
-	ExtraBody        any               `json:"extra_body,omitempty"`
+	Temperature        *float64               `json:"temperature,omitempty"`
+	TopP               float64                `json:"top_p,omitempty"`
+	TopK               int                    `json:"top_k,omitempty"`
+	Stop               any                    `json:"stop,omitempty"`
+	N                  int                    `json:"n,omitempty"`
+	Input              any                    `json:"input,omitempty"`
+	Instruction        string                 `json:"instruction,omitempty"`
+	Size               string                 `json:"size,omitempty"`
+	Functions          any                    `json:"functions,omitempty"`
+	FrequencyPenalty   float64                `json:"frequency_penalty,omitempty"`
+	PresencePenalty    float64                `json:"presence_penalty,omitempty"`
+	ResponseFormat     *ResponseFormat        `json:"response_format,omitempty"`
+	EncodingFormat     any                    `json:"encoding_format,omitempty"`
+	Seed               float64                `json:"seed,omitempty"`
+	Tools              []ToolCallRequest      `json:"tools,omitempty"`
+	ToolChoice         any                    `json:"tool_choice,omitempty"`
+	User               string                 `json:"user,omitempty"`
+	LogProbs           bool                   `json:"logprobs,omitempty"`
+	TopLogProbs        int                    `json:"top_logprobs,omitempty"`
+	Dimensions         int                    `json:"dimensions,omitempty"`
+	Modalities         any                    `json:"modalities,omitempty"`
+	Audio              any                    `json:"audio,omitempty"`
+	EnableThinking     any                    `json:"enable_thinking,omitempty"` // ali
+	ExtraBody          map[string]interface{} `json:"extra_body,omitempty"`
+	ChatTemplateKwargs map[string]interface{} `json:"chat_template_kwargs,omitempty"`
 }
 
 type ToolCallRequest struct {
