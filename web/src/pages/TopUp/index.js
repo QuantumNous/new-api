@@ -31,12 +31,18 @@ const TopUp = () => {
   const [minTopupCount, setMinTopUpCount] = useState(1);
   const [amount, setAmount] = useState(0.0);
   const [minTopUp, setMinTopUp] = useState(1);
+  const [stripeTopUpCount, setStripeTopUpCount] = useState(0);
+  const [stripeAmount, setStripeAmount] = useState(0.0);
+  const [stripeMinTopUp, setStripeMinTopUp] = useState(1);
   const [topUpLink, setTopUpLink] = useState('');
   const [enableOnlineTopUp, setEnableOnlineTopUp] = useState(false);
+  const [enableStripeTopUp, setEnableStripeTopUp] = useState(false);
   const [userQuota, setUserQuota] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
+  const [stripeOpen, setStripeOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
+  const [isPaying, setIsPaying] = useState(false);
 
   const topUp = async () => {
     if (redemptionCode === '') {
@@ -92,6 +98,19 @@ const TopUp = () => {
     setOpen(true);
   };
 
+  const stripePreTopUp = async () => {
+    if (!enableStripeTopUp) {
+      showError(t('管理员未开启在线充值！'));
+      return;
+    }
+    await getStripeAmount();
+    if (stripeTopUpCount < stripeMinTopUp) {
+      showError(t('充值数量不能小于') + stripeMinTopUp);
+      return;
+    }
+    setStripeOpen(true);
+  }
+
   const onlineTopUp = async () => {
     if (amount === 0) {
       await getAmount();
@@ -102,6 +121,7 @@ const TopUp = () => {
     }
     setOpen(false);
     try {
+      setIsPaying(true);
       const res = await API.post('/api/user/pay', {
         amount: parseInt(topUpCount),
         top_up_code: topUpCode,
@@ -144,7 +164,44 @@ const TopUp = () => {
     } catch (err) {
       console.log(err);
     } finally {
+      setIsPaying(false);
     }
+  };
+
+  const onlineStripeTopUp = async () => {
+    if (stripeAmount === 0) {
+      await getStripeAmount();
+    }
+    if (stripeTopUpCount < stripeMinTopUp) {
+      showError('充值数量不能小于' + stripeMinTopUp);
+      return;
+    }
+    setStripeOpen(false);
+    try {
+      setIsPaying(true);
+      const res = await API.post('/api/user/stripe/pay', {
+        amount: parseInt(stripeTopUpCount),
+        payment_method: "stripe",
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          processStripeCallback(data)
+        } else {
+          showError(data);
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setIsPaying(false);
+    }
+  }
+
+  const processStripeCallback = (data) => {
+    location.href = data.pay_link;
   };
 
   const getUserQuota = async () => {
@@ -167,8 +224,14 @@ const TopUp = () => {
       if (status.min_topup) {
         setMinTopUp(status.min_topup);
       }
+      if (status.stripe_min_topup) {
+        setStripeMinTopUp(status.stripe_min_topup)
+      }
       if (status.enable_online_topup) {
         setEnableOnlineTopUp(status.enable_online_topup);
+      }
+      if (status.enable_stripe_topup) {
+        setEnableStripeTopUp(status.enable_stripe_topup)
       }
     }
     getUserQuota().then();
@@ -177,6 +240,10 @@ const TopUp = () => {
   const renderAmount = () => {
     // console.log(amount);
     return amount + ' ' + t('元');
+  };
+
+  const renderStripeAmount = () => {
+    return stripeAmount + '元';
   };
 
   const getAmount = async (value) => {
@@ -208,8 +275,38 @@ const TopUp = () => {
     }
   };
 
+  const getStripeAmount = async (value) => {
+    if (value === undefined) {
+      value = stripeTopUpCount
+    }
+    try {
+      const res = await API.post('/api/user/stripe/amount', {
+        amount: parseFloat(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        // showInfo(message);
+        if (message === 'success') {
+          setStripeAmount(parseFloat(data))
+        } else {
+          setStripeAmount( 0)
+          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      console.log(err);
+    } finally {
+    }
+  }
+
   const handleCancel = () => {
     setOpen(false);
+  };
+
+  const handleStripeCancel = () => {
+    setStripeOpen(false);
   };
 
   return (
@@ -233,6 +330,23 @@ const TopUp = () => {
             </p>
             <p>
               {t('实付金额')}：{renderAmount()}
+            </p>
+            <p>{t('是否确认充值？')}</p>
+          </Modal>
+          <Modal
+              title={t('确定要充值吗')}
+              visible={stripeOpen}
+              onOk={onlineStripeTopUp}
+              onCancel={handleStripeCancel}
+              maskClosable={false}
+              size={'small'}
+              centered={true}
+          >
+            <p>
+              {t('充值数量')}：{stripeTopUpCount}
+            </p>
+            <p>
+              {t('实付金额')}：{renderStripeAmount()}
             </p>
             <p>{t('是否确认充值？')}</p>
           </Modal>
@@ -322,6 +436,50 @@ const TopUp = () => {
                     </Button>
                   </Space>
                 </Form>
+                {enableStripeTopUp ? (
+                    <div>
+                      <Form>
+                        <Form.Input
+                            disabled={!enableStripeTopUp}
+                            field={'redemptionCount'}
+                            label={t('实付金额：') + ' ' + renderStripeAmount()}
+                            placeholder={t('充值数量，最低 ') + stripeMinTopUp + '$'}
+                            name='redemptionCount'
+                            type={'number'}
+                            value={stripeTopUpCount}
+                            suffix={'$'}
+                            min={stripeMinTopUp}
+                            defaultValue={stripeMinTopUp}
+                            max={100000}
+                            onChange={async (value) => {
+                              if (value < 1) {
+                                value = 1;
+                              }
+                              if (value > 100000) {
+                                value = 100000;
+                              }
+                              setStripeTopUpCount(value);
+                              await getStripeAmount( value);
+                            }}
+                        />
+                        <Space>
+                          <Button
+                              style={{backgroundColor: '#b161fe'}}
+                              type={'primary'}
+                              disabled={isPaying}
+                              theme={'solid'}
+                              onClick={async () => {
+                                stripePreTopUp();
+                              }}
+                          >
+                            {isPaying ? '支付中...' : '去支付'}
+                          </Button>
+                        </Space>
+                      </Form>
+                    </div>
+                ) : (
+                    <></>
+                )}
               </div>
               {/*<div style={{ display: 'flex', justifyContent: 'right' }}>*/}
               {/*    <Text>*/}
