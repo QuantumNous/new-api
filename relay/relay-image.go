@@ -35,6 +35,7 @@ func getAndValidImageRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.
 		imageRequest.N = common.String2Int(formData.Get("n"))
 		imageRequest.Quality = formData.Get("quality")
 		imageRequest.Size = formData.Get("size")
+		imageRequest.Watermark = formData.Has("watermark")
 
 		if imageRequest.Model == "gpt-image-1" {
 			if imageRequest.Quality == "" {
