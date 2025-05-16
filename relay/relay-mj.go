@@ -32,7 +32,23 @@ func RelayMidjourneyImage(c *gin.Context) {
 		})
 		return
 	}
-	resp, err := http.Get(midjourneyTask.ImageUrl)
+	var httpClient *http.Client
+	if channel, err := model.CacheGetChannel(midjourneyTask.ChannelId); err == nil {
+		if proxy, ok := channel.GetSetting()["proxy"]; ok {
+			if proxyURL, ok := proxy.(string); ok && proxyURL != "" {
+				if httpClient, err = service.NewProxyHttpClient(proxyURL); err != nil {
+					c.JSON(400, gin.H{
+						"error": "proxy_url_invalid",
+					})
+					return
+				}
+			}
+		}
+	}
+	if httpClient == nil {
+		httpClient = service.GetHttpClient()
+	}
+	resp, err := httpClient.Get(midjourneyTask.ImageUrl)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "http_get_image_failed",
