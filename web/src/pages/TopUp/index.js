@@ -280,15 +280,17 @@ const TopUp = () => {
               <div style={{ marginTop: 20 }}>
                 <Divider>{t('在线充值')}</Divider>
                 <Form>
-                  <Form.Input
+                  <Form.InputNumber
+                    style={{ width: '100%' }}
                     disabled={!enableOnlineTopUp}
                     field={'redemptionCount'}
                     label={t('实付金额：') + ' ' + renderAmount()}
                     placeholder={
                       t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                     }
+                    min={1}
+                    precision={0}
                     name='redemptionCount'
-                    type={'number'}
                     value={topUpCount}
                     onChange={async (value) => {
                       if (value < 1) {

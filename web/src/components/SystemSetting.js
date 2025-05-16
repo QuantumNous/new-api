@@ -649,6 +649,8 @@ const SystemSetting = () => {
                         field='MinTopUp'
                         label='最低充值美元数量'
                         placeholder='例如：2，就是最低充值2$'
+                        min={1}
+                        precision={0}
                       />
                     </Col>
                   </Row>
