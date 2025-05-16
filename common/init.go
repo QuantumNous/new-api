@@ -72,6 +72,7 @@ func LoadEnv() {
 	// Initialize variables from constants.go that were using environment variables
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
+	DetailLogEnabled = os.Getenv("DETAIL_LOG_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 
 	// Parse requestInterval and set RequestInterval
