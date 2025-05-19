@@ -3,7 +3,6 @@ package helper
 import (
 	"bufio"
 	"context"
-	"github.com/bytedance/gopkg/util/gopool"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/bytedance/gopkg/util/gopool"
 
 	"github.com/gin-gonic/gin"
 )

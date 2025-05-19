@@ -67,9 +67,6 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayFormat == relaycommon.RelayFormatClaude {
 		return fmt.Sprintf("%s/v1/chat/completions", info.BaseUrl), nil
 	}
-	if info.RelayMode == constant.RelayModeResponses {
-		return fmt.Sprintf("%s/v1/responses", info.BaseUrl), nil
-	}
 	if info.RelayMode == constant.RelayModeRealtime {
 		if strings.HasPrefix(info.BaseUrl, "https://") {
 			baseUrl := strings.TrimPrefix(info.BaseUrl, "https://")

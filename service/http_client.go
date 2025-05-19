@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"golang.org/x/net/proxy"
 	"net"
 	"net/http"
 	"net/url"
 	"one-api/common"
 	"time"
+
+	"golang.org/x/net/proxy"
 )
 
 var httpClient *http.Client
@@ -55,7 +56,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			},
 		}, nil
 
-	case "socks5":
+	case "socks5", "socks5h":
 		// 获取认证信息
 		var auth *proxy.Auth
 		if parsedURL.User != nil {
@@ -69,6 +70,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		}
 
 		// 创建 SOCKS5 代理拨号器
+		// proxy.SOCKS5 使用 tcp 参数，所有 TCP 连接包括 DNS 查询都将通过代理进行。行为与 socks5h 相同
 		dialer, err := proxy.SOCKS5("tcp", parsedURL.Host, auth, proxy.Direct)
 		if err != nil {
 			return nil, err

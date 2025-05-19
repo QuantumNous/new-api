@@ -67,6 +67,7 @@ func InitOptionMap() {
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = setting.WorkerValidKey
+	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(setting.WorkerAllowHttpImageRequestEnabled)
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -257,6 +258,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.StopOnSensitiveEnabled = boolValue
 		case "SMTPSSLEnabled":
 			common.SMTPSSLEnabled = boolValue
+		case "WorkerAllowHttpImageRequestEnabled":
+			setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		}
 	}
 	switch key {

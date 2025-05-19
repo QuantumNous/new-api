@@ -24,7 +24,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 	if !setting.EnableWorker() {
 		return nil, fmt.Errorf("worker not enabled")
 	}
-	if !strings.HasPrefix(req.URL, "https") {
+	if !setting.WorkerAllowHttpImageRequestEnabled && !strings.HasPrefix(req.URL, "https") {
 		return nil, fmt.Errorf("only support https url")
 	}
 

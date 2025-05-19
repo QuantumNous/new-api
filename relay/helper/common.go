@@ -12,11 +12,19 @@ import (
 )
 
 func SetEventStreamHeaders(c *gin.Context) {
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("Transfer-Encoding", "chunked")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
+    // 检查是否已经设置过头部
+    if _, exists := c.Get("event_stream_headers_set"); exists {
+        return
+    }
+    
+    c.Writer.Header().Set("Content-Type", "text/event-stream")
+    c.Writer.Header().Set("Cache-Control", "no-cache")
+    c.Writer.Header().Set("Connection", "keep-alive")
+    c.Writer.Header().Set("Transfer-Encoding", "chunked")
+    c.Writer.Header().Set("X-Accel-Buffering", "no")
+    
+    // 设置标志，表示头部已经设置过
+    c.Set("event_stream_headers_set", true)
 }
 
 func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {

@@ -118,6 +118,11 @@ export const CHANNEL_OPTIONS = [
   {
     value: 48,
     color: 'blue',
-    label: 'xAI'
-  }
+    label: 'xAI',
+  },
+  {
+    value: 49,
+    color: 'blue',
+    label: 'Coze',
+  },
 ];

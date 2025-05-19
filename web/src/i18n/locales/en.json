@@ -1086,7 +1086,7 @@
   "没有账户？": "No account? ",
   "请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com": "Please enter AZURE_OPENAI_ENDPOINT, e.g.: https://docs-test-001.openai.azure.com",
   "默认 API 版本": "Default API Version",
-  "请输入默认 API 版本，例如：2024-12-01-preview": "Please enter default API version, e.g.: 2024-12-01-preview.",
+  "请输入默认 API 版本，例如：2025-04-01-preview": "Please enter default API version, e.g.: 2025-04-01-preview.",
   "请为渠道命名": "Please name the channel",
   "请选择可以使用该渠道的分组": "Please select groups that can use this channel",
   "请在系统设置页面编辑分组倍率以添加新的分组：": "Please edit Group ratios in system settings to add new groups:",

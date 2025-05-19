@@ -107,7 +107,7 @@ For detailed configuration instructions, please refer to [Installation Guide-Env
 - `GEMINI_VISION_MAX_IMAGE_NUM`: Maximum number of images for Gemini models, default is `16`
 - `MAX_FILE_DOWNLOAD_MB`: Maximum file download size in MB, default is `20`
 - `CRYPTO_SECRET`: Encryption key used for encrypting database content
-- `AZURE_DEFAULT_API_VERSION`: Azure channel default API version, default is `2024-12-01-preview`
+- `AZURE_DEFAULT_API_VERSION`: Azure channel default API version, default is `2025-04-01-preview`
 - `NOTIFICATION_LIMIT_DURATION_MINUTE`: Notification limit duration, default is `10` minutes
 - `NOTIFY_LIMIT_COUNT`: Maximum number of user notifications within the specified duration, default is `2`
 

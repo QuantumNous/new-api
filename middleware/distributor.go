@@ -185,7 +185,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
-		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "gpt-image-1")
+		modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/audio") {
 		relayMode := relayconstant.RelayModeAudioSpeech
@@ -240,5 +240,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		c.Set("api_version", channel.Other)
 	case common.ChannelTypeMokaAI:
 		c.Set("api_version", channel.Other)
+	case common.ChannelTypeCoze:
+		c.Set("bot_id", channel.Other)
 	}
 }
