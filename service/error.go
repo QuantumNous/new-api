@@ -30,7 +30,7 @@ func OpenAIErrorWrapper(err error, code string, statusCode int) *dto.OpenAIError
 	text := err.Error()
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-		text = fmt.Sprintf("请求上游地址失败，错误信息：%s", text)
+		text = fmt.Sprintf("请求上游地址失败，错误信息：%s, code is %s", text, code)
 	}
 	openAIError := dto.OpenAIError{
 		Message: text,
