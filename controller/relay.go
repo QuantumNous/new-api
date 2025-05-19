@@ -301,10 +301,11 @@ func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retry
 	if openaiErr.StatusCode == 307 {
 		return true
 	}
-	if strings.Contains(openaiErr.Error.Message, "deadline exceeded") || strings.Contains(openaiErr.Error.Message, "request canceled") {
-		common.LogInfo(c, "客户端请求下游超时，不再重试")
+	if strings.Contains(openaiErr.Error.Message, "deadline exceeded") || strings.Contains(openaiErr.Error.Message, "request canceled") || strings.Contains(openaiErr.Error.Message, "copy_response_body_failed") {
+		common.LogInfo(c, fmt.Sprintf("客户端请求下游超时，不再重试 : %s", openaiErr.Error.Message))
 		return false
 	}
+
 	if openaiErr.StatusCode/100 == 5 {
 		// 超时不重试
 		if openaiErr.StatusCode == 504 || openaiErr.StatusCode == 524 {
