@@ -197,15 +197,15 @@ func TokenAuth() func(c *gin.Context) {
 			key = parts[0]
 		}
 		token, err := model.ValidateUserToken(key)
+		if err != nil {
+			abortWithOpenAiMessage(c, http.StatusUnauthorized, err.Error())
+			return
+		}
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {
 				c.Set("id", token.UserId)
 			}
-		}
-		if err != nil {
-			abortWithOpenAiMessage(c, http.StatusUnauthorized, err.Error())
-			return
 		}
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
