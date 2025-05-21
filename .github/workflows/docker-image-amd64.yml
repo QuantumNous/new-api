@@ -1,42 +1,48 @@
-name: Publish Docker image (amd64)
+name: Build NewAPI Docker Image
 
 on:
-  push:
-    branches: ['main']
-jobs:
-  push_to_registries:
-    name: Push Docker image to multiple registries
-    runs-on: self-hosted
-    permissions:
-      packages: write
-      contents: read
-      attestations: write
-      id-token: write
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v3
+  workflow_dispatch:
+    inputs:
+      git_branch:
+        description: 'Git branch'
+        required: true
+        default: 'main'
+      remote_repo:
+        description: 'Remote repository'
+        required: true
+        default: 'https://github.com/Furion-cn/new-api.git'
 
-      - name: Log in to the Container registry
+jobs:
+  build-dev:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          docker-images: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: false
+
+      - name: Login to Tencent Cloud Registry
         uses: docker/login-action@v2
         with:
           registry: furion-sh.tencentcloudcr.com
           username: ${{ secrets.TCR_USERNAME }}
           password: ${{ secrets.TCR_PASSWORD }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: |
-            furion-sh.tencentcloudcr.com/furion/newapi
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Docker images
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Build and Push SGLang Image
+        run: |
+          DATETIME=$(date '+%Y%m%d_%H%M')
+          ORG=$(echo "${{ inputs.remote_repo }}" | awk -F'/' '{print $(NF-1)}' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+          BRANCH=$(echo "${{ inputs.git_branch }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+          VERSION="${DATETIME}_${ORG}_${BRANCH}"
+          git clone ${{ inputs.remote_repo }} && cd new-api
+          docker build . -t furion-sh.tencentcloudcr.com/furion/new-api:${VERSION}
+          docker push furion-sh.tencentcloudcr.com/furion/new-api:${VERSION}
