@@ -128,6 +128,7 @@ func InitOptionMap() {
 	for k, v := range modelConfigs {
 		common.OptionMap[k] = v
 	}
+	common.OptionMap["checkin.reward_amount"] = strconv.Itoa(operation_setting.GetCheckinSetting().RewardAmount)
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
