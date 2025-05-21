@@ -64,8 +64,9 @@ const Playground = () => {
     },
   ];
 
+  const defaultModel = 'gpt-4o-mini';
   const [inputs, setInputs] = useState({
-    model: 'gpt-4o-mini',
+    model: defaultModel,
     group: '',
     max_tokens: 0,
     temperature: 0,
@@ -108,6 +109,11 @@ const Playground = () => {
         value: model,
       }));
       setModels(localModelOptions);
+      // if default model is not in the list, set the first one as default
+      const hasDefault = localModelOptions.some(option => option.value === defaultModel);
+      if (!hasDefault && localModelOptions.length > 0) {
+        setInputs((inputs) => ({ ...inputs, model: localModelOptions[0].value }));
+      }
     } else {
       showError(t(message));
     }
