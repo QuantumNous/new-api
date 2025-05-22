@@ -38,7 +38,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
-	if strings.HasPrefix(info.UpstreamModelName, "claude-3") {
+	if strings.HasPrefix(info.UpstreamModelName, "claude-3") || strings.HasPrefix(info.UpstreamModelName, "claude-4") {
 		a.RequestMode = RequestModeMessage
 	} else {
 		a.RequestMode = RequestModeCompletion
