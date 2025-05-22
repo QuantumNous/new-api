@@ -158,7 +158,7 @@ const Home = () => {
                   </p>
                   <p>
                     {t('OIDC 身份验证')}：
-                    {statusState?.status?.oidc === true
+                    {statusState?.status?.oidc_enabled === true
                       ? t('已启用')
                       : t('未启用')}
                   </p>
