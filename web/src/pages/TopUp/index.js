@@ -37,6 +37,48 @@ const TopUp = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
+  const [checkinLoading, setCheckinLoading] = useState(false);
+  const [isCheckedInToday, setIsCheckedInToday] = useState(false);
+
+  const fetchUserCheckinStatus = async () => {
+    try {
+      const res = await API.get('/api/user/self');
+      if (res.data.success && res.data.data.last_checkin_at) {
+        const lastCheckinDate = new Date(res.data.data.last_checkin_at);
+        const today = new Date();
+        if (
+          lastCheckinDate.getUTCFullYear() === today.getUTCFullYear() &&
+          lastCheckinDate.getUTCMonth() === today.getUTCMonth() &&
+          lastCheckinDate.getUTCDate() === today.getUTCDate()
+        ) {
+          setIsCheckedInToday(true);
+        }
+      }
+    } catch (error) {
+      // Don't block UI for this optional check
+      console.error("Error fetching user checkin status", error);
+    }
+  };
+
+  const handleCheckin = async () => {
+    setCheckinLoading(true);
+    try {
+      const res = await API.post('/api/user/checkin');
+      if (res.data.success) {
+        showSuccess(res.data.message);
+        setIsCheckedInToday(true);
+        await getUserQuota(); // Refresh user quota
+      } else {
+        showError(res.data.message);
+        if (res.data.message.includes("今日已签到") || res.data.message.includes("already checked in")) {
+          setIsCheckedInToday(true);
+        }
+      }
+    } catch (error) {
+      showError(error.response?.data?.message || error.message || t('签到失败，请稍后再试'));
+    }
+    setCheckinLoading(false);
+  };
 
   const topUp = async () => {
     if (redemptionCode === '') {
@@ -172,6 +214,7 @@ const TopUp = () => {
       }
     }
     getUserQuota().then();
+    fetchUserCheckinStatus().then();
   }, []);
 
   const renderAmount = () => {
@@ -332,6 +375,28 @@ const TopUp = () => {
               {/*        }>充值记录</Link>*/}
               {/*    </Text>*/}
               {/*</div>*/}
+            </Card>
+          </div>
+          <div
+            style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}
+          >
+            <Card style={{ width: '500px', padding: '20px' }}>
+              <Title level={3} style={{ textAlign: 'center', marginBottom: '20px' }}>
+                {t('每日签到')}
+              </Title>
+              <Button
+                type={'primary'}
+                theme={'solid'}
+                onClick={handleCheckin}
+                loading={checkinLoading}
+                disabled={isCheckedInToday}
+                style={{ width: '100%' }}
+              >
+                {isCheckedInToday ? t('今日已签到') : t('点击签到领额度')}
+              </Button>
+              <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginTop: '10px' }}>
+                {t('每日签到可以领取免费额度。')}
+              </Text>
             </Card>
           </div>
         </Layout.Content>

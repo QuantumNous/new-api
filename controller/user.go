@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"fmt"
+	"net/http"
+	"net/url"
 	"one-api/common"
 	"one-api/model"
 	"one-api/setting"
+	"one-api/setting/operation_setting"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"one-api/constant"
 
@@ -92,6 +97,71 @@ func setupLogin(user *model.User, c *gin.Context) {
 		"message": "",
 		"success": true,
 		"data":    cleanUser,
+	})
+}
+
+func UserCheckin(c *gin.Context) {
+	userId := c.GetInt("id")
+	user, err := model.GetUserById(userId, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "获取用户信息失败，请稍后重试",
+		})
+		return
+	}
+
+	opCheckinSetting := operation_setting.GetCheckinSetting()
+	rewardAmount := opCheckinSetting.RewardAmount
+
+	if rewardAmount <= 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "签到功能未开启或奖励未设置",
+		})
+		return
+	}
+
+	now := time.Now().UTC()
+	if user.LastCheckinAt != nil {
+		userLastCheckinDate := user.LastCheckinAt.UTC()
+		if userLastCheckinDate.Year() == now.Year() && userLastCheckinDate.Month() == now.Month() && userLastCheckinDate.Day() == now.Day() {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "您今日已签到，请明日再来！",
+			})
+			return
+		}
+	}
+
+	err = model.IncreaseUserQuota(userId, rewardAmount, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "签到失败，增加额度时发生错误",
+		})
+		common.SysError("failed to increase user quota during check-in: " + err.Error())
+		return
+	}
+
+	user.LastCheckinAt = &now
+	err = user.Update(false)
+	if err != nil {
+		// Attempt to roll back quota increase
+		model.DecreaseUserQuota(userId, rewardAmount)
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "签到失败，更新签到时间时发生错误",
+		})
+		common.SysError("failed to update user last check-in time: " + err.Error())
+		return
+	}
+
+	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("每日签到奖励 %s", common.LogQuota(rewardAmount)))
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("签到成功，获得 %s 额度！", common.LogQuota(rewardAmount)),
 	})
 }
 

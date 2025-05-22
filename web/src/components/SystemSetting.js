@@ -73,6 +73,7 @@ const SystemSetting = () => {
     LinuxDOOAuthEnabled: '',
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
+    'checkin.reward_amount': 100, // Default value, will be overwritten by API on load
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -118,6 +119,9 @@ const SystemSetting = () => {
           case 'Price':
           case 'MinTopUp':
             item.value = parseFloat(item.value);
+            break;
+          case 'checkin.reward_amount':
+            item.value = parseInt(item.value, 10); // Or parseFloat if decimals were intended
             break;
           default:
             break;
@@ -1127,6 +1131,38 @@ const SystemSetting = () => {
               >
                 <p>您确定要取消密码登录功能吗？这可能会影响用户的登录方式。</p>
               </Modal>
+
+              <Card>
+                <Form.Section text='签到设置'>
+                  <Form.InputNumber
+                    field='checkin.reward_amount'
+                    label='每日签到奖励额度'
+                    placeholder='例如：100 (设置为0则禁用签到奖励)'
+                    min={0} // Ensure non-negative
+                    style={{ width: '100%' }}
+                  />
+                  <Button
+                    onClick={async () => {
+                      if (
+                        inputs['checkin.reward_amount'] === undefined ||
+                        inputs['checkin.reward_amount'] < 0
+                      ) {
+                        showError('签到奖励额度不能小于0');
+                        return;
+                      }
+                      await updateOptions([
+                        {
+                          key: 'checkin.reward_amount',
+                          value: inputs['checkin.reward_amount'].toString(),
+                        },
+                      ]);
+                    }}
+                    style={{ marginTop: 10 }}
+                  >
+                    保存签到设置
+                  </Button>
+                </Form.Section>
+              </Card>
             </div>
           )}
         </Form>
