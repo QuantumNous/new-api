@@ -114,7 +114,9 @@ var defaultModelRatio = map[string]float64{
 	"claude-3-5-sonnet-20241022":                1.5,
 	"claude-3-7-sonnet-20250219":                1.5,
 	"claude-3-7-sonnet-20250219-thinking":       1.5,
+	"claude-sonnet-4-20250514":                  1.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
+	"claude-opus-4-20250514":                    7.5,
 	"ERNIE-4.0-8K":                              0.120 * RMB,
 	"ERNIE-3.5-8K":                              0.012 * RMB,
 	"ERNIE-3.5-8K-0205":                         0.024 * RMB,
@@ -440,13 +442,15 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 	if name == "chatgpt-4o-latest" {
 		return 3, true
 	}
-	if strings.Contains(name, "claude-instant-1") {
-		return 3, true
-	} else if strings.Contains(name, "claude-2") {
-		return 3, true
-	} else if strings.Contains(name, "claude-3") {
+
+	if strings.Contains(name, "claude-3") {
 		return 5, true
+	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") {
+		return 5, true
+	} else if strings.Contains(name, "claude-instant-1") || strings.Contains(name, "claude-2") {
+		return 3, true
 	}
+
 	if strings.HasPrefix(name, "gpt-3.5") {
 		if name == "gpt-3.5-turbo" || strings.HasSuffix(name, "0125") {
 			// https://openai.com/blog/new-embedding-models-and-api-updates

@@ -14,6 +14,7 @@ type ImageRequest struct {
 	ExtraFields    json.RawMessage `json:"extra_fields,omitempty"`
 	Background     string          `json:"background,omitempty"`
 	Moderation     string          `json:"moderation,omitempty"`
+	OutputFormat   string          `json:"output_format,omitempty"`
 }
 
 type ImageResponse struct {
