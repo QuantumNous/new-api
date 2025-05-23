@@ -1,6 +1,9 @@
 name: Build NewAPI Docker Image
 
 on:
+  push:
+    tags:
+      - "main"
   workflow_dispatch:
     inputs:
       git_branch:
