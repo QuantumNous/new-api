@@ -125,6 +125,8 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	}
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(requestBody)
+	c.Set(common.KeyRequestBody, requestBody.Bytes())
+	c = common.WrapWriter(c)
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return err, nil
