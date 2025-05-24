@@ -29,6 +29,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { getChannelModels, loadChannelModels } from '../../components/utils.js';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { copy } from '../../helpers';
 
 const MODEL_MAPPING_EXAMPLE = {
   'gpt-3.5-turbo': 'gpt-3.5-turbo-0125',
@@ -873,7 +874,7 @@ const EditChannel = (props) => {
             optionList={modelOptions}
           />
           <div style={{ lineHeight: '40px', marginBottom: '12px' }}>
-            <Space>
+            <Space wrap={true}>
               <Button
                 type='primary'
                 onClick={() => {
@@ -911,6 +912,14 @@ const EditChannel = (props) => {
                 }}
               >
                 {t('清除所有模型')}
+              </Button>
+              <Button
+                type='tertiary'
+                onClick={() => {
+                  copy(inputs.models.join(','));
+                }}
+              >
+                {t('复制所有模型')}
               </Button>
             </Space>
             <Input
