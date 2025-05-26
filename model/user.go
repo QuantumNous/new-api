@@ -7,6 +7,7 @@ import (
 	"one-api/common"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
@@ -41,6 +42,7 @@ type User struct {
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
+	LastCheckinAt    *time.Time     `json:"last_checkin_at,omitempty" gorm:"index"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
