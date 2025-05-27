@@ -132,6 +132,9 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 		} else if strings.HasSuffix(request.Model, "-medium") {
 			request.ReasoningEffort = "medium"
 			request.Model = strings.TrimSuffix(request.Model, "-medium")
+		} else if strings.HasSuffix(request.Model, "-disable") {
+			request.ThinkingConfig = &dto.ThinkingConfigs{Enable: false}
+			request.Model = strings.TrimSuffix(request.Model, "-disable")
 		}
 		info.ReasoningEffort = request.ReasoningEffort
 		info.UpstreamModelName = request.Model
