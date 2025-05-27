@@ -52,6 +52,11 @@ type GeneralOpenAIRequest struct {
 	Audio               any               `json:"audio,omitempty"`
 	ExtraBody           any               `json:"extra_body,omitempty"`
 	Thinking            *ThinkingOptions  `json:"thinking,omitempty"`
+	ThinkingConfig      *ThinkingConfigs  `json:"thinking_config,omitempty"`
+}
+
+type ThinkingConfigs struct {
+	Enable bool `json:"enable,omitempty"`
 }
 
 type ThinkingOptions struct {
