@@ -137,7 +137,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 		info.UpstreamModelName = request.Model
 	}
 	if strings.HasSuffix(request.Model, "-disable") {
-		request.ThinkingConfig = &dto.ThinkingConfigs{Enable: false}
+		request.Thinking = &dto.ThinkingOptions{Type: "disabled"}
 		request.Model = strings.TrimSuffix(request.Model, "-disable")
 	}
 	if request.Model == "o1" || request.Model == "o1-2024-12-17" || strings.HasPrefix(request.Model, "o3") {
