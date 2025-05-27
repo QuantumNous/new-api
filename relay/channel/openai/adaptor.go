@@ -132,12 +132,13 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 		} else if strings.HasSuffix(request.Model, "-medium") {
 			request.ReasoningEffort = "medium"
 			request.Model = strings.TrimSuffix(request.Model, "-medium")
-		} else if strings.HasSuffix(request.Model, "-disable") {
-			request.ThinkingConfig = &dto.ThinkingConfigs{Enable: false}
-			request.Model = strings.TrimSuffix(request.Model, "-disable")
 		}
 		info.ReasoningEffort = request.ReasoningEffort
 		info.UpstreamModelName = request.Model
+	}
+	if strings.HasSuffix(request.Model, "-disable") {
+		request.ThinkingConfig = &dto.ThinkingConfigs{Enable: false}
+		request.Model = strings.TrimSuffix(request.Model, "-disable")
 	}
 	if request.Model == "o1" || request.Model == "o1-2024-12-17" || strings.HasPrefix(request.Model, "o3") {
 		//修改第一个Message的内容，将system改为developer
