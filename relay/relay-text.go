@@ -194,7 +194,7 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 			if err := json.Unmarshal(body, &topLevel); err == nil {
 				fieldsToCollect := []string{
 					"guided_choice", "guided_json", "guided_regex", "guided_grammar",
-					"guided_decoding_backend", "structural_tag", "enable_thinking"
+					"guided_decoding_backend", "structural_tag", "enable_thinking",
 				}
 				convertedMap := make(map[string]interface{})
 				json.Unmarshal(jsonData, &convertedMap)
