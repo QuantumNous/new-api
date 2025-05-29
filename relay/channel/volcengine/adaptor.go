@@ -33,6 +33,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.BaseUrl == "" {
 		info.BaseUrl = "https://ark.cn-beijing.volces.com"
+		fmt.Printf("no baseurl found, using %s\n", info.BaseUrl)
 	}
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
