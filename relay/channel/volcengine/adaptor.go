@@ -31,6 +31,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.BaseUrl == "" {
+		info.BaseUrl = "https://ark.cn-beijing.volces.com"
+	}
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
@@ -53,6 +56,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	if strings.HasSuffix(request.Model, "-disable") {
+		request.Thinking = &dto.ThinkingOptions{Type: "disabled"}
+		request.Model = strings.TrimSuffix(request.Model, "-disable")
 	}
 	return request, nil
 }
