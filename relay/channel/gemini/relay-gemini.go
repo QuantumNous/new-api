@@ -297,94 +297,111 @@ func cleanFunctionParameters(params interface{}) interface{} {
 		return nil
 	}
 
-	paramMap, ok := params.(map[string]interface{})
-	if !ok {
-		// Not a map, return as is (e.g., could be an array or primitive)
-		return params
-	}
+	switch v := params.(type) {
+	case map[string]interface{}:
+		// Create a copy to avoid modifying the original
+		cleanedMap := make(map[string]interface{})
+		for k, val := range v {
+			cleanedMap[k] = val
+		}
 
-	// Create a copy to avoid modifying the original
-	cleanedMap := make(map[string]interface{})
-	for k, v := range paramMap {
-		cleanedMap[k] = v
-	}
+		// Remove unsupported root-level fields
+		delete(cleanedMap, "default")
+		delete(cleanedMap, "exclusiveMaximum")
+		delete(cleanedMap, "exclusiveMinimum")
+		delete(cleanedMap, "$schema")
+		delete(cleanedMap, "additionalProperties")
 
-	// Remove unsupported root-level fields
-	delete(cleanedMap, "default")
-	delete(cleanedMap, "exclusiveMaximum")
-	delete(cleanedMap, "exclusiveMinimum")
-	delete(cleanedMap, "$schema")
-	delete(cleanedMap, "additionalProperties")
-
-	// Clean properties
-	if props, ok := cleanedMap["properties"].(map[string]interface{}); ok && props != nil {
-		cleanedProps := make(map[string]interface{})
-		for propName, propValue := range props {
-			propMap, ok := propValue.(map[string]interface{})
-			if !ok {
-				cleanedProps[propName] = propValue // Keep non-map properties
-				continue
-			}
-
-			// Create a copy of the property map
-			cleanedPropMap := make(map[string]interface{})
-			for k, v := range propMap {
-				cleanedPropMap[k] = v
-			}
-
-			// Remove unsupported fields
-			delete(cleanedPropMap, "default")
-			delete(cleanedPropMap, "exclusiveMaximum")
-			delete(cleanedPropMap, "exclusiveMinimum")
-			delete(cleanedPropMap, "$schema")
-			delete(cleanedPropMap, "additionalProperties")
-
-			// Check and clean 'format' for string types
-			if propType, typeExists := cleanedPropMap["type"].(string); typeExists && propType == "string" {
-				if formatValue, formatExists := cleanedPropMap["format"].(string); formatExists {
-					if formatValue != "enum" && formatValue != "date-time" {
-						delete(cleanedPropMap, "format")
-					}
+		// Check and clean 'format' for string types
+		if propType, typeExists := cleanedMap["type"].(string); typeExists && propType == "string" {
+			if formatValue, formatExists := cleanedMap["format"].(string); formatExists {
+				if formatValue != "enum" && formatValue != "date-time" {
+					delete(cleanedMap, "format")
 				}
 			}
+		}
 
-			// Recursively clean nested properties within this property if it's an object/array
-			// Check the type before recursing
-			if propType, typeExists := cleanedPropMap["type"].(string); typeExists && (propType == "object" || propType == "array") {
-				cleanedProps[propName] = cleanFunctionParameters(cleanedPropMap)
-			} else {
-				cleanedProps[propName] = cleanedPropMap // Assign the cleaned map back if not recursing
+		// Clean properties
+		if props, ok := cleanedMap["properties"].(map[string]interface{}); ok && props != nil {
+			cleanedProps := make(map[string]interface{})
+			for propName, propValue := range props {
+				cleanedProps[propName] = cleanFunctionParameters(propValue)
 			}
-
+			cleanedMap["properties"] = cleanedProps
 		}
-		cleanedMap["properties"] = cleanedProps
-	}
 
-	// Recursively clean items in arrays if needed (e.g., type: array, items: { ... })
-	if items, ok := cleanedMap["items"].(map[string]interface{}); ok && items != nil {
-		cleanedMap["items"] = cleanFunctionParameters(items)
-	}
-	// Also handle items if it's an array of schemas
-	if itemsArray, ok := cleanedMap["items"].([]interface{}); ok {
-		cleanedItemsArray := make([]interface{}, len(itemsArray))
-		for i, item := range itemsArray {
-			cleanedItemsArray[i] = cleanFunctionParameters(item)
+		// Recursively clean items in arrays
+		if items, ok := cleanedMap["items"].(map[string]interface{}); ok && items != nil {
+			cleanedMap["items"] = cleanFunctionParameters(items)
 		}
-		cleanedMap["items"] = cleanedItemsArray
-	}
-
-	// Recursively clean other schema composition keywords if necessary
-	for _, field := range []string{"allOf", "anyOf", "oneOf"} {
-		if nested, ok := cleanedMap[field].([]interface{}); ok {
-			cleanedNested := make([]interface{}, len(nested))
-			for i, item := range nested {
-				cleanedNested[i] = cleanFunctionParameters(item)
+		// Also handle items if it's an array of schemas
+		if itemsArray, ok := cleanedMap["items"].([]interface{}); ok {
+			cleanedItemsArray := make([]interface{}, len(itemsArray))
+			for i, item := range itemsArray {
+				cleanedItemsArray[i] = cleanFunctionParameters(item)
 			}
-			cleanedMap[field] = cleanedNested
+			cleanedMap["items"] = cleanedItemsArray
 		}
-	}
 
-	return cleanedMap
+		// Recursively clean other schema composition keywords
+		for _, field := range []string{"allOf", "anyOf", "oneOf"} {
+			if nested, ok := cleanedMap[field].([]interface{}); ok {
+				cleanedNested := make([]interface{}, len(nested))
+				for i, item := range nested {
+					cleanedNested[i] = cleanFunctionParameters(item)
+				}
+				cleanedMap[field] = cleanedNested
+			}
+		}
+
+		// Recursively clean patternProperties
+		if patternProps, ok := cleanedMap["patternProperties"].(map[string]interface{}); ok {
+			cleanedPatternProps := make(map[string]interface{})
+			for pattern, schema := range patternProps {
+				cleanedPatternProps[pattern] = cleanFunctionParameters(schema)
+			}
+			cleanedMap["patternProperties"] = cleanedPatternProps
+		}
+
+		// Recursively clean definitions
+		if definitions, ok := cleanedMap["definitions"].(map[string]interface{}); ok {
+			cleanedDefinitions := make(map[string]interface{})
+			for defName, defSchema := range definitions {
+				cleanedDefinitions[defName] = cleanFunctionParameters(defSchema)
+			}
+			cleanedMap["definitions"] = cleanedDefinitions
+		}
+
+		// Recursively clean $defs (newer JSON Schema draft)
+		if defs, ok := cleanedMap["$defs"].(map[string]interface{}); ok {
+			cleanedDefs := make(map[string]interface{})
+			for defName, defSchema := range defs {
+				cleanedDefs[defName] = cleanFunctionParameters(defSchema)
+			}
+			cleanedMap["$defs"] = cleanedDefs
+		}
+
+		// Clean conditional keywords
+		for _, field := range []string{"if", "then", "else", "not"} {
+			if nested, ok := cleanedMap[field]; ok {
+				cleanedMap[field] = cleanFunctionParameters(nested)
+			}
+		}
+
+		return cleanedMap
+
+	case []interface{}:
+		// Handle arrays of schemas
+		cleanedArray := make([]interface{}, len(v))
+		for i, item := range v {
+			cleanedArray[i] = cleanFunctionParameters(item)
+		}
+		return cleanedArray
+
+	default:
+		// Not a map or array, return as is (e.g., could be a primitive)
+		return params
+	}
 }
 
 func removeAdditionalPropertiesWithDepth(schema interface{}, depth int) interface{} {
