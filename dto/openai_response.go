@@ -178,6 +178,8 @@ type Usage struct {
 	InputTokens            int                `json:"input_tokens"`
 	OutputTokens           int                `json:"output_tokens"`
 	InputTokensDetails     *InputTokenDetails `json:"input_tokens_details"`
+	// OpenRouter Params
+	Cost float64 `json:"cost,omitempty"`
 }
 
 type InputTokenDetails struct {
