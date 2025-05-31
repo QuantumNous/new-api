@@ -24,8 +24,7 @@ RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -o one-
 
 FROM alpine
 
-RUN apk update \
-    && apk upgrade \
+RUN apk upgrade --no-cache \
     && apk add --no-cache ca-certificates tzdata ffmpeg \
     && update-ca-certificates
 
