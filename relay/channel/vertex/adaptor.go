@@ -12,6 +12,7 @@ import (
 	"one-api/relay/channel/gemini"
 	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
+	"one-api/relay/constant"
 	"one-api/setting/model_setting"
 	"strings"
 
@@ -201,7 +202,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		case RequestModeClaude:
 			err, usage = claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
 		case RequestModeGemini:
-			err, usage = gemini.GeminiChatStreamHandler(c, resp, info)
+			if info.RelayMode == constant.RelayModeGemini {
+				usage, err = gemini.GeminiTextGenerationStreamHandler(c, resp, info)
+			} else {
+				err, usage = gemini.GeminiChatStreamHandler(c, resp, info)
+			}
 		case RequestModeLlama:
 			err, usage = openai.OaiStreamHandler(c, resp, info)
 		}
@@ -210,7 +215,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		case RequestModeClaude:
 			err, usage = claude.ClaudeHandler(c, resp, claude.RequestModeMessage, info)
 		case RequestModeGemini:
-			err, usage = gemini.GeminiChatHandler(c, resp, info)
+			if info.RelayMode == constant.RelayModeGemini {
+				usage, err = gemini.GeminiTextGenerationHandler(c, resp, info)
+			} else {
+				err, usage = gemini.GeminiChatHandler(c, resp, info)
+			}
 		case RequestModeLlama:
 			err, usage = openai.OpenaiHandler(c, resp, info)
 		}

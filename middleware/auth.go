@@ -1,13 +1,14 @@
 package middleware
 
 import (
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
 	"strconv"
 	"strings"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 func validUserInfo(username string, role int) bool {
@@ -180,6 +181,13 @@ func TokenAuth() func(c *gin.Context) {
 			key := c.Request.Header.Get("x-api-key")
 			if key != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+key)
+			}
+		}
+		// gemini api 从query中获取key
+		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") {
+			skKey := c.Query("key")
+			if skKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+skKey)
 			}
 		}
 		key := c.Request.Header.Get("Authorization")
