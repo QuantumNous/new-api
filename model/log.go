@@ -127,6 +127,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		return
 	}
 	username := c.GetString("username")
+	other["msg_info"] = GetMsgInfo(c)
 	otherStr := common.MapToJsonStr(other)
 	log := &Log{
 		UserId:           userId,
