@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bytedance/gopkg/util/gopool"
 	"io"
 	"math"
 	"net/http"
@@ -22,6 +21,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bytedance/gopkg/util/gopool"
 
 	"github.com/gin-gonic/gin"
 )
@@ -365,6 +366,10 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	groupRatio := priceData.GroupRatio
 	modelPrice := priceData.ModelPrice
 
+	if usage.CompletionTokens+usage.PromptTokens < usage.TotalTokens {
+		completionTokens = completionTokens + thinkingTokens
+	}
+
 	quota := 0
 	if !priceData.UsePrice {
 		quota = (promptTokens - cacheTokens) + int(math.Round(float64(cacheTokens)*cacheRatio))
@@ -420,9 +425,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	if extraContent != "" {
 		logContent += ", " + extraContent
 	}
-	if usage.CompletionTokens+usage.PromptTokens < usage.TotalTokens {
-		completionTokens = completionTokens + thinkingTokens
-	}
+
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
