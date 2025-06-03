@@ -18,7 +18,7 @@ func (c *GeminiThinkingConfig) SetThinkingBudget(budget int) {
 }
 
 type GeminiInlineData struct {
-	MimeType string `json:"mimeType"`
+	MimeType string `json:"mime_type"`
 	Data     string `json:"data"`
 }
 
@@ -55,7 +55,7 @@ type GeminiFileData struct {
 type GeminiPart struct {
 	Text                string                         `json:"text,omitempty"`
 	Thought             bool                           `json:"thought,omitempty"`
-	InlineData          *GeminiInlineData              `json:"inlineData,omitempty"`
+	InlineData          *GeminiInlineData              `json:"inline_data,omitempty"`
 	FunctionCall        *FunctionCall                  `json:"functionCall,omitempty"`
 	FunctionResponse    *FunctionResponse              `json:"functionResponse,omitempty"`
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
