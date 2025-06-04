@@ -2,16 +2,18 @@ package model
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/gin-gonic/gin"
+
 	"sync"
 	"sync/atomic"
+
+	"github.com/bytedance/gopkg/util/gopool"
 )
 
 type Log struct {
@@ -81,7 +83,7 @@ func RecordLog(userId int, logType int, content string) {
 	log := &Log{
 		UserId:    userId,
 		Username:  username,
-		CreatedAt: common.GetTimestamp(),
+		CreatedAt: common.GetBeijingTimestamp(),
 		Type:      logType,
 		Content:   content,
 	}
@@ -100,7 +102,6 @@ var (
 
 // 添加新的函数用于获取日志表名
 func GetLogTableName(timestamp int64) string {
-
 	// 获取下一天的时间戳
 	next := nextDayTimestamp.Load()
 	if timestamp >= next {
@@ -110,7 +111,7 @@ func GetLogTableName(timestamp int64) string {
 		// 双重检查
 		if timestamp >= nextDayTimestamp.Load() {
 			// 计算新的表名
-			t := time.Unix(timestamp, 0)
+			t := common.GetBeijingTimeFromTimestamp(timestamp)
 			tableName := fmt.Sprintf("logs_%04d_%02d_%02d", t.Year(), t.Month(), t.Day())
 
 			// 创建新表
@@ -121,7 +122,7 @@ func GetLogTableName(timestamp int64) string {
 			}
 
 			// 更新下一天的时间戳
-			nextDay := time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, t.Location())
+			nextDay := time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, common.BeijingLocation)
 			nextDayTimestamp.Store(nextDay.Unix())
 
 			// 存储当前表名
@@ -140,6 +141,12 @@ func GetLogTableName(timestamp int64) string {
 func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int, thinkingTokens int,
 	modelName string, tokenName string, quota int, content string, tokenId int, userQuota int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
+	// 如果是压测流量，不记录计费日志
+	if c.GetHeader("X-Test-Traffic") == "true" {
+		common.LogInfo(c, "test traffic detected, skipping consume log")
+		return
+	}
+
 	common.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, 用户调用前余额=%d, channelId=%d, promptTokens=%d, completionTokens=%d, modelName=%s, tokenName=%s, quota=%d, content=%s", userId, userQuota, channelId, promptTokens, completionTokens, modelName, tokenName, quota, content))
 	if !common.LogConsumeEnabled {
 		return
@@ -147,10 +154,10 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 	username := c.GetString("username")
 	otherStr := common.MapToJsonStr(other)
 	log := &Log{
-		UserId:           userId,
-		RequestID:        c.GetHeader(common.RequestIdKey),
+		UserId:           common.GetOriginUserId(c, userId),
+		RequestID:        c.GetString(common.RequestIdKey),
 		Username:         username,
-		CreatedAt:        common.GetTimestamp(),
+		CreatedAt:        common.GetBeijingTimestamp(),
 		Type:             LogTypeConsume,
 		Content:          content,
 		PromptTokens:     promptTokens,
@@ -159,7 +166,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		TokenName:        tokenName,
 		ModelName:        modelName,
 		Quota:            quota,
-		ChannelId:        channelId,
+		ChannelId:        common.GetOriginChannelId(c, channelId),
 		TokenId:          tokenId,
 		UseTime:          useTimeSeconds,
 		IsStream:         isStream,
@@ -167,7 +174,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		Other:            otherStr,
 	}
 	tableName := GetLogTableName(log.CreatedAt)
-	if time.Now().Before(time.Date(2025, 3, 12, 23, 59, 59, 0, time.Local)) {
+	if time.Now().In(common.BeijingLocation).Before(time.Date(2025, 3, 12, 23, 59, 59, 0, common.BeijingLocation)) {
 		tableName = "logs"
 	}
 	err := LOG_DB.Table(tableName).Create(log).Error
@@ -176,7 +183,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
-			LogQuotaData(userId, tokenName, username, modelName, quota, common.GetTimestamp(), promptTokens+completionTokens)
+			LogQuotaData(userId, tokenName, username, modelName, quota, common.GetBeijingTimestamp(), promptTokens+completionTokens)
 		})
 	}
 }
@@ -629,16 +636,16 @@ func GetAllChannelBilling(logType int, startTimestamp int64, endTimestamp int64,
 // 在 init 函数中初始化（添加新的 init 函数）
 func init() {
 	// 设置初始的下一天时间戳
-	now := time.Now()
-	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	now := common.GetBeijingTime()
+	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, common.BeijingLocation)
 	nextDayTimestamp.Store(nextDay.Unix())
 	// 设置当前表名
 	currentLogTable.Store(fmt.Sprintf("logs_%04d_%02d_%02d", now.Year(), now.Month(), now.Day()))
 }
 
 func InitLogTable() error {
-	now := time.Now()
-	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	now := common.GetBeijingTime()
+	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, common.BeijingLocation)
 	nextDayTimestamp.Store(nextDay.Unix())
 
 	tableName := fmt.Sprintf("logs_%04d_%02d_%02d", now.Year(), now.Month(), now.Day())

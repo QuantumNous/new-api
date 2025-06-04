@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -36,9 +37,21 @@ var buildFS embed.FS
 var indexPage []byte
 
 func main() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		common.SysLog("Support for .env file is disabled")
+	// 添加命令行参数支持
+	configFile := flag.String("config", "", "path to config file")
+	flag.Parse()
+
+	// 根据是否指定配置文件决定加载哪个文件
+	if *configFile != "" {
+		err := godotenv.Load(*configFile)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("Failed to load config file %s: %v", *configFile, err))
+		}
+	} else {
+		err := godotenv.Load(".env")
+		if err != nil {
+			common.SysLog("Support for .env file is disabled")
+		}
 	}
 
 	common.LoadEnv()
@@ -52,7 +65,7 @@ func main() {
 		common.SysLog("running in debug mode")
 	}
 	// Initialize SQL Database
-	err = model.InitDB()
+	err := model.InitDB()
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 	}
@@ -74,6 +87,18 @@ func main() {
 			model.GetLogTableName(time.Now().Unix())
 		}
 	}()
+
+	// 初始化请求持久化存储
+	if os.Getenv("REQUEST_PERSISTENCE_ENABLED") == "true" {
+		model.RequestPersistenceEnabled = true
+		common.SysLog("request persistence enabled")
+		err = model.InitRequestPersistence()
+		if err != nil {
+			common.FatalLog("failed to initialize request persistence: " + err.Error())
+		}
+		model.StartTableCheckRoutine()
+	}
+
 	defer func() {
 		err := model.CloseDB()
 		if err != nil {
@@ -175,6 +200,7 @@ func main() {
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
+	server.Use(middleware.RequestLogger())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))

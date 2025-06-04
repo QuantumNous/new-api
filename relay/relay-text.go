@@ -94,7 +94,7 @@ func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest
 }
 
 func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *dto.GeneralOpenAIRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
-	startTime := time.Now()
+	startTime := common.GetBeijingTime()
 	var funcErr *dto.OpenAIErrorWithStatusCode
 	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
 	defer func() {
@@ -210,6 +210,12 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	}
 	requestBody = bytes.NewBuffer(jsonData)
 
+	// 如果请求中包含 X-Test-Traffic 头，则添加到 relayInfo 中
+	if c.GetHeader("X-Test-Traffic") == "true" {
+		relayInfo.Headers = make(map[string]string)
+		relayInfo.Headers["X-Test-Traffic"] = "true"
+	}
+
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
@@ -220,6 +226,11 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
+		// 添加来源标识和重试标记
+		httpResp.Header.Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
+		httpResp.Header.Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
+		httpResp.Header.Set("X-Retry-Count", strconv.Itoa(relayInfo.RetryCount))
+
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			openaiErr = service.RelayErrorHandler(httpResp)
@@ -230,12 +241,48 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		}
 	}
 
+	// 读取响应体并创建副本
+	responseBodyBytes, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		funcErr = service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+		return funcErr
+	}
+	// 为adaptor创建一个新的响应体
+	httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
+
 	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
 	if openaiErr != nil {
 		funcErr = openaiErr
 		// reset status code 重置状态码
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
+	}
+
+	// Store request and response data together if persistence is enabled and status code is 200
+	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
+		// 读取请求数据
+		requestHeaders, _ := json.Marshal(c.Request.Header)
+		requestBodyBytes, _ := io.ReadAll(c.Request.Body)
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBodyBytes))
+
+		// 读取响应数据
+		responseHeaders, _ := json.Marshal(httpResp.Header)
+
+		// 创建并保存记录，使用请求开始时间
+		textRequest := &model.TextRequest{
+			UserId:          common.GetOriginUserId(c, c.GetInt("id")),
+			CreatedAt:       common.GetBeijingTime(),
+			RequestId:       c.GetString(common.RequestIdKey),
+			Model:           textRequest.Model,
+			RequestHeaders:  string(requestHeaders),
+			RequestBody:     string(requestBodyBytes),
+			ResponseHeaders: string(responseHeaders),
+			ResponseBody:    string(responseBodyBytes),
+		}
+		tableName := fmt.Sprintf("text_requests_%s", startTime.Format("20060102"))
+		if err := model.RequestPersistenceDB.Table(tableName).Save(textRequest).Error; err != nil {
+			common.SysError("failed to save text request: " + err.Error())
+		}
 	}
 
 	if strings.HasPrefix(relayInfo.OriginModelName, "gpt-4o-audio") {
@@ -429,8 +476,4 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
-
-	//if quota != 0 {
-	//
-	//}
 }

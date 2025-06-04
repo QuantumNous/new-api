@@ -1,16 +1,19 @@
 package channel
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"io"
 	"net/http"
 	onecommon "one-api/common"
 	"one-api/relay/common"
 	"one-api/relay/constant"
-	"one-api/service"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
@@ -24,6 +27,11 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 		if info.IsStream && c.Request.Header.Get("Accept") == "" {
 			req.Set("Accept", "text/event-stream")
 		}
+	}
+
+	// 添加自定义请求头
+	for key, value := range info.Headers {
+		req.Set(key, value)
 	}
 }
 
@@ -92,17 +100,43 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
-	var client *http.Client
-	var err error
-	if proxyURL, ok := info.ChannelSetting["proxy"]; ok {
-		client, err = service.NewProxyHttpClient(proxyURL.(string))
-		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	// Check if mock response is enabled and test traffic header is present
+	if onecommon.MockResponseEnabled && c.GetHeader("X-Test-Traffic") == "true" {
+		// Create a mock response
+		response := &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(bytes.NewBufferString(`{
+				"id": "mock-response",
+				"model": "gpt-3.5-turbo",
+				"object": "chat.completion",
+				"choices": [{
+					"message": {
+						"role": "assistant",
+						"content": "测试结果是1 + 1 = 2"
+					}
+				}]
+			}`)),
 		}
-	} else {
-		client = service.GetHttpClient()
+		// 设置正确的 Content-Type 头
+		response.Header.Set("Content-Type", "application/json")
+		return response, nil
+	}
+
+	// Create HTTP client
+	client := &http.Client{
+		Timeout: time.Duration(onecommon.RelayTimeout) * time.Second,
 	}
 	req.Header.Set(onecommon.RequestIdKey, c.GetString(onecommon.RequestIdKey))
+
+	// 添加来源标识和重试次数
+	req.Header.Set("X-Origin-User-ID", strconv.Itoa(info.UserId))
+	req.Header.Set("X-Origin-Channel-ID", strconv.Itoa(info.ChannelId))
+	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
+
+	// 打印请求头
+	onecommon.LogInfo(c, fmt.Sprintf("request headers: %v", req.Header))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -110,6 +144,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if resp == nil {
 		return nil, errors.New("resp is nil")
 	}
+
+	// 打印响应头
+	onecommon.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
+
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil
