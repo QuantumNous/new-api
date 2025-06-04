@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -21,6 +20,8 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Adaptor struct {
@@ -75,6 +76,15 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
+
+	// 添加用户ID和渠道ID到请求头
+	if info.UserId != 0 {
+		header.Set("X-User-ID", fmt.Sprintf("%d", info.UserId))
+	}
+	if info.ChannelId != 0 {
+		header.Set("X-Channel-ID", fmt.Sprintf("%d", info.ChannelId))
+	}
+
 	if info.ChannelType == common.ChannelTypeAzure {
 		header.Set("api-key", info.ApiKey)
 		return nil

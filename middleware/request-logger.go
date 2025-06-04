@@ -1,0 +1,112 @@
+package middleware
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"one-api/common"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+func RequestLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 获取请求头
+		headers := make(map[string]string)
+		for k, v := range c.Request.Header {
+			// 跳过敏感信息
+			if strings.EqualFold(k, "Authorization") || strings.EqualFold(k, "Cookie") {
+				headers[k] = "***"
+				continue
+			}
+			headers[k] = strings.Join(v, ", ")
+		}
+
+		// 获取请求参数
+		var params interface{}
+		if c.Request.Method == "GET" {
+			params = c.Request.URL.Query()
+		} else {
+			// 读取请求体
+			body, err := io.ReadAll(c.Request.Body)
+			if err == nil {
+				// 尝试解析为JSON
+				var jsonBody interface{}
+				if err := json.Unmarshal(body, &jsonBody); err == nil {
+					params = jsonBody
+				} else {
+					params = string(body)
+				}
+				// 恢复请求体
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+			}
+		}
+
+		// 构建日志信息
+		logInfo := fmt.Sprintf("Request: %s %s\tClient IP: %s\tHeaders: %s\tParams: %s",
+			c.Request.Method,
+			c.Request.URL.Path,
+			c.ClientIP(),
+			formatMap(headers),
+			formatValue(params),
+		)
+
+		common.SysLog(logInfo)
+		c.Next()
+	}
+}
+
+func formatMap(m map[string]string) string {
+	if len(m) == 0 {
+		return "{}"
+	}
+	var pairs []string
+	for k, v := range m {
+		pairs = append(pairs, fmt.Sprintf("%s: %s", k, v))
+	}
+	return "{" + strings.Join(pairs, ", ") + "}"
+}
+
+func formatValue(v interface{}) string {
+	if v == nil {
+		return "null"
+	}
+	switch val := v.(type) {
+	case string:
+		return val
+	case map[string]interface{}:
+		return formatMapInterface(val)
+	case []interface{}:
+		return formatArray(val)
+	default:
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return string(bytes)
+	}
+}
+
+func formatMapInterface(m map[string]interface{}) string {
+	if len(m) == 0 {
+		return "{}"
+	}
+	var pairs []string
+	for k, v := range m {
+		pairs = append(pairs, fmt.Sprintf("%s: %s", k, formatValue(v)))
+	}
+	return "{" + strings.Join(pairs, ", ") + "}"
+}
+
+func formatArray(arr []interface{}) string {
+	if len(arr) == 0 {
+		return "[]"
+	}
+	var elements []string
+	for _, v := range arr {
+		elements = append(elements, formatValue(v))
+	}
+	return "[" + strings.Join(elements, ", ") + "]"
+}

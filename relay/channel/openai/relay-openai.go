@@ -290,6 +290,10 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, promptTokens int, model 
 			StatusCode: resp.StatusCode,
 		}, nil
 	}
+
+	// 打印响应头
+	common.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
+
 	// Reset response body
 	// resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	// We shouldn't set the header before we parse the response body, because the parse part may fail.

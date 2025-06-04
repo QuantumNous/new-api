@@ -11,3 +11,6 @@ web/dist
 one-api
 .DS_Store
 new-api
+script/
+.env_2
+*_test.go

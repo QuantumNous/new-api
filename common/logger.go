@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bytedance/gopkg/util/gopool"
-	"github.com/gin-gonic/gin"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
+
+	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -47,14 +49,25 @@ func SetupLogger() {
 	}
 }
 
+func getCallerInfo() string {
+	_, file, line, ok := runtime.Caller(3) // 增加调用栈深度到3，跳过日志函数本身
+	if !ok {
+		return "unknown:0"
+	}
+	// 返回完整路径
+	return fmt.Sprintf("%s:%d", file, line)
+}
+
 func SysLog(s string) {
 	t := time.Now()
-	_, _ = fmt.Fprintf(gin.DefaultWriter, "[SYS] %v | %s \n", t.Format("2006/01/02 - 15:04:05"), s)
+	caller := getCallerInfo()
+	_, _ = fmt.Fprintf(gin.DefaultWriter, "[SYS] %v | %s | %s \n", t.Format("2006/01/02 - 15:04:05"), caller, s)
 }
 
 func SysError(s string) {
 	t := time.Now()
-	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[SYS] %v | %s \n", t.Format("2006/01/02 - 15:04:05"), s)
+	caller := getCallerInfo()
+	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[SYS] %v | %s | %s \n", t.Format("2006/01/02 - 15:04:05"), caller, s)
 }
 
 func LogInfo(ctx context.Context, msg string) {
@@ -76,7 +89,8 @@ func logHelper(ctx context.Context, level string, msg string) {
 	}
 	id := ctx.Value(RequestIdKey)
 	now := time.Now()
-	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, msg)
+	caller := getCallerInfo()
+	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, caller, msg)
 	logCount++ // we don't need accurate count, so no lock here
 	if logCount > maxLogCount && !setupLogWorking {
 		logCount = 0
@@ -89,7 +103,8 @@ func logHelper(ctx context.Context, level string, msg string) {
 
 func FatalLog(v ...any) {
 	t := time.Now()
-	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[FATAL] %v | %v \n", t.Format("2006/01/02 - 15:04:05"), v)
+	caller := getCallerInfo()
+	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[FATAL] %v | %s | %v \n", t.Format("2006/01/02 - 15:04:05"), caller, v)
 	os.Exit(1)
 }
 
