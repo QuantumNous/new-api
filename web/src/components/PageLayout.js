@@ -102,7 +102,7 @@ const PageLayout = () => {
           flexDirection: 'column',
         }}
       >
-        {styleState.showSider && (
+        {userState.user && styleState.showSider && (
           <Sider
             style={{
               position: 'fixed',
@@ -123,7 +123,7 @@ const PageLayout = () => {
           style={{
             marginLeft: styleState.isMobile
               ? '0'
-              : styleState.showSider
+              : userState.user && styleState.showSider
                 ? styleState.siderCollapsed
                   ? '60px'
                   : '200px'
