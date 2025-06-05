@@ -89,6 +89,11 @@ func chooseDB(envName string) (*gorm.DB, error) {
 	}()
 	dsn := os.Getenv(envName)
 	if dsn != "" {
+		var err error
+		dsn, err = common.DecryptDSNPassword(dsn)
+		if err != nil {
+			common.FatalLog("Failed to decrypt DSN password: " + err.Error())
+		}
 		if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
 			// Use PostgreSQL
 			common.SysLog("using PostgreSQL as database")
