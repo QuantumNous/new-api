@@ -98,11 +98,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	var err error = nil
 	channelQuery := getChannelQuery(group, model, retry)
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	}
+	err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
