@@ -388,6 +388,11 @@ func returnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
+	// 如果是压测流量，不记录计费日志
+	if ctx.GetHeader("X-Test-Traffic") == "true" {
+		common.LogInfo(ctx, "test traffic detected, skipping consume log")
+		return
+	}
 	if usage == nil {
 		usage = &dto.Usage{
 			PromptTokens:     relayInfo.PromptTokens,
