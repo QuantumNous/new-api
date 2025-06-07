@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"math"
 	"one-api/common"
 	constant2 "one-api/constant"
 	"one-api/dto"
@@ -214,6 +215,11 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	cacheCreationRatio := priceData.CacheCreationRatio
 	cacheCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
 
+	if relayInfo.ChannelType == common.ChannelTypeOpenRouter && priceData.CacheCreationRatio != 1 {
+		cacheCreationTokens = CalcOpenRouterCacheCreateTokens(*usage, priceData)
+		promptTokens = promptTokens - cacheCreationTokens - cacheTokens
+	}
+
 	calculateQuota := 0.0
 	if !priceData.UsePrice {
 		calculateQuota = float64(promptTokens)
@@ -259,6 +265,27 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		cacheTokens, cacheRatio, cacheCreationTokens, cacheCreationRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, modelName,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+}
+
+func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData helper.PriceData) int {
+	if priceData.CacheCreationRatio == 1 {
+		return 0
+	}
+	quotaPrice := priceData.ModelRatio / common.QuotaPerUnit
+	promptCacheCreatePrice := quotaPrice * priceData.CacheCreationRatio
+	promptCacheReadPrice := quotaPrice * priceData.CacheRatio
+	completionPrice := quotaPrice * priceData.CompletionRatio
+
+	cost := usage.Cost
+	totalPromptTokens := float64(usage.PromptTokens)
+	completionTokens := float64(usage.CompletionTokens)
+	promptCacheReadTokens := float64(usage.PromptTokensDetails.CachedTokens)
+
+	return int(math.Round((cost -
+		totalPromptTokens*quotaPrice +
+		promptCacheReadTokens*(quotaPrice-promptCacheReadPrice) -
+		completionTokens*completionPrice) /
+		(promptCacheCreatePrice - quotaPrice)))
 }
 
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
