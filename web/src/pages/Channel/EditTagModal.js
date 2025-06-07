@@ -194,6 +194,24 @@ const EditTagModal = (props) => {
   }, [originModelOptions, inputs.models]);
 
   useEffect(() => {
+    const fetchTagModels = async () => {
+      if (!tag) return;
+      setLoading(true);
+      try {
+        const res = await API.get(`/api/channel/tag/models?tag=${tag}`);
+        if (res?.data?.success) {
+          const models = res.data.data ? res.data.data.split(',') : [];
+          setInputs((inputs) => ({ ...inputs, models: models }));
+        } else {
+          showError(res.data.message);
+        }
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     setInputs({
       ...originInputs,
       tag: tag,
@@ -201,7 +219,8 @@ const EditTagModal = (props) => {
     });
     fetchModels().then();
     fetchGroups().then();
-  }, [visible]);
+    fetchTagModels().then(); // Call the new function
+  }, [visible, tag]); // Add tag to dependency array
 
   const addCustomModels = () => {
     if (customModel.trim() === '') return;

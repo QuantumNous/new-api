@@ -623,3 +623,44 @@ func BatchSetChannelTag(c *gin.Context) {
 	})
 	return
 }
+
+func GetTagModels(c *gin.Context) {
+	tag := c.Query("tag")
+	if tag == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "tag不能为空",
+		})
+		return
+	}
+
+	channels, err := model.GetChannelsByTag(tag, false) // Assuming false for idSort is fine here
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	var longestModels string
+	maxLength := 0
+
+	// Find the longest models string among all channels with the given tag
+	for _, channel := range channels {
+		if channel.Models != "" {
+			currentModels := strings.Split(channel.Models, ",")
+			if len(currentModels) > maxLength {
+				maxLength = len(currentModels)
+				longestModels = channel.Models
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    longestModels,
+	})
+	return
+}
