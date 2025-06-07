@@ -1,5 +1,7 @@
 package gemini
 
+import "encoding/json"
+
 type GeminiChatRequest struct {
 	Contents           []GeminiChatContent        `json:"contents"`
 	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
@@ -20,6 +22,30 @@ func (c *GeminiThinkingConfig) SetThinkingBudget(budget int) {
 type GeminiInlineData struct {
 	MimeType string `json:"mimeType"`
 	Data     string `json:"data"`
+}
+
+// UnmarshalJSON custom unmarshaler for GeminiInlineData to support snake_case and camelCase for MimeType
+func (g *GeminiInlineData) UnmarshalJSON(data []byte) error {
+	type Alias GeminiInlineData // Use type alias to avoid recursion
+	var aux struct {
+		Alias
+		MimeTypeSnake string `json:"mime_type"`
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*g = GeminiInlineData(aux.Alias) // Copy other fields if any in future
+
+	// Prioritize snake_case if present
+	if aux.MimeTypeSnake != "" {
+		g.MimeType = aux.MimeTypeSnake
+	} else if aux.MimeType != "" { // Fallback to camelCase from Alias
+		g.MimeType = aux.MimeType
+	}
+	// g.Data would be populated by aux.Alias.Data
+	return nil
 }
 
 type FunctionCall struct {
@@ -56,6 +82,33 @@ type GeminiPart struct {
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
+}
+
+// UnmarshalJSON custom unmarshaler for GeminiPart to support snake_case and camelCase for InlineData
+func (p *GeminiPart) UnmarshalJSON(data []byte) error {
+	// Alias to avoid recursion during unmarshalling
+	type Alias GeminiPart
+	var aux struct {
+		Alias
+		InlineDataSnake *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Assign fields from alias
+	*p = GeminiPart(aux.Alias)
+
+	// Prioritize snake_case for InlineData if present
+	if aux.InlineDataSnake != nil {
+		p.InlineData = aux.InlineDataSnake
+	} else if aux.InlineData != nil { // Fallback to camelCase from Alias
+		p.InlineData = aux.InlineData
+	}
+	// Other fields like Text, FunctionCall etc. are already populated via aux.Alias
+
+	return nil
 }
 
 type GeminiChatContent struct {
