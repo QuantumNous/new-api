@@ -1,0 +1,25 @@
+# 专门用于预下载分词器的轻量级Dockerfile
+FROM python:3.9-slim
+
+# 设置环境变量
+ENV HUGGINGFACE_HUB_CACHE=/cache
+ENV TRANSFORMERS_CACHE=/cache
+ENV HF_HOME=/cache
+
+# 安装必要的包
+RUN pip install --no-cache-dir huggingface_hub transformers torch --index-url https://download.pytorch.org/whl/cpu
+
+# 创建缓存目录
+RUN mkdir -p /cache
+
+# 复制预下载脚本
+COPY preload_tokenizers.py /preload_tokenizers.py
+
+# 运行预下载脚本
+RUN python /preload_tokenizers.py
+
+# 设置工作目录
+WORKDIR /cache
+
+# 默认命令
+CMD ["ls", "-la", "/cache"]

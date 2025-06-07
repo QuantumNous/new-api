@@ -1,0 +1,81 @@
+version: 2
+updates:
+  # Go modules
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "lim12137"
+    assignees:
+      - "lim12137"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "lim12137"
+    assignees:
+      - "lim12137"
+    commit-message:
+      prefix: "deps(web)"
+      include: "scope"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "lim12137"
+    assignees:
+      - "lim12137"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "lim12137"
+    assignees:
+      - "lim12137"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+
+  # Docker TEI
+  - package-ecosystem: "docker"
+    directory: "/docker/huggingface-tei"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "lim12137"
+    assignees:
+      - "lim12137"
+    commit-message:
+      prefix: "docker(tei)"
+      include: "scope"

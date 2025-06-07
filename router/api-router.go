@@ -106,6 +106,16 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/fetch_models", controller.FetchModels)
 			channelRoute.POST("/batch/tag", controller.BatchSetChannelTag)
 		}
+
+		// 分词器管理路由
+		tokenizerRoute := apiRouter.Group("/tokenizer")
+		tokenizerRoute.Use(middleware.AdminAuth())
+		{
+			tokenizerRoute.GET("/", controller.GetTokenizers)
+			tokenizerRoute.POST("/update", controller.UpdateTokenizers)
+			tokenizerRoute.GET("/verify", controller.VerifyTokenizers)
+		}
+
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
 		{

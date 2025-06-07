@@ -125,4 +125,9 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'Coze',
   },
+  {
+    value: 50,
+    color: 'orange',
+    label: 'Hugging Face TEI',
+  },
 ];

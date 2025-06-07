@@ -14,6 +14,7 @@ import (
 	"one-api/relay/channel/deepseek"
 	"one-api/relay/channel/dify"
 	"one-api/relay/channel/gemini"
+	"one-api/relay/channel/huggingface"
 	"one-api/relay/channel/jina"
 	"one-api/relay/channel/mistral"
 	"one-api/relay/channel/mokaai"
@@ -91,6 +92,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &xai.Adaptor{}
 	case constant.APITypeCoze:
 		return &coze.Adaptor{}
+	case constant.APITypeHuggingFace:
+		return &huggingface.Adaptor{}
 	}
 	return nil
 }

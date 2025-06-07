@@ -27,6 +27,7 @@ import OAuth2Callback from './components/OAuth2Callback.js';
 import PersonalSetting from './components/PersonalSetting.js';
 import Setup from './pages/Setup/index.js';
 import SetupCheck from './components/SetupCheck';
+import TokenizerManagement from './pages/Tokenizer';
 
 const Home = lazy(() => import('./pages/Home'));
 const Detail = lazy(() => import('./pages/Detail'));
@@ -76,6 +77,16 @@ function App() {
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <EditChannel />
             </Suspense>
+          }
+        />
+        <Route
+          path='/tokenizer'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <TokenizerManagement />
+              </Suspense>
+            </PrivateRoute>
           }
         />
         <Route

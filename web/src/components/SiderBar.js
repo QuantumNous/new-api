@@ -78,6 +78,7 @@ const iconStyle = (itemKey, selectedKeys) => {
 const routerMap = {
   home: '/',
   channel: '/channel',
+  tokenizer: '/tokenizer',
   token: '/token',
   redemption: '/redemption',
   topup: '/topup',
@@ -114,6 +115,7 @@ const SiderBar = () => {
     const keys = [
       'home',
       'channel',
+      'tokenizer',
       'token',
       'redemption',
       'topup',
@@ -221,6 +223,13 @@ const SiderBar = () => {
         itemKey: 'channel',
         to: '/channel',
         icon: <IconLayers />,
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('分词器管理'),
+        itemKey: 'tokenizer',
+        to: '/tokenizer',
+        icon: <IconSetting />,
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: new_api
+      MYSQL_USER: new_api
+      MYSQL_PASSWORD: new_api
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 20s
+      retries: 10
+
+  new-api:
+    image: new-api:test
+    ports:
+      - "3000:3000"
+    environment:
+      SQL_DSN: new_api:new_api@tcp(mysql:3306)/new_api?charset=utf8mb4&parseTime=True&loc=Local
+      REDIS_CONN_STRING: redis://redis:6379
+      SESSION_SECRET: test_secret_for_ci
+      INITIAL_ROOT_TOKEN: test_root_token
+      LOG_LEVEL: debug
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/status"]
+      timeout: 20s
+      retries: 10
+
+  # TEI test service (lightweight for CI)
+  tei-test:
+    image: ghcr.io/huggingface/text-embeddings-inference:latest
+    ports:
+      - "8080:80"
+    command: >
+      --model-id sentence-transformers/all-MiniLM-L6-v2
+      --max-concurrent-requests 4
+      --max-batch-tokens 1024
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  mysql_data:
