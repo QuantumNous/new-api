@@ -1,6 +1,9 @@
 package dto
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"one-api/common"
+)
 
 type ClaudeMetadata struct {
 	UserId string `json:"user_id"`
@@ -20,11 +23,11 @@ type ClaudeMediaMessage struct {
 	Delta        string               `json:"delta,omitempty"`
 	CacheControl json.RawMessage      `json:"cache_control,omitempty"`
 	// tool_calls
-	Id        string          `json:"id,omitempty"`
-	Name      string          `json:"name,omitempty"`
-	Input     any             `json:"input,omitempty"`
-	Content   json.RawMessage `json:"content,omitempty"`
-	ToolUseId string          `json:"tool_use_id,omitempty"`
+	Id        string `json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Input     any    `json:"input,omitempty"`
+	Content   any    `json:"content,omitempty"`
+	ToolUseId string `json:"tool_use_id,omitempty"`
 }
 
 func (c *ClaudeMediaMessage) SetText(s string) {
@@ -39,15 +42,39 @@ func (c *ClaudeMediaMessage) GetText() string {
 }
 
 func (c *ClaudeMediaMessage) IsStringContent() bool {
-	var content string
-	return json.Unmarshal(c.Content, &content) == nil
+	if c.Content == nil {
+		return false
+	}
+	_, ok := c.Content.(string)
+	if ok {
+		return true
+	}
+	return false
 }
 
 func (c *ClaudeMediaMessage) GetStringContent() string {
-	var content string
-	if err := json.Unmarshal(c.Content, &content); err == nil {
-		return content
+	if c.Content == nil {
+		return ""
 	}
+	switch c.Content.(type) {
+	case string:
+		return c.Content.(string)
+	case []any:
+		var contentStr string
+		for _, contentItem := range c.Content.([]any) {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if contentMap["type"] == ContentTypeText {
+				if subStr, ok := contentMap["text"].(string); ok {
+					contentStr += subStr
+				}
+			}
+		}
+		return contentStr
+	}
+
 	return ""
 }
 
@@ -57,16 +84,12 @@ func (c *ClaudeMediaMessage) GetJsonRowString() string {
 }
 
 func (c *ClaudeMediaMessage) SetContent(content any) {
-	jsonContent, _ := json.Marshal(content)
-	c.Content = jsonContent
+	c.Content = content
 }
 
 func (c *ClaudeMediaMessage) ParseMediaContent() []ClaudeMediaMessage {
-	var mediaContent []ClaudeMediaMessage
-	if err := json.Unmarshal(c.Content, &mediaContent); err == nil {
-		return mediaContent
-	}
-	return make([]ClaudeMediaMessage, 0)
+	mediaContent, _ := common.Any2Type[[]ClaudeMediaMessage](c.Content)
+	return mediaContent
 }
 
 type ClaudeMessageSource struct {
@@ -82,14 +105,36 @@ type ClaudeMessage struct {
 }
 
 func (c *ClaudeMessage) IsStringContent() bool {
+	if c.Content == nil {
+		return false
+	}
 	_, ok := c.Content.(string)
 	return ok
 }
 
 func (c *ClaudeMessage) GetStringContent() string {
-	if c.IsStringContent() {
-		return c.Content.(string)
+	if c.Content == nil {
+		return ""
 	}
+	switch c.Content.(type) {
+	case string:
+		return c.Content.(string)
+	case []any:
+		var contentStr string
+		for _, contentItem := range c.Content.([]any) {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if contentMap["type"] == ContentTypeText {
+				if subStr, ok := contentMap["text"].(string); ok {
+					contentStr += subStr
+				}
+			}
+		}
+		return contentStr
+	}
+
 	return ""
 }
 
@@ -98,15 +143,7 @@ func (c *ClaudeMessage) SetStringContent(content string) {
 }
 
 func (c *ClaudeMessage) ParseContent() ([]ClaudeMediaMessage, error) {
-	// map content to []ClaudeMediaMessage
-	// parse to json
-	jsonContent, _ := json.Marshal(c.Content)
-	var contentList []ClaudeMediaMessage
-	err := json.Unmarshal(jsonContent, &contentList)
-	if err != nil {
-		return make([]ClaudeMediaMessage, 0), err
-	}
-	return contentList, nil
+	return common.Any2Type[[]ClaudeMediaMessage](c.Content)
 }
 
 type Tool struct {
@@ -161,14 +198,8 @@ func (c *ClaudeRequest) SetStringSystem(system string) {
 }
 
 func (c *ClaudeRequest) ParseSystem() []ClaudeMediaMessage {
-	// map content to []ClaudeMediaMessage
-	// parse to json
-	jsonContent, _ := json.Marshal(c.System)
-	var contentList []ClaudeMediaMessage
-	if err := json.Unmarshal(jsonContent, &contentList); err == nil {
-		return contentList
-	}
-	return make([]ClaudeMediaMessage, 0)
+	mediaContent, _ := common.Any2Type[[]ClaudeMediaMessage](c.System)
+	return mediaContent
 }
 
 type ClaudeError struct {

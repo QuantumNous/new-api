@@ -609,14 +609,13 @@ func responseGeminiChat2OpenAI(response *GeminiChatResponse) *dto.OpenAITextResp
 		Created: common.GetTimestamp(),
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),
 	}
-	content, _ := json.Marshal("")
 	isToolCall := false
 	for _, candidate := range response.Candidates {
 		choice := dto.OpenAITextResponseChoice{
 			Index: int(candidate.Index),
 			Message: dto.Message{
 				Role:    "assistant",
-				Content: content,
+				Content: "",
 			},
 			FinishReason: constant.FinishReasonStop,
 		}

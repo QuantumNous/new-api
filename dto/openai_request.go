@@ -19,43 +19,43 @@ type FormatJsonSchema struct {
 }
 
 type GeneralOpenAIRequest struct {
-	Model               string         `json:"model,omitempty"`
-	Messages            []Message      `json:"messages,omitempty"`
-	Prompt              any            `json:"prompt,omitempty"`
-	Prefix              any            `json:"prefix,omitempty"`
-	Suffix              any            `json:"suffix,omitempty"`
-	Stream              bool           `json:"stream,omitempty"`
-	StreamOptions       *StreamOptions `json:"stream_options,omitempty"`
-	MaxTokens           uint           `json:"max_tokens,omitempty"`
-	MaxCompletionTokens uint           `json:"max_completion_tokens,omitempty"`
-	ReasoningEffort     string         `json:"reasoning_effort,omitempty"`
-	Temperature      *float64          `json:"temperature,omitempty"`
-	TopP             float64           `json:"top_p,omitempty"`
-	TopK             int               `json:"top_k,omitempty"`
-	Stop             any               `json:"stop,omitempty"`
-	N                int               `json:"n,omitempty"`
-	Input            any               `json:"input,omitempty"`
-	Instruction      string            `json:"instruction,omitempty"`
-	Size             string            `json:"size,omitempty"`
-	Functions        any               `json:"functions,omitempty"`
-	FrequencyPenalty float64           `json:"frequency_penalty,omitempty"`
-	PresencePenalty  float64           `json:"presence_penalty,omitempty"`
-	ResponseFormat   *ResponseFormat   `json:"response_format,omitempty"`
-	EncodingFormat   any               `json:"encoding_format,omitempty"`
-	Seed             float64           `json:"seed,omitempty"`
-	ParallelTooCalls *bool             `json:"parallel_tool_calls,omitempty"`
-	Tools            []ToolCallRequest `json:"tools,omitempty"`
-	ToolChoice       any               `json:"tool_choice,omitempty"`
-	User             string            `json:"user,omitempty"`
-	LogProbs         bool              `json:"logprobs,omitempty"`
-	TopLogProbs      int               `json:"top_logprobs,omitempty"`
-	Dimensions       int               `json:"dimensions,omitempty"`
-	Modalities       any               `json:"modalities,omitempty"`
-	Audio            any               `json:"audio,omitempty"`
-	EnableThinking   any               `json:"enable_thinking,omitempty"` // ali
-	ExtraBody        any               `json:"extra_body,omitempty"`
-	WebSearchOptions *WebSearchOptions `json:"web_search_options,omitempty"`
-  // OpenRouter Params
+	Model               string            `json:"model,omitempty"`
+	Messages            []Message         `json:"messages,omitempty"`
+	Prompt              any               `json:"prompt,omitempty"`
+	Prefix              any               `json:"prefix,omitempty"`
+	Suffix              any               `json:"suffix,omitempty"`
+	Stream              bool              `json:"stream,omitempty"`
+	StreamOptions       *StreamOptions    `json:"stream_options,omitempty"`
+	MaxTokens           uint              `json:"max_tokens,omitempty"`
+	MaxCompletionTokens uint              `json:"max_completion_tokens,omitempty"`
+	ReasoningEffort     string            `json:"reasoning_effort,omitempty"`
+	Temperature         *float64          `json:"temperature,omitempty"`
+	TopP                float64           `json:"top_p,omitempty"`
+	TopK                int               `json:"top_k,omitempty"`
+	Stop                any               `json:"stop,omitempty"`
+	N                   int               `json:"n,omitempty"`
+	Input               any               `json:"input,omitempty"`
+	Instruction         string            `json:"instruction,omitempty"`
+	Size                string            `json:"size,omitempty"`
+	Functions           any               `json:"functions,omitempty"`
+	FrequencyPenalty    float64           `json:"frequency_penalty,omitempty"`
+	PresencePenalty     float64           `json:"presence_penalty,omitempty"`
+	ResponseFormat      *ResponseFormat   `json:"response_format,omitempty"`
+	EncodingFormat      any               `json:"encoding_format,omitempty"`
+	Seed                float64           `json:"seed,omitempty"`
+	ParallelTooCalls    *bool             `json:"parallel_tool_calls,omitempty"`
+	Tools               []ToolCallRequest `json:"tools,omitempty"`
+	ToolChoice          any               `json:"tool_choice,omitempty"`
+	User                string            `json:"user,omitempty"`
+	LogProbs            bool              `json:"logprobs,omitempty"`
+	TopLogProbs         int               `json:"top_logprobs,omitempty"`
+	Dimensions          int               `json:"dimensions,omitempty"`
+	Modalities          any               `json:"modalities,omitempty"`
+	Audio               any               `json:"audio,omitempty"`
+	EnableThinking      any               `json:"enable_thinking,omitempty"` // ali
+	ExtraBody           any               `json:"extra_body,omitempty"`
+	WebSearchOptions    *WebSearchOptions `json:"web_search_options,omitempty"`
+	// OpenRouter Params
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 }
 
@@ -107,16 +107,16 @@ func (r *GeneralOpenAIRequest) ParseInput() []string {
 }
 
 type Message struct {
-	Role                string          `json:"role"`
-	Content             json.RawMessage `json:"content"`
-	Name                *string         `json:"name,omitempty"`
-	Prefix              *bool           `json:"prefix,omitempty"`
-	ReasoningContent    string          `json:"reasoning_content,omitempty"`
-	Reasoning           string          `json:"reasoning,omitempty"`
-	ToolCalls           json.RawMessage `json:"tool_calls,omitempty"`
-	ToolCallId          string          `json:"tool_call_id,omitempty"`
-	parsedContent       []MediaContent
-	parsedStringContent *string
+	Role             string          `json:"role"`
+	Content          any             `json:"content"`
+	Name             *string         `json:"name,omitempty"`
+	Prefix           *bool           `json:"prefix,omitempty"`
+	ReasoningContent string          `json:"reasoning_content,omitempty"`
+	Reasoning        string          `json:"reasoning,omitempty"`
+	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
+	ToolCallId       string          `json:"tool_call_id,omitempty"`
+	parsedContent    []MediaContent
+	//parsedStringContent *string
 }
 
 type MediaContent struct {
@@ -212,6 +212,180 @@ func (m *Message) SetToolCalls(toolCalls any) {
 }
 
 func (m *Message) StringContent() string {
+	switch m.Content.(type) {
+	case string:
+		return m.Content.(string)
+	case []any:
+		var contentStr string
+		for _, contentItem := range m.Content.([]any) {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if contentMap["type"] == ContentTypeText {
+				if subStr, ok := contentMap["text"].(string); ok {
+					contentStr += subStr
+				}
+			}
+		}
+		return contentStr
+	}
+
+	return ""
+}
+
+func (m *Message) SetNullContent() {
+	m.Content = nil
+	m.parsedContent = nil
+}
+
+func (m *Message) SetStringContent(content string) {
+	m.Content = content
+	m.parsedContent = nil
+}
+
+func (m *Message) SetMediaContent(content []MediaContent) {
+	m.Content = content
+	m.parsedContent = content
+}
+
+func (m *Message) IsStringContent() bool {
+	_, ok := m.Content.(string)
+	if ok {
+		return true
+	}
+	return false
+}
+
+func (m *Message) ParseContent() []MediaContent {
+	if m.Content == nil {
+		return nil
+	}
+	if len(m.parsedContent) > 0 {
+		return m.parsedContent
+	}
+
+	var contentList []MediaContent
+	// 先尝试解析为字符串
+	content, ok := m.Content.(string)
+	if ok {
+		contentList = []MediaContent{{
+			Type: ContentTypeText,
+			Text: content,
+		}}
+		m.parsedContent = contentList
+		return contentList
+	}
+
+	// 尝试解析为数组
+	//var arrayContent []map[string]interface{}
+
+	arrayContent, ok := m.Content.([]any)
+	if !ok {
+		return contentList
+	}
+
+	for _, contentItemAny := range arrayContent {
+		contentItem, ok := contentItemAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		contentType, ok := contentItem["type"].(string)
+		if !ok {
+			continue
+		}
+
+		switch contentType {
+		case ContentTypeText:
+			if text, ok := contentItem["text"].(string); ok {
+				contentList = append(contentList, MediaContent{
+					Type: ContentTypeText,
+					Text: text,
+				})
+			}
+
+		case ContentTypeImageURL:
+			imageUrl := contentItem["image_url"]
+			temp := &MessageImageUrl{
+				Detail: "high",
+			}
+			switch v := imageUrl.(type) {
+			case string:
+				temp.Url = v
+			case map[string]interface{}:
+				url, ok1 := v["url"].(string)
+				detail, ok2 := v["detail"].(string)
+				if ok2 {
+					temp.Detail = detail
+				}
+				if ok1 {
+					temp.Url = url
+				}
+			}
+			contentList = append(contentList, MediaContent{
+				Type:     ContentTypeImageURL,
+				ImageUrl: temp,
+			})
+
+		case ContentTypeInputAudio:
+			if audioData, ok := contentItem["input_audio"].(map[string]interface{}); ok {
+				data, ok1 := audioData["data"].(string)
+				format, ok2 := audioData["format"].(string)
+				if ok1 && ok2 {
+					temp := &MessageInputAudio{
+						Data:   data,
+						Format: format,
+					}
+					contentList = append(contentList, MediaContent{
+						Type:       ContentTypeInputAudio,
+						InputAudio: temp,
+					})
+				}
+			}
+		case ContentTypeFile:
+			if fileData, ok := contentItem["file"].(map[string]interface{}); ok {
+				fileId, ok3 := fileData["file_id"].(string)
+				if ok3 {
+					contentList = append(contentList, MediaContent{
+						Type: ContentTypeFile,
+						File: &MessageFile{
+							FileId: fileId,
+						},
+					})
+				} else {
+					fileName, ok1 := fileData["filename"].(string)
+					fileDataStr, ok2 := fileData["file_data"].(string)
+					if ok1 && ok2 {
+						contentList = append(contentList, MediaContent{
+							Type: ContentTypeFile,
+							File: &MessageFile{
+								FileName: fileName,
+								FileData: fileDataStr,
+							},
+						})
+					}
+				}
+			}
+		case ContentTypeVideoUrl:
+			if videoUrl, ok := contentItem["video_url"].(string); ok {
+				contentList = append(contentList, MediaContent{
+					Type: ContentTypeVideoUrl,
+					VideoUrl: &MessageVideoUrl{
+						Url: videoUrl,
+					},
+				})
+			}
+		}
+	}
+
+	if len(contentList) > 0 {
+		m.parsedContent = contentList
+	}
+	return contentList
+}
+
+// old code
+/*func (m *Message) StringContent() string {
 	if m.parsedStringContent != nil {
 		return *m.parsedStringContent
 	}
@@ -382,7 +556,7 @@ func (m *Message) ParseContent() []MediaContent {
 		m.parsedContent = contentList
 	}
 	return contentList
-}
+}*/
 
 type WebSearchOptions struct {
 	SearchContextSize string          `json:"search_context_size,omitempty"`

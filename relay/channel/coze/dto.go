@@ -10,7 +10,7 @@ type CozeError struct {
 type CozeEnterMessage struct {
 	Role        string          `json:"role"`
 	Type        string          `json:"type,omitempty"`
-	Content     json.RawMessage `json:"content,omitempty"`
+	Content     any             `json:"content,omitempty"`
 	MetaData    json.RawMessage `json:"meta_data,omitempty"`
 	ContentType string          `json:"content_type,omitempty"`
 }

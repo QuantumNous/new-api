@@ -48,9 +48,9 @@ func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *dto.Cla
 	prompt := ""
 	for _, message := range textRequest.Messages {
 		if message.Role == "user" {
-			prompt += fmt.Sprintf("\n\nHuman: %s", message.Content)
+			prompt += fmt.Sprintf("\n\nHuman: %s", message.StringContent())
 		} else if message.Role == "assistant" {
-			prompt += fmt.Sprintf("\n\nAssistant: %s", message.Content)
+			prompt += fmt.Sprintf("\n\nAssistant: %s", message.StringContent())
 		} else if message.Role == "system" {
 			if prompt == "" {
 				prompt = message.StringContent()
@@ -155,15 +155,13 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 		}
 		if lastMessage.Role == message.Role && lastMessage.Role != "tool" {
 			if lastMessage.IsStringContent() && message.IsStringContent() {
-				content, _ := json.Marshal(strings.Trim(fmt.Sprintf("%s %s", lastMessage.StringContent(), message.StringContent()), "\""))
-				fmtMessage.Content = content
+				fmtMessage.SetStringContent(strings.Trim(fmt.Sprintf("%s %s", lastMessage.StringContent(), message.StringContent()), "\""))
 				// delete last message
 				formatMessages = formatMessages[:len(formatMessages)-1]
 			}
 		}
 		if fmtMessage.Content == nil {
-			content, _ := json.Marshal("...")
-			fmtMessage.Content = content
+			fmtMessage.SetStringContent("...")
 		}
 		formatMessages = append(formatMessages, fmtMessage)
 		lastMessage = fmtMessage
@@ -397,12 +395,11 @@ func ResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse) *dto
 	thinkingContent := ""
 
 	if reqMode == RequestModeCompletion {
-		content, _ := json.Marshal(strings.TrimPrefix(claudeResponse.Completion, " "))
 		choice := dto.OpenAITextResponseChoice{
 			Index: 0,
 			Message: dto.Message{
 				Role:    "assistant",
-				Content: content,
+				Content: strings.TrimPrefix(claudeResponse.Completion, " "),
 				Name:    nil,
 			},
 			FinishReason: stopReasonClaude2OpenAI(claudeResponse.StopReason),

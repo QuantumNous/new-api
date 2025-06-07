@@ -261,12 +261,16 @@ func CountTokenClaudeMessages(messages []dto.ClaudeMessage, model string, stream
 					//}
 					tokenNum += 1000
 				case "tool_use":
-					tokenNum += getTokenNum(tokenEncoder, mediaMessage.Name)
-					inputJSON, _ := json.Marshal(mediaMessage.Input)
-					tokenNum += getTokenNum(tokenEncoder, string(inputJSON))
+					if mediaMessage.Input != nil {
+						tokenNum += getTokenNum(tokenEncoder, mediaMessage.Name)
+						inputJSON, _ := json.Marshal(mediaMessage.Input)
+						tokenNum += getTokenNum(tokenEncoder, string(inputJSON))
+					}
 				case "tool_result":
-					contentJSON, _ := json.Marshal(mediaMessage.Content)
-					tokenNum += getTokenNum(tokenEncoder, string(contentJSON))
+					if mediaMessage.Content != nil {
+						contentJSON, _ := json.Marshal(mediaMessage.Content)
+						tokenNum += getTokenNum(tokenEncoder, string(contentJSON))
+					}
 				}
 			}
 		}
@@ -386,7 +390,7 @@ func CountTokenMessages(info *relaycommon.RelayInfo, messages []dto.Message, mod
 	for _, message := range messages {
 		tokenNum += tokensPerMessage
 		tokenNum += getTokenNum(tokenEncoder, message.Role)
-		if len(message.Content) > 0 {
+		if message.Content != nil {
 			if message.Name != nil {
 				tokenNum += tokensPerName
 				tokenNum += getTokenNum(tokenEncoder, *message.Name)

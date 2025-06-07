@@ -200,10 +200,10 @@ func buildTestRequest(model string) *dto.GeneralOpenAIRequest {
 	} else {
 		testRequest.MaxTokens = 10
 	}
-	content, _ := json.Marshal("hi")
+
 	testMessage := dto.Message{
 		Role:    "user",
-		Content: content,
+		Content: "hi",
 	}
 	testRequest.Model = model
 	testRequest.Messages = append(testRequest.Messages, testMessage)

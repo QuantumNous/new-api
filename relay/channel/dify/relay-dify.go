@@ -278,12 +278,11 @@ func difyHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInf
 		Created: common.GetTimestamp(),
 		Usage:   difyResponse.MetaData.Usage,
 	}
-	content, _ := json.Marshal(difyResponse.Answer)
 	choice := dto.OpenAITextResponseChoice{
 		Index: 0,
 		Message: dto.Message{
 			Role:    "assistant",
-			Content: content,
+			Content: difyResponse.Answer,
 		},
 		FinishReason: "stop",
 	}

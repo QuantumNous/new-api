@@ -56,12 +56,11 @@ func responseTencent2OpenAI(response *TencentChatResponse) *dto.OpenAITextRespon
 		},
 	}
 	if len(response.Choices) > 0 {
-		content, _ := json.Marshal(response.Choices[0].Messages.Content)
 		choice := dto.OpenAITextResponseChoice{
 			Index: 0,
 			Message: dto.Message{
 				Role:    "assistant",
-				Content: content,
+				Content: response.Choices[0].Messages.Content,
 			},
 			FinishReason: response.Choices[0].FinishReason,
 		}

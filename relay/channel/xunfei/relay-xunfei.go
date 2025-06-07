@@ -61,12 +61,11 @@ func responseXunfei2OpenAI(response *XunfeiChatResponse) *dto.OpenAITextResponse
 			},
 		}
 	}
-	content, _ := json.Marshal(response.Payload.Choices.Text[0].Content)
 	choice := dto.OpenAITextResponseChoice{
 		Index: 0,
 		Message: dto.Message{
 			Role:    "assistant",
-			Content: content,
+			Content: response.Payload.Choices.Text[0].Content,
 		},
 		FinishReason: constant.FinishReasonStop,
 	}
