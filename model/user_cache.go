@@ -3,10 +3,11 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"one-api/constant"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/bytedance/gopkg/util/gopool"
 )
@@ -57,7 +58,7 @@ func invalidateUserCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return common.RedisHDelObj(getUserCacheKey(userId))
+	return common.RedisDelKey(getUserCacheKey(userId))
 }
 
 // updateUserCache updates all user cache fields using hash

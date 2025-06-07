@@ -19,7 +19,7 @@ func cacheSetToken(token Token) error {
 
 func cacheDeleteToken(key string) error {
 	key = common.GenerateHMAC(key)
-	err := common.RedisHDelObj(fmt.Sprintf("token:%s", key))
+	err := common.RedisDelKey(fmt.Sprintf("token:%s", key))
 	if err != nil {
 		return err
 	}

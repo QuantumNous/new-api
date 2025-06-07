@@ -92,12 +92,12 @@ func RedisDel(key string) error {
 	return RDB.Del(ctx, key).Err()
 }
 
-func RedisHDelObj(key string) error {
+func RedisDelKey(key string) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis HDEL: key=%s", key))
+		SysLog(fmt.Sprintf("Redis DEL Key: key=%s", key))
 	}
 	ctx := context.Background()
-	return RDB.HDel(ctx, key).Err()
+	return RDB.Del(ctx, key).Err()
 }
 
 func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
