@@ -29,6 +29,14 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 			TopP:            textRequest.TopP,
 			MaxOutputTokens: textRequest.MaxTokens,
 			Seed:            int64(textRequest.Seed),
+			ThinkingConfig: func() *GeminiChatThinkingConfig {
+				if textRequest.Thinking != nil {
+					return &GeminiChatThinkingConfig{
+						ThinkingBudget: textRequest.Thinking.BudgetTokens,
+					}
+				}
+				return nil
+			}(),
 		},
 	}
 
