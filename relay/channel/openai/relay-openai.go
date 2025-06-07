@@ -215,7 +215,7 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 			StatusCode: resp.StatusCode,
 		}, nil
 	}
-	
+
 	forceFormat := false
 	if forceFmt, ok := info.ChannelSetting[constant.ForceFormat].(bool); ok {
 		forceFormat = forceFmt
@@ -275,9 +275,9 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
 	// the status code has been judged before, if there is a body reading failure,
 	// it should be regarded as a non-recoverable error, so it should not return err for external retry.
-	// Analogous to nginx's load balancing, it will only retry if it can't be requested or 
-	// if the upstream returns a specific status code, once the upstream has already written the header, 
-	// the subsequent failure of the response body should be regarded as a non-recoverable error, 
+	// Analogous to nginx's load balancing, it will only retry if it can't be requested or
+	// if the upstream returns a specific status code, once the upstream has already written the header,
+	// the subsequent failure of the response body should be regarded as a non-recoverable error,
 	// and can be terminated directly.
 	defer resp.Body.Close()
 	usage := &dto.Usage{}
