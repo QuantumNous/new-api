@@ -25,12 +25,20 @@ func GetBeijingTime() time.Time {
 
 // GetBeijingTimestamp 获取当前北京时区的时间戳
 func GetBeijingTimestamp() int64 {
-	// 直接获取北京时区的时间戳
+	// 获取当前时间
 	now := time.Now()
-	// 计算与 UTC 的时差（8小时）
-	offset := 8 * 3600
+
+	// 获取系统时区信息
+	zone, offset := now.Zone()
+
+	// 检查是否是北京时区（CST 且 UTC+8）
+	if zone != "CST" || offset != 8*3600 {
+		// 如果不是北京时区，转换为北京时区
+		now = now.In(BeijingLocation)
+	}
+
 	// 返回北京时区的时间戳
-	return now.Unix() + int64(offset)
+	return now.Unix()
 }
 
 // GetBeijingTimeFromTimestamp 从时间戳获取北京时区的时间
