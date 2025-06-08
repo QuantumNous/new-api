@@ -74,6 +74,8 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		//_ = UpdateMidjourneyTaskAll(context.Background(), tasks)
 	case constant.TaskPlatformSuno:
 		_ = UpdateSunoTaskAll(context.Background(), taskChannelM, taskM)
+	case constant.TaskPlatformVidgo:
+		_ = UpdateVidgoTaskAll(context.Background(), taskChannelM, taskM)
 	default:
 		common.SysLog("未知平台")
 	}

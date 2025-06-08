@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.11
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.7.4
 	github.com/bytedance/gopkg v0.0.0-20220118071334-3db87571198b
+	github.com/feitianbubu/vidgo v0.0.3
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-contrib/sessions v0.0.5

@@ -125,4 +125,9 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'Coze',
   },
+  {
+    value: 50,
+    color: 'green',
+    label: '视频模型Vidgo(可灵,即梦,Vidu...通用)',
+  },
 ];

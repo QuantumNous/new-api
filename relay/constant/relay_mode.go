@@ -38,6 +38,9 @@ const (
 	RelayModeSunoFetchByID
 	RelayModeSunoSubmit
 
+	RelayModeVidgoFetchByID
+	RelayModeVidgoSubmit
+
 	RelayModeRerank
 
 	RelayModeResponses
@@ -130,6 +133,16 @@ func Path2RelaySuno(method, path string) int {
 		relayMode = RelayModeSunoFetchByID
 	} else if strings.Contains(path, "/submit/") {
 		relayMode = RelayModeSunoSubmit
+	}
+	return relayMode
+}
+
+func Path2RelayVidgo(method, path string) int {
+	relayMode := RelayModeUnknown
+	if method == http.MethodPost && strings.HasSuffix(path, "/video/generations") {
+		relayMode = RelayModeVidgoSubmit
+	} else if method == http.MethodGet && strings.Contains(path, "/video/generations/") {
+		relayMode = RelayModeVidgoFetchByID
 	}
 	return relayMode
 }

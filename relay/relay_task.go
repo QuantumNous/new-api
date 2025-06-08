@@ -38,6 +38,9 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	}
 
 	modelName := service.CoverTaskActionToModelName(platform, relayInfo.Action)
+	if platform == constant.TaskPlatformVidgo {
+		modelName = relayInfo.OriginModelName
+	}
 	modelPrice, success := operation_setting.GetModelPrice(modelName, true)
 	if !success {
 		defaultPrice, ok := operation_setting.GetDefaultModelRatioMap()[modelName]
@@ -137,10 +140,11 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	}
 	relayInfo.ConsumeQuota = true
 	// insert task
-	task := model.InitTask(constant.TaskPlatformSuno, relayInfo)
+	task := model.InitTask(platform, relayInfo)
 	task.TaskID = taskID
 	task.Quota = quota
 	task.Data = taskData
+	task.Action = relayInfo.Action
 	err = task.Insert()
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "insert_task_failed", http.StatusInternalServerError)
@@ -150,8 +154,9 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
-	relayconstant.RelayModeSunoFetchByID: sunoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeSunoFetch:     sunoFetchRespBodyBuilder,
+	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
+	relayconstant.RelayModeVidgoFetchByID: vidgoFetchByIDRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {

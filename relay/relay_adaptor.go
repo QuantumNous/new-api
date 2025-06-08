@@ -23,6 +23,7 @@ import (
 	"one-api/relay/channel/perplexity"
 	"one-api/relay/channel/siliconflow"
 	"one-api/relay/channel/task/suno"
+	"one-api/relay/channel/task/vidgo"
 	"one-api/relay/channel/tencent"
 	"one-api/relay/channel/vertex"
 	"one-api/relay/channel/volcengine"
@@ -101,6 +102,8 @@ func GetTaskAdaptor(platform commonconstant.TaskPlatform) channel.TaskAdaptor {
 	//	return &aiproxy.Adaptor{}
 	case commonconstant.TaskPlatformSuno:
 		return &suno.TaskAdaptor{}
+	case commonconstant.TaskPlatformVidgo:
+		return vidgo.NewTaskAdaptor()
 	}
 	return nil
 }
