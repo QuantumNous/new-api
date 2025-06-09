@@ -41,6 +41,9 @@ func main() {
 	configFile := flag.String("config", "", "path to config file")
 	flag.Parse()
 
+	// 打印时区和时间信息
+	common.PrintTimeInfo()
+
 	// 根据是否指定配置文件决定加载哪个文件
 	if *configFile != "" {
 		err := godotenv.Load(*configFile)

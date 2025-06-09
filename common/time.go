@@ -6,12 +6,13 @@ import (
 
 var (
 	// BeijingLocation 北京时区
-	// 优先使用 "Asia/Shanghai" 作为时区标识符，如果加载失败则使用固定偏移
+	// 使用 "Asia/Shanghai" 作为时区标识符，如果加载失败则打印错误日志
 	BeijingLocation = func() *time.Location {
 		loc, err := time.LoadLocation("Asia/Shanghai")
 		if err != nil {
-			// 如果加载失败，使用固定偏移作为后备方案
-			return time.FixedZone("CST", 8*3600)
+			// 打印错误日志
+			println("Failed to load Asia/Shanghai timezone:", err.Error())
+			return time.UTC
 		}
 		return loc
 	}()
@@ -71,4 +72,18 @@ func GetBeijingTimeFromString(timeStr string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return t, nil
+}
+
+// PrintTimeInfo 打印当前时区和时间信息
+func PrintTimeInfo() {
+	now := time.Now()
+	zone, offset := now.Zone()
+	beijingTime := GetBeijingTime()
+	beijingTimestamp := GetBeijingTimestamp()
+
+	println("系统时区:", zone)
+	println("时区偏移:", offset/3600, "小时")
+	println("系统时间:", now.Format("2006-01-02 15:04:05"))
+	println("北京时间:", beijingTime.Format("2006-01-02 15:04:05"))
+	println("日志存储的时间戳:", beijingTimestamp)
 }
