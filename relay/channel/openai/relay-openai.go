@@ -275,7 +275,6 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, promptTokens int, model 
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
 	}
-	common.LogInfo(c, fmt.Sprintf("raw response: %s", string(responseBody)))
 	err = resp.Body.Close()
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
@@ -284,15 +283,15 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, promptTokens int, model 
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
 	}
+	common.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
+	usageJson, _ := json.Marshal(simpleResponse.Usage)
+	common.LogInfo(c, fmt.Sprintf("raw response Usage: %s", string(usageJson)))
 	if simpleResponse.Error.Type != "" {
 		return &dto.OpenAIErrorWithStatusCode{
 			Error:      simpleResponse.Error,
 			StatusCode: resp.StatusCode,
 		}, nil
 	}
-
-	// 打印响应头
-	common.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
 
 	// Reset response body
 	// resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))

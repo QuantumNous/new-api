@@ -257,7 +257,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
 	}
-
+	common.LogInfo(c, fmt.Sprintf("response Usage: %+v", usage))
 	// Store request and response data together if persistence is enabled and status code is 200
 	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
 		// 读取请求数据

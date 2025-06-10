@@ -24,10 +24,10 @@ func RequestLogger() gin.HandlerFunc {
 			headers[k] = strings.Join(v, ", ")
 		}
 
-		// 获取请求参数
-		var params interface{}
+		// 获取请求参数 因为param并且后面request会打印所以不在此处打印
+		// var params interface{}
 		if c.Request.Method == "GET" {
-			params = c.Request.URL.Query()
+			// params = c.Request.URL.Query()
 		} else {
 			// 读取请求体
 			body, err := io.ReadAll(c.Request.Body)
@@ -35,9 +35,9 @@ func RequestLogger() gin.HandlerFunc {
 				// 尝试解析为JSON
 				var jsonBody interface{}
 				if err := json.Unmarshal(body, &jsonBody); err == nil {
-					params = jsonBody
+					// params = jsonBody
 				} else {
-					params = string(body)
+					// params = string(body)
 				}
 				// 恢复请求体
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
@@ -45,12 +45,11 @@ func RequestLogger() gin.HandlerFunc {
 		}
 
 		// 构建日志信息
-		logInfo := fmt.Sprintf("Request: %s %s\tClient IP: %s\tHeaders: %s\tParams: %s",
+		logInfo := fmt.Sprintf("Request: %s %s\tClient IP: %s\tHeaders: %s\t",
 			c.Request.Method,
 			c.Request.URL.Path,
 			c.ClientIP(),
 			formatMap(headers),
-			formatValue(params),
 		)
 
 		common.SysLog(logInfo)

@@ -158,6 +158,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	req.Header.Set("X-Origin-User-ID", strconv.Itoa(info.UserId))
 	req.Header.Set("X-Origin-Channel-ID", strconv.Itoa(info.ChannelId))
 	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
+	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
 
 	// 打印请求头
 	onecommon.LogInfo(c, fmt.Sprintf("request headers: %v", req.Header))

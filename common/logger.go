@@ -16,6 +16,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 是否开启透传日志打印
+var LogPassthroughEnabled = false
+
+// 日志打印采样比例（0-100之间的整数，表示百分比）
+var LogSampleRatio = 100
+
 const (
 	loggerINFO  = "INFO"
 	loggerWarn  = "WARN"
@@ -83,11 +89,22 @@ func LogError(ctx context.Context, msg string) {
 }
 
 func logHelper(ctx context.Context, level string, msg string) {
+	// 获取请求ID
+	id := ctx.Value(RequestIdKey)
+
+	// 如果有请求ID，则检查是否需要打印日志
+	if id != nil {
+		// 从上下文中获取哈希值
+		hashValue, ok := ctx.Value("hash_value").(int)
+		if !ok || hashValue > int(LogSampleRatio) {
+			return
+		}
+	}
+
 	writer := gin.DefaultErrorWriter
 	if level == loggerINFO {
 		writer = gin.DefaultWriter
 	}
-	id := ctx.Value(RequestIdKey)
 	now := time.Now()
 	caller := getCallerInfo()
 	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, caller, msg)
