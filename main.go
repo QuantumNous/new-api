@@ -59,6 +59,25 @@ func main() {
 
 	common.LoadEnv()
 
+	// 读取透传日志配置
+	if os.Getenv("LOG_PASSTHROUGH_ENABLED") == "true" {
+		common.LogPassthroughEnabled = true
+		common.SysLog("log passthrough enabled")
+	}
+
+	// 读取日志采样比例配置
+	if os.Getenv("LOG_SAMPLE_RATIO") != "" {
+		ratio, err := strconv.Atoi(os.Getenv("LOG_SAMPLE_RATIO"))
+		if err != nil {
+			common.FatalLog("failed to parse LOG_SAMPLE_RATIO: " + err.Error())
+		}
+		if ratio < 0 || ratio > 100 {
+			common.FatalLog("LOG_SAMPLE_RATIO must be between 0 and 100")
+		}
+		common.LogSampleRatio = ratio
+		common.SysLog(fmt.Sprintf("log sample ratio set to %d%%", ratio))
+	}
+
 	common.SetupLogger()
 	common.SysLog("New API " + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {
