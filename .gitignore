@@ -16,3 +16,4 @@ script/
 *_test.go
 out.log
 out.log_2
+.env_3
