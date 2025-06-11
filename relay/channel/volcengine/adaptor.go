@@ -59,7 +59,11 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	request.Thinking = &dto.ThinkingOptions{Type: request.Thinking.Type}
+
+	// Safely handle the Thinking field
+	if request.Thinking != nil {
+		request.Thinking = &dto.ThinkingOptions{Type: request.Thinking.Type}
+	}
 	return request, nil
 }
 
