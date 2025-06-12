@@ -2,6 +2,7 @@ package channel
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -160,8 +161,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
 	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
 
+	fmt.Println(fmt.Sprintf("request headers: %v", req.Header))
 	// 打印请求头
-	onecommon.LogInfo(c, fmt.Sprintf("request headers: %v", req.Header))
+	ctx := context.WithValue(c.Request.Context(), "gin_context", c)
+	onecommon.LogInfo(ctx, fmt.Sprintf("request headers: %v", req.Header))
 
 	var resp *http.Response
 	if response == nil {

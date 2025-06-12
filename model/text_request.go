@@ -89,7 +89,7 @@ func createTablesForNextWeek() error {
 
 		// 如果表不存在，则创建
 		if count == 0 {
-			if err := RequestPersistenceDB.Table(tableName).AutoMigrate(&TextRequest{}); err != nil {
+			if err := RequestPersistenceDB.Table(tableName).Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci").AutoMigrate(&TextRequest{}); err != nil {
 				return fmt.Errorf("failed to create table %s: %v", tableName, err)
 			}
 			common.SysLog(fmt.Sprintf("created table %s", tableName))
