@@ -1,15 +1,19 @@
 package controller
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
 	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	userRole := c.GetInt("role")
+	username := c.GetString("username")
 	p, _ := strconv.Atoi(c.Query("p"))
 	size, _ := strconv.Atoi(c.Query("size"))
 	if p < 0 {
@@ -28,6 +32,18 @@ func GetAllTokens(c *gin.Context) {
 		})
 		return
 	}
+
+	// 如果不是超级管理员，过滤掉不属于自己分组的 token
+	if userRole < 100 {
+		filteredTokens := make([]*model.Token, 0)
+		for _, token := range tokens {
+			if strings.Contains(token.Group, username) {
+				filteredTokens = append(filteredTokens, token)
+			}
+		}
+		tokens = filteredTokens
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
