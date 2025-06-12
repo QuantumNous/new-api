@@ -10,8 +10,18 @@ import (
 )
 
 func GetGroups(c *gin.Context) {
+	// 获取用户信息
+	userRole := c.GetInt("role")
+	username := c.GetString("username")
+
 	groupNames := make([]string, 0)
 	for groupName := range setting.GetGroupRatioCopy() {
+		// 如果不是超级管理员(role < 100)，只能看到包含自己用户名的分组
+		if userRole < 100 {
+			if !strings.Contains(groupName, username) {
+				continue
+			}
+		}
 		groupNames = append(groupNames, groupName)
 	}
 	c.JSON(http.StatusOK, gin.H{

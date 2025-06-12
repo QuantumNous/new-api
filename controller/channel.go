@@ -49,9 +49,15 @@ func GetAllChannels(c *gin.Context) {
 	if pageSize < 0 {
 		pageSize = common.ItemsPerPage
 	}
+
+	// 获取用户信息
+	userRole := c.GetInt("role")
+	username := c.GetString("username")
+
 	channelData := make([]*model.Channel, 0)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+
 	if enableTagMode {
 		tags, err := model.GetPaginatedTags(p*pageSize, pageSize)
 		if err != nil {
@@ -65,7 +71,23 @@ func GetAllChannels(c *gin.Context) {
 			if tag != nil && *tag != "" {
 				tagChannel, err := model.GetChannelsByTag(*tag, idSort)
 				if err == nil {
-					channelData = append(channelData, tagChannel...)
+					// 过滤非管理员可见的渠道
+					if userRole < 100 {
+						filteredChannels := make([]*model.Channel, 0)
+						for _, channel := range tagChannel {
+							// 检查渠道的分组是否包含用户名
+							groups := strings.Split(channel.Group, ",")
+							for _, group := range groups {
+								if strings.Contains(group, username) {
+									filteredChannels = append(filteredChannels, channel)
+									break
+								}
+							}
+						}
+						channelData = append(channelData, filteredChannels...)
+					} else {
+						channelData = append(channelData, tagChannel...)
+					}
 				}
 			}
 		}
@@ -78,8 +100,26 @@ func GetAllChannels(c *gin.Context) {
 			})
 			return
 		}
-		channelData = channels
+
+		// 过滤非管理员可见的渠道
+		if userRole < 100 {
+			filteredChannels := make([]*model.Channel, 0)
+			for _, channel := range channels {
+				// 检查渠道的分组是否包含用户名
+				groups := strings.Split(channel.Group, ",")
+				for _, group := range groups {
+					if strings.Contains(group, username) {
+						filteredChannels = append(filteredChannels, channel)
+						break
+					}
+				}
+			}
+			channelData = filteredChannels
+		} else {
+			channelData = channels
+		}
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -171,6 +211,11 @@ func SearchChannels(c *gin.Context) {
 	modelKeyword := c.Query("model")
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+
+	// 获取用户信息
+	userRole := c.GetInt("role")
+	username := c.GetString("username")
+
 	channelData := make([]*model.Channel, 0)
 	if enableTagMode {
 		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
@@ -185,7 +230,23 @@ func SearchChannels(c *gin.Context) {
 			if tag != nil && *tag != "" {
 				tagChannel, err := model.GetChannelsByTag(*tag, idSort)
 				if err == nil {
-					channelData = append(channelData, tagChannel...)
+					// 过滤非管理员可见的渠道
+					if userRole < 100 {
+						filteredChannels := make([]*model.Channel, 0)
+						for _, channel := range tagChannel {
+							// 检查渠道的分组是否包含用户名
+							groups := strings.Split(channel.Group, ",")
+							for _, group := range groups {
+								if strings.Contains(group, username) {
+									filteredChannels = append(filteredChannels, channel)
+									break
+								}
+							}
+						}
+						channelData = append(channelData, filteredChannels...)
+					} else {
+						channelData = append(channelData, tagChannel...)
+					}
 				}
 			}
 		}
@@ -198,8 +259,26 @@ func SearchChannels(c *gin.Context) {
 			})
 			return
 		}
-		channelData = channels
+
+		// 过滤非管理员可见的渠道
+		if userRole < 100 {
+			filteredChannels := make([]*model.Channel, 0)
+			for _, channel := range channels {
+				// 检查渠道的分组是否包含用户名
+				groups := strings.Split(channel.Group, ",")
+				for _, group := range groups {
+					if strings.Contains(group, username) {
+						filteredChannels = append(filteredChannels, channel)
+						break
+					}
+				}
+			}
+			channelData = filteredChannels
+		} else {
+			channelData = channels
+		}
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
