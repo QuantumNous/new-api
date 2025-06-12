@@ -49,12 +49,24 @@ const EditUser = (props) => {
   const fetchGroups = async () => {
     try {
       let res = await API.get(`/api/group/`);
-      setGroupOptions(
-        res.data.data.map((group) => ({
-          label: group,
-          value: group,
-        })),
-      );
+      const { success, message, data } = res.data;
+      if (success) {
+        // 如果不是超级管理员，只显示包含用户名的分组
+        let filteredGroups = data;
+        if (userState?.user?.role < 100) {
+          filteredGroups = data.filter(group => 
+            group.includes(userState?.user?.username)
+          );
+        }
+        setGroupOptions(
+          filteredGroups.map((group) => ({
+            label: group,
+            value: group,
+          }))
+        );
+      } else {
+        showError(message);
+      }
     } catch (error) {
       showError(error.message);
     }
