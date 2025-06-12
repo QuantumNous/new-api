@@ -95,9 +95,11 @@ func logHelper(ctx context.Context, level string, msg string) {
 	// 如果有请求ID，则检查是否需要打印日志
 	if id != nil {
 		// 从上下文中获取哈希值
-		hashValue, ok := ctx.Value("hash_value").(int)
-		if !ok || hashValue > int(LogSampleRatio) {
-			return
+		if ginCtx, ok := ctx.Value("gin_context").(*gin.Context); ok {
+			hashValue := ginCtx.GetInt("hash_value")
+			if hashValue > int(LogSampleRatio) {
+				return
+			}
 		}
 	}
 

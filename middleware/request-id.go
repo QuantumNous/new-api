@@ -1,10 +1,8 @@
 package middleware
 
 import (
-	"context"
-	"one-api/common"
-
 	"crypto/md5"
+	"one-api/common"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -18,19 +16,17 @@ func RequestId() func(c *gin.Context) {
 			c.Header(common.RequestIdKey, id)
 		}
 		c.Set(common.RequestIdKey, id)
-		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, id)
-		c.Request = c.Request.WithContext(ctx)
 
 		// 优先使用上游传递的哈希值
 		originHashValue := c.GetHeader("X-Origin-Hash-Value")
+
 		if originHashValue != "" {
 			// 将上游的哈希值转换为整数
 			value, err := strconv.Atoi(originHashValue)
 			if err == nil {
 				// 确保值在0-99范围内
 				value = value % 100
-				ctx = context.WithValue(ctx, "hash_value", value)
-				c.Request = c.Request.WithContext(ctx)
+				c.Set("hash_value", value)
 				c.Next()
 				return
 			}
@@ -43,8 +39,7 @@ func RequestId() func(c *gin.Context) {
 			hashValue = (hashValue*31 + int(hash[i])) % 100
 		}
 		// 将哈希值存入上下文
-		ctx = context.WithValue(ctx, "hash_value", hashValue)
-		c.Request = c.Request.WithContext(ctx)
+		c.Set("hash_value", hashValue)
 
 		c.Next()
 	}

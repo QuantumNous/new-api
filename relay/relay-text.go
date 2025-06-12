@@ -129,7 +129,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		promptTokens = value.(int)
 		relayInfo.PromptTokens = promptTokens
 	} else {
-		promptTokens, err = getPromptTokens(textRequest, relayInfo)
+		promptTokens, err = getPromptTokens(c, textRequest, relayInfo)
 		// count messages token error 计算promptTokens错误
 		if err != nil {
 			funcErr = service.OpenAIErrorWrapper(err, "count_token_messages_failed", http.StatusInternalServerError)
@@ -249,14 +249,16 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	}
 	// 为adaptor创建一个新的响应体
 	httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
-
+	common.LogInfo(c, fmt.Sprintf("response body: %s", string(responseBodyBytes)))
 	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
 	if openaiErr != nil {
 		funcErr = openaiErr
 		// reset status code 重置状态码
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+		common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
 		return openaiErr
 	}
+	fmt.Println("123")
 	common.LogInfo(c, fmt.Sprintf("response Usage: %+v", usage))
 	// Store request and response data together if persistence is enabled and status code is 200
 	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
@@ -293,12 +295,12 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	return nil
 }
 
-func getPromptTokens(textRequest *dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (int, error) {
+func getPromptTokens(ctx *gin.Context, textRequest *dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (int, error) {
 	var promptTokens int
 	var err error
 	switch info.RelayMode {
 	case relayconstant.RelayModeChatCompletions:
-		promptTokens, err = service.CountTokenChatRequest(info, *textRequest)
+		promptTokens, err = service.CountTokenChatRequest(ctx, info, *textRequest)
 	case relayconstant.RelayModeCompletions:
 		promptTokens, err = service.CountTokenInput(textRequest.Prompt, textRequest.Model)
 	case relayconstant.RelayModeModerations:
