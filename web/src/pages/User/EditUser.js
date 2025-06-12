@@ -53,9 +53,10 @@ const EditUser = (props) => {
       if (success) {
         // 如果不是超级管理员，只显示包含用户名的分组
         let filteredGroups = data;
-        if (userState?.user?.role < 100) {
+        const currentUser = JSON.parse(localStorage.getItem('user'));
+        if (currentUser?.role < 100) {
           filteredGroups = data.filter(group => 
-            group.includes(userState?.user?.username)
+            group.includes(currentUser.username)
           );
         }
         setGroupOptions(

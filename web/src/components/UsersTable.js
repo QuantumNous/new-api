@@ -264,7 +264,13 @@ const UsersTable = () => {
   }
 
   const loadUsers = async (startIdx, pageSize) => {
-    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    let url = `/api/user/?p=${startIdx}&page_size=${pageSize}`;
+    if (currentUser?.role < 100) {
+      // 非超级管理员只能看到同组用户
+      url += `&group=${currentUser.group}`;
+    }
+    const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -329,20 +335,30 @@ const UsersTable = () => {
 
   const searchUsers = async (startIdx, pageSize, searchKeyword, searchGroup) => {
     if (searchKeyword === '' && searchGroup === '') {
-        // if keyword is blank, load files instead.
-        await loadUsers(startIdx, pageSize);
-        return;
+      // if keyword is blank, load files instead.
+      await loadUsers(startIdx, pageSize);
+      return;
     }
     setSearching(true);
-    const res = await API.get(`/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`);
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    let url = `/api/user/search?keyword=${searchKeyword}&p=${startIdx}&page_size=${pageSize}`;
+    
+    // 如果选择了特定分组就用选择的分组，否则非超级管理员用自己的分组
+    if (searchGroup) {
+      url += `&group=${searchGroup}`;
+    } else if (currentUser?.role < 100) {
+      url += `&group=${currentUser.group}`;
+    }
+    
+    const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
-        const newPageData = data.items;
-        setActivePage(data.page);
-        setUserCount(data.total);
-        setUserFormat(newPageData);
+      const newPageData = data.items;
+      setActivePage(data.page);
+      setUserCount(data.total);
+      setUserFormat(newPageData);
     } else {
-        showError(message);
+      showError(message);
     }
     setSearching(false);
   };
@@ -383,16 +399,21 @@ const UsersTable = () => {
   const fetchGroups = async () => {
     try {
       let res = await API.get(`/api/group/`);
-      // add 'all' option
-      // res.data.data.unshift('all');
       if (res === undefined) {
         return;
       }
+      let groups = res.data.data;
+      const currentUser = JSON.parse(localStorage.getItem('user'));
+      // 如果不是超级管理员，只显示用户名完全匹配的分组
+      if (currentUser?.role < 100) {
+        const usernamePattern = new RegExp(`^${currentUser.username}$|^${currentUser.username}_|_${currentUser.username}$|_${currentUser.username}_`, 'i');
+        groups = groups.filter(group => usernamePattern.test(group));
+      }
       setGroupOptions(
-        res.data.data.map((group) => ({
+        groups.map((group) => ({
           label: group,
           value: group,
-        })),
+        }))
       );
     } catch (error) {
       showError(error.message);

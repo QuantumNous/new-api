@@ -1,13 +1,15 @@
 package middleware
 
 import (
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
+	"fmt"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
 	"strconv"
 	"strings"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 func validUserInfo(username string, role int) bool {
@@ -116,6 +118,10 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+
+	// 添加日志打印
+	common.SysLog(fmt.Sprintf("[Auth Info] UserID: %v, Role: %v, Username: %v", id, role, username))
+
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
