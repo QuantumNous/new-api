@@ -3,6 +3,7 @@ package channel
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+)
+
+// contextKey 是用于 context 值的自定义类型
+type contextKey string
+
+const (
+	ginContextKey contextKey = "gin_context"
 )
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
@@ -161,10 +169,34 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
 	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
 
-	fmt.Println(fmt.Sprintf("request headers: %v", req.Header))
 	// 打印请求头
-	ctx := context.WithValue(c.Request.Context(), "gin_context", c)
+	requestId := c.GetString(onecommon.RequestIdKey)
+	ctx := context.WithValue(c.Request.Context(), onecommon.RequestIdKey, requestId)
+	ctx = context.WithValue(ctx, "gin_context", c)
 	onecommon.LogInfo(ctx, fmt.Sprintf("request headers: %v", req.Header))
+
+	// 读取并打印请求体
+	if req.Body != nil {
+		bodyBytes, _ := io.ReadAll(req.Body)
+		if len(bodyBytes) > 0 {
+			// 只打印小于64KB的请求体
+			if len(bodyBytes) < 64*1024 {
+				var jsonData interface{}
+				if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
+					compactJSON, err := json.Marshal(jsonData)
+					if err == nil {
+						onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(compactJSON)))
+					}
+				} else {
+					onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(bodyBytes)))
+				}
+			} else {
+				onecommon.LogInfo(ctx, fmt.Sprintf("request body too large (size: %d bytes), skipping print", len(bodyBytes)))
+			}
+			// 重新设置 body
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+	}
 
 	var resp *http.Response
 	if response == nil {

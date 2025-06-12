@@ -205,9 +205,9 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		funcErr = service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
 		return funcErr
 	}
-	if len(jsonData) <= 2048 {
-		common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
-	}
+	// if len(jsonData) <= 2048 {
+	// 	common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
+	// }
 	requestBody = bytes.NewBuffer(jsonData)
 
 	// 如果请求中包含 X-Test-Traffic 头，则添加到 relayInfo 中
@@ -258,8 +258,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
 		return openaiErr
 	}
-	fmt.Println("123")
-	common.LogInfo(c, fmt.Sprintf("response Usage: %+v", usage))
+	common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
 	// Store request and response data together if persistence is enabled and status code is 200
 	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
 		// 读取请求数据

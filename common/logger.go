@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -26,9 +27,13 @@ const (
 	loggerINFO  = "INFO"
 	loggerWarn  = "WARN"
 	loggerError = "ERR"
+	// 10GB in bytes
+	maxLogFileSize = 20 * 1024 * 1024 * 1024
+	// 保留最近的1个日志文件
+	maxLogFiles = 1
+	// 日志计数上限
+	maxLogCount = 1000000
 )
-
-const maxLogCount = 1000000
 
 var logCount int
 var setupLogLock sync.Mutex
@@ -45,13 +50,104 @@ func SetupLogger() {
 			setupLogLock.Unlock()
 			setupLogWorking = false
 		}()
+
+		// 创建日志目录
+		if _, err := os.Stat(*LogDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(*LogDir, 0755); err != nil {
+				log.Fatal("failed to create log directory")
+			}
+		}
+
+		// 检查并清理旧的日志文件
+		cleanOldLogs()
+
 		logPath := filepath.Join(*LogDir, fmt.Sprintf("oneapi-%s.log", time.Now().Format("20060102150405")))
 		fd, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatal("failed to open log file")
 		}
-		gin.DefaultWriter = io.MultiWriter(os.Stdout, fd)
-		gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, fd)
+
+		// 创建一个自定义的 writer，用于检查文件大小
+		writer := &logWriter{
+			file:     fd,
+			filepath: logPath,
+			size:     0,
+		}
+
+		gin.DefaultWriter = io.MultiWriter(os.Stdout, writer)
+		gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, writer)
+	}
+}
+
+// logWriter 是一个自定义的 writer，用于跟踪文件大小
+type logWriter struct {
+	file     *os.File
+	filepath string
+	size     int64
+	mu       sync.Mutex
+}
+
+func (w *logWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// 写入数据
+	n, err = w.file.Write(p)
+	if err != nil {
+		return n, err
+	}
+
+	// 更新文件大小
+	w.size += int64(n)
+
+	// 检查文件大小是否超过限制
+	if w.size >= maxLogFileSize {
+		// 关闭当前文件
+		w.file.Close()
+
+		// 清理旧日志并创建新文件
+		cleanOldLogs()
+
+		// 创建新的日志文件
+		logPath := filepath.Join(*LogDir, fmt.Sprintf("oneapi-%s.log", time.Now().Format("20060102150405")))
+		fd, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return n, fmt.Errorf("failed to create new log file: %v", err)
+		}
+
+		// 更新 writer 状态
+		w.file = fd
+		w.filepath = logPath
+		w.size = 0
+
+		// 更新 gin 的 writer
+		gin.DefaultWriter = io.MultiWriter(os.Stdout, w)
+		gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, w)
+	}
+
+	return n, nil
+}
+
+// cleanOldLogs 清理旧的日志文件，只保留最近的几个文件
+func cleanOldLogs() {
+	files, err := filepath.Glob(filepath.Join(*LogDir, "oneapi-*.log"))
+	if err != nil {
+		log.Printf("failed to list log files: %v", err)
+		return
+	}
+
+	// 按修改时间排序
+	sort.Slice(files, func(i, j int) bool {
+		fi, _ := os.Stat(files[i])
+		fj, _ := os.Stat(files[j])
+		return fi.ModTime().After(fj.ModTime())
+	})
+
+	// 删除旧文件
+	for i := maxLogFiles; i < len(files); i++ {
+		if err := os.Remove(files[i]); err != nil {
+			log.Printf("failed to remove old log file %s: %v", files[i], err)
+		}
 	}
 }
 
@@ -90,10 +186,13 @@ func LogError(ctx context.Context, msg string) {
 
 func logHelper(ctx context.Context, level string, msg string) {
 	// 获取请求ID
-	id := ctx.Value(RequestIdKey)
+	var requestId string
+	if id := ctx.Value(RequestIdKey); id != nil {
+		requestId = id.(string)
+	}
 
 	// 如果有请求ID，则检查是否需要打印日志
-	if id != nil {
+	if requestId != "" {
 		// 从上下文中获取哈希值
 		if ginCtx, ok := ctx.Value("gin_context").(*gin.Context); ok {
 			hashValue := ginCtx.GetInt("hash_value")
@@ -109,7 +208,7 @@ func logHelper(ctx context.Context, level string, msg string) {
 	}
 	now := time.Now()
 	caller := getCallerInfo()
-	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, caller, msg)
+	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), requestId, caller, msg)
 	logCount++ // we don't need accurate count, so no lock here
 	if logCount > maxLogCount && !setupLogWorking {
 		logCount = 0
