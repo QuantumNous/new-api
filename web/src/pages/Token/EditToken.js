@@ -24,7 +24,6 @@ import {
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import { Divider } from 'semantic-ui-react';
 import { useTranslation } from 'react-i18next';
-import { UserContext } from '../../contexts/UserContext';
 
 const EditToken = (props) => {
   const [isEdit, setIsEdit] = useState(false);
@@ -55,7 +54,7 @@ const EditToken = (props) => {
   const [groups, setGroups] = useState([]);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [userState] = useContext(UserContext);
+
   const handleInputChange = (name, value) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   };
@@ -103,8 +102,9 @@ const EditToken = (props) => {
         let groupsData = [];
         for (let key in data) {
           groupsData.push({
-            label: `${key} (${data[key].desc})`,
-            value: key
+            label: `${key} (${data[key].desc}) - 倍率: ${data[key].ratio}`,
+            value: key,
+            ratio: data[key].ratio
           });
         }
         setGroups(groupsData);
