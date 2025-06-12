@@ -88,6 +88,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		requestURL := strings.Split(info.RequestURLPath, "?")[0]
 		requestURL = fmt.Sprintf("%s?api-version=%s", requestURL, apiVersion)
 		task := strings.TrimPrefix(requestURL, "/v1/")
+
+		// 特殊处理 responses API
+		if info.RelayMode == constant.RelayModeResponses {
+			requestURL = fmt.Sprintf("/openai/v1/responses?api-version=preview")
+			return relaycommon.GetFullRequestURL(info.BaseUrl, requestURL, info.ChannelType), nil
+		}
+
 		model_ := info.UpstreamModelName
 		// 2025年5月10日后创建的渠道不移除.
 		if info.ChannelCreateTime < constant2.AzureNoRemoveDotTime {
