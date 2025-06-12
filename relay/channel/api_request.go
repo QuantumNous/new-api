@@ -179,14 +179,19 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if req.Body != nil {
 		bodyBytes, _ := io.ReadAll(req.Body)
 		if len(bodyBytes) > 0 {
-			var jsonData interface{}
-			if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
-				compactJSON, err := json.Marshal(jsonData)
-				if err == nil {
-					onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(compactJSON)))
+			// 只打印小于64KB的请求体
+			if len(bodyBytes) < 64*1024 {
+				var jsonData interface{}
+				if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
+					compactJSON, err := json.Marshal(jsonData)
+					if err == nil {
+						onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(compactJSON)))
+					}
+				} else {
+					onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(bodyBytes)))
 				}
 			} else {
-				onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(bodyBytes)))
+				onecommon.LogInfo(ctx, fmt.Sprintf("request body too large (size: %d bytes), skipping print", len(bodyBytes)))
 			}
 			// 重新设置 body
 			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
