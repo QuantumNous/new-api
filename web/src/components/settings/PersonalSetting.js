@@ -14,6 +14,9 @@ import {
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onLinuxDOBindClicked,
+  onGitHubBindClicked,
+  onOIDCBindClicked,
   renderModelTag,
   getModelCategories
 } from '../../helpers';
@@ -803,7 +806,7 @@ const PersonalSetting = () => {
                                 type="primary"
                                 theme="outline"
                                 size="small"
-                                onClick={() => onGitHubOAuthClicked(status.github_client_id)}
+                                onClick={() => onGitHubBindClicked(status.github_client_id)}
                                 disabled={
                                   (userState.user && userState.user.github_id !== '') ||
                                   !status.github_oauth
@@ -839,7 +842,7 @@ const PersonalSetting = () => {
                                 type="primary"
                                 theme="outline"
                                 size="small"
-                                onClick={() => onOIDCClicked(
+                                onClick={() => onOIDCBindClicked(
                                   status.oidc_authorization_endpoint,
                                   status.oidc_client_id,
                                 )}
@@ -921,7 +924,7 @@ const PersonalSetting = () => {
                                 type="primary"
                                 theme="outline"
                                 size="small"
-                                onClick={() => onLinuxDOOAuthClicked(status.linuxdo_client_id)}
+                                onClick={() => onLinuxDOBindClicked(status.linuxdo_client_id)}
                                 disabled={
                                   (userState.user && userState.user.linux_do_id !== '') ||
                                   !status.linuxdo_oauth
