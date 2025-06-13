@@ -197,6 +197,13 @@ const EditToken = (props) => {
         showError(t(message));
       }
     } else {
+      // 验证分组是否已选择
+      if (!inputs.group) {
+        showError(t('请选择令牌分组！'));
+        setLoading(false);
+        return;
+      }
+
       // 处理新增多个令牌的情况
       let successCount = 0; // 记录成功创建的令牌数量
       for (let i = 0; i < tokenCount; i++) {
@@ -438,12 +445,12 @@ const EditToken = (props) => {
             disabled={!model_limits_enabled}
           />
           <div style={{ marginTop: 10 }}>
-            <Typography.Text>{t('令牌分组，默认为用户的分组')}</Typography.Text>
+            <Typography.Text>{t('令牌分组（必选）')}</Typography.Text>
           </div>
           {groups.length > 0 ?
             <Select
               style={{ marginTop: 8 }}
-              placeholder={t('令牌分组，默认为用户的分组')}
+              placeholder={t('请选择令牌分组')}
               name='gruop'
               required
               selection
