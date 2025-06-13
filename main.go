@@ -105,9 +105,11 @@ func main() {
 			model.InitChannelCache()
 		}()
 
-		go model.SyncOptions(common.SyncFrequency)
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
+
+	// 热更新配置
+	go model.SyncOptions(common.SyncFrequency)
 
 	// 数据看板
 	go model.UpdateQuotaData()
