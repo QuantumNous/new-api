@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bytedance/gopkg/util/gopool"
 	"io"
 	"math"
 	"net/http"
@@ -22,6 +21,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bytedance/gopkg/util/gopool"
 
 	"github.com/gin-gonic/gin"
 )
@@ -93,7 +94,7 @@ func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest
 }
 
 func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *dto.GeneralOpenAIRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
-	startTime := time.Now()
+	startTime := common.GetBeijingTime()
 	var funcErr *dto.OpenAIErrorWithStatusCode
 	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
 	defer func() {
@@ -128,7 +129,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		promptTokens = value.(int)
 		relayInfo.PromptTokens = promptTokens
 	} else {
-		promptTokens, err = getPromptTokens(textRequest, relayInfo)
+		promptTokens, err = getPromptTokens(c, textRequest, relayInfo)
 		// count messages token error 计算promptTokens错误
 		if err != nil {
 			funcErr = service.OpenAIErrorWrapper(err, "count_token_messages_failed", http.StatusInternalServerError)
@@ -204,10 +205,16 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		funcErr = service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
 		return funcErr
 	}
-	if len(jsonData) <= 2048 {
-		common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
-	}
+	// if len(jsonData) <= 2048 {
+	// 	common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
+	// }
 	requestBody = bytes.NewBuffer(jsonData)
+
+	// 如果请求中包含 X-Test-Traffic 头，则添加到 relayInfo 中
+	if c.GetHeader("X-Test-Traffic") == "true" {
+		relayInfo.Headers = make(map[string]string)
+		relayInfo.Headers["X-Test-Traffic"] = "true"
+	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
@@ -219,6 +226,11 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
+		// 添加来源标识和重试标记
+		httpResp.Header.Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
+		httpResp.Header.Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
+		httpResp.Header.Set("X-Retry-Count", strconv.Itoa(relayInfo.RetryCount))
+
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			openaiErr = service.RelayErrorHandler(httpResp)
@@ -229,12 +241,49 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		}
 	}
 
+	// 读取响应体并创建副本
+	responseBodyBytes, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		funcErr = service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+		return funcErr
+	}
+	// 为adaptor创建一个新的响应体
+	httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
+	common.LogInfo(c, fmt.Sprintf("response body: %s", string(responseBodyBytes)))
 	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
 	if openaiErr != nil {
 		funcErr = openaiErr
 		// reset status code 重置状态码
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+		common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
 		return openaiErr
+	}
+	common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
+	// Store request and response data together if persistence is enabled and status code is 200
+	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
+		// 读取请求数据
+		requestHeaders, _ := json.Marshal(c.Request.Header)
+		requestBodyBytes, _ := io.ReadAll(c.Request.Body)
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBodyBytes))
+
+		// 读取响应数据
+		responseHeaders, _ := json.Marshal(httpResp.Header)
+
+		// 创建并保存记录，使用请求开始时间
+		textRequest := &model.TextRequest{
+			UserId:          common.GetOriginUserId(c, c.GetInt("id")),
+			CreatedAt:       common.GetBeijingTime(),
+			RequestId:       c.GetString(common.RequestIdKey),
+			Model:           textRequest.Model,
+			RequestHeaders:  string(requestHeaders),
+			RequestBody:     string(requestBodyBytes),
+			ResponseHeaders: string(responseHeaders),
+			ResponseBody:    string(responseBodyBytes),
+		}
+		tableName := fmt.Sprintf("text_requests_%s", startTime.Format("20060102"))
+		if err := model.RequestPersistenceDB.Table(tableName).Save(textRequest).Error; err != nil {
+			common.SysError("failed to save text request: " + err.Error())
+		}
 	}
 
 	if strings.HasPrefix(relayInfo.OriginModelName, "gpt-4o-audio") {
@@ -245,12 +294,12 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	return nil
 }
 
-func getPromptTokens(textRequest *dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (int, error) {
+func getPromptTokens(ctx *gin.Context, textRequest *dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (int, error) {
 	var promptTokens int
 	var err error
 	switch info.RelayMode {
 	case relayconstant.RelayModeChatCompletions:
-		promptTokens, err = service.CountTokenChatRequest(info, *textRequest)
+		promptTokens, err = service.CountTokenChatRequest(ctx, info, *textRequest)
 	case relayconstant.RelayModeCompletions:
 		promptTokens, err = service.CountTokenInput(textRequest.Prompt, textRequest.Model)
 	case relayconstant.RelayModeModerations:
@@ -340,6 +389,11 @@ func returnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
+	// 如果是压测流量，不记录计费日志
+	if ctx.GetHeader("X-Test-Traffic") == "true" {
+		common.LogInfo(ctx, "test traffic detected, skipping consume log")
+		return
+	}
 	if usage == nil {
 		usage = &dto.Usage{
 			PromptTokens:     relayInfo.PromptTokens,
@@ -364,6 +418,10 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	modelRatio := priceData.ModelRatio
 	groupRatio := priceData.GroupRatio
 	modelPrice := priceData.ModelPrice
+
+	if usage.CompletionTokens+usage.PromptTokens < usage.TotalTokens {
+		completionTokens = completionTokens + thinkingTokens
+	}
 
 	quota := 0
 	if !priceData.UsePrice {
@@ -420,14 +478,8 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	if extraContent != "" {
 		logContent += ", " + extraContent
 	}
-	if usage.CompletionTokens+usage.PromptTokens < usage.TotalTokens {
-		completionTokens = completionTokens + thinkingTokens
-	}
+
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
-
-	//if quota != 0 {
-	//
-	//}
 }

@@ -1,11 +1,12 @@
 package channel
 
 import (
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Adaptor interface {

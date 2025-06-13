@@ -3,7 +3,6 @@ package volcengine
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/dto"
@@ -12,6 +11,8 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Adaptor struct {
@@ -58,9 +59,10 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if strings.HasSuffix(request.Model, "-disable") {
-		request.Thinking = &dto.ThinkingOptions{Type: "disabled"}
-		request.Model = strings.TrimSuffix(request.Model, "-disable")
+
+	// Safely handle the Thinking field
+	if request.Thinking != nil {
+		request.Thinking = &dto.ThinkingOptions{Type: request.Thinking.Type}
 	}
 	return request, nil
 }

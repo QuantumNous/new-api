@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -36,12 +37,46 @@ var buildFS embed.FS
 var indexPage []byte
 
 func main() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		common.SysLog("Support for .env file is disabled")
+	// 添加命令行参数支持
+	configFile := flag.String("config", "", "path to config file")
+	flag.Parse()
+
+	// 打印时区和时间信息
+	common.PrintTimeInfo()
+
+	// 根据是否指定配置文件决定加载哪个文件
+	if *configFile != "" {
+		err := godotenv.Load(*configFile)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("Failed to load config file %s: %v", *configFile, err))
+		}
+	} else {
+		err := godotenv.Load(".env")
+		if err != nil {
+			common.SysLog("Support for .env file is disabled")
+		}
 	}
 
 	common.LoadEnv()
+
+	// 读取透传日志配置
+	if os.Getenv("LOG_PASSTHROUGH_ENABLED") == "true" {
+		common.LogPassthroughEnabled = true
+		common.SysLog("log passthrough enabled")
+	}
+
+	// 读取日志采样比例配置
+	if os.Getenv("LOG_SAMPLE_RATIO") != "" {
+		ratio, err := strconv.Atoi(os.Getenv("LOG_SAMPLE_RATIO"))
+		if err != nil {
+			common.FatalLog("failed to parse LOG_SAMPLE_RATIO: " + err.Error())
+		}
+		if ratio < 0 || ratio > 100 {
+			common.FatalLog("LOG_SAMPLE_RATIO must be between 0 and 100")
+		}
+		common.LogSampleRatio = ratio
+		common.SysLog(fmt.Sprintf("log sample ratio set to %d%%", ratio))
+	}
 
 	common.SetupLogger()
 	common.SysLog("New API " + common.Version + " started")
@@ -52,7 +87,7 @@ func main() {
 		common.SysLog("running in debug mode")
 	}
 	// Initialize SQL Database
-	err = model.InitDB()
+	err := model.InitDB()
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 	}
@@ -74,6 +109,18 @@ func main() {
 			model.GetLogTableName(time.Now().Unix())
 		}
 	}()
+
+	// 初始化请求持久化存储
+	if os.Getenv("REQUEST_PERSISTENCE_ENABLED") == "true" {
+		model.RequestPersistenceEnabled = true
+		common.SysLog("request persistence enabled")
+		err = model.InitRequestPersistence()
+		if err != nil {
+			common.FatalLog("failed to initialize request persistence: " + err.Error())
+		}
+		model.StartTableCheckRoutine()
+	}
+
 	defer func() {
 		err := model.CloseDB()
 		if err != nil {
@@ -174,6 +221,7 @@ func main() {
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
+	server.Use(middleware.RequestLogger())
 	server.Use(middleware.RequestId())
 	middleware.SetUpLogger(server)
 	// Initialize session store

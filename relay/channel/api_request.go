@@ -1,16 +1,29 @@
 package channel
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"io"
 	"net/http"
 	onecommon "one-api/common"
 	"one-api/relay/common"
 	"one-api/relay/constant"
-	"one-api/service"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+)
+
+// contextKey 是用于 context 值的自定义类型
+type contextKey string
+
+const (
+	ginContextKey contextKey = "gin_context"
 )
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
@@ -24,6 +37,11 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 		if info.IsStream && c.Request.Header.Get("Accept") == "" {
 			req.Set("Accept", "text/event-stream")
 		}
+	}
+
+	// 添加自定义请求头
+	for key, value := range info.Headers {
+		req.Set(key, value)
 	}
 }
 
@@ -92,24 +110,111 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
-	var client *http.Client
-	var err error
-	if proxyURL, ok := info.ChannelSetting["proxy"]; ok {
-		client, err = service.NewProxyHttpClient(proxyURL.(string))
-		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	// Check if mock response is enabled and test traffic header is present
+	var response *http.Response
+
+	if onecommon.MockResponseEnabled && c.GetHeader("X-Test-Traffic") == "true" {
+
+		var responseBody string
+		if strings.Contains(strings.ToLower(info.UpstreamModelName), "gemini") {
+			responseBody = `{
+				"candidates": [{
+					"content": {
+						"parts": [{
+							"text": "测试结果是1 + 1 = 2"
+						}],
+						"role": "model"
+					},
+					"finishReason": "STOP",
+					"index": 0
+				}],
+				"usageMetadata": {
+					"promptTokenCount": 10,
+					"candidatesTokenCount": 10,
+					"totalTokenCount": 20
+				}
+			}`
+		} else {
+			responseBody = `{
+				"id": "mock-response",
+				"model": "gpt-3.5-turbo",
+				"object": "chat.completion",
+				"choices": [{
+					"message": {
+						"role": "assistant",
+						"content": "测试结果是1 + 1 = 2"
+					}
+				}]
+			}`
 		}
-	} else {
-		client = service.GetHttpClient()
+		response = &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(bytes.NewBufferString(responseBody)),
+		}
+		// 设置正确的 Content-Type 头
+		response.Header.Set("Content-Type", "application/json")
+
+	}
+
+	// Create HTTP client
+	client := &http.Client{
+		Timeout: time.Duration(onecommon.RelayTimeout) * time.Second,
 	}
 	req.Header.Set(onecommon.RequestIdKey, c.GetString(onecommon.RequestIdKey))
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
+
+	// 添加来源标识和重试次数
+	req.Header.Set("X-Origin-User-ID", strconv.Itoa(info.UserId))
+	req.Header.Set("X-Origin-Channel-ID", strconv.Itoa(info.ChannelId))
+	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
+	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
+
+	// 打印请求头
+	requestId := c.GetString(onecommon.RequestIdKey)
+	ctx := context.WithValue(c.Request.Context(), onecommon.RequestIdKey, requestId)
+	ctx = context.WithValue(ctx, "gin_context", c)
+	onecommon.LogInfo(ctx, fmt.Sprintf("request headers: %v", req.Header))
+
+	// 读取并打印请求体
+	if req.Body != nil {
+		bodyBytes, _ := io.ReadAll(req.Body)
+		if len(bodyBytes) > 0 {
+			// 只打印小于64KB的请求体
+			if len(bodyBytes) < 64*1024 {
+				var jsonData interface{}
+				if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
+					compactJSON, err := json.Marshal(jsonData)
+					if err == nil {
+						onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(compactJSON)))
+					}
+				} else {
+					onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(bodyBytes)))
+				}
+			} else {
+				onecommon.LogInfo(ctx, fmt.Sprintf("request body too large (size: %d bytes), skipping print", len(bodyBytes)))
+			}
+			// 重新设置 body
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
 	}
-	if resp == nil {
-		return nil, errors.New("resp is nil")
+
+	var resp *http.Response
+	if response == nil {
+		var err error
+		resp, err = client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil {
+			return nil, errors.New("resp is nil")
+		}
+	} else {
+		resp = response
 	}
+
+	// 打印响应头
+	onecommon.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
+
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pkoukk/tiktoken-go"
 )
 
@@ -33,7 +34,7 @@ func InitTokenEncoders() {
 	if err != nil {
 		common.FatalLog(fmt.Sprintf("failed to get gpt-4o token encoder: %s", err.Error()))
 	}
-	for model, _ := range operation_setting.GetDefaultModelRatioMap() {
+	for model := range operation_setting.GetDefaultModelRatioMap() {
 		if strings.HasPrefix(model, "gpt-3.5") {
 			tokenEncoderMap[model] = cl100TokenEncoder
 		} else if strings.HasPrefix(model, "gpt-4") {
@@ -162,13 +163,17 @@ func getImageToken(info *relaycommon.RelayInfo, imageUrl *dto.MessageImageUrl, m
 	return tiles*tileTokens + baseTokens, nil
 }
 
-func CountTokenChatRequest(info *relaycommon.RelayInfo, request dto.GeneralOpenAIRequest) (int, error) {
+func CountTokenChatRequest(ctx *gin.Context, info *relaycommon.RelayInfo, request dto.GeneralOpenAIRequest) (int, error) {
+	if request.Messages == nil {
+		return 0, errors.New("messages is required")
+	}
 	tkm := 0
-	msgTokens, err := CountTokenMessages(info, request.Messages, request.Model, request.Stream)
+	msgTokens, err := CountTokenMessages(ctx, info, request.Messages, request.Model, request.Stream)
 	if err != nil {
 		return 0, err
 	}
 	tkm += msgTokens
+
 	if request.Tools != nil {
 		openaiTools := request.Tools
 		countStr := ""
@@ -258,7 +263,7 @@ func CountTokenRealtime(info *relaycommon.RelayInfo, request dto.RealtimeEvent, 
 	return textToken, audioToken, nil
 }
 
-func CountTokenMessages(info *relaycommon.RelayInfo, messages []dto.Message, model string, stream bool) (int, error) {
+func CountTokenMessages(ctx *gin.Context, info *relaycommon.RelayInfo, messages []dto.Message, model string, stream bool) (int, error) {
 	//recover when panic
 	tokenEncoder := getTokenEncoder(model)
 	// Reference:
@@ -293,7 +298,7 @@ func CountTokenMessages(info *relaycommon.RelayInfo, messages []dto.Message, mod
 						return 0, err
 					}
 					tokenNum += imageTokenNum
-					log.Printf("image token num: %d", imageTokenNum)
+					common.LogInfo(ctx, fmt.Sprintf("image token num: %d", imageTokenNum))
 				} else if m.Type == dto.ContentTypeInputAudio {
 					// TODO: 音频token数量计算
 					tokenNum += 100

@@ -60,6 +60,8 @@ type RelayInfo struct {
 	UserEmail            string
 	UserQuota            int
 	Direct               bool
+	RetryCount           int
+	Headers              map[string]string
 	ThinkingContentInfo
 }
 
@@ -126,6 +128,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		ApiKey:         strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer "),
 		Organization:   c.GetString("channel_organization"),
 		ChannelSetting: channelSetting,
+		Headers:        make(map[string]string),
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,

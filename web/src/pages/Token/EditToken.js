@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   API,
@@ -54,6 +54,7 @@ const EditToken = (props) => {
   const [groups, setGroups] = useState([]);
   const navigate = useNavigate();
   const { t } = useTranslation();
+
   const handleInputChange = (name, value) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   };
@@ -93,18 +94,25 @@ const EditToken = (props) => {
     }
   };
 
-  const loadGroups = async () => {
-    let res = await API.get(`/api/user/self/groups`);
-    const { success, message, data } = res.data;
-    if (success) {
-      let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
-        value: group,
-        ratio: info.ratio
-      }));
-      setGroups(localGroupOptions);
-    } else {
-      showError(t(message));
+  const fetchGroups = async () => {
+    try {
+      let res = await API.get(`/api/user/self/groups`);
+      const { success, message, data } = res.data;
+      if (success) {
+        let groupsData = [];
+        for (let key in data) {
+          groupsData.push({
+            label: `${key} (${data[key].desc}) - 倍率: ${data[key].ratio}`,
+            value: key,
+            ratio: data[key].ratio
+          });
+        }
+        setGroups(groupsData);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error.message);
     }
   };
 
@@ -140,7 +148,7 @@ const EditToken = (props) => {
       });
     }
     loadModels();
-    loadGroups();
+    fetchGroups();
   }, [isEdit]);
 
   // 新增 state 变量 tokenCount 来记录用户想要创建的令牌数量，默认为 1
