@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"one-api/common"
+	"one-api/middleware"
 	"one-api/model"
 	"one-api/setting"
 	"strings"
@@ -106,4 +107,27 @@ func UpdateOption(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// ToggleRequestLog 切换请求体日志的开关状态
+func ToggleRequestLog(c *gin.Context) {
+	var request struct {
+		Enable bool `json:"enable"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(200, gin.H{
+			"success": false,
+			"message": "无效的请求参数",
+		})
+		return
+	}
+
+	middleware.EnableRequestBodyLogging = request.Enable
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "请求体日志状态已更新",
+		"data": gin.H{
+			"enable": middleware.EnableRequestBodyLogging,
+		},
+	})
 }
