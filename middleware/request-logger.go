@@ -105,7 +105,8 @@ func formatValue(v interface{}) string {
 		if err != nil {
 			return fmt.Sprintf("%v", v)
 		}
-		return string(bytes)
+		// 去掉换行符
+		return strings.ReplaceAll(string(bytes), "\n", "")
 	}
 }
 
@@ -115,7 +116,10 @@ func formatMapInterface(m map[string]interface{}) string {
 	}
 	var pairs []string
 	for k, v := range m {
-		pairs = append(pairs, fmt.Sprintf("%s: %s", k, formatValue(v)))
+		// 处理值中的换行符
+		valueStr := formatValue(v)
+		valueStr = strings.ReplaceAll(valueStr, "\n", "")
+		pairs = append(pairs, fmt.Sprintf("%s: %s", k, valueStr))
 	}
 	return "{" + strings.Join(pairs, ", ") + "}"
 }
@@ -126,7 +130,10 @@ func formatArray(arr []interface{}) string {
 	}
 	var elements []string
 	for _, v := range arr {
-		elements = append(elements, formatValue(v))
+		// 处理值中的换行符
+		valueStr := formatValue(v)
+		valueStr = strings.ReplaceAll(valueStr, "\n", "")
+		elements = append(elements, valueStr)
 	}
 	return "[" + strings.Join(elements, ", ") + "]"
 }
