@@ -398,7 +398,14 @@ const LogsTable = () => {
             >
               {typeof text === 'string' && text.slice(0, 1)}
             </Avatar>
-            {text}
+            <Tooltip content={record.display_name || t('无显示名称')} position='top'>
+              <span
+                onClick={() => showUserInfo(record.user_id)}
+                style={{ cursor: 'pointer' }}
+              >
+                {text}
+              </span>
+            </Tooltip>
           </div>
         ) : (
           <></>

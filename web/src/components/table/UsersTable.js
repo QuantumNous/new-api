@@ -26,6 +26,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography
 } from '@douyinfe/semi-ui';
 import {
@@ -110,6 +111,16 @@ const UsersTable = () => {
     {
       title: t('用户名'),
       dataIndex: 'username',
+      render: (text, record) => {
+        if (record.display_name) {
+          return (
+            <Tooltip content={record.display_name} position='top'>
+              <span>{text}</span>
+            </Tooltip>
+          );
+        }
+        return text;
+      },
     },
     {
       title: t('分组'),

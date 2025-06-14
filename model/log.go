@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
@@ -22,6 +23,7 @@ type Log struct {
 	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content          string `json:"content"`
 	Username         string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
+	DisplayName      string `json:"display_name" gorm:"-"`
 	TokenName        string `json:"token_name" gorm:"index;default:''"`
 	ModelName        string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
 	Quota            int    `json:"quota" gorm:"default:0"`
@@ -216,6 +218,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if err != nil {
 		return nil, 0, err
 	}
+	tryFetchDisplayName(logs)
 
 	channelIds := make([]int, 0)
 	channelMap := make(map[int]string)
@@ -281,13 +284,37 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 
 func SearchAllLogs(keyword string) (logs []*Log, err error) {
 	err = LOG_DB.Where("type = ? or content LIKE ?", keyword, keyword+"%").Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	tryFetchDisplayName(logs)
 	return logs, err
 }
 
 func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
 	err = LOG_DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
 	formatUserLogs(logs)
-	return logs, err
+	return
+}
+
+func tryFetchDisplayName(logs []*Log) {
+	if len(logs) == 0 {
+		return
+	}
+	userIds := lo.Uniq(lo.Map(logs, func(log *Log, _ int) int {
+		return log.UserId
+	}))
+	var users []*User
+	if err := DB.Where("id in ?", userIds).Select("id, display_name").Find(&users).Error; err != nil {
+		return
+	}
+	userMap := make(map[int]string, len(users))
+	for _, user := range users {
+		userMap[user.Id] = user.DisplayName
+	}
+	for _, log := range logs {
+		if displayName, ok := userMap[log.UserId]; ok {
+			log.DisplayName = displayName
+		}
+	}
+	return
 }
 
 type Stat struct {
