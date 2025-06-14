@@ -56,6 +56,7 @@ type GeneralOpenAIRequest struct {
 	ExtraBody           json.RawMessage   `json:"extra_body,omitempty"`
 	WebSearchOptions    *WebSearchOptions `json:"web_search_options,omitempty"`
 	// OpenRouter Params
+	Usage     json.RawMessage `json:"usage,omitempty"`
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 }
 
