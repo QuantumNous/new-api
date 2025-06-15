@@ -142,6 +142,11 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-preview-04-17":            0.075,
 	"gemini-2.5-flash-preview-04-17-thinking":   0.075,
 	"gemini-2.5-flash-preview-04-17-nothinking": 0.075,
+	"gemini-2.5-flash-preview-05-20":            0.075,
+	"gemini-2.5-flash-preview-05-20-thinking":   0.075,
+	"gemini-2.5-flash-preview-05-20-nothinking": 0.075,
+	"gemini-2.5-flash-thinking-*":               0.075, // 用于为后续所有2.5 flash thinking 模型设置默认倍率
+	"gemini-2.5-pro-thinking-*":                 0.625, // 用于为后续所有2.5 pro thinking 模型设置默认倍率
 	"text-embedding-004":                        0.001,
 	"chatglm_turbo":                             0.3572,     // ￥0.005 / 1k tokens
 	"chatglm_pro":                               0.7143,     // ￥0.01 / 1k tokens
@@ -345,7 +350,12 @@ func UpdateModelRatioByJSONString(jsonStr string) error {
 func GetModelRatio(name string) (float64, bool) {
 	modelRatioMapMutex.RLock()
 	defer modelRatioMapMutex.RUnlock()
-
+	if strings.HasPrefix(name, "gemini-2.5-flash") && strings.Contains(name, "-thinking-") {
+		name = "gemini-2.5-flash-thinking-*"
+	}
+	if strings.HasPrefix(name, "gemini-2.5-pro") && strings.Contains(name, "-thinking-") {
+		name = "gemini-2.5-pro-thinking-*"
+	}
 	if strings.HasPrefix(name, "gpt-4-gizmo") {
 		name = "gpt-4-gizmo-*"
 	}
@@ -470,9 +480,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 4, true
 		} else if strings.HasPrefix(name, "gemini-2.0") {
 			return 4, true
-		} else if strings.HasPrefix(name, "gemini-2.5-pro-preview") {
+		} else if strings.HasPrefix(name, "gemini-2.5-pro") { // 移除preview来增加兼容性，这里假设正式版的倍率和preview一致
 			return 8, true
-		} else if strings.HasPrefix(name, "gemini-2.5-flash-preview") {
+		} else if strings.HasPrefix(name, "gemini-2.5-flash") { // 同上
 			if strings.HasSuffix(name, "-nothinking") {
 				return 4, false
 			} else {

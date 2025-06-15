@@ -173,7 +173,8 @@ export default function SettingGeminiModel(props) {
                 <Text>
                   {t(
                     "和Claude不同，默认情况下Gemini的思考模型会自动决定要不要思考，就算不开启适配模型也可以正常使用，" +
-                    "如果您需要计费，推荐设置无后缀模型价格按思考价格设置"
+                    "如果您需要计费，推荐设置无后缀模型价格按思考价格设置。" +
+                    "支持使用 gemini-2.5-pro-preview-06-05-thinking-128 格式来精确传递思考预算。"
                   )}
                 </Text>
               </Col>
@@ -183,7 +184,7 @@ export default function SettingGeminiModel(props) {
                 <Form.Switch
                   label={t('启用Gemini思考后缀适配')}
                   field={'gemini.thinking_adapter_enabled'}
-                  extraText={"适配-thinking和-nothinking后缀"}
+                  extraText={"适配-thinking、-thinking-预算数字和-nothinking后缀"}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -205,7 +206,7 @@ export default function SettingGeminiModel(props) {
             <Row>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
-                  label={t('请求模型带-thinking后缀的BudgetTokens数（超出24576的部分将被忽略）')}
+                  label={t('思考预算/MaxToken的比值（超出24576或32678的预算将被忽略）')}
                   field={'gemini.thinking_adapter_budget_tokens_percentage'}
                   initValue={''}
                   extraText={t('0.1-1之间的小数')}

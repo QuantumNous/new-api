@@ -12,6 +12,7 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting/model_setting"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -57,7 +58,40 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon
 	}
 
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
-		if strings.HasSuffix(info.OriginModelName, "-thinking") {
+		// 新增逻辑：处理 -thinking-<budget> 格式
+		if strings.Contains(info.OriginModelName, "-thinking-") {
+			parts := strings.Split(info.OriginModelName, "-thinking-")
+			if len(parts) == 2 {
+				if budgetTokens, err := strconv.Atoi(parts[1]); err == nil {
+					// 从模型名称成功解析预算
+					isNew25Pro := strings.HasPrefix(info.OriginModelName, "gemini-2.5-pro") &&
+						!strings.HasPrefix(info.OriginModelName, "gemini-2.5-pro-preview-05-06") &&
+						!strings.HasPrefix(info.OriginModelName, "gemini-2.5-pro-preview-03-25")
+
+					if isNew25Pro {
+						// 新的2.5pro模型：ThinkingBudget范围为128-32768
+						if budgetTokens < 128 {
+							budgetTokens = 128
+						} else if budgetTokens > 32768 {
+							budgetTokens = 32768
+						}
+					} else {
+						// 其他模型：ThinkingBudget范围为0-24576
+						if budgetTokens < 0 {
+							budgetTokens = 0
+						} else if budgetTokens > 24576 {
+							budgetTokens = 24576
+						}
+					}
+
+					geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
+						ThinkingBudget:  common.GetPointer(budgetTokens),
+						IncludeThoughts: true,
+					}
+				}
+				// 如果解析失败，则不设置ThinkingConfig，静默处理
+			}
+		} else if strings.HasSuffix(info.OriginModelName, "-thinking") { // 保留旧逻辑以兼容
 			// 硬编码不支持 ThinkingBudget 的旧模型
 			unsupportedModels := []string{
 				"gemini-2.5-pro-preview-05-06",
