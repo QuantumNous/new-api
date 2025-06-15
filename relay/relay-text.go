@@ -139,7 +139,9 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	}
 
 	// Record input tokens metric
-	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(promptTokens))
+	tokenName := c.GetString("token_name")
+	userName := c.GetString("username")
+	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(promptTokens))
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptTokens, int(textRequest.MaxTokens))
 	if err != nil {
@@ -415,6 +417,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	modelName := relayInfo.OriginModelName
 
 	tokenName := ctx.GetString("token_name")
+	userName := ctx.GetString("username")
 	completionRatio := priceData.CompletionRatio
 	cacheRatio := priceData.CacheRatio
 	ratio := priceData.ModelRatio * priceData.GroupRatio
@@ -483,14 +486,14 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	}
 
 	// Record token metrics
-	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(completionTokens))
+	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
 
 	if cacheTokens > 0 {
-		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(cacheTokens))
+		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(cacheTokens))
 	}
 
-	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(thinkingTokens))
-
+	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(thinkingTokens))
+	fmt.Println(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
