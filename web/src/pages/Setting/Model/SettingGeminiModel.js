@@ -208,8 +208,8 @@ export default function SettingGeminiModel(props) {
                   label={t('请求模型带-thinking后缀的BudgetTokens数（超出24576的部分将被忽略）')}
                   field={'gemini.thinking_adapter_budget_tokens_percentage'}
                   initValue={''}
-                  extraText={t('0.1-1之间的小数')}
-                  min={0.1}
+                  extraText={t('0.002-1之间的小数')} 
+                  min={0.002}
                   max={1}
                   onChange={(value) =>
                     setInputs({
