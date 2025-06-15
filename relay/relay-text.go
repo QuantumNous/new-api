@@ -138,6 +138,9 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		c.Set("prompt_tokens", promptTokens)
 	}
 
+	// Record input tokens metric
+	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(promptTokens))
+
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptTokens, int(textRequest.MaxTokens))
 	if err != nil {
 		funcErr = service.OpenAIErrorWrapperLocal(err, "model_price_error", http.StatusInternalServerError)
@@ -291,6 +294,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	} else {
 		postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 	}
+
 	return nil
 }
 
@@ -405,7 +409,6 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	promptTokens := usage.PromptTokens
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
-	//
 
 	completionTokens := usage.CompletionTokens
 	thinkingTokens := usage.CompletionTokenDetails.ReasoningTokens
@@ -478,6 +481,15 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	if extraContent != "" {
 		logContent += ", " + extraContent
 	}
+
+	// Record token metrics
+	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(completionTokens))
+
+	if cacheTokens > 0 {
+		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(cacheTokens))
+	}
+
+	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), float64(thinkingTokens))
 
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
