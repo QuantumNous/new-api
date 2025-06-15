@@ -95,28 +95,28 @@ var (
 			Subsystem: Namespace,
 			Name:      "input_tokens_total",
 			Help:      "Total number of input tokens processed",
-		}, []string{"channel", "model", "group", "user_id"})
+		}, []string{"channel", "model", "group", "user_id", "user_name", "token_name"})
 
 	outputTokensCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
 			Name:      "output_tokens_total",
 			Help:      "Total number of output tokens generated",
-		}, []string{"channel", "model", "group", "user_id"})
+		}, []string{"channel", "model", "group", "user_id", "user_name", "token_name"})
 
 	cacheHitTokensCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
 			Name:      "cache_hit_tokens_total",
 			Help:      "Total number of tokens served from cache",
-		}, []string{"channel", "model", "group", "user_id"})
+		}, []string{"channel", "model", "group", "user_id", "user_name", "token_name"})
 
 	inferenceTokensCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
 			Name:      "inference_tokens_total",
 			Help:      "Total number of tokens processed during inference",
-		}, []string{"channel", "model", "group", "user_id"})
+		}, []string{"channel", "model", "group", "user_id", "user_name", "token_name"})
 )
 
 func IncrementRelayRequestTotalCounter(channel, tag, baseURL, model, group string, add float64) {
@@ -156,18 +156,18 @@ func ObserveRelayRequestE2EDuration(channel, model, group, tokenKey, tokenName s
 }
 
 // Token metrics functions
-func IncrementInputTokens(channel, model, group, userId string, add float64) {
-	inputTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+func IncrementInputTokens(channel, model, group, userId, userName, tokenName string, add float64) {
+	inputTokensCounter.WithLabelValues(channel, model, group, userId, userName, tokenName).Add(add)
 }
 
-func IncrementOutputTokens(channel, model, group, userId string, add float64) {
-	outputTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+func IncrementOutputTokens(channel, model, group, userId, userName, tokenName string, add float64) {
+	outputTokensCounter.WithLabelValues(channel, model, group, userId, userName, tokenName).Add(add)
 }
 
-func IncrementCacheHitTokens(channel, model, group, userId string, add float64) {
-	cacheHitTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+func IncrementCacheHitTokens(channel, model, group, userId, userName, tokenName string, add float64) {
+	cacheHitTokensCounter.WithLabelValues(channel, model, group, userId, userName, tokenName).Add(add)
 }
 
-func IncrementInferenceTokens(channel, model, group, userId string, add float64) {
-	inferenceTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+func IncrementInferenceTokens(channel, model, group, userId, userName, tokenName string, add float64) {
+	inferenceTokensCounter.WithLabelValues(channel, model, group, userId, userName, tokenName).Add(add)
 }
