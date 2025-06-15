@@ -21,6 +21,11 @@ func RegisterMetrics(registry prometheus.Registerer) {
 	registry.MustRegister(relayRequestE2ESuccessCounter)
 	registry.MustRegister(relayRequestE2EFailedCounter)
 	registry.MustRegister(relayRequestE2EDurationObsever)
+	// token metrics
+	registry.MustRegister(inputTokensCounter)
+	registry.MustRegister(outputTokensCounter)
+	registry.MustRegister(cacheHitTokensCounter)
+	registry.MustRegister(inferenceTokensCounter)
 }
 
 var (
@@ -84,6 +89,34 @@ var (
 		},
 		[]string{"channel", "model", "group", "token_key", "token_name"},
 	)
+	// Token metrics
+	inputTokensCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "input_tokens_total",
+			Help:      "Total number of input tokens processed",
+		}, []string{"channel", "model", "group", "user_id"})
+
+	outputTokensCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "output_tokens_total",
+			Help:      "Total number of output tokens generated",
+		}, []string{"channel", "model", "group", "user_id"})
+
+	cacheHitTokensCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "cache_hit_tokens_total",
+			Help:      "Total number of tokens served from cache",
+		}, []string{"channel", "model", "group", "user_id"})
+
+	inferenceTokensCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "inference_tokens_total",
+			Help:      "Total number of tokens processed during inference",
+		}, []string{"channel", "model", "group", "user_id"})
 )
 
 func IncrementRelayRequestTotalCounter(channel, tag, baseURL, model, group string, add float64) {
@@ -120,4 +153,21 @@ func IncrementRelayRequestE2EFailedCounter(channel, model, group, code, tokenKey
 
 func ObserveRelayRequestE2EDuration(channel, model, group, tokenKey, tokenName string, duration float64) {
 	relayRequestE2EDurationObsever.WithLabelValues(channel, model, group, tokenKey, tokenName).Observe(duration)
+}
+
+// Token metrics functions
+func IncrementInputTokens(channel, model, group, userId string, add float64) {
+	inputTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+}
+
+func IncrementOutputTokens(channel, model, group, userId string, add float64) {
+	outputTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+}
+
+func IncrementCacheHitTokens(channel, model, group, userId string, add float64) {
+	cacheHitTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
+}
+
+func IncrementInferenceTokens(channel, model, group, userId string, add float64) {
+	inferenceTokensCounter.WithLabelValues(channel, model, group, userId).Add(add)
 }
