@@ -60,8 +60,8 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		// 新增逻辑：处理 -thinking-<budget> 格式
 		if strings.Contains(info.OriginModelName, "-thinking-") {
-			parts := strings.Split(info.OriginModelName, "-thinking-")
-			if len(parts) == 2 {
+			parts := strings.SplitN(info.OriginModelName, "-thinking-", 2)
+			if len(parts) == 2 && parts[1] != "" {
 				if budgetTokens, err := strconv.Atoi(parts[1]); err == nil {
 					// 从模型名称成功解析预算
 					isNew25Pro := strings.HasPrefix(info.OriginModelName, "gemini-2.5-pro") &&
