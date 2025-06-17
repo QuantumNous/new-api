@@ -239,6 +239,8 @@ const (
 	ChannelTypeVolcEngine     = 45
 	ChannelTypeBaiduV2        = 46
 	ChannelTypeXai            = 47
+	ChannelTypeXinference     = 48
+	ChannelTypeCoze           = 49
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -293,4 +295,9 @@ var ChannelBaseURLs = []string{
 	"https://qianfan.baidubce.com",              //46
 	"",                                          //47
 	"https://api.x.ai",                          //48
+}
+
+func init() {
+	PProfEnabled = false
+	PProfMutex = sync.RWMutex{}
 }
