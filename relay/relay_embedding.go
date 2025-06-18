@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -15,6 +14,8 @@ import (
 	"one-api/service"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getEmbeddingPromptToken(embeddingRequest dto.EmbeddingRequest) int {
@@ -50,13 +51,13 @@ func EmbeddingInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.EmbeddingReques
 func EmbeddingHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, embeddingRequest *dto.EmbeddingRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, 1)
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, strconv.Itoa(funcErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, time.Since(startTime).Seconds())
 		}
 	}()
 

@@ -96,13 +96,13 @@ func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest
 func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *dto.GeneralOpenAIRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := common.GetBeijingTime()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, strconv.Itoa(openaiErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, time.Since(startTime).Seconds())
 		}
 	}()
 
@@ -141,7 +141,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	// Record input tokens metric
 	tokenName := c.GetString("token_name")
 	userName := c.GetString("username")
-	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(promptTokens))
+	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, relayInfo.ChannelName, float64(promptTokens))
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptTokens, int(textRequest.MaxTokens))
 	if err != nil {
@@ -486,13 +486,13 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	}
 
 	// Record token metrics
-	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
+	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, relayInfo.ChannelName, float64(completionTokens))
 
 	if cacheTokens > 0 {
-		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(cacheTokens))
+		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, relayInfo.ChannelName, float64(cacheTokens))
 	}
 
-	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(thinkingTokens))
+	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, relayInfo.ChannelName, float64(thinkingTokens))
 	fmt.Println(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,

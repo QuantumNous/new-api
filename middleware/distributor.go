@@ -1,8 +1,10 @@
 package middleware
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/constant"
@@ -138,7 +140,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			midjourneyRequest := dto.MidjourneyRequest{}
 			err = common.UnmarshalBodyReusable(c, &midjourneyRequest)
 			if err != nil {
-				return nil, false, err
+				return nil, false, fmt.Errorf("无效的请求, %s", err.Error())
 			}
 			midjourneyModel, mjErr, success := service.GetMjRequestModel(relayMode, &midjourneyRequest)
 			if mjErr != nil {
@@ -167,11 +169,40 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
-		err = common.UnmarshalBodyReusable(c, &modelRequest)
+		// 检查请求体是否为空
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			return nil, false, fmt.Errorf("无效的请求, 读取请求体失败: %s", err.Error())
+		}
+		// 重置请求体
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		// 如果请求体为空，根据路径设置默认模型
+		if len(body) == 0 {
+			if strings.HasPrefix(c.Request.URL.Path, "/v1/moderations") {
+				modelRequest.Model = "text-moderation-stable"
+			} else if strings.HasSuffix(c.Request.URL.Path, "embeddings") {
+				modelRequest.Model = c.Param("model")
+			} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
+				modelRequest.Model = "dall-e"
+			} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/speech") {
+				modelRequest.Model = "tts-1"
+			} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/translations") {
+				modelRequest.Model = "whisper-1"
+			} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
+				modelRequest.Model = "whisper-1"
+			} else if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
+				modelRequest.Model = c.Query("model")
+			}
+		} else {
+			// 请求体不为空，尝试解析 JSON
+			err = json.Unmarshal(body, &modelRequest)
+			if err != nil {
+				return nil, false, fmt.Errorf("无效的请求, JSON 解析失败: %s", err.Error())
+			}
+		}
 	}
-	if err != nil {
-		return nil, false, errors.New("无效的请求, " + err.Error())
-	}
+
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
 		//wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01
 		modelRequest.Model = c.Query("model")
