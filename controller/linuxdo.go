@@ -177,7 +177,7 @@ func LinuxdoOAuth(c *gin.Context) {
 	}
 
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	if state == "" || session.Get("oauth_state") == nil {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
@@ -185,8 +185,24 @@ func LinuxdoOAuth(c *gin.Context) {
 		return
 	}
 
-	username := session.Get("username")
-	if username != nil {
+	// 检查是否为绑定操作（state以:bind结尾）
+	originalState := state
+	isBind := false
+	if strings.HasSuffix(state, ":bind") {
+		isBind = true
+		originalState = strings.TrimSuffix(state, ":bind")
+	}
+
+	// 验证原始state
+	if originalState != session.Get("oauth_state").(string) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "state is empty or not same",
+		})
+		return
+	}
+
+	if isBind {
 		LinuxDoBind(c)
 		return
 	}
