@@ -22,6 +22,7 @@ const ModelSetting = () => {
     'general_setting.ping_interval_seconds': 60,
     'gemini.thinking_adapter_enabled': false,
     'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+    'gemini.include_thoughts_summary_enabled': true,
   });
 
   let [loading, setLoading] = useState(false);
