@@ -296,9 +296,15 @@ const UsersTable = () => {
               type='tertiary'
               size="small"
               className="!rounded-full"
-              onClick={() => {
-                setEditingUser(record);
-                setShowEditUser(true);
+              onClick={async () => {
+                const res = await API.get(`/api/user/${record.id}`);
+                const { success, message } = res.data;
+                if (success) {
+                  setEditingUser(record);
+                  setShowEditUser(true);
+                } else {
+                  showError(message);
+                }
               }}
             >
               {t('编辑')}
