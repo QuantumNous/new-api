@@ -43,6 +43,9 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	if channel.Type == common.ChannelTypeKling {
 		return errors.New("kling channel test is not supported"), nil
 	}
+	if channel.Type == common.ChannelTypeJimeng {
+		return errors.New("jimeng channel test is not supported"), nil
+	}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 

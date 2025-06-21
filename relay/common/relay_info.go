@@ -314,3 +314,22 @@ func GenTaskRelayInfo(c *gin.Context) *TaskRelayInfo {
 	}
 	return info
 }
+
+type TaskSubmitReq struct {
+	Prompt   string                 `json:"prompt"`
+	Model    string                 `json:"model,omitempty"`
+	Mode     string                 `json:"mode,omitempty"`
+	Image    string                 `json:"image,omitempty"`
+	Size     string                 `json:"size,omitempty"`
+	Duration int                    `json:"duration,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type TaskInfo struct {
+	Code     int    `json:"code"`
+	TaskID   string `json:"task_id"`
+	Status   string `json:"status"`
+	Reason   string `json:"reason,omitempty"`
+	Url      string `json:"url,omitempty"`
+	Progress string `json:"progress,omitempty"`
+}

@@ -222,8 +222,8 @@ const LogsTable = () => {
     }
   };
 
-  const renderPlatform = (type) => {
-    switch (type) {
+  const renderPlatform = (platform) => {
+    switch (platform) {
       case 'suno':
         return (
           <Tag color='green' size='large' shape='circle' prefixIcon={<Music size={14} />}>
@@ -232,8 +232,14 @@ const LogsTable = () => {
         );
       case 'kling':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Video size={14} />}>
+          <Tag color='orange' size='large' shape='circle' prefixIcon={<Video size={14} />}>
             Kling
+          </Tag>
+        );
+      case 'jimeng':
+        return (
+          <Tag color='purple' size='large' shape='circle' prefixIcon={<Video size={14} />}>
+            Jimeng
           </Tag>
         );
       default:

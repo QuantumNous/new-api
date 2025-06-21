@@ -231,7 +231,7 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 }
 
 func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	taskId := c.Param("id")
+	taskId := c.Param("task_id")
 	userId := c.GetInt("id")
 
 	originTask, exist, err := model.GetByTaskId(userId, taskId)

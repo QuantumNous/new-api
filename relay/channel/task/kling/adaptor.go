@@ -2,11 +2,11 @@ package kling
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"one-api/model"
 	"strings"
 	"time"
 
@@ -47,10 +47,22 @@ type requestPayload struct {
 }
 
 type responsePayload struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    struct {
-		TaskID string `json:"task_id"`
+	Code      int    `json:"code"`
+	Message   string `json:"message"`
+	RequestId string `json:"request_id"`
+	Data      struct {
+		TaskId        string `json:"task_id"`
+		TaskStatus    string `json:"task_status"`
+		TaskStatusMsg string `json:"task_status_msg"`
+		TaskResult    struct {
+			Videos []struct {
+				Id       string `json:"id"`
+				Url      string `json:"url"`
+				Duration string `json:"duration"`
+			} `json:"videos"`
+		} `json:"task_result"`
+		CreatedAt int64 `json:"created_at"`
+		UpdatedAt int64 `json:"updated_at"`
 	} `json:"data"`
 }
 
@@ -94,7 +106,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	}
 
 	// Store into context for later usage
-	c.Set("kling_request", req)
+	c.Set("task_request", req)
 	return nil
 }
 
@@ -119,7 +131,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 
 // BuildRequestBody converts request into Kling specific format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.TaskRelayInfo) (io.Reader, error) {
-	v, exists := c.Get("kling_request")
+	v, exists := c.Get("task_request")
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
 	}
@@ -149,8 +161,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	// Attempt Kling response parse first.
 	var kResp responsePayload
 	if err := json.Unmarshal(responseBody, &kResp); err == nil && kResp.Code == 0 {
-		c.JSON(http.StatusOK, gin.H{"task_id": kResp.Data.TaskID})
-		return kResp.Data.TaskID, responseBody, nil
+		c.JSON(http.StatusOK, gin.H{"task_id": kResp.Data.TaskId})
+		return kResp.Data.TaskId, responseBody, nil
 	}
 
 	// Fallback generic task response.
@@ -187,10 +199,6 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 		token = key
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	req = req.WithContext(ctx)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", "kling-sdk/1.0")
@@ -286,27 +294,33 @@ func (a *TaskAdaptor) createJWTTokenWithKeys(accessKey, secretKey string) (strin
 	return token.SignedString([]byte(secretKey))
 }
 
-// ParseResultUrl 提取视频任务结果的 url
-func (a *TaskAdaptor) ParseResultUrl(resp map[string]any) (string, error) {
-	data, ok := resp["data"].(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("data field not found or invalid")
+func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	resPayload := responsePayload{}
+	err := json.Unmarshal(respBody, &resPayload)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal response body")
 	}
-	taskResult, ok := data["task_result"].(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("task_result field not found or invalid")
+	taskInfo := &relaycommon.TaskInfo{}
+	taskInfo.Code = resPayload.Code
+	taskInfo.TaskID = resPayload.Data.TaskId
+	taskInfo.Reason = resPayload.Message
+	//任务状态，枚举值：submitted（已提交）、processing（处理中）、succeed（成功）、failed（失败）
+	status := resPayload.Data.TaskStatus
+	switch status {
+	case "submitted":
+		taskInfo.Status = model.TaskStatusSubmitted
+	case "processing":
+		taskInfo.Status = model.TaskStatusInProgress
+	case "succeed":
+		taskInfo.Status = model.TaskStatusSuccess
+	case "failed":
+		taskInfo.Status = model.TaskStatusFailure
+	default:
+		return nil, fmt.Errorf("unknown task status: %s", status)
 	}
-	videos, ok := taskResult["videos"].([]interface{})
-	if !ok || len(videos) == 0 {
-		return "", fmt.Errorf("videos field not found or empty")
+	if videos := resPayload.Data.TaskResult.Videos; len(videos) > 0 {
+		video := videos[0]
+		taskInfo.Url = video.Url
 	}
-	video, ok := videos[0].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("video item invalid")
-	}
-	url, ok := video["url"].(string)
-	if !ok || url == "" {
-		return "", fmt.Errorf("url field not found or invalid")
-	}
-	return url, nil
+	return taskInfo, nil
 }

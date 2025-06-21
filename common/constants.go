@@ -242,6 +242,7 @@ const (
 	ChannelTypeXai            = 48
 	ChannelTypeCoze           = 49
 	ChannelTypeKling          = 50
+	ChannelTypeJimeng         = 51
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -298,4 +299,5 @@ var ChannelBaseURLs = []string{
 	"https://api.x.ai",                          //48
 	"https://api.coze.cn",                       //49
 	"https://api.klingai.com",                   //50
+	"https://visual.volcengineapi.com",          //51
 }

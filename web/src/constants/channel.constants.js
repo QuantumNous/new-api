@@ -130,4 +130,9 @@ export const CHANNEL_OPTIONS = [
     color: 'green',
     label: '可灵',
   },
+  {
+    value: 51,
+    color: 'blue',
+    label: '即梦',
+  },
 ];

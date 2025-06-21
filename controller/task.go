@@ -74,8 +74,8 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		//_ = UpdateMidjourneyTaskAll(context.Background(), tasks)
 	case constant.TaskPlatformSuno:
 		_ = UpdateSunoTaskAll(context.Background(), taskChannelM, taskM)
-	case constant.TaskPlatformKling:
-		_ = UpdateVideoTaskAll(context.Background(), taskChannelM, taskM)
+	case constant.TaskPlatformKling, constant.TaskPlatformJimeng:
+		_ = UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM)
 	default:
 		common.SysLog("未知平台")
 	}

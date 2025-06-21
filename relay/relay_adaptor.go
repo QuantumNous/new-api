@@ -22,6 +22,7 @@ import (
 	"one-api/relay/channel/palm"
 	"one-api/relay/channel/perplexity"
 	"one-api/relay/channel/siliconflow"
+	"one-api/relay/channel/task/jimeng"
 	"one-api/relay/channel/task/kling"
 	"one-api/relay/channel/task/suno"
 	"one-api/relay/channel/tencent"
@@ -104,6 +105,8 @@ func GetTaskAdaptor(platform commonconstant.TaskPlatform) channel.TaskAdaptor {
 		return &suno.TaskAdaptor{}
 	case commonconstant.TaskPlatformKling:
 		return &kling.TaskAdaptor{}
+	case commonconstant.TaskPlatformJimeng:
+		return &jimeng.TaskAdaptor{}
 	}
 	return nil
 }
