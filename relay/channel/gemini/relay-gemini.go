@@ -79,56 +79,74 @@ func clampThinkingBudget(modelName string, budget int) int {
 }
 
 func ThinkingAdaptor(geminiRequest *GeminiChatRequest, info *relaycommon.RelayInfo) {
-	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
-		modelName := info.UpstreamModelName
-		isNew25Pro := strings.HasPrefix(modelName, "gemini-2.5-pro") &&
-			!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-05-06") &&
-			!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-03-25")
+	if !model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+		return
+	}
 
-		if strings.Contains(modelName, "-thinking-") {
-			parts := strings.SplitN(modelName, "-thinking-", 2)
-			if len(parts) == 2 && parts[1] != "" {
-				if budgetTokens, err := strconv.Atoi(parts[1]); err == nil {
-					clampedBudget := clampThinkingBudget(modelName, budgetTokens)
-					geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
-						ThinkingBudget:  common.GetPointer(clampedBudget),
-						IncludeThoughts: true,
-					}
+	modelName := info.UpstreamModelName
+
+	// 1. Process thinking budget settings
+	if strings.Contains(modelName, "-thinking-") {
+		parts := strings.SplitN(modelName, "-thinking-", 2)
+		if len(parts) == 2 && parts[1] != "" {
+			if budgetTokens, err := strconv.Atoi(parts[1]); err == nil {
+				clampedBudget := clampThinkingBudget(modelName, budgetTokens)
+				geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
+					ThinkingBudget: common.GetPointer(clampedBudget),
 				}
 			}
-		} else if strings.HasSuffix(modelName, "-thinking") {
-			unsupportedModels := []string{
-				"gemini-2.5-pro-preview-05-06",
-				"gemini-2.5-pro-preview-03-25",
+		}
+	} else if strings.HasSuffix(modelName, "-thinking") {
+		unsupportedModels := []string{
+			"gemini-2.5-pro-preview-05-06",
+			"gemini-2.5-pro-preview-03-25",
+		}
+		isSupported := true
+		for _, unsupportedModel := range unsupportedModels {
+			if strings.HasPrefix(modelName, unsupportedModel) {
+				isSupported = false
+				break
 			}
-			isUnsupported := false
-			for _, unsupportedModel := range unsupportedModels {
-				if strings.HasPrefix(modelName, unsupportedModel) {
-					isUnsupported = true
-					break
-				}
+		}
+
+		if isSupported && geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
+			budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(geminiRequest.GenerationConfig.MaxOutputTokens)
+			clampedBudget := clampThinkingBudget(modelName, int(budgetTokens))
+			geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
+				ThinkingBudget: common.GetPointer(clampedBudget),
+			}
+		}
+	} else if strings.HasSuffix(modelName, "-nothinking") {
+		thinkingBudget := 0
+
+		// Reset to minimum allowed value if the model has minimum thinking budget limits
+		if IsModelWithMinimumThinkingBudgetLimits(modelName) {
+			thinkingBudget = clampThinkingBudget(modelName, 0)
+		}
+
+		geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
+			ThinkingBudget: common.GetPointer(thinkingBudget),
+		}
+	}
+
+	// 2. Process thoughts summary parameter settings
+	if model_setting.GetGeminiSettings().IncludeThoughtsSummaryEnabled && IsModelSupportThoughtsSummary(modelName) {
+		applyIncludeThoughts := true
+		allowZeroThinkingBudget := !IsModelWithMinimumThinkingBudgetLimits(modelName)
+
+		// Skip only if the model has -nothinking suffix and no minimum thinking budget limits.
+		// Keep applying if the model has minimum thinking budget limits since there still a little pieces
+		// of thoughts content in the response
+		if strings.HasSuffix(modelName, "-nothinking") && allowZeroThinkingBudget {
+			applyIncludeThoughts = false
+		}
+
+		if applyIncludeThoughts {
+			if geminiRequest.GenerationConfig.ThinkingConfig == nil {
+				geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{}
 			}
 
-			if isUnsupported {
-				geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
-					IncludeThoughts: true,
-				}
-			} else {
-				geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
-					IncludeThoughts: true,
-				}
-				if geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
-					budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(geminiRequest.GenerationConfig.MaxOutputTokens)
-					clampedBudget := clampThinkingBudget(modelName, int(budgetTokens))
-					geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = common.GetPointer(clampedBudget)
-				}
-			}
-		} else if strings.HasSuffix(modelName, "-nothinking") {
-			if !isNew25Pro {
-				geminiRequest.GenerationConfig.ThinkingConfig = &GeminiThinkingConfig{
-					ThinkingBudget: common.GetPointer(0),
-				}
-			}
+			geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = applyIncludeThoughts
 		}
 	}
 }

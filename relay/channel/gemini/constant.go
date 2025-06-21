@@ -26,6 +26,19 @@ var ModelList = []string{
 	"embedding-001",
 }
 
+// Abilities and limitations
+// See: https://ai.google.dev/gemini-api/docs/thinking#supported-models
+var ModelsWithThoughtsSummarySupport = []string{
+	"gemini-2.5-pro",
+	"gemini-2.5-flash",
+	"gemini-2.5-flash-lite",
+}
+
+// Models with minimum thinking budget limits (thinking cannot be completely disabled due to the model's design)
+var ModelsWithMinimumThinkingBudgetLimits = []string{
+	"gemini-2.5-pro",
+}
+
 var SafetySettingList = []string{
 	"HARM_CATEGORY_HARASSMENT",
 	"HARM_CATEGORY_HATE_SPEECH",

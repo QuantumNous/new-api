@@ -1691,6 +1691,8 @@
   "请先选择同步渠道": "Please select the synchronization channel first",
   "与本地相同": "Same as local",
   "未找到匹配的模型": "No matching model found",
+  "包含思考摘要": "Include thinking summaries",
+  "开启思考过程摘要并将收到的摘要包含在回复中。仅在模型支持和和思考预算不为0时生效。": "Enable thinking summaries and include the received summaries in the reply. Only effective when the model supports it and thinking budget is not 0.",
   "暴露倍率接口": "Expose ratio API",
   "支付设置": "Payment Settings",
   "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
