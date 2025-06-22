@@ -224,6 +224,13 @@ func (channel *Channel) GetBaseURL() string {
 	return *channel.BaseURL
 }
 
+func (channel *Channel) GetEndpoint() string {
+	if channel.Endpoint == nil {
+		return ""
+	}
+	return *channel.Endpoint
+}
+
 func (channel *Channel) GetModelMapping() string {
 	if channel.ModelMapping == nil {
 		return ""
