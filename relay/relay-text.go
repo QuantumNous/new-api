@@ -211,9 +211,9 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		funcErr = service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
 		return funcErr
 	}
-	if len(jsonData) <= 2048 {
-		common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
-	}
+	// if len(jsonData) <= 2048 {
+	// 	common.LogInfo(c, fmt.Sprintf("========>>> request data: %s", string(jsonData)))
+	// }
 	requestBody = bytes.NewBuffer(jsonData)
 
 	// 如果请求中包含 X-Test-Traffic 头，则添加到 relayInfo 中
@@ -263,7 +263,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 					continue
 				}
 				c.Writer.Header().Set(k, v[0])
-				common.LogInfo(c, fmt.Sprintf("set header %s = %s", k, v[0]))
+				// common.LogInfo(c, fmt.Sprintf("set header %s = %s", k, v[0]))
 			}
 			openaiErr = service.RelayErrorHandler(httpResp)
 			funcErr = openaiErr
