@@ -43,6 +43,14 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	for key, value := range info.Headers {
 		req.Set(key, value)
 	}
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Set("retry", retry)
+	}
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
@@ -167,7 +175,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	req.Header.Set("X-Origin-User-ID", strconv.Itoa(info.UserId))
 	req.Header.Set("X-Origin-Channel-ID", strconv.Itoa(info.ChannelId))
 	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
-	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Header.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Header.Set("retry", retry)
+	}
 
 	// 打印请求头
 	requestId := c.GetString(onecommon.RequestIdKey)
@@ -180,7 +195,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		bodyBytes, _ := io.ReadAll(req.Body)
 		if len(bodyBytes) > 0 {
 			// 只打印小于64KB的请求体
-			if len(bodyBytes) < 64*1024 {
+			if len(bodyBytes) < *64*1024 {
 				var jsonData interface{}
 				if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
 					compactJSON, err := json.Marshal(jsonData)

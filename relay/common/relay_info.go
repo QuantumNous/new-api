@@ -45,6 +45,7 @@ type RelayInfo struct {
 	ApiKey               string
 	Organization         string
 	BaseUrl              string
+	Endpoint             string
 	SupportStreamOptions bool
 	ShouldIncludeUsage   bool
 	IsModelMapped        bool
@@ -110,6 +111,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		isFirstResponse:   true,
 		RelayMode:         relayconstant.Path2RelayMode(c.Request.URL.Path),
 		BaseUrl:           c.GetString("base_url"),
+		Endpoint:          c.GetString("endpoint"),
 		RequestURLPath:    c.Request.URL.String(),
 		ChannelType:       channelType,
 		ChannelId:         channelId,

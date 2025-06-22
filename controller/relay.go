@@ -171,6 +171,33 @@ func Relay(c *gin.Context) {
 			common.LogError(c, fmt.Sprintf("origin 429 error: %s", openaiErr.Error.Message))
 			openaiErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
 		}
+		
+		// 处理自定义的 NewAPI batch 错误码
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "当前服务端限速已满，请稍后再试"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchTimeout {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "未等待到结果，请稍后使用Retry_request_id再次查询"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchInternal {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "服务内部错误，请稍后再试"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchSubmitted {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "批量请求已提交，但是结果还未出来，请使用Retry_request_id查询结果"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchAccepted {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "批量请求已接受，正在处理中，请稍后使用Retry_request_id查询结果"
+		}
+		if openaiErr.StatusCode == dto.StatusRequestConflict {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "请求冲突，有其他请求使用了这个Retry_request_id，请稍后再试"
+		}
+
 		openaiErr.Error.Message = common.MessageWithRequestId(openaiErr.Error.Message, requestId)
 		c.JSON(openaiErr.StatusCode, gin.H{
 			"error": openaiErr.Error,
@@ -233,6 +260,31 @@ func WssRelay(c *gin.Context) {
 	if openaiErr != nil {
 		if openaiErr.StatusCode == http.StatusTooManyRequests {
 			openaiErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
+		}
+		// 处理自定义的 NewAPI batch 错误码
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "当前服务端限速已满，请稍后再试"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchTimeout {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "未等待到结果，请稍后使用Retry_request_id再次查询"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchInternal {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "服务内部错误，请稍后再试"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchSubmitted {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "批量请求已提交，但是结果还未出来，请使用Retry_request_id查询结果"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchAccepted {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "批量请求已接受，正在处理中，请稍后使用Retry_request_id查询结果"
+		}
+		if openaiErr.StatusCode == dto.StatusRequestConflict {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "请求冲突，有其他请求使用了这个Retry_request_id，请稍后再试"
 		}
 		openaiErr.Error.Message = common.MessageWithRequestId(openaiErr.Error.Message, requestId)
 		helper.WssError(c, ws, openaiErr.Error)
@@ -302,6 +354,26 @@ func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retry
 	if openaiErr.StatusCode == http.StatusTooManyRequests {
 		return true
 	}
+	// 处理自定义的 NewAPI batch 错误码
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchTimeout {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchInternal {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchSubmitted {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchAccepted {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusRequestConflict {
+		return false
+	}
+
 	if openaiErr.StatusCode == 307 {
 		return true
 	}

@@ -21,6 +21,9 @@ func RegisterMetrics(registry prometheus.Registerer) {
 	registry.MustRegister(relayRequestE2ESuccessCounter)
 	registry.MustRegister(relayRequestE2EFailedCounter)
 	registry.MustRegister(relayRequestE2EDurationObsever)
+	// batch
+	registry.MustRegister(batchRequestCounter)
+	registry.MustRegister(batchRequestDurationObsever)
 	// token metrics
 	registry.MustRegister(inputTokensCounter)
 	registry.MustRegister(outputTokensCounter)
@@ -42,7 +45,7 @@ var (
 			Subsystem: Namespace,
 			Name:      "relay_request_success",
 			Help:      "Total number of relay request success",
-		}, []string{"channel", "channel_name", "tag", "base_url", "model", "group"})
+		}, []string{"channel", "channel_name", "tag", "base_url", "model", "group", "code"})
 	relayRequestFailedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
@@ -91,6 +94,22 @@ var (
 		},
 		[]string{"channel", "channel_name", "model", "group", "token_key", "token_name"},
 	)
+	// Batch request metrics
+	batchRequestCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "batch_request_total",
+			Help:      "Total number of batch requests by status code",
+		}, []string{"channel", "channel_name", "tag", "base_url", "model", "group", "code"})
+	batchRequestDurationObsever = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Subsystem: Namespace,
+			Name:      "batch_request_duration",
+			Help:      "Duration of batch request",
+			Buckets:   prometheus.ExponentialBuckets(1, 2, 12),
+		},
+		[]string{"channel", "channel_name", "tag", "base_url", "model", "group", "code"},
+	)
 	// Token metrics
 	inputTokensCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -132,8 +151,8 @@ func IncrementRelayRequestTotalCounter(channel, channelName, tag, baseURL, model
 	relayRequestTotalCounter.WithLabelValues(channel, channelName, tag, baseURL, model, group).Add(add)
 }
 
-func IncrementRelayRequestSuccessCounter(channel, channelName, tag, baseURL, model, group string, add float64) {
-	relayRequestSuccessCounter.WithLabelValues(channel, channelName, tag, baseURL, model, group).Add(add)
+func IncrementRelayRequestSuccessCounter(channel, channelName, tag, baseURL, model, group, statusCode string, add float64) {
+	relayRequestSuccessCounter.WithLabelValues(channel, channelName, tag, baseURL, model, group, statusCode).Add(add)
 }
 
 func IncrementRelayRequestFailedCounter(channel, channelName, tag, baseURL, model, group, code string, add float64) {
@@ -162,6 +181,15 @@ func IncrementRelayRequestE2EFailedCounter(channel, channelName, model, group, c
 
 func ObserveRelayRequestE2EDuration(channel, channelName, model, group, tokenKey, tokenName string, duration float64) {
 	relayRequestE2EDurationObsever.WithLabelValues(channel, channelName, model, group, tokenKey, tokenName).Observe(duration)
+}
+
+// Batch request metrics functions
+func IncrementBatchRequestCounter(channel, channelName, tag, baseURL, model, group, code string, add float64) {
+	batchRequestCounter.WithLabelValues(channel, channelName, tag, baseURL, model, group, code).Add(add)
+}
+
+func ObserveBatchRequestDuration(channel, channelName, tag, baseURL, model, group, code string, duration float64) {
+	batchRequestDurationObsever.WithLabelValues(channel, channelName, tag, baseURL, model, group, code).Observe(duration)
 }
 
 // Token metrics functions

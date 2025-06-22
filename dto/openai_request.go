@@ -2,7 +2,10 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	"one-api/common"
 )
 
 type ResponseFormat struct {
@@ -42,6 +45,7 @@ type GeneralOpenAIRequest struct {
 	ResponseFormat      *ResponseFormat   `json:"response_format,omitempty"`
 	EncodingFormat      any               `json:"encoding_format,omitempty"`
 	Seed                float64           `json:"seed,omitempty"`
+	LogitBias           map[string]int    `json:"logit_bias,omitempty"`
 	Tools               []ToolCallRequest `json:"tools,omitempty"`
 	ToolChoice          any               `json:"tool_choice,omitempty"`
 	User                string            `json:"user,omitempty"`
@@ -286,6 +290,13 @@ func (m *Message) ParseContent() []MediaContent {
 				if audioData, ok := contentItem["input_audio"].(map[string]interface{}); ok {
 					data, ok1 := audioData["data"].(string)
 					format, ok2 := audioData["format"].(string)
+					if !ok2 {
+						if mimeType, ok3 := audioData["mime_type"].(string); ok3 {
+							format = mimeType
+							ok2 = true
+						}
+					}
+					common.SysLog(fmt.Sprintf("Parsing audio content: data_ok=%v, format_ok=%v, format=%s, data_length=%d", ok1, ok2, format, len(data)))
 					if ok1 && ok2 {
 						contentList = append(contentList, MediaContent{
 							Type: ContentTypeInputAudio,

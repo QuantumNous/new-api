@@ -88,13 +88,14 @@ func ImageInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.ImageRequest, *dto.
 func ImageHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, imageRequest *dto.ImageRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
+	var statusCode int = -1
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, relayInfo.ChannelName, strconv.Itoa(funcErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, relayInfo.ChannelName, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, imageRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
 		}
 	}()
 	err := helper.ModelMappedHelper(c, relayInfo)
@@ -198,6 +199,9 @@ func ImageHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, imageRequest 
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
 	}
+
+	// 设置状态码用于指标记录
+	statusCode = resp.(*http.Response).StatusCode
 
 	usage := &dto.Usage{
 		PromptTokens: imageRequest.N,
