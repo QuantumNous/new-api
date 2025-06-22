@@ -212,6 +212,18 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 						},
 					})
 				}
+			} else if part.Type == dto.ContentTypeInputAudio {
+				// 处理音频内容
+				audioData := part.InputAudio.(dto.MessageInputAudio)
+				// 添加调试日志
+				common.SysLog(fmt.Sprintf("Processing audio data: format=%s, data length=%d", audioData.Format, len(audioData.Data)))
+				// 将音频数据转换为Gemini的InlineData格式
+				parts = append(parts, GeminiPart{
+					InlineData: &GeminiInlineData{
+						MimeType: audioData.Format,
+						Data:     audioData.Data,
+					},
+				})
 			} else if part.Type == dto.ContentTypeYoutube {
 				parts = append(parts, GeminiPart{
 					FileData: &GeminiFileData{

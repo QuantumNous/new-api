@@ -77,6 +77,7 @@ const EditChannel = (props) => {
     openai_organization: '',
     max_input_tokens: 0,
     base_url: '',
+    endpoint: '',
     other: '',
     model_mapping: '',
     status_code_mapping: '',
@@ -537,7 +538,7 @@ const EditChannel = (props) => {
             value={inputs.name}
             autoComplete="new-password"
           />
-          {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && (
+          {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && inputs.type !== 100 && (
             <>
               <div style={{ marginTop: 10 }}>
                 <Typography.Text strong>{t('代理站地址')}：</Typography.Text>
@@ -551,6 +552,25 @@ const EditChannel = (props) => {
                     handleInputChange('base_url', value);
                   }}
                   value={inputs.base_url}
+                  autoComplete="new-password"
+                />
+              </Tooltip>
+            </>
+          )}
+          {inputs.type === 100 && (
+            <>
+              <div style={{ marginTop: 10 }}>
+                <Typography.Text strong>{t('接入点地址')}：</Typography.Text>
+              </div>
+              <Tooltip content={t('请输入豆包离线部署的接入点地址')}>
+                <Input
+                  label={t('接入点地址')}
+                  name="endpoint"
+                  placeholder={t('请输入豆包离线部署的接入点地址，例如：ep-bi-20250620135343-67crm')}
+                  onChange={(value) => {
+                    handleInputChange('endpoint', value);
+                  }}
+                  value={inputs.endpoint}
                   autoComplete="new-password"
                 />
               </Tooltip>

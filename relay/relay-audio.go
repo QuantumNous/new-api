@@ -3,7 +3,6 @@ package relay
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -16,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getAndValidAudioRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.AudioRequest, error) {
@@ -71,13 +72,14 @@ func AudioInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.AudioRequest, *dto.
 func AudioHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, audioRequest *dto.AudioRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, 1)
+	var statusCode int = -1
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
 		}
 	}()
 	var (
@@ -159,6 +161,9 @@ func AudioHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, audioRequest 
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
 	}
+
+	// 设置状态码用于指标记录
+	statusCode = resp.(*http.Response).StatusCode
 
 	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 

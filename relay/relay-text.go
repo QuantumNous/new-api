@@ -96,13 +96,14 @@ func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest
 func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *dto.GeneralOpenAIRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := common.GetBeijingTime()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
+	var statusCode int = -1
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
 		}
 	}()
 
@@ -141,7 +142,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	// Record input tokens metric
 	tokenName := c.GetString("token_name")
 	userName := c.GetString("username")
-	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(promptTokens))
+	metrics.IncrementInputTokens(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(promptTokens))
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptTokens, int(textRequest.MaxTokens))
 	if err != nil {
@@ -221,9 +222,26 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		relayInfo.Headers["X-Test-Traffic"] = "true"
 	}
 
+	// // 如果请求中包含 retry_request_id 头，则添加到 relayInfo 中
+	// if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+	// 	if relayInfo.Headers == nil {
+	// 		relayInfo.Headers = make(map[string]string)
+	// 	}
+	// 	relayInfo.Headers["retry_request_id"] = retryRequestId
+	// }
+
+	// // 如果请求中包含 retry 头，则添加到 relayInfo 中
+	// if retry := c.GetHeader("retry"); retry != "" {
+	// 	if relayInfo.Headers == nil {
+	// 		relayInfo.Headers = make(map[string]string)
+	// 	}
+	// 	relayInfo.Headers["retry"] = retry
+	// }
+
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
+
 	if err != nil {
 		funcErr = service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 		return funcErr
@@ -231,13 +249,22 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
-		// 添加来源标识和重试标记
-		httpResp.Header.Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
-		httpResp.Header.Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
-		httpResp.Header.Set("X-Retry-Count", strconv.Itoa(relayInfo.RetryCount))
-
+		// // 直接设置到 gin 的响应头
+		// c.Writer.Header().Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
+		// c.Writer.Header().Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
+		// c.Writer.Header().Set("X-Retry-Count", strconv.Itoa(relayInfo.RetryCount))
+		// if c.GetHeader("Retry_request_id") != "" {
+		// 	c.Writer.Header().Set("Retry_request_id", c.GetHeader("Retry_request_id"))
+		// }
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
+			for k, v := range httpResp.Header {
+				if k == "Content-Length" {
+					continue
+				}
+				c.Writer.Header().Set(k, v[0])
+				// common.LogInfo(c, fmt.Sprintf("set header %s = %s", k, v[0]))
+			}
 			openaiErr = service.RelayErrorHandler(httpResp)
 			funcErr = openaiErr
 			// reset status code 重置状态码
@@ -264,6 +291,9 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		return openaiErr
 	}
 	common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
+	// 设置状态码用于指标记录
+	statusCode = resp.(*http.Response).StatusCode
+
 	// Store request and response data together if persistence is enabled and status code is 200
 	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
 		// 读取请求数据
@@ -486,14 +516,13 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	}
 
 	// Record token metrics
-	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
+	metrics.IncrementOutputTokens(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
 
 	if cacheTokens > 0 {
-		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(cacheTokens))
+		metrics.IncrementCacheHitTokens(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(cacheTokens))
 	}
 
-	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(thinkingTokens))
-	fmt.Println(strconv.Itoa(relayInfo.ChannelId), modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(completionTokens))
+	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(thinkingTokens))
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
 		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)

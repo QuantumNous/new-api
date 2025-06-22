@@ -13,6 +13,7 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
+		apiRouter.GET("/ping", controller.Ping)
 		apiRouter.GET("/status", controller.GetStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
