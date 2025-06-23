@@ -55,7 +55,7 @@ type GeminiPart struct {
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
-	VideoMetadata       *GeminiVideoMetadata           `json:"videoMetadata,omitempty"`
+	VideoMetadata       *GeminiVideoMetadata           `json:"video_metadata,omitempty"`
 }
 
 type GeminiChatContent struct {
