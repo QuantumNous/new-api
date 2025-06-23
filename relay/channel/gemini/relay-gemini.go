@@ -223,6 +223,9 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 						MimeType: audioData.Format,
 						Data:     audioData.Data,
 					},
+					VideoMetadata: &GeminiVideoMetadata{
+						Fps: audioData.Fps,
+					},
 				})
 			} else if part.Type == dto.ContentTypeYoutube {
 				parts = append(parts, GeminiPart{

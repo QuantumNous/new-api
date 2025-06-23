@@ -134,8 +134,9 @@ type MessageImageUrl struct {
 }
 
 type MessageInputAudio struct {
-	Data   string `json:"data"` //base64
-	Format string `json:"format"`
+	Data   string  `json:"data"` //base64
+	Format string  `json:"format"`
+	Fps    float64 `json:"fps,omitempty"`
 }
 
 const (
