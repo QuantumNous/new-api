@@ -291,11 +291,15 @@ func (m *Message) ParseContent() []MediaContent {
 				if audioData, ok := contentItem["input_audio"].(map[string]interface{}); ok {
 					data, ok1 := audioData["data"].(string)
 					format, ok2 := audioData["format"].(string)
+					fps, ok3 := audioData["fps"].(float64)
 					if !ok2 {
 						if mimeType, ok3 := audioData["mime_type"].(string); ok3 {
 							format = mimeType
 							ok2 = true
 						}
+					}
+					if !ok3 {
+						fps = 0
 					}
 					common.SysLog(fmt.Sprintf("Parsing audio content: data_ok=%v, format_ok=%v, format=%s, data_length=%d", ok1, ok2, format, len(data)))
 					if ok1 && ok2 {
@@ -304,6 +308,7 @@ func (m *Message) ParseContent() []MediaContent {
 							InputAudio: MessageInputAudio{
 								Data:   data,
 								Format: format,
+								Fps:    fps,
 							},
 						})
 					}
