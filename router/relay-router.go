@@ -88,6 +88,16 @@ func SetRelayRouter(router *gin.Engine) {
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
 		relayGeminiRouter.POST("/models/*path", controller.Relay)
 	}
+
+	// 自定义透传渠道路由
+	relayCustomPassRouter := router.Group("/pass")
+	relayCustomPassRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		relayCustomPassRouter.POST("/:model/:action", controller.RelayTask)
+		relayCustomPassRouter.GET("/:model/:action", controller.RelayTask)
+		relayCustomPassRouter.GET("/:model/task/:task_id/fetch", controller.RelayTask)
+		relayCustomPassRouter.POST("/:model/task/list-by-condition", controller.RelayTask)
+	}
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

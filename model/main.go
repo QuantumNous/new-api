@@ -193,6 +193,8 @@ func InitDB() (err error) {
 		}
 		if common.UsingMySQL {
 			//_, _ = sqlDB.Exec("ALTER TABLE channels MODIFY model_mapping TEXT;") // TODO: delete this line when most users have upgraded
+			// Fix duplicate index issue for logs table
+			_, _ = sqlDB.Exec("DROP INDEX IF EXISTS idx_logs_channel_id ON logs;")
 		}
 		common.SysLog("database migration started")
 		err = migrateDB()
@@ -311,6 +313,14 @@ func migrateDBFast() error {
 }
 
 func migrateLOGDB() error {
+	// Fix duplicate index issue for logs table before migration
+	if common.UsingMySQL {
+		sqlDB, err := LOG_DB.DB()
+		if err == nil {
+			_, _ = sqlDB.Exec("DROP INDEX IF EXISTS idx_logs_channel_id ON logs;")
+		}
+	}
+
 	var err error
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
 		return err

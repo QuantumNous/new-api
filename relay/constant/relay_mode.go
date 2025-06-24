@@ -41,6 +41,10 @@ const (
 	RelayModeKlingFetchByID
 	RelayModeKlingSubmit
 
+	RelayModeCustomPassSubmit
+	RelayModeCustomPassTaskFetch
+	RelayModeCustomPassTaskFetchByCondition
+
 	RelayModeRerank
 
 	RelayModeResponses
@@ -143,6 +147,27 @@ func Path2RelayKling(method, path string) int {
 		relayMode = RelayModeKlingSubmit
 	} else if method == http.MethodGet && strings.Contains(path, "/video/generations/") {
 		relayMode = RelayModeKlingFetchByID
+	}
+	return relayMode
+}
+
+func Path2RelayCustomPass(method, path string) int {
+	relayMode := RelayModeUnknown
+	if strings.HasPrefix(path, "/pass/") {
+		if method == http.MethodPost {
+			if strings.HasSuffix(path, "/list-by-condition") {
+				relayMode = RelayModeCustomPassTaskFetchByCondition
+			} else {
+				relayMode = RelayModeCustomPassSubmit
+			}
+		} else if method == http.MethodGet {
+			if strings.Contains(path, "/task/") && strings.HasSuffix(path, "/fetch") {
+				relayMode = RelayModeCustomPassTaskFetch
+			} else {
+				// GET /:model/:action 路径，也使用 RelayModeCustomPassSubmit 处理
+				relayMode = RelayModeCustomPassSubmit
+			}
+		}
 	}
 	return relayMode
 }
