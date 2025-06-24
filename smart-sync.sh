@@ -75,59 +75,70 @@ get_changed_files() {
     git diff --name-only -z main development
 }
 
-# 分类文件
-classify_files() {
-    local all_files=()
+# 获取功能文件列表
+get_feature_files() {
     local feature_files=()
-    local dev_files=()
-    local uncertain_files=()
 
-    # 安全地读取文件名，使用 null 分隔符
     while IFS= read -r -d '' file; do
         # 跳过空文件名和包含 ANSI 转义序列的文件名
         if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
-            print_warning "跳过包含特殊字符的文件名: $file"
             continue
         fi
 
-        all_files+=("$file")
+        if ! is_dev_file "$file" && [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
+            feature_files+=("$file")
+        fi
+    done < <(get_changed_files)
+
+    printf '%s\n' "${feature_files[@]}"
+}
+
+# 获取开发文件列表
+get_dev_files() {
+    local dev_files=()
+
+    while IFS= read -r -d '' file; do
+        # 跳过空文件名和包含 ANSI 转义序列的文件名
+        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
+            continue
+        fi
 
         if is_dev_file "$file"; then
             dev_files+=("$file")
-        elif [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
-            feature_files+=("$file")
-        else
+        fi
+    done < <(get_changed_files)
+
+    printf '%s\n' "${dev_files[@]}"
+}
+
+# 获取不确定文件列表
+get_uncertain_files() {
+    local uncertain_files=()
+
+    while IFS= read -r -d '' file; do
+        # 跳过空文件名和包含 ANSI 转义序列的文件名
+        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
+            continue
+        fi
+
+        if ! is_dev_file "$file" && ! ([[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]); then
             uncertain_files+=("$file")
         fi
     done < <(get_changed_files)
 
-    echo "FEATURE_FILES:${feature_files[*]}"
-    echo "DEV_FILES:${dev_files[*]}"
-    echo "UNCERTAIN_FILES:${uncertain_files[*]}"
+    printf '%s\n' "${uncertain_files[@]}"
 }
 
 # 显示文件分类结果
 show_file_classification() {
-    local feature_files=()
-    local dev_files=()
-    local uncertain_files=()
+    local feature_files
+    local dev_files
+    local uncertain_files
 
-    # 重新分类文件，使用安全的方法
-    while IFS= read -r -d '' file; do
-        # 跳过空文件名和包含 ANSI 转义序列的文件名
-        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
-            print_warning "跳过包含特殊字符的文件名: $file"
-            continue
-        fi
-
-        if is_dev_file "$file"; then
-            dev_files+=("$file")
-        elif [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
-            feature_files+=("$file")
-        else
-            uncertain_files+=("$file")
-        fi
-    done < <(get_changed_files)
+    # 使用新的函数获取文件列表
+    readarray -t feature_files < <(get_feature_files)
+    readarray -t dev_files < <(get_dev_files)
+    readarray -t uncertain_files < <(get_uncertain_files)
     
     print_info "文件分类结果："
     echo ""
@@ -159,50 +170,40 @@ show_file_classification() {
 
 # 交互式确认不确定的文件
 confirm_uncertain_files() {
-    local uncertain_files=()
+    local uncertain_files
     local confirmed_feature_files=()
 
-    # 重新获取不确定的文件列表，使用安全的方法
-    while IFS= read -r -d '' file; do
-        # 跳过空文件名和包含 ANSI 转义序列的文件名
-        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
-            continue
-        fi
-
-        # 只处理不确定的文件
-        if ! is_dev_file "$file" && ! [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] || [[ "$file" =~ (test_|dev|local) ]]; then
-            uncertain_files+=("$file")
-        fi
-    done < <(get_changed_files)
+    # 获取不确定的文件列表
+    readarray -t uncertain_files < <(get_uncertain_files)
     
     if [ ${#uncertain_files[@]} -gt 0 ]; then
-        print_warning "以下文件需要您确认是否同步到main分支："
-        echo ""
-        
+        print_warning "以下文件需要您确认是否同步到main分支：" >&2
+        echo "" >&2
+
         for file in "${uncertain_files[@]}"; do
-            echo "文件: $file"
+            echo "文件: $file" >&2
             # 显示文件内容预览
             if [ -f "$file" ]; then
-                echo "内容预览:"
-                head -5 "$file" 2>/dev/null | sed 's/^/  | /'
-                echo ""
+                echo "内容预览:" >&2
+                head -5 "$file" 2>/dev/null | sed 's/^/  | /' >&2
+                echo "" >&2
             fi
-            
-            read -p "是否同步文件 '$file' 到main分支? (y/n): " choice
+
+            read -p "是否同步文件 '$file' 到main分支? (y/n): " choice >&2
             case $choice in
                 [Yy]*)
                     confirmed_feature_files+=("$file")
-                    print_success "✅ 已标记为功能文件: $file"
+                    print_success "✅ 已标记为功能文件: $file" >&2
                     ;;
                 *)
-                    print_info "🚫 跳过文件: $file"
+                    print_info "🚫 跳过文件: $file" >&2
                     ;;
             esac
-            echo ""
+            echo "" >&2
         done
     fi
     
-    echo "${confirmed_feature_files[*]}"
+    printf '%s\n' "${confirmed_feature_files[@]}"
 }
 
 # 执行选择性同步
@@ -219,20 +220,12 @@ perform_selective_sync() {
     git checkout development
     
     # 获取功能文件列表
-    local feature_files=()
-    while IFS= read -r -d '' file; do
-        # 跳过空文件名和包含 ANSI 转义序列的文件名
-        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
-            continue
-        fi
-
-        if ! is_dev_file "$file" && [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
-            feature_files+=("$file")
-        fi
-    done < <(get_changed_files)
+    local feature_files
+    readarray -t feature_files < <(get_feature_files)
 
     # 确认不确定的文件
-    local confirmed_files=($(confirm_uncertain_files))
+    local confirmed_files
+    readarray -t confirmed_files < <(confirm_uncertain_files)
 
     # 合并所有要同步的文件
     local all_sync_files=("${feature_files[@]}" "${confirmed_files[@]}")
