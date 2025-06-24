@@ -71,17 +71,27 @@ is_dev_file() {
 
 # 获取所有变更的文件
 get_changed_files() {
-    git diff --name-only main development
+    # 使用 -z 选项和 null 分隔符来安全处理包含特殊字符的文件名
+    git diff --name-only -z main development
 }
 
 # 分类文件
 classify_files() {
-    local all_files=($(get_changed_files))
+    local all_files=()
     local feature_files=()
     local dev_files=()
     local uncertain_files=()
-    
-    for file in "${all_files[@]}"; do
+
+    # 安全地读取文件名，使用 null 分隔符
+    while IFS= read -r -d '' file; do
+        # 跳过空文件名和包含 ANSI 转义序列的文件名
+        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
+            print_warning "跳过包含特殊字符的文件名: $file"
+            continue
+        fi
+
+        all_files+=("$file")
+
         if is_dev_file "$file"; then
             dev_files+=("$file")
         elif [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
@@ -89,8 +99,8 @@ classify_files() {
         else
             uncertain_files+=("$file")
         fi
-    done
-    
+    done < <(get_changed_files)
+
     echo "FEATURE_FILES:${feature_files[*]}"
     echo "DEV_FILES:${dev_files[*]}"
     echo "UNCERTAIN_FILES:${uncertain_files[*]}"
