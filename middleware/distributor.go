@@ -181,10 +181,15 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
 		relayMode := relayconstant.Path2RelayCustomPass(c.Request.Method, c.Request.URL.Path)
-		// 从URL路径中提取模型名称: /pass/{model}/{action}
-		modelName := c.Param("model")
-		if modelName != "" {
-			modelRequest.Model = modelName
+		// 从URL路径中提取模型名称: /pass/{model}
+		// 路径格式: /pass/model/action 或 /pass/model/submit
+		path := strings.TrimPrefix(c.Request.URL.Path, "/pass/")
+
+		// 将路径作为模型名称
+		// 对于submit任务: /pass/gpt-4/submit -> model = "gpt-4/submit"
+		// 对于普通API: /pass/gpt-4/chat -> model = "gpt-4/chat"
+		if path != "" {
+			modelRequest.Model = path
 		}
 		c.Set("platform", string(constant.TaskPlatformCustomPass))
 		c.Set("relay_mode", relayMode)

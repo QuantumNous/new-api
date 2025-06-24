@@ -4,6 +4,7 @@ import (
 	"one-api/controller"
 	"one-api/middleware"
 	"one-api/relay"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -93,10 +94,18 @@ func SetRelayRouter(router *gin.Engine) {
 	relayCustomPassRouter := router.Group("/pass")
 	relayCustomPassRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
-		relayCustomPassRouter.POST("/:model/:action", controller.RelayTask)
-		relayCustomPassRouter.GET("/:model/:action", controller.RelayTask)
-		relayCustomPassRouter.GET("/:model/task/:task_id/fetch", controller.RelayTask)
-		relayCustomPassRouter.POST("/:model/task/list-by-condition", controller.RelayTask)
+		// 任务提交路由（以 /submit 结尾的路径）
+		relayCustomPassRouter.POST("/*path", func(c *gin.Context) {
+			path := c.Param("path")
+			if strings.HasSuffix(path, "/submit") {
+				controller.RelayTask(c)
+			} else {
+				controller.Relay(c)
+			}
+		})
+
+		// 普通API调用路由（GET和其他非submit的POST请求）
+		relayCustomPassRouter.GET("/*path", controller.Relay)
 	}
 }
 

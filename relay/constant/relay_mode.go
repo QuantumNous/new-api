@@ -42,8 +42,7 @@ const (
 	RelayModeKlingSubmit
 
 	RelayModeCustomPassSubmit
-	RelayModeCustomPassTaskFetch
-	RelayModeCustomPassTaskFetchByCondition
+	RelayModeCustomPass
 
 	RelayModeRerank
 
@@ -86,6 +85,9 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRealtime
 	} else if strings.HasPrefix(path, "/v1beta/models") {
 		relayMode = RelayModeGemini
+	} else if strings.HasPrefix(path, "/pass/") {
+		// CustomPass 透传路径，返回一个特殊的模式来标识这是透传请求
+		relayMode = RelayModeCustomPass
 	}
 	return relayMode
 }
@@ -154,19 +156,12 @@ func Path2RelayKling(method, path string) int {
 func Path2RelayCustomPass(method, path string) int {
 	relayMode := RelayModeUnknown
 	if strings.HasPrefix(path, "/pass/") {
-		if method == http.MethodPost {
-			if strings.HasSuffix(path, "/list-by-condition") {
-				relayMode = RelayModeCustomPassTaskFetchByCondition
-			} else {
-				relayMode = RelayModeCustomPassSubmit
-			}
-		} else if method == http.MethodGet {
-			if strings.Contains(path, "/task/") && strings.HasSuffix(path, "/fetch") {
-				relayMode = RelayModeCustomPassTaskFetch
-			} else {
-				// GET /:model/:action 路径，也使用 RelayModeCustomPassSubmit 处理
-				relayMode = RelayModeCustomPassSubmit
-			}
+		if method == http.MethodPost && strings.HasSuffix(path, "/submit") {
+			// 以 /submit 结尾的POST请求是任务提交
+			relayMode = RelayModeCustomPassSubmit
+		} else {
+			// 其他所有请求都是普通API调用，返回Unknown让它走普通的Relay流程
+			relayMode = RelayModeUnknown
 		}
 	}
 	return relayMode

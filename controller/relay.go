@@ -42,6 +42,8 @@ func relayHandler(c *gin.Context, relayMode int) *dto.OpenAIErrorWithStatusCode 
 		err = relay.ResponsesHelper(c)
 	case relayconstant.RelayModeGemini:
 		err = relay.GeminiHelper(c)
+	case relayconstant.RelayModeCustomPass:
+		err = relay.CustomPassHelper(c)
 	default:
 		err = relay.TextHelper(c)
 	}
@@ -420,8 +422,7 @@ func RelayTask(c *gin.Context) {
 func taskRelayHandler(c *gin.Context, relayMode int) *dto.TaskError {
 	var err *dto.TaskError
 	switch relayMode {
-	case relayconstant.RelayModeSunoFetch, relayconstant.RelayModeSunoFetchByID, relayconstant.RelayModeKlingFetchByID,
-		 relayconstant.RelayModeCustomPassTaskFetch, relayconstant.RelayModeCustomPassTaskFetchByCondition:
+	case relayconstant.RelayModeSunoFetch, relayconstant.RelayModeSunoFetchByID, relayconstant.RelayModeKlingFetchByID:
 		err = relay.RelayTaskFetch(c, relayMode)
 	default:
 		err = relay.RelayTaskSubmit(c, relayMode)
