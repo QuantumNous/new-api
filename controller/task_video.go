@@ -121,6 +121,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 	// If task failed, refund quota
 	if task.Status == model.TaskStatusFailure {
 		common.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
+		// 确保失败任务的进度设置为100%，避免重复处理
+		task.Progress = "100%"
 		quota := task.Quota
 		if quota != 0 {
 			if err := model.IncreaseUserQuota(task.UserId, quota, false); err != nil {

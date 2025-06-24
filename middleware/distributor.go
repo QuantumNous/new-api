@@ -179,6 +179,15 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformKling))
 		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
+		relayMode := relayconstant.Path2RelayCustomPass(c.Request.Method, c.Request.URL.Path)
+		// 从URL路径中提取模型名称: /pass/{model}/{action}
+		modelName := c.Param("model")
+		if modelName != "" {
+			modelRequest.Model = modelName
+		}
+		c.Set("platform", string(constant.TaskPlatformCustomPass))
+		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini

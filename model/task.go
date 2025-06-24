@@ -3,6 +3,8 @@ package model
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
+	"one-api/common"
 	"one-api/constant"
 	commonRelay "one-api/relay/common"
 	"time"
@@ -53,6 +55,7 @@ func (t *Task) GetData(v any) error {
 
 type Properties struct {
 	Input string `json:"input"`
+	Model string `json:"model,omitempty"` // 添加模型名称字段
 }
 
 func (m *Properties) Scan(val interface{}) error {
@@ -236,7 +239,17 @@ func (Task *Task) Insert() error {
 
 func (Task *Task) Update() error {
 	var err error
+	// 记录更新前的数据库操作日志
+	common.SysLog(fmt.Sprintf("Task.Update() 开始 - TaskID: %s, ID: %d, Status: %s, Progress: %s", Task.TaskID, Task.ID, Task.Status, Task.Progress))
+
 	err = DB.Save(Task).Error
+
+	if err != nil {
+		common.SysError(fmt.Sprintf("Task.Update() 失败 - TaskID: %s, 错误: %s", Task.TaskID, err.Error()))
+	} else {
+		common.SysLog(fmt.Sprintf("Task.Update() 成功 - TaskID: %s, ID: %d, Status: %s, Progress: %s", Task.TaskID, Task.ID, Task.Status, Task.Progress))
+	}
+
 	return err
 }
 
