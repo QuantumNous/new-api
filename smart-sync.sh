@@ -136,9 +136,21 @@ show_file_classification() {
     local uncertain_files
 
     # 使用新的函数获取文件列表
-    readarray -t feature_files < <(get_feature_files)
-    readarray -t dev_files < <(get_dev_files)
-    readarray -t uncertain_files < <(get_uncertain_files)
+    local feature_files=()
+    local dev_files=()
+    local uncertain_files=()
+
+    while IFS= read -r file; do
+        [[ -n "$file" ]] && feature_files+=("$file")
+    done < <(get_feature_files)
+
+    while IFS= read -r file; do
+        [[ -n "$file" ]] && dev_files+=("$file")
+    done < <(get_dev_files)
+
+    while IFS= read -r file; do
+        [[ -n "$file" ]] && uncertain_files+=("$file")
+    done < <(get_uncertain_files)
     
     print_info "文件分类结果："
     echo ""
@@ -174,7 +186,9 @@ confirm_uncertain_files() {
     local confirmed_feature_files=()
 
     # 获取不确定的文件列表
-    readarray -t uncertain_files < <(get_uncertain_files)
+    while IFS= read -r file; do
+        [[ -n "$file" ]] && uncertain_files+=("$file")
+    done < <(get_uncertain_files)
     
     if [ ${#uncertain_files[@]} -gt 0 ]; then
         print_warning "以下文件需要您确认是否同步到main分支：" >&2
@@ -220,12 +234,16 @@ perform_selective_sync() {
     git checkout development
     
     # 获取功能文件列表
-    local feature_files
-    readarray -t feature_files < <(get_feature_files)
+    local feature_files=()
+    while IFS= read -r file; do
+        [[ -n "$file" ]] && feature_files+=("$file")
+    done < <(get_feature_files)
 
     # 确认不确定的文件
-    local confirmed_files
-    readarray -t confirmed_files < <(confirm_uncertain_files)
+    local confirmed_files=()
+    while IFS= read -r file; do
+        [[ -n "$file" ]] && confirmed_files+=("$file")
+    done < <(confirm_uncertain_files)
 
     # 合并所有要同步的文件
     local all_sync_files=("${feature_files[@]}" "${confirmed_files[@]}")
