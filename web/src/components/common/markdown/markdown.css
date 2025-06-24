@@ -1,0 +1,444 @@
+/* 基础markdown样式 */
+.markdown-body {
+  font-family: inherit;
+  line-height: 1.6;
+  color: var(--semi-color-text-0);
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* 用户消息样式 - 白色字体适配蓝色背景 */
+.user-message {
+  color: white !important;
+}
+
+.user-message .markdown-body {
+  color: white !important;
+}
+
+.user-message h1,
+.user-message h2,
+.user-message h3,
+.user-message h4,
+.user-message h5,
+.user-message h6 {
+  color: white !important;
+}
+
+.user-message p {
+  color: white !important;
+}
+
+.user-message span {
+  color: white !important;
+}
+
+.user-message div {
+  color: white !important;
+}
+
+.user-message li {
+  color: white !important;
+}
+
+.user-message td,
+.user-message th {
+  color: white !important;
+}
+
+.user-message blockquote {
+  color: white !important;
+  border-left-color: rgba(255, 255, 255, 0.5) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.user-message code:not(pre code) {
+  color: #000 !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.user-message a {
+  color: #87CEEB !important;
+  /* 浅蓝色链接 */
+}
+
+.user-message a:hover {
+  color: #B0E0E6 !important;
+  /* hover时更浅的蓝色 */
+}
+
+/* 表格在用户消息中的样式 */
+.user-message table {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.user-message th {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.user-message td {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 加载动画 */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* 代码高亮主题 - 适配Semi Design */
+.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0;
+  background: transparent;
+  color: var(--semi-color-text-0);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--semi-color-text-2);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: var(--semi-color-primary);
+  font-weight: bold;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: var(--semi-color-warning);
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: var(--semi-color-success);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: var(--semi-color-primary);
+  font-weight: bold;
+}
+
+.hljs-subst {
+  font-weight: normal;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: var(--semi-color-info);
+  font-weight: bold;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: var(--semi-color-primary);
+  font-weight: normal;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: var(--semi-color-tertiary);
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--semi-color-warning);
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: var(--semi-color-info);
+}
+
+.hljs-meta {
+  color: var(--semi-color-text-2);
+}
+
+.hljs-deletion {
+  background: var(--semi-color-danger-light-default);
+}
+
+.hljs-addition {
+  background: var(--semi-color-success-light-default);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Mermaid容器样式 */
+.mermaid-container {
+  transition: all 0.2s ease;
+}
+
+.mermaid-container:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 代码块样式增强 */
+pre {
+  position: relative;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  transition: all 0.2s ease;
+}
+
+pre:hover {
+  border-color: var(--semi-color-primary) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+pre:hover .copy-code-button {
+  opacity: 1 !important;
+}
+
+.copy-code-button {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.copy-code-button:hover {
+  opacity: 1 !important;
+}
+
+.copy-code-button button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* 确保按钮可点击 */
+.copy-code-button .semi-button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease;
+}
+
+.copy-code-button .semi-button:hover {
+  background-color: var(--semi-color-fill-1) !important;
+  border-color: var(--semi-color-primary) !important;
+  transform: scale(1.05);
+}
+
+/* 表格响应式 */
+@media (max-width: 768px) {
+  .markdown-body table {
+    font-size: 12px;
+  }
+
+  .markdown-body th,
+  .markdown-body td {
+    padding: 6px 8px;
+  }
+}
+
+/* 数学公式样式 */
+.katex {
+  font-size: 1em;
+}
+
+.katex-display {
+  margin: 1em 0;
+  text-align: center;
+}
+
+/* 链接hover效果 */
+.markdown-body a {
+  transition: all 0.2s ease;
+}
+
+/* 引用块样式增强 */
+.markdown-body blockquote {
+  position: relative;
+}
+
+.markdown-body blockquote::before {
+  content: '"';
+  position: absolute;
+  left: -8px;
+  top: -8px;
+  font-size: 24px;
+  color: var(--semi-color-primary);
+  opacity: 0.3;
+}
+
+/* 列表样式增强 */
+.markdown-body ul li::marker {
+  color: var(--semi-color-primary);
+}
+
+.markdown-body ol li::marker {
+  color: var(--semi-color-primary);
+  font-weight: bold;
+}
+
+/* 分隔线样式 */
+.markdown-body hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--semi-color-border), transparent);
+  margin: 24px 0;
+}
+
+/* 图片样式 */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin: 12px 0;
+}
+
+/* 内联代码样式 */
+.markdown-body code:not(pre code) {
+  background-color: var(--semi-color-fill-1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: var(--semi-color-primary);
+  border: 1px solid var(--semi-color-border);
+}
+
+/* 标题锚点样式 */
+.markdown-body h1:hover,
+.markdown-body h2:hover,
+.markdown-body h3:hover,
+.markdown-body h4:hover,
+.markdown-body h5:hover,
+.markdown-body h6:hover {
+  position: relative;
+}
+
+/* 任务列表样式 */
+.markdown-body input[type="checkbox"] {
+  margin-right: 8px;
+  transform: scale(1.1);
+}
+
+.markdown-body li.task-list-item {
+  list-style: none;
+  margin-left: -20px;
+}
+
+/* 键盘按键样式 */
+.markdown-body kbd {
+  background-color: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 var(--semi-color-border);
+  color: var(--semi-color-text-0);
+  display: inline-block;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+/* 详情折叠样式 */
+.markdown-body details {
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.markdown-body summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: var(--semi-color-primary);
+  margin-bottom: 8px;
+}
+
+.markdown-body summary:hover {
+  color: var(--semi-color-primary-hover);
+}
+
+/* 脚注样式 */
+.markdown-body .footnote-ref {
+  color: var(--semi-color-primary);
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.markdown-body .footnote-ref:hover {
+  text-decoration: underline;
+}
+
+/* 警告块样式 */
+.markdown-body .warning {
+  background-color: var(--semi-color-warning-light-default);
+  border-left: 4px solid var(--semi-color-warning);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.markdown-body .info {
+  background-color: var(--semi-color-info-light-default);
+  border-left: 4px solid var(--semi-color-info);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.markdown-body .success {
+  background-color: var(--semi-color-success-light-default);
+  border-left: 4px solid var(--semi-color-success);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.markdown-body .danger {
+  background-color: var(--semi-color-danger-light-default);
+  border-left: 4px solid var(--semi-color-danger);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    filter: blur(3px);
+  }
+  60% {
+    opacity: 0.85;
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
