@@ -11,6 +11,7 @@ import (
 	"one-api/relay/channel/cloudflare"
 	"one-api/relay/channel/cohere"
 	"one-api/relay/channel/coze"
+	"one-api/relay/channel/custompass"
 	"one-api/relay/channel/deepseek"
 	"one-api/relay/channel/dify"
 	"one-api/relay/channel/gemini"
@@ -22,7 +23,7 @@ import (
 	"one-api/relay/channel/palm"
 	"one-api/relay/channel/perplexity"
 	"one-api/relay/channel/siliconflow"
-	"one-api/relay/channel/task/custompass"
+	taskcustompass "one-api/relay/channel/task/custompass"
 	"one-api/relay/channel/task/kling"
 	"one-api/relay/channel/task/suno"
 	"one-api/relay/channel/tencent"
@@ -93,6 +94,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &xai.Adaptor{}
 	case constant.APITypeCoze:
 		return &coze.Adaptor{}
+	case constant.APITypeCustomPass:
+		return &custompass.Adaptor{}
 	}
 	return nil
 }
@@ -106,7 +109,7 @@ func GetTaskAdaptor(platform commonconstant.TaskPlatform) channel.TaskAdaptor {
 	case commonconstant.TaskPlatformKling:
 		return &kling.TaskAdaptor{}
 	case commonconstant.TaskPlatformCustomPass:
-		return &custompass.TaskAdaptor{}
+		return &taskcustompass.TaskAdaptor{}
 	}
 	return nil
 }

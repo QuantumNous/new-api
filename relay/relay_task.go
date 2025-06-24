@@ -323,8 +323,6 @@ var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp 
 	relayconstant.RelayModeSunoFetchByID:                    sunoFetchByIDRespBodyBuilder,
 	relayconstant.RelayModeSunoFetch:                        sunoFetchRespBodyBuilder,
 	relayconstant.RelayModeKlingFetchByID:                   videoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeCustomPassTaskFetch:              customPassFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeCustomPassTaskFetchByCondition:   customPassFetchByConditionRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -420,127 +418,9 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	return
 }
 
-func customPassFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	taskId := c.Param("task_id")
-	userId := c.GetInt("id")
 
-	originTask, exist, err := model.GetByTaskId(userId, taskId)
-	if err != nil {
-		taskResp = service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
-		return
-	}
-	if !exist {
-		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
-		return
-	}
 
-	// 构建 CustomPass 格式的响应
-	customPassResp := map[string]interface{}{
-		"task_id":  originTask.TaskID,
-		"status":   convertTaskStatusToCustomPass(originTask.Status),
-		"progress": originTask.Progress,
-	}
 
-	// 如果任务完成，添加结果
-	if originTask.Status == model.TaskStatusSuccess && len(originTask.Data) > 0 {
-		var result interface{}
-		if err := json.Unmarshal(originTask.Data, &result); err == nil {
-			customPassResp["result"] = result
-		}
-	}
-
-	// 如果任务失败，添加错误信息
-	if originTask.Status == model.TaskStatusFailure && originTask.FailReason != "" {
-		customPassResp["error"] = originTask.FailReason
-	}
-
-	respBody, err = json.Marshal(customPassResp)
-	if err != nil {
-		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
-	}
-	return
-}
-
-func customPassFetchByConditionRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	userId := c.GetInt("id")
-
-	var condition struct {
-		TaskIds []string `json:"task_ids"`
-	}
-
-	if err := c.ShouldBindJSON(&condition); err != nil {
-		taskResp = service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-		return
-	}
-
-	if len(condition.TaskIds) == 0 {
-		taskResp = service.TaskErrorWrapperLocal(errors.New("task_ids is required"), "invalid_request", http.StatusBadRequest)
-		return
-	}
-
-	// 获取任务列表
-	tasks := make([]map[string]interface{}, 0)
-	for _, taskId := range condition.TaskIds {
-		originTask, exist, err := model.GetByTaskId(userId, taskId)
-		if err != nil {
-			continue // 跳过错误的任务
-		}
-		if !exist {
-			continue // 跳过不存在的任务
-		}
-
-		// 构建 CustomPass 格式的响应
-		customPassTask := map[string]interface{}{
-			"task_id":  originTask.TaskID,
-			"status":   convertTaskStatusToCustomPass(originTask.Status),
-			"progress": originTask.Progress,
-		}
-
-		// 如果任务完成，添加结果
-		if originTask.Status == model.TaskStatusSuccess && len(originTask.Data) > 0 {
-			var result interface{}
-			if err := json.Unmarshal(originTask.Data, &result); err == nil {
-				customPassTask["result"] = result
-			}
-		}
-
-		// 如果任务失败，添加错误信息
-		if originTask.Status == model.TaskStatusFailure && originTask.FailReason != "" {
-			customPassTask["error"] = originTask.FailReason
-		}
-
-		tasks = append(tasks, customPassTask)
-	}
-
-	// 构建最终响应
-	response := map[string]interface{}{
-		"code": 0,
-		"msg":  "success",
-		"data": tasks,
-	}
-
-	respBody, err := json.Marshal(response)
-	if err != nil {
-		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
-	}
-	return
-}
-
-// convertTaskStatusToCustomPass 将内部任务状态转换为 CustomPass 格式
-func convertTaskStatusToCustomPass(status model.TaskStatus) string {
-	switch status {
-	case model.TaskStatusSuccess:
-		return "completed"
-	case model.TaskStatusFailure:
-		return "failed"
-	case model.TaskStatusInProgress, model.TaskStatusQueued, model.TaskStatusSubmitted:
-		return "processing"
-	case model.TaskStatusNotStart:
-		return "pendding"
-	default:
-		return "unknown"
-	}
-}
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 	return &dto.TaskDto{

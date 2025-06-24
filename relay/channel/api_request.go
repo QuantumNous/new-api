@@ -39,6 +39,14 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+
+	// 对于CustomPass的GET请求，需要将查询参数附加到URL中
+	if a.GetChannelName() == "custompass" && c.Request.Method == "GET" {
+		if queryParams := c.Request.URL.RawQuery; queryParams != "" {
+			fullRequestURL += "?" + queryParams
+		}
+	}
+
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}

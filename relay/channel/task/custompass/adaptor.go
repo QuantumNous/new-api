@@ -74,13 +74,20 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		return service.TaskErrorWrapperLocal(fmt.Errorf("TaskRelayInfo is nil"), "invalid_request", http.StatusBadRequest)
 	}
 
-	// 从URL路径中获取action
-	action := c.Param("action")
-	if action == "" {
-		return service.TaskErrorWrapperLocal(fmt.Errorf("action is required"), "invalid_request", http.StatusBadRequest)
+	// 从 info.OriginModelName 中获取模型名称
+	// 对于submit任务，模型名称格式为 "model/submit"
+	model := info.OriginModelName
+	if model == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("model is required"), "invalid_request", http.StatusBadRequest)
 	}
 
-	info.Action = action
+	// 验证是否为submit任务
+	if !strings.HasSuffix(model, "/submit") {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("invalid submit model: %s", model), "invalid_request", http.StatusBadRequest)
+	}
+
+	// 对于submit任务，action固定为"submit"
+	info.Action = "submit"
 
 	// 根据HTTP方法处理请求数据
 	var requestData map[string]interface{}
@@ -113,10 +120,14 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.TaskRelayInfo) (string, 
 		return "", fmt.Errorf("TaskRelayInfo is nil")
 	}
 
-	// 构建上游URL: baseurl/{model}/{action}
-	model := info.OriginModelName
-	action := info.Action
-	baseURL := fmt.Sprintf("%s/%s/%s", info.BaseUrl, model, action)
+	// 构建上游URL: baseurl/{model}
+	// info.OriginModelName 现在是完整的模型名称格式，如 "gpt-4/submit"
+	// 直接使用模型名称构建上游URL
+	modelName := info.OriginModelName
+	if modelName == "" {
+		return "", fmt.Errorf("model name is required")
+	}
+	baseURL := fmt.Sprintf("%s/%s", info.BaseUrl, modelName)
 	return baseURL, nil
 }
 
@@ -252,10 +263,22 @@ func (a *TaskAdaptor) isSubmitAction(action string, responseBody []byte) bool {
 
 // FetchTask 获取任务状态
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
-	// 从body中提取model和task_ids
-	model, ok := body["model"].(string)
+	// 从body中提取模型名称和task_ids
+	modelName, ok := body["model"].(string)
 	if !ok {
 		return nil, fmt.Errorf("model is required")
+	}
+
+	// 对于任务查询，需要去掉模型名称中的 /submit 后缀
+	// 因为查询URL应该是 baseUrl/model/task/list-by-condition
+	// 而不是 baseUrl/model/submit/task/list-by-condition
+	if modelName == "" {
+		return nil, fmt.Errorf("model name is required")
+	}
+
+	// 如果模型名称以 /submit 结尾，去掉这个后缀
+	if strings.HasSuffix(modelName, "/submit") {
+		modelName = strings.TrimSuffix(modelName, "/submit")
 	}
 	
 	taskIds, ok := body["task_ids"].([]string)
@@ -268,7 +291,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 		TaskIds: taskIds,
 	}
 
-	requestUrl := fmt.Sprintf("%s/%s/task/list-by-condition", baseUrl, model)
+	requestUrl := fmt.Sprintf("%s/%s/task/list-by-condition", baseUrl, modelName)
 	common.SysLog(fmt.Sprintf("CustomPass FetchTask 请求URL: %s, 任务数量: %d", requestUrl, len(taskIds)))
 
 	byteBody, err := json.Marshal(queryReq)
@@ -302,4 +325,18 @@ func (a *TaskAdaptor) GetModelList() []string {
 
 func (a *TaskAdaptor) GetChannelName() string {
 	return "custompass"
+}
+
+// extractModelAndActionFromModelAction 从 model_action 中分离出 model 和 action
+// 例如：gpt-4/chat -> model: gpt-4, action: chat
+func extractModelAndActionFromModelAction(modelAction string) (string, string) {
+	// 查找最后一个 "/" 的位置，以支持 model 名称中包含 "/"
+	lastSlashIndex := strings.LastIndex(modelAction, "/")
+	if lastSlashIndex == -1 || lastSlashIndex == len(modelAction)-1 {
+		return "", ""
+	}
+
+	model := modelAction[:lastSlashIndex]
+	action := modelAction[lastSlashIndex+1:]
+	return model, action
 }
