@@ -282,6 +282,14 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.TaskRelayInfo,
 	if err != nil {
 		return nil, err
 	}
+
+	// 对于CustomPass的GET请求，需要将查询参数附加到URL中
+	if a.GetChannelName() == "custompass" && c.Request.Method == "GET" {
+		if queryParams := c.Request.URL.RawQuery; queryParams != "" {
+			fullRequestURL += "?" + queryParams
+		}
+	}
+
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
