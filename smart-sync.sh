@@ -108,11 +108,26 @@ classify_files() {
 
 # 显示文件分类结果
 show_file_classification() {
-    local classification=$(classify_files)
-    
-    local feature_files=($(echo "$classification" | grep "FEATURE_FILES:" | cut -d: -f2))
-    local dev_files=($(echo "$classification" | grep "DEV_FILES:" | cut -d: -f2))
-    local uncertain_files=($(echo "$classification" | grep "UNCERTAIN_FILES:" | cut -d: -f2))
+    local feature_files=()
+    local dev_files=()
+    local uncertain_files=()
+
+    # 重新分类文件，使用安全的方法
+    while IFS= read -r -d '' file; do
+        # 跳过空文件名和包含 ANSI 转义序列的文件名
+        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
+            print_warning "跳过包含特殊字符的文件名: $file"
+            continue
+        fi
+
+        if is_dev_file "$file"; then
+            dev_files+=("$file")
+        elif [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
+            feature_files+=("$file")
+        else
+            uncertain_files+=("$file")
+        fi
+    done < <(get_changed_files)
     
     print_info "文件分类结果："
     echo ""
@@ -144,9 +159,21 @@ show_file_classification() {
 
 # 交互式确认不确定的文件
 confirm_uncertain_files() {
-    local classification=$(classify_files)
-    local uncertain_files=($(echo "$classification" | grep "UNCERTAIN_FILES:" | cut -d: -f2))
+    local uncertain_files=()
     local confirmed_feature_files=()
+
+    # 重新获取不确定的文件列表，使用安全的方法
+    while IFS= read -r -d '' file; do
+        # 跳过空文件名和包含 ANSI 转义序列的文件名
+        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
+            continue
+        fi
+
+        # 只处理不确定的文件
+        if ! is_dev_file "$file" && ! [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] || [[ "$file" =~ (test_|dev|local) ]]; then
+            uncertain_files+=("$file")
+        fi
+    done < <(get_changed_files)
     
     if [ ${#uncertain_files[@]} -gt 0 ]; then
         print_warning "以下文件需要您确认是否同步到main分支："
@@ -161,7 +188,7 @@ confirm_uncertain_files() {
                 echo ""
             fi
             
-            read -p "是否同步此文件到main分支? (y/n): " choice
+            read -p "是否同步文件 '$file' 到main分支? (y/n): " choice
             case $choice in
                 [Yy]*)
                     confirmed_feature_files+=("$file")
@@ -191,13 +218,22 @@ perform_selective_sync() {
     # 确保在development分支
     git checkout development
     
-    # 获取文件分类
-    local classification=$(classify_files)
-    local feature_files=($(echo "$classification" | grep "FEATURE_FILES:" | cut -d: -f2))
-    
+    # 获取功能文件列表
+    local feature_files=()
+    while IFS= read -r -d '' file; do
+        # 跳过空文件名和包含 ANSI 转义序列的文件名
+        if [[ -z "$file" ]] || [[ "$file" =~ \033 ]] || [[ "$file" =~ \\033 ]] || [[ "$file" =~ \[(SUCCESS|WARNING|INFO|ERROR)\] ]]; then
+            continue
+        fi
+
+        if ! is_dev_file "$file" && [[ "$file" =~ \.(go|js|json|sql|yaml|yml)$ ]] && [[ ! "$file" =~ (test_|dev|local) ]]; then
+            feature_files+=("$file")
+        fi
+    done < <(get_changed_files)
+
     # 确认不确定的文件
     local confirmed_files=($(confirm_uncertain_files))
-    
+
     # 合并所有要同步的文件
     local all_sync_files=("${feature_files[@]}" "${confirmed_files[@]}")
     
