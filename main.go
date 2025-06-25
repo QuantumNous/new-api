@@ -98,6 +98,11 @@ func main() {
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 	}
+	// Initialize Central Control Database
+	err = model.InitCentralDB()
+	if err != nil {
+		common.FatalLog("failed to initialize central control database: " + err.Error())
+	}
 	err = model.InitLogTable()
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
