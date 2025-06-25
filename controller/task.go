@@ -340,7 +340,9 @@ func updateCustomPassTaskAll(ctx context.Context, channelId int, taskIds []strin
 	}
 
 	// 按模型分组任务ID，因为不同模型需要分别查询
+	// 同时收集每个模型对应的客户端token（使用第一个任务的token）
 	modelTaskIds := make(map[string][]string)
+	modelClientTokens := make(map[string]string)
 	for _, taskId := range taskIds {
 		task := taskM[taskId]
 		if task != nil {
@@ -349,16 +351,26 @@ func updateCustomPassTaskAll(ctx context.Context, channelId int, taskIds []strin
 			modelName := getModelNameFromTask(task)
 			if modelName != "" {
 				modelTaskIds[modelName] = append(modelTaskIds[modelName], taskId)
+				// 如果该模型还没有记录token，则使用当前任务的token
+				if _, exists := modelClientTokens[modelName]; !exists && task.TokenKey != "" {
+					modelClientTokens[modelName] = task.TokenKey
+				}
 			}
 		}
 	}
 
 	// 对每个模型分别查询任务状态
 	for modelName, modelTaskIdList := range modelTaskIds {
-		resp, err := adaptor.FetchTask(*channel.BaseURL, channel.Key, map[string]any{
+		requestBody := map[string]any{
 			"model":    modelName,
 			"task_ids": modelTaskIdList,
-		})
+		}
+		// 添加客户端token
+		if clientToken, exists := modelClientTokens[modelName]; exists {
+			requestBody["client_token"] = clientToken
+		}
+
+		resp, err := adaptor.FetchTask(*channel.BaseURL, channel.Key, requestBody)
 		if err != nil {
 			common.SysError(fmt.Sprintf("Get CustomPass Task Do req error: %v", err))
 			continue
