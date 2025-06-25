@@ -159,6 +159,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info.ChannelType != common.ChannelTypeOpenAI && info.ChannelType != common.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
+	if info.ChannelType == common.ChannelTypeOpenRouter {
+		if len(request.Usage) == 0 {
+			request.Usage = json.RawMessage(`{"include":true}`)
+		}
+	}
 	if strings.HasPrefix(request.Model, "o") {
 		if request.MaxCompletionTokens == 0 && request.MaxTokens != 0 {
 			request.MaxCompletionTokens = request.MaxTokens

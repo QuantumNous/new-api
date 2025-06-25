@@ -78,26 +78,7 @@ func clampThinkingBudget(modelName string, budget int) int {
 	return budget
 }
 
-// Setting safety to the lowest possible values since Gemini is already powerless enough
-func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*GeminiChatRequest, error) {
-
-	geminiRequest := GeminiChatRequest{
-		Contents: make([]GeminiChatContent, 0, len(textRequest.Messages)),
-		GenerationConfig: GeminiChatGenerationConfig{
-			Temperature:     textRequest.Temperature,
-			TopP:            textRequest.TopP,
-			MaxOutputTokens: textRequest.MaxTokens,
-			Seed:            int64(textRequest.Seed),
-		},
-	}
-
-	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
-		geminiRequest.GenerationConfig.ResponseModalities = []string{
-			"TEXT",
-			"IMAGE",
-		}
-	}
-
+func ThinkingAdaptor(geminiRequest *GeminiChatRequest, info *relaycommon.RelayInfo) {
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		modelName := info.UpstreamModelName
 		isNew25Pro := strings.HasPrefix(modelName, "gemini-2.5-pro") &&
@@ -150,6 +131,29 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon
 			}
 		}
 	}
+}
+
+// Setting safety to the lowest possible values since Gemini is already powerless enough
+func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*GeminiChatRequest, error) {
+
+	geminiRequest := GeminiChatRequest{
+		Contents: make([]GeminiChatContent, 0, len(textRequest.Messages)),
+		GenerationConfig: GeminiChatGenerationConfig{
+			Temperature:     textRequest.Temperature,
+			TopP:            textRequest.TopP,
+			MaxOutputTokens: textRequest.MaxTokens,
+			Seed:            int64(textRequest.Seed),
+		},
+	}
+
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		geminiRequest.GenerationConfig.ResponseModalities = []string{
+			"TEXT",
+			"IMAGE",
+		}
+	}
+
+	ThinkingAdaptor(&geminiRequest, info)
 
 	safetySettings := make([]GeminiChatSafetySettings, 0, len(SafetySettingList))
 	for _, category := range SafetySettingList {

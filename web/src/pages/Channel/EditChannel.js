@@ -26,7 +26,7 @@ import {
   Card,
   Tag,
 } from '@douyinfe/semi-ui';
-import { getChannelModels } from '../../helpers';
+import { getChannelModels, copy } from '../../helpers';
 import {
   IconSave,
   IconClose,
@@ -64,6 +64,8 @@ function type2secretPrompt(type) {
       return '按照如下格式输入：AppId|SecretId|SecretKey';
     case 33:
       return '按照如下格式输入：Ak|Sk|Region';
+    case 50:
+      return '按照如下格式输入: AccessKey|SecretKey';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -109,6 +111,10 @@ const EditChannel = (props) => {
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [isModalOpenurl, setIsModalOpenurl] = useState(false);
   const handleInputChange = (name, value) => {
+    if (name === 'models' && Array.isArray(value)) {
+      value = Array.from(new Set(value.map((m) => (m || '').trim())));
+    }
+
     if (name === 'base_url' && value.endsWith('/v1')) {
       Modal.confirm({
         title: '警告',
@@ -263,10 +269,14 @@ const EditChannel = (props) => {
   const fetchModels = async () => {
     try {
       let res = await API.get(`/api/channel/models`);
-      let localModelOptions = res.data.data.map((model) => ({
-        label: model.id,
-        value: model.id,
-      }));
+      const localModelOptions = res.data.data.map((model) => {
+        const id = (model.id || '').trim();
+        return {
+          key: id,
+          label: id,
+          value: id,
+        };
+      });
       setOriginModelOptions(localModelOptions);
       setFullModels(res.data.data.map((model) => model.id));
       setBasicModels(
@@ -298,27 +308,29 @@ const EditChannel = (props) => {
     }
   };
 
-useEffect(() => {
-  // 使用 Map 来避免重复，以 value 为键
-  const modelMap = new Map();
-  
-  // 先添加原始模型选项
-  originModelOptions.forEach(option => {
-    modelMap.set(option.value, option);
-  });
-  
-  // 再添加当前选中的模型（如果不存在）
-  inputs.models.forEach(model => {
-    if (!modelMap.has(model)) {
-      modelMap.set(model, {
-        label: model,
-        value: model,
-      });
-    }
-  });
-  
-  setModelOptions(Array.from(modelMap.values()));
-}, [originModelOptions, inputs.models]);
+  useEffect(() => {
+    const modelMap = new Map();
+
+    originModelOptions.forEach(option => {
+      const v = (option.value || '').trim();
+      if (!modelMap.has(v)) {
+        modelMap.set(v, option);
+      }
+    });
+
+    inputs.models.forEach(model => {
+      const v = (model || '').trim();
+      if (!modelMap.has(v)) {
+        modelMap.set(v, {
+          key: v,
+          label: v,
+          value: v,
+        });
+      }
+    });
+
+    setModelOptions(Array.from(modelMap.values()));
+  }, [originModelOptions, inputs.models]);
 
   useEffect(() => {
     fetchModels().then();
@@ -401,7 +413,7 @@ useEffect(() => {
         localModels.push(model);
         localModelOptions.push({
           key: model,
-          text: model,
+          label: model,
           value: model,
         });
         addedModels.push(model);
@@ -829,6 +841,25 @@ useEffect(() => {
                     className="!rounded-lg"
                   >
                     {t('清除所有模型')}
+                  </Button>
+                  <Button
+                    type='tertiary'
+                    onClick={() => {
+                      if (inputs.models.length === 0) {
+                        showInfo(t('没有模型可以复制'));
+                        return;
+                      }
+                      try {
+                        copy(inputs.models.join(','));
+                        showSuccess(t('模型列表已复制到剪贴板'));
+                      } catch (error) {
+                        showError(t('复制失败'));
+                      }
+                    }}
+                    size="large"
+                    className="!rounded-lg"
+                  >
+                    {t('复制所有模型')}
                   </Button>
                 </div>
 

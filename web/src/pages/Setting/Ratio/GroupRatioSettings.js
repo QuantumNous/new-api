@@ -96,133 +96,131 @@ export default function GroupRatioSettings(props) {
         getFormApi={(formAPI) => (refForm.current = formAPI)}
         style={{ marginBottom: 15 }}
       >
-        <Form.Section text={t('分组设置')}>
-          <Row gutter={16}>
-            <Col xs={24} sm={16}>
-              <Form.TextArea
-                label={t('分组倍率')}
-                placeholder={t('为一个 JSON 文本，键为分组名称，值为倍率')}
-                extraText={t(
-                  '分组倍率设置，可以在此处新增分组或修改现有分组的倍率，格式为 JSON 字符串，例如：{"vip": 0.5, "test": 1}，表示 vip 分组的倍率为 0.5，test 分组的倍率为 1',
-                )}
-                field={'GroupRatio'}
-                autosize={{ minRows: 6, maxRows: 12 }}
-                trigger='blur'
-                stopValidateWithError
-                rules={[
-                  {
-                    validator: (rule, value) => verifyJSON(value),
-                    message: t('不是合法的 JSON 字符串'),
-                  },
-                ]}
-                onChange={(value) =>
-                  setInputs({ ...inputs, GroupRatio: value })
-                }
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col xs={24} sm={16}>
-              <Form.TextArea
-                label={t('用户可选分组')}
-                placeholder={t('为一个 JSON 文本，键为分组名称，值为分组描述')}
-                extraText={t(
-                  '用户新建令牌时可选的分组，格式为 JSON 字符串，例如：{"vip": "VIP 用户", "test": "测试"}，表示用户可以选择 vip 分组和 test 分组',
-                )}
-                field={'UserUsableGroups'}
-                autosize={{ minRows: 6, maxRows: 12 }}
-                trigger='blur'
-                stopValidateWithError
-                rules={[
-                  {
-                    validator: (rule, value) => verifyJSON(value),
-                    message: t('不是合法的 JSON 字符串'),
-                  },
-                ]}
-                onChange={(value) =>
-                  setInputs({ ...inputs, UserUsableGroups: value })
-                }
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col xs={24} sm={16}>
-              <Form.TextArea
-                label={t('分组特殊倍率')}
-                placeholder={t('为一个 JSON 文本')}
-                extraText={t(
-                  '键为分组名称，值为另一个 JSON 对象，键为分组名称，值为该分组的用户的特殊分组倍率，例如：{"vip": {"default": 0.5, "test": 1}}，表示 vip 分组的用户在使用default分组的令牌时倍率为0.5，使用test分组时倍率为1',
-                )}
-                field={'GroupGroupRatio'}
-                autosize={{ minRows: 6, maxRows: 12 }}
-                trigger='blur'
-                stopValidateWithError
-                rules={[
-                  {
-                    validator: (rule, value) => verifyJSON(value),
-                    message: t('不是合法的 JSON 字符串'),
-                  },
-                ]}
-                onChange={(value) =>
-                  setInputs({ ...inputs, GroupGroupRatio: value })
-                }
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col xs={24} sm={16}>
-              <Form.TextArea
-                label={t('自动分组auto，从第一个开始选择')}
-                placeholder={t('为一个 JSON 文本')}
-                field={'AutoGroups'}
-                autosize={{ minRows: 6, maxRows: 12 }}
-                trigger='blur'
-                stopValidateWithError
-                rules={[
-                  {
-                    validator: (rule, value) => {
-                      if (!value || value.trim() === '') {
-                        return true; // Allow empty values
-                      }
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组倍率')}
+              placeholder={t('为一个 JSON 文本，键为分组名称，值为倍率')}
+              extraText={t(
+                '分组倍率设置，可以在此处新增分组或修改现有分组的倍率，格式为 JSON 字符串，例如：{"vip": 0.5, "test": 1}，表示 vip 分组的倍率为 0.5，test 分组的倍率为 1',
+              )}
+              field={'GroupRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, GroupRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('用户可选分组')}
+              placeholder={t('为一个 JSON 文本，键为分组名称，值为分组描述')}
+              extraText={t(
+                '用户新建令牌时可选的分组，格式为 JSON 字符串，例如：{"vip": "VIP 用户", "test": "测试"}，表示用户可以选择 vip 分组和 test 分组',
+              )}
+              field={'UserUsableGroups'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, UserUsableGroups: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组特殊倍率')}
+              placeholder={t('为一个 JSON 文本')}
+              extraText={t(
+                '键为分组名称，值为另一个 JSON 对象，键为分组名称，值为该分组的用户的特殊分组倍率，例如：{"vip": {"default": 0.5, "test": 1}}，表示 vip 分组的用户在使用default分组的令牌时倍率为0.5，使用test分组时倍率为1',
+              )}
+              field={'GroupGroupRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, GroupGroupRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('自动分组auto，从第一个开始选择')}
+              placeholder={t('为一个 JSON 文本')}
+              field={'AutoGroups'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => {
+                    if (!value || value.trim() === '') {
+                      return true; // Allow empty values
+                    }
 
-                      // First check if it's valid JSON
-                      try {
-                        const parsed = JSON.parse(value);
+                    // First check if it's valid JSON
+                    try {
+                      const parsed = JSON.parse(value);
 
-                        // Check if it's an array
-                        if (!Array.isArray(parsed)) {
-                          return false;
-                        }
-
-                        // Check if every element is a string
-                        return parsed.every(item => typeof item === 'string');
-                      } catch (error) {
+                      // Check if it's an array
+                      if (!Array.isArray(parsed)) {
                         return false;
                       }
-                    },
-                    message: t('必须是有效的 JSON 字符串数组，例如：["g1","g2"]'),
+
+                      // Check if every element is a string
+                      return parsed.every(item => typeof item === 'string');
+                    } catch (error) {
+                      return false;
+                    }
                   },
-                ]}
-                onChange={(value) =>
-                  setInputs({ ...inputs, AutoGroups: value })
-                }
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={16}>
-              <Form.Switch
-                label={t(
-                  '创建令牌默认选择auto分组，初始令牌也将设为auto（否则留空，为用户默认分组）',
-                )}
-                field={'DefaultUseAutoGroup'}
-                onChange={(value) =>
-                  setInputs({ ...inputs, DefaultUseAutoGroup: value })
-                }
-              />
-            </Col>
-          </Row>
-        </Form.Section>
+                  message: t('必须是有效的 JSON 字符串数组，例如：["g1","g2"]'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, AutoGroups: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={16}>
+            <Form.Switch
+              label={t(
+                '创建令牌默认选择auto分组，初始令牌也将设为auto（否则留空，为用户默认分组）',
+              )}
+              field={'DefaultUseAutoGroup'}
+              onChange={(value) =>
+                setInputs({ ...inputs, DefaultUseAutoGroup: value })
+              }
+            />
+          </Col>
+        </Row>
       </Form>
       <Button onClick={onSubmit}>{t('保存分组倍率设置')}</Button>
     </Spin>

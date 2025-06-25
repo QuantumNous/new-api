@@ -13,9 +13,7 @@ import {
   List,
   Hash,
   Video,
-  Sparkles,
-  Zap,
-  Settings
+  Sparkles
 } from 'lucide-react';
 import {
   API,
@@ -49,8 +47,10 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import {
   IconEyeOpened,
   IconSearch,
-  IconSetting
+  IconSetting,
+  IconDescend
 } from '@douyinfe/semi-icons';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -195,18 +195,7 @@ const LogsTable = () => {
     }
   }, [visibleColumns]);
 
-  const renderType = (type, record) => {
-    // 对于 CustomPass 平台，显示模型名称
-    if (record && record.platform === 'custompass') {
-      const modelName = record.properties?.model || type || t('未知模型');
-      return (
-        <Tag color='purple' size='large' shape='circle' prefixIcon={<Settings size={14} />}>
-          {modelName}
-        </Tag>
-      );
-    }
-
-    // 其他平台按原有逻辑处理
+  const renderType = (type) => {
     switch (type) {
       case 'MUSIC':
         return (
@@ -247,12 +236,6 @@ const LogsTable = () => {
         return (
           <Tag color='blue' size='large' shape='circle' prefixIcon={<Video size={14} />}>
             Kling
-          </Tag>
-        );
-      case 'custompass':
-        return (
-          <Tag color='purple' size='large' shape='circle' prefixIcon={<Zap size={14} />}>
-            CustomPass
           </Tag>
         );
       default:
@@ -387,7 +370,7 @@ const LogsTable = () => {
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text, record)}</div>;
+        return <div>{renderType(text)}</div>;
       },
     },
     {
@@ -489,6 +472,8 @@ const LogsTable = () => {
   const [logCount, setLogCount] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const [compactMode, setCompactMode] = useTableCompactMode('taskLogs');
 
   useEffect(() => {
     const localPageSize = parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
@@ -669,7 +654,7 @@ const LogsTable = () => {
           className="!rounded-2xl mb-4"
           title={
             <div className="flex flex-col w-full">
-              <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
                 <div className="flex items-center text-orange-500 mb-2 md:mb-0">
                   <IconEyeOpened className="mr-2" />
                   {loading ? (
@@ -684,6 +669,15 @@ const LogsTable = () => {
                     <Text>{t('任务记录')}</Text>
                   )}
                 </div>
+                <Button
+                  theme='light'
+                  type='secondary'
+                  icon={<IconDescend />}
+                  className="!rounded-full w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
+                >
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
               </div>
 
               <Divider margin="12px" />
@@ -782,11 +776,11 @@ const LogsTable = () => {
           bordered={false}
         >
           <Table
-            columns={getVisibleColumns()}
+            columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
             dataSource={logs}
             rowKey='key'
             loading={loading}
-            scroll={{ x: 'max-content' }}
+            scroll={compactMode ? undefined : { x: 'max-content' }}
             className="rounded-xl overflow-hidden"
             size="middle"
             empty={

@@ -3,6 +3,7 @@ package service
 import (
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
+	"one-api/relay/helper"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,4 +63,14 @@ func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	info["cache_creation_tokens"] = cacheCreationTokens
 	info["cache_creation_ratio"] = cacheCreationRatio
 	return info
+}
+
+func GenerateMjOtherInfo(priceData helper.PerCallPriceData) map[string]interface{} {
+	other := make(map[string]interface{})
+	other["model_price"] = priceData.ModelPrice
+	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
+	if priceData.GroupRatioInfo.HasSpecialRatio {
+		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
+	}
+	return other
 }

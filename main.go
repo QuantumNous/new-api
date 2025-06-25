@@ -121,17 +121,12 @@ func main() {
 		}
 		go controller.AutomaticallyUpdateChannels(frequency)
 	}
-	channelTestFreq := os.Getenv("CHANNEL_TEST_FREQUENCY")
-	common.SysLog(fmt.Sprintf("🔧 [DEBUG] CHANNEL_TEST_FREQUENCY environment variable: '%s'", channelTestFreq))
-	if channelTestFreq != "" {
-		frequency, err := strconv.Atoi(channelTestFreq)
+	if os.Getenv("CHANNEL_TEST_FREQUENCY") != "" {
+		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_TEST_FREQUENCY"))
 		if err != nil {
 			common.FatalLog("failed to parse CHANNEL_TEST_FREQUENCY: " + err.Error())
 		}
-		common.SysLog(fmt.Sprintf("🔧 [DEBUG] Starting AutomaticallyTestChannels with frequency: %d minutes", frequency))
 		go controller.AutomaticallyTestChannels(frequency)
-	} else {
-		common.SysLog("🔧 [DEBUG] CHANNEL_TEST_FREQUENCY not set, automatic channel testing disabled")
 	}
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {

@@ -375,6 +375,7 @@ code {
 }
 
 /* 隐藏卡片内容区域的滚动条 */
+.model-test-scroll,
 .card-content-scroll,
 .model-settings-scroll,
 .thinking-content-scroll,
@@ -385,6 +386,7 @@ code {
   scrollbar-width: none;
 }
 
+.model-test-scroll::-webkit-scrollbar,
 .card-content-scroll::-webkit-scrollbar,
 .model-settings-scroll::-webkit-scrollbar,
 .thinking-content-scroll::-webkit-scrollbar,

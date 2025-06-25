@@ -13,6 +13,7 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting"
+	"one-api/setting/model_setting"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -76,6 +77,33 @@ func getGeminiInputTokens(req *gemini.GeminiChatRequest, info *relaycommon.Relay
 	return inputTokens
 }
 
+func isNoThinkingRequest(req *gemini.GeminiChatRequest) bool {
+	if req.GenerationConfig.ThinkingConfig != nil && req.GenerationConfig.ThinkingConfig.ThinkingBudget != nil {
+		return *req.GenerationConfig.ThinkingConfig.ThinkingBudget <= 0
+	}
+	return false
+}
+
+func trimModelThinking(modelName string) string {
+	// 去除模型名称中的 -nothinking 后缀
+	if strings.HasSuffix(modelName, "-nothinking") {
+		return strings.TrimSuffix(modelName, "-nothinking")
+	}
+	// 去除模型名称中的 -thinking 后缀
+	if strings.HasSuffix(modelName, "-thinking") {
+		return strings.TrimSuffix(modelName, "-thinking")
+	}
+
+	// 去除模型名称中的 -thinking-number
+	if strings.Contains(modelName, "-thinking-") {
+		parts := strings.Split(modelName, "-thinking-")
+		if len(parts) > 1 {
+			return parts[0] + "-thinking"
+		}
+	}
+	return modelName
+}
+
 func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	req, err := getAndValidateGeminiRequest(c)
 	if err != nil {
@@ -107,10 +135,25 @@ func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		relayInfo.SetPromptTokens(promptTokens)
 	} else {
 		promptTokens := getGeminiInputTokens(req, relayInfo)
-		if err != nil {
-			return service.OpenAIErrorWrapperLocal(err, "count_input_tokens_error", http.StatusBadRequest)
-		}
 		c.Set("prompt_tokens", promptTokens)
+	}
+
+	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+		if isNoThinkingRequest(req) {
+			// check is thinking
+			if !strings.Contains(relayInfo.OriginModelName, "-nothinking") {
+				// try to get no thinking model price
+				noThinkingModelName := relayInfo.OriginModelName + "-nothinking"
+				containPrice := helper.ContainPriceOrRatio(noThinkingModelName)
+				if containPrice {
+					relayInfo.OriginModelName = noThinkingModelName
+					relayInfo.UpstreamModelName = noThinkingModelName
+				}
+			}
+		}
+		if req.GenerationConfig.ThinkingConfig == nil {
+			gemini.ThinkingAdaptor(req, relayInfo)
+		}
 	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.PromptTokens, int(req.GenerationConfig.MaxOutputTokens))

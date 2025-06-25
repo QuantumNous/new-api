@@ -13,7 +13,7 @@ import {
   Activity,
   Users,
   DollarSign,
-  UserPlus
+  UserPlus,
 } from 'lucide-react';
 import {
   Button,
@@ -43,17 +43,20 @@ import {
   IconMore,
   IconUserAdd,
   IconArrowUp,
-  IconArrowDown
+  IconArrowDown,
+  IconDescend
 } from '@douyinfe/semi-icons';
 import { ITEMS_PER_PAGE } from '../../constants';
 import AddUser from '../../pages/User/AddUser';
 import EditUser from '../../pages/User/EditUser';
 import { useTranslation } from 'react-i18next';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
 const UsersTable = () => {
   const { t } = useTranslation();
+  const [compactMode, setCompactMode] = useTableCompactMode('users');
 
   function renderRole(role) {
     switch (role) {
@@ -527,9 +530,20 @@ const UsersTable = () => {
   const renderHeader = () => (
     <div className="flex flex-col w-full">
       <div className="mb-2">
-        <div className="flex items-center text-blue-500">
-          <IconUserAdd className="mr-2" />
-          <Text>{t('用户管理页面，可以查看和管理所有注册用户的信息、权限和状态。')}</Text>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+          <div className="flex items-center text-blue-500">
+            <IconUserAdd className="mr-2" />
+            <Text>{t('用户管理页面，可以查看和管理所有注册用户的信息、权限和状态。')}</Text>
+          </div>
+          <Button
+            theme='light'
+            type='secondary'
+            icon={<IconDescend />}
+            className="!rounded-full w-full md:w-auto"
+            onClick={() => setCompactMode(!compactMode)}
+          >
+            {compactMode ? t('自适应列表') : t('紧凑列表')}
+          </Button>
         </div>
       </div>
 
@@ -645,9 +659,9 @@ const UsersTable = () => {
         bordered={false}
       >
         <Table
-          columns={columns}
+          columns={compactMode ? columns.map(({ fixed, ...rest }) => rest) : columns}
           dataSource={users}
-          scroll={{ x: 'max-content' }}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
           pagination={{
             formatPageText: (page) =>
               t('第 {{start}} - {{end}} 条，共 {{total}} 条', {

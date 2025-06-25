@@ -90,7 +90,7 @@ const Home = () => {
               {/* 居中内容区 */}
               <div className="flex flex-col items-center justify-center text-center max-w-4xl mx-auto">
                 <div className="flex flex-col items-center justify-center mb-6 md:mb-8">
-                  <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-semibold text-semi-color-text-0 leading-tight">
+                  <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight">
                     {i18n.language === 'en' ? (
                       <>
                         The Unified<br />

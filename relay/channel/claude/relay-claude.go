@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
+	"one-api/relay/channel/openrouter"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
@@ -120,6 +121,21 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 		claudeRequest.TopP = 0
 		claudeRequest.Temperature = common.GetPointer[float64](1.0)
 		claudeRequest.Model = strings.TrimSuffix(textRequest.Model, "-thinking")
+	}
+
+	if textRequest.Reasoning != nil {
+		var reasoning openrouter.RequestReasoning
+		if err := common.DecodeJson(textRequest.Reasoning, &reasoning); err != nil {
+			return nil, err
+		}
+
+		budgetTokens := reasoning.MaxTokens
+		if budgetTokens > 0 {
+			claudeRequest.Thinking = &dto.Thinking{
+				Type:         "enabled",
+				BudgetTokens: &budgetTokens,
+			}
+		}
 	}
 
 	if textRequest.Stop != nil {

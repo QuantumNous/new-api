@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"one-api/common"
 	constant2 "one-api/constant"
 	"one-api/dto"
@@ -94,18 +95,18 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.Group)
+	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _ := ratio_setting.GetModelRatio(modelName)
 
 	autoGroup, exists := ctx.Get("auto_group")
 	if exists {
 		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
 		log.Printf("final group ratio: %f", groupRatio)
-		relayInfo.Group = autoGroup.(string)
+		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
 	actualGroupRatio := groupRatio
-	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.Group)
+	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
 	if ok {
 		actualGroupRatio = userGroupRatio
 	}
@@ -209,7 +210,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, usage.InputTokens, usage.OutputTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.UsingGroup, other)
 }
 
 func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
@@ -230,6 +231,17 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 
 	cacheCreationRatio := priceData.CacheCreationRatio
 	cacheCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
+
+	if relayInfo.ChannelType == common.ChannelTypeOpenRouter {
+		promptTokens -= cacheTokens
+		if cacheCreationTokens == 0 && priceData.CacheCreationRatio != 1 && usage.Cost != 0 {
+			maybeCacheCreationTokens := CalcOpenRouterCacheCreateTokens(*usage, priceData)
+			if promptTokens >= maybeCacheCreationTokens {
+				cacheCreationTokens = maybeCacheCreationTokens
+			}
+		}
+		promptTokens -= cacheCreationTokens
+	}
 
 	calculateQuota := 0.0
 	if !priceData.UsePrice {
@@ -275,7 +287,28 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	other := GenerateClaudeOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio,
 		cacheTokens, cacheRatio, cacheCreationTokens, cacheCreationRatio, modelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, modelName,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.UsingGroup, other)
+}
+
+func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData helper.PriceData) int {
+	if priceData.CacheCreationRatio == 1 {
+		return 0
+	}
+	quotaPrice := priceData.ModelRatio / common.QuotaPerUnit
+	promptCacheCreatePrice := quotaPrice * priceData.CacheCreationRatio
+	promptCacheReadPrice := quotaPrice * priceData.CacheRatio
+	completionPrice := quotaPrice * priceData.CompletionRatio
+
+	cost := usage.Cost
+	totalPromptTokens := float64(usage.PromptTokens)
+	completionTokens := float64(usage.CompletionTokens)
+	promptCacheReadTokens := float64(usage.PromptTokensDetails.CachedTokens)
+
+	return int(math.Round((cost -
+		totalPromptTokens*quotaPrice +
+		promptCacheReadTokens*(quotaPrice-promptCacheReadPrice) -
+		completionTokens*completionPrice) /
+		(promptCacheCreatePrice - quotaPrice)))
 }
 
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
@@ -352,7 +385,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, usage.PromptTokens, usage.CompletionTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.UsingGroup, other)
 }
 
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
@@ -408,57 +441,6 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	}
 
 	return nil
-}
-
-// CustomPassQuotaInfo CustomPass费用计算信息
-type CustomPassQuotaInfo struct {
-	ModelName    string
-	GroupRatio   float64
-	Usage        *dto.Usage // 从上游返回的usage信息
-	UsePrice     bool
-	ModelPrice   float64
-	ModelRatio   float64
-	CompletionRatio float64
-}
-
-// CalculateCustomPassQuota 计算CustomPass费用
-// 优先级：1. 基于usage计费 2. 按次计费 3. 0费用
-func CalculateCustomPassQuota(info CustomPassQuotaInfo) int {
-	// 1. 如果有usage信息，优先使用usage计费
-	if info.Usage != nil && info.Usage.TotalTokens > 0 {
-		common.SysLog(fmt.Sprintf("CustomPass 使用usage计费: prompt_tokens=%d, completion_tokens=%d, total_tokens=%d",
-			info.Usage.PromptTokens, info.Usage.CompletionTokens, info.Usage.TotalTokens))
-
-		// 使用类似文本模型的token计费方式
-		promptTokens := decimal.NewFromInt(int64(info.Usage.PromptTokens))
-		completionTokens := decimal.NewFromInt(int64(info.Usage.CompletionTokens))
-		completionRatio := decimal.NewFromFloat(info.CompletionRatio)
-		modelRatio := decimal.NewFromFloat(info.ModelRatio)
-		groupRatio := decimal.NewFromFloat(info.GroupRatio)
-
-		quota := promptTokens.Add(completionTokens.Mul(completionRatio))
-		quota = quota.Mul(modelRatio).Mul(groupRatio)
-
-		// 如果倍率不为零且计算结果小于等于0，设置为1
-		if !modelRatio.IsZero() && !groupRatio.IsZero() && quota.LessThanOrEqual(decimal.Zero) {
-			quota = decimal.NewFromInt(1)
-		}
-
-		return int(quota.Round(0).IntPart())
-	}
-
-	// 2. 如果没有usage但配置了按次计费价格，使用按次计费
-	if info.UsePrice && info.ModelPrice > 0 {
-		common.SysLog(fmt.Sprintf("CustomPass 使用按次计费: model_price=%.4f, group_ratio=%.2f",
-			info.ModelPrice, info.GroupRatio))
-
-		quota := info.ModelPrice * info.GroupRatio * common.QuotaPerUnit
-		return int(quota)
-	}
-
-	// 3. 其他情况费用为0
-	common.SysLog(fmt.Sprintf("CustomPass 费用为0: 无usage且模型 %s 未配置按次计费价格", info.ModelName))
-	return 0
 }
 
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {

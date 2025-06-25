@@ -84,7 +84,16 @@ const RatioSetting = () => {
       <Card style={{ marginTop: '10px' }}>
         <Tabs type='card'>
           <Tabs.TabPane tab={t('模型倍率设置')} itemKey='model'>
-            <ModelRatioSettings options={inputs} refresh={onRefresh} />
+            <ModelRatioSettings
+              options={inputs}
+              refresh={onRefresh}
+            />
+          </Tabs.TabPane>
+          <Tabs.TabPane tab={t('分组倍率设置')} itemKey='group'>
+            <GroupRatioSettings
+              options={inputs}
+              refresh={onRefresh}
+            />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('可视化倍率设置')} itemKey='visual'>
             <ModelSettingsVisualEditor
@@ -105,10 +114,6 @@ const RatioSetting = () => {
             />
           </Tabs.TabPane>
         </Tabs>
-      </Card>
-      {/* 分组倍率设置 */}
-      <Card style={{ marginTop: '10px' }}>
-        <GroupRatioSettings options={inputs} refresh={onRefresh} />
       </Card>
     </Spin>
   );

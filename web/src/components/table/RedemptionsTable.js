@@ -45,10 +45,12 @@ import {
   IconDelete,
   IconStop,
   IconPlay,
-  IconMore
+  IconMore,
+  IconDescend
 } from '@douyinfe/semi-icons';
 import EditRedemption from '../../pages/Redemption/EditRedemption';
 import { useTranslation } from 'react-i18next';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -266,6 +268,7 @@ const RedemptionsTable = () => {
     id: undefined,
   });
   const [showEdit, setShowEdit] = useState(false);
+  const [compactMode, setCompactMode] = useTableCompactMode('redemptions');
 
   // Form 初始值
   const formInitValues = {
@@ -465,9 +468,20 @@ const RedemptionsTable = () => {
   const renderHeader = () => (
     <div className="flex flex-col w-full">
       <div className="mb-2">
-        <div className="flex items-center text-orange-500">
-          <Ticket size={16} className="mr-2" />
-          <Text>{t('兑换码可以批量生成和分发，适合用于推广活动或批量充值。')}</Text>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+          <div className="flex items-center text-orange-500">
+            <Ticket size={16} className="mr-2" />
+            <Text>{t('兑换码可以批量生成和分发，适合用于推广活动或批量充值。')}</Text>
+          </div>
+          <Button
+            theme='light'
+            type='secondary'
+            icon={<IconDescend />}
+            className="!rounded-full w-full md:w-auto"
+            onClick={() => setCompactMode(!compactMode)}
+          >
+            {compactMode ? t('自适应列表') : t('紧凑列表')}
+          </Button>
         </div>
       </div>
 
@@ -610,9 +624,9 @@ const RedemptionsTable = () => {
         bordered={false}
       >
         <Table
-          columns={columns}
+          columns={compactMode ? columns.map(({ fixed, ...rest }) => rest) : columns}
           dataSource={pageData}
-          scroll={{ x: 'max-content' }}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
           pagination={{
             currentPage: activePage,
             pageSize: pageSize,

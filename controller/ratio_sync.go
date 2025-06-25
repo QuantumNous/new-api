@@ -3,6 +3,7 @@ package controller
 import (
     "context"
     "encoding/json"
+    "fmt"
     "net/http"
     "strings"
     "sync"
@@ -43,7 +44,17 @@ func FetchUpstreamRatios(c *gin.Context) {
 
     var upstreams []dto.UpstreamDTO
 
-    if len(req.ChannelIDs) > 0 {
+    if len(req.Upstreams) > 0 {
+        for _, u := range req.Upstreams {
+            if strings.HasPrefix(u.BaseURL, "http") {
+                if u.Endpoint == "" {
+                    u.Endpoint = defaultEndpoint
+                }
+                u.BaseURL = strings.TrimRight(u.BaseURL, "/")
+                upstreams = append(upstreams, u)
+            }
+        }
+    } else if len(req.ChannelIDs) > 0 {
         intIds := make([]int, 0, len(req.ChannelIDs))
         for _, id64 := range req.ChannelIDs {
             intIds = append(intIds, int(id64))
@@ -57,6 +68,7 @@ func FetchUpstreamRatios(c *gin.Context) {
         for _, ch := range dbChannels {
             if base := ch.GetBaseURL(); strings.HasPrefix(base, "http") {
                 upstreams = append(upstreams, dto.UpstreamDTO{
+                    ID:       ch.Id,
                     Name:     ch.Name,
                     BaseURL:  strings.TrimRight(base, "/"),
                     Endpoint: "",
@@ -93,43 +105,125 @@ func FetchUpstreamRatios(c *gin.Context) {
             }
             fullURL := chItem.BaseURL + endpoint
 
+            uniqueName := chItem.Name
+            if chItem.ID != 0 {
+                uniqueName = fmt.Sprintf("%s(%d)", chItem.Name, chItem.ID)
+            }
+
             ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(req.Timeout)*time.Second)
             defer cancel()
 
             httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
             if err != nil {
                 common.LogWarn(c.Request.Context(), "build request failed: "+err.Error())
-                ch <- upstreamResult{Name: chItem.Name, Err: err.Error()}
+                ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
                 return
             }
 
             resp, err := client.Do(httpReq)
             if err != nil {
                 common.LogWarn(c.Request.Context(), "http error on "+chItem.Name+": "+err.Error())
-                ch <- upstreamResult{Name: chItem.Name, Err: err.Error()}
+                ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
                 return
             }
             defer resp.Body.Close()
             if resp.StatusCode != http.StatusOK {
                 common.LogWarn(c.Request.Context(), "non-200 from "+chItem.Name+": "+resp.Status)
-                ch <- upstreamResult{Name: chItem.Name, Err: resp.Status}
+                ch <- upstreamResult{Name: uniqueName, Err: resp.Status}
                 return
             }
+            // 兼容两种上游接口格式：
+            //  type1: /api/ratio_config -> data 为 map[string]any，包含 model_ratio/completion_ratio/cache_ratio/model_price
+            //  type2: /api/pricing      -> data 为 []Pricing 列表，需要转换为与 type1 相同的 map 格式
             var body struct {
-                Success bool                   `json:"success"`
-                Data    map[string]any         `json:"data"`
-                Message string                 `json:"message"`
+                Success bool            `json:"success"`
+                Data    json.RawMessage `json:"data"`
+                Message string          `json:"message"`
             }
+
             if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
                 common.LogWarn(c.Request.Context(), "json decode failed from "+chItem.Name+": "+err.Error())
-                ch <- upstreamResult{Name: chItem.Name, Err: err.Error()}
+                ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
                 return
             }
+
             if !body.Success {
-                ch <- upstreamResult{Name: chItem.Name, Err: body.Message}
+                ch <- upstreamResult{Name: uniqueName, Err: body.Message}
                 return
             }
-            ch <- upstreamResult{Name: chItem.Name, Data: body.Data}
+
+            // 尝试按 type1 解析
+            var type1Data map[string]any
+            if err := json.Unmarshal(body.Data, &type1Data); err == nil {
+                // 如果包含至少一个 ratioTypes 字段，则认为是 type1
+                isType1 := false
+                for _, rt := range ratioTypes {
+                    if _, ok := type1Data[rt]; ok {
+                        isType1 = true
+                        break
+                    }
+                }
+                if isType1 {
+                    ch <- upstreamResult{Name: uniqueName, Data: type1Data}
+                    return
+                }
+            }
+
+            // 如果不是 type1，则尝试按 type2 (/api/pricing) 解析
+            var pricingItems []struct {
+                ModelName       string  `json:"model_name"`
+                QuotaType       int     `json:"quota_type"`
+                ModelRatio      float64 `json:"model_ratio"`
+                ModelPrice      float64 `json:"model_price"`
+                CompletionRatio float64 `json:"completion_ratio"`
+            }
+            if err := json.Unmarshal(body.Data, &pricingItems); err != nil {
+                common.LogWarn(c.Request.Context(), "unrecognized data format from "+chItem.Name+": "+err.Error())
+                ch <- upstreamResult{Name: uniqueName, Err: "无法解析上游返回数据"}
+                return
+            }
+
+            modelRatioMap := make(map[string]float64)
+            completionRatioMap := make(map[string]float64)
+            modelPriceMap := make(map[string]float64)
+
+            for _, item := range pricingItems {
+                if item.QuotaType == 1 {
+                    modelPriceMap[item.ModelName] = item.ModelPrice
+                } else {
+                    modelRatioMap[item.ModelName] = item.ModelRatio
+                    // completionRatio 可能为 0，此时也直接赋值，保持与上游一致
+                    completionRatioMap[item.ModelName] = item.CompletionRatio
+                }
+            }
+
+            converted := make(map[string]any)
+
+            if len(modelRatioMap) > 0 {
+                ratioAny := make(map[string]any, len(modelRatioMap))
+                for k, v := range modelRatioMap {
+                    ratioAny[k] = v
+                }
+                converted["model_ratio"] = ratioAny
+            }
+
+            if len(completionRatioMap) > 0 {
+                compAny := make(map[string]any, len(completionRatioMap))
+                for k, v := range completionRatioMap {
+                    compAny[k] = v
+                }
+                converted["completion_ratio"] = compAny
+            }
+
+            if len(modelPriceMap) > 0 {
+                priceAny := make(map[string]any, len(modelPriceMap))
+                for k, v := range modelPriceMap {
+                    priceAny[k] = v
+                }
+                converted["model_price"] = priceAny
+            }
+
+            ch <- upstreamResult{Name: uniqueName, Data: converted}
         }(chn)
     }
 
@@ -202,6 +296,43 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
         }
     }
 
+    confidenceMap := make(map[string]map[string]bool)
+    
+    // 预处理阶段：检查pricing接口的可信度
+    for _, channel := range successfulChannels {
+        confidenceMap[channel.name] = make(map[string]bool)
+        
+        modelRatios, hasModelRatio := channel.data["model_ratio"].(map[string]any)
+        completionRatios, hasCompletionRatio := channel.data["completion_ratio"].(map[string]any)
+        
+        if hasModelRatio && hasCompletionRatio {
+            // 遍历所有模型，检查是否满足不可信条件
+            for modelName := range allModels {
+                // 默认为可信
+                confidenceMap[channel.name][modelName] = true
+                
+                // 检查是否满足不可信条件：model_ratio为37.5且completion_ratio为1
+                if modelRatioVal, ok := modelRatios[modelName]; ok {
+                    if completionRatioVal, ok := completionRatios[modelName]; ok {
+                        // 转换为float64进行比较
+                        if modelRatioFloat, ok := modelRatioVal.(float64); ok {
+                            if completionRatioFloat, ok := completionRatioVal.(float64); ok {
+                                if modelRatioFloat == 37.5 && completionRatioFloat == 1.0 {
+                                    confidenceMap[channel.name][modelName] = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // 如果不是从pricing接口获取的数据，则全部标记为可信
+            for modelName := range allModels {
+                confidenceMap[channel.name][modelName] = true
+            }
+        }
+    }
+
     for modelName := range allModels {
         for _, ratioType := range ratioTypes {
             var localValue interface{} = nil
@@ -214,6 +345,7 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
             }
 
             upstreamValues := make(map[string]interface{})
+            confidenceValues := make(map[string]bool)
             hasUpstreamValue := false
             hasDifference := false
 
@@ -241,6 +373,8 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
                 }
                 
                 upstreamValues[channel.name] = upstreamValue
+                
+                confidenceValues[channel.name] = confidenceMap[channel.name][modelName]
             }
 
             shouldInclude := false
@@ -262,6 +396,7 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
                 differences[modelName][ratioType] = dto.DifferenceItem{
                     Current:   localValue,
                     Upstreams: upstreamValues,
+                    Confidence: confidenceValues,
                 }
             }
         }
@@ -283,9 +418,26 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
             for chName := range item.Upstreams {
                 if !channelHasDiff[chName] {
                     delete(item.Upstreams, chName)
+                    delete(item.Confidence, chName)
                 }
             }
-            differences[modelName][ratioType] = item
+
+            allSame := true
+            for _, v := range item.Upstreams {
+                if v != "same" {
+                    allSame = false
+                    break
+                }
+            }
+            if len(item.Upstreams) == 0 || allSame {
+                delete(ratioMap, ratioType)
+            } else {
+                differences[modelName][ratioType] = item
+            }
+        }
+
+        if len(ratioMap) == 0 {
+            delete(differences, modelName)
         }
     }
 

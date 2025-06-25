@@ -100,7 +100,7 @@ This version supports multiple models, please refer to [API Documentation-Relay 
 For detailed configuration instructions, please refer to [Installation Guide-Environment Variables Configuration](https://docs.newapi.pro/installation/environment-variables):
 
 - `GENERATE_DEFAULT_TOKEN`: Whether to generate initial tokens for newly registered users, default is `false`
-- `STREAMING_TIMEOUT`: Streaming response timeout, default is 60 seconds
+- `STREAMING_TIMEOUT`: Streaming response timeout, default is 120 seconds
 - `DIFY_DEBUG`: Whether to output workflow and node information for Dify channels, default is `true`
 - `FORCE_STREAM_OPTION`: Whether to override client stream_options parameter, default is `true`
 - `GET_MEDIA_TOKEN`: Whether to count image tokens, default is `true`

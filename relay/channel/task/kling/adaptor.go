@@ -69,8 +69,8 @@ func (a *TaskAdaptor) Init(info *relaycommon.TaskRelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.BaseUrl
 
-	// apiKey format: "access_key,secret_key"
-	keyParts := strings.Split(info.ApiKey, ",")
+	// apiKey format: "access_key|secret_key"
+	keyParts := strings.Split(info.ApiKey, "|")
 	if len(keyParts) == 2 {
 		a.accessKey = strings.TrimSpace(keyParts[0])
 		a.secretKey = strings.TrimSpace(keyParts[1])
@@ -264,7 +264,7 @@ func (a *TaskAdaptor) createJWTToken() (string, error) {
 }
 
 func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
-	parts := strings.Split(apiKey, ",")
+	parts := strings.Split(apiKey, "|")
 	if len(parts) != 2 {
 		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
 	}

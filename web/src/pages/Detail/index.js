@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef, useState, useMemo, useCallback } 
 import { initVChartSemiTheme } from '@visactor/vchart-semi-theme';
 import { useNavigate } from 'react-router-dom';
 import { Wallet, Activity, Zap, Gauge, PieChart, Server, Bell, HelpCircle } from 'lucide-react';
+import { marked } from 'marked';
 
 import {
   Card,
@@ -1267,10 +1268,27 @@ const Detail = (props) => {
                       onScroll={() => handleCardScroll(announcementScrollRef, setShowAnnouncementScrollHint)}
                     >
                       {announcementData.length > 0 ? (
-                        <Timeline
-                          mode="alternate"
-                          dataSource={announcementData}
-                        />
+                        <Timeline mode="alternate">
+                          {announcementData.map((item, idx) => (
+                            <Timeline.Item
+                              key={idx}
+                              type={item.type || 'default'}
+                              time={item.time}
+                            >
+                              <div>
+                                <div
+                                  dangerouslySetInnerHTML={{ __html: marked.parse(item.content || '') }}
+                                />
+                                {item.extra && (
+                                  <div
+                                    className="text-xs text-gray-500"
+                                    dangerouslySetInnerHTML={{ __html: marked.parse(item.extra) }}
+                                  />
+                                )}
+                              </div>
+                            </Timeline.Item>
+                          ))}
+                        </Timeline>
                       ) : (
                         <div className="flex justify-center items-center py-8">
                           <Empty
@@ -1321,7 +1339,9 @@ const Detail = (props) => {
                               header={item.question}
                               itemKey={index.toString()}
                             >
-                              <p>{item.answer}</p>
+                              <div
+                                dangerouslySetInnerHTML={{ __html: marked.parse(item.answer || '') }}
+                              />
                             </Collapse.Panel>
                           ))}
                         </Collapse>

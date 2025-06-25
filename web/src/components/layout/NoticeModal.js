@@ -113,25 +113,31 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
     return (
       <div className="max-h-[55vh] overflow-y-auto pr-2 card-content-scroll">
         <Timeline mode="alternate">
-          {processedAnnouncements.map((item, idx) => (
-            <Timeline.Item
-              key={idx}
-              type={item.type}
-              time={item.time}
-              className={item.isUnread ? '' : ''}
-            >
-              <div>
-                {item.isUnread ? (
-                  <span className="shine-text">
-                    {item.content}
-                  </span>
-                ) : (
-                  item.content
-                )}
-                {item.extra && <div className="text-xs text-gray-500">{item.extra}</div>}
-              </div>
-            </Timeline.Item>
-          ))}
+          {processedAnnouncements.map((item, idx) => {
+            const htmlContent = marked.parse(item.content || '');
+            const htmlExtra = item.extra ? marked.parse(item.extra) : '';
+            return (
+              <Timeline.Item
+                key={idx}
+                type={item.type}
+                time={item.time}
+                className={item.isUnread ? '' : ''}
+              >
+                <div>
+                  <div
+                    className={item.isUnread ? 'shine-text' : ''}
+                    dangerouslySetInnerHTML={{ __html: htmlContent }}
+                  />
+                  {item.extra && (
+                    <div
+                      className="text-xs text-gray-500"
+                      dangerouslySetInnerHTML={{ __html: htmlExtra }}
+                    />
+                  )}
+                </div>
+              </Timeline.Item>
+            );
+          })}
         </Timeline>
       </div>
     );

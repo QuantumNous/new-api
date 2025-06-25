@@ -258,3 +258,32 @@ func UpdateToken(c *gin.Context) {
 	})
 	return
 }
+
+type TokenBatch struct {
+	Ids []int `json:"ids"`
+}
+
+func DeleteTokenBatch(c *gin.Context) {
+	tokenBatch := TokenBatch{}
+	if err := c.ShouldBindJSON(&tokenBatch); err != nil || len(tokenBatch.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+	userId := c.GetInt("id")
+	count, err := model.BatchDeleteTokens(tokenBatch.Ids, userId)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    count,
+	})
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Button,
   Space,
@@ -9,7 +9,9 @@ import {
   Divider,
   Modal,
   Tag,
-  Switch
+  Switch,
+  TextArea,
+  Tooltip
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -20,7 +22,8 @@ import {
   Edit,
   Trash2,
   Save,
-  Bell
+  Bell,
+  Maximize2
 } from 'lucide-react';
 import { API, showError, showSuccess, getRelativeTime, formatDateTimeString } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +36,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   const [announcementsList, setAnnouncementsList] = useState([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showContentModal, setShowContentModal] = useState(false);
   const [deletingAnnouncement, setDeletingAnnouncement] = useState(null);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
@@ -50,6 +54,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   // 面板启用状态
   const [panelEnabled, setPanelEnabled] = useState(true);
+
+  const formApiRef = useRef(null);
 
   const typeOptions = [
     { value: 'default', label: t('默认') },
@@ -76,13 +82,16 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       dataIndex: 'content',
       key: 'content',
       render: (text) => (
-        <div style={{
-          maxWidth: '300px',
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap'
-        }}>
-          {text}
-        </div>
+        <Tooltip content={text} position='topLeft' showArrow>
+          <div style={{
+            maxWidth: '300px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
+            {text}
+          </div>
+        </Tooltip>
       )
     },
     {
@@ -121,13 +130,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       dataIndex: 'extra',
       key: 'extra',
       render: (text) => (
-        <div style={{
-          maxWidth: '200px',
-          wordBreak: 'break-word',
-          color: 'var(--semi-color-text-2)'
-        }}>
-          {text || '-'}
-        </div>
+        <Tooltip content={text || '-'} showArrow>
+          <div style={{
+            maxWidth: '200px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: 'var(--semi-color-text-2)'
+          }}>
+            {text || '-'}
+          </div>
+        </Tooltip>
       )
     },
     {
@@ -472,16 +485,31 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         className="rounded-xl"
         confirmLoading={modalLoading}
       >
-        <Form layout='vertical' initValues={announcementForm} key={editingAnnouncement ? editingAnnouncement.id : 'new'}>
+        <Form
+          layout='vertical'
+          initValues={announcementForm}
+          key={editingAnnouncement ? editingAnnouncement.id : 'new'}
+          getFormApi={(api) => (formApiRef.current = api)}
+        >
           <Form.TextArea
             field='content'
             label={t('公告内容')}
-            placeholder={t('请输入公告内容')}
+            placeholder={t('请输入公告内容（支持 Markdown/HTML）')}
             maxCount={500}
             rows={3}
             rules={[{ required: true, message: t('请输入公告内容') }]}
             onChange={(value) => setAnnouncementForm({ ...announcementForm, content: value })}
           />
+          <Button
+            theme='light'
+            type='tertiary'
+            size='small'
+            icon={<Maximize2 size={14} />}
+            style={{ marginBottom: 16 }}
+            onClick={() => setShowContentModal(true)}
+          >
+            {t('放大编辑')}
+          </Button>
           <Form.DatePicker
             field='publishDate'
             label={t('发布日期')}
@@ -522,6 +550,33 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         }}
       >
         <Text>{t('确定要删除此公告吗？')}</Text>
+      </Modal>
+
+      {/* 公告内容放大编辑 Modal */}
+      <Modal
+        title={t('编辑公告内容')}
+        visible={showContentModal}
+        onOk={() => {
+          // 将内容同步到表单
+          if (formApiRef.current) {
+            formApiRef.current.setValue('content', announcementForm.content);
+          }
+          setShowContentModal(false);
+        }}
+        onCancel={() => setShowContentModal(false)}
+        okText={t('确定')}
+        cancelText={t('取消')}
+        className="rounded-xl"
+        width={800}
+      >
+        <TextArea
+          value={announcementForm.content}
+          placeholder={t('请输入公告内容（支持 Markdown/HTML）')}
+          maxCount={500}
+          rows={15}
+          style={{ width: '100%' }}
+          onChange={(value) => setAnnouncementForm({ ...announcementForm, content: value })}
+        />
       </Modal>
     </>
   );

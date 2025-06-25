@@ -57,7 +57,7 @@ func Distribute() func(c *gin.Context) {
 			}
 			userGroup = tokenGroup
 		}
-		c.Set("group", userGroup)
+		c.Set(constant.ContextKeyUsingGroup, userGroup)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {

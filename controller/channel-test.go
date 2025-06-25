@@ -31,9 +31,7 @@ import (
 
 func testChannel(channel *model.Channel, testModel string) (err error, openAIErrorWithStatusCode *dto.OpenAIErrorWithStatusCode) {
 	tik := time.Now()
-	common.SysLog(fmt.Sprintf("🔧 [DEBUG] testChannel called for channel #%d (%s) with model: %s", channel.Id, channel.Name, testModel))
 	if channel.Type == common.ChannelTypeMidjourney {
-		common.SysLog(fmt.Sprintf("🔧 [DEBUG] Skipping midjourney channel #%d", channel.Id))
 		return errors.New("midjourney channel test is not supported"), nil
 	}
 	if channel.Type == common.ChannelTypeMidjourneyPlus {
@@ -176,7 +174,7 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(c, 1, channel.Id, usage.PromptTokens, usage.CompletionTokens, info.OriginModelName, "模型测试",
-		quota, "模型测试", 0, quota, int(consumedTime), false, info.Group, other)
+		quota, "模型测试", 0, quota, int(consumedTime), false, info.UsingGroup, other)
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return nil, nil
 }
@@ -262,23 +260,18 @@ var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
 func testAllChannels(notify bool) error {
-	common.SysLog(fmt.Sprintf("🔧 [DEBUG] testAllChannels called with notify=%v", notify))
 
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
 		testAllChannelsLock.Unlock()
-		common.SysLog("🔧 [DEBUG] testAllChannels already running, returning error")
 		return errors.New("测试已在运行中")
 	}
 	testAllChannelsRunning = true
 	testAllChannelsLock.Unlock()
-	common.SysLog("🔧 [DEBUG] testAllChannels acquired lock, getting channels")
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("🔧 [DEBUG] GetAllChannels failed: %v", err))
 		return err
 	}
-	common.SysLog(fmt.Sprintf("🔧 [DEBUG] Got %d channels to test", len(channels)))
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
@@ -350,18 +343,10 @@ func TestAllChannels(c *gin.Context) {
 }
 
 func AutomaticallyTestChannels(frequency int) {
-	common.SysLog(fmt.Sprintf("🔧 [DEBUG] AutomaticallyTestChannels started with frequency: %d minutes", frequency))
 	for {
-		common.SysLog(fmt.Sprintf("🔧 [DEBUG] AutomaticallyTestChannels sleeping for %d minutes", frequency))
 		time.Sleep(time.Duration(frequency) * time.Minute)
-		common.SysLog("🔧 [DEBUG] AutomaticallyTestChannels woke up, starting channel test")
 		common.SysLog("testing all channels")
-		err := testAllChannels(false)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("🔧 [DEBUG] testAllChannels returned error: %v", err))
-		} else {
-			common.SysLog("🔧 [DEBUG] testAllChannels completed successfully")
-		}
+		_ = testAllChannels(false)
 		common.SysLog("channel test finished")
 	}
 }

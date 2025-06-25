@@ -24,7 +24,7 @@ import {
   XCircle,
   Loader,
   AlertCircle,
-  Hash
+  Hash,
 } from 'lucide-react';
 import {
   API,
@@ -59,8 +59,10 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import {
   IconEyeOpened,
   IconSearch,
-  IconSetting
+  IconSetting,
+  IconDescend
 } from '@douyinfe/semi-icons';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -107,6 +109,7 @@ const LogsTable = () => {
   const [visibleColumns, setVisibleColumns] = useState({});
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const isAdminUser = isAdmin();
+  const [compactMode, setCompactMode] = useTableCompactMode('mjLogs');
 
   // 加载保存的列偏好设置
   useEffect(() => {
@@ -802,7 +805,7 @@ const LogsTable = () => {
           className="!rounded-2xl mb-4"
           title={
             <div className="flex flex-col w-full">
-              <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
                 <div className="flex items-center text-orange-500 mb-2 md:mb-0">
                   <IconEyeOpened className="mr-2" />
                   {loading ? (
@@ -821,6 +824,15 @@ const LogsTable = () => {
                     </Text>
                   )}
                 </div>
+                <Button
+                  theme='light'
+                  type='secondary'
+                  icon={<IconDescend />}
+                  className="!rounded-full w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
+                >
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
               </div>
 
               <Divider margin="12px" />
@@ -919,11 +931,11 @@ const LogsTable = () => {
           bordered={false}
         >
           <Table
-            columns={getVisibleColumns()}
+            columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
             dataSource={logs}
             rowKey='key'
             loading={loading}
-            scroll={{ x: 'max-content' }}
+            scroll={compactMode ? undefined : { x: 'max-content' }}
             className="rounded-xl overflow-hidden"
             size="middle"
             empty={

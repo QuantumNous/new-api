@@ -65,8 +65,8 @@ type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
 	UserId            int
-	Group             string
-	UserGroup         string
+	UsingGroup        string // 使用的分组
+	UserGroup         string // 用户所在分组
 	TokenUnlimited    bool
 	StartTime         time.Time
 	FirstResponseTime time.Time
@@ -219,7 +219,6 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	tokenId := c.GetInt("token_id")
 	tokenKey := c.GetString("token_key")
 	userId := c.GetInt("id")
-	group := c.GetString("group")
 	tokenUnlimited := c.GetBool("token_unlimited_quota")
 	startTime := c.GetTime(constant.ContextKeyRequestStartTime)
 	// firstResponseTime = time.Now() - 1 second
@@ -239,7 +238,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		TokenId:           tokenId,
 		TokenKey:          tokenKey,
 		UserId:            userId,
-		Group:             group,
+		UsingGroup:        c.GetString(constant.ContextKeyUsingGroup),
 		UserGroup:         c.GetString(constant.ContextKeyUserGroup),
 		TokenUnlimited:    tokenUnlimited,
 		StartTime:         startTime,
