@@ -139,13 +139,6 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), controller.SearchUserLogs)
 
-		// 限速查询接口
-		rateLimitRoute := apiRouter.Group("/rate_limit")
-		{
-			rateLimitRoute.GET("/info", middleware.AdminAuth(), controller.GetRateLimitInfo)
-			rateLimitRoute.GET("/self/info", middleware.UserAuth(), controller.GetCurrentUserRateLimitInfo)
-		}
-
 		// 用户限速配置接口
 		userRateLimitRoute := apiRouter.Group("/user_rate_limit")
 		userRateLimitRoute.Use(middleware.TokenAuth())
