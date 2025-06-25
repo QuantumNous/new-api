@@ -100,7 +100,7 @@ var (
 			Subsystem: Namespace,
 			Name:      "batch_request_total",
 			Help:      "Total number of batch requests by status code",
-		}, []string{"channel", "channel_name", "tag", "base_url", "model", "group", "code"})
+		}, []string{"channel", "channel_name", "tag", "base_url", "model", "group", "code", "retry_header"})
 	batchRequestDurationObsever = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Subsystem: Namespace,
@@ -108,7 +108,7 @@ var (
 			Help:      "Duration of batch request",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 12),
 		},
-		[]string{"channel", "channel_name", "tag", "base_url", "model", "group", "code"},
+		[]string{"channel", "channel_name", "tag", "base_url", "model", "group", "code", "retry_header"},
 	)
 	// Token metrics
 	inputTokensCounter = prometheus.NewCounterVec(
@@ -184,12 +184,12 @@ func ObserveRelayRequestE2EDuration(channel, channelName, model, group, tokenKey
 }
 
 // Batch request metrics functions
-func IncrementBatchRequestCounter(channel, channelName, tag, baseURL, model, group, code string, add float64) {
-	batchRequestCounter.WithLabelValues(channel, channelName, tag, baseURL, model, group, code).Add(add)
+func IncrementBatchRequestCounter(channel, channelName, tag, baseURL, model, group, code, retryHeader string, add float64) {
+	batchRequestCounter.WithLabelValues(channel, channelName, tag, baseURL, model, group, code, retryHeader).Add(add)
 }
 
-func ObserveBatchRequestDuration(channel, channelName, tag, baseURL, model, group, code string, duration float64) {
-	batchRequestDurationObsever.WithLabelValues(channel, channelName, tag, baseURL, model, group, code).Observe(duration)
+func ObserveBatchRequestDuration(channel, channelName, tag, baseURL, model, group, code, retryHeader string, duration float64) {
+	batchRequestDurationObsever.WithLabelValues(channel, channelName, tag, baseURL, model, group, code, retryHeader).Observe(duration)
 }
 
 // Token metrics functions

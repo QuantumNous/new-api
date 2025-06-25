@@ -30,11 +30,15 @@ const (
 	// 限速器默认大小为 MaxParallelRequests 的 3 倍
 	RateLimiterSize = MaxParallelRequests * 3
 	// 异步调用超时时间配置
-	MinAsyncTimeout = 30 * time.Second
-	MaxAsyncTimeout = 60 * time.Second
+	MinAsyncTimeout = 1 * time.Second
+	MaxAsyncTimeout = 3 * time.Second
 	// 限流等待时间配置 - 用于等待可用请求槽位的超时时间
 	MinRateLimitWaitTime = 100 * time.Millisecond
 	MaxRateLimitWaitTime = 1000 * time.Millisecond
+
+	// 重试响应延迟时间配置 - 用于控制重试请求的返回时间
+	MinRetryResponseDelay = 0 * time.Millisecond
+	MaxRetryResponseDelay = 0 * time.Millisecond
 
 	// CreateBatchChatCompletion 调用的超时时间
 	BatchCompletionTimeout = 24 * time.Hour
@@ -67,7 +71,7 @@ var (
 
 // 建议重试时间相关变量
 var (
-	batchRequestAvgDuration      float64 = 30.0 // 默认30秒
+	batchRequestAvgDuration      float64 = 600.0 // 默认30秒
 	batchRequestAvgDurationMutex sync.RWMutex
 )
 
@@ -179,6 +183,8 @@ func GetCurrentTimeouts(ctx context.Context) map[string]time.Duration {
 		"max_async_timeout":        MaxAsyncTimeout,
 		"min_rate_limit_wait":      MinRateLimitWaitTime,
 		"max_rate_limit_wait":      MaxRateLimitWaitTime,
+		"min_retry_response_delay": MinRetryResponseDelay,
+		"max_retry_response_delay": MaxRetryResponseDelay,
 		"default_async_timeout":    AsyncCallTimeout,
 		"default_batch_timeout":    BatchCompletionTimeout,
 	}
@@ -204,16 +210,63 @@ func isRetryRequest(c *gin.Context) bool {
 func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	// 获取请求ID
 	requestID := getRequestID(c)
-	c.Set("Retry_request_id", requestID)
+
+	// 获取 retry header 状态
+	retryHeaderStatus := "false"
+	if isRetryRequest(c) {
+		retryHeaderStatus = "true"
+	}
+
+	// 记录请求开始时间
+	requestStartTime := time.Now()
+
+	// 用于记录最终状态码的变量
+	var finalStatusCode string
+	var finalError error
+
+	// 使用 defer 确保在所有情况下都记录指标
+	defer func() {
+		// 如果没有设置状态码，说明是正常流程
+		if finalStatusCode == "" {
+			finalStatusCode = "success"
+		}
+
+		metrics.IncrementBatchRequestCounter(
+			fmt.Sprintf("%d", info.ChannelId),
+			info.ChannelName,
+			info.ChannelTag,
+			info.BaseUrl,
+			info.UpstreamModelName,
+			info.Group,
+			finalStatusCode,
+			retryHeaderStatus,
+			1,
+		)
+		metrics.ObserveBatchRequestDuration(
+			fmt.Sprintf("%d", info.ChannelId),
+			info.ChannelName,
+			info.ChannelTag,
+			info.BaseUrl,
+			info.UpstreamModelName,
+			info.Group,
+			finalStatusCode,
+			retryHeaderStatus,
+			time.Since(requestStartTime).Seconds(),
+		)
+	}()
 
 	// 尝试获取分布式锁，避免重复执行
 	lockKey := requestID + "_lock"
 	lockAcquired, err := TryAcquireLock(lockKey, DistributedLockExpiration)
 	if err != nil {
-		return nil, fmt.Errorf("failed to acquire lock: %w", err)
+		finalStatusCode = "lock_acquisition_error"
+		finalError = fmt.Errorf("failed to acquire lock: %w", err)
+		return nil, finalError
 	}
 
 	if !lockAcquired {
+		finalStatusCode = "lock_already_acquired"
+
 		// 返回内部错误响应
 		errorResponse := gin.H{
 			"error": gin.H{
@@ -242,11 +295,19 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 
 	// 检查是否为重试请求
 	if isRetryRequest(c) {
+		// 应用重试响应延迟
+		retryDelay := calculateRetryResponseDelay()
+		if retryDelay > 0 {
+			common.LogInfo(c.Request.Context(), fmt.Sprintf("Applying retry response delay: %v for request %s", retryDelay, requestID))
+			time.Sleep(retryDelay)
+		}
+
 		// 从Redis获取结果，使用当前的requestID（可能是retry_request_id）
 		resultData, err := GetBatchResultFromRedis(requestID)
 		if err == nil {
 			// 检查Result是否为空且状态为pending，这种情况说明第一次请求可能超时了
 			if resultData.Result == "" && resultData.Status == "pending" {
+				finalStatusCode = "retry_pending"
 				common.LogInfo(c.Request.Context(), fmt.Sprintf("Found pending request for %s, returning retry response", requestID))
 
 				// 返回重试提示
@@ -274,6 +335,7 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 				c.Writer.Header().Set("X-Suggested-Retry-After", fmt.Sprintf("%.0f", avgDuration))
 				return response, nil
 			} else if resultData.Result != "" {
+				finalStatusCode = "retry_cache_hit"
 				// 只有在Result不为空时才处理缓存结果
 				// 删除Redis中的key
 				err = DeleteBatchResultFromRedis(requestID)
@@ -284,13 +346,17 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 				// 先用火山引擎格式解析，再转换为SimpleResponse
 				openaiResponse, err := convertVolcEngineResponseToOpenAI([]byte(resultData.Result))
 				if err != nil {
-					return nil, fmt.Errorf("failed to convert cached response format: %w", err)
+					finalStatusCode = "retry_cache_convert_error"
+					finalError = fmt.Errorf("failed to convert cached response format: %w", err)
+					return nil, finalError
 				}
 
 				// 将转换后的结果序列化为JSON
 				openaiResponseJson, err := json.Marshal(openaiResponse)
 				if err != nil {
-					return nil, fmt.Errorf("failed to marshal cached OpenAI response: %w", err)
+					finalStatusCode = "retry_cache_marshal_error"
+					finalError = fmt.Errorf("failed to marshal cached OpenAI response: %w", err)
+					return nil, finalError
 				}
 
 				// 找到结果，返回并删除key
@@ -324,6 +390,7 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 		defer cancel()
 
 		if waitErr := waitForAvailableSlot(ctx); waitErr != nil {
+			finalStatusCode = "rate_limit_exceeded"
 			// 等待超时，返回自定义限流错误
 			errorResponse := gin.H{
 				"error": gin.H{
@@ -349,12 +416,16 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 	// 解析请求体
 	var request dto.GeneralOpenAIRequest
 	if err := json.NewDecoder(requestBody).Decode(&request); err != nil {
-		return nil, fmt.Errorf("failed to decode request body: %w", err)
+		finalStatusCode = "request_decode_error"
+		finalError = fmt.Errorf("failed to decode request body: %w", err)
+		return nil, finalError
 	}
 	// 转换为豆包批量请求格式
 	batchRequest, err := convertToBatchRequest(&request, info.Endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert request: %w", err)
+		finalStatusCode = "request_convert_error"
+		finalError = fmt.Errorf("failed to convert request: %w", err)
+		return nil, finalError
 	}
 
 	// 检查是否有未支持的参数
@@ -377,50 +448,7 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 		// 使用独立的context，不受外层asyncCtx影响
 		independentCtx := context.Background()
 
-		// 记录batch请求开始时间
-		batchStartTime := time.Now()
-
 		result, err := executeBatchRequestWithRedis(independentCtx, client, batchRequest, requestID)
-
-		// 记录batch请求指标
-		// 获取实际状态码
-		statusCode := "-1" // 默认状态码
-		if err != nil {
-			statusCode = "request_failed"
-		} else if result != nil {
-			// 尝试从结果中提取状态码
-			if resultMap, ok := result.(map[string]interface{}); ok {
-				if code, exists := resultMap["code"]; exists {
-					if codeStr, ok := code.(string); ok {
-						statusCode = codeStr
-					} else if codeInt, ok := code.(float64); ok {
-						statusCode = fmt.Sprintf("%.0f", codeInt)
-					}
-				}
-			}
-		}
-
-		// 记录指标
-		metrics.IncrementBatchRequestCounter(
-			info.ChannelTag,
-			info.ChannelName,
-			info.ChannelTag,
-			info.BaseUrl,
-			info.UpstreamModelName,
-			info.Group,
-			statusCode,
-			1,
-		)
-		metrics.ObserveBatchRequestDuration(
-			info.ChannelTag,
-			info.ChannelName,
-			info.ChannelTag,
-			info.BaseUrl,
-			info.UpstreamModelName,
-			info.Group,
-			statusCode,
-			time.Since(batchStartTime).Seconds(),
-		)
 
 		if err != nil {
 			common.LogError(c, fmt.Sprintf("Async batch request failed for requestID %s: %v", requestID, err))
@@ -438,11 +466,14 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 		common.LogInfo(c, fmt.Sprintf("Received result for requestID %s", requestID))
 	case err := <-errChan:
 		// 发生错误
+		finalStatusCode = "async_request_failed"
+		finalError = fmt.Errorf("batch request failed: %w", err)
 		common.LogError(c, fmt.Sprintf("batch request failed: %v", err))
-		return nil, fmt.Errorf("batch request failed: %w", err)
+		return nil, finalError
 	case <-asyncCtx.Done():
 		// 超时
 		if asyncCtx.Err() == context.DeadlineExceeded {
+			finalStatusCode = "async_timeout"
 			common.LogError(c, fmt.Sprintf("Async call timeout after %v for requestID %s", timeoutDuration, requestID))
 			c.Writer.Header().Set("Retry_request_id", requestID)
 
@@ -470,27 +501,35 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 			c.Writer.Header().Set("X-Suggested-Retry-After", fmt.Sprintf("%.0f", avgDuration))
 			return response, nil
 		}
+		finalStatusCode = "async_cancelled"
+		finalError = fmt.Errorf("async call cancelled: %w", asyncCtx.Err())
 		common.LogError(c, fmt.Sprintf("Async call cancelled for requestID %s: %w", requestID, asyncCtx.Err()))
 		c.Writer.Header().Set("Retry_request_id", requestID)
-		return nil, fmt.Errorf("async call cancelled: %w", asyncCtx.Err())
+		return nil, finalError
 	}
 
 	// 将结果转换为JSON
 	resultJson, err := json.Marshal(result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
+		finalStatusCode = "result_marshal_error"
+		finalError = fmt.Errorf("failed to marshal result: %w", err)
+		return nil, finalError
 	}
 
 	// 将火山引擎的响应转换为标准的OpenAI格式
 	openaiResponse, err := convertVolcEngineResponseToOpenAI(resultJson)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert response format: %w", err)
+		finalStatusCode = "response_convert_error"
+		finalError = fmt.Errorf("failed to convert response format: %w", err)
+		return nil, finalError
 	}
 
 	// 将转换后的结果序列化为JSON
 	openaiResponseJson, err := json.Marshal(openaiResponse)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal OpenAI response: %w", err)
+		finalStatusCode = "openai_response_marshal_error"
+		finalError = fmt.Errorf("failed to marshal OpenAI response: %w", err)
+		return nil, finalError
 	}
 
 	// 创建HTTP响应
@@ -534,6 +573,22 @@ func calculateRateLimitWaitTime() time.Duration {
 	waitMilliseconds := rand.Intn(timeRange) + int(MinRateLimitWaitTime.Milliseconds())
 
 	return time.Duration(waitMilliseconds) * time.Millisecond
+}
+
+// calculateRetryResponseDelay 在 MinRetryResponseDelay-MaxRetryResponseDelay 之间随机计算重试响应延迟时间
+func calculateRetryResponseDelay() time.Duration {
+	// 计算时间范围（毫秒）
+	timeRange := int(MaxRetryResponseDelay.Milliseconds() - MinRetryResponseDelay.Milliseconds())
+
+	// 如果时间范围为0或负数，直接返回MinRetryResponseDelay
+	if timeRange <= 0 {
+		return MinRetryResponseDelay
+	}
+
+	// 生成 MinRetryResponseDelay-MaxRetryResponseDelay 之间的随机延迟时间（毫秒）
+	delayMilliseconds := rand.Intn(timeRange) + int(MinRetryResponseDelay.Milliseconds())
+
+	return time.Duration(delayMilliseconds) * time.Millisecond
 }
 
 // GetCurrentRequestCount 获取当前请求计数（用于监控）
@@ -656,6 +711,7 @@ func checkUnsupportedParameters(request *dto.GeneralOpenAIRequest) {
 }
 
 // convertToBatchRequest 将 OpenAI 格式的请求转换为豆包批量请求格式
+// 支持多模态消息：文本、图片、视频形式
 func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (*model.CreateChatCompletionRequest, error) {
 	// 获取消息内容
 	if len(request.Messages) == 0 {
@@ -664,9 +720,19 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 
 	// 转换消息为豆包格式，支持多模态消息
 	messages := make([]*model.ChatCompletionMessage, 0, len(request.Messages))
-	for _, msg := range request.Messages {
+	for i, msg := range request.Messages {
 		// 解析消息内容
 		contentParts := msg.ParseContent()
+
+		// 记录多模态内容信息
+		if len(contentParts) > 1 {
+			common.SysLog(fmt.Sprintf("Processing multimodal message %d with %d content parts", i, len(contentParts)))
+			for j, part := range contentParts {
+				common.SysLog(fmt.Sprintf("  Part %d: type=%s", j, part.Type))
+			}
+		} else if len(contentParts) == 1 {
+			common.SysLog(fmt.Sprintf("Processing single content message %d: type=%s", i, contentParts[0].Type))
+		}
 
 		var messageContent *model.ChatCompletionMessageContent
 
@@ -682,21 +748,58 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 			for _, part := range contentParts {
 				switch part.Type {
 				case "text":
-					parts = append(parts, &model.ChatCompletionMessageContentPart{
-						Type: "text",
-						Text: part.Text,
-					})
+					// 文本内容
+					if part.Text != "" {
+						parts = append(parts, &model.ChatCompletionMessageContentPart{
+							Type: "text",
+							Text: part.Text,
+						})
+						common.SysLog(fmt.Sprintf("Added text part: length=%d", len(part.Text)))
+					}
 				case "image_url":
+					// 图片内容 - 只支持URL格式
 					if imageUrl, ok := part.ImageUrl.(dto.MessageImageUrl); ok {
 						detail := model.ImageURLDetail(imageUrl.Detail)
-						parts = append(parts, &model.ChatCompletionMessageContentPart{
-							Type: "image_url",
-							ImageURL: &model.ChatMessageImageURL{
-								URL:    imageUrl.Url,
-								Detail: detail,
-							},
-						})
+
+						// 检查Format是否为"url"
+						if imageUrl.Format == "url" {
+							parts = append(parts, &model.ChatCompletionMessageContentPart{
+								Type: "image_url",
+								ImageURL: &model.ChatMessageImageURL{
+									URL:    imageUrl.Url,
+									Detail: detail,
+								},
+							})
+							common.SysLog(fmt.Sprintf("Added image_url part: url=%s, detail=%s", imageUrl.Url, imageUrl.Detail))
+						} else {
+							// 如果不是URL格式，跳过该部分
+							common.SysLog(fmt.Sprintf("Skipping non-URL image_url part: format=%s", imageUrl.Format))
+						}
 					}
+				case "video_url":
+					// 视频内容 - 只支持URL格式
+					common.SysLog(fmt.Sprintf("Processing video_url part: InputAudio type=%T", part.InputAudio))
+					if videoUrl, ok := part.InputAudio.(dto.MessageInputAudio); ok {
+						common.SysLog(fmt.Sprintf("Video URL details: url=%s, format=%s, fps=%f", videoUrl.Url, videoUrl.Format, videoUrl.Fps))
+						if videoUrl.Format == "url" {
+							parts = append(parts, &model.ChatCompletionMessageContentPart{
+								Type: "video_url",
+								VideoURL: &model.ChatMessageVideoURL{
+									URL: videoUrl.Url,
+									FPS: &videoUrl.Fps,
+								},
+							})
+							common.SysLog(fmt.Sprintf("Added video_url part: url=%s, fps=%f", videoUrl.Url, videoUrl.Fps))
+						} else {
+							// 如果不是URL格式，跳过该部分
+							common.SysLog(fmt.Sprintf("Skipping non-URL video_url part: format=%s", videoUrl.Format))
+						}
+					} else {
+						common.SysLog(fmt.Sprintf("Failed to cast InputAudio to MessageInputAudio: %v", part.InputAudio))
+					}
+				default:
+					// 对于不支持的内容类型，直接返回错误
+					return nil, fmt.Errorf("unsupported content type: %s", part.Type)
 				}
 			}
 			if len(parts) > 0 {
@@ -714,6 +817,9 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 		}
 	}
 
+	// 使用JSON序列化来更好地显示messages内容
+	messagesJson, _ := json.MarshalIndent(messages, "", "  ")
+	common.SysLog(fmt.Sprintf("Messages: %s", string(messagesJson)))
 	// 转换为豆包批量请求格式
 	batchRequest := model.CreateChatCompletionRequest{
 		Model:    endpoint,
@@ -821,7 +927,9 @@ func executeBatchRequestWithRedis(ctx context.Context, client *arkruntime.Client
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), getBatchCompletionTimeout(ctx))
 	defer apiCancel()
 
-	common.LogInfo(ctx, fmt.Sprintf("Batch chat completion request: %+v ", batchRequest))
+	// 使用JSON序列化来更好地显示batchRequest内容
+	batchRequestJson, _ := json.MarshalIndent(batchRequest, "", "  ")
+	common.LogInfo(ctx, fmt.Sprintf("Batch chat completion request: %s", string(batchRequestJson)))
 	result, err := client.CreateBatchChatCompletion(apiCtx, batchRequest)
 	if err != nil {
 		common.LogError(ctx, err.Error())

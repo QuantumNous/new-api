@@ -131,18 +131,21 @@ type MediaContent struct {
 type MessageImageUrl struct {
 	Url    string `json:"url"`
 	Detail string `json:"detail"`
+	Format string `json:"format,omitempty"`
 }
 
 type MessageInputAudio struct {
 	Data   string  `json:"data"` //base64
 	Format string  `json:"format"`
 	Fps    float64 `json:"fps,omitempty"`
+	Url    string  `json:"url,omitempty"`
 }
 
 const (
 	ContentTypeText       = "text"
 	ContentTypeImageURL   = "image_url"
 	ContentTypeInputAudio = "input_audio"
+	ContentTypeVideoURL   = "video_url"
 	ContentTypeYoutube    = "youtube"
 )
 
@@ -268,13 +271,18 @@ func (m *Message) ParseContent() []MediaContent {
 						ImageUrl: MessageImageUrl{
 							Url:    v,
 							Detail: "high",
+							Format: "url",
 						},
 					})
 				case map[string]interface{}:
 					url, ok1 := v["url"].(string)
 					detail, ok2 := v["detail"].(string)
+					format, ok3 := v["format"].(string)
 					if !ok2 {
 						detail = "high"
+					}
+					if !ok3 {
+						format = "url"
 					}
 					if ok1 {
 						contentList = append(contentList, MediaContent{
@@ -282,6 +290,7 @@ func (m *Message) ParseContent() []MediaContent {
 							ImageUrl: MessageImageUrl{
 								Url:    url,
 								Detail: detail,
+								Format: format,
 							},
 						})
 					}
@@ -291,6 +300,7 @@ func (m *Message) ParseContent() []MediaContent {
 				if audioData, ok := contentItem["input_audio"].(map[string]interface{}); ok {
 					data, ok1 := audioData["data"].(string)
 					format, ok2 := audioData["format"].(string)
+					url, ok3 := audioData["url"].(string)
 					fps, ok3 := audioData["fps"].(float64)
 					if !ok2 {
 						if mimeType, ok3 := audioData["mime_type"].(string); ok3 {
@@ -307,6 +317,30 @@ func (m *Message) ParseContent() []MediaContent {
 							Type: ContentTypeInputAudio,
 							InputAudio: MessageInputAudio{
 								Data:   data,
+								Format: format,
+								Fps:    fps,
+								Url:    url,
+							},
+						})
+					}
+				}
+			case ContentTypeVideoURL:
+				if videoData, ok := contentItem["video_url"].(map[string]interface{}); ok {
+					url, ok1 := videoData["url"].(string)
+					format, ok2 := videoData["format"].(string)
+					fps, ok3 := videoData["fps"].(float64)
+					if !ok2 {
+						format = "url"
+					}
+					if !ok3 {
+						fps = 0
+					}
+					common.SysLog(fmt.Sprintf("Parsing video content: url_ok=%v, format_ok=%v, format=%s, url=%s", ok1, ok2, format, url))
+					if ok1 {
+						contentList = append(contentList, MediaContent{
+							Type: ContentTypeVideoURL,
+							InputAudio: MessageInputAudio{
+								Url:    url,
 								Format: format,
 								Fps:    fps,
 							},
