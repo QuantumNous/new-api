@@ -52,6 +52,7 @@
         "*.temp",
         "*.bak",
         "*.swp",
+        "*.sql",
         "*~"
       ],
       "exact_files": [
