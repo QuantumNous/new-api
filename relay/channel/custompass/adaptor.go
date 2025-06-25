@@ -41,6 +41,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
 	header.Set("Authorization", "Bearer "+info.ApiKey)
+	// 添加客户端token到header中
+	if info.TokenKey != "" {
+		header.Set("new-api-token", info.TokenKey)
+	}
 	return nil
 }
 
@@ -116,7 +120,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 					modelName := info.OriginModelName
 					
 					// 获取分组倍率
-					groupRatio := ratio_setting.GetGroupRatio(info.Group)
+					groupRatio := ratio_setting.GetGroupRatio(info.UsingGroup)
 					
 					// 计算费用
 					finalQuota := calculateCustomPassQuota(modelName, groupRatio, &usageInfo)
@@ -133,22 +137,77 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 						logContent := fmt.Sprintf("CustomPass API调用: model=%s, prompt_tokens=%d, completion_tokens=%d, total_tokens=%d",
 							modelName, usageInfo.PromptTokens, usageInfo.CompletionTokens, usageInfo.TotalTokens)
 						
+						// 获取模型价格配置用于日志记录
+						modelPrice, usePrice := ratio_setting.GetModelPrice(modelName, false)
+						modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+						completionRatio := ratio_setting.GetCompletionRatio(modelName)
+
 						other := make(map[string]interface{})
 						other["usage"] = usageInfo
 						other["billing_type"] = "usage"
 						other["model_name"] = modelName
-						
+						other["model_ratio"] = modelRatio
+						other["completion_ratio"] = completionRatio
+						other["group_ratio"] = groupRatio
+						other["model_price"] = modelPrice
+						other["use_price"] = usePrice
+
 						// 记录日志
 						// 注意：这里需要获取userQuota，但在普通relay流程中可能不容易获取，暂时设为0
 						userQuota := 0
 						model.RecordConsumeLog(c, info.UserId, info.ChannelId, usageInfo.PromptTokens, usageInfo.CompletionTokens,
-							modelName, tokenName, finalQuota, logContent, info.TokenId, userQuota, 0, false, info.Group, other)
+							modelName, tokenName, finalQuota, logContent, info.TokenId, userQuota, 0, false, info.UsingGroup, other)
 						model.UpdateUserUsedQuotaAndRequestCount(info.UserId, finalQuota)
 						model.UpdateChannelUsedQuota(info.ChannelId, finalQuota)
 					}
 					
 					usage = &usageInfo
 				}
+			}
+		}
+	}
+
+	// 如果没有usage信息，检查是否需要按次计费
+	if usage == nil {
+		modelName := info.OriginModelName
+		groupRatio := ratio_setting.GetGroupRatio(info.UsingGroup)
+
+		// 获取模型价格配置
+		modelPrice, usePrice := ratio_setting.GetModelPrice(modelName, false)
+		modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+		completionRatio := ratio_setting.GetCompletionRatio(modelName)
+
+		// 如果配置了按次计费，进行计费
+		if usePrice && modelPrice > 0 {
+			finalQuota := int(modelPrice * groupRatio * common.QuotaPerUnit)
+
+			if finalQuota > 0 {
+				// 进行计费
+				err := service.PostConsumeQuota(info, finalQuota, 0, true)
+				if err != nil {
+					common.SysError("error consuming quota for CustomPass per-call billing: " + err.Error())
+				}
+
+				// 记录消费日志
+				tokenName := c.GetString("token_name")
+				logContent := fmt.Sprintf("CustomPass 按次计费: model=%s, price=%.4f, group_ratio=%.2f",
+					modelName, modelPrice, groupRatio)
+
+				other := make(map[string]interface{})
+				other["billing_type"] = "per_call"
+				other["model_name"] = modelName
+				other["model_ratio"] = modelRatio
+				other["completion_ratio"] = completionRatio
+				other["group_ratio"] = groupRatio
+				other["model_price"] = modelPrice
+				other["use_price"] = usePrice
+
+				// 记录日志
+				userQuota := 0
+				model.RecordConsumeLog(c, info.UserId, info.ChannelId, 0, 0,
+					modelName, tokenName, finalQuota, logContent, info.TokenId, userQuota, 0, false, info.UsingGroup, other)
+				model.UpdateUserUsedQuotaAndRequestCount(info.UserId, finalQuota)
+				model.UpdateChannelUsedQuota(info.ChannelId, finalQuota)
 			}
 		}
 	}

@@ -142,6 +142,10 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
+	// 添加客户端token到header中
+	if info.TokenKey != "" {
+		req.Header.Set("new-api-token", info.TokenKey)
+	}
 	return nil
 }
 
@@ -280,7 +284,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	if strings.HasSuffix(modelName, "/submit") {
 		modelName = strings.TrimSuffix(modelName, "/submit")
 	}
-	
+
 	taskIds, ok := body["task_ids"].([]string)
 	if !ok {
 		return nil, fmt.Errorf("task_ids is required")
@@ -314,6 +318,12 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
+
+	// 从body中获取客户端token并添加到header中
+	if clientToken, exists := body["client_token"].(string); exists && clientToken != "" {
+		req.Header.Set("new-api-token", clientToken)
+		common.SysLog(fmt.Sprintf("CustomPass FetchTask 添加客户端token到header: %s", clientToken))
+	}
 
 	return service.GetHttpClient().Do(req)
 }

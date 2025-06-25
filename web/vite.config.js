@@ -37,10 +37,12 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      external: [],
       output: {
         manualChunks: {
           'react-core': ['react', 'react-dom', 'react-router-dom'],
           'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
+          'antd': ['antd'],
           visactor: ['@visactor/react-vchart', '@visactor/vchart'],
           tools: ['axios', 'history', 'marked'],
           'react-components': [
