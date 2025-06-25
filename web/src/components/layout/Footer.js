@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
-import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
+import { getFooterHTML, getLogo, getSystemName, isMobile } from '../../helpers';
 import { StatusContext } from '../../context/Status';
 
 const FooterBar = () => {
@@ -99,7 +99,11 @@ const FooterBar = () => {
     <div className="w-full">
       {footer ? (
         <div
-          className="custom-footer"
+          style={{
+            padding: isMobile() ? '0.5rem 1rem' : '1rem 1.5rem', // 移动端和桌面端不同的padding
+            textAlign: 'center',// 文本居中
+            fontSize: '14px',// 字体大小
+          }}
           dangerouslySetInnerHTML={{ __html: footer }}
         ></div>
       ) : (
