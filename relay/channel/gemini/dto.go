@@ -43,6 +43,10 @@ type GeminiFileData struct {
 	FileUri  string `json:"fileUri,omitempty"`
 }
 
+type GeminiVideoMetadata struct {
+	Fps float64 `json:"fps"`
+}
+
 type GeminiPart struct {
 	Text                string                         `json:"text,omitempty"`
 	InlineData          *GeminiInlineData              `json:"inlineData,omitempty"`
@@ -51,6 +55,7 @@ type GeminiPart struct {
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
+	VideoMetadata       *GeminiVideoMetadata           `json:"video_metadata,omitempty"`
 }
 
 type GeminiChatContent struct {

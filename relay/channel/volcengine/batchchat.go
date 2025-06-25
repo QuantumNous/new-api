@@ -71,7 +71,7 @@ var (
 
 // 建议重试时间相关变量
 var (
-	batchRequestAvgDuration      float64 = 20.0 // 默认30秒
+	batchRequestAvgDuration      float64 = 600.0 // 默认30秒
 	batchRequestAvgDurationMutex sync.RWMutex
 )
 
@@ -730,6 +730,8 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 			for j, part := range contentParts {
 				common.SysLog(fmt.Sprintf("  Part %d: type=%s", j, part.Type))
 			}
+		} else if len(contentParts) == 1 {
+			common.SysLog(fmt.Sprintf("Processing single content message %d: type=%s", i, contentParts[0].Type))
 		}
 
 		var messageContent *model.ChatCompletionMessageContent
@@ -755,44 +757,49 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 						common.SysLog(fmt.Sprintf("Added text part: length=%d", len(part.Text)))
 					}
 				case "image_url":
-					// 图片内容
+					// 图片内容 - 只支持URL格式
 					if imageUrl, ok := part.ImageUrl.(dto.MessageImageUrl); ok {
 						detail := model.ImageURLDetail(imageUrl.Detail)
-						parts = append(parts, &model.ChatCompletionMessageContentPart{
-							Type: "image_url",
-							ImageURL: &model.ChatMessageImageURL{
-								URL:    imageUrl.Url,
-								Detail: detail,
-							},
-						})
-						common.SysLog(fmt.Sprintf("Added image_url part: url=%s, detail=%s", imageUrl.Url, imageUrl.Detail))
+
+						// 检查Format是否为"url"
+						if imageUrl.Format == "url" {
+							parts = append(parts, &model.ChatCompletionMessageContentPart{
+								Type: "image_url",
+								ImageURL: &model.ChatMessageImageURL{
+									URL:    imageUrl.Url,
+									Detail: detail,
+								},
+							})
+							common.SysLog(fmt.Sprintf("Added image_url part: url=%s, detail=%s", imageUrl.Url, imageUrl.Detail))
+						} else {
+							// 如果不是URL格式，跳过该部分
+							common.SysLog(fmt.Sprintf("Skipping non-URL image_url part: format=%s", imageUrl.Format))
+						}
 					}
 				case "video_url":
+					// 视频内容 - 只支持URL格式
+					common.SysLog(fmt.Sprintf("Processing video_url part: InputAudio type=%T", part.InputAudio))
 					if videoUrl, ok := part.InputAudio.(dto.MessageInputAudio); ok {
-						if videoUrl.Format == "video_url" {
+						common.SysLog(fmt.Sprintf("Video URL details: url=%s, format=%s, fps=%f", videoUrl.Url, videoUrl.Format, videoUrl.Fps))
+						if videoUrl.Format == "url" {
 							parts = append(parts, &model.ChatCompletionMessageContentPart{
 								Type: "video_url",
 								VideoURL: &model.ChatMessageVideoURL{
 									URL: videoUrl.Url,
+									FPS: &videoUrl.Fps,
 								},
 							})
+							common.SysLog(fmt.Sprintf("Added video_url part: url=%s, fps=%f", videoUrl.Url, videoUrl.Fps))
 						} else {
-							parts = append(parts, &model.ChatCompletionMessageContentPart{
-								Type: "video_url",
-								Text: videoUrl.Data,
-							})
+							// 如果不是URL格式，跳过该部分
+							common.SysLog(fmt.Sprintf("Skipping non-URL video_url part: format=%s", videoUrl.Format))
 						}
-
-						common.SysLog(fmt.Sprintf("Added video_url part: url=%s", imageUrl.Url))
+					} else {
+						common.SysLog(fmt.Sprintf("Failed to cast InputAudio to MessageInputAudio: %v", part.InputAudio))
 					}
 				default:
-					// 处理其他未知类型，转换为文本描述
-					unknownDescription := fmt.Sprintf("[Unsupported content type: %s]", part.Type)
-					parts = append(parts, &model.ChatCompletionMessageContentPart{
-						Type: "text",
-						Text: unknownDescription,
-					})
-					common.SysLog(fmt.Sprintf("Added unsupported content type: %s", part.Type))
+					// 对于不支持的内容类型，直接返回错误
+					return nil, fmt.Errorf("unsupported content type: %s", part.Type)
 				}
 			}
 			if len(parts) > 0 {
@@ -810,6 +817,9 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 		}
 	}
 
+	// 使用JSON序列化来更好地显示messages内容
+	messagesJson, _ := json.MarshalIndent(messages, "", "  ")
+	common.SysLog(fmt.Sprintf("Messages: %s", string(messagesJson)))
 	// 转换为豆包批量请求格式
 	batchRequest := model.CreateChatCompletionRequest{
 		Model:    endpoint,
@@ -917,7 +927,9 @@ func executeBatchRequestWithRedis(ctx context.Context, client *arkruntime.Client
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), getBatchCompletionTimeout(ctx))
 	defer apiCancel()
 
-	common.LogInfo(ctx, fmt.Sprintf("Batch chat completion request: %+v ", batchRequest))
+	// 使用JSON序列化来更好地显示batchRequest内容
+	batchRequestJson, _ := json.MarshalIndent(batchRequest, "", "  ")
+	common.LogInfo(ctx, fmt.Sprintf("Batch chat completion request: %s", string(batchRequestJson)))
 	result, err := client.CreateBatchChatCompletion(apiCtx, batchRequest)
 	if err != nil {
 		common.LogError(ctx, err.Error())
