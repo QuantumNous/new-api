@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 type GitHubOAuthResponse struct {
@@ -80,15 +82,32 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 func GitHubOAuth(c *gin.Context) {
 	session := sessions.Default(c)
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	if state == "" || session.Get("oauth_state") == nil {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
 		})
 		return
 	}
-	username := session.Get("username")
-	if username != nil {
+
+	// 检查是否为绑定操作（state以:bind结尾）
+	originalState := state
+	isBind := false
+	if strings.HasSuffix(state, ":bind") {
+		isBind = true
+		originalState = strings.TrimSuffix(state, ":bind")
+	}
+
+	// 验证原始state
+	if originalState != session.Get("oauth_state").(string) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "state is empty or not same",
+		})
+		return
+	}
+
+	if isBind {
 		GitHubBind(c)
 		return
 	}

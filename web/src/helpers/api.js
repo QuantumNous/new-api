@@ -217,6 +217,33 @@ export async function onLinuxDOOAuthClicked(linuxdo_client_id) {
   );
 }
 
+// 绑定函数
+export async function onLinuxDOBindClicked(linuxdo_client_id) {
+  const state = await getOAuthState();
+  if (!state) return;
+  window.open(
+    `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}:bind`,
+  );
+}
+
+export async function onGitHubBindClicked(github_client_id) {
+  const state = await getOAuthState();
+  if (!state) return;
+  window.open(
+    `https://github.com/login/oauth/authorize?client_id=${github_client_id}&state=${state}:bind&scope=user:email`,
+  );
+}
+
+export async function onOIDCBindClicked(auth_url, client_id) {
+  const state = await getOAuthState();
+  if (!state) return;
+  const redirect_uri = `${window.location.origin}/oauth/oidc`;
+  const response_type = 'code';
+  const scope = 'openid profile email';
+  const url = `${auth_url}?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=${response_type}&scope=${scope}&state=${state}:bind`;
+  window.open(url);
+}
+
 let channelModels = undefined;
 export async function loadChannelModels() {
   const res = await API.get('/api/models');
