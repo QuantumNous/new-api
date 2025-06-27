@@ -132,6 +132,7 @@ type MessageImageUrl struct {
 	Url    string `json:"url"`
 	Detail string `json:"detail"`
 	Format string `json:"format,omitempty"`
+	Data   string `json:"data,omitempty"`
 }
 
 type MessageInputAudio struct {
@@ -278,13 +279,39 @@ func (m *Message) ParseContent() []MediaContent {
 					url, ok1 := v["url"].(string)
 					detail, ok2 := v["detail"].(string)
 					format, ok3 := v["format"].(string)
+					data, ok4 := v["data"].(string)
+
 					if !ok2 {
 						detail = "high"
 					}
 					if !ok3 {
 						format = "url"
 					}
-					if ok1 {
+
+					if format == "base64" {
+						var base64Data string
+
+						if ok4 && data != "" {
+							base64Data = data
+						} else if ok1 && url != "" && strings.HasPrefix(url, "data:") {
+							parts := strings.Split(url, ",")
+							if len(parts) == 2 {
+								base64Data = parts[1]
+							}
+						}
+
+						if base64Data != "" {
+							contentList = append(contentList, MediaContent{
+								Type: ContentTypeImageURL,
+								ImageUrl: MessageImageUrl{
+									Data:   base64Data,
+									Detail: detail,
+									Format: format,
+									Url:    url,
+								},
+							})
+						}
+					} else if format == "url" && ok1 {
 						contentList = append(contentList, MediaContent{
 							Type: ContentTypeImageURL,
 							ImageUrl: MessageImageUrl{
@@ -329,14 +356,41 @@ func (m *Message) ParseContent() []MediaContent {
 					url, ok1 := videoData["url"].(string)
 					format, ok2 := videoData["format"].(string)
 					fps, ok3 := videoData["fps"].(float64)
+					data, ok4 := videoData["data"].(string)
+
 					if !ok2 {
 						format = "url"
 					}
 					if !ok3 {
 						fps = 0
 					}
-					common.SysLog(fmt.Sprintf("Parsing video content: url_ok=%v, format_ok=%v, format=%s, url=%s", ok1, ok2, format, url))
-					if ok1 {
+
+					common.SysLog(fmt.Sprintf("Parsing video content: url_ok=%v, format_ok=%v, format=%s, url=%s, data_ok=%v", ok1, ok2, format, replaceBase64InURL(url), ok4))
+
+					if format == "base64" {
+						var base64Data string
+
+						if ok4 && data != "" {
+							base64Data = data
+						} else if ok1 && url != "" && strings.HasPrefix(url, "data:") {
+							parts := strings.Split(url, ",")
+							if len(parts) == 2 {
+								base64Data = parts[1]
+							}
+						}
+
+						if base64Data != "" {
+							contentList = append(contentList, MediaContent{
+								Type: ContentTypeVideoURL,
+								InputAudio: MessageInputAudio{
+									Data:   base64Data,
+									Format: format,
+									Fps:    fps,
+									Url:    url,
+								},
+							})
+						}
+					} else if format == "url" && ok1 && url != "" {
 						contentList = append(contentList, MediaContent{
 							Type: ContentTypeVideoURL,
 							InputAudio: MessageInputAudio{
@@ -368,4 +422,14 @@ func (m *Message) ParseContent() []MediaContent {
 		m.parsedContent = contentList
 	}
 	return contentList
+}
+
+func replaceBase64InURL(url string) string {
+	if strings.HasPrefix(url, "data:") {
+		parts := strings.Split(url, ",")
+		if len(parts) == 2 {
+			return "data:..."
+		}
+	}
+	return url
 }
