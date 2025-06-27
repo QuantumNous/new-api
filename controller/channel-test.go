@@ -167,7 +167,7 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	}
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
-	consumedTime := float64(milliseconds) / 1000.0
+	consumedTime := float64(milliseconds)
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(c, 1, channel.Id, usage.PromptTokens, usage.CompletionTokens, info.OriginModelName, "模型测试",

@@ -131,7 +131,8 @@ const LogsTable = () => {
   }
 
   function renderUseTime(type) {
-    const time = parseInt(type);
+    let time = parseFloat(type) / 1000.0;
+    time = time.toFixed(1);
     if (time < 101) {
       return (
         <Tag color='green' size='large' shape='circle'>
@@ -181,6 +182,20 @@ const LogsTable = () => {
         </Tag>
       );
     }
+  }
+
+  function renderUseSpeed(record) {
+    let speed = '0.00';
+    if ( record.use_time > 0 && record.completion_tokens > 0) {
+      speed = (record.completion_tokens /  record.use_time * 1000).toFixed(1);
+    }
+
+    return (
+      <Tag color='grey' size='large' shape='circle'>
+        {' '}
+        {speed} t/s{' '}
+      </Tag>
+    );
   }
 
   function renderModelName(record) {
@@ -484,7 +499,7 @@ const LogsTable = () => {
     },
     {
       key: COLUMN_KEYS.USE_TIME,
-      title: t('用时/首字'),
+      title: t('速度/用时/首字'),
       dataIndex: 'use_time',
       render: (text, record, index) => {
         if (!(record.type === 2 || record.type === 5)) {
@@ -495,6 +510,7 @@ const LogsTable = () => {
           return (
             <>
               <Space>
+                {renderUseSpeed(record)}
                 {renderUseTime(text)}
                 {renderFirstUseTime(other?.frt)}
                 {renderIsStream(record.is_stream)}
@@ -505,6 +521,7 @@ const LogsTable = () => {
           return (
             <>
               <Space>
+                {renderUseSpeed(record)}
                 {renderUseTime(text)}
                 {renderIsStream(record.is_stream)}
               </Space>

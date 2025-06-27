@@ -347,7 +347,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		}
 		extraContent += "（可能是请求出错）"
 	}
-	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
+	useTimeMs := time.Now().UnixMilli() - relayInfo.StartTime.UnixMilli()
 	promptTokens := usage.PromptTokens
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
 	imageTokens := usage.PromptTokensDetails.ImageTokens
@@ -541,5 +541,5 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		other["audio_input_price"] = audioInputPrice
 	}
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeMs), relayInfo.IsStream, relayInfo.Group, other)
 }
