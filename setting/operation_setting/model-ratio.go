@@ -484,7 +484,7 @@ func UpdateCompletionRatioByJSONString(jsonStr string) (err error) {
 	CompletionRatioMutex.Lock()
 	defer CompletionRatioMutex.Unlock()
 	CompletionRatio = make(map[string]float64)
-	common.SysLog("Updating completion ratio, " + jsonStr)
+	// common.SysLog("Updating completion ratio, " + jsonStr)
 	err = json.Unmarshal([]byte(jsonStr), &CompletionRatio)
 	common.SysLog("Updated completion ratio success, " + fmt.Sprintf("%v", CompletionRatio["gemini-2.5-pro-preview-03-25"]))
 	return err

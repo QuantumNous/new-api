@@ -12,6 +12,7 @@ import (
 	"one-api/metrics"
 	relaycommon "one-api/relay/common"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -71,7 +72,7 @@ var (
 
 // 建议重试时间相关变量
 var (
-	batchRequestAvgDuration      float64 = 600.0 // 默认30秒
+	batchRequestAvgDuration      float64 = 60.0 // 默认30秒
 	batchRequestAvgDurationMutex sync.RWMutex
 )
 
@@ -421,7 +422,7 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 		return nil, finalError
 	}
 	// 转换为豆包批量请求格式
-	batchRequest, err := convertToBatchRequest(&request, info.Endpoint)
+	batchRequest, err := convertToBatchRequest(c.Request.Context(), &request, info.Endpoint)
 	if err != nil {
 		finalStatusCode = "request_convert_error"
 		finalError = fmt.Errorf("failed to convert request: %w", err)
@@ -712,7 +713,7 @@ func checkUnsupportedParameters(request *dto.GeneralOpenAIRequest) {
 
 // convertToBatchRequest 将 OpenAI 格式的请求转换为豆包批量请求格式
 // 支持多模态消息：文本、图片、视频形式
-func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (*model.CreateChatCompletionRequest, error) {
+func convertToBatchRequest(ctx context.Context, request *dto.GeneralOpenAIRequest, endpoint string) (*model.CreateChatCompletionRequest, error) {
 	// 获取消息内容
 	if len(request.Messages) == 0 {
 		return nil, fmt.Errorf("no messages found in request")
@@ -757,12 +758,13 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 						common.SysLog(fmt.Sprintf("Added text part: length=%d", len(part.Text)))
 					}
 				case "image_url":
-					// 图片内容 - 只支持URL格式
+					// 图片内容 - 支持URL格式和base64格式
 					if imageUrl, ok := part.ImageUrl.(dto.MessageImageUrl); ok {
 						detail := model.ImageURLDetail(imageUrl.Detail)
 
-						// 检查Format是否为"url"
-						if imageUrl.Format == "url" {
+						// 检查Format是否为"url"或"base64"
+						switch imageUrl.Format {
+						case "url":
 							parts = append(parts, &model.ChatCompletionMessageContentPart{
 								Type: "image_url",
 								ImageURL: &model.ChatMessageImageURL{
@@ -770,18 +772,74 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 									Detail: detail,
 								},
 							})
-							common.SysLog(fmt.Sprintf("Added image_url part: url=%s, detail=%s", imageUrl.Url, imageUrl.Detail))
-						} else {
-							// 如果不是URL格式，跳过该部分
-							common.SysLog(fmt.Sprintf("Skipping non-URL image_url part: format=%s", imageUrl.Format))
+							common.SysLog(fmt.Sprintf("Added image_url part: url=%s, detail=%s", replaceBase64InURL(imageUrl.Url), imageUrl.Detail))
+						case "base64":
+							// 处理base64格式的图片
+							// 从data字段中提取base64数据
+							base64Data := imageUrl.Data
+							if base64Data != "" {
+								// 根据URL或格式判断图片类型，设置正确的MIME类型
+								mimeType := "image/jpeg" // 默认MIME类型
+
+								// 如果URL包含文件扩展名，根据扩展名判断MIME类型
+								if imageUrl.Url != "" {
+									url := strings.ToLower(imageUrl.Url)
+									if strings.Contains(url, ".jpg") || strings.Contains(url, ".jpeg") {
+										mimeType = "image/jpeg"
+									} else if strings.Contains(url, ".png") {
+										mimeType = "image/png"
+									} else if strings.Contains(url, ".gif") {
+										mimeType = "image/gif"
+									} else if strings.Contains(url, ".webp") {
+										mimeType = "image/webp"
+									} else if strings.Contains(url, ".bmp") {
+										mimeType = "image/bmp"
+									} else if strings.Contains(url, ".tiff") || strings.Contains(url, ".tif") {
+										mimeType = "image/tiff"
+									} else if strings.Contains(url, ".ico") {
+										mimeType = "image/x-icon"
+									} else if strings.Contains(url, ".dib") {
+										mimeType = "image/bmp"
+									} else if strings.Contains(url, ".icns") {
+										mimeType = "image/icns"
+									} else if strings.Contains(url, ".sgi") {
+										mimeType = "image/sgi"
+									} else if strings.Contains(url, ".j2c") || strings.Contains(url, ".j2k") || strings.Contains(url, ".jp2") || strings.Contains(url, ".jpc") || strings.Contains(url, ".jpf") || strings.Contains(url, ".jpx") {
+										mimeType = "image/jp2"
+									} else if strings.Contains(url, ".heic") {
+										mimeType = "image/heic"
+									} else if strings.Contains(url, ".heif") {
+										mimeType = "image/heif"
+									}
+								}
+
+								// 构造data URL格式
+								dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+								parts = append(parts, &model.ChatCompletionMessageContentPart{
+									Type: "image_url",
+									ImageURL: &model.ChatMessageImageURL{
+										URL:    dataURL,
+										Detail: detail,
+									},
+								})
+								common.SysLog(fmt.Sprintf("Added image_url part: base64 data length=%d, detail=%s, mime_type=%s", len(base64Data), imageUrl.Detail, mimeType))
+							} else {
+								common.SysLog(fmt.Sprintf("Skipping empty base64 image_url part"))
+							}
+						default:
+							// 如果不是支持的格式，跳过该部分
+							common.SysLog(fmt.Sprintf("Skipping unsupported image_url part: format=%s", imageUrl.Format))
 						}
 					}
 				case "video_url":
-					// 视频内容 - 只支持URL格式
+					// 视频内容 - 支持URL格式和base64格式
 					common.SysLog(fmt.Sprintf("Processing video_url part: InputAudio type=%T", part.InputAudio))
 					if videoUrl, ok := part.InputAudio.(dto.MessageInputAudio); ok {
-						common.SysLog(fmt.Sprintf("Video URL details: url=%s, format=%s, fps=%f", videoUrl.Url, videoUrl.Format, videoUrl.Fps))
-						if videoUrl.Format == "url" {
+						common.SysLog(fmt.Sprintf("Video URL details: url=%s, format=%s, fps=%f", replaceBase64InURL(videoUrl.Url), videoUrl.Format, videoUrl.Fps))
+
+						// 检查Format是否为"url"或"base64"
+						switch videoUrl.Format {
+						case "url":
 							parts = append(parts, &model.ChatCompletionMessageContentPart{
 								Type: "video_url",
 								VideoURL: &model.ChatMessageVideoURL{
@@ -789,10 +847,43 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 									FPS: &videoUrl.Fps,
 								},
 							})
-							common.SysLog(fmt.Sprintf("Added video_url part: url=%s, fps=%f", videoUrl.Url, videoUrl.Fps))
-						} else {
-							// 如果不是URL格式，跳过该部分
-							common.SysLog(fmt.Sprintf("Skipping non-URL video_url part: format=%s", videoUrl.Format))
+							common.SysLog(fmt.Sprintf("Added video_url part: url=%s, fps=%f", replaceBase64InURL(videoUrl.Url), videoUrl.Fps))
+						case "base64":
+							// 处理base64格式的视频
+							// 从data字段中提取base64数据
+							base64Data := videoUrl.Data
+							if base64Data != "" {
+								// 根据URL或格式判断视频类型，设置正确的MIME类型
+								mimeType := "video/mp4" // 默认MIME类型
+
+								// 如果URL包含文件扩展名，根据扩展名判断MIME类型
+								if videoUrl.Url != "" {
+									url := strings.ToLower(videoUrl.Url)
+									if strings.Contains(url, ".mp4") {
+										mimeType = "video/mp4"
+									} else if strings.Contains(url, ".avi") {
+										mimeType = "video/avi"
+									} else if strings.Contains(url, ".mov") {
+										mimeType = "video/quicktime"
+									}
+								}
+
+								// 构造data URL格式
+								dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+								parts = append(parts, &model.ChatCompletionMessageContentPart{
+									Type: "video_url",
+									VideoURL: &model.ChatMessageVideoURL{
+										URL: dataURL,
+										FPS: &videoUrl.Fps,
+									},
+								})
+								common.SysLog(fmt.Sprintf("Added video_url part: base64 data length=%d, fps=%f, mime_type=%s", len(base64Data), videoUrl.Fps, mimeType))
+							} else {
+								common.SysLog("Skipping empty base64 video_url part")
+							}
+						default:
+							// 如果不是支持的格式，跳过该部分
+							common.SysLog(fmt.Sprintf("Skipping unsupported video_url part: format=%s", videoUrl.Format))
 						}
 					} else {
 						common.SysLog(fmt.Sprintf("Failed to cast InputAudio to MessageInputAudio: %v", part.InputAudio))
@@ -818,8 +909,10 @@ func convertToBatchRequest(request *dto.GeneralOpenAIRequest, endpoint string) (
 	}
 
 	// 使用JSON序列化来更好地显示messages内容
-	messagesJson, _ := json.MarshalIndent(messages, "", "  ")
-	common.SysLog(fmt.Sprintf("Messages: %s", string(messagesJson)))
+	messagesJson, _ := json.Marshal(messages)
+	// 替换base64数据为占位符
+	replacedMessagesJson := replaceBase64InString(string(messagesJson))
+	common.LogInfo(ctx, fmt.Sprintf("Messages: %s", replacedMessagesJson))
 	// 转换为豆包批量请求格式
 	batchRequest := model.CreateChatCompletionRequest{
 		Model:    endpoint,
@@ -928,8 +1021,10 @@ func executeBatchRequestWithRedis(ctx context.Context, client *arkruntime.Client
 	defer apiCancel()
 
 	// 使用JSON序列化来更好地显示batchRequest内容
-	batchRequestJson, _ := json.MarshalIndent(batchRequest, "", "  ")
-	common.LogInfo(ctx, fmt.Sprintf("Batch chat completion request: %s", string(batchRequestJson)))
+	batchRequestJson, _ := json.Marshal(batchRequest)
+	// 替换base64数据为占位符
+	replacedBatchRequestJson := replaceBase64InString(string(batchRequestJson))
+	common.LogInfo(ctx, fmt.Sprintf("Batch chat completion request: %s", replacedBatchRequestJson))
 	result, err := client.CreateBatchChatCompletion(apiCtx, batchRequest)
 	if err != nil {
 		common.LogError(ctx, err.Error())
@@ -1094,4 +1189,53 @@ func InitBatchRequestAverageDuration() {
 			SetBatchRequestAverageDuration(avgDuration)
 		}
 	}
+}
+
+// replaceBase64InString 替换字符串中的base64数据为占位符
+func replaceBase64InString(input string) string {
+	// 替换data URL格式的base64数据
+	// 匹配格式: "url": "data:video/mp4;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
+	// 替换为: "url": "data:video/mp4;base64,[BASE64_DATA_1896764_chars]"
+
+	// 匹配data URL格式的正则表达式
+	dataURLPattern := regexp.MustCompile(`"url":\s*"data:[^"]+;base64,[^"]+"`)
+
+	// 替换函数
+	replacer := func(match string) string {
+		// 提取MIME类型
+		mimePattern := regexp.MustCompile(`data:([^;]+);base64,`)
+		mimeMatch := mimePattern.FindStringSubmatch(match)
+		if len(mimeMatch) > 1 {
+			mimeType := mimeMatch[1]
+			// 计算base64数据长度（大约）
+			base64Pattern := regexp.MustCompile(`base64,([^"]+)`)
+			base64Match := base64Pattern.FindStringSubmatch(match)
+			if len(base64Match) > 1 {
+				base64Data := base64Match[1]
+				// 计算字符数
+				charCount := len(base64Data)
+				return fmt.Sprintf(`"url": "data:%s;base64,[BASE64_DATA_%d_chars]"`, mimeType, charCount)
+			}
+		}
+		return `"url": "data:image/png;base64,[BASE64_DATA_REPLACED]"`
+	}
+
+	return dataURLPattern.ReplaceAllStringFunc(input, replacer)
+}
+
+// replaceBase64InURL 替换URL中的base64数据为占位符
+func replaceBase64InURL(url string) string {
+	// 检查是否是data URL格式
+	if strings.HasPrefix(url, "data:") && strings.Contains(url, ";base64,") {
+		// 提取MIME类型
+		parts := strings.Split(url, ";base64,")
+		if len(parts) == 2 {
+			mimeType := strings.TrimPrefix(parts[0], "data:")
+			base64Data := parts[1]
+			// 计算字符数
+			charCount := len(base64Data)
+			return fmt.Sprintf("data:%s;base64,[BASE64_DATA_%d_chars]", mimeType, charCount)
+		}
+	}
+	return url
 }
