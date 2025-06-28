@@ -150,7 +150,7 @@ const Setting = () => {
     }
   }, [location.search]);
   return (
-    <div>
+    <div className="mt-[64px]">
       <Layout>
         <Layout.Content>
           <Tabs

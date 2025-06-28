@@ -704,6 +704,7 @@ const TokensTable = () => {
           <Button
             theme="light"
             type="danger"
+            icon={<IconDelete />}
             className="!rounded-full w-full md:w-auto"
             onClick={() => {
               if (selectedKeys.length === 0) {

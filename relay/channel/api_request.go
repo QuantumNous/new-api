@@ -212,23 +212,12 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 }
 
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
-	if info == nil {
-		return nil, fmt.Errorf("RelayInfo is nil")
-	}
-	if req == nil {
-		return nil, fmt.Errorf("http request is nil")
-	}
-
 	var client *http.Client
 	var err error
-	if info.ChannelSetting != nil {
-		if proxyURL, ok := info.ChannelSetting["proxy"]; ok {
-			client, err = service.NewProxyHttpClient(proxyURL.(string))
-			if err != nil {
-				return nil, fmt.Errorf("new proxy http client failed: %w", err)
-			}
-		} else {
-			client = service.GetHttpClient()
+	if proxyURL, ok := info.ChannelSetting["proxy"]; ok {
+		client, err = service.NewProxyHttpClient(proxyURL.(string))
+		if err != nil {
+			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}
 	} else {
 		client = service.GetHttpClient()
@@ -263,29 +252,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		return nil, errors.New("resp is nil")
 	}
 
-	if req.Body != nil {
-		_ = req.Body.Close()
-	}
-	if c.Request != nil && c.Request.Body != nil {
-		_ = c.Request.Body.Close()
-	}
+	_ = req.Body.Close()
+	_ = c.Request.Body.Close()
 	return resp, nil
 }
 
 func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.TaskRelayInfo, requestBody io.Reader) (*http.Response, error) {
-	if a == nil {
-		return nil, fmt.Errorf("TaskAdaptor is nil")
-	}
-	if c == nil {
-		return nil, fmt.Errorf("gin context is nil")
-	}
-	if info == nil {
-		return nil, fmt.Errorf("TaskRelayInfo is nil")
-	}
-	if c.Request == nil {
-		return nil, fmt.Errorf("gin request is nil")
-	}
-
 	fullRequestURL, err := a.BuildRequestURL(info)
 	if err != nil {
 		return nil, err

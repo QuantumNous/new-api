@@ -623,13 +623,13 @@ func OpenaiHandlerWithUsage(c *gin.Context, resp *http.Response, info *relaycomm
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, err = io.Copy(c.Writer, resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError), nil
+		common.SysError("error copying response body: " + err.Error())
 	}
-	err = resp.Body.Close()
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-	}
+	_ = resp.Body.Close()
 
+	// Once we've written to the client, we should not return errors anymore
+	// because the upstream has already consumed resources and returned content
+	// We should still perform billing even if parsing fails
 	var usageResp dto.SimpleResponse
 	err = json.Unmarshal(responseBody, &usageResp)
 	if err != nil {

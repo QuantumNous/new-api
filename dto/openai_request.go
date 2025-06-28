@@ -646,4 +646,6 @@ type ResponsesToolsCall struct {
 	Name        string          `json:"name,omitempty"`
 	Description string          `json:"description,omitempty"`
 	Parameters  json.RawMessage `json:"parameters,omitempty"`
+	Function    json.RawMessage `json:"function,omitempty"`
+	Container   json.RawMessage `json:"container,omitempty"`
 }

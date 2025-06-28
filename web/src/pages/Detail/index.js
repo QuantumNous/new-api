@@ -984,7 +984,7 @@ const Detail = (props) => {
   }, []);
 
   return (
-    <div className="bg-gray-50 h-full">
+    <div className="bg-gray-50 h-full mt-[64px]">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-semibold text-gray-800">{getGreeting}</h2>
         <div className="flex gap-3">

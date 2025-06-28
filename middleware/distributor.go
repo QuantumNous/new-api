@@ -170,15 +170,6 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
-	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
-		relayMode := relayconstant.Path2RelayKling(c.Request.Method, c.Request.URL.Path)
-		if relayMode == relayconstant.RelayModeKlingFetchByID {
-			shouldSelectChannel = false
-		} else {
-			err = common.UnmarshalBodyReusable(c, &modelRequest)
-		}
-		c.Set("platform", string(constant.TaskPlatformKling))
-		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
 		relayMode := relayconstant.Path2RelayCustomPass(c.Request.Method, c.Request.URL.Path)
 		// 从URL路径中提取模型名称: /pass/{model}
@@ -193,7 +184,27 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformCustomPass))
 		c.Set("relay_mode", relayMode)
-	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") {
+	
+	}else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
+		err = common.UnmarshalBodyReusable(c, &modelRequest)
+		var platform string
+		var relayMode int
+		if strings.HasPrefix(modelRequest.Model, "jimeng") {
+			platform = string(constant.TaskPlatformJimeng)
+			relayMode = relayconstant.Path2RelayJimeng(c.Request.Method, c.Request.URL.Path)
+			if relayMode == relayconstant.RelayModeJimengFetchByID {
+				shouldSelectChannel = false
+			}
+		} else {
+			platform = string(constant.TaskPlatformKling)
+			relayMode = relayconstant.Path2RelayKling(c.Request.Method, c.Request.URL.Path)
+			if relayMode == relayconstant.RelayModeKlingFetchByID {
+				shouldSelectChannel = false
+			}
+		}
+		c.Set("platform", platform)
+		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
 		modelName := extractModelNameFromGeminiPath(c.Request.URL.Path)

@@ -95,7 +95,7 @@ export const CHANNEL_OPTIONS = [
   { value: 40, color: 'purple', label: 'SiliconCloud' },
   { value: 42, color: 'blue', label: 'Mistral AI' },
   { value: 8, color: 'pink', label: '自定义渠道' },
-  { value: 51, color: 'orange', label: '自定义透传渠道' },
+  { value: 52, color: 'orange', label: '自定义透传渠道' },
   {
     value: 22,
     color: 'blue',
@@ -130,6 +130,11 @@ export const CHANNEL_OPTIONS = [
     value: 50,
     color: 'green',
     label: '可灵',
+  },
+  {
+    value: 51,
+    color: 'blue',
+    label: '即梦',
   },
 ];
 

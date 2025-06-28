@@ -246,15 +246,15 @@ func Register(c *gin.Context) {
 }
 
 func GetAllUsers(c *gin.Context) {
-	pageInfo, err := common.GetPageQuery(c)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "parse page query failed",
-		})
-		return
+	p, _ := strconv.Atoi(c.Query("p"))
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	if p < 1 {
+		p = 1
 	}
-	users, total, err := model.GetAllUsers(pageInfo)
+	if pageSize < 0 {
+		pageSize = common.ItemsPerPage
+	}
+	users, total, err := model.GetAllUsers((p-1)*pageSize, pageSize)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -262,13 +262,15 @@ func GetAllUsers(c *gin.Context) {
 		})
 		return
 	}
-
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    pageInfo,
+		"data": gin.H{
+			"items":     users,
+			"total":     total,
+			"page":      p,
+			"page_size": pageSize,
+		},
 	})
 	return
 }

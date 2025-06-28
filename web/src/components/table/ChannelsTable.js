@@ -41,7 +41,7 @@ import {
   Form,
   Tabs,
   TabPane,
-  Select,
+  Select
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -51,14 +51,8 @@ import EditChannel from '../../pages/Channel/EditChannel.js';
 import {
   IconTreeTriangleDown,
   IconPlus,
-  IconRefresh,
-  IconSetting,
-  IconDescend,
   IconSearch,
-  IconEdit,
   IconDelete,
-  IconStop,
-  IconPlay,
   IconMore,
   IconCopy,
   IconSmallTriangleRight
@@ -557,7 +551,6 @@ const ChannelsTable = () => {
                   type='warning'
                   size="small"
                   className="!rounded-full"
-                  icon={<IconStop />}
                   onClick={() => manageChannel(record.id, 'disable', record)}
                 >
                   {t('禁用')}
@@ -568,7 +561,6 @@ const ChannelsTable = () => {
                   type='secondary'
                   size="small"
                   className="!rounded-full"
-                  icon={<IconPlay />}
                   onClick={() => manageChannel(record.id, 'enable', record)}
                 >
                   {t('启用')}
@@ -580,7 +572,6 @@ const ChannelsTable = () => {
                 type='tertiary'
                 size="small"
                 className="!rounded-full"
-                icon={<IconEdit />}
                 onClick={() => {
                   setEditingChannel(record);
                   setShowEdit(true);
@@ -605,19 +596,7 @@ const ChannelsTable = () => {
             </Space>
           );
         } else {
-          // 标签操作的下拉菜单项
-          const tagMenuItems = [
-            {
-              node: 'item',
-              name: t('编辑'),
-              icon: <IconEdit />,
-              onClick: () => {
-                setShowEditTag(true);
-                setEditingTag(record.key);
-              },
-            },
-          ];
-
+          // 标签操作按钮
           return (
             <Space wrap>
               <Button
@@ -625,7 +604,6 @@ const ChannelsTable = () => {
                 type='secondary'
                 size="small"
                 className="!rounded-full"
-                icon={<IconPlay />}
                 onClick={() => manageTag(record.key, 'enable')}
               >
                 {t('启用全部')}
@@ -635,24 +613,22 @@ const ChannelsTable = () => {
                 type='warning'
                 size="small"
                 className="!rounded-full"
-                icon={<IconStop />}
                 onClick={() => manageTag(record.key, 'disable')}
               >
                 {t('禁用全部')}
               </Button>
-              <Dropdown
-                trigger='click'
-                position='bottomRight'
-                menu={tagMenuItems}
+              <Button
+                theme='light'
+                type='tertiary'
+                size="small"
+                className="!rounded-full"
+                onClick={() => {
+                  setShowEditTag(true);
+                  setEditingTag(record.key);
+                }}
               >
-                <Button
-                  icon={<IconMore />}
-                  theme='light'
-                  type='tertiary'
-                  size="small"
-                  className="!rounded-full"
-                />
-              </Dropdown>
+                {t('编辑')}
+              </Button>
             </Space>
           );
         }

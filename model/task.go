@@ -243,17 +243,7 @@ func (Task *Task) Insert() error {
 
 func (Task *Task) Update() error {
 	var err error
-	// 记录更新前的数据库操作日志
-	common.SysLog(fmt.Sprintf("Task.Update() 开始 - TaskID: %s, ID: %d, Status: %s, Progress: %s", Task.TaskID, Task.ID, Task.Status, Task.Progress))
-
 	err = DB.Save(Task).Error
-
-	if err != nil {
-		common.SysError(fmt.Sprintf("Task.Update() 失败 - TaskID: %s, 错误: %s", Task.TaskID, err.Error()))
-	} else {
-		common.SysLog(fmt.Sprintf("Task.Update() 成功 - TaskID: %s, ID: %d, Status: %s, Progress: %s", Task.TaskID, Task.ID, Task.Status, Task.Progress))
-	}
-
 	return err
 }
 

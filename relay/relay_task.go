@@ -44,8 +44,6 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 		// 对于自定义透传渠道，使用真实的模型名称而不是 custompass_submit
 		modelName = relayInfo.OriginModelName
 	}
-
-	
 	modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
 	if !success {
 		defaultPrice, ok := ratio_setting.GetDefaultModelRatioMap()[modelName]
@@ -59,7 +57,6 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	// 预扣
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	var ratio float64
-	var quota int
 	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
 	if hasUserGroupRatio {
 		ratio = modelPrice * userGroupRatio
@@ -71,37 +68,10 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 		taskErr = service.TaskErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
 		return
 	}
-
-	if platform == constant.TaskPlatformCustomPass {
-		// CustomPass使用动态费用计算，先进行最小预扣费
-		groupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
-
-		// 对于CustomPass，先预扣最小费用（1个quota单位），实际费用在任务提交后根据usage计算
-		quota = 1
-		if userQuota-quota < 0 {
-			taskErr = service.TaskErrorWrapperLocal(errors.New("user quota is not enough"), "quota_not_enough", http.StatusForbidden)
-			return
-		}
-	} else {
-		// 其他平台保持原有逻辑
-		modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
-		if !success {
-			defaultPrice, ok := ratio_setting.GetDefaultModelRatioMap()[modelName]
-			if !ok {
-				modelPrice = 0.1
-			} else {
-				modelPrice = defaultPrice
-			}
-		}
-
-		// 预扣
-		groupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
-		ratio = modelPrice * groupRatio
-		quota = int(ratio * common.QuotaPerUnit)
-		if userQuota-quota < 0 {
-			taskErr = service.TaskErrorWrapperLocal(errors.New("user quota is not enough"), "quota_not_enough", http.StatusForbidden)
-			return
-		}
+	quota := int(ratio * common.QuotaPerUnit)
+	if userQuota-quota < 0 {
+		taskErr = service.TaskErrorWrapperLocal(errors.New("user quota is not enough"), "quota_not_enough", http.StatusForbidden)
+		return
 	}
 
 	if relayInfo.OriginTaskID != "" {
@@ -351,10 +321,11 @@ func getCustomPassOtherInfo(c *gin.Context, modelName string, groupRatio float64
 	return other
 }
 
+
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
-	relayconstant.RelayModeSunoFetchByID:                    sunoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeSunoFetch:                        sunoFetchRespBodyBuilder,
-	relayconstant.RelayModeKlingFetchByID:                   videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
+	relayconstant.RelayModeKlingFetchByID: videoFetchByIDRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -430,7 +401,7 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 }
 
 func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	taskId := c.Param("id")
+	taskId := c.Param("task_id")
 	userId := c.GetInt("id")
 
 	originTask, exist, err := model.GetByTaskId(userId, taskId)

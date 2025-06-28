@@ -270,15 +270,12 @@ const RedemptionsTable = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [compactMode, setCompactMode] = useTableCompactMode('redemptions');
 
-  // Form 初始值
   const formInitValues = {
     searchKeyword: '',
   };
 
-  // Form API 引用
   const [formApi, setFormApi] = useState(null);
 
-  // 获取表单值的辅助函数
   const getFormValues = () => {
     const formValues = formApi ? formApi.getValues() : {};
     return {
@@ -299,14 +296,15 @@ const RedemptionsTable = () => {
     setRedemptions(redeptions);
   };
 
-  const loadRedemptions = async (startIdx, pageSize) => {
+  const loadRedemptions = async (page = 1, pageSize) => {
+    setLoading(true);
     const res = await API.get(
-      `/api/redemption/?p=${startIdx}&page_size=${pageSize}`,
+      `/api/redemption/?p=${page}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
-      setActivePage(data.page);
+      setActivePage(data.page <= 0 ? 1 : data.page);
       setTokenCount(data.total);
       setRedemptionFormat(newPageData);
     } else {
@@ -339,17 +337,8 @@ const RedemptionsTable = () => {
     }
   };
 
-  const onPaginationChange = (e, { activePage }) => {
-    (async () => {
-      if (activePage === Math.ceil(redemptions.length / pageSize) + 1) {
-        await loadRedemptions(activePage - 1, pageSize);
-      }
-      setActivePage(activePage);
-    })();
-  };
-
   useEffect(() => {
-    loadRedemptions(0, pageSize)
+    loadRedemptions(1, pageSize)
       .then()
       .catch((reason) => {
         showError(reason);
@@ -418,20 +407,6 @@ const RedemptionsTable = () => {
       showError(message);
     }
     setSearching(false);
-  };
-
-  const sortRedemption = (key) => {
-    if (redemptions.length === 0) return;
-    setLoading(true);
-    let sortedRedemptions = [...redemptions];
-    sortedRedemptions.sort((a, b) => {
-      return ('' + a[key]).localeCompare(b[key]);
-    });
-    if (sortedRedemptions[0].id === redemptions[0].id) {
-      sortedRedemptions.reverse();
-    }
-    setRedemptions(sortedRedemptions);
-    setLoading(false);
   };
 
   const handlePageChange = (page) => {

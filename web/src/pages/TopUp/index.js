@@ -382,7 +382,7 @@ const TopUp = () => {
   };
 
   return (
-    <div className='mx-auto relative min-h-screen lg:min-h-0'>
+    <div className='mx-auto relative min-h-screen lg:min-h-0 mt-[64px]'>
       {/* 划转模态框 */}
       <Modal
         title={
@@ -931,7 +931,7 @@ const TopUp = () => {
                 <Title heading={6}>{t('邀请链接')}</Title>
                 <Input
                   value={affLink}
-                  readOnly
+                  readonly
                   size='large'
                   suffix={
                     <Button

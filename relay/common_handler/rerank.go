@@ -38,10 +38,16 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			}
 			if info.ReturnDocuments {
 				var document any
-				if result.Document == "" {
-					document = info.Documents[result.Index]
-				} else {
-					document = result.Document
+				if result.Document != nil {
+					if doc, ok := result.Document.(string); ok {
+						if doc == "" {
+							document = info.Documents[result.Index]
+						} else {
+							document = doc
+						}
+					} else {
+						document = result.Document
+					}
 				}
 				respResult.Document = document
 			}

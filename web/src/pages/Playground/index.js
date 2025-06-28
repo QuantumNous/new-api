@@ -363,7 +363,7 @@ const Playground = () => {
   }, [setMessage, saveMessagesImmediately]);
 
   return (
-    <div className="h-full bg-gray-50">
+    <div className="h-full bg-gray-50 mt-[64px]">
       <Layout style={{ height: '100%', background: 'transparent' }} className="flex flex-col md:flex-row">
         {(showSettings || !styleState.isMobile) && (
           <Layout.Sider

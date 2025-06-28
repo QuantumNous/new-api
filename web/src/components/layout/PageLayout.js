@@ -11,7 +11,7 @@ import { API, getLogo, getSystemName, showError, setStatusData } from '../../hel
 import { UserContext } from '../../context/User/index.js';
 import { StatusContext } from '../../context/Status/index.js';
 import { useLocation } from 'react-router-dom';
-const { Sider, Content, Header, Footer } = Layout;
+const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -94,8 +94,6 @@ const PageLayout = () => {
       </Header>
       <Layout
         style={{
-          marginTop: '64px',
-          height: 'calc(100vh - 64px)',
           overflow: styleState.isMobile ? 'visible' : 'auto',
           display: 'flex',
           flexDirection: 'column',

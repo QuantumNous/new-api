@@ -25,6 +25,7 @@ import {
   ImagePreview,
   Card,
   Tag,
+  Avatar,
 } from '@douyinfe/semi-ui';
 import { getChannelModels, copy } from '../../helpers';
 import {
@@ -452,10 +453,7 @@ const EditChannel = (props) => {
           borderBottom: '1px solid var(--semi-color-border)',
           padding: '24px'
         }}
-        bodyStyle={{
-          backgroundColor: 'var(--semi-color-bg-0)',
-          padding: '0'
-        }}
+        bodyStyle={{ padding: '0' }}
         visible={props.visible}
         width={isMobile() ? '100%' : 600}
         footer={
@@ -463,7 +461,6 @@ const EditChannel = (props) => {
             <Space>
               <Button
                 theme="solid"
-                size="large"
                 className="!rounded-full"
                 onClick={submit}
                 icon={<IconSave />}
@@ -472,7 +469,6 @@ const EditChannel = (props) => {
               </Button>
               <Button
                 theme="light"
-                size="large"
                 className="!rounded-full"
                 type="primary"
                 onClick={handleCancel}
@@ -489,20 +485,14 @@ const EditChannel = (props) => {
         <Spin spinning={loading}>
           <div className="p-6">
             <Card className="!rounded-2xl shadow-sm border-0 mb-6">
-              <div className="flex items-center mb-4 p-6 rounded-xl" style={{
-                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%)',
-                position: 'relative'
-              }}>
-                <div className="absolute inset-0 overflow-hidden">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-5 rounded-full"></div>
-                  <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-white opacity-10 rounded-full"></div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-4 relative">
-                  <IconServer size="large" style={{ color: '#ffffff' }} />
-                </div>
-                <div className="relative">
-                  <Text style={{ color: '#ffffff' }} className="text-lg font-medium">{t('基本信息')}</Text>
-                  <div style={{ color: '#ffffff' }} className="text-sm opacity-80">{t('渠道的基本配置信息')}</div>
+              {/* Header: Basic Info */}
+              <div className="flex items-center mb-2">
+                <Avatar size="small" color="blue" className="mr-2 shadow-md">
+                  <IconServer size={16} />
+                </Avatar>
+                <div>
+                  <Text className="text-lg font-medium">{t('基本信息')}</Text>
+                  <div className="text-xs text-gray-600">{t('渠道的基本配置信息')}</div>
                 </div>
               </div>
 
@@ -519,7 +509,6 @@ const EditChannel = (props) => {
                     filter
                     searchPosition='dropdown'
                     placeholder={t('请选择渠道类型')}
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -535,7 +524,6 @@ const EditChannel = (props) => {
                     }}
                     value={inputs.name}
                     autoComplete='new-password'
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -594,7 +582,6 @@ const EditChannel = (props) => {
                           }}
                           value={inputs.key}
                           autoComplete='new-password'
-                          size="large"
                           className="!rounded-lg"
                         />
                       )}
@@ -616,20 +603,14 @@ const EditChannel = (props) => {
 
             {/* API Configuration Card */}
             <Card className="!rounded-2xl shadow-sm border-0 mb-6">
-              <div className="flex items-center mb-4 p-6 rounded-xl" style={{
-                background: 'linear-gradient(135deg, #065f46 0%, #059669 50%, #10b981 100%)',
-                position: 'relative'
-              }}>
-                <div className="absolute inset-0 overflow-hidden">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-5 rounded-full"></div>
-                  <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-white opacity-10 rounded-full"></div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-4 relative">
-                  <IconGlobe size="large" style={{ color: '#ffffff' }} />
-                </div>
-                <div className="relative">
-                  <Text style={{ color: '#ffffff' }} className="text-lg font-medium">{t('API 配置')}</Text>
-                  <div style={{ color: '#ffffff' }} className="text-sm opacity-80">{t('API 地址和相关配置')}</div>
+              {/* Header: API Config */}
+              <div className="flex items-center mb-2">
+                <Avatar size="small" color="green" className="mr-2 shadow-md">
+                  <IconGlobe size={16} />
+                </Avatar>
+                <div>
+                  <Text className="text-lg font-medium">{t('API 配置')}</Text>
+                  <div className="text-xs text-gray-600">{t('API 地址和相关配置')}</div>
                 </div>
               </div>
 
@@ -669,7 +650,6 @@ const EditChannel = (props) => {
                         onChange={(value) => handleInputChange('base_url', value)}
                         value={inputs.base_url}
                         autoComplete='new-password'
-                        size="large"
                         className="!rounded-lg"
                       />
                     </div>
@@ -681,7 +661,6 @@ const EditChannel = (props) => {
                         onChange={(value) => handleInputChange('other', value)}
                         value={inputs.other}
                         autoComplete='new-password'
-                        size="large"
                         className="!rounded-lg"
                       />
                     </div>
@@ -703,7 +682,6 @@ const EditChannel = (props) => {
                         onChange={(value) => handleInputChange('base_url', value)}
                         value={inputs.base_url}
                         autoComplete='new-password'
-                        size="large"
                         className="!rounded-lg"
                       />
                     </div>
@@ -727,7 +705,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('base_url', value)}
                       value={inputs.base_url}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                     <Text type="tertiary" className="mt-1 text-xs">
@@ -745,7 +722,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('base_url', value)}
                       value={inputs.base_url}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                   </div>
@@ -762,7 +738,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('base_url', value)}
                       value={inputs.base_url}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                   </div>
@@ -772,20 +747,14 @@ const EditChannel = (props) => {
 
             {/* Model Configuration Card */}
             <Card className="!rounded-2xl shadow-sm border-0 mb-6">
-              <div className="flex items-center mb-4 p-6 rounded-xl" style={{
-                background: 'linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%)',
-                position: 'relative'
-              }}>
-                <div className="absolute inset-0 overflow-hidden">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-5 rounded-full"></div>
-                  <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-white opacity-10 rounded-full"></div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-4 relative">
-                  <IconCode size="large" style={{ color: '#ffffff' }} />
-                </div>
-                <div className="relative">
-                  <Text style={{ color: '#ffffff' }} className="text-lg font-medium">{t('模型配置')}</Text>
-                  <div style={{ color: '#ffffff' }} className="text-sm opacity-80">{t('模型选择和映射设置')}</div>
+              {/* Header: Model Config */}
+              <div className="flex items-center mb-2">
+                <Avatar size="small" color="purple" className="mr-2 shadow-md">
+                  <IconCode size={16} />
+                </Avatar>
+                <div>
+                  <Text className="text-lg font-medium">{t('模型配置')}</Text>
+                  <div className="text-xs text-gray-600">{t('模型选择和映射设置')}</div>
                 </div>
               </div>
 
@@ -804,7 +773,6 @@ const EditChannel = (props) => {
                     value={inputs.models}
                     autoComplete='new-password'
                     optionList={modelOptions}
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -813,7 +781,6 @@ const EditChannel = (props) => {
                   <Button
                     type='primary'
                     onClick={() => handleInputChange('models', basicModels)}
-                    size="large"
                     className="!rounded-lg"
                   >
                     {t('填入相关模型')}
@@ -821,23 +788,22 @@ const EditChannel = (props) => {
                   <Button
                     type='secondary'
                     onClick={() => handleInputChange('models', fullModels)}
-                    size="large"
                     className="!rounded-lg"
                   >
                     {t('填入所有模型')}
                   </Button>
-                  <Button
-                    type='tertiary'
-                    onClick={() => fetchUpstreamModelList('models')}
-                    size="large"
-                    className="!rounded-lg"
-                  >
-                    {t('获取模型列表')}
-                  </Button>
+                  {isEdit ? (
+                    <Button
+                      type='tertiary'
+                      onClick={() => fetchUpstreamModelList('models')}
+                      className="!rounded-lg"
+                    >
+                      {t('获取模型列表')}
+                    </Button>
+                  ) : null}
                   <Button
                     type='warning'
                     onClick={() => handleInputChange('models', [])}
-                    size="large"
                     className="!rounded-lg"
                   >
                     {t('清除所有模型')}
@@ -856,12 +822,19 @@ const EditChannel = (props) => {
                         showError(t('复制失败'));
                       }
                     }}
-                    size="large"
                     className="!rounded-lg"
                   >
                     {t('复制所有模型')}
                   </Button>
                 </div>
+
+                {!isEdit && (
+                  <Banner
+                    type='info'
+                    description={t('创建后可在编辑渠道时获取上游模型列表')}
+                    className='!rounded-lg'
+                  />
+                )}
 
                 <div>
                   <Input
@@ -873,7 +846,6 @@ const EditChannel = (props) => {
                     placeholder={t('输入自定义模型名称')}
                     value={customModel}
                     onChange={(value) => setCustomModel(value.trim())}
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -907,7 +879,6 @@ const EditChannel = (props) => {
                     placeholder={t('不填则为模型列表第一个')}
                     onChange={(value) => handleInputChange('test_model', value)}
                     value={inputs.test_model}
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -916,20 +887,14 @@ const EditChannel = (props) => {
 
             {/* Advanced Settings Card */}
             <Card className="!rounded-2xl shadow-sm border-0 mb-6">
-              <div className="flex items-center mb-4 p-6 rounded-xl" style={{
-                background: 'linear-gradient(135deg, #92400e 0%, #d97706 50%, #f59e0b 100%)',
-                position: 'relative'
-              }}>
-                <div className="absolute inset-0 overflow-hidden">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-5 rounded-full"></div>
-                  <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-white opacity-10 rounded-full"></div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-4 relative">
-                  <IconSetting size="large" style={{ color: '#ffffff' }} />
-                </div>
-                <div className="relative">
-                  <Text style={{ color: '#ffffff' }} className="text-lg font-medium">{t('高级设置')}</Text>
-                  <div style={{ color: '#ffffff' }} className="text-sm opacity-80">{t('渠道的高级配置选项')}</div>
+              {/* Header: Advanced Settings */}
+              <div className="flex items-center mb-2">
+                <Avatar size="small" color="orange" className="mr-2 shadow-md">
+                  <IconSetting size={16} />
+                </Avatar>
+                <div>
+                  <Text className="text-lg font-medium">{t('高级设置')}</Text>
+                  <div className="text-xs text-gray-600">{t('渠道的高级配置选项')}</div>
                 </div>
               </div>
 
@@ -948,7 +913,6 @@ const EditChannel = (props) => {
                     value={inputs.groups}
                     autoComplete='new-password'
                     optionList={groupOptions}
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -962,7 +926,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('other', value)}
                       value={inputs.other}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                   </div>
@@ -1004,7 +967,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('other', value)}
                       value={inputs.other}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                   </div>
@@ -1019,7 +981,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('other', value)}
                       value={inputs.other}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                   </div>
@@ -1034,7 +995,6 @@ const EditChannel = (props) => {
                       onChange={(value) => handleInputChange('other', value)}
                       value={inputs.other}
                       autoComplete='new-password'
-                      size="large"
                       className="!rounded-lg"
                     />
                   </div>
@@ -1048,7 +1008,6 @@ const EditChannel = (props) => {
                     onChange={(value) => handleInputChange('tag', value)}
                     value={inputs.tag}
                     autoComplete='new-password'
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -1068,7 +1027,6 @@ const EditChannel = (props) => {
                     }}
                     value={inputs.priority}
                     autoComplete='new-password'
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -1088,7 +1046,6 @@ const EditChannel = (props) => {
                     }}
                     value={inputs.weight}
                     autoComplete='new-password'
-                    size="large"
                     className="!rounded-lg"
                   />
                 </div>
@@ -1156,7 +1113,6 @@ const EditChannel = (props) => {
                       placeholder={t('请输入组织org-xxx')}
                       onChange={(value) => handleInputChange('openai_organization', value)}
                       value={inputs.openai_organization}
-                      size="large"
                       className="!rounded-lg"
                     />
                     <Text type="tertiary" className="mt-1 text-xs">

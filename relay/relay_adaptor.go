@@ -15,6 +15,7 @@ import (
 	"one-api/relay/channel/deepseek"
 	"one-api/relay/channel/dify"
 	"one-api/relay/channel/gemini"
+	"one-api/relay/channel/jimeng"
 	"one-api/relay/channel/jina"
 	"one-api/relay/channel/mistral"
 	"one-api/relay/channel/mokaai"
@@ -24,6 +25,7 @@ import (
 	"one-api/relay/channel/perplexity"
 	"one-api/relay/channel/siliconflow"
 	taskcustompass "one-api/relay/channel/task/custompass"
+	"one-api/relay/channel/task/jimeng"
 	"one-api/relay/channel/task/kling"
 	"one-api/relay/channel/task/suno"
 	"one-api/relay/channel/tencent"
@@ -110,6 +112,8 @@ func GetTaskAdaptor(platform commonconstant.TaskPlatform) channel.TaskAdaptor {
 		return &kling.TaskAdaptor{}
 	case commonconstant.TaskPlatformCustomPass:
 		return &taskcustompass.TaskAdaptor{}
+	case commonconstant.TaskPlatformJimeng:
+		return &jimeng.TaskAdaptor{}
 	}
 	return nil
 }
