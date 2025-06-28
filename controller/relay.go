@@ -171,7 +171,7 @@ func Relay(c *gin.Context) {
 			common.LogError(c, fmt.Sprintf("origin 429 error: %s", openaiErr.Error.Message))
 			openaiErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
 		}
-		
+
 		// 处理自定义的 NewAPI batch 错误码
 		if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
 			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
