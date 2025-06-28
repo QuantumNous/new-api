@@ -33,6 +33,8 @@ import {
   FastGPT,
 } from '@lobehub/icons';
 
+import CustomPassIcon from '../components/common/logo/CustomPassIcon';
+
 import {
   LayoutDashboard,
   TerminalSquare,
@@ -386,6 +388,8 @@ export function getChannelIcon(channelType) {
       return <XAI size={iconSize} />;
     case 49: // Coze
       return <Coze size={iconSize} />;
+    case 52: // 自定义透传渠道
+      return <CustomPassIcon size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

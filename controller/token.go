@@ -6,6 +6,7 @@ import (
 	"one-api/common"
 	"one-api/model"
 	"strconv"
+	"strings"
 )
 
 func GetAllTokens(c *gin.Context) {
@@ -286,4 +287,65 @@ func DeleteTokenBatch(c *gin.Context) {
 		"message": "",
 		"data":    count,
 	})
+}
+
+// AdminSearchTokenByKey 超级管理员根据令牌精确查询
+func AdminSearchTokenByKey(c *gin.Context) {
+	tokenKey := c.Query("token")
+	if tokenKey == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请提供要查询的令牌",
+		})
+		return
+	}
+
+	// 去掉sk-前缀（如果有的话）
+	tokenKey = strings.TrimPrefix(tokenKey, "sk-")
+
+	token, err := model.GetTokenByKey(tokenKey, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "未找到该令牌: " + err.Error(),
+		})
+		return
+	}
+
+	// 获取令牌所属用户信息
+	user, err := model.GetUserById(token.UserId, false)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "获取用户信息失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 清理敏感信息
+	token.Clean()
+
+	// 返回令牌信息和用户信息
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"token": token,
+			"user": gin.H{
+				"id":                user.Id,
+				"username":          user.Username,
+				"display_name":      user.DisplayName,
+				"email":             user.Email,
+				"role":              user.Role,
+				"status":            user.Status,
+				"quota":             user.Quota,             // 总余额
+				"used_quota":        user.UsedQuota,        // 已使用余额
+				"request_count":     user.RequestCount,     // 请求次数
+				"aff_quota":         user.AffQuota,         // 邀请剩余额度
+				"aff_history_quota": user.AffHistoryQuota,  // 邀请历史额度
+				"group":             user.Group,            // 用户组
+			},
+		},
+	})
+	return
 }

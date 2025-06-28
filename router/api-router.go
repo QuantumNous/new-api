@@ -84,6 +84,11 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 		}
+		adminTokenRoute := apiRouter.Group("/admin/token")
+		adminTokenRoute.Use(middleware.RootAuth())
+		{
+			adminTokenRoute.GET("/search", controller.AdminSearchTokenByKey)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{
