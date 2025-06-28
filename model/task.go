@@ -3,8 +3,6 @@ package model
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
-	"one-api/common"
 	"one-api/constant"
 	commonRelay "one-api/relay/common"
 	"time"

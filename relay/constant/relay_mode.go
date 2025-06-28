@@ -167,6 +167,10 @@ func Path2RelayCustomPass(method, path string) int {
 			// 其他所有请求都是普通API调用，返回Unknown让它走普通的Relay流程
 			relayMode = RelayModeUnknown
 		}
+	}
+	return relayMode
+}
+
 func Path2RelayJimeng(method, path string) int {
 	relayMode := RelayModeUnknown
 	if method == http.MethodPost && strings.HasSuffix(path, "/video/generations") {

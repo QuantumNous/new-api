@@ -21,6 +21,10 @@ type TaskAdaptor struct {
 	ChannelType int
 }
 
+func (a *TaskAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+	return nil, fmt.Errorf("not implement") // todo implement this method if needed
+}
+
 // SubmitRequest 提交请求结构
 type SubmitRequest struct {
 	// 这里可以是任意的JSON结构，因为是透传

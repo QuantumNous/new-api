@@ -45,6 +45,7 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	}
 	if channel.Type == common.ChannelTypeCustomPass {
 		return errors.New("custom pass channel test is not supported"), nil
+	}
 	if channel.Type == common.ChannelTypeJimeng {
 		return errors.New("jimeng channel test is not supported"), nil
 	}
