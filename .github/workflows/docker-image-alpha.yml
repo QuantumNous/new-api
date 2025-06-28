@@ -1,0 +1,62 @@
+name: Publish Docker image (alpha)
+
+on:
+  push:
+    branches:
+      - alpha
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "reason"
+        required: false
+
+jobs:
+  push_to_registries:
+    name: Push Docker image to multiple registries
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Save version info
+        run: |
+          echo "alpha-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" > VERSION
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            calciumion/new-api
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=alpha
+            type=raw,value=alpha-{{date 'YYYYMMDD'}}-{{sha}}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
