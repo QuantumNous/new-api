@@ -19,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
@@ -88,7 +89,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.TaskRelayInfo) {
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.TaskRelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
-	action := "generate"
+	action := constant.TaskActionGenerate
 	info.Action = action
 
 	req := relaycommon.TaskSubmitReq{}

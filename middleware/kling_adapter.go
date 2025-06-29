@@ -3,9 +3,11 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"io"
 	"one-api/common"
+	"one-api/constant"
+
+	"github.com/gin-gonic/gin"
 )
 
 func KlingRequestConvert() func(c *gin.Context) {
@@ -35,7 +37,7 @@ func KlingRequestConvert() func(c *gin.Context) {
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 		c.Request.URL.Path = "/v1/video/generations"
 		if image := originalReq["image"]; image == "" {
-			c.Set("action", "textGenerate")
+			c.Set("action", constant.TaskActionTextGenerate)
 		}
 
 		// We have to reset the request body for the next handlers

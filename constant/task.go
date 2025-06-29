@@ -12,6 +12,9 @@ const (
 const (
 	SunoActionMusic  = "MUSIC"
 	SunoActionLyrics = "LYRICS"
+
+	TaskActionGenerate     = "generate"
+	TaskActionTextGenerate = "textGenerate"
 )
 
 var SunoModel2Action = map[string]string{

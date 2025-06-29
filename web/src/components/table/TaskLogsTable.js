@@ -49,6 +49,7 @@ import {
   IconSearch,
 } from '@douyinfe/semi-icons';
 import { useTableCompactMode } from '../../hooks/useTableCompactMode';
+import { TASK_ACTION_GENERATE, TASK_ACTION_TEXT_GENERATE } from '../../constants/common.constant';
 
 const { Text } = Typography;
 
@@ -207,13 +208,13 @@ const LogsTable = () => {
             {t('生成歌词')}
           </Tag>
         );
-      case 'generate':
+      case TASK_ACTION_GENERATE:
         return (
           <Tag color='blue' size='large' shape='circle' prefixIcon={<Sparkles size={14} />}>
             {t('图生视频')}
           </Tag>
         );
-      case 'textGenerate':
+      case TASK_ACTION_TEXT_GENERATE:
         return (
           <Tag color='blue' size='large' shape='circle' prefixIcon={<Sparkles size={14} />}>
             {t('文生视频')}
@@ -444,7 +445,7 @@ const LogsTable = () => {
       fixed: 'right',
       render: (text, record, index) => {
         // 仅当为视频生成任务且成功，且 fail_reason 是 URL 时显示可点击链接
-        const isVideoTask = record.action === 'generate' || record.action === 'textGenerate';
+        const isVideoTask = record.action === TASK_ACTION_GENERATE || record.action === TASK_ACTION_TEXT_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
         if (isSuccess && isVideoTask && isUrl) {

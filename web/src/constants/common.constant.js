@@ -18,3 +18,6 @@ export const API_ENDPOINTS = [
   '/v1/audio/transcriptions',
   '/v1/audio/translations'
 ];
+
+export const TASK_ACTION_GENERATE = 'generate';
+export const TASK_ACTION_TEXT_GENERATE = 'textGenerate';

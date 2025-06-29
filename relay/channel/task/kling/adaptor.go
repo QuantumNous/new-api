@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
@@ -92,7 +93,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.TaskRelayInfo) {
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.TaskRelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
-	action := "generate"
+	action := constant.TaskActionGenerate
 	info.Action = action
 
 	var req SubmitReq
@@ -112,7 +113,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.TaskRelayInfo) (string, error) {
-	path := lo.Ternary(info.Action == "generate", "/v1/videos/image2video", "/v1/videos/text2video")
+	path := lo.Ternary(info.Action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
 	return fmt.Sprintf("%s%s", a.baseURL, path), nil
 }
 
@@ -198,7 +199,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	if !ok {
 		return nil, fmt.Errorf("invalid action")
 	}
-	path := lo.Ternary(action == "generate", "/v1/videos/image2video", "/v1/videos/text2video")
+	path := lo.Ternary(action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
 	url := fmt.Sprintf("%s%s/%s", baseUrl, path, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
