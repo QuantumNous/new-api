@@ -1,11 +1,13 @@
 package gemini
 
+import "google.golang.org/genai"
+
 type GeminiChatRequest struct {
-	Contents           []GeminiChatContent        `json:"contents"`
-	SafetySettings     []GeminiChatSafetySettings `json:"safety_settings,omitempty"`
-	GenerationConfig   GeminiChatGenerationConfig `json:"generation_config,omitempty"`
-	Tools              []GeminiChatTool           `json:"tools,omitempty"`
-	SystemInstructions *GeminiChatContent         `json:"system_instruction,omitempty"`
+	Contents           []GeminiChatContent          `json:"contents"`
+	SafetySettings     []GeminiChatSafetySettings   `json:"safety_settings,omitempty"`
+	Tools              []GeminiChatTool             `json:"tools,omitempty"`
+	SystemInstructions *GeminiChatContent           `json:"system_instruction,omitempty"`
+	GenerationConfig   *genai.GenerateContentConfig `json:"generation_config,omitempty"`
 }
 
 type GeminiInlineData struct {
