@@ -358,7 +358,14 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 }
 
 func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {
-	tx := LOG_DB.Table("logs").Select("ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)")
+	var selectSQL string
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		selectSQL = "coalesce(sum(prompt_tokens),0) + coalesce(sum(completion_tokens),0)"
+	} else {
+		selectSQL = "ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)"
+	}
+	
+	tx := LOG_DB.Table("logs").Select(selectSQL)
 	if username != "" {
 		tx = tx.Where("username = ?", username)
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -42,6 +43,9 @@ func initCol() {
 		case common.DatabaseTypePostgreSQL:
 			logGroupCol = `"group"`
 			logKeyCol = `"key"`
+		case common.DatabaseTypeClickHouse:
+			logGroupCol = "`group`"
+			logKeyCol = "`key`"
 		default:
 			logGroupCol = commonGroupCol
 			logKeyCol = commonKeyCol
@@ -133,6 +137,21 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 				PreferSimpleProtocol: true, // disables implicit prepared statement usage
 			}), &gorm.Config{
 				PrepareStmt: true, // precompile SQL
+			})
+		}
+		if strings.HasPrefix(dsn, "clickhouse://") {
+			// Use ClickHouse
+			common.SysLog("using ClickHouse as database")
+			if !isLog {
+				// ClickHouse is primarily for log database
+				panic("ClickHouse is not recommended for main database, please use PostgreSQL or MySQL instead")
+			} else {
+				common.LogSqlType = common.DatabaseTypeClickHouse
+				common.UsingClickHouse = true
+			}
+			return gorm.Open(clickhouse.Open(dsn), &gorm.Config{
+				PrepareStmt:                              false, // ClickHouse doesn't support prepared statements well
+				DisableForeignKeyConstraintWhenMigrating: true,  // ClickHouse doesn't support foreign keys
 			})
 		}
 		if strings.HasPrefix(dsn, "local") {
@@ -312,8 +331,17 @@ func migrateDBFast() error {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
-		return err
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		// ClickHouse specific table options for optimal log storage
+		err = LOG_DB.Set("gorm:table_options", "ENGINE=MergeTree() ORDER BY (created_at, id) PARTITION BY toYYYYMM(toDateTime(created_at))").AutoMigrate(&Log{})
+		if err != nil {
+			return err
+		}
+		common.SysLog("ClickHouse log database migrated with MergeTree engine")
+	} else {
+		if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
