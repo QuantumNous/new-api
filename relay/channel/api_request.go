@@ -39,6 +39,14 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+
+	// 对于CustomPass的GET请求，需要将查询参数附加到URL中
+	if a.GetChannelName() == "custompass" && c.Request.Method == "GET" {
+		if queryParams := c.Request.URL.RawQuery; queryParams != "" {
+			fullRequestURL += "?" + queryParams
+		}
+	}
+
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
@@ -244,7 +252,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		return nil, errors.New("resp is nil")
 	}
 
-	_ = req.Body.Close()
+	// 安全地关闭请求体，避免空指针解引用
+	if req.Body != nil {
+		_ = req.Body.Close()
+	}
 	_ = c.Request.Body.Close()
 	return resp, nil
 }
@@ -254,12 +265,24 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.TaskRelayInfo,
 	if err != nil {
 		return nil, err
 	}
+
+	// 对于CustomPass的GET请求，需要将查询参数附加到URL中
+	if a.GetChannelName() == "custompass" && c.Request.Method == "GET" {
+		if queryParams := c.Request.URL.RawQuery; queryParams != "" {
+			fullRequestURL += "?" + queryParams
+		}
+	}
+
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(requestBody), nil
+
+	// 只有当requestBody不为nil时才设置GetBody
+	if requestBody != nil {
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(requestBody), nil
+		}
 	}
 
 	err = a.BuildRequestHeader(c, req, info)

@@ -49,6 +49,8 @@ import {
   CircleUser,
 } from 'lucide-react';
 
+import CustomPassIcon from '../components/common/logo/CustomPassIcon';
+
 // 侧边栏图标颜色映射
 export const sidebarIconColors = {
   dashboard: '#4F46E5', // 紫蓝色
@@ -386,6 +388,8 @@ export function getChannelIcon(channelType) {
       return <XAI size={iconSize} />;
     case 49: // Coze
       return <Coze size={iconSize} />;
+    case 51: // 自定义透传渠道
+      return <CustomPassIcon size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

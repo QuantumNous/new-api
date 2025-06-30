@@ -268,6 +268,12 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	}
 	if info.BaseUrl == "" {
 		info.BaseUrl = common.ChannelBaseURLs[channelType]
+		// CustomPass渠道必须配置base_url
+		if channelType == common.ChannelTypeCustomPass && info.BaseUrl == "" {
+			// 这里不能直接返回错误，因为这个函数不返回错误
+			// 错误会在后续的URL构建过程中被捕获
+			common.SysError("CustomPass channel requires base_url to be configured")
+		}
 	}
 	if info.ChannelType == common.ChannelTypeAzure {
 		info.ApiVersion = GetAPIVersion(c)

@@ -6,6 +6,8 @@ const (
 	TaskPlatformSuno       TaskPlatform = "suno"
 	TaskPlatformMidjourney              = "mj"
 	TaskPlatformKling      TaskPlatform = "kling"
+
+	TaskPlatformCustomPass TaskPlatform = "custompass"
 )
 
 const (

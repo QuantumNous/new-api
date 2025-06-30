@@ -410,6 +410,69 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	return nil
 }
 
+// CustomPassQuotaInfo CustomPass费用计算信息
+type CustomPassQuotaInfo struct {
+	ModelName    string
+	GroupRatio   float64
+	Usage        *dto.Usage // 从上游返回的usage信息
+	UsePrice     bool
+	ModelPrice   float64
+	ModelRatio   float64
+	CompletionRatio float64
+}
+
+// CalculateCustomPassQuota 计算CustomPass费用
+// 优先级：1. 基于usage计费 2. 按次计费 3. 0费用
+func CalculateCustomPassQuota(info CustomPassQuotaInfo) int {
+	// 1. 如果有usage信息，优先使用usage计费
+	if info.Usage != nil && info.Usage.TotalTokens > 0 {
+		common.SysLog(fmt.Sprintf("CustomPass 使用usage计费: prompt_tokens=%d, completion_tokens=%d, total_tokens=%d",
+			info.Usage.PromptTokens, info.Usage.CompletionTokens, info.Usage.TotalTokens))
+
+		// 如果配置了固定价格，使用固定价格计算
+		if info.UsePrice && info.ModelPrice > 0 {
+			common.SysLog(fmt.Sprintf("CustomPass usage计费使用固定价格: model_price=%.4f, group_ratio=%.2f",
+				info.ModelPrice, info.GroupRatio))
+			quota := info.ModelPrice * info.GroupRatio * common.QuotaPerUnit
+			return int(quota)
+		}
+
+		// 否则使用倍率计算
+		common.SysLog(fmt.Sprintf("CustomPass usage计费使用倍率: model_ratio=%.2f, group_ratio=%.2f",
+			info.ModelRatio, info.GroupRatio))
+
+		// 使用类似文本模型的token计费方式
+		promptTokens := decimal.NewFromInt(int64(info.Usage.PromptTokens))
+		completionTokens := decimal.NewFromInt(int64(info.Usage.CompletionTokens))
+		completionRatio := decimal.NewFromFloat(info.CompletionRatio)
+		modelRatio := decimal.NewFromFloat(info.ModelRatio)
+		groupRatio := decimal.NewFromFloat(info.GroupRatio)
+
+		quota := promptTokens.Add(completionTokens.Mul(completionRatio))
+		quota = quota.Mul(modelRatio).Mul(groupRatio)
+
+		// 如果倍率不为零且计算结果小于等于0，设置为1
+		if !modelRatio.IsZero() && !groupRatio.IsZero() && quota.LessThanOrEqual(decimal.Zero) {
+			quota = decimal.NewFromInt(1)
+		}
+
+		return int(quota.Round(0).IntPart())
+	}
+
+	// 2. 如果没有usage但配置了按次计费价格，使用按次计费
+	if info.UsePrice && info.ModelPrice > 0 {
+		common.SysLog(fmt.Sprintf("CustomPass 使用按次计费: model_price=%.4f, group_ratio=%.2f",
+			info.ModelPrice, info.GroupRatio))
+
+		quota := info.ModelPrice * info.GroupRatio * common.QuotaPerUnit
+		return int(quota)
+	}
+
+	// 3. 其他情况费用为0
+	common.SysLog(fmt.Sprintf("CustomPass 费用为0: 无usage且模型 %s 未配置按次计费价格", info.ModelName))
+	return 0
+}
+
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
 	gopool.Go(func() {
 		userSetting := relayInfo.UserSetting

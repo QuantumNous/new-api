@@ -28,6 +28,8 @@ type Task struct {
 	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
 	UserId     int                   `json:"user_id" gorm:"index"`
 	ChannelId  int                   `json:"channel_id" gorm:"index"`
+	TokenId    int                   `json:"token_id" gorm:"index"`                   // 提交任务时使用的token ID
+	TokenKey   string                `json:"token_key" gorm:"type:varchar(48)"`       // 提交任务时使用的token key
 	Quota      int                   `json:"quota"`
 	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
 	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
@@ -53,6 +55,7 @@ func (t *Task) GetData(v any) error {
 
 type Properties struct {
 	Input string `json:"input"`
+	Model string `json:"model,omitempty"` // 添加模型名称字段
 }
 
 func (m *Properties) Scan(val interface{}) error {
@@ -85,6 +88,8 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.TaskRelayIn
 		Progress:   "0%",
 		ChannelId:  relayInfo.ChannelId,
 		Platform:   platform,
+		TokenId:    relayInfo.TokenId,
+		TokenKey:   relayInfo.TokenKey,
 	}
 	return t
 }
