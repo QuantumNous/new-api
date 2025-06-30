@@ -171,11 +171,6 @@ func Relay(c *gin.Context) {
 			common.LogError(c, fmt.Sprintf("origin 429 error: %s", openaiErr.Error.Message))
 			openaiErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
 		}
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> origin/main
 
 		// 处理自定义的 NewAPI batch 错误码
 		if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
@@ -203,10 +198,6 @@ func Relay(c *gin.Context) {
 			openaiErr.Error.Message = "请求冲突，有其他请求使用了这个Retry_request_id，请稍后再试"
 		}
 
-<<<<<<< HEAD
->>>>>>> Stashed changes
-=======
->>>>>>> origin/main
 		openaiErr.Error.Message = common.MessageWithRequestId(openaiErr.Error.Message, requestId)
 		c.JSON(openaiErr.StatusCode, gin.H{
 			"error": openaiErr.Error,
