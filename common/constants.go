@@ -347,3 +347,8 @@ var ChannelBaseURLs = []string{
 	"",                                          //99
 	"https://ark.cn-beijing.volces.com",         //100 - 豆包离线
 }
+
+func init() {
+	PProfEnabled = false
+	PProfMutex = sync.RWMutex{}
+}

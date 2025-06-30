@@ -80,6 +80,16 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.POST("/request_log", controller.ToggleRequestLog)
 		}
+
+		// 添加 pprof 控制路由
+		pprofRoute := apiRouter.Group("/pprof")
+		pprofRoute.Use(middleware.RootAuth())
+		{
+			pprofRoute.GET("/status", controller.PProfStatus)
+			pprofRoute.POST("/enable", controller.EnablePProf)
+			pprofRoute.POST("/disable", controller.DisablePProf)
+		}
+
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{

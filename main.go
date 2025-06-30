@@ -221,12 +221,9 @@ func main() {
 	}
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
-		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
-		})
-		go common.Monitor()
-		common.SysLog("pprof enabled")
+		common.PProfEnabled = true
 	}
+	common.InitPProfServer()
 
 	service.InitTokenEncoders()
 

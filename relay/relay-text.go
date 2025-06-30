@@ -249,6 +249,12 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
+		// 确保响应体被正确关闭
+		defer func() {
+			if httpResp != nil && httpResp.Body != nil {
+				httpResp.Body.Close()
+			}
+		}()
 		// // 直接设置到 gin 的响应头
 		// c.Writer.Header().Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
 		// c.Writer.Header().Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
@@ -271,6 +277,10 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 			return openaiErr
 		}
+	} else {
+		// 如果resp为nil，返回错误
+		funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("no response received"), "no_response", http.StatusInternalServerError)
+		return funcErr
 	}
 
 	// 读取响应体并创建副本
@@ -281,7 +291,14 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	}
 	// 为adaptor创建一个新的响应体
 	httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
-	common.LogInfo(c, fmt.Sprintf("response body: %s", string(responseBodyBytes)))
+
+	// 限制日志大小，避免内存泄漏
+	if len(responseBodyBytes) <= 2048 {
+		common.LogInfo(c, fmt.Sprintf("response body: %s", string(responseBodyBytes)))
+	} else {
+		common.LogInfo(c, fmt.Sprintf("response body too large (size: %d bytes), skipping print", len(responseBodyBytes)))
+	}
+
 	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
 	if openaiErr != nil {
 		funcErr = openaiErr
