@@ -249,23 +249,12 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-		// 添加来源标识和重试标记
-		httpResp.Header.Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
-		httpResp.Header.Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
-		httpResp.Header.Set("X-Retry-Count", strconv.Itoa(relayInfo.RetryCount))
-
-=======
 		// 确保响应体被正确关闭
 		defer func() {
 			if httpResp != nil && httpResp.Body != nil {
 				httpResp.Body.Close()
 			}
 		}()
-
-=======
->>>>>>> origin/main
 		// // 直接设置到 gin 的响应头
 		// c.Writer.Header().Set("X-Origin-User-ID", strconv.Itoa(relayInfo.UserId))
 		// c.Writer.Header().Set("X-Origin-Channel-ID", strconv.Itoa(relayInfo.ChannelId))
@@ -273,10 +262,6 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		// if c.GetHeader("Retry_request_id") != "" {
 		// 	c.Writer.Header().Set("Retry_request_id", c.GetHeader("Retry_request_id"))
 		// }
-<<<<<<< HEAD
->>>>>>> Stashed changes
-=======
->>>>>>> origin/main
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			for k, v := range httpResp.Header {

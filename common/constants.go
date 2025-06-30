@@ -239,12 +239,7 @@ const (
 	ChannelTypeVolcEngine     = 45
 	ChannelTypeBaiduV2        = 46
 	ChannelTypeXai            = 47
-<<<<<<< HEAD
-	ChannelTypeXinference     = 48
-	ChannelTypeCoze           = 49
-=======
 	ChannelTypeDoubaoOffline  = 100
->>>>>>> origin/main
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
