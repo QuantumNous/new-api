@@ -28,6 +28,8 @@ import (
 	"github.com/joho/godotenv"
 
 	_ "net/http/pprof"
+
+	"one-api/relay/channel/volcengine"
 )
 
 //go:embed web/dist
@@ -96,6 +98,11 @@ func main() {
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 	}
+	// Initialize Central Control Database
+	err = model.InitCentralDB()
+	if err != nil {
+		common.FatalLog("failed to initialize central control database: " + err.Error())
+	}
 	err = model.InitLogTable()
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
@@ -134,11 +141,26 @@ func main() {
 		common.FatalLog("failed to initialize Redis: " + err.Error())
 	}
 
+	// Initialize Keep-Alive Manager for Redis keys
+	if err := volcengine.InitKeepAliveManager(); err != nil {
+		common.FatalLog("failed to initialize keep-alive manager: " + err.Error())
+	}
+	// 在应用关闭时清理保活管理器
+	defer func() {
+		if err := volcengine.ShutdownKeepAliveManager(); err != nil {
+			common.SysError("failed to shutdown keep-alive manager: " + err.Error())
+		}
+	}()
+
 	// Initialize constants
 	constant.InitEnv()
 	// Initialize options
 	model.InitOptionMap()
 	model.InitGroups()
+
+	// 初始化batch请求平均耗时
+	volcengine.InitBatchRequestAverageDuration()
+
 	if common.RedisEnabled {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
@@ -218,8 +240,8 @@ func main() {
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
-	server.Use(middleware.RequestLogger())
 	server.Use(middleware.RequestId())
+	server.Use(middleware.RequestLogger())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))

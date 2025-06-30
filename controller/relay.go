@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"io"
 	"log"
 	"net/http"
@@ -23,6 +21,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func relayInfoHandler(c *gin.Context, relayMode int) (*relaycommon.RelayInfo, interface{}, string, *dto.OpenAIErrorWithStatusCode) {
@@ -121,6 +122,9 @@ func Relay(c *gin.Context) {
 			openaiErr = service.OpenAIErrorWrapperLocal(err, "get_channel_failed", http.StatusInternalServerError)
 			break
 		}
+		// 设置 channel 信息到上下文
+		c.Set("channel", strconv.Itoa(channel.Id))
+		c.Set("channel_name", channel.Name)
 		fillRelayRequest(c, channel)
 		var (
 			relayInfo    *relaycommon.RelayInfo
@@ -130,20 +134,20 @@ func Relay(c *gin.Context) {
 		relayInfo, request, requestModel, openaiErr = relayInfoHandler(c, relayMode)
 		if i == 0 {
 			// e2e 用户请求计数
-			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, 1)
+			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, 1)
 		} else {
 			// 重试计数
 			channelTag := ""
 			if channel.Tag != nil {
 				channelTag = *channel.Tag
 			}
-			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channelTag, channel.GetBaseURL(), requestModel, group, 1)
+			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channel.Name, channelTag, channel.GetBaseURL(), requestModel, group, 1)
 		}
 		if openaiErr == nil {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
 			if openaiErr == nil {
-				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, 1)
-				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), requestModel, group, tokenKey, tokenName, time.Since(startTime).Seconds())
+				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, 1)
+				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, time.Since(startTime).Seconds())
 				return
 			}
 		}
@@ -152,7 +156,7 @@ func Relay(c *gin.Context) {
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
 			// e2e 失败计数
-			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), requestModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, 1)
+			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, 1)
 			break
 		}
 	}
@@ -167,8 +171,11 @@ func Relay(c *gin.Context) {
 			common.LogError(c, fmt.Sprintf("origin 429 error: %s", openaiErr.Error.Message))
 			openaiErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
 		}
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 =======
+=======
+>>>>>>> origin/main
 
 		// 处理自定义的 NewAPI batch 错误码
 		if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
@@ -196,7 +203,10 @@ func Relay(c *gin.Context) {
 			openaiErr.Error.Message = "请求冲突，有其他请求使用了这个Retry_request_id，请稍后再试"
 		}
 
+<<<<<<< HEAD
 >>>>>>> Stashed changes
+=======
+>>>>>>> origin/main
 		openaiErr.Error.Message = common.MessageWithRequestId(openaiErr.Error.Message, requestId)
 		c.JSON(openaiErr.StatusCode, gin.H{
 			"error": openaiErr.Error,
@@ -259,6 +269,31 @@ func WssRelay(c *gin.Context) {
 	if openaiErr != nil {
 		if openaiErr.StatusCode == http.StatusTooManyRequests {
 			openaiErr.Error.Message = "当前分组上游负载已饱和，请稍后再试"
+		}
+		// 处理自定义的 NewAPI batch 错误码
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "当前服务端限速已满，请稍后再试"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchTimeout {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "未等待到结果，请稍后使用Retry_request_id再次查询"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchInternal {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "服务内部错误，请稍后再试"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchSubmitted {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "批量请求已提交，但是结果还未出来，请使用Retry_request_id查询结果"
+		}
+		if openaiErr.StatusCode == dto.StatusNewAPIBatchAccepted {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "批量请求已接受，正在处理中，请稍后使用Retry_request_id查询结果"
+		}
+		if openaiErr.StatusCode == dto.StatusRequestConflict {
+			common.LogError(c, fmt.Sprintf("origin %d error: %s", openaiErr.StatusCode, openaiErr.Error.Message))
+			openaiErr.Error.Message = "请求冲突，有其他请求使用了这个Retry_request_id，请稍后再试"
 		}
 		openaiErr.Error.Message = common.MessageWithRequestId(openaiErr.Error.Message, requestId)
 		helper.WssError(c, ws, openaiErr.Error)
@@ -338,6 +373,26 @@ func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retry
 	if openaiErr.StatusCode == http.StatusTooManyRequests {
 		return true
 	}
+	// 处理自定义的 NewAPI batch 错误码
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchRateLimitExceeded {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchTimeout {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchInternal {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchSubmitted {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusNewAPIBatchAccepted {
+		return false
+	}
+	if openaiErr.StatusCode == dto.StatusRequestConflict {
+		return false
+	}
+
 	if openaiErr.StatusCode == 307 {
 		return true
 	}

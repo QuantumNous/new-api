@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -14,6 +13,8 @@ import (
 	"one-api/service"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getRerankPromptToken(rerankRequest dto.RerankRequest) int {
@@ -42,13 +43,14 @@ func RerankInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.RerankRequest, *dt
 func RerankHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, rerankRequest *dto.RerankRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, 1)
+	var statusCode int = -1
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, 1)
 	defer func() {
 		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), 1)
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), 1)
 		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, rerankRequest.Model, relayInfo.Group, time.Since(startTime).Seconds())
 		}
 	}()
 	if rerankRequest.Query == "" {
@@ -132,6 +134,10 @@ func RerankHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, rerankReques
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
 	}
+
+	// 设置状态码用于指标记录
+	statusCode = resp.(*http.Response).StatusCode
+
 	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 	return nil
 }

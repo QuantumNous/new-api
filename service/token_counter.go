@@ -164,7 +164,7 @@ func getImageToken(info *relaycommon.RelayInfo, imageUrl *dto.MessageImageUrl, m
 }
 
 func CountTokenChatRequest(ctx *gin.Context, info *relaycommon.RelayInfo, request dto.GeneralOpenAIRequest) (int, error) {
-	if request.Messages == nil {
+	if request.Messages == nil && request.Input == nil {
 		return 0, errors.New("messages is required")
 	}
 	tkm := 0

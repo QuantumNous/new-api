@@ -3,7 +3,6 @@ package channel
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +10,7 @@ import (
 	onecommon "one-api/common"
 	"one-api/relay/common"
 	"one-api/relay/constant"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +42,14 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	// 添加自定义请求头
 	for key, value := range info.Headers {
 		req.Set(key, value)
+	}
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Set("retry", retry)
 	}
 }
 
@@ -167,7 +175,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	req.Header.Set("X-Origin-User-ID", strconv.Itoa(info.UserId))
 	req.Header.Set("X-Origin-Channel-ID", strconv.Itoa(info.ChannelId))
 	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
-	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Header.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Header.Set("retry", retry)
+	}
 
 	// 打印请求头
 	requestId := c.GetString(onecommon.RequestIdKey)
@@ -181,15 +196,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		if len(bodyBytes) > 0 {
 			// 只打印小于64KB的请求体
 			if len(bodyBytes) < 64*1024 {
-				var jsonData interface{}
-				if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
-					compactJSON, err := json.Marshal(jsonData)
-					if err == nil {
-						onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(compactJSON)))
-					}
-				} else {
-					onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", string(bodyBytes)))
-				}
+				// 使用正则表达式替换base64数据
+				bodyStr := string(bodyBytes)
+				replacedBody := replaceBase64InString(bodyStr)
+				onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", replacedBody))
 			} else {
 				onecommon.LogInfo(ctx, fmt.Sprintf("request body too large (size: %d bytes), skipping print", len(bodyBytes)))
 			}
@@ -243,4 +253,35 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.TaskRelayInfo,
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
 	return resp, nil
+}
+
+func replaceBase64InString(s string) string {
+	// 替换data URL格式的base64数据
+	// 匹配格式: "url": "data:video/mp4;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
+	// 替换为: "url": "data:video/mp4;base64,[BASE64_DATA_1896764_chars]"
+
+	// 匹配data URL格式的正则表达式
+	dataURLPattern := regexp.MustCompile(`"url":\s*"data:[^"]+;base64,[^"]+"`)
+
+	// 替换函数
+	replacer := func(match string) string {
+		// 提取MIME类型
+		mimePattern := regexp.MustCompile(`data:([^;]+);base64,`)
+		mimeMatch := mimePattern.FindStringSubmatch(match)
+		if len(mimeMatch) > 1 {
+			mimeType := mimeMatch[1]
+			// 计算base64数据长度（大约）
+			base64Pattern := regexp.MustCompile(`base64,([^"]+)`)
+			base64Match := base64Pattern.FindStringSubmatch(match)
+			if len(base64Match) > 1 {
+				base64Data := base64Match[1]
+				// 计算字符数
+				charCount := len(base64Data)
+				return fmt.Sprintf(`"url": "data:%s;base64,[BASE64_DATA_%d_chars]"`, mimeType, charCount)
+			}
+		}
+		return `"url": "data:image/png;base64,[BASE64_DATA_REPLACED]"`
+	}
+
+	return dataURLPattern.ReplaceAllStringFunc(s, replacer)
 }

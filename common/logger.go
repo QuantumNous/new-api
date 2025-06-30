@@ -10,8 +10,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+
+	"one-api/metrics"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
@@ -33,6 +36,20 @@ const (
 	maxLogFiles = 1
 	// 日志计数上限
 	maxLogCount = 1000000
+)
+
+// 错误类型常量
+const (
+	ErrorTypeOther              = "other"
+	ErrorTypeParameter          = "parameter_error"
+	ErrorTypeNoCandidates       = "no_candidates"
+	ErrorTypeRequestFailed      = "request_failed"
+	ErrorTypeBadGateway         = "bad_gateway"
+	ErrorTypeResponseFailed     = "response_failed"
+	ErrorTypeConnectionTimeout  = "connection_timeout"
+	ErrorTypeTokenUnavailable   = "token_unavailable"
+	ErrorTypeBadRequest         = "bad_request"
+	ErrorTypeNoAvailableChannel = "no_available_channel"
 )
 
 var logCount int
@@ -184,6 +201,42 @@ func LogError(ctx context.Context, msg string) {
 	logHelper(ctx, loggerError, msg)
 }
 
+// 获取错误类型
+func getErrorType(msg string) (string, string) {
+	// 提取错误码（如果有）
+	errorCode := "unknown"
+	if strings.Contains(msg, "status code:") {
+		parts := strings.Split(msg, "status code:")
+		if len(parts) > 1 {
+			errorCode = strings.TrimSpace(parts[1])
+		}
+	}
+
+	// 根据错误消息内容判断错误类型
+	switch {
+	case strings.Contains(msg, "One or more parameter"):
+		return ErrorTypeParameter, errorCode
+	case strings.Contains(msg, "No candidates"):
+		return ErrorTypeNoCandidates, errorCode
+	case strings.Contains(msg, "do request failed"):
+		return ErrorTypeRequestFailed, errorCode
+	case strings.Contains(msg, "status code: 502"):
+		return ErrorTypeBadGateway, errorCode
+	case strings.Contains(msg, "doResponse failed"):
+		return ErrorTypeResponseFailed, errorCode
+	case strings.Contains(msg, "write: connection timed out"):
+		return ErrorTypeConnectionTimeout, errorCode
+	case strings.Contains(msg, "该令牌状态不可用"):
+		return ErrorTypeTokenUnavailable, errorCode
+	case strings.Contains(msg, "bad response status code 400"):
+		return ErrorTypeBadRequest, errorCode
+	case strings.Contains(msg, "无可用渠道"):
+		return ErrorTypeNoAvailableChannel, errorCode
+	default:
+		return ErrorTypeOther, errorCode
+	}
+}
+
 func logHelper(ctx context.Context, level string, msg string) {
 	// 获取请求ID
 	var requestId string
@@ -209,6 +262,38 @@ func logHelper(ctx context.Context, level string, msg string) {
 	now := time.Now()
 	caller := getCallerInfo()
 	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), requestId, caller, msg)
+
+	// 如果是错误日志，增加错误计数
+	if level == loggerError {
+		errorType, errorCode := getErrorType(msg)
+		// 从上下文中获取相关信息
+		channel := "unknown"
+		channelName := "unknown"
+		model := "unknown"
+		group := "unknown"
+		tokenName := "unknown"
+
+		if ginCtx, ok := ctx.Value("gin_context").(*gin.Context); ok {
+			if ch := ginCtx.GetString("channel"); ch != "" {
+				channel = ch
+			}
+			if chName := ginCtx.GetString("channel_name"); chName != "" {
+				channelName = chName
+			}
+			if m := ginCtx.GetString("model"); m != "" {
+				model = m
+			}
+			if g := ginCtx.GetString("group"); g != "" {
+				group = g
+			}
+			if tn := ginCtx.GetString("token_name"); tn != "" {
+				tokenName = tn
+			}
+		}
+
+		metrics.IncrementErrorLog(channel, channelName, errorCode, errorType, model, group, tokenName, 1.0)
+	}
+
 	logCount++ // we don't need accurate count, so no lock here
 	if logCount > maxLogCount && !setupLogWorking {
 		logCount = 0

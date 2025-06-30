@@ -2,7 +2,12 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	"one-api/common"
+
+	"google.golang.org/genai"
 )
 
 type ResponseFormat struct {
@@ -18,41 +23,43 @@ type FormatJsonSchema struct {
 }
 
 type GeneralOpenAIRequest struct {
-	Model               string            `json:"model,omitempty"`
-	Messages            []Message         `json:"messages,omitempty"`
-	Prompt              any               `json:"prompt,omitempty"`
-	Prefix              any               `json:"prefix,omitempty"`
-	Suffix              any               `json:"suffix,omitempty"`
-	Stream              bool              `json:"stream,omitempty"`
-	StreamOptions       *StreamOptions    `json:"stream_options,omitempty"`
-	MaxTokens           uint              `json:"max_tokens,omitempty"`
-	MaxCompletionTokens uint              `json:"max_completion_tokens,omitempty"`
-	ReasoningEffort     string            `json:"reasoning_effort,omitempty"`
-	Temperature         *float64          `json:"temperature,omitempty"`
-	TopP                float64           `json:"top_p,omitempty"`
-	TopK                int               `json:"top_k,omitempty"`
-	Stop                any               `json:"stop,omitempty"`
-	N                   int               `json:"n,omitempty"`
-	Input               any               `json:"input,omitempty"`
-	Instruction         string            `json:"instruction,omitempty"`
-	Size                string            `json:"size,omitempty"`
-	Functions           any               `json:"functions,omitempty"`
-	FrequencyPenalty    float64           `json:"frequency_penalty,omitempty"`
-	PresencePenalty     float64           `json:"presence_penalty,omitempty"`
-	ResponseFormat      *ResponseFormat   `json:"response_format,omitempty"`
-	EncodingFormat      any               `json:"encoding_format,omitempty"`
-	Seed                float64           `json:"seed,omitempty"`
-	Tools               []ToolCallRequest `json:"tools,omitempty"`
-	ToolChoice          any               `json:"tool_choice,omitempty"`
-	User                string            `json:"user,omitempty"`
-	LogProbs            bool              `json:"logprobs,omitempty"`
-	TopLogProbs         int               `json:"top_logprobs,omitempty"`
-	Dimensions          int               `json:"dimensions,omitempty"`
-	Modalities          any               `json:"modalities,omitempty"`
-	Audio               any               `json:"audio,omitempty"`
-	ExtraBody           any               `json:"extra_body,omitempty"`
-	Thinking            *ThinkingOptions  `json:"thinking,omitempty"`
-	ThinkingConfig      *ThinkingConfigs  `json:"thinking_config,omitempty"`
+	Model               string                       `json:"model,omitempty"`
+	Messages            []Message                    `json:"messages,omitempty"`
+	Prompt              any                          `json:"prompt,omitempty"`
+	Prefix              any                          `json:"prefix,omitempty"`
+	Suffix              any                          `json:"suffix,omitempty"`
+	Stream              bool                         `json:"stream,omitempty"`
+	StreamOptions       *StreamOptions               `json:"stream_options,omitempty"`
+	MaxTokens           uint                         `json:"max_tokens,omitempty"`
+	MaxCompletionTokens uint                         `json:"max_completion_tokens,omitempty"`
+	ReasoningEffort     string                       `json:"reasoning_effort,omitempty"`
+	Temperature         *float64                     `json:"temperature,omitempty"`
+	TopP                float64                      `json:"top_p,omitempty"`
+	TopK                int                          `json:"top_k,omitempty"`
+	Stop                any                          `json:"stop,omitempty"`
+	N                   int                          `json:"n,omitempty"`
+	Input               any                          `json:"input,omitempty"`
+	Instruction         string                       `json:"instruction,omitempty"`
+	Size                string                       `json:"size,omitempty"`
+	Functions           any                          `json:"functions,omitempty"`
+	FrequencyPenalty    float64                      `json:"frequency_penalty,omitempty"`
+	PresencePenalty     float64                      `json:"presence_penalty,omitempty"`
+	ResponseFormat      *ResponseFormat              `json:"response_format,omitempty"`
+	EncodingFormat      any                          `json:"encoding_format,omitempty"`
+	Seed                float64                      `json:"seed,omitempty"`
+	LogitBias           map[string]int               `json:"logit_bias,omitempty"`
+	Tools               []ToolCallRequest            `json:"tools,omitempty"`
+	ToolChoice          any                          `json:"tool_choice,omitempty"`
+	User                string                       `json:"user,omitempty"`
+	LogProbs            bool                         `json:"logprobs,omitempty"`
+	TopLogProbs         int                          `json:"top_logprobs,omitempty"`
+	Dimensions          int                          `json:"dimensions,omitempty"`
+	Modalities          any                          `json:"modalities,omitempty"`
+	Audio               any                          `json:"audio,omitempty"`
+	ExtraBody           any                          `json:"extra_body,omitempty"`
+	Thinking            *ThinkingOptions             `json:"thinking,omitempty"`
+	ThinkingConfig      *ThinkingConfigs             `json:"thinking_config,omitempty"`
+	GenerationConfig    *genai.GenerateContentConfig `json:"generationConfig,omitempty"`
 }
 
 type ThinkingConfigs struct {
@@ -127,17 +134,22 @@ type MediaContent struct {
 type MessageImageUrl struct {
 	Url    string `json:"url"`
 	Detail string `json:"detail"`
+	Format string `json:"format,omitempty"`
+	Data   string `json:"data,omitempty"`
 }
 
 type MessageInputAudio struct {
-	Data   string `json:"data"` //base64
-	Format string `json:"format"`
+	Data   string  `json:"data"` //base64
+	Format string  `json:"format"`
+	Fps    float64 `json:"fps,omitempty"`
+	Url    string  `json:"url,omitempty"`
 }
 
 const (
 	ContentTypeText       = "text"
 	ContentTypeImageURL   = "image_url"
 	ContentTypeInputAudio = "input_audio"
+	ContentTypeVideoURL   = "video_url"
 	ContentTypeYoutube    = "youtube"
 )
 
@@ -263,20 +275,52 @@ func (m *Message) ParseContent() []MediaContent {
 						ImageUrl: MessageImageUrl{
 							Url:    v,
 							Detail: "high",
+							Format: "url",
 						},
 					})
 				case map[string]interface{}:
 					url, ok1 := v["url"].(string)
 					detail, ok2 := v["detail"].(string)
+					format, ok3 := v["format"].(string)
+					data, ok4 := v["data"].(string)
+
 					if !ok2 {
 						detail = "high"
 					}
-					if ok1 {
+					if !ok3 {
+						format = "url"
+					}
+
+					if format == "base64" {
+						var base64Data string
+
+						if ok4 && data != "" {
+							base64Data = data
+						} else if ok1 && url != "" && strings.HasPrefix(url, "data:") {
+							parts := strings.Split(url, ",")
+							if len(parts) == 2 {
+								base64Data = parts[1]
+							}
+						}
+
+						if base64Data != "" {
+							contentList = append(contentList, MediaContent{
+								Type: ContentTypeImageURL,
+								ImageUrl: MessageImageUrl{
+									Data:   base64Data,
+									Detail: detail,
+									Format: format,
+									Url:    url,
+								},
+							})
+						}
+					} else if format == "url" && ok1 {
 						contentList = append(contentList, MediaContent{
 							Type: ContentTypeImageURL,
 							ImageUrl: MessageImageUrl{
 								Url:    url,
 								Detail: detail,
+								Format: format,
 							},
 						})
 					}
@@ -286,12 +330,76 @@ func (m *Message) ParseContent() []MediaContent {
 				if audioData, ok := contentItem["input_audio"].(map[string]interface{}); ok {
 					data, ok1 := audioData["data"].(string)
 					format, ok2 := audioData["format"].(string)
+					url, ok3 := audioData["url"].(string)
+					fps, ok3 := audioData["fps"].(float64)
+					if !ok2 {
+						if mimeType, ok3 := audioData["mime_type"].(string); ok3 {
+							format = mimeType
+							ok2 = true
+						}
+					}
+					if !ok3 {
+						fps = 0
+					}
+					common.SysLog(fmt.Sprintf("Parsing audio content: data_ok=%v, format_ok=%v, format=%s, data_length=%d", ok1, ok2, format, len(data)))
 					if ok1 && ok2 {
 						contentList = append(contentList, MediaContent{
 							Type: ContentTypeInputAudio,
 							InputAudio: MessageInputAudio{
 								Data:   data,
 								Format: format,
+								Fps:    fps,
+								Url:    url,
+							},
+						})
+					}
+				}
+			case ContentTypeVideoURL:
+				if videoData, ok := contentItem["video_url"].(map[string]interface{}); ok {
+					url, ok1 := videoData["url"].(string)
+					format, ok2 := videoData["format"].(string)
+					fps, ok3 := videoData["fps"].(float64)
+					data, ok4 := videoData["data"].(string)
+
+					if !ok2 {
+						format = "url"
+					}
+					if !ok3 {
+						fps = 0
+					}
+
+					common.SysLog(fmt.Sprintf("Parsing video content: url_ok=%v, format_ok=%v, format=%s, url=%s, data_ok=%v", ok1, ok2, format, replaceBase64InURL(url), ok4))
+
+					if format == "base64" {
+						var base64Data string
+
+						if ok4 && data != "" {
+							base64Data = data
+						} else if ok1 && url != "" && strings.HasPrefix(url, "data:") {
+							parts := strings.Split(url, ",")
+							if len(parts) == 2 {
+								base64Data = parts[1]
+							}
+						}
+
+						if base64Data != "" {
+							contentList = append(contentList, MediaContent{
+								Type: ContentTypeVideoURL,
+								InputAudio: MessageInputAudio{
+									Data:   base64Data,
+									Format: format,
+									Fps:    fps,
+									Url:    url,
+								},
+							})
+						}
+					} else if format == "url" && ok1 && url != "" {
+						contentList = append(contentList, MediaContent{
+							Type: ContentTypeVideoURL,
+							InputAudio: MessageInputAudio{
+								Url:    url,
+								Format: format,
+								Fps:    fps,
 							},
 						})
 					}
@@ -317,4 +425,14 @@ func (m *Message) ParseContent() []MediaContent {
 		m.parsedContent = contentList
 	}
 	return contentList
+}
+
+func replaceBase64InURL(url string) string {
+	if strings.HasPrefix(url, "data:") {
+		parts := strings.Split(url, ",")
+		if len(parts) == 2 {
+			return "data:..."
+		}
+	}
+	return url
 }

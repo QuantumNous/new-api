@@ -2,13 +2,14 @@ package aws
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/dto"
 	"one-api/relay/channel/claude"
 	relaycommon "one-api/relay/common"
 	"one-api/setting/model_setting"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -40,6 +41,15 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Set("retry", retry)
+	}
+
 	return nil
 }
 

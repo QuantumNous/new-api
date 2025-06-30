@@ -1,15 +1,20 @@
 package router
 
 import (
-	"github.com/gin-gonic/gin"
 	"one-api/controller"
 	"one-api/middleware"
 	"one-api/relay"
+
+	"github.com/gin-gonic/gin"
 )
 
 func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
+
+	// 添加ping路由用于测试
+	router.GET("/ping", controller.Ping)
+
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.TokenAuth())
@@ -37,6 +42,7 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.Use(middleware.Distribute())
 		httpRouter.POST("/completions", controller.Relay)
 		httpRouter.POST("/chat/completions", controller.Relay)
+		httpRouter.POST("/responses", controller.Relay)
 		httpRouter.POST("/edits", controller.Relay)
 		httpRouter.POST("/images/generations", controller.Relay)
 		httpRouter.POST("/images/edits", controller.RelayNotImplemented)

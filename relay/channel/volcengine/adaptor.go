@@ -76,6 +76,10 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	// 检查模型名称是否包含 "batch"，如果是则使用批量接口
+	if strings.Contains(strings.ToLower(info.OriginModelName), "batch") {
+		return DoBatchChatRequest(c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 

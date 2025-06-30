@@ -108,5 +108,10 @@ export const CHANNEL_OPTIONS = [
     value: 44,
     color: 'purple',
     label: '嵌入模型：MokaAI M3E'
+  },
+  {
+    value: 100,
+    color: 'blue',
+    label: '豆包离线'
   }
 ];
