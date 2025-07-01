@@ -2,7 +2,6 @@ package common
 
 import (
 	"bytes"
-	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"io"
 	"strings"
@@ -31,7 +30,7 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
-		err = json.Unmarshal(requestBody, &v)
+		err = UnmarshalJson(requestBody, &v)
 	} else {
 		// skip for now
 		// TODO: someday non json request have variant model, we will need to implementation this

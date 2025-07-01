@@ -78,8 +78,11 @@ const PasswordResetConfirm = () => {
   }
 
   return (
-    <div className="bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-sm">
+    <div className="relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* 背景模糊晕染球 */}
+      <div className="blur-ball blur-ball-indigo" style={{ top: '-80px', right: '-80px', transform: 'none' }} />
+      <div className="blur-ball blur-ball-teal" style={{ top: '50%', left: '-120px' }} />
+      <div className="w-full max-w-sm mt-[64px]">
         <div className="flex flex-col items-center">
           <div className="w-full max-w-md">
             <div className="flex items-center justify-center mb-6 gap-2">
@@ -110,7 +113,6 @@ const PasswordResetConfirm = () => {
                     label={t('邮箱')}
                     name="email"
                     size="large"
-                    className="!rounded-md"
                     disabled={true}
                     prefix={<IconMail />}
                     placeholder={email ? '' : t('等待获取邮箱信息...')}
@@ -122,7 +124,6 @@ const PasswordResetConfirm = () => {
                       label={t('新密码')}
                       name="newPassword"
                       size="large"
-                      className="!rounded-md"
                       disabled={true}
                       prefix={<IconLock />}
                       suffix={

@@ -44,6 +44,9 @@ const (
 	RelayModeCustomPassSubmit   // CustomPass任务提交
 	RelayModeCustomPassAPI      // 普通的CustomPass API调用
 
+	RelayModeJimengFetchByID
+	RelayModeJimengSubmit
+
 	RelayModeRerank
 
 	RelayModeResponses
@@ -83,7 +86,7 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRerank
 	} else if strings.HasPrefix(path, "/v1/realtime") {
 		relayMode = RelayModeRealtime
-	} else if strings.HasPrefix(path, "/v1beta/models") {
+	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
 	}
 	return relayMode
@@ -160,6 +163,13 @@ func Path2RelayCustomPass(method, path string) int {
 			// 其他所有请求都是普通API调用，使用专门的CustomPassAPI模式
 			relayMode = RelayModeCustomPassAPI
 		}
+    
+func Path2RelayJimeng(method, path string) int {
+	relayMode := RelayModeUnknown
+	if method == http.MethodPost && strings.HasSuffix(path, "/video/generations") {
+		relayMode = RelayModeJimengSubmit
+	} else if method == http.MethodGet && strings.Contains(path, "/video/generations/") {
+		relayMode = RelayModeJimengFetchByID
 	}
 	return relayMode
 }

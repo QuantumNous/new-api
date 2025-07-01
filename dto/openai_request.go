@@ -57,6 +57,7 @@ type GeneralOpenAIRequest struct {
 	ExtraBody           json.RawMessage   `json:"extra_body,omitempty"`
 	WebSearchOptions    *WebSearchOptions `json:"web_search_options,omitempty"`
 	// OpenRouter Params
+	Usage     json.RawMessage `json:"usage,omitempty"`
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
@@ -65,7 +66,7 @@ type GeneralOpenAIRequest struct {
 func (r *GeneralOpenAIRequest) ToMap() map[string]any {
 	result := make(map[string]any)
 	data, _ := common.EncodeJson(r)
-	_ = common.DecodeJson(data, &result)
+	_ = common.UnmarshalJson(data, &result)
 	return result
 }
 
@@ -645,4 +646,6 @@ type ResponsesToolsCall struct {
 	Name        string          `json:"name,omitempty"`
 	Description string          `json:"description,omitempty"`
 	Parameters  json.RawMessage `json:"parameters,omitempty"`
+	Function    json.RawMessage `json:"function,omitempty"`
+	Container   json.RawMessage `json:"container,omitempty"`
 }

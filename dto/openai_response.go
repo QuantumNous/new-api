@@ -26,7 +26,7 @@ type OpenAITextResponse struct {
 	Id      string                     `json:"id"`
 	Model   string                     `json:"model"`
 	Object  string                     `json:"object"`
-	Created int64                      `json:"created"`
+	Created any                        `json:"created"`
 	Choices []OpenAITextResponseChoice `json:"choices"`
 	Error   *OpenAIError               `json:"error,omitempty"`
 	Usage   `json:"usage"`
@@ -178,6 +178,8 @@ type Usage struct {
 	InputTokens            int                `json:"input_tokens"`
 	OutputTokens           int                `json:"output_tokens"`
 	InputTokensDetails     *InputTokenDetails `json:"input_tokens_details"`
+	// OpenRouter Params
+	Cost float64 `json:"cost,omitempty"`
 }
 
 type InputTokenDetails struct {

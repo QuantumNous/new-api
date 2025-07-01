@@ -105,7 +105,7 @@ const About = () => {
   );
 
   return (
-    <>
+    <div className="mt-[64px]">
       {aboutLoaded && about === '' ? (
         <div className="flex justify-center items-center h-screen p-8">
           <Empty
@@ -132,7 +132,7 @@ const About = () => {
           )}
         </>
       )}
-    </>
+    </div>
   );
 };
 

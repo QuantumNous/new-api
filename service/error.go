@@ -90,10 +90,7 @@ func RelayErrorHandler(resp *http.Response, showBodyWhenFail bool) (errWithStatu
 	if err != nil {
 		return
 	}
-	err = resp.Body.Close()
-	if err != nil {
-		return
-	}
+	common.CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
 	err = json.Unmarshal(responseBody, &errResponse)
 	if err != nil {

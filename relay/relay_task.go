@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -16,6 +15,8 @@ import (
 	relayconstant "one-api/relay/constant"
 	"one-api/service"
 	"one-api/setting/ratio_setting"
+
+	"github.com/gin-gonic/gin"
 )
 
 /*
@@ -54,8 +55,14 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	}
 
 	// 预扣
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.Group)
-	ratio := modelPrice * groupRatio
+	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
+	var ratio float64
+	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
+	if hasUserGroupRatio {
+		ratio = modelPrice * userGroupRatio
+	} else {
+		ratio = modelPrice * groupRatio
+	}
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
@@ -120,12 +127,12 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 			var finalQuota int
 			var logContent string
 			var other map[string]interface{}
-
+      
 			if platform == constant.TaskPlatformCustomPass {
 				// CustomPass使用动态费用计算
 				finalQuota = calculateCustomPassFinalQuota(c, modelName, groupRatio)
 
-				// 计算实际需要扣除的费用差额（finalQuota - 预扣的1个quota）
+				// 计算实际需要扣除的费用差额
 				quotaDelta := finalQuota - quota
 
 				err := service.PostConsumeQuota(relayInfo.RelayInfo, quotaDelta, quota, true)
@@ -137,12 +144,15 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 					tokenName := c.GetString("token_name")
 
 					gRatio := groupRatio
+          if hasUserGroupRatio {
+            gRatio = userGroupRatio
+          }
 
 					logContent = getCustomPassLogContent(c, modelName, gRatio)
 					other = getCustomPassOtherInfo(c, modelName, gRatio)
-					// other := make(map[string]interface{})
-					// other["model_price"] = modelPrice
-					// other["group_ratio"] = groupRatio
+          if hasUserGroupRatio {
+            other["user_group_ratio"] = userGroupRatio
+          }
 
 					// 获取token数量用于日志记录
 					var promptTokens, completionTokens int
@@ -159,21 +169,27 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 				}
 			} else {
 				// 其他平台保持原有逻辑
-				err := service.PostConsumeQuota(relayInfo.RelayInfo, quota, 0, true)
-				if err != nil {
-					common.SysError("error consuming token remain quota: " + err.Error())
-				}
-				if quota != 0 {
-					tokenName := c.GetString("token_name")
-					logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", modelPrice, groupRatio, relayInfo.Action)
-					other := make(map[string]interface{})
-					other["model_price"] = modelPrice
-					other["group_ratio"] = groupRatio
-					model.RecordConsumeLog(c, relayInfo.UserId, relayInfo.ChannelId, 0, 0,
-						modelName, tokenName, quota, logContent, relayInfo.TokenId, userQuota, 0, false, relayInfo.Group, other)
-					model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
-					model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
-				}
+        err := service.PostConsumeQuota(relayInfo.RelayInfo, quota, 0, true)
+        if err != nil {
+          common.SysError("error consuming token remain quota: " + err.Error())
+        }
+        if quota != 0 {
+          tokenName := c.GetString("token_name")
+          gRatio := groupRatio
+          if hasUserGroupRatio {
+            gRatio = userGroupRatio
+          }
+          logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", modelPrice, gRatio, relayInfo.Action)
+          other := make(map[string]interface{})
+          other["model_price"] = modelPrice
+          other["group_ratio"] = groupRatio
+          if hasUserGroupRatio {
+            other["user_group_ratio"] = userGroupRatio
+          }
+          model.RecordConsumeLog(c, relayInfo.UserId, relayInfo.ChannelId, 0, 0,
+            modelName, tokenName, quota, logContent, relayInfo.TokenId, userQuota, 0, false, relayInfo.UsingGroup, other)
+          model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
+          model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 			}
 		}
 	}()
@@ -384,7 +400,7 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 }
 
 func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	taskId := c.Param("id")
+	taskId := c.Param("task_id")
 	userId := c.GetInt("id")
 
 	originTask, exist, err := model.GetByTaskId(userId, taskId)

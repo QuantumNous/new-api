@@ -49,8 +49,8 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import {
   IconEyeOpened,
   IconSearch,
-  IconSetting
 } from '@douyinfe/semi-icons';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -223,7 +223,13 @@ const LogsTable = () => {
       case 'generate':
         return (
           <Tag color='blue' size='large' shape='circle' prefixIcon={<Sparkles size={14} />}>
-            {t('生成视频')}
+            {t('图生视频')}
+          </Tag>
+        );
+      case 'textGenerate':
+        return (
+          <Tag color='blue' size='large' shape='circle' prefixIcon={<Sparkles size={14} />}>
+            {t('文生视频')}
           </Tag>
         );
       default:
@@ -235,8 +241,8 @@ const LogsTable = () => {
     }
   };
 
-  const renderPlatform = (type) => {
-    switch (type) {
+  const renderPlatform = (platform) => {
+    switch (platform) {
       case 'suno':
         return (
           <Tag color='green' size='large' shape='circle' prefixIcon={<Music size={14} />}>
@@ -245,7 +251,7 @@ const LogsTable = () => {
         );
       case 'kling':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Video size={14} />}>
+          <Tag color='orange' size='large' shape='circle' prefixIcon={<Video size={14} />}>
             Kling
           </Tag>
         );
@@ -253,6 +259,10 @@ const LogsTable = () => {
         return (
           <Tag color='purple' size='large' shape='circle' prefixIcon={<Zap size={14} />}>
             CustomPass
+      case 'jimeng':
+        return (
+          <Tag color='purple' size='large' shape='circle' prefixIcon={<Video size={14} />}>
+            Jimeng
           </Tag>
         );
       default:
@@ -451,7 +461,7 @@ const LogsTable = () => {
       fixed: 'right',
       render: (text, record, index) => {
         // 仅当为视频生成任务且成功，且 fail_reason 是 URL 时显示可点击链接
-        const isVideoTask = record.action === 'generate';
+        const isVideoTask = record.action === 'generate' || record.action === 'textGenerate';
         const isSuccess = record.status === 'SUCCESS';
         const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
         if (isSuccess && isVideoTask && isUrl) {
@@ -489,6 +499,8 @@ const LogsTable = () => {
   const [logCount, setLogCount] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const [compactMode, setCompactMode] = useTableCompactMode('taskLogs');
 
   useEffect(() => {
     const localPageSize = parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
@@ -603,21 +615,18 @@ const LogsTable = () => {
             <Button
               theme="light"
               onClick={() => initDefaultColumns()}
-              className="!rounded-full"
             >
               {t('重置')}
             </Button>
             <Button
               theme="light"
               onClick={() => setShowColumnSelector(false)}
-              className="!rounded-full"
             >
               {t('取消')}
             </Button>
             <Button
               type='primary'
               onClick={() => setShowColumnSelector(false)}
-              className="!rounded-full"
             >
               {t('确定')}
             </Button>
@@ -669,7 +678,7 @@ const LogsTable = () => {
           className="!rounded-2xl mb-4"
           title={
             <div className="flex flex-col w-full">
-              <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
                 <div className="flex items-center text-orange-500 mb-2 md:mb-0">
                   <IconEyeOpened className="mr-2" />
                   {loading ? (
@@ -684,6 +693,14 @@ const LogsTable = () => {
                     <Text>{t('任务记录')}</Text>
                   )}
                 </div>
+                <Button
+                  theme='light'
+                  type='secondary'
+                  className="w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
+                >
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
               </div>
 
               <Divider margin="12px" />
@@ -718,7 +735,6 @@ const LogsTable = () => {
                       field='task_id'
                       prefix={<IconSearch />}
                       placeholder={t('任务 ID')}
-                      className="!rounded-full"
                       showClear
                       pure
                     />
@@ -729,7 +745,6 @@ const LogsTable = () => {
                         field='channel_id'
                         prefix={<IconSearch />}
                         placeholder={t('渠道 ID')}
-                        className="!rounded-full"
                         showClear
                         pure
                       />
@@ -744,7 +759,6 @@ const LogsTable = () => {
                         type='primary'
                         htmlType='submit'
                         loading={loading}
-                        className="!rounded-full"
                       >
                         {t('查询')}
                       </Button>
@@ -759,16 +773,13 @@ const LogsTable = () => {
                             }, 100);
                           }
                         }}
-                        className="!rounded-full"
                       >
                         {t('重置')}
                       </Button>
                       <Button
                         theme='light'
                         type='tertiary'
-                        icon={<IconSetting />}
                         onClick={() => setShowColumnSelector(true)}
-                        className="!rounded-full"
                       >
                         {t('列设置')}
                       </Button>
@@ -782,11 +793,11 @@ const LogsTable = () => {
           bordered={false}
         >
           <Table
-            columns={getVisibleColumns()}
+            columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
             dataSource={logs}
             rowKey='key'
             loading={loading}
-            scroll={{ x: 'max-content' }}
+            scroll={compactMode ? undefined : { x: 'max-content' }}
             className="rounded-xl overflow-hidden"
             size="middle"
             empty={

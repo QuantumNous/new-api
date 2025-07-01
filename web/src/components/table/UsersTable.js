@@ -13,7 +13,7 @@ import {
   Activity,
   Users,
   DollarSign,
-  UserPlus
+  UserPlus,
 } from 'lucide-react';
 import {
   Button,
@@ -34,26 +34,21 @@ import {
   IllustrationNoResultDark
 } from '@douyinfe/semi-illustrations';
 import {
-  IconPlus,
   IconSearch,
-  IconEdit,
-  IconDelete,
-  IconStop,
-  IconPlay,
-  IconMore,
   IconUserAdd,
-  IconArrowUp,
-  IconArrowDown
+  IconMore,
 } from '@douyinfe/semi-icons';
 import { ITEMS_PER_PAGE } from '../../constants';
 import AddUser from '../../pages/User/AddUser';
 import EditUser from '../../pages/User/EditUser';
 import { useTranslation } from 'react-i18next';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
 const UsersTable = () => {
   const { t } = useTranslation();
+  const [compactMode, setCompactMode] = useTableCompactMode('users');
 
   function renderRole(role) {
     switch (role) {
@@ -124,7 +119,7 @@ const UsersTable = () => {
             <Tooltip content={remark} position="top" showArrow>
               <Tag color='white' size='large' shape='circle' className="!text-xs">
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#10b981' }} />
+                  <div className="w-2 h-2 flex-shrink-0" style={{ backgroundColor: '#10b981' }} />
                   {displayRemark}
                 </div>
               </Tag>
@@ -218,7 +213,6 @@ const UsersTable = () => {
           {
             node: 'item',
             name: t('提升'),
-            icon: <IconArrowUp />,
             type: 'warning',
             onClick: () => {
               Modal.confirm({
@@ -233,7 +227,6 @@ const UsersTable = () => {
           {
             node: 'item',
             name: t('降级'),
-            icon: <IconArrowDown />,
             type: 'secondary',
             onClick: () => {
               Modal.confirm({
@@ -248,7 +241,6 @@ const UsersTable = () => {
           {
             node: 'item',
             name: t('注销'),
-            icon: <IconDelete />,
             type: 'danger',
             onClick: () => {
               Modal.confirm({
@@ -269,7 +261,6 @@ const UsersTable = () => {
           moreMenuItems.splice(-1, 0, {
             node: 'item',
             name: t('禁用'),
-            icon: <IconStop />,
             type: 'warning',
             onClick: () => {
               manageUser(record.id, 'disable', record);
@@ -279,7 +270,6 @@ const UsersTable = () => {
           moreMenuItems.splice(-1, 0, {
             node: 'item',
             name: t('启用'),
-            icon: <IconPlay />,
             type: 'secondary',
             onClick: () => {
               manageUser(record.id, 'enable', record);
@@ -291,11 +281,9 @@ const UsersTable = () => {
         return (
           <Space>
             <Button
-              icon={<IconEdit />}
               theme='light'
               type='tertiary'
               size="small"
-              className="!rounded-full"
               onClick={() => {
                 setEditingUser(record);
                 setShowEditUser(true);
@@ -309,11 +297,10 @@ const UsersTable = () => {
               menu={moreMenuItems}
             >
               <Button
-                icon={<IconMore />}
                 theme='light'
                 type='tertiary'
                 size="small"
-                className="!rounded-full"
+                icon={<IconMore />}
               />
             </Dropdown>
           </Space>
@@ -527,9 +514,19 @@ const UsersTable = () => {
   const renderHeader = () => (
     <div className="flex flex-col w-full">
       <div className="mb-2">
-        <div className="flex items-center text-blue-500">
-          <IconUserAdd className="mr-2" />
-          <Text>{t('用户管理页面，可以查看和管理所有注册用户的信息、权限和状态。')}</Text>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+          <div className="flex items-center text-blue-500">
+            <IconUserAdd className="mr-2" />
+            <Text>{t('用户管理页面，可以查看和管理所有注册用户的信息、权限和状态。')}</Text>
+          </div>
+          <Button
+            theme='light'
+            type='secondary'
+            className="w-full md:w-auto"
+            onClick={() => setCompactMode(!compactMode)}
+          >
+            {compactMode ? t('自适应列表') : t('紧凑列表')}
+          </Button>
         </div>
       </div>
 
@@ -540,8 +537,7 @@ const UsersTable = () => {
           <Button
             theme='light'
             type='primary'
-            icon={<IconPlus />}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
             onClick={() => {
               setShowAddUser(true);
             }}
@@ -570,7 +566,6 @@ const UsersTable = () => {
                 field="searchKeyword"
                 prefix={<IconSearch />}
                 placeholder={t('支持搜索用户的 ID、用户名、显示名称和邮箱地址')}
-                className="!rounded-full"
                 showClear
                 pure
               />
@@ -587,7 +582,7 @@ const UsersTable = () => {
                     searchUsers(1, pageSize);
                   }, 100);
                 }}
-                className="!rounded-full w-full"
+                className="w-full"
                 showClear
                 pure
               />
@@ -597,7 +592,7 @@ const UsersTable = () => {
                 type="primary"
                 htmlType="submit"
                 loading={loading || searching}
-                className="!rounded-full flex-1 md:flex-initial md:w-auto"
+                className="flex-1 md:flex-initial md:w-auto"
               >
                 {t('查询')}
               </Button>
@@ -613,7 +608,7 @@ const UsersTable = () => {
                     }, 100);
                   }
                 }}
-                className="!rounded-full flex-1 md:flex-initial md:w-auto"
+                className="flex-1 md:flex-initial md:w-auto"
               >
                 {t('重置')}
               </Button>
@@ -645,9 +640,9 @@ const UsersTable = () => {
         bordered={false}
       >
         <Table
-          columns={columns}
+          columns={compactMode ? columns.map(({ fixed, ...rest }) => rest) : columns}
           dataSource={users}
-          scroll={{ x: 'max-content' }}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
           pagination={{
             formatPageText: (page) =>
               t('第 {{start}} - {{end}} 条，共 {{total}} 条', {
@@ -675,7 +670,7 @@ const UsersTable = () => {
               style={{ padding: 30 }}
             />
           }
-          className="rounded-xl overflow-hidden"
+          className="overflow-hidden"
           size="middle"
         />
       </Card>

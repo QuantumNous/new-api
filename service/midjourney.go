@@ -228,10 +228,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_response_body_failed", statusCode), nullBytes, err
 	}
-	err = resp.Body.Close()
-	if err != nil {
-		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "close_response_body_failed", statusCode), responseBody, err
-	}
+	common.CloseResponseBodyGracefully(resp)
 	respStr := string(responseBody)
 	log.Printf("respStr: %s", respStr)
 	if respStr == "" {

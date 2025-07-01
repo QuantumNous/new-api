@@ -78,26 +78,7 @@ func clampThinkingBudget(modelName string, budget int) int {
 	return budget
 }
 
-// Setting safety to the lowest possible values since Gemini is already powerless enough
-func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*GeminiChatRequest, error) {
-
-	geminiRequest := GeminiChatRequest{
-		Contents: make([]GeminiChatContent, 0, len(textRequest.Messages)),
-		GenerationConfig: GeminiChatGenerationConfig{
-			Temperature:     textRequest.Temperature,
-			TopP:            textRequest.TopP,
-			MaxOutputTokens: textRequest.MaxTokens,
-			Seed:            int64(textRequest.Seed),
-		},
-	}
-
-	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
-		geminiRequest.GenerationConfig.ResponseModalities = []string{
-			"TEXT",
-			"IMAGE",
-		}
-	}
-
+func ThinkingAdaptor(geminiRequest *GeminiChatRequest, info *relaycommon.RelayInfo) {
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		modelName := info.UpstreamModelName
 		isNew25Pro := strings.HasPrefix(modelName, "gemini-2.5-pro") &&
@@ -150,6 +131,29 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon
 			}
 		}
 	}
+}
+
+// Setting safety to the lowest possible values since Gemini is already powerless enough
+func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*GeminiChatRequest, error) {
+
+	geminiRequest := GeminiChatRequest{
+		Contents: make([]GeminiChatContent, 0, len(textRequest.Messages)),
+		GenerationConfig: GeminiChatGenerationConfig{
+			Temperature:     textRequest.Temperature,
+			TopP:            textRequest.TopP,
+			MaxOutputTokens: textRequest.MaxTokens,
+			Seed:            int64(textRequest.Seed),
+		},
+	}
+
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		geminiRequest.GenerationConfig.ResponseModalities = []string{
+			"TEXT",
+			"IMAGE",
+		}
+	}
+
+	ThinkingAdaptor(&geminiRequest, info)
 
 	safetySettings := make([]GeminiChatSafetySettings, 0, len(SafetySettingList))
 	for _, category := range SafetySettingList {
@@ -797,7 +801,7 @@ func GeminiChatStreamHandler(c *gin.Context, resp *http.Response, info *relaycom
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var geminiResponse GeminiChatResponse
-		err := common.DecodeJsonStr(data, &geminiResponse)
+		err := common.UnmarshalJsonStr(data, &geminiResponse)
 		if err != nil {
 			common.LogError(c, "error unmarshalling stream response: "+err.Error())
 			return false
@@ -862,15 +866,12 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
 	}
-	err = resp.Body.Close()
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-	}
+	common.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
 		println(string(responseBody))
 	}
 	var geminiResponse GeminiChatResponse
-	err = common.DecodeJson(responseBody, &geminiResponse)
+	err = common.UnmarshalJson(responseBody, &geminiResponse)
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
 	}
@@ -916,11 +917,12 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 }
 
 func GeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+	defer common.CloseResponseBodyGracefully(resp)
+
 	responseBody, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		return nil, service.OpenAIErrorWrapper(readErr, "read_response_body_failed", http.StatusInternalServerError)
 	}
-	_ = resp.Body.Close()
 
 	var geminiResponse GeminiEmbeddingResponse
 	if jsonErr := json.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
@@ -952,14 +954,11 @@ func GeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *relaycomm
 	}
 	openAIResponse.Usage = *usage.(*dto.Usage)
 
-	jsonResponse, jsonErr := json.Marshal(openAIResponse)
+	jsonResponse, jsonErr := common.EncodeJson(openAIResponse)
 	if jsonErr != nil {
 		return nil, service.OpenAIErrorWrapper(jsonErr, "marshal_response_failed", http.StatusInternalServerError)
 	}
 
-	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, _ = c.Writer.Write(jsonResponse)
-
+	common.IOCopyBytesGracefully(c, resp, jsonResponse)
 	return usage, nil
 }

@@ -43,6 +43,9 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	if channel.Type == common.ChannelTypeKling {
 		return errors.New("kling channel test is not supported"), nil
 	}
+	if channel.Type == common.ChannelTypeJimeng {
+		return errors.New("jimeng channel test is not supported"), nil
+	}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
@@ -171,7 +174,7 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(c, 1, channel.Id, usage.PromptTokens, usage.CompletionTokens, info.OriginModelName, "模型测试",
-		quota, "模型测试", 0, quota, int(consumedTime), false, info.Group, other)
+		quota, "模型测试", 0, quota, int(consumedTime), false, info.UsingGroup, other)
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return nil, nil
 }

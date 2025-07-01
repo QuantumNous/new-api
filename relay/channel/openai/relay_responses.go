@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,17 +15,15 @@ import (
 )
 
 func OaiResponsesHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+	defer common.CloseResponseBodyGracefully(resp)
+
 	// read response body
 	var responsesResponse dto.OpenAIResponsesResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
 	}
-	err = resp.Body.Close()
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-	}
-	err = common.DecodeJson(responseBody, &responsesResponse)
+	err = common.UnmarshalJson(responseBody, &responsesResponse)
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
 	}
@@ -41,22 +38,9 @@ func OaiResponsesHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		}, nil
 	}
 
-	// reset response body
-	resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
-	// We shouldn't set the header before we parse the response body, because the parse part may fail.
-	// And then we will have to send an error response, but in this case, the header has already been set.
-	// So the httpClient will be confused by the response.
-	// For example, Postman will report error, and we cannot check the response at all.
-	for k, v := range resp.Header {
-		c.Writer.Header().Set(k, v[0])
-	}
-	c.Writer.WriteHeader(resp.StatusCode)
-	// copy response body
-	_, err = io.Copy(c.Writer, resp.Body)
-	if err != nil {
-		common.SysError("error copying response body: " + err.Error())
-	}
-	resp.Body.Close()
+	// 写入新的 response body
+	common.IOCopyBytesGracefully(c, resp, responseBody)
+
 	// compute usage
 	usage := dto.Usage{}
 	usage.PromptTokens = responsesResponse.Usage.InputTokens
@@ -82,7 +66,7 @@ func OaiResponsesStreamHandler(c *gin.Context, resp *http.Response, info *relayc
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
-		if err := common.DecodeJsonStr(data, &streamResponse); err == nil {
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err == nil {
 			sendResponsesStreamData(c, streamResponse, data)
 			switch streamResponse.Type {
 			case "response.completed":

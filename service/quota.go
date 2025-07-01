@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"one-api/common"
 	constant2 "one-api/constant"
 	"one-api/dto"
@@ -94,18 +95,18 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.Group)
+	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _ := ratio_setting.GetModelRatio(modelName)
 
 	autoGroup, exists := ctx.Get("auto_group")
 	if exists {
 		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
 		log.Printf("final group ratio: %f", groupRatio)
-		relayInfo.Group = autoGroup.(string)
+		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
 	actualGroupRatio := groupRatio
-	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.Group)
+	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
 	if ok {
 		actualGroupRatio = userGroupRatio
 	}
@@ -209,7 +210,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, usage.InputTokens, usage.OutputTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.UsingGroup, other)
 }
 
 func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
@@ -230,6 +231,17 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 
 	cacheCreationRatio := priceData.CacheCreationRatio
 	cacheCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
+
+	if relayInfo.ChannelType == common.ChannelTypeOpenRouter {
+		promptTokens -= cacheTokens
+		if cacheCreationTokens == 0 && priceData.CacheCreationRatio != 1 && usage.Cost != 0 {
+			maybeCacheCreationTokens := CalcOpenRouterCacheCreateTokens(*usage, priceData)
+			if promptTokens >= maybeCacheCreationTokens {
+				cacheCreationTokens = maybeCacheCreationTokens
+			}
+		}
+		promptTokens -= cacheCreationTokens
+	}
 
 	calculateQuota := 0.0
 	if !priceData.UsePrice {
@@ -275,7 +287,28 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	other := GenerateClaudeOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio,
 		cacheTokens, cacheRatio, cacheCreationTokens, cacheCreationRatio, modelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, modelName,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.UsingGroup, other)
+}
+
+func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData helper.PriceData) int {
+	if priceData.CacheCreationRatio == 1 {
+		return 0
+	}
+	quotaPrice := priceData.ModelRatio / common.QuotaPerUnit
+	promptCacheCreatePrice := quotaPrice * priceData.CacheCreationRatio
+	promptCacheReadPrice := quotaPrice * priceData.CacheRatio
+	completionPrice := quotaPrice * priceData.CompletionRatio
+
+	cost := usage.Cost
+	totalPromptTokens := float64(usage.PromptTokens)
+	completionTokens := float64(usage.CompletionTokens)
+	promptCacheReadTokens := float64(usage.PromptTokensDetails.CachedTokens)
+
+	return int(math.Round((cost -
+		totalPromptTokens*quotaPrice +
+		promptCacheReadTokens*(quotaPrice-promptCacheReadPrice) -
+		completionTokens*completionPrice) /
+		(promptCacheCreatePrice - quotaPrice)))
 }
 
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
@@ -352,7 +385,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, usage.PromptTokens, usage.CompletionTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.UsingGroup, other)
 }
 
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {

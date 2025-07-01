@@ -230,7 +230,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       render: (text, record) => (
         <Tag
           color={record.color}
-          className="!rounded-full"
+          shape='circle'
           style={{ maxWidth: '280px' }}
         >
           {text}
@@ -277,7 +277,6 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             theme='light'
             type='tertiary'
             size='small'
-            className="!rounded-full"
             onClick={() => handleEditApi(record)}
           >
             {t('编辑')}
@@ -287,7 +286,6 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             type='danger'
             theme='light'
             size='small'
-            className="!rounded-full"
             onClick={() => handleDeleteApi(record)}
           >
             {t('删除')}
@@ -327,7 +325,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             theme='light'
             type='primary'
             icon={<Plus size={14} />}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
             onClick={handleAddApi}
           >
             {t('添加API')}
@@ -338,7 +336,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             theme='light'
             onClick={handleBatchDelete}
             disabled={selectedRowKeys.length === 0}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
           >
             {t('批量删除')} {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
           </Button>
@@ -348,7 +346,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             loading={loading}
             disabled={!hasChanges}
             type='secondary'
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
           >
             {t('保存设置')}
           </Button>
@@ -430,7 +428,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
               style={{ padding: 30 }}
             />
           }
-          className="rounded-xl overflow-hidden"
+          className="overflow-hidden"
         />
       </Form.Section>
 
@@ -441,7 +439,6 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         onCancel={() => setShowApiModal(false)}
         okText={t('保存')}
         cancelText={t('取消')}
-        className="rounded-xl"
         confirmLoading={modalLoading}
       >
         <Form layout='vertical' initValues={apiForm} key={editingApi ? editingApi.id : 'new'}>
@@ -495,7 +492,6 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         okText={t('确认删除')}
         cancelText={t('取消')}
         type="warning"
-        className="rounded-xl"
         okButtonProps={{
           type: 'danger',
           theme: 'solid'

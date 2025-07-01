@@ -327,3 +327,37 @@ func CountUserTokens(userId int) (int64, error) {
 	err := DB.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error
 	return total, err
 }
+
+// BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
+func BatchDeleteTokens(ids []int, userId int) (int, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("ids 不能为空！")
+	}
+
+	tx := DB.Begin()
+
+	var tokens []Token
+	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Find(&tokens).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Delete(&Token{}).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			for _, t := range tokens {
+				_ = cacheDeleteToken(t.Key)
+			}
+		})
+	}
+
+	return len(tokens), nil
+}

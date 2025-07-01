@@ -3,6 +3,7 @@ import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
 import { THINK_TAG_REGEX, MESSAGE_ROLES } from '../constants/playground.constants';
+import { TABLE_COMPACT_MODES_KEY } from '../constants';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -509,3 +510,31 @@ export const formatDateTimeString = (date) => {
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 };
+
+function readTableCompactModes() {
+  try {
+    const json = localStorage.getItem(TABLE_COMPACT_MODES_KEY);
+    return json ? JSON.parse(json) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeTableCompactModes(modes) {
+  try {
+    localStorage.setItem(TABLE_COMPACT_MODES_KEY, JSON.stringify(modes));
+  } catch {
+    // ignore
+  }
+}
+
+export function getTableCompactMode(tableKey = 'global') {
+  const modes = readTableCompactModes();
+  return !!modes[tableKey];
+}
+
+export function setTableCompactMode(compact, tableKey = 'global') {
+  const modes = readTableCompactModes();
+  modes[tableKey] = compact;
+  writeTableCompactModes(modes);
+}

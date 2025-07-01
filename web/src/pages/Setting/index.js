@@ -48,6 +48,16 @@ const Setting = () => {
     panes.push({
       tab: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <LayoutDashboard size={18} />
+          {t('仪表盘设置')}
+        </span>
+      ),
+      content: <DashboardSetting />,
+      itemKey: 'dashboard',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <MessageSquare size={18} />
           {t('聊天设置')}
         </span>
@@ -118,16 +128,6 @@ const Setting = () => {
     panes.push({
       tab: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <LayoutDashboard size={18} />
-          {t('仪表盘设置')}
-        </span>
-      ),
-      content: <DashboardSetting />,
-      itemKey: 'dashboard',
-    });
-    panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <MoreHorizontal size={18} />
           {t('其他设置')}
         </span>
@@ -150,7 +150,7 @@ const Setting = () => {
     }
   }, [location.search]);
   return (
-    <div>
+    <div className="mt-[64px]">
       <Layout>
         <Layout.Content>
           <Tabs

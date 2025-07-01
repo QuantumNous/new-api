@@ -47,8 +47,9 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { ITEMS_PER_PAGE } from '../../constants';
 import Paragraph from '@douyinfe/semi-ui/lib/es/typography/paragraph';
-import { IconSetting, IconSearch, IconHelpCircle } from '@douyinfe/semi-icons';
+import { IconSearch, IconHelpCircle } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -192,7 +193,7 @@ const LogsTable = () => {
     if (!modelMapped) {
       return renderModelTag(record.model_name, {
         onClick: (event) => {
-          copyText(event, record.model_name).then((r) => {});
+          copyText(event, record.model_name).then((r) => { });
         },
       });
     } else {
@@ -209,7 +210,7 @@ const LogsTable = () => {
                       </Text>
                       {renderModelTag(record.model_name, {
                         onClick: (event) => {
-                          copyText(event, record.model_name).then((r) => {});
+                          copyText(event, record.model_name).then((r) => { });
                         },
                       })}
                     </div>
@@ -220,7 +221,7 @@ const LogsTable = () => {
                       {renderModelTag(other.upstream_model_name, {
                         onClick: (event) => {
                           copyText(event, other.upstream_model_name).then(
-                            (r) => {},
+                            (r) => { },
                           );
                         },
                       })}
@@ -231,7 +232,7 @@ const LogsTable = () => {
             >
               {renderModelTag(record.model_name, {
                 onClick: (event) => {
-                  copyText(event, record.model_name).then((r) => {});
+                  copyText(event, record.model_name).then((r) => { });
                 },
                 suffixIcon: (
                   <Route
@@ -636,23 +637,23 @@ const LogsTable = () => {
         }
         let content = other?.claude
           ? renderClaudeModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              other.cache_creation_tokens || 0,
-              other.cache_creation_ratio || 1.0,
-            )
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            other.cache_creation_tokens || 0,
+            other.cache_creation_ratio || 1.0,
+          )
           : renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-            );
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+          );
         return (
           <Paragraph
             ellipsis={{
@@ -695,21 +696,18 @@ const LogsTable = () => {
             <Button
               theme='light'
               onClick={() => initDefaultColumns()}
-              className='!rounded-full'
             >
               {t('重置')}
             </Button>
             <Button
               theme='light'
               onClick={() => setShowColumnSelector(false)}
-              className='!rounded-full'
             >
               {t('取消')}
             </Button>
             <Button
               type='primary'
               onClick={() => setShowColumnSelector(false)}
-              className='!rounded-full'
             >
               {t('确定')}
             </Button>
@@ -985,27 +983,27 @@ const LogsTable = () => {
           key: t('日志详情'),
           value: other?.claude
             ? renderClaudeLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                other.cache_creation_ratio || 1.0,
-              )
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              other.cache_creation_ratio || 1.0,
+            )
             : renderLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                false,
-                1.0,
-                other.web_search || false,
-                other.web_search_call_count || 0,
-                other.file_search || false,
-                other.file_search_call_count || 0,
-              ),
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              false,
+              1.0,
+              other.web_search || false,
+              other.web_search_call_count || 0,
+              other.file_search || false,
+              other.file_search_call_count || 0,
+            ),
         });
       }
       if (logs[i].type === 2) {
@@ -1145,7 +1143,7 @@ const LogsTable = () => {
 
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => {}); // 不传入logType，让其从表单获取最新值
+    loadLogs(page, pageSize).then((r) => { }); // 不传入logType，让其从表单获取最新值
   };
 
   const handlePageSizeChange = async (size) => {
@@ -1203,6 +1201,8 @@ const LogsTable = () => {
     );
   };
 
+  const [compactMode, setCompactMode] = useTableCompactMode('logs');
+
   return (
     <>
       {renderColumnSelector()}
@@ -1211,45 +1211,56 @@ const LogsTable = () => {
         title={
           <div className='flex flex-col w-full'>
             <Spin spinning={loadingStat}>
-              <Space>
-                <Tag
-                  color='blue'
-                  size='large'
-                  style={{
-                    padding: 15,
-                    borderRadius: '9999px',
-                    fontWeight: 500,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                  }}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+                <Space>
+                  <Tag
+                    color='blue'
+                    size='large'
+                    style={{
+                      padding: 15,
+                      fontWeight: 500,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                    }}
+                    className='!rounded-lg'
+                  >
+                    {t('消耗额度')}: {renderQuota(stat.quota)}
+                  </Tag>
+                  <Tag
+                    color='pink'
+                    size='large'
+                    style={{
+                      padding: 15,
+                      fontWeight: 500,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                    }}
+                    className='!rounded-lg'
+                  >
+                    RPM: {stat.rpm}
+                  </Tag>
+                  <Tag
+                    color='white'
+                    size='large'
+                    style={{
+                      padding: 15,
+                      border: 'none',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      fontWeight: 500,
+                    }}
+                    className='!rounded-lg'
+                  >
+                    TPM: {stat.tpm}
+                  </Tag>
+                </Space>
+
+                <Button
+                  theme='light'
+                  type='secondary'
+                  className="w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
                 >
-                  {t('消耗额度')}: {renderQuota(stat.quota)}
-                </Tag>
-                <Tag
-                  color='pink'
-                  size='large'
-                  style={{
-                    padding: 15,
-                    borderRadius: '9999px',
-                    fontWeight: 500,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                  }}
-                >
-                  RPM: {stat.rpm}
-                </Tag>
-                <Tag
-                  color='white'
-                  size='large'
-                  style={{
-                    padding: 15,
-                    border: 'none',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                    borderRadius: '9999px',
-                    fontWeight: 500,
-                  }}
-                >
-                  TPM: {stat.tpm}
-                </Tag>
-              </Space>
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
+              </div>
             </Spin>
 
             <Divider margin='12px' />
@@ -1284,7 +1295,6 @@ const LogsTable = () => {
                     field='token_name'
                     prefix={<IconSearch />}
                     placeholder={t('令牌名称')}
-                    className='!rounded-full'
                     showClear
                     pure
                   />
@@ -1293,7 +1303,6 @@ const LogsTable = () => {
                     field='model_name'
                     prefix={<IconSearch />}
                     placeholder={t('模型名称')}
-                    className='!rounded-full'
                     showClear
                     pure
                   />
@@ -1302,7 +1311,6 @@ const LogsTable = () => {
                     field='group'
                     prefix={<IconSearch />}
                     placeholder={t('分组')}
-                    className='!rounded-full'
                     showClear
                     pure
                   />
@@ -1313,7 +1321,6 @@ const LogsTable = () => {
                         field='channel'
                         prefix={<IconSearch />}
                         placeholder={t('渠道 ID')}
-                        className='!rounded-full'
                         showClear
                         pure
                       />
@@ -1321,7 +1328,6 @@ const LogsTable = () => {
                         field='username'
                         prefix={<IconSearch />}
                         placeholder={t('用户名称')}
-                        className='!rounded-full'
                         showClear
                         pure
                       />
@@ -1336,7 +1342,7 @@ const LogsTable = () => {
                     <Form.Select
                       field='logType'
                       placeholder={t('日志类型')}
-                      className='!rounded-full w-full sm:w-auto min-w-[120px]'
+                      className='w-full sm:w-auto min-w-[120px]'
                       showClear
                       pure
                       onChange={() => {
@@ -1372,7 +1378,6 @@ const LogsTable = () => {
                       type='primary'
                       htmlType='submit'
                       loading={loading}
-                      className='!rounded-full'
                     >
                       {t('查询')}
                     </Button>
@@ -1382,22 +1387,18 @@ const LogsTable = () => {
                         if (formApi) {
                           formApi.reset();
                           setLogType(0);
-                          // 重置后立即查询，使用setTimeout确保表单重置完成
                           setTimeout(() => {
                             refresh();
                           }, 100);
                         }
                       }}
-                      className='!rounded-full'
                     >
                       {t('重置')}
                     </Button>
                     <Button
                       theme='light'
                       type='tertiary'
-                      icon={<IconSetting />}
                       onClick={() => setShowColumnSelector(true)}
-                      className='!rounded-full'
                     >
                       {t('列设置')}
                     </Button>
@@ -1411,7 +1412,7 @@ const LogsTable = () => {
         bordered={false}
       >
         <Table
-          columns={getVisibleColumns()}
+          columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
           {...(hasExpandableRows() && {
             expandedRowRender: expandRowRender,
             expandRowByClick: true,
@@ -1421,7 +1422,7 @@ const LogsTable = () => {
           dataSource={logs}
           rowKey='key'
           loading={loading}
-          scroll={{ x: 'max-content' }}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
           className='rounded-xl overflow-hidden'
           size='middle'
           empty={
