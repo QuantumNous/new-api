@@ -409,11 +409,10 @@ func updateCustomPassTaskAll(ctx context.Context, channelId int, taskIds []strin
 
 		// 当响应成功时，解析data字段为数组
 		var taskDataList []struct {
-			TaskId   string                   `json:"task_id"`
-			Status   string                   `json:"status"`
-			Progress string                   `json:"progress"`
-			Result   []map[string]interface{} `json:"result,omitempty"`
-			Error    *string                  `json:"error"`
+			TaskId   string  `json:"task_id"`
+			Status   string  `json:"status"`
+			Progress string  `json:"progress"`
+			Error    *string `json:"error"`
 		}
 
 		err = json.Unmarshal(baseResponse.Data, &taskDataList)
@@ -445,19 +444,9 @@ func updateCustomPassTaskAll(ctx context.Context, channelId int, taskIds []strin
 			task.Status = convertCustomPassStatus(responseItem.Status)
 			task.Progress = responseItem.Progress
 
-			// 处理失败原因：优先使用Error字段，如果没有则从Result中提取error信息
+			// 处理失败原因：使用Error字段
 			if responseItem.Error != nil {
 				task.FailReason = *responseItem.Error
-			} else if task.Status == model.TaskStatusFailure && len(responseItem.Result) > 0 {
-				// 当任务失败且没有Error字段时，尝试从Result中提取error信息
-				for _, resultItem := range responseItem.Result {
-					if errorMsg, exists := resultItem["error"]; exists {
-						if errorStr, ok := errorMsg.(string); ok && errorStr != "" {
-							task.FailReason = errorStr
-							break
-						}
-					}
-				}
 			}
 
 			// 设置开始时间和结束时间
@@ -499,10 +488,8 @@ func updateCustomPassTaskAll(ctx context.Context, channelId int, taskIds []strin
 			// 记录更新后的状态
 			common.LogInfo(ctx, fmt.Sprintf("CustomPass任务更新后 - TaskID: %s, 新状态: %s, 新进度: %s", task.TaskID, task.Status, task.Progress))
 
-			// 设置任务结果数据
-			if len(responseItem.Result) > 0 {
-				task.SetData(responseItem.Result)
-			}
+			// 设置任务结果数据 - 保存整个响应数据
+			task.SetData(responseItem)
 
 			// 更新数据库前记录日志
 			common.LogInfo(ctx, fmt.Sprintf("CustomPass任务准备更新数据库 - TaskID: %s, ID: %d", task.TaskID, task.ID))
@@ -533,20 +520,18 @@ func getModelNameFromTask(task *model.Task) string {
 func checkCustomPassTaskNeedUpdate(task *model.Task, responseItem interface{}) bool {
 	// 将 responseItem 转换为具体的响应结构
 	type CustomPassResponseItem struct {
-		TaskId   string                   `json:"task_id"`
-		Status   string                   `json:"status"`
-		Progress string                   `json:"progress"`
-		Result   []map[string]interface{} `json:"result,omitempty"`
-		Error    *string                  `json:"error"`
+		TaskId   string  `json:"task_id"`
+		Status   string  `json:"status"`
+		Progress string  `json:"progress"`
+		Error    *string `json:"error"`
 	}
 
 	// 尝试将 responseItem 转换为 CustomPassResponseItem
 	responseData, ok := responseItem.(struct {
-		TaskId   string                   `json:"task_id"`
-		Status   string                   `json:"status"`
-		Progress string                   `json:"progress"`
-		Result   []map[string]interface{} `json:"result,omitempty"`
-		Error    *string                  `json:"error"`
+		TaskId   string  `json:"task_id"`
+		Status   string  `json:"status"`
+		Progress string  `json:"progress"`
+		Error    *string `json:"error"`
 	})
 	if !ok {
 		// 如果转换失败，返回 false 避免重复处理
@@ -576,15 +561,9 @@ func checkCustomPassTaskNeedUpdate(task *model.Task, responseItem interface{}) b
 		return true
 	}
 
-	// 如果任务失败且没有Error字段，检查Result中的error信息是否发生变化
-	if newStatus == model.TaskStatusFailure && responseData.Error == nil && len(responseData.Result) > 0 {
-		for _, resultItem := range responseData.Result {
-			if errorMsg, exists := resultItem["error"]; exists {
-				if errorStr, ok := errorMsg.(string); ok && errorStr != "" && task.FailReason != errorStr {
-					return true
-				}
-			}
-		}
+	// 如果错误信息发生变化，需要更新
+	if responseData.Error != nil && task.FailReason != *responseData.Error {
+		return true
 	}
 
 	// 其他情况不需要更新
