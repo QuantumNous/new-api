@@ -16,6 +16,7 @@ import (
 	"one-api/relay"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -572,14 +573,36 @@ func checkCustomPassTaskNeedUpdate(task *model.Task, responseItem interface{}) b
 
 // convertCustomPassStatus 转换自定义透传任务状态
 func convertCustomPassStatus(status string) model.TaskStatus {
-	switch status {
-	case "completed":
+	// 检查成功状态
+	if isStatusMatch(status, constant.CustomPassStatusSuccess) {
 		return model.TaskStatusSuccess
-	case "error", "failed":
-		return model.TaskStatusFailure
-	case "pendding", "processing":
-		return model.TaskStatusInProgress
-	default:
-		return model.TaskStatusUnknown
 	}
+
+	// 检查失败状态
+	if isStatusMatch(status, constant.CustomPassStatusFailure) {
+		return model.TaskStatusFailure
+	}
+
+	// 检查进行中状态
+	if isStatusMatch(status, constant.CustomPassStatusInProgress) {
+		return model.TaskStatusInProgress
+	}
+
+	return model.TaskStatusUnknown
+}
+
+// isStatusMatch 检查状态是否匹配配置的状态列表
+func isStatusMatch(status string, configuredStatuses string) bool {
+	if configuredStatuses == "" {
+		return false
+	}
+
+	// 支持逗号分隔的多个状态值
+	statuses := strings.Split(configuredStatuses, ",")
+	for _, configStatus := range statuses {
+		if strings.TrimSpace(configStatus) == status {
+			return true
+		}
+	}
+	return false
 }
