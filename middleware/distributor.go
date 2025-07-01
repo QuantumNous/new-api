@@ -119,6 +119,19 @@ func Distribute() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道（数据库一致性已被破坏）", userGroup, modelRequest.Model))
 					return
 				}
+
+				// 处理自动分组：如果选择了auto分组且成功找到了具体分组，更新context中的分组信息
+				if userGroup == "auto" {
+					if autoGroup, exists := c.Get("auto_group"); exists {
+						actualGroup := autoGroup.(string)
+						c.Set("group", actualGroup)
+						if common.DebugEnabled {
+							common.SysLog(fmt.Sprintf("Auto group resolved: %s -> %s", userGroup, actualGroup))
+						}
+					}
+				} else {
+					c.Set("group", userGroup)
+				}
 			}
 		}
 		c.Set(constant.ContextKeyRequestStartTime, time.Now())
