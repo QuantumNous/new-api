@@ -225,6 +225,13 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	// 打印响应头
 	onecommon.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
 
+	// 在doRequest函数中添加响应体日志
+	if resp.StatusCode != http.StatusOK {
+		responseBody, _ := io.ReadAll(resp.Body)
+		onecommon.LogError(ctx, fmt.Sprintf("error response body: %s", string(responseBody)))
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+	}
+
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil
