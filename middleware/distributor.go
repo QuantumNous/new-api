@@ -144,7 +144,26 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
-	if strings.Contains(c.Request.URL.Path, "/mj/") {
+	if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
+		relayMode := relayconstant.Path2RelayCustomPass(c.Request.Method, c.Request.URL.Path)
+		// 从URL路径中提取模型名称: /pass/{model}
+		// 路径格式: /pass/model/action 或 /pass/model/submit
+		path := strings.TrimPrefix(c.Request.URL.Path, "/pass/")
+
+		// 打印日志
+		common.LogInfo(c, fmt.Sprintf("CustomPass请求路径: %s", path))
+
+		// 将路径作为模型名称
+		// 对于submit任务: /pass/gpt-4/submit -> model = "gpt-4/submit"
+		// 对于普通API: /pass/gpt-4/chat -> model = "gpt-4/chat"
+		if path != "" {
+			modelRequest.Model = path
+		}
+		c.Set("platform", string(constant.TaskPlatformCustomPass))
+		c.Set("relay_mode", relayMode)
+		// CustomPass透传请求需要选择渠道以获取BaseURL和API Key
+		shouldSelectChannel = true
+	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
 			relayMode == relayconstant.RelayModeMidjourneyTaskFetchByCondition ||
@@ -210,25 +229,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
-	} else if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
-		relayMode := relayconstant.Path2RelayCustomPass(c.Request.Method, c.Request.URL.Path)
-		// 从URL路径中提取模型名称: /pass/{model}
-		// 路径格式: /pass/model/action 或 /pass/model/submit
-		path := strings.TrimPrefix(c.Request.URL.Path, "/pass/")
 
-		// 打印日志
-		common.LogInfo(c, fmt.Sprintf("CustomPass请求路径: %s", path))
-
-		// 将路径作为模型名称
-		// 对于submit任务: /pass/gpt-4/submit -> model = "gpt-4/submit"
-		// 对于普通API: /pass/gpt-4/chat -> model = "gpt-4/chat"
-		if path != "" {
-			modelRequest.Model = path
-		}
-		c.Set("platform", string(constant.TaskPlatformCustomPass))
-		c.Set("relay_mode", relayMode)
-		// CustomPass透传请求需要选择渠道以获取BaseURL和API Key
-		shouldSelectChannel = true
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		err = common.UnmarshalBodyReusable(c, &modelRequest)
 	}
