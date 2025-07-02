@@ -209,6 +209,15 @@ func getErrorType(msg string) (string, string) {
 		parts := strings.Split(msg, "status code:")
 		if len(parts) > 1 {
 			errorCode = strings.TrimSpace(parts[1])
+			// 如果错误码包含 "):"，提取前面的数字部分
+			if strings.Contains(errorCode, ")") {
+				codeParts := strings.Split(errorCode, ")")
+				if len(codeParts) > 0 {
+					// 提取数字部分
+					codePart := strings.TrimSpace(codeParts[0])
+					errorCode = codePart
+				}
+			}
 		}
 	}
 
