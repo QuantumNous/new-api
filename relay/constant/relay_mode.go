@@ -163,6 +163,10 @@ func Path2RelayCustomPass(method, path string) int {
 			// 其他所有请求都是普通API调用，使用专门的CustomPassAPI模式
 			relayMode = RelayModeCustomPassAPI
 		}
+		return relayMode
+	}
+	return relayMode
+}
     
 func Path2RelayJimeng(method, path string) int {
 	relayMode := RelayModeUnknown
