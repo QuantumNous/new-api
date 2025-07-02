@@ -41,6 +41,9 @@ const (
 	RelayModeKlingFetchByID
 	RelayModeKlingSubmit
 
+	RelayModeCustomPassSubmit   // CustomPass任务提交
+	RelayModeCustomPassAPI      // 普通的CustomPass API调用
+
 	RelayModeJimengFetchByID
 	RelayModeJimengSubmit
 
@@ -150,6 +153,21 @@ func Path2RelayKling(method, path string) int {
 	return relayMode
 }
 
+func Path2RelayCustomPass(method, path string) int {
+	relayMode := RelayModeUnknown
+	if strings.HasPrefix(path, "/pass/") {
+		if method == http.MethodPost && strings.HasSuffix(path, "/submit") {
+			// 以 /submit 结尾的POST请求是任务提交
+			relayMode = RelayModeCustomPassSubmit
+		} else {
+			// 其他所有请求都是普通API调用，使用专门的CustomPassAPI模式
+			relayMode = RelayModeCustomPassAPI
+		}
+		return relayMode
+	}
+	return relayMode
+}
+    
 func Path2RelayJimeng(method, path string) int {
 	relayMode := RelayModeUnknown
 	if method == http.MethodPost && strings.HasSuffix(path, "/video/generations") {

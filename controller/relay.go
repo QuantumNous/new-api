@@ -42,6 +42,8 @@ func relayHandler(c *gin.Context, relayMode int) *dto.OpenAIErrorWithStatusCode 
 		err = relay.ResponsesHelper(c)
 	case relayconstant.RelayModeGemini:
 		err = relay.GeminiHelper(c)
+	case relayconstant.RelayModeCustomPassAPI:
+		err = relay.CustomPassHelper(c)
 	default:
 		err = relay.TextHelper(c)
 	}
@@ -69,7 +71,12 @@ func relayHandler(c *gin.Context, relayMode int) *dto.OpenAIErrorWithStatusCode 
 }
 
 func Relay(c *gin.Context) {
-	relayMode := constant.Path2RelayMode(c.Request.URL.Path)
+	// 优先使用context中设置的relay_mode（如CustomPass等特殊路径）
+	relayMode := c.GetInt("relay_mode")
+	if relayMode == 0 {
+		// 如果context中没有设置，则通过路径判断
+		relayMode = constant.Path2RelayMode(c.Request.URL.Path)
+	}
 	requestId := c.GetString(common.RequestIdKey)
 	group := c.GetString("group")
 	originalModel := c.GetString("original_model")

@@ -119,6 +119,19 @@ func Distribute() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道（数据库一致性已被破坏）", userGroup, modelRequest.Model))
 					return
 				}
+
+				// 处理自动分组：如果选择了auto分组且成功找到了具体分组，更新context中的分组信息
+				if userGroup == "auto" {
+					if autoGroup, exists := c.Get("auto_group"); exists {
+						actualGroup := autoGroup.(string)
+						c.Set("group", actualGroup)
+						if common.DebugEnabled {
+							common.SysLog(fmt.Sprintf("Auto group resolved: %s -> %s", userGroup, actualGroup))
+						}
+					}
+				} else {
+					c.Set("group", userGroup)
+				}
 			}
 		}
 		c.Set(constant.ContextKeyRequestStartTime, time.Now())
@@ -131,7 +144,26 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
-	if strings.Contains(c.Request.URL.Path, "/mj/") {
+	if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
+		relayMode := relayconstant.Path2RelayCustomPass(c.Request.Method, c.Request.URL.Path)
+		// 从URL路径中提取模型名称: /pass/{model}
+		// 路径格式: /pass/model/action 或 /pass/model/submit
+		path := strings.TrimPrefix(c.Request.URL.Path, "/pass/")
+
+		// 打印日志
+		common.LogInfo(c, fmt.Sprintf("CustomPass请求路径: %s", path))
+
+		// 将路径作为模型名称
+		// 对于submit任务: /pass/gpt-4/submit -> model = "gpt-4/submit"
+		// 对于普通API: /pass/gpt-4/chat -> model = "gpt-4/chat"
+		if path != "" {
+			modelRequest.Model = path
+		}
+		c.Set("platform", string(constant.TaskPlatformCustomPass))
+		c.Set("relay_mode", relayMode)
+		// CustomPass透传请求需要选择渠道以获取BaseURL和API Key
+		shouldSelectChannel = true
+	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
 			relayMode == relayconstant.RelayModeMidjourneyTaskFetchByCondition ||
@@ -197,6 +229,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
+
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		err = common.UnmarshalBodyReusable(c, &modelRequest)
 	}

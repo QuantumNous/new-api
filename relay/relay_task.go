@@ -40,6 +40,9 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	modelName := service.CoverTaskActionToModelName(platform, relayInfo.Action)
 	if platform == constant.TaskPlatformKling {
 		modelName = relayInfo.OriginModelName
+	} else if platform == constant.TaskPlatformCustomPass {
+		// 对于自定义透传渠道，使用真实的模型名称而不是 custompass_submit
+		modelName = relayInfo.OriginModelName
 	}
 	modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
 	if !success {
@@ -121,28 +124,72 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	defer func() {
 		// release quota
 		if relayInfo.ConsumeQuota && taskErr == nil {
+			var finalQuota int
+			var logContent string
+			var other map[string]interface{}
+      
+			if platform == constant.TaskPlatformCustomPass {
+				// CustomPass使用动态费用计算
+				finalQuota = calculateCustomPassFinalQuota(c, modelName, groupRatio)
 
-			err := service.PostConsumeQuota(relayInfo.RelayInfo, quota, 0, true)
-			if err != nil {
-				common.SysError("error consuming token remain quota: " + err.Error())
-			}
-			if quota != 0 {
-				tokenName := c.GetString("token_name")
-				gRatio := groupRatio
-				if hasUserGroupRatio {
-					gRatio = userGroupRatio
+				// 计算实际需要扣除的费用差额
+				quotaDelta := finalQuota - quota
+
+				err := service.PostConsumeQuota(relayInfo.RelayInfo, quotaDelta, quota, true)
+				if err != nil {
+					common.SysError("error consuming token remain quota: " + err.Error())
 				}
-				logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", modelPrice, gRatio, relayInfo.Action)
-				other := make(map[string]interface{})
-				other["model_price"] = modelPrice
-				other["group_ratio"] = groupRatio
-				if hasUserGroupRatio {
-					other["user_group_ratio"] = userGroupRatio
+
+				if finalQuota != 0 {
+					tokenName := c.GetString("token_name")
+
+					gRatio := groupRatio
+          if hasUserGroupRatio {
+            gRatio = userGroupRatio
+          }
+
+					logContent = getCustomPassLogContent(c, modelName, gRatio)
+					other = getCustomPassOtherInfo(c, modelName, gRatio)
+          if hasUserGroupRatio {
+            other["user_group_ratio"] = userGroupRatio
+          }
+
+					// 获取token数量用于日志记录
+					var promptTokens, completionTokens int
+					if usageInterface, exists := c.Get("custompass_usage"); exists {
+						usage := usageInterface.(*dto.Usage)
+						promptTokens = usage.PromptTokens
+						completionTokens = usage.CompletionTokens
+					}
+
+					model.RecordConsumeLog(c, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens,
+						modelName, tokenName, finalQuota, logContent, relayInfo.TokenId, userQuota, 0, false, relayInfo.Group, other)
+					model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, finalQuota)
+					model.UpdateChannelUsedQuota(relayInfo.ChannelId, finalQuota)
 				}
-				model.RecordConsumeLog(c, relayInfo.UserId, relayInfo.ChannelId, 0, 0,
-					modelName, tokenName, quota, logContent, relayInfo.TokenId, userQuota, 0, false, relayInfo.UsingGroup, other)
-				model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
-				model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+			} else {
+				// 其他平台保持原有逻辑
+        err := service.PostConsumeQuota(relayInfo.RelayInfo, quota, 0, true)
+        if err != nil {
+          common.SysError("error consuming token remain quota: " + err.Error())
+        }
+        if quota != 0 {
+          tokenName := c.GetString("token_name")
+          gRatio := groupRatio
+          if hasUserGroupRatio {
+            gRatio = userGroupRatio
+          }
+          logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", modelPrice, gRatio, relayInfo.Action)
+          other := make(map[string]interface{})
+          other["model_price"] = modelPrice
+          other["group_ratio"] = groupRatio
+          if hasUserGroupRatio {
+            other["user_group_ratio"] = userGroupRatio
+          }
+          model.RecordConsumeLog(c, relayInfo.UserId, relayInfo.ChannelId, 0, 0,
+            modelName, tokenName, quota, logContent, relayInfo.TokenId, userQuota, 0, false, relayInfo.UsingGroup, other)
+          model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
+          model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 			}
 		}
 	}()
@@ -158,6 +205,15 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	task.Quota = quota
 	task.Data = taskData
 	task.Action = relayInfo.Action
+
+	// 为自定义透传渠道保存模型名称和实际消费费用
+	if platform == constant.TaskPlatformCustomPass {
+		task.Properties.Model = relayInfo.OriginModelName
+		// 计算实际消费费用并更新到任务记录中，用于失败时的正确补偿
+		finalQuota := calculateCustomPassFinalQuota(c, modelName, groupRatio)
+		task.Quota = finalQuota
+	}
+
 	err = task.Insert()
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "insert_task_failed", http.StatusInternalServerError)
@@ -165,6 +221,105 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	}
 	return nil
 }
+
+// calculateCustomPassFinalQuota 计算CustomPass的最终费用
+func calculateCustomPassFinalQuota(c *gin.Context, modelName string, groupRatio float64) int {
+	// 从context中获取usage信息
+	var usage *dto.Usage
+	if usageInterface, exists := c.Get("custompass_usage"); exists {
+		usage = usageInterface.(*dto.Usage)
+	}
+	
+	// 获取模型价格配置
+	modelPrice, usePrice := ratio_setting.GetModelPrice(modelName, false)
+	modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+	completionRatio := ratio_setting.GetCompletionRatio(modelName)
+
+	quotaInfo := service.CustomPassQuotaInfo{
+		ModelName:       modelName,
+		GroupRatio:      groupRatio,
+		Usage:           usage,
+		UsePrice:        usePrice,
+		ModelPrice:      modelPrice,
+		ModelRatio:      modelRatio,
+		CompletionRatio: completionRatio,
+	}
+
+	return service.CalculateCustomPassQuota(quotaInfo)
+}
+
+// getCustomPassLogContent 获取CustomPass的日志内容
+func getCustomPassLogContent(c *gin.Context, modelName string, groupRatio float64) string {
+	// 从context中获取usage信息
+	var usage *dto.Usage
+	if usageInterface, exists := c.Get("custompass_usage"); exists {
+		usage = usageInterface.(*dto.Usage)
+	}
+
+	if usage != nil && usage.TotalTokens > 0 {
+		// 基于usage计费
+		modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+		completionRatio := ratio_setting.GetCompletionRatio(modelName)
+		return fmt.Sprintf("CustomPass usage计费: prompt_tokens=%d, completion_tokens=%d, 模型倍率=%.2f, 补全倍率=%.2f, 分组倍率=%.2f",
+			usage.PromptTokens, usage.CompletionTokens, modelRatio, completionRatio, groupRatio)
+	}
+
+	// 检查是否为按次计费
+	modelPrice, usePrice := ratio_setting.GetModelPrice(modelName, false)
+	if usePrice && modelPrice > 0 {
+		return fmt.Sprintf("CustomPass 按次计费: 模型价格=%.4f, 分组倍率=%.2f", modelPrice, groupRatio)
+	}
+
+	return fmt.Sprintf("CustomPass 0费用: 模型 %s 无usage且未配置按次计费", modelName)
+}
+
+// getCustomPassOtherInfo 获取CustomPass的其他信息
+func getCustomPassOtherInfo(c *gin.Context, modelName string, groupRatio float64) map[string]interface{} {
+	other := make(map[string]interface{})
+
+	// 获取模型价格配置
+	modelPrice, usePrice := ratio_setting.GetModelPrice(modelName, false)
+	modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+	completionRatio := ratio_setting.GetCompletionRatio(modelName)
+
+	// 从context中获取usage信息
+	var usage *dto.Usage
+	if usageInterface, exists := c.Get("custompass_usage"); exists {
+		usage = usageInterface.(*dto.Usage)
+		other["usage"] = usage
+		other["billing_type"] = "usage"
+
+		// 设置前端价格渲染所需的标准字段
+		other["model_ratio"] = modelRatio
+		other["completion_ratio"] = completionRatio
+		other["group_ratio"] = groupRatio
+
+		// 如果同时配置了按次计费价格，也设置model_price字段
+		if usePrice && modelPrice > 0 {
+			other["model_price"] = modelPrice
+		} else {
+			other["model_price"] = -1 // 前端用-1表示使用倍率计费
+		}
+	} else {
+		// 检查是否为按次计费
+		if usePrice && modelPrice > 0 {
+			other["model_price"] = modelPrice
+			other["billing_type"] = "per_request"
+			other["group_ratio"] = groupRatio
+		} else {
+			other["billing_type"] = "free"
+			other["model_price"] = -1
+			other["model_ratio"] = modelRatio
+			other["completion_ratio"] = completionRatio
+			other["group_ratio"] = groupRatio
+		}
+	}
+
+	other["model_name"] = modelName
+
+	return other
+}
+
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
 	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,

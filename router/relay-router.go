@@ -4,7 +4,7 @@ import (
 	"one-api/controller"
 	"one-api/middleware"
 	"one-api/relay"
-
+	"strings"
 	"github.com/gin-gonic/gin"
 )
 
@@ -88,6 +88,24 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
 		relayGeminiRouter.POST("/models/*path", controller.Relay)
+	}
+
+	// 自定义透传渠道路由
+	relayCustomPassRouter := router.Group("/pass")
+	relayCustomPassRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		// 任务提交路由（以 /submit 结尾的路径）
+		relayCustomPassRouter.POST("/*path", func(c *gin.Context) {
+			path := c.Param("path")
+			if strings.HasSuffix(path, "/submit") {
+				controller.RelayTask(c)
+			} else {
+				controller.Relay(c)
+			}
+		})
+
+		// 普通API调用路由（GET和其他非submit的POST请求）
+		relayCustomPassRouter.GET("/*path", controller.Relay)
 	}
 }
 

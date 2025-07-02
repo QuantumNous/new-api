@@ -13,7 +13,9 @@ import {
   List,
   Hash,
   Video,
-  Sparkles
+  Sparkles,
+  Zap,
+  Settings
 } from 'lucide-react';
 import {
   API,
@@ -193,7 +195,18 @@ const LogsTable = () => {
     }
   }, [visibleColumns]);
 
-  const renderType = (type) => {
+  const renderType = (type, record) => {
+    // 对于 CustomPass 平台，显示模型名称
+    if (record && record.platform === 'custompass') {
+      const modelName = record.properties?.model || type || t('未知模型');
+      return (
+        <Tag color='purple' size='large' shape='circle' prefixIcon={<Settings size={14} />}>
+          {modelName}
+        </Tag>
+      );
+    }
+
+    // 其他平台按原有逻辑处理
     switch (type) {
       case 'MUSIC':
         return (
@@ -242,6 +255,10 @@ const LogsTable = () => {
             Kling
           </Tag>
         );
+      case 'custompass':
+        return (
+          <Tag color='purple' size='large' shape='circle' prefixIcon={<Zap size={14} />}>
+            CustomPass
       case 'jimeng':
         return (
           <Tag color='purple' size='large' shape='circle' prefixIcon={<Video size={14} />}>
@@ -380,7 +397,7 @@ const LogsTable = () => {
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text)}</div>;
+        return <div>{renderType(text, record)}</div>;
       },
     },
     {
