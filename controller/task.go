@@ -16,6 +16,7 @@ import (
 	"one-api/relay"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -76,6 +77,8 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		_ = UpdateSunoTaskAll(context.Background(), taskChannelM, taskM)
 	case constant.TaskPlatformKling, constant.TaskPlatformJimeng:
 		_ = UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM)
+	case constant.TaskPlatformCustomPass:
+		_ = UpdateCustomPassTaskAll(context.Background(), taskChannelM, taskM)
 	default:
 		common.SysLog("未知平台")
 	}
@@ -262,6 +265,303 @@ func GetAllTask(c *gin.Context) {
 	})
 }
 
+// UpdateCustomPassTaskAll 更新自定义透传渠道任务状态
+func UpdateCustomPassTaskAll(ctx context.Context, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
+	for channelId, taskIds := range taskChannelM {
+		err := updateCustomPassTaskAll(ctx, channelId, taskIds, taskM)
+		if err != nil {
+			common.LogError(ctx, fmt.Sprintf("渠道 #%d 更新自定义透传任务失败: %s", channelId, err.Error()))
+		}
+	}
+	return nil
+}
+
+func updateCustomPassTaskAll(ctx context.Context, channelId int, taskIds []string, taskM map[string]*model.Task) error {
+	common.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的自定义透传任务有: %d", channelId, len(taskIds)))
+	if len(taskIds) == 0 {
+		return nil
+	}
+
+	channel, err := model.CacheGetChannel(channelId)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("CacheGetChannel: %v", err))
+		err = model.TaskBulkUpdate(taskIds, map[string]any{
+			"fail_reason": fmt.Sprintf("获取渠道信息失败，请联系管理员，渠道ID：%d", channelId),
+			"status":      "FAILURE",
+			"progress":    "100%",
+		})
+		if err != nil {
+			common.SysError(fmt.Sprintf("UpdateCustomPassTask error: %v", err))
+		}
+		return err
+	}
+
+	adaptor := relay.GetTaskAdaptor(constant.TaskPlatformCustomPass)
+	if adaptor == nil {
+		return errors.New("adaptor not found")
+	}
+
+	// 按模型分组任务ID，因为不同模型需要分别查询
+	// 同时收集每个模型对应的客户端token（使用第一个任务的token）
+	modelTaskIds := make(map[string][]string)
+	modelClientTokens := make(map[string]string)
+	for _, taskId := range taskIds {
+		task := taskM[taskId]
+		if task != nil {
+			// 从任务的Properties中获取模型名称，或者从其他地方获取
+			// 这里假设模型名称存储在task的某个字段中，需要根据实际情况调整
+			modelName := getModelNameFromTask(task)
+			if modelName != "" {
+				modelTaskIds[modelName] = append(modelTaskIds[modelName], taskId)
+				// 如果该模型还没有记录token，则使用当前任务的token
+				if _, exists := modelClientTokens[modelName]; !exists && task.TokenKey != "" {
+					modelClientTokens[modelName] = task.TokenKey
+				}
+			}
+		}
+	}
+
+	// 对每个模型分别查询任务状态
+	for modelName, modelTaskIdList := range modelTaskIds {
+		requestBody := map[string]any{
+			"model":    modelName,
+			"task_ids": modelTaskIdList,
+		}
+		// 添加客户端token
+		if clientToken, exists := modelClientTokens[modelName]; exists {
+			requestBody["client_token"] = clientToken
+		}
+
+		resp, err := adaptor.FetchTask(*channel.BaseURL, channel.Key, requestBody)
+		if err != nil {
+			common.SysError(fmt.Sprintf("Get CustomPass Task Do req error: %v", err))
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			common.LogError(ctx, fmt.Sprintf("Get CustomPass Task status code: %d", resp.StatusCode))
+			continue
+		}
+		defer resp.Body.Close()
+
+		responseBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			common.SysError(fmt.Sprintf("Get CustomPass Task parse body error: %v", err))
+			continue
+		}
+
+		common.LogInfo(ctx, fmt.Sprintf("CustomPass任务查询响应 - 渠道 #%d: %s", channelId, string(responseBody)))
+
+		// 首先解析基本响应结构，不包含data字段的具体类型
+		var baseResponse struct {
+			Code int             `json:"code"`
+			Msg  string          `json:"msg"`
+			Data json.RawMessage `json:"data"`
+		}
+
+		err = json.Unmarshal(responseBody, &baseResponse)
+		if err != nil {
+			common.LogError(ctx, fmt.Sprintf("Get CustomPass Task parse base response error: %v, body: %s", err, string(responseBody)))
+			continue
+		}
+
+		if baseResponse.Code != 0 {
+			common.SysLog(fmt.Sprintf("渠道 #%d 查询自定义透传任务失败: %s", channelId, baseResponse.Msg))
+			continue
+		}
+
+		// 当响应成功时，解析data字段为数组
+		var taskDataList []struct {
+			TaskId   string  `json:"task_id"`
+			Status   string  `json:"status"`
+			Progress string  `json:"progress"`
+			Error    *string `json:"error"`
+		}
+
+		err = json.Unmarshal(baseResponse.Data, &taskDataList)
+		if err != nil {
+			common.LogError(ctx, fmt.Sprintf("Get CustomPass Task parse data array error: %v, data: %s", err, string(baseResponse.Data)))
+			continue
+		}
+
+		common.LogInfo(ctx, fmt.Sprintf("CustomPass任务查询成功 - 渠道 #%d，返回任务数量: %d", channelId, len(taskDataList)))
+
+		// 处理每个任务的状态更新
+		for _, responseItem := range taskDataList {
+			task := taskM[responseItem.TaskId]
+			if task == nil {
+				continue
+			}
+
+			// 检查任务是否需要更新
+			if !checkCustomPassTaskNeedUpdate(task, responseItem) {
+				continue
+			}
+
+			// 记录更新前的状态
+			oldStatus := task.Status
+			oldProgress := task.Progress
+			common.LogInfo(ctx, fmt.Sprintf("CustomPass任务更新前 - TaskID: %s, 旧状态: %s, 旧进度: %s", task.TaskID, oldStatus, oldProgress))
+
+			// 更新任务状态
+			task.Status = convertCustomPassStatus(responseItem.Status)
+			task.Progress = responseItem.Progress
+
+			// 处理失败原因：使用Error字段
+			if responseItem.Error != nil {
+				task.FailReason = *responseItem.Error
+			}
+
+			// 设置开始时间和结束时间
+			currentTime := time.Now().Unix()
+
+			// 如果任务从未开始状态变为进行中，设置开始时间
+			if task.StartTime == 0 && (task.Status == model.TaskStatusInProgress || task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure) {
+				task.StartTime = currentTime
+			}
+
+			// 如果任务完成或失败，设置结束时间
+			if task.FinishTime == 0 && (task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure) {
+				task.FinishTime = currentTime
+			}
+
+			// 如果任务失败，退回扣费
+			if task.Status == model.TaskStatusFailure {
+				// 确保失败任务的进度设置为100%，避免重复处理
+				task.Progress = "100%"
+				quota := task.Quota
+				if quota != 0 {
+					err = model.IncreaseUserQuota(task.UserId, quota, false)
+					if err != nil {
+						common.LogError(ctx, "fail to increase user quota: "+err.Error())
+					}
+					modelName := task.Properties.Model
+					if modelName == "" {
+						modelName = "自定义透传"
+					}
+					logContent := fmt.Sprintf("%s任务执行失败 %s，补偿 %s", modelName, task.TaskID, common.LogQuota(quota))
+					model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
+				}
+			}
+
+			if task.Status == model.TaskStatusSuccess {
+				task.Progress = "100%"
+			}
+
+			// 记录更新后的状态
+			common.LogInfo(ctx, fmt.Sprintf("CustomPass任务更新后 - TaskID: %s, 新状态: %s, 新进度: %s", task.TaskID, task.Status, task.Progress))
+
+			// 设置任务结果数据 - 保存整个响应数据
+			task.SetData(responseItem)
+
+			// 更新数据库前记录日志
+			common.LogInfo(ctx, fmt.Sprintf("CustomPass任务准备更新数据库 - TaskID: %s, ID: %d", task.TaskID, task.ID))
+
+			err = task.Update()
+			if err != nil {
+				common.SysError("UpdateCustomPassTask task error: " + err.Error())
+				common.LogError(ctx, fmt.Sprintf("CustomPass任务数据库更新失败 - TaskID: %s, 错误: %s", task.TaskID, err.Error()))
+			} else {
+				common.LogInfo(ctx, fmt.Sprintf("CustomPass任务数据库更新成功 - TaskID: %s, 最终状态: %s, 最终进度: %s", task.TaskID, task.Status, task.Progress))
+			}
+		}
+	}
+	return nil
+}
+
+// getModelNameFromTask 从任务中获取模型名称
+func getModelNameFromTask(task *model.Task) string {
+	// 从Properties中获取模型名称
+	if task.Properties.Model != "" {
+		return task.Properties.Model
+	}
+	// 如果Properties中没有，可以从其他地方获取，比如从Action中解析
+	return ""
+}
+
+// checkCustomPassTaskNeedUpdate 检查自定义透传任务是否需要更新
+func checkCustomPassTaskNeedUpdate(task *model.Task, responseItem interface{}) bool {
+	// 将 responseItem 转换为具体的响应结构
+	type CustomPassResponseItem struct {
+		TaskId   string  `json:"task_id"`
+		Status   string  `json:"status"`
+		Progress string  `json:"progress"`
+		Error    *string `json:"error"`
+	}
+
+	// 尝试将 responseItem 转换为 CustomPassResponseItem
+	responseData, ok := responseItem.(struct {
+		TaskId   string  `json:"task_id"`
+		Status   string  `json:"status"`
+		Progress string  `json:"progress"`
+		Error    *string `json:"error"`
+	})
+	if !ok {
+		// 如果转换失败，返回 false 避免重复处理
+		return false
+	}
+
+	// 转换新的状态
+	newStatus := convertCustomPassStatus(responseData.Status)
+
+	// 如果任务已经是最终状态（成功或失败）且进度是100%，不需要更新
+	if (task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure) && task.Progress == "100%" {
+		return false
+	}
+
+	// 如果状态发生变化，需要更新
+	if task.Status != newStatus {
+		return true
+	}
+
+	// 如果进度发生变化，需要更新
+	if task.Progress != responseData.Progress {
+		return true
+	}
+
+	// 如果错误信息发生变化，需要更新
+	if responseData.Error != nil && task.FailReason != *responseData.Error {
+		return true
+	}
+
+	// 其他情况不需要更新
+	return false
+}
+
+// convertCustomPassStatus 转换自定义透传任务状态
+func convertCustomPassStatus(status string) model.TaskStatus {
+	// 检查成功状态
+	if isStatusMatch(status, constant.CustomPassStatusSuccess) {
+		return model.TaskStatusSuccess
+	}
+
+	// 检查失败状态
+	if isStatusMatch(status, constant.CustomPassStatusFailure) {
+		return model.TaskStatusFailure
+	}
+
+	// 检查进行中状态
+	if isStatusMatch(status, constant.CustomPassStatusInProgress) {
+		return model.TaskStatusInProgress
+	}
+
+	return model.TaskStatusUnknown
+}
+
+// isStatusMatch 检查状态是否匹配配置的状态列表
+func isStatusMatch(status string, configuredStatuses string) bool {
+	if configuredStatuses == "" {
+		return false
+	}
+
+	// 支持逗号分隔的多个状态值
+	statuses := strings.Split(configuredStatuses, ",")
+	for _, configStatus := range statuses {
+		if strings.TrimSpace(configStatus) == status {
+			return true
+		}
+	}
+	return false
+}
 func GetUserTask(c *gin.Context) {
 	p, _ := strconv.Atoi(c.Query("p"))
 	if p < 1 {
