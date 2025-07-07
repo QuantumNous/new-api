@@ -64,6 +64,10 @@ const SystemSetting = () => {
     LinuxDOOAuthEnabled: '',
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
+
+    NodeLocOAuthEnabled: '',
+    NodeLocClientId: '',
+    NodeLocClientSecret: '',
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -74,6 +78,7 @@ const SystemSetting = () => {
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
   const [linuxDOOAuthEnabled, setLinuxDOOAuthEnabled] = useState(false);
+  const [nodeLocOAuthEnabled, setNodeLocAuthEnabled] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState('');
 
   const getOptions = async () => {
@@ -102,6 +107,7 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
+          case 'NodeLocOAuthEnabled':
           case 'oidc.enabled':
           case 'WorkerAllowHttpImageRequestEnabled':
             item.value = item.value === 'true';
@@ -462,6 +468,10 @@ const SystemSetting = () => {
     if (optionKey === 'LinuxDOOAuthEnabled') {
       setLinuxDOOAuthEnabled(value);
     }
+
+    if (optionKey === 'NodeLocAuthEnabled') {
+      setNodeLocAuthEnabled(value);
+    }
   };
 
   const handlePasswordLoginConfirm = async () => {
@@ -625,6 +635,16 @@ const SystemSetting = () => {
                         }
                       >
                         允许通过 OIDC 进行登录
+                      </Form.Checkbox>
+
+                      <Form.Checkbox
+                        field='NodeLocAuthEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('NodeLocAuthEnabled', e)
+                        }
+                      >
+                        允许通过 Linux DO 账户登录 & 注册
                       </Form.Checkbox>
                     </Col>
                   </Row>
@@ -891,6 +911,54 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitLinuxDOOAuth}>
                     保存 Linux DO OAuth 设置
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text='配置 Linux DO OAuth'>
+                  <Text>
+                    用以支持通过 Linux DO 进行登录注册
+                    <a
+                      href='https://connect.linux.do/'
+                      target='_blank'
+                      rel='noreferrer'
+                      style={{
+                        display: 'inline-block',
+                        marginLeft: 4,
+                        marginRight: 4,
+                      }}
+                    >
+                      点击此处
+                    </a>
+                    管理你的 LinuxDO OAuth App
+                  </Text>
+                  <Banner
+                    type='info'
+                    description={`回调 URL 填 ${inputs.ServerAddress ? inputs.ServerAddress : '网站地址'}/oauth/Nodeloc`}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='NodeLocClientId'
+                        label='NodeLoc Client ID'
+                        placeholder='输入你注册的 LinuxDO OAuth APP 的 ID'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='NodeLocClientSecret'
+                        label='NodeLoc Client Secret'
+                        type='password'
+                        placeholder='敏感信息不会发送到前端显示'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitLinuxDOOAuth}>
+                    保存 NodeLoc OAuth 设置
                   </Button>
                 </Form.Section>
               </Card>
