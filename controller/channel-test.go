@@ -173,8 +173,19 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	consumedTime := float64(milliseconds) / 1000.0
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
-	model.RecordConsumeLog(c, 1, channel.Id, usage.PromptTokens, usage.CompletionTokens, info.OriginModelName, "模型测试",
-		quota, "模型测试", 0, quota, int(consumedTime), false, info.UsingGroup, other)
+	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
+		ChannelId:        channel.Id,
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		ModelName:        info.OriginModelName,
+		TokenName:        "模型测试",
+		Quota:            quota,
+		Content:          "模型测试",
+		UseTimeSeconds:   int(consumedTime),
+		IsStream:         false,
+		Group:            info.UsingGroup,
+		Other:            other,
+	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return nil, nil
 }

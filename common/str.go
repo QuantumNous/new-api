@@ -68,3 +68,11 @@ func StringToByteSlice(s string) []byte {
 	tmp2 := [3]uintptr{tmp1[0], tmp1[1], tmp1[1]}
 	return *(*[]byte)(unsafe.Pointer(&tmp2))
 }
+
+func GetJsonString(data any) string {
+	if data == nil {
+		return ""
+	}
+	b, _ := json.Marshal(data)
+	return string(b)
+}

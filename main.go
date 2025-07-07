@@ -39,7 +39,6 @@ func main() {
 		return
 	}
 
-	common.SetupLogger()
 	common.SysLog("New API " + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
@@ -171,6 +170,8 @@ func InitResources() error {
 
 	// 加载环境变量
 	common.InitEnv()
+
+	common.SetupLogger()
 
 	// Initialize model settings
 	ratio_setting.InitRatioSettings()

@@ -247,9 +247,9 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	}
 	c.Set("channel_id", channel.Id)
 	c.Set("channel_name", channel.Name)
-	c.Set("channel_type", channel.Type)
+	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	c.Set("channel_create_time", channel.CreatedTime)
-	c.Set("channel_setting", channel.GetSetting())
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	c.Set("param_override", channel.GetParamOverride())
 	if nil != channel.OpenAIOrganization && "" != *channel.OpenAIOrganization {
 		c.Set("channel_organization", *channel.OpenAIOrganization)
@@ -258,7 +258,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set("model_mapping", channel.GetModelMapping())
 	c.Set("status_code_mapping", channel.GetStatusCodeMapping())
 	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
-	c.Set("base_url", channel.GetBaseURL())
+	common.SetContextKey(c, constant.ContextKeyBaseUrl, channel.GetBaseURL())
 	// TODO: api_version统一
 	switch channel.Type {
 	case constant.ChannelTypeAzure:

@@ -124,12 +124,12 @@ func OaiStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	var forceFormat bool
 	var thinkToContent bool
 
-	if forceFmt, ok := info.ChannelSetting[constant.ForceFormat].(bool); ok {
-		forceFormat = forceFmt
+	if info.ChannelSetting.ForceFormat {
+		forceFormat = true
 	}
 
-	if think2Content, ok := info.ChannelSetting[constant.ChannelSettingThinkingToContent].(bool); ok {
-		thinkToContent = think2Content
+	if info.ChannelSetting.ThinkingToContent {
+		thinkToContent = true
 	}
 
 	var (
@@ -200,8 +200,8 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	}
 
 	forceFormat := false
-	if forceFmt, ok := info.ChannelSetting[constant.ForceFormat].(bool); ok {
-		forceFormat = forceFmt
+	if info.ChannelSetting.ForceFormat {
+		forceFormat = true
 	}
 
 	if simpleResponse.Usage.TotalTokens == 0 || (simpleResponse.Usage.PromptTokens == 0 && simpleResponse.Usage.CompletionTokens == 0) {
