@@ -387,6 +387,14 @@ func AddChannel(c *gin.Context) {
 		})
 		return
 	}
+	err = channel.ValidateSettings()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "channel setting 格式错误：" + err.Error(),
+		})
+		return
+	}
 	channel.CreatedTime = common.GetTimestamp()
 	keys := strings.Split(channel.Key, "\n")
 	if channel.Type == constant.ChannelTypeVertexAi {
@@ -611,6 +619,14 @@ func UpdateChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
+		})
+		return
+	}
+	err = channel.ValidateSettings()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "channel setting 格式错误：" + err.Error(),
 		})
 		return
 	}

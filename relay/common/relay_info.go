@@ -97,7 +97,7 @@ type RelayInfo struct {
 	IsFirstRequest       bool
 	AudioUsage           bool
 	ReasoningEffort      string
-	ChannelSetting       map[string]interface{}
+	ChannelSetting       dto.ChannelSettings
 	ParamOverride        map[string]interface{}
 	UserSetting          map[string]interface{}
 	UserEmail            string
@@ -213,7 +213,6 @@ func GenRelayInfoImage(c *gin.Context) *RelayInfo {
 func GenRelayInfo(c *gin.Context) *RelayInfo {
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
-	channelSetting := common.GetContextKeyStringMap(c, constant.ContextKeyChannelSetting)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyParamOverride)
 
 	tokenId := common.GetContextKeyInt(c, constant.ContextKeyTokenId)
@@ -246,12 +245,12 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		OriginModelName:   common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 		UpstreamModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 		//RecodeModelName:   c.GetString("original_model"),
-		IsModelMapped:     false,
-		ApiType:           apiType,
-		ApiVersion:        c.GetString("api_version"),
-		ApiKey:            strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer "),
-		Organization:      c.GetString("channel_organization"),
-		ChannelSetting:    channelSetting,
+		IsModelMapped: false,
+		ApiType:       apiType,
+		ApiVersion:    c.GetString("api_version"),
+		ApiKey:        strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer "),
+		Organization:  c.GetString("channel_organization"),
+
 		ChannelCreateTime: c.GetInt64("channel_create_time"),
 		ParamOverride:     paramOverride,
 		RelayFormat:       RelayFormatOpenAI,
@@ -277,6 +276,12 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	if streamSupportedChannels[info.ChannelType] {
 		info.SupportStreamOptions = true
 	}
+
+	channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+	if ok {
+		info.ChannelSetting = channelSetting
+	}
+
 	return info
 }
 

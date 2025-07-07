@@ -34,14 +34,13 @@ func RelayMidjourneyImage(c *gin.Context) {
 	}
 	var httpClient *http.Client
 	if channel, err := model.CacheGetChannel(midjourneyTask.ChannelId); err == nil {
-		if proxy, ok := channel.GetSetting()["proxy"]; ok {
-			if proxyURL, ok := proxy.(string); ok && proxyURL != "" {
-				if httpClient, err = service.NewProxyHttpClient(proxyURL); err != nil {
-					c.JSON(400, gin.H{
-						"error": "proxy_url_invalid",
-					})
-					return
-				}
+		proxy := channel.GetSetting().Proxy
+		if proxy != "" {
+			if httpClient, err = service.NewProxyHttpClient(proxy); err != nil {
+				c.JSON(400, gin.H{
+					"error": "proxy_url_invalid",
+				})
+				return
 			}
 		}
 	}
@@ -175,7 +174,7 @@ func RelaySwapFace(c *gin.Context) *dto.MidjourneyResponse {
 	startTime := time.Now().UnixNano() / int64(time.Millisecond)
 	tokenId := c.GetInt("token_id")
 	userId := c.GetInt("id")
-	group := c.GetString("group")
+	//group := c.GetString("group")
 	channelId := c.GetInt("channel_id")
 	relayInfo := relaycommon.GenRelayInfo(c)
 	var swapFaceRequest dto.SwapFaceRequest
@@ -221,8 +220,17 @@ func RelaySwapFace(c *gin.Context) *dto.MidjourneyResponse {
 			tokenName := c.GetString("token_name")
 			logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, constant.MjActionSwapFace)
 			other := service.GenerateMjOtherInfo(priceData)
-			model.RecordConsumeLog(c, userId, channelId, 0, 0, modelName, tokenName,
-				priceData.Quota, logContent, tokenId, userQuota, 0, false, group, other)
+			model.RecordConsumeLog(c, relayInfo.UserId, model.RecordConsumeLogParams{
+				ChannelId: channelId,
+				ModelName: modelName,
+				TokenName: tokenName,
+				Quota:     priceData.Quota,
+				Content:   logContent,
+				TokenId:   tokenId,
+				UserQuota: userQuota,
+				Group:     relayInfo.UsingGroup,
+				Other:     other,
+			})
 			model.UpdateUserUsedQuotaAndRequestCount(userId, priceData.Quota)
 			model.UpdateChannelUsedQuota(channelId, priceData.Quota)
 		}
@@ -363,7 +371,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 
 func RelayMidjourneySubmit(c *gin.Context, relayMode int) *dto.MidjourneyResponse {
 
-	tokenId := c.GetInt("token_id")
+	//tokenId := c.GetInt("token_id")
 	//channelType := c.GetInt("channel")
 	userId := c.GetInt("id")
 	group := c.GetString("group")
@@ -518,8 +526,17 @@ func RelayMidjourneySubmit(c *gin.Context, relayMode int) *dto.MidjourneyRespons
 			tokenName := c.GetString("token_name")
 			logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s，ID %s", priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, midjRequest.Action, midjResponse.Result)
 			other := service.GenerateMjOtherInfo(priceData)
-			model.RecordConsumeLog(c, userId, channelId, 0, 0, modelName, tokenName,
-				priceData.Quota, logContent, tokenId, userQuota, 0, false, group, other)
+			model.RecordConsumeLog(c, relayInfo.UserId, model.RecordConsumeLogParams{
+				ChannelId: channelId,
+				ModelName: modelName,
+				TokenName: tokenName,
+				Quota:     priceData.Quota,
+				Content:   logContent,
+				TokenId:   relayInfo.TokenId,
+				UserQuota: userQuota,
+				Group:     group,
+				Other:     other,
+			})
 			model.UpdateUserUsedQuotaAndRequestCount(userId, priceData.Quota)
 			model.UpdateChannelUsedQuota(channelId, priceData.Quota)
 		}

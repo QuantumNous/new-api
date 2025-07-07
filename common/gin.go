@@ -76,3 +76,13 @@ func GetContextKeyStringMap(c *gin.Context, key constant.ContextKey) map[string]
 func GetContextKeyTime(c *gin.Context, key constant.ContextKey) time.Time {
 	return c.GetTime(string(key))
 }
+
+func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool) {
+	if value, ok := c.Get(string(key)); ok {
+		if v, ok := value.(T); ok {
+			return v, true
+		}
+	}
+	var t T
+	return t, false
+}

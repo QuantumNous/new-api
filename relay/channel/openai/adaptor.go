@@ -53,7 +53,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 
 	// initialize ThinkingContentInfo when thinking_to_content is enabled
-	if think2Content, ok := info.ChannelSetting[constant.ChannelSettingThinkingToContent].(bool); ok && think2Content {
+	if info.ChannelSetting.ThinkingToContent {
 		info.ThinkingContentInfo = relaycommon.ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,

@@ -206,8 +206,8 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error
-	if proxyURL, ok := info.ChannelSetting["proxy"]; ok {
-		client, err = service.NewProxyHttpClient(proxyURL.(string))
+	if info.ChannelSetting.Proxy != "" {
+		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
 		if err != nil {
 			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}

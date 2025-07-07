@@ -73,3 +73,11 @@ func StringToByteSlice(s string) []byte {
 func EncodeBase64(str string) string {
 	return base64.StdEncoding.EncodeToString([]byte(str))
 }
+
+func GetJsonString(data any) string {
+	if data == nil {
+		return ""
+	}
+	b, _ := json.Marshal(data)
+	return string(b)
+}
