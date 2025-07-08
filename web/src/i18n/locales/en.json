@@ -1062,7 +1062,7 @@
   "价格：${{price}} * 分组：{{ratio}}": "Price: ${{price}} * Group: {{ratio}}",
   "模型: {{ratio}} * 分组: {{groupRatio}}": "Model: {{ratio}} * Group: {{groupRatio}}",
   "统计额度": "Statistical quota",
-  "统计Tokens": "Statistical Tokens", 
+  "统计Tokens": "Statistical Tokens",
   "统计次数": "Statistical count",
   "平均RPM": "Average RPM",
   "平均TPM": "Average TPM",
@@ -1338,5 +1338,16 @@
   "0.1-1之间的小数": "Decimal between 0.1 and 1",
   "模型相关设置": "Model related settings",
   "收起侧边栏": "Collapse sidebar",
-  "展开侧边栏": "Expand sidebar"
+  "展开侧边栏": "Expand sidebar",
+  "当前额度": "Current quota",
+  "添加额度": "Add quota",
+  "新额度": "New quota",
+  "提示：输入框显示原始额度数值，上方显示转换后的货币金额": "Tip: The input box shows the raw quota value, the above shows the converted currency amount.",
+  "提示：输入框显示原始额度数值，计算结果显示转换后的货币金额": "Tip: The input box shows the raw quota value, the calculation result shows the converted currency amount.",
+  "请输入金额（美元）": "Please enter amount (USD)",
+  "切换到原始额度": "Switch to raw quota",
+  "切换到货币输入": "Switch to currency input",
+  "当前模式：货币输入（美元）": "Current mode: Currency input (USD)",
+  "当前模式：原始额度输入": "Current mode: Raw quota input",
+  "需要添加的金额（美元，支持负数）": "Amount to add (USD, supports negative numbers)"
 }

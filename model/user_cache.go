@@ -3,10 +3,11 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"one-api/constant"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/bytedance/gopkg/util/gopool"
 )
@@ -27,7 +28,7 @@ func (user *UserBase) WriteContext(c *gin.Context) {
 	c.Set(constant.ContextKeyUserQuota, user.Quota)
 	c.Set(constant.ContextKeyUserStatus, user.Status)
 	c.Set(constant.ContextKeyUserEmail, user.Email)
-	c.Set("username", user.Username)
+	c.Set(constant.ContextKeyUserName, user.Username)
 	c.Set(constant.ContextKeyUserSetting, user.GetSetting())
 }
 

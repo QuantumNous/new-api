@@ -7,4 +7,5 @@ const (
 	ContextKeyUserStatus       = "user_status"
 	ContextKeyUserEmail        = "user_email"
 	ContextKeyUserGroup        = "user_group"
+	ContextKeyUserName         = "username"
 )

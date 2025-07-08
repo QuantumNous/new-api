@@ -281,6 +281,8 @@ func logHelper(ctx context.Context, level string, msg string) {
 		model := "unknown"
 		group := "unknown"
 		tokenName := "unknown"
+		userId := "unknown"
+		userName := "unknown"
 
 		if ginCtx, ok := ctx.Value("gin_context").(*gin.Context); ok {
 			if ch := ginCtx.GetString("channel"); ch != "" {
@@ -298,9 +300,15 @@ func logHelper(ctx context.Context, level string, msg string) {
 			if tn := ginCtx.GetString("token_name"); tn != "" {
 				tokenName = tn
 			}
+			if userId := ginCtx.GetString("user_id"); userId != "" {
+				userId = userId
+			}
+			if userName := ginCtx.GetString("user_name"); userName != "" {
+				userName = userName
+			}
 		}
 
-		metrics.IncrementErrorLog(channel, channelName, errorCode, errorType, model, group, tokenName, 1.0)
+		metrics.IncrementErrorLog(channel, channelName, errorCode, errorType, model, group, tokenName, userId, userName, 1.0)
 	}
 
 	logCount++ // we don't need accurate count, so no lock here

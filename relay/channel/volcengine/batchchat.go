@@ -241,6 +241,8 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 			info.Group,
 			finalStatusCode,
 			retryHeaderStatus,
+			strconv.Itoa(info.UserId),
+			info.UserName,
 			1,
 		)
 		metrics.ObserveBatchRequestDuration(
@@ -252,6 +254,8 @@ func DoBatchChatRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody
 			info.Group,
 			finalStatusCode,
 			retryHeaderStatus,
+			strconv.Itoa(info.UserId),
+			info.UserName,
 			time.Since(requestStartTime).Seconds(),
 		)
 	}()

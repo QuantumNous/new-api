@@ -167,7 +167,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		ModelName:        modelName,
 		Quota:            quota,
 		ChannelId:        common.GetOriginChannelId(c, channelId),
-		TokenId:          tokenId,
+		TokenId:          common.GetOriginTokenId(c, tokenId),
 		UseTime:          useTimeSeconds,
 		IsStream:         isStream,
 		Group:            group,
