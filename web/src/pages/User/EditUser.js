@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API, isMobile, showError, showSuccess } from '../../helpers';
-import { renderQuota, renderQuotaWithPrompt } from '../../helpers/render';
+import { renderQuota, renderQuotaWithPrompt, getQuotaPerUnit } from '../../helpers/render';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import {
   Button,
@@ -21,6 +21,11 @@ const EditUser = (props) => {
   const [loading, setLoading] = useState(true);
   const [addQuotaModalOpen, setIsModalOpen] = useState(false);
   const [addQuotaLocal, setAddQuotaLocal] = useState('');
+  const [useCurrencyInput, setUseCurrencyInput] = useState(() => {
+    // 根据系统设置决定默认输入模式
+    const displayInCurrency = localStorage.getItem('display_in_currency');
+    return displayInCurrency === 'true';
+  });
   const [inputs, setInputs] = useState({
     username: '',
     display_name: '',
@@ -44,7 +49,28 @@ const EditUser = (props) => {
     group,
   } = inputs;
   const handleInputChange = (name, value) => {
-    setInputs((inputs) => ({ ...inputs, [name]: value }));
+    if (name === 'quota' && useCurrencyInput) {
+      // 如果使用货币输入模式，将输入的金额转换为原始额度
+      const quotaPerUnit = getQuotaPerUnit();
+      const rawQuota = Math.round(parseFloat(value || 0) * quotaPerUnit);
+      setInputs((inputs) => ({ ...inputs, [name]: rawQuota }));
+    } else {
+      setInputs((inputs) => ({ ...inputs, [name]: value }));
+    }
+  };
+
+  // 获取显示用的额度值（根据输入模式）
+  const getDisplayQuota = () => {
+    if (useCurrencyInput) {
+      const quotaPerUnit = getQuotaPerUnit();
+      return (quota / quotaPerUnit).toFixed(2);
+    }
+    return quota;
+  };
+
+  // 切换输入模式
+  const toggleInputMode = () => {
+    setUseCurrencyInput(!useCurrencyInput);
   };
   const fetchGroups = async () => {
     try {
@@ -125,7 +151,16 @@ const EditUser = (props) => {
   };
 
   const addLocalQuota = () => {
-    let newQuota = parseInt(quota) + parseInt(addQuotaLocal);
+    let newQuota;
+    if (useCurrencyInput) {
+      // 如果使用货币输入模式，将输入的金额转换为原始额度
+      const quotaPerUnit = getQuotaPerUnit();
+      const addAmount = parseFloat(addQuotaLocal || 0);
+      const addRawQuota = Math.round(addAmount * quotaPerUnit);
+      newQuota = quota + addRawQuota;
+    } else {
+      newQuota = parseInt(quota) + parseInt(addQuotaLocal || 0);
+    }
     setInputs((inputs) => ({ ...inputs, quota: newQuota }));
   };
 
@@ -224,14 +259,26 @@ const EditUser = (props) => {
               <Space>
                 <Input
                   name='quota'
-                  placeholder={t('请输入新的剩余额度')}
+                  placeholder={useCurrencyInput ? t('请输入金额（美元）') : t('请输入新的剩余额度')}
                   onChange={(value) => handleInputChange('quota', value)}
-                  value={quota}
+                  value={getDisplayQuota()}
                   type={'number'}
+                  step={useCurrencyInput ? '0.01' : '1'}
                   autoComplete='new-password'
                 />
                 <Button onClick={openAddQuotaModal}>{t('添加额度')}</Button>
+                <Button onClick={toggleInputMode} type="tertiary">
+                  {useCurrencyInput ? t('切换到原始额度') : t('切换到货币输入')}
+                </Button>
               </Space>
+              <div style={{ marginTop: 10 }}>
+                <Typography.Text type="secondary" size="small">
+                  {useCurrencyInput 
+                    ? t('当前模式：货币输入（美元）') 
+                    : t('当前模式：原始额度输入')
+                  }
+                </Typography.Text>
+              </div>
             </>
           )}
           <Divider style={{ marginTop: 20 }}>{t('以下信息不可修改')}</Divider>
@@ -288,18 +335,33 @@ const EditUser = (props) => {
         closable={null}
       >
         <div style={{ marginTop: 20 }}>
-          <Typography.Text>{`${t('新额度')}${renderQuota(quota)} + ${renderQuota(addQuotaLocal)} = ${renderQuota(quota + parseInt(addQuotaLocal))}`}</Typography.Text>
+          <Typography.Text>{t('当前额度')}：{renderQuota(quota)}</Typography.Text>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Typography.Text>{t('添加额度')}：</Typography.Text>
         </div>
         <Input
           name='addQuotaLocal'
-          placeholder={t('需要添加的额度（支持负数）')}
+          placeholder={useCurrencyInput ? t('需要添加的金额（美元，支持负数）') : t('需要添加的额度（支持负数）')}
           onChange={(value) => {
             setAddQuotaLocal(value);
           }}
           value={addQuotaLocal}
           type={'number'}
+          step={useCurrencyInput ? '0.01' : '1'}
           autoComplete='new-password'
         />
+        <div style={{ marginTop: 10 }}>
+          <Typography.Text>{t('新额度')}：{renderQuota(quota + (useCurrencyInput ? Math.round(parseFloat(addQuotaLocal || 0) * getQuotaPerUnit()) : parseInt(addQuotaLocal || 0)))}</Typography.Text>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Typography.Text type="secondary" size="small">
+            {useCurrencyInput 
+              ? t('当前模式：货币输入（美元）') 
+              : t('当前模式：原始额度输入')
+            }
+          </Typography.Text>
+        </div>
       </Modal>
     </>
   );

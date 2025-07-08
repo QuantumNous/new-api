@@ -114,6 +114,8 @@ func Relay(c *gin.Context) {
 	originalModel := c.GetString("original_model")
 	tokenKey := c.GetString("token_key")
 	tokenName := c.GetString("token_name")
+	userId := c.GetString("user_id")
+	userName := c.GetString("user_name")
 	var openaiErr *dto.OpenAIErrorWithStatusCode
 	for i := 0; i <= common.RetryTimes; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
@@ -134,20 +136,20 @@ func Relay(c *gin.Context) {
 		relayInfo, request, requestModel, openaiErr = relayInfoHandler(c, relayMode)
 		if i == 0 {
 			// e2e 用户请求计数
-			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, 1)
+			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, 1)
 		} else {
 			// 重试计数
 			channelTag := ""
 			if channel.Tag != nil {
 				channelTag = *channel.Tag
 			}
-			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channel.Name, channelTag, channel.GetBaseURL(), requestModel, group, 1)
+			metrics.IncrementRelayRetryCounter(strconv.Itoa(channel.Id), channel.Name, channelTag, channel.GetBaseURL(), requestModel, group, userId, userName, 1)
 		}
 		if openaiErr == nil {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
 			if openaiErr == nil {
-				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, 1)
-				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, time.Since(startTime).Seconds())
+				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, 1)
+				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, time.Since(startTime).Seconds())
 				return
 			}
 		}
@@ -156,7 +158,7 @@ func Relay(c *gin.Context) {
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
 			// e2e 失败计数
-			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, 1)
+			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, userId, userName, 1)
 			break
 		}
 	}

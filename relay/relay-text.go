@@ -96,6 +96,7 @@ func TextInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.GeneralOpenAIRequest
 func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *dto.GeneralOpenAIRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := common.GetBeijingTime()
 	var funcErr *dto.OpenAIErrorWithStatusCode
+<<<<<<< Updated upstream
 	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
 	defer func() {
 		if funcErr != nil {
@@ -103,6 +104,16 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		} else {
 			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
 			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, relayInfo.ChannelName, time.Since(startTime).Seconds())
+=======
+	var statusCode int = -1
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
+	defer func() {
+		if funcErr != nil {
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
+		} else {
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, textRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, time.Since(startTime).Seconds())
+>>>>>>> Stashed changes
 		}
 	}()
 

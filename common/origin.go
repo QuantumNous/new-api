@@ -25,3 +25,13 @@ func GetOriginChannelId(c *gin.Context, defaultChannelId int) int {
 	}
 	return defaultChannelId
 }
+
+// GetOriginTokenId 获取原始Token ID，如果请求头中存在则使用请求头中的值
+func GetOriginTokenId(c *gin.Context, defaultTokenId int) int {
+	if originTokenId := c.GetHeader("X-Origin-Token-ID"); originTokenId != "" {
+		if tokenId, err := strconv.Atoi(originTokenId); err == nil {
+			return tokenId
+		}
+	}
+	return defaultTokenId
+}

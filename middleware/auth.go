@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/model"
 	"strconv"
 	"strings"
@@ -122,10 +123,11 @@ func authHelper(c *gin.Context, minRole int) {
 	// 添加日志打印
 	common.SysLog(fmt.Sprintf("[Auth Info] UserID: %v, Role: %v, Username: %v", id, role, username))
 
-	c.Set("username", username)
+	c.Set(constant.ContextKeyUserName, username)
 	c.Set("role", role)
 	c.Set("id", id)
 	c.Set("group", session.Get("group"))
+
 	c.Set("use_access_token", useAccessToken)
 	c.Next()
 }
@@ -200,6 +202,7 @@ func TokenAuth() func(c *gin.Context) {
 			if id == 0 {
 				c.Set("id", token.UserId)
 			}
+			c.Set("token_id", token.Id)
 		}
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusUnauthorized, err.Error())

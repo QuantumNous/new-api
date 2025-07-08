@@ -167,7 +167,19 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	req.Header.Set("X-Origin-User-ID", strconv.Itoa(info.UserId))
 	req.Header.Set("X-Origin-Channel-ID", strconv.Itoa(info.ChannelId))
 	req.Header.Set("X-Retry-Count", strconv.Itoa(info.RetryCount))
+<<<<<<< Updated upstream
 	req.Header.Set("X-Origin-Hash-Value", strconv.Itoa(c.GetInt("hash_value")))
+=======
+	req.Header.Set("X-Origin-Token-ID", strconv.Itoa(info.TokenId))
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Header.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Header.Set("retry", retry)
+	}
+>>>>>>> Stashed changes
 
 	// 打印请求头
 	requestId := c.GetString(onecommon.RequestIdKey)

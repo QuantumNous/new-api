@@ -25,6 +25,7 @@ type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
 	UserId            int
+	UserName          string
 	Group             string
 	TokenUnlimited    bool
 	StartTime         time.Time
@@ -107,6 +108,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		UserQuota:         c.GetInt(constant.ContextKeyUserQuota),
 		UserSetting:       c.GetStringMap(constant.ContextKeyUserSetting),
 		UserEmail:         c.GetString(constant.ContextKeyUserEmail),
+		UserName:          c.GetString(constant.ContextKeyUserName),
 		isFirstResponse:   true,
 		RelayMode:         relayconstant.Path2RelayMode(c.Request.URL.Path),
 		BaseUrl:           c.GetString("base_url"),

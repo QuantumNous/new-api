@@ -72,6 +72,7 @@ func AudioInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.AudioRequest, *dto.
 func AudioHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, audioRequest *dto.AudioRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
+<<<<<<< Updated upstream
 	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
 	defer func() {
 		if funcErr != nil {
@@ -79,6 +80,16 @@ func AudioHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, audioRequest 
 		} else {
 			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
 			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, relayInfo.ChannelName, time.Since(startTime).Seconds())
+=======
+	var statusCode int = -1
+	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
+	defer func() {
+		if funcErr != nil {
+			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(funcErr.StatusCode), strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
+		} else {
+			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
+			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, audioRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, time.Since(startTime).Seconds())
+>>>>>>> Stashed changes
 		}
 	}()
 	var (
