@@ -466,7 +466,7 @@ const LoginForm = () => {
                 </div>
               </Form>
 
-              {(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.telegram_oauth) && (
+              {(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.nodeloc_oauth || status.telegram_oauth) && (
                 <>
                   <Divider margin='12px' align='center'>
                     {t('或')}
@@ -550,7 +550,7 @@ const LoginForm = () => {
       <div className="blur-ball blur-ball-indigo" style={{ top: '-80px', right: '-80px', transform: 'none' }} />
       <div className="blur-ball blur-ball-teal" style={{ top: '50%', left: '-120px' }} />
       <div className="w-full max-w-sm mt-[64px]">
-        {showEmailLogin || !(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.telegram_oauth)
+        {showEmailLogin || !(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.nodeloc_oauth || status.telegram_oauth)
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

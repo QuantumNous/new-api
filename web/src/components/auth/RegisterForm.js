@@ -56,6 +56,7 @@ const RegisterForm = () => {
   const [githubLoading, setGithubLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [nodelocLoading, setNodelocLoading] = useState(false);
   const [emailRegisterLoading, setEmailRegisterLoading] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [verificationCodeLoading, setVerificationCodeLoading] = useState(false);
@@ -491,7 +492,7 @@ const RegisterForm = () => {
                 </div>
               </Form>
 
-              {(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.telegram_oauth) && (
+              {(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.nodeloc_oauth || status.telegram_oauth) && (
                 <>
                   <Divider margin='12px' align='center'>
                     {t('或')}
@@ -564,7 +565,7 @@ const RegisterForm = () => {
       <div className="blur-ball blur-ball-indigo" style={{ top: '-80px', right: '-80px', transform: 'none' }} />
       <div className="blur-ball blur-ball-teal" style={{ top: '50%', left: '-120px' }} />
       <div className="w-full max-w-sm mt-[64px]">
-        {showEmailRegister || !(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.telegram_oauth)
+        {showEmailRegister || !(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth|| status.nodeloc_oauth || status.telegram_oauth)
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
