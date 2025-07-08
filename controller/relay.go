@@ -226,11 +226,16 @@ func WssRelay(c *gin.Context) {
 		return
 	}
 
+	startTime := time.Now()
 	relayMode := constant.Path2RelayMode(c.Request.URL.Path)
 	requestId := c.GetString(common.RequestIdKey)
 	group := c.GetString("group")
 	//wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01
 	originalModel := c.GetString("original_model")
+	tokenKey := c.GetString("token_key")
+	tokenName := c.GetString("token_name")
+	userId := c.GetString("user_id")
+	userName := c.GetString("user_name")
 	var openaiErr *dto.OpenAIErrorWithStatusCode
 
 	for i := 0; i <= common.RetryTimes; i++ {
@@ -241,15 +246,24 @@ func WssRelay(c *gin.Context) {
 			break
 		}
 
+		if i == 0 {
+			// e2e 用户请求计数
+			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), channel.Name, originalModel, group, tokenKey, tokenName, userId, userName, 1)
+		}
+
 		openaiErr = wssRequest(c, ws, relayMode, channel)
 
 		if openaiErr == nil {
+			metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), channel.Name, originalModel, group, tokenKey, tokenName, userId, userName, 1)
+			metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), channel.Name, originalModel, group, tokenKey, tokenName, userId, userName, time.Since(startTime).Seconds())
 			return // 成功处理请求，直接返回
 		}
 
 		go processChannelError(c, channel.Id, channel.Type, channel.Name, channel.GetAutoBan(), openaiErr)
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
+			// e2e 失败计数
+			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, originalModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, userId, userName, 1)
 			break
 		}
 	}
