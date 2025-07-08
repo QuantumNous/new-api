@@ -93,7 +93,7 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 
 	// Get access token using Basic auth
 	tokenEndpoint := "https://conn.nodeloc.cc/oauth2/token"
-	credentials := common.LinuxDOClientId + ":" + common.LinuxDOClientSecret
+	credentials := common.NodeLocClientId + ":" + common.NodeLocClientSecret
 	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
 
 	// Get redirect URI from request
@@ -101,7 +101,7 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	if c.Request.TLS != nil {
 		scheme = "https"
 	}
-	redirectURI := fmt.Sprintf("%s://%s/api/oauth/linuxdo", scheme, c.Request.Host)
+	redirectURI := fmt.Sprintf("%s://%s/api/oauth/nodeloc", scheme, c.Request.Host)
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -191,7 +191,7 @@ func NodelocOAuth(c *gin.Context) {
 		return
 	}
 
-	if !common.LinuxDOOAuthEnabled {
+	if !common.NodeLocOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 NodeLoc 登录以及注册",

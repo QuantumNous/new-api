@@ -78,7 +78,7 @@ const SystemSetting = () => {
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
   const [linuxDOOAuthEnabled, setLinuxDOOAuthEnabled] = useState(false);
-  const [nodeLocOAuthEnabled, setNodeLocAuthEnabled] = useState(false);
+  const [nodeLocAuthEnabled, setNodeLocAuthEnabled] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState('');
 
   const getOptions = async () => {
@@ -107,7 +107,7 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
-          case 'NodeLocOAuthEnabled':
+          case 'NodeLocAuthEnabled':
           case 'oidc.enabled':
           case 'WorkerAllowHttpImageRequestEnabled':
             item.value = item.value === 'true';
@@ -457,6 +457,27 @@ const SystemSetting = () => {
     }
   };
 
+  const submitNodeLocOAuth = async () => {
+    const options = [];
+
+    if (originInputs['NodeLocClientId'] !== inputs.NodeLocClientId) {
+      options.push({ key: 'NodeLocClientId', value: inputs.NodeLocClientId });
+    }
+    if (
+      originInputs['NodeLocClientSecret'] !== inputs.NodeLocClientSecret &&
+      inputs.NodeLocClientSecret !== ''
+    ) {
+      options.push({
+        key: 'NodeLocClientSecret',
+        value: inputs.NodeLocClientSecret,
+      });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
   const handleCheckboxChange = async (optionKey, event) => {
     const value = event.target.checked;
 
@@ -644,7 +665,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('NodeLocAuthEnabled', e)
                         }
                       >
-                        允许通过 Linux DO 账户登录 & 注册
+                        允许通过 NodeLoc 账户登录 & 注册
                       </Form.Checkbox>
                     </Col>
                   </Row>
@@ -916,11 +937,11 @@ const SystemSetting = () => {
               </Card>
 
               <Card>
-                <Form.Section text='配置 Linux DO OAuth'>
+                <Form.Section text='配置 NodeLoc OAuth'>
                   <Text>
-                    用以支持通过 Linux DO 进行登录注册
+                    用以支持通过 NodeLoc 进行登录注册
                     <a
-                      href='https://connect.linux.do/'
+                      href='https://conn.nodeloc.cc/'
                       target='_blank'
                       rel='noreferrer'
                       style={{
@@ -931,7 +952,7 @@ const SystemSetting = () => {
                     >
                       点击此处
                     </a>
-                    管理你的 LinuxDO OAuth App
+                    管理你的 NodeLoc OAuth App
                   </Text>
                   <Banner
                     type='info'
@@ -945,7 +966,7 @@ const SystemSetting = () => {
                       <Form.Input
                         field='NodeLocClientId'
                         label='NodeLoc Client ID'
-                        placeholder='输入你注册的 LinuxDO OAuth APP 的 ID'
+                        placeholder='输入你注册的 NodeLoc OAuth APP 的 ID'
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -957,7 +978,7 @@ const SystemSetting = () => {
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitLinuxDOOAuth}>
+                  <Button onClick={submitNodeLocOAuth}>
                     保存 NodeLoc OAuth 设置
                   </Button>
                 </Form.Section>

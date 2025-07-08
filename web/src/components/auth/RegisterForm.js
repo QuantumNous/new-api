@@ -210,6 +210,15 @@ const RegisterForm = () => {
     }
   };
 
+  const handleNodeLocClick = () => {
+    setNodelocLoading(true);
+    try {
+      onNodeLocOAuthClicked(status.nodeloc_client_id);
+    } finally {
+      setTimeout(() => setNodelocLoading(false), 3000);
+    }
+  };
+
   const handleLinuxDOClick = () => {
     setLinuxdoLoading(true);
     try {
@@ -333,7 +342,21 @@ const RegisterForm = () => {
                     onClick={handleLinuxDOClick}
                     loading={linuxdoLoading}
                   >
-                    <span className="ml-3">{t('使用 LinuxDO 继续')}</span>
+                    <span className="ml-3">{t('')}</span>
+                  </Button>
+                )}
+
+                {status.nodeloc_oauth && (
+                  <Button
+                    theme='outline'
+                    className="w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+                    type="tertiary"
+                    icon={<NodeLocIcon style={{ color: '#E95420', width: '20px', height: '20px' }} />}
+                    size="large"
+                    onClick={handleNodeLocClick}
+                    loading={nodelocLoading}
+                  >
+                    <span className="ml-3">{t('使用 NodeLoc 继续')}</span>
                   </Button>
                 )}
 

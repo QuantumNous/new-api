@@ -12,7 +12,8 @@ import {
   setUserData,
   onGitHubOAuthClicked,
   onOIDCClicked,
-  onLinuxDOOAuthClicked
+  onLinuxDOOAuthClicked,
+  onNodeLocOAuthClicked
 } from '../../helpers/index.js';
 import Turnstile from 'react-turnstile';
 import {
@@ -31,6 +32,7 @@ import { IconGithubLogo, IconMail, IconLock } from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon.js';
 import WeChatIcon from '../common/logo/WeChatIcon.js';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon.js';
+import NodeLocIcon from '../common/logo/NodeLocIcon.js';
 import { useTranslation } from 'react-i18next';
 
 const LoginForm = () => {
@@ -54,6 +56,7 @@ const LoginForm = () => {
   const [githubLoading, setGithubLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [nodelocLoading, setNodelocLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -240,6 +243,15 @@ const LoginForm = () => {
     }
   };
 
+  const handleNodeLocClick = () => {
+    setNodelocLoading(true);
+    try {
+      onNodeLocOAuthClicked(status.nodeloc_client_id);
+    } finally {
+      setTimeout(() => setNodelocLoading(false), 3000);
+    }
+  };
+
   // 包装的邮箱登录选项点击处理
   const handleEmailLoginClick = () => {
     setEmailLoginLoading(true);
@@ -329,6 +341,20 @@ const LoginForm = () => {
                     loading={linuxdoLoading}
                   >
                     <span className="ml-3">{t('使用 LinuxDO 继续')}</span>
+                  </Button>
+                )}
+
+                {status.nodeloc_oauth && (
+                  <Button
+                    theme='outline'
+                    className="w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+                    type="tertiary"
+                    icon={<NodeLocIcon style={{ color: '#E95420', width: '20px', height: '20px' }} />}
+                    size="large"
+                    onClick={handleNodeLocClick}
+                    loading={nodelocLoading}
+                  >
+                    <span className="ml-3">{t('使用 NodeLoc 继续')}</span>
                   </Button>
                 )}
 
