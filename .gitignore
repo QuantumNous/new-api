@@ -18,3 +18,5 @@ out.log
 out.log_2
 .env_3
 *.prof
+.env*
+.env_prod

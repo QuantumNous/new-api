@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,7 +51,7 @@ func RequestLogger() gin.HandlerFunc {
 		// 构建日志信息
 		logInfo := fmt.Sprintf("Request: %s %s\tClient IP: %s\tHeaders: %s\t",
 			c.Request.Method,
-			c.Request.URL.Path,
+			c.Request.URL.String(),
 			c.ClientIP(),
 			formatMap(headers),
 		)
@@ -73,7 +74,12 @@ func RequestLogger() gin.HandlerFunc {
 			}
 		}
 
-		common.SysLog(logInfo)
+		// 构建全链路上下文
+		requestId := c.GetString(common.RequestIdKey)
+		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, requestId)
+		ctx = context.WithValue(ctx, "gin_context", c)
+
+		common.LogInfo(ctx, logInfo)
 		c.Next()
 	}
 }

@@ -13,6 +13,7 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
+		apiRouter.GET("/ping", controller.Ping)
 		apiRouter.GET("/status", controller.GetStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
@@ -79,6 +80,16 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.POST("/request_log", controller.ToggleRequestLog)
 		}
+
+		// 添加 pprof 控制路由
+		pprofRoute := apiRouter.Group("/pprof")
+		pprofRoute.Use(middleware.RootAuth())
+		{
+			pprofRoute.GET("/status", controller.PProfStatus)
+			pprofRoute.POST("/enable", controller.EnablePProf)
+			pprofRoute.POST("/disable", controller.DisablePProf)
+		}
+
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{
@@ -137,6 +148,13 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), controller.SearchUserLogs)
+
+		// 用户限速配置接口
+		userRateLimitRoute := apiRouter.Group("/user_rate_limit")
+		userRateLimitRoute.Use(middleware.TokenAuth())
+		{
+			userRateLimitRoute.GET("/config", controller.GetSpecificUserRateLimitConfig)
+		}
 
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)

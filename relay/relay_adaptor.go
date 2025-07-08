@@ -89,7 +89,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &openrouter.Adaptor{}
 	case constant.APITypeXai:
 		return &xai.Adaptor{}
-
+	case constant.APITypeDoubaoOffline:
+		return &volcengine.Adaptor{}
 	}
 	return nil
 }

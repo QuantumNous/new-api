@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/genai"
 )
 
 // Setting safety to the lowest possible values since Gemini is already powerless enough
@@ -24,20 +25,52 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 	geminiRequest := GeminiChatRequest{
 		Contents: make([]GeminiChatContent, 0, len(textRequest.Messages)),
 		//SafetySettings: []GeminiChatSafetySettings{},
-		GenerationConfig: GeminiChatGenerationConfig{
-			Temperature:     textRequest.Temperature,
-			TopP:            textRequest.TopP,
-			MaxOutputTokens: textRequest.MaxTokens,
-			Seed:            int64(textRequest.Seed),
-			ThinkingConfig: func() *GeminiChatThinkingConfig {
-				if textRequest.Thinking != nil {
-					return &GeminiChatThinkingConfig{
-						ThinkingBudget: textRequest.Thinking.BudgetTokens,
-					}
-				}
-				return nil
-			}(),
-		},
+	}
+
+	// 初始化GenerationConfig
+	geminiRequest.GenerationConfig = &genai.GenerateContentConfig{
+		Temperature: func() *float32 {
+			if textRequest.Temperature != nil {
+				temp := float32(*textRequest.Temperature)
+				return &temp
+			}
+			return nil
+		}(),
+		TopP: func() *float32 {
+			topP := float32(textRequest.TopP)
+			return &topP
+		}(),
+		MaxOutputTokens: int32(textRequest.MaxTokens),
+		Seed: func() *int32 {
+			seed := int32(textRequest.Seed)
+			return &seed
+		}(),
+	}
+
+	// 如果有传入的GenerationConfig，合并配置
+	if textRequest.GenerationConfig != nil {
+		// 合并ResponseMIMEType和ResponseSchema
+		if textRequest.GenerationConfig.ResponseMIMEType != "" {
+			geminiRequest.GenerationConfig.ResponseMIMEType = textRequest.GenerationConfig.ResponseMIMEType
+		}
+		if textRequest.GenerationConfig.ResponseSchema != nil {
+			geminiRequest.GenerationConfig.ResponseSchema = textRequest.GenerationConfig.ResponseSchema
+		}
+		// 合并ThinkingConfig（如果传入的没有，则使用thinking字段）
+		if textRequest.GenerationConfig.ThinkingConfig != nil {
+			geminiRequest.GenerationConfig.ThinkingConfig = textRequest.GenerationConfig.ThinkingConfig
+		} else if textRequest.Thinking != nil {
+			budget := int32(textRequest.Thinking.BudgetTokens)
+			geminiRequest.GenerationConfig.ThinkingConfig = &genai.ThinkingConfig{
+				ThinkingBudget: &budget,
+			}
+		}
+	} else if textRequest.Thinking != nil {
+		// 如果没有GenerationConfig但有thinking字段
+		budget := int32(textRequest.Thinking.BudgetTokens)
+		geminiRequest.GenerationConfig.ThinkingConfig = &genai.ThinkingConfig{
+			ThinkingBudget: &budget,
+		}
 	}
 
 	safetySettings := make([]GeminiChatSafetySettings, 0, len(SafetySettingList))
@@ -101,12 +134,13 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 		}
 	}
 
+	// 保持原有的ResponseFormat处理逻辑作为兼容性支持
 	if textRequest.ResponseFormat != nil && (textRequest.ResponseFormat.Type == "json_schema" || textRequest.ResponseFormat.Type == "json_object") {
-		geminiRequest.GenerationConfig.ResponseMimeType = "application/json"
+		geminiRequest.GenerationConfig.ResponseMIMEType = "application/json"
 
 		if textRequest.ResponseFormat.JsonSchema != nil && textRequest.ResponseFormat.JsonSchema.Schema != nil {
-			cleanedSchema := removeAdditionalPropertiesWithDepth(textRequest.ResponseFormat.JsonSchema.Schema, 0)
-			geminiRequest.GenerationConfig.ResponseSchema = cleanedSchema
+			// 直接使用ResponseJsonSchema字段，不需要转换
+			geminiRequest.GenerationConfig.ResponseJsonSchema = textRequest.ResponseFormat.JsonSchema.Schema
 		}
 	}
 	tool_call_ids := make(map[string]string)
@@ -212,6 +246,21 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 						},
 					})
 				}
+			} else if part.Type == dto.ContentTypeInputAudio {
+				// 处理音频内容
+				audioData := part.InputAudio.(dto.MessageInputAudio)
+				// 添加调试日志
+				common.SysLog(fmt.Sprintf("Processing audio data: format=%s, data length=%d", audioData.Format, len(audioData.Data)))
+				// 将音频数据转换为Gemini的InlineData格式
+				parts = append(parts, GeminiPart{
+					InlineData: &GeminiInlineData{
+						MimeType: audioData.Format,
+						Data:     audioData.Data,
+					},
+					VideoMetadata: &GeminiVideoMetadata{
+						Fps: audioData.Fps,
+					},
+				})
 			} else if part.Type == dto.ContentTypeYoutube {
 				parts = append(parts, GeminiPart{
 					FileData: &GeminiFileData{
@@ -333,6 +382,7 @@ func unescapeString(s string) (string, error) {
 
 	return string(result), nil
 }
+
 func unescapeMapOrSlice(data interface{}) interface{} {
 	switch v := data.(type) {
 	case map[string]interface{}:

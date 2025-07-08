@@ -51,15 +51,7 @@ func EmbeddingInfo(c *gin.Context) (*relaycommon.RelayInfo, *dto.EmbeddingReques
 func EmbeddingHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, embeddingRequest *dto.EmbeddingRequest) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	startTime := time.Now()
 	var funcErr *dto.OpenAIErrorWithStatusCode
-<<<<<<< Updated upstream
-	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
-	defer func() {
-		if funcErr != nil {
-			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, strconv.Itoa(funcErr.StatusCode), 1)
-		} else {
-			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, 1)
-			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, relayInfo.ChannelName, time.Since(startTime).Seconds())
-=======
+
 	var statusCode int = -1
 	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
 	defer func() {
@@ -68,7 +60,7 @@ func EmbeddingHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, embedding
 		} else {
 			metrics.IncrementRelayRequestSuccessCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, strconv.Itoa(statusCode), strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
 			metrics.ObserveRelayRequestDuration(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, embeddingRequest.Model, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, time.Since(startTime).Seconds())
->>>>>>> Stashed changes
+
 		}
 	}()
 
@@ -151,6 +143,10 @@ func EmbeddingHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, embedding
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
 	}
+
+	// 设置状态码用于指标记录
+	statusCode = resp.(*http.Response).StatusCode
+
 	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 	return nil
 }

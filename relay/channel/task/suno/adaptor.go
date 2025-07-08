@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -16,6 +15,8 @@ import (
 	"one-api/service"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type TaskAdaptor struct {
@@ -64,6 +65,15 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	req.Header.Set("Accept", c.Request.Header.Get("Accept"))
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
+
+	// 添加指定的header - 从原始请求中获取
+	if retryRequestId := c.GetHeader("retry_request_id"); retryRequestId != "" {
+		req.Header.Set("retry_request_id", retryRequestId)
+	}
+	if retry := c.GetHeader("retry"); retry != "" {
+		req.Header.Set("retry", retry)
+	}
+
 	return nil
 }
 

@@ -1,11 +1,13 @@
 package gemini
 
+import "google.golang.org/genai"
+
 type GeminiChatRequest struct {
-	Contents           []GeminiChatContent        `json:"contents"`
-	SafetySettings     []GeminiChatSafetySettings `json:"safety_settings,omitempty"`
-	GenerationConfig   GeminiChatGenerationConfig `json:"generation_config,omitempty"`
-	Tools              []GeminiChatTool           `json:"tools,omitempty"`
-	SystemInstructions *GeminiChatContent         `json:"system_instruction,omitempty"`
+	Contents           []GeminiChatContent          `json:"contents"`
+	SafetySettings     []GeminiChatSafetySettings   `json:"safety_settings,omitempty"`
+	Tools              []GeminiChatTool             `json:"tools,omitempty"`
+	SystemInstructions *GeminiChatContent           `json:"system_instruction,omitempty"`
+	GenerationConfig   *genai.GenerateContentConfig `json:"generation_config,omitempty"`
 }
 
 type GeminiInlineData struct {
@@ -43,6 +45,10 @@ type GeminiFileData struct {
 	FileUri  string `json:"fileUri,omitempty"`
 }
 
+type GeminiVideoMetadata struct {
+	Fps float64 `json:"fps"`
+}
+
 type GeminiPart struct {
 	Text                string                         `json:"text,omitempty"`
 	InlineData          *GeminiInlineData              `json:"inlineData,omitempty"`
@@ -51,6 +57,7 @@ type GeminiPart struct {
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
+	VideoMetadata       *GeminiVideoMetadata           `json:"video_metadata,omitempty"`
 }
 
 type GeminiChatContent struct {

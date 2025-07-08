@@ -256,6 +256,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set("status_code_mapping", channel.GetStatusCodeMapping())
 	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
 	c.Set("base_url", channel.GetBaseURL())
+	c.Set("endpoint", channel.GetEndpoint())
 	// TODO: api_version统一
 	switch channel.Type {
 	case common.ChannelTypeAzure:

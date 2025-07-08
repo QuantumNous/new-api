@@ -32,6 +32,9 @@ var DB *gorm.DB
 
 var LOG_DB *gorm.DB
 
+// 中心控制库数据库连接
+var CENTRAL_DB *gorm.DB
+
 func createRootAccountIfNeed() error {
 	var user User
 	//if user.Status != common.UserStatusEnabled {
@@ -169,6 +172,36 @@ func InitLogDB() (err error) {
 	return err
 }
 
+// InitCentralDB 初始化中心控制库
+func InitCentralDB() (err error) {
+	if os.Getenv("CENTRAL_SQL_DSN") == "" {
+		// 如果没有配置中心控制库，使用主数据库
+		CENTRAL_DB = DB
+		common.SysLog("CENTRAL_SQL_DSN not set, using main database for central control")
+		return nil
+	}
+	db, err := chooseDB("CENTRAL_SQL_DSN")
+	if err == nil {
+		if common.DebugEnabled {
+			db = db.Debug()
+		}
+		CENTRAL_DB = db
+		sqlDB, err := CENTRAL_DB.DB()
+		if err != nil {
+			return err
+		}
+		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
+		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
+		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+		common.SysLog("central control database connected")
+		return nil
+	} else {
+		common.FatalLog(err)
+	}
+	return err
+}
+
 func migrateDB() error {
 	err := DB.AutoMigrate(&Channel{})
 	if err != nil {
@@ -231,6 +264,17 @@ func migrateLOGDB() error {
 	return nil
 }
 
+func migrateCentralDB() error {
+	// 迁移用户限速配置表
+	err := CENTRAL_DB.AutoMigrate(&UserRateLimitConfig{})
+	if err != nil {
+		return err
+	}
+
+	common.SysLog("central control database migrated")
+	return nil
+}
+
 func closeDB(db *gorm.DB) error {
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -243,6 +287,12 @@ func closeDB(db *gorm.DB) error {
 func CloseDB() error {
 	if LOG_DB != DB {
 		err := closeDB(LOG_DB)
+		if err != nil {
+			return err
+		}
+	}
+	if CENTRAL_DB != DB && CENTRAL_DB != LOG_DB {
+		err := closeDB(CENTRAL_DB)
 		if err != nil {
 			return err
 		}
