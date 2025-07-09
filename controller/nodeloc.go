@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"one-api/common"
@@ -18,7 +19,7 @@ import (
 )
 
 type NodelocUser struct {
-	Id         int    `json:"id"`
+	Id         int    `json:"sub"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
 	Active     bool   `json:"active"`
@@ -27,16 +28,16 @@ type NodelocUser struct {
 }
 
 func NodelocBind(c *gin.Context) {
-	if !common.LinuxDOOAuthEnabled {
+	if !common.NodeLocOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未开启通过 Linux DO 登录以及注册",
+			"message": "管理员未开启通过 NodeLoc 登录以及注册",
 		})
 		return
 	}
 
 	code := c.Query("code")
-	linuxdoUser, err := getNodeLocUserInfoByCode(code, c)
+	nodeLocUser, err := getNodeLocUserInfoByCode(code, c)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -46,13 +47,13 @@ func NodelocBind(c *gin.Context) {
 	}
 
 	user := model.User{
-		LinuxDOId: strconv.Itoa(linuxdoUser.Id),
+		LinuxDOId: strconv.Itoa(nodeLocUser.Id),
 	}
 
 	if model.IsLinuxDOIdAlreadyTaken(user.LinuxDOId) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "该 Linux DO 账户已被绑定",
+			"message": "该 NodeLoc 账户已被绑定",
 		})
 		return
 	}
@@ -70,7 +71,7 @@ func NodelocBind(c *gin.Context) {
 		return
 	}
 
-	user.LinuxDOId = strconv.Itoa(linuxdoUser.Id)
+	user.LinuxDOId = strconv.Itoa(nodeLocUser.Id)
 	err = user.Update(false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -101,7 +102,7 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	if c.Request.TLS != nil {
 		scheme = "https"
 	}
-	redirectURI := fmt.Sprintf("%s://%s/api/oauth/nodeloc", scheme, c.Request.Host)
+	redirectURI := fmt.Sprintf("%s://%s/oauth/nodeloc", scheme, c.Request.Host)
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -137,7 +138,7 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	}
 
 	// Get user info
-	userEndpoint := "https://conn.nodeloc.cc/api/user"
+	userEndpoint := "https://conn.nodeloc.cc/oauth2/userinfo"
 	req, err = http.NewRequest("GET", userEndpoint, nil)
 	if err != nil {
 		return nil, err
@@ -147,10 +148,18 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 
 	res2, err := client.Do(req)
 	if err != nil {
-		return nil, errors.New("failed to get user info from Linux DO")
+		return nil, errors.New("failed to get user info from NodeLoc")
 	}
 	defer res2.Body.Close()
 
+	// 读取响应体内容
+	bodyBytes, err := io.ReadAll(res2.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 打印响应体内容
+	fmt.Printf("Response Body: %s\n", string(bodyBytes))
 	var nodeLocUser NodelocUser
 	if err := json.NewDecoder(res2.Body).Decode(&nodeLocUser); err != nil {
 		return nil, err
@@ -200,7 +209,7 @@ func NodelocOAuth(c *gin.Context) {
 	}
 
 	code := c.Query("code")
-	linuxdoUser, err := getNodeLocUserInfoByCode(code, c)
+	nodeLocUser, err := getNodeLocUserInfoByCode(code, c)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -210,7 +219,7 @@ func NodelocOAuth(c *gin.Context) {
 	}
 
 	user := model.User{
-		LinuxDOId: strconv.Itoa(linuxdoUser.Id),
+		LinuxDOId: strconv.Itoa(nodeLocUser.Id),
 	}
 
 	// Check if user exists
@@ -233,7 +242,7 @@ func NodelocOAuth(c *gin.Context) {
 	} else {
 		if common.RegisterEnabled {
 			user.Username = "NodeLoc_" + strconv.Itoa(model.GetMaxUserId()+1)
-			user.DisplayName = linuxdoUser.Name
+			user.DisplayName = nodeLocUser.Name
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 

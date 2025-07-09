@@ -78,7 +78,7 @@ const SystemSetting = () => {
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
   const [linuxDOOAuthEnabled, setLinuxDOOAuthEnabled] = useState(false);
-  const [nodeLocAuthEnabled, setNodeLocAuthEnabled] = useState(false);
+  const [nodeLocOAuthEnabled, setNodeLocOAuthEnabled] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState('');
 
   const getOptions = async () => {
@@ -107,7 +107,7 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
-          case 'NodeLocAuthEnabled':
+          case 'NodeLocOAuthEnabled':
           case 'oidc.enabled':
           case 'WorkerAllowHttpImageRequestEnabled':
             item.value = item.value === 'true';
@@ -490,8 +490,8 @@ const SystemSetting = () => {
       setLinuxDOOAuthEnabled(value);
     }
 
-    if (optionKey === 'NodeLocAuthEnabled') {
-      setNodeLocAuthEnabled(value);
+    if (optionKey === 'NodeLocOAuthEnabled') {
+      setNodeLocOAuthEnabled(value);
     }
   };
 
@@ -659,10 +659,10 @@ const SystemSetting = () => {
                       </Form.Checkbox>
 
                       <Form.Checkbox
-                        field='NodeLocAuthEnabled'
+                        field='NodeLocOAuthEnabled'
                         noLabel
                         onChange={(e) =>
-                          handleCheckboxChange('NodeLocAuthEnabled', e)
+                          handleCheckboxChange('NodeLocOAuthEnabled', e)
                         }
                       >
                         允许通过 NodeLoc 账户登录 & 注册

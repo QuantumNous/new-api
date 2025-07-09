@@ -214,7 +214,7 @@ const RegisterForm = () => {
   const handleNodeLocClick = () => {
     setNodelocLoading(true);
     try {
-      onNodeLocOAuthClicked(status.nodeloc_client_id);
+      onNodeLocOAuthClicked(status.nodeloc_client_id, status.nodeloc_redirect_uri);
     } finally {
       setTimeout(() => setNodelocLoading(false), 3000);
     }

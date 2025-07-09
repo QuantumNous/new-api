@@ -321,6 +321,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.LinuxDOClientId = value
 	case "LinuxDOClientSecret":
 		common.LinuxDOClientSecret = value
+	case "NodeLocClientId":
+		common.NodeLocClientId = value
+	case "NodeLocClientSecret":
+		common.NodeLocClientSecret = value
 	case "Footer":
 		common.Footer = value
 	case "SystemName":
