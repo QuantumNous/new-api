@@ -160,7 +160,6 @@ func GetAllChannels(c *gin.Context) {
 			"type_counts": typeCounts,
 		},
 	})
-	return
 }
 
 func FetchUpstreamModels(c *gin.Context) {
@@ -352,7 +351,6 @@ func SearchChannels(c *gin.Context) {
 			"type_counts": typeCounts,
 		},
 	})
-	return
 }
 
 func GetChannel(c *gin.Context) {
@@ -377,7 +375,6 @@ func GetChannel(c *gin.Context) {
 		"message": "",
 		"data":    channel,
 	})
-	return
 }
 
 func AddChannel(c *gin.Context) {
@@ -454,7 +451,6 @@ func AddChannel(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 func DeleteChannel(c *gin.Context) {
@@ -472,7 +468,6 @@ func DeleteChannel(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 func DeleteDisabledChannel(c *gin.Context) {
@@ -489,7 +484,6 @@ func DeleteDisabledChannel(c *gin.Context) {
 		"message": "",
 		"data":    rows,
 	})
-	return
 }
 
 type ChannelTag struct {
@@ -524,7 +518,6 @@ func DisableTagChannels(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 func EnableTagChannels(c *gin.Context) {
@@ -549,7 +542,6 @@ func EnableTagChannels(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 func EditTagChannels(c *gin.Context) {
@@ -581,7 +573,6 @@ func EditTagChannels(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 type ChannelBatch struct {
@@ -612,7 +603,6 @@ func DeleteChannelBatch(c *gin.Context) {
 		"message": "",
 		"data":    len(channelBatch.Ids),
 	})
-	return
 }
 
 func UpdateChannel(c *gin.Context) {
@@ -668,7 +658,6 @@ func UpdateChannel(c *gin.Context) {
 		"message": "",
 		"data":    channel,
 	})
-	return
 }
 
 func FetchModels(c *gin.Context) {
@@ -775,7 +764,6 @@ func BatchSetChannelTag(c *gin.Context) {
 		"message": "",
 		"data":    len(channelBatch.Ids),
 	})
-	return
 }
 
 func GetTagModels(c *gin.Context) {
@@ -816,5 +804,4 @@ func GetTagModels(c *gin.Context) {
 		"message": "",
 		"data":    longestModels,
 	})
-	return
 }
