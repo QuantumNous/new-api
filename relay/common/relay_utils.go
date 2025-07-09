@@ -2,15 +2,20 @@ package common
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"one-api/constant"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
+	if channelType == constant.APITypeOpenAICompatible {
+		return fmt.Sprintf("%s%s", strings.TrimSuffix(baseURL, "/"), strings.TrimPrefix(requestURL, "/v1"))
+	}
+
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
 
 	if strings.HasPrefix(baseURL, "https://gateway.ai.cloudflare.com") {

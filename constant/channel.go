@@ -1,55 +1,56 @@
 package constant
 
 const (
-	ChannelTypeUnknown        = 0
-	ChannelTypeOpenAI         = 1
-	ChannelTypeMidjourney     = 2
-	ChannelTypeAzure          = 3
-	ChannelTypeOllama         = 4
-	ChannelTypeMidjourneyPlus = 5
-	ChannelTypeOpenAIMax      = 6
-	ChannelTypeOhMyGPT        = 7
-	ChannelTypeCustom         = 8
-	ChannelTypeAILS           = 9
-	ChannelTypeAIProxy        = 10
-	ChannelTypePaLM           = 11
-	ChannelTypeAPI2GPT        = 12
-	ChannelTypeAIGC2D         = 13
-	ChannelTypeAnthropic      = 14
-	ChannelTypeBaidu          = 15
-	ChannelTypeZhipu          = 16
-	ChannelTypeAli            = 17
-	ChannelTypeXunfei         = 18
-	ChannelType360            = 19
-	ChannelTypeOpenRouter     = 20
-	ChannelTypeAIProxyLibrary = 21
-	ChannelTypeFastGPT        = 22
-	ChannelTypeTencent        = 23
-	ChannelTypeGemini         = 24
-	ChannelTypeMoonshot       = 25
-	ChannelTypeZhipu_v4       = 26
-	ChannelTypePerplexity     = 27
-	ChannelTypeLingYiWanWu    = 31
-	ChannelTypeAws            = 33
-	ChannelTypeCohere         = 34
-	ChannelTypeMiniMax        = 35
-	ChannelTypeSunoAPI        = 36
-	ChannelTypeDify           = 37
-	ChannelTypeJina           = 38
-	ChannelCloudflare         = 39
-	ChannelTypeSiliconFlow    = 40
-	ChannelTypeVertexAi       = 41
-	ChannelTypeMistral        = 42
-	ChannelTypeDeepSeek       = 43
-	ChannelTypeMokaAI         = 44
-	ChannelTypeVolcEngine     = 45
-	ChannelTypeBaiduV2        = 46
-	ChannelTypeXinference     = 47
-	ChannelTypeXai            = 48
-	ChannelTypeCoze           = 49
-	ChannelTypeKling          = 50
-	ChannelTypeJimeng         = 51
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	ChannelTypeUnknown          = 0
+	ChannelTypeOpenAI           = 1
+	ChannelTypeMidjourney       = 2
+	ChannelTypeAzure            = 3
+	ChannelTypeOllama           = 4
+	ChannelTypeMidjourneyPlus   = 5
+	ChannelTypeOpenAIMax        = 6
+	ChannelTypeOhMyGPT          = 7
+	ChannelTypeCustom           = 8
+	ChannelTypeAILS             = 9
+	ChannelTypeAIProxy          = 10
+	ChannelTypePaLM             = 11
+	ChannelTypeAPI2GPT          = 12
+	ChannelTypeAIGC2D           = 13
+	ChannelTypeAnthropic        = 14
+	ChannelTypeBaidu            = 15
+	ChannelTypeZhipu            = 16
+	ChannelTypeAli              = 17
+	ChannelTypeXunfei           = 18
+	ChannelType360              = 19
+	ChannelTypeOpenRouter       = 20
+	ChannelTypeAIProxyLibrary   = 21
+	ChannelTypeFastGPT          = 22
+	ChannelTypeTencent          = 23
+	ChannelTypeGemini           = 24
+	ChannelTypeMoonshot         = 25
+	ChannelTypeZhipu_v4         = 26
+	ChannelTypePerplexity       = 27
+	ChannelTypeLingYiWanWu      = 31
+	ChannelTypeAws              = 33
+	ChannelTypeCohere           = 34
+	ChannelTypeMiniMax          = 35
+	ChannelTypeSunoAPI          = 36
+	ChannelTypeDify             = 37
+	ChannelTypeJina             = 38
+	ChannelCloudflare           = 39
+	ChannelTypeSiliconFlow      = 40
+	ChannelTypeVertexAi         = 41
+	ChannelTypeMistral          = 42
+	ChannelTypeDeepSeek         = 43
+	ChannelTypeMokaAI           = 44
+	ChannelTypeVolcEngine       = 45
+	ChannelTypeBaiduV2          = 46
+	ChannelTypeXinference       = 47
+	ChannelTypeXai              = 48
+	ChannelTypeCoze             = 49
+	ChannelTypeKling            = 50
+	ChannelTypeJimeng           = 51
+	ChannelTypeOpenAICompatible = 52
+	ChannelTypeDummy            // this one is only for count, do not add any channel after this
 
 )
 
@@ -106,4 +107,5 @@ var ChannelBaseURLs = []string{
 	"https://api.coze.cn",                       //49
 	"https://api.klingai.com",                   //50
 	"https://visual.volcengineapi.com",          //51
+	"",                                          // 52 (ChannelTypeOpenAICompatible)
 }

@@ -729,6 +729,20 @@ const EditChannel = (props) => {
                       />
                     </div>
                   )}
+
+                  {inputs.type === 52 && (
+                      <>
+                        <div>
+                          <Form.Input
+                              field='base_url'
+                              label={t('完整的 Base URL')}
+                              placeholder={t('请输入完整的URL，例如：https://api.openai.com/v1')}
+                              onChange={(value) => handleInputChange('base_url', value)}
+                              showClear
+                          />
+                        </div>
+                      </>
+                  )}
                 </Card>
 
                 {/* Model Configuration Card */}

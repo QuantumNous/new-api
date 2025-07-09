@@ -93,6 +93,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &xai.Adaptor{}
 	case constant.APITypeCoze:
 		return &coze.Adaptor{}
+	case constant.APITypeOpenAICompatible:
+		return &openai.Adaptor{}
 	}
 	return nil
 }
