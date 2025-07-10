@@ -5,6 +5,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 	"one-api/constant"
 	"strings"
 
@@ -12,8 +13,12 @@ import (
 )
 
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
-	if channelType == constant.APITypeOpenAICompatible {
-		return fmt.Sprintf("%s%s", strings.TrimSuffix(baseURL, "/"), strings.TrimPrefix(requestURL, "/v1"))
+	if channelType == constant.APITypeOpenAI {
+		u, err := url.Parse(baseURL)
+		if err == nil && u.Path != "" {
+			// 进入 Compatible 方案
+			return fmt.Sprintf("%s%s", strings.TrimSuffix(baseURL, "/"), strings.TrimPrefix(requestURL, "/v1"))
+		}
 	}
 
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
