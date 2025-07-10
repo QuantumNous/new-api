@@ -29,6 +29,7 @@ import {
 } from '../../helpers/index.js';
 import OIDCIcon from '../common/logo/OIDCIcon.js';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon.js';
+import NodeLocIcon from '../common/logo/NodeLocIcon.js'
 import WeChatIcon from '../common/logo/WeChatIcon.js';
 import TelegramLoginButton from 'react-telegram-login/src';
 import { UserContext } from '../../context/User/index.js';

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"one-api/common"
 	"one-api/model"
+	"one-api/setting"
 	"strconv"
 	"strings"
 	"time"
@@ -104,10 +105,13 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	}
 	redirectURI := fmt.Sprintf("%s://%s/oauth/nodeloc", scheme, c.Request.Host)
 
+	// 打印响应体内容用于调试
+	fmt.Printf("redirectURI: %s\n", redirectURI)
+
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("code", code)
-	data.Set("redirect_uri", redirectURI)
+	data.Set("redirect_uri", setting.ServerAddress+"/oauth/nodeloc")
 
 	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -121,23 +125,47 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	client := http.Client{Timeout: 5 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, errors.New("failed to connect to Linux DO server")
+		return nil, errors.New("failed to connect to NodeLoc server")
 	}
 	defer res.Body.Close()
 
-	var tokenRes struct {
-		AccessToken string `json:"access_token"`
-		Message     string `json:"message"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&tokenRes); err != nil {
+	// 读取响应体内容
+	bodyBytes, err := io.ReadAll(res.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	if tokenRes.AccessToken == "" {
-		return nil, fmt.Errorf("failed to get access token: %s", tokenRes.Message)
+	// 打印响应体内容用于调试
+	fmt.Printf("Response Body: %s\n", string(bodyBytes))
+
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+		IdToken     string `json:"id_token"`
+		ExpiresIn   int    `json:"expires_in"`
+		Scope       string `json:"scope"`
+		TokenType   string `json:"token_type"`
 	}
 
-	// Get user info
+	// 使用Unmarshal解析已读取的响应体
+	if err := json.Unmarshal(bodyBytes, &tokenRes); err != nil {
+		return nil, fmt.Errorf("NodeLoc 序列化失败: %v", err)
+	}
+
+	if tokenRes.AccessToken == "" {
+		return nil, fmt.Errorf("NodeLoc 授权失败!")
+	}
+
+	// 如果存在ID令牌，尝试从中解析用户信息
+	if tokenRes.IdToken != "" {
+		nodeLocUser, err := parseUserInfoFromIdToken(tokenRes.IdToken)
+		if err == nil && nodeLocUser.Id != 0 {
+			return nodeLocUser, nil
+		}
+		// 如果解析失败，继续使用userinfo端点
+		fmt.Printf("从ID令牌解析用户信息失败: %v\n", err)
+	}
+
+	// 使用userinfo端点获取用户信息
 	userEndpoint := "https://conn.nodeloc.cc/oauth2/userinfo"
 	req, err = http.NewRequest("GET", userEndpoint, nil)
 	if err != nil {
@@ -153,16 +181,17 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	defer res2.Body.Close()
 
 	// 读取响应体内容
-	bodyBytes, err := io.ReadAll(res2.Body)
+	bodyBytes2, err := io.ReadAll(res2.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	// 打印响应体内容
-	fmt.Printf("Response Body: %s\n", string(bodyBytes))
+	// 打印响应体内容用于调试
+	fmt.Printf("UserInfo Response Body: %s\n", string(bodyBytes2))
+
 	var nodeLocUser NodelocUser
-	if err := json.NewDecoder(res2.Body).Decode(&nodeLocUser); err != nil {
-		return nil, err
+	if err := json.Unmarshal(bodyBytes2, &nodeLocUser); err != nil {
+		return nil, fmt.Errorf("解析用户信息失败: %v", err)
 	}
 
 	if nodeLocUser.Id == 0 {
@@ -170,6 +199,56 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodelocUser, error)
 	}
 
 	return &nodeLocUser, nil
+}
+
+// 从ID令牌中解析用户信息
+func parseUserInfoFromIdToken(idToken string) (*NodelocUser, error) {
+	// 分割JWT
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("invalid JWT format")
+	}
+
+	// 解码有效载荷部分（第二部分）
+	// 需要处理base64url编码的填充问题
+	payload := parts[1]
+	if l := len(payload) % 4; l > 0 {
+		payload += strings.Repeat("=", 4-l)
+	}
+
+	decoded, err := base64.URLEncoding.DecodeString(payload)
+	if err != nil {
+		return nil, fmt.Errorf("解码JWT payload失败: %v", err)
+	}
+
+	// 打印解码后的payload用于调试
+	fmt.Printf("Decoded JWT payload: %s\n", string(decoded))
+
+	// 解析JSON
+	var claims struct {
+		Sub               string   `json:"sub"`
+		Name              string   `json:"name"`
+		PreferredUsername string   `json:"preferred_username"`
+		Email             string   `json:"email"`
+		EmailVerified     bool     `json:"email_verified"`
+		Groups            []string `json:"groups"`
+		Picture           string   `json:"picture"`
+	}
+
+	if err := json.Unmarshal(decoded, &claims); err != nil {
+		return nil, fmt.Errorf("解析JWT claims失败: %v", err)
+	}
+
+	// 将claims映射到NodelocUser
+	userId, _ := strconv.ParseInt(claims.Sub, 10, 64)
+	user := &NodelocUser{
+		Id:       int(userId),
+		Username: claims.PreferredUsername,
+		// 根据需要添加其他字段
+		Name: claims.Name,
+	}
+
+	return user, nil
 }
 
 func NodelocOAuth(c *gin.Context) {
@@ -186,7 +265,7 @@ func NodelocOAuth(c *gin.Context) {
 	}
 
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	if state == "" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
@@ -209,6 +288,7 @@ func NodelocOAuth(c *gin.Context) {
 	}
 
 	code := c.Query("code")
+	fmt.Printf("Code: %s\n", code)
 	nodeLocUser, err := getNodeLocUserInfoByCode(code, c)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -241,7 +321,7 @@ func NodelocOAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			user.Username = "NodeLoc_" + strconv.Itoa(model.GetMaxUserId()+1)
+			user.Username = "NodeLoc_" + nodeLocUser.Username
 			user.DisplayName = nodeLocUser.Name
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled

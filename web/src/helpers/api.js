@@ -220,8 +220,19 @@ export async function onLinuxDOOAuthClicked(linuxdo_client_id) {
 export async function onNodeLocOAuthClicked(nodeloc_client_id, nodeloc_redirect_uri) {
   const state = await getOAuthState();
   if (!state) return;
+  let status = localStorage.getItem('status');
+  let serverAddress = '';
+  if (status) {
+    status = JSON.parse(status);
+    serverAddress = status.server_address;
+  }
+  if (serverAddress === '') {
+    serverAddress = window.location.origin;
+  }
+  let encodedServerAddress = serverAddress+"/oauth/nodeloc";
+  
   window.open(
-    `https://conn.nodeloc.cc/auth/authorize??response_type=code&client_id=${nodeloc_client_id}&state=${state}`,
+    `https://conn.nodeloc.cc/oauth2/auth?response_type=code&client_id=${nodeloc_client_id}&state=${state}&redirect_uri=${encodedServerAddress}&scope=openid`,
   );
 }
 

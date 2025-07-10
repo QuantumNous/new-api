@@ -463,6 +463,7 @@ const SystemSetting = () => {
     if (originInputs['NodeLocClientId'] !== inputs.NodeLocClientId) {
       options.push({ key: 'NodeLocClientId', value: inputs.NodeLocClientId });
     }
+    
     if (
       originInputs['NodeLocClientSecret'] !== inputs.NodeLocClientSecret &&
       inputs.NodeLocClientSecret !== ''
