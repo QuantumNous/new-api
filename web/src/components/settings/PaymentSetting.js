@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsGeneralPayment from '../../pages/Setting/Payment/SettingsGeneralPayment.js';
 import SettingsPaymentGateway from '../../pages/Setting/Payment/SettingsPaymentGateway.js';
+import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPaymentGatewayStripe.js';
 import { API, showError } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -17,6 +18,12 @@ const PaymentSetting = () => {
     TopupGroupRatio: '',
     CustomCallbackAddress: '',
     PayMethods: '',
+
+    StripeApiSecret: '',
+    StripeWebhookSecret: '',
+    StripePriceId: '',
+    StripeUnitPrice: 8.0,
+    StripeMinTopUp: 1,
   });
 
   let [loading, setLoading] = useState(false);
@@ -38,6 +45,8 @@ const PaymentSetting = () => {
             break;
           case 'Price':
           case 'MinTopUp':
+          case 'StripeUnitPrice':
+          case 'StripeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
             break;
           default:
@@ -79,6 +88,9 @@ const PaymentSetting = () => {
         </Card>
         <Card style={{ marginTop: '10px' }}>
           <SettingsPaymentGateway options={inputs} refresh={onRefresh} />
+        </Card>
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsPaymentGatewayStripe options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
