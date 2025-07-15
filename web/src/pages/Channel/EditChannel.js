@@ -815,7 +815,7 @@ const EditChannel = (props) => {
                       ) : (
                         <Form.Input
                           field='key'
-                          label={isEdit ? t('密钥（编辑模式下，保存的密钥不会显示）') : t('密钥')}
+                          label={isEdit ? t('密钥（默认编辑模式下密钥不可见，开启自用模式后可显示）') : t('密钥')}
                           placeholder={t(type2secretPrompt(inputs.type))}
                           rules={isEdit ? [] : [{ required: true, message: t('请输入密钥') }]}
                           autoComplete='new-password'
