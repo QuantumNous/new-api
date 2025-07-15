@@ -7,6 +7,7 @@ import (
 	"one-api/common"
 	"one-api/constant"
 	"one-api/model"
+	"one-api/setting/operation_setting"
 	"strconv"
 	"strings"
 
@@ -364,7 +365,10 @@ func GetChannel(c *gin.Context) {
 		})
 		return
 	}
-	channel, err := model.GetChannelById(id, false)
+
+	// 在自用模式下显示完整信息包括密钥
+	selectAll := operation_setting.SelfUseModeEnabled
+	channel, err := model.GetChannelById(id, selectAll)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

@@ -83,6 +83,13 @@ const EditChannel = (props) => {
   const handleCancel = () => {
     props.handleClose();
   };
+
+  // 检测是否为多个key
+  const isMultiLineKey = (keyValue) => {
+    if (!keyValue) return false;
+    // 检测是否包含换行符或多个key（通过换行分隔）
+    return keyValue.includes('\n') || keyValue.split('\n').filter(line => line.trim()).length > 1;
+  };
   const originInputs = {
     name: '',
     type: 1,
@@ -565,27 +572,29 @@ const EditChannel = (props) => {
                     />
                   ) : (
                     <>
-                      {inputs.type === 41 ? (
+                      {(inputs.type === 41 || isMultiLineKey(inputs.key)) ? (
                         <Form.TextArea
                           field='key'
                           label={t('密钥')}
                           placeholder={
-                            '{\n' +
-                            '  "type": "service_account",\n' +
-                            '  "project_id": "abc-bcd-123-456",\n' +
-                            '  "private_key_id": "123xxxxx456",\n' +
-                            '  "private_key": "-----BEGIN PRIVATE KEY-----xxxx\n' +
-                            '  "client_email": "xxx@developer.gserviceaccount.com",\n' +
-                            '  "client_id": "111222333",\n' +
-                            '  "auth_uri": "https://accounts.google.com/o/oauth2/auth",\n' +
-                            '  "token_uri": "https://oauth2.googleapis.com/token",\n' +
-                            '  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",\n' +
-                            '  "client_x509_cert_url": "https://xxxxx.gserviceaccount.com",\n' +
-                            '  "universe_domain": "googleapis.com"\n' +
-                            '}'
+                            inputs.type === 41 
+                              ? '{\n' +
+                                '  "type": "service_account",\n' +
+                                '  "project_id": "abc-bcd-123-456",\n' +
+                                '  "private_key_id": "123xxxxx456",\n' +
+                                '  "private_key": "-----BEGIN PRIVATE KEY-----xxxx\n' +
+                                '  "client_email": "xxx@developer.gserviceaccount.com",\n' +
+                                '  "client_id": "111222333",\n' +
+                                '  "auth_uri": "https://accounts.google.com/o/oauth2/auth",\n' +
+                                '  "token_uri": "https://oauth2.googleapis.com/token",\n' +
+                                '  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",\n' +
+                                '  "client_x509_cert_url": "https://xxxxx.gserviceaccount.com",\n' +
+                                '  "universe_domain": "googleapis.com"\n' +
+                                '}'
+                              : t('请输入密钥，一行一个')
                           }
                           rules={isEdit ? [] : [{ required: true, message: t('请输入密钥') }]}
-                          autosize={{ minRows: 10 }}
+                          autosize={{ minRows: inputs.type === 41 ? 10 : 4 }}
                           autoComplete='new-password'
                           onChange={(value) => handleInputChange('key', value)}
                           extraText={batchExtra}
