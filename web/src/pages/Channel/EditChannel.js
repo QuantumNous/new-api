@@ -783,7 +783,7 @@ const EditChannel = (props) => {
                     ) : (
                       <Form.TextArea
                         field='key'
-                        label={t('密钥')}
+                        label={isEdit ? t('密钥（默认编辑模式下密钥不可见，开启自用模式后可显示）') : t('密钥')}
                         placeholder={t('请输入密钥，一行一个')}
                         rules={isEdit ? [] : [{ required: true, message: t('请输入密钥') }]}
                         autosize
