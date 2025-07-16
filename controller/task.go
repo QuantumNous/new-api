@@ -122,7 +122,7 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 	}
 	if resp.StatusCode != http.StatusOK {
 		common.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
-		return errors.New(fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
+		return fmt.Errorf("Get Task status code: %d", resp.StatusCode)
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
