@@ -64,15 +64,15 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://166.108.203.60:3000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
       '/mj': {
         target: 'http://166.108.203.60:3000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
       '/pg': {
         target: 'http://166.108.203.60:3000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
     },
   },
