@@ -1,5 +1,19 @@
 {
   "github": {
     "silent": true
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://api.352287.xyz/api/$1"
+    },
+    {
+      "source": "/mj/(.*)",
+      "destination": "https://api.352287.xyz/mj/$1"
+    },
+    {
+      "source": "/pg/(.*)",
+      "destination": "https://api.352287.xyz/pg/$1"
+    }
+  ]
 }
