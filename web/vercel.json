@@ -14,6 +14,9 @@
     {
       "source": "/pg/(.*)",
       "destination": "https://api.352287.xyz/pg/$1"
-    }
+    },
+    {
+       "source": "/(.*)", 
+       "destination": "/" }
   ]
 }
