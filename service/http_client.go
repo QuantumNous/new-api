@@ -6,8 +6,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"one-api/common"
 	"time"
+
+	"one-api/common"
+	"one-api/util"
 
 	"golang.org/x/net/proxy"
 )
@@ -25,11 +27,27 @@ func InitHttpClient() {
 }
 
 func GetHttpClient() *http.Client {
+	client, err := getHttpClient("")
+	// 2025-07-17 兼容模式，当获取不到 httpClient 时，使用默认业务逻辑返回的 httpClient
+	if err == nil {
+		return client
+	}
+
 	return httpClient
+}
+
+func getHttpClient(proxyURL string) (client *http.Client, err error) {
+	return util.GetHttpClient(proxyURL)
 }
 
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
 func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
+	client, err := getHttpClient(proxyURL)
+	// 2025-07-17 兼容模式，当获取不到 httpClient 时，使用默认业务逻辑返回的 httpClient
+	if err == nil {
+		return client, err
+	}
+
 	if proxyURL == "" {
 		return http.DefaultClient, nil
 	}

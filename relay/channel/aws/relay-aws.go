@@ -3,19 +3,21 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"net/http"
+	"strings"
+
 	"one-api/common"
 	"one-api/dto"
 	"one-api/relay/channel/claude"
 	relaycommon "one-api/relay/common"
-	"strings"
+	"one-api/service"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 )
 
 func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
@@ -26,9 +28,16 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 	ak := awsSecret[0]
 	sk := awsSecret[1]
 	region := awsSecret[2]
+
+	tmpClient, err := service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+	if err != nil {
+		return nil, err
+	}
+
 	client := bedrockruntime.New(bedrockruntime.Options{
 		Region:      region,
 		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(ak, sk, "")),
+		HTTPClient:  tmpClient,
 	})
 
 	return client, nil
