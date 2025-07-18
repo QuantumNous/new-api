@@ -24,3 +24,9 @@ yarn-error.log*
 .idea
 package-lock.json
 yarn.lock
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+!.edgeone/project.json
+.tef_dist/*
+  

@@ -43,7 +43,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build && cp edgeone.json dist/ && cp -r functions dist/",
     "lint": "prettier . --check",
     "lint:fix": "prettier . --write",
     "preview": "vite preview"
