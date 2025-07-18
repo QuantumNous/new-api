@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@prisma/client": "^5.15.0",
     "@douyinfe/semi-icons": "^2.63.1",
     "@douyinfe/semi-ui": "^2.69.1",
     "@lobehub/icons": "^2.0.0",
@@ -11,6 +12,9 @@
     "@visactor/vchart": "~1.8.8",
     "@visactor/vchart-semi-theme": "~1.8.8",
     "axios": "^0.27.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "ioredis": "^5.4.1",
     "clsx": "^2.1.1",
     "country-flag-icons": "^1.5.19",
     "dayjs": "^1.11.11",
@@ -67,6 +71,7 @@
     ]
   },
   "devDependencies": {
+    "prisma": "^5.15.0",
     "@douyinfe/vite-plugin-semi": "^2.74.0-alpha.6",
     "@so1ve/prettier-config": "^3.1.0",
     "@vitejs/plugin-react": "^4.2.1",

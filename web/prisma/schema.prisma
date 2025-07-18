@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int       @id @default(autoincrement())
+  username        String    @unique @db.VarChar(12)
+  password        String
+  displayName     String    @map("display_name") @db.VarChar(20)
+  role            Int       @default(1)
+  status          Int       @default(1)
+  email           String?   @db.VarChar(50)
+  githubId        String?   @map("github_id")
+  oidcId          String?   @map("oidc_id")
+  wechatId        String?   @map("wechat_id")
+  telegramId      String?   @map("telegram_id")
+  accessToken     String?   @unique @map("access_token") @db.Char(32)
+  quota           Int       @default(0)
+  usedQuota       Int       @default(0) @map("used_quota")
+  requestCount    Int       @default(0) @map("request_count")
+  group           String    @default("default") @db.VarChar(64)
+  affCode         String    @unique @map("aff_code") @db.VarChar(32)
+  affCount        Int       @default(0) @map("aff_count")
+  affQuota        Int       @default(0) @map("aff_quota")
+  affHistoryQuota Int       @default(0) @map("aff_history")
+  inviterId       Int?      @map("inviter_id")
+  deletedAt       DateTime? @map("deleted_at")
+  linuxDoId       String?   @map("linux_do_id")
+  setting         String?   @db.Text
+  remark          String?   @db.VarChar(255)
+
+  @@index([displayName])
+  @@index([email])
+  @@index([githubId])
+  @@index([oidcId])
+  @@index([wechatId])
+  @@index([telegramId])
+  @@index([inviterId])
+  @@index([deletedAt])
+  @@index([linuxDoId])
+}
