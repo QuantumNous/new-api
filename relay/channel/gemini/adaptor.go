@@ -171,6 +171,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeGemini {
 		if info.IsStream {
+			info.DisablePing = true
 			return GeminiTextGenerationStreamHandler(c, info, resp)
 		} else {
 			return GeminiTextGenerationHandler(c, info, resp)
