@@ -1179,10 +1179,15 @@ const EditChannel = (props) => {
 
                   {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && (
                     <div>
+                      <Banner
+                          type='warning'
+                          description={t('此项可选，用于通过自定义API地址来进行 API 调用。常规代理直接配置为 Base URL 的 Origin 范围即可，平台将会自动拼接 /v1 至 Base URL 后；若遇到非标代理，则需要设定 Path，如：http://foo.bar/api，此时平台不会自动拼接 /v1 至 Base URL 后，参考：https://developer.mozilla.org/en-US/docs/Web/API/Location')}
+                          className='!rounded-lg'
+                      />
                       <Form.Input
                         field='base_url'
                         label={t('API地址')}
-                        placeholder={t('此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/')}
+                        placeholder={t('请输入 Base URL，如 https://api.openai.com')}
                         onChange={(value) => handleInputChange('base_url', value)}
                         showClear
                         extraText={t('对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写')}
