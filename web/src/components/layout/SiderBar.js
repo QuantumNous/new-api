@@ -262,17 +262,20 @@ const SiderBar = ({ onNavigate = () => { } }) => {
         itemKey={item.itemKey}
         text={
           <div className="flex items-center">
-            <span className="truncate font-medium text-sm" style={{ color: textColor }}>
+            <span className="text-sm font-medium truncate" style={{ color: textColor }}>
               {item.text}
             </span>
           </div>
         }
         icon={
-          <div className="sidebar-icon-container flex-shrink-0">
+          <div className="flex-shrink-0 sidebar-icon-container">
             {getLucideIcon(item.itemKey, isSelected)}
           </div>
         }
         className={item.className}
+        onClick={item.onClick}
+        link={item.link}
+        linkOptions={item.linkOptions}
       />
     );
   };
@@ -289,13 +292,13 @@ const SiderBar = ({ onNavigate = () => { } }) => {
           itemKey={item.itemKey}
           text={
             <div className="flex items-center">
-              <span className="truncate font-medium text-sm" style={{ color: textColor }}>
+              <span className="text-sm font-medium truncate" style={{ color: textColor }}>
                 {item.text}
               </span>
             </div>
           }
           icon={
-            <div className="sidebar-icon-container flex-shrink-0">
+            <div className="flex-shrink-0 sidebar-icon-container">
               {getLucideIcon(item.itemKey, isSelected)}
             </div>
           }
@@ -309,7 +312,7 @@ const SiderBar = ({ onNavigate = () => { } }) => {
                 key={subItem.itemKey}
                 itemKey={subItem.itemKey}
                 text={
-                  <span className="truncate font-medium text-sm" style={{ color: subTextColor }}>
+                  <span className="text-sm font-medium truncate" style={{ color: subTextColor }}>
                     {subItem.text}
                   </span>
                 }
