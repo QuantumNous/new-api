@@ -11,6 +11,7 @@ services:
     volumes:
       - ./data:/data
       - ./logs:/app/logs
+      - ${JS_SCRIPT_DIR:-./scripts}:/app/scripts
     environment:
       - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service
       - REDIS_CONN_STRING=redis://redis
@@ -21,7 +22,6 @@ services:
     #      - NODE_TYPE=slave  # Uncomment for slave node in multi-node deployment
     #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
     #      - FRONTEND_BASE_URL=https://openai.justsong.cn  # Uncomment for multi-node deployment with front-end URL
-
     depends_on:
       - redis
       - mysql

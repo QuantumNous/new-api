@@ -1,12 +1,14 @@
 package controller
 
 import (
+	"slices"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"one-api/common"
 	"one-api/constant"
 	"one-api/middleware"
+	"one-api/middleware/jsrt"
 	"one-api/model"
 	"one-api/setting"
 	"one-api/setting/console_setting"
@@ -33,7 +35,6 @@ func TestStatus(c *gin.Context) {
 		"message":    "Server is running",
 		"http_stats": httpStats,
 	})
-	return
 }
 
 func GetStatus(c *gin.Context) {
@@ -110,7 +111,6 @@ func GetStatus(c *gin.Context) {
 		"message": "",
 		"data":    data,
 	})
-	return
 }
 
 func GetNotice(c *gin.Context) {
@@ -121,7 +121,6 @@ func GetNotice(c *gin.Context) {
 		"message": "",
 		"data":    common.OptionMap["Notice"],
 	})
-	return
 }
 
 func GetAbout(c *gin.Context) {
@@ -132,7 +131,6 @@ func GetAbout(c *gin.Context) {
 		"message": "",
 		"data":    common.OptionMap["About"],
 	})
-	return
 }
 
 func GetMidjourney(c *gin.Context) {
@@ -143,7 +141,6 @@ func GetMidjourney(c *gin.Context) {
 		"message": "",
 		"data":    common.OptionMap["Midjourney"],
 	})
-	return
 }
 
 func GetHomePageContent(c *gin.Context) {
@@ -154,7 +151,6 @@ func GetHomePageContent(c *gin.Context) {
 		"message": "",
 		"data":    common.OptionMap["HomePageContent"],
 	})
-	return
 }
 
 func SendEmailVerification(c *gin.Context) {
@@ -177,13 +173,7 @@ func SendEmailVerification(c *gin.Context) {
 	localPart := parts[0]
 	domainPart := parts[1]
 	if common.EmailDomainRestrictionEnabled {
-		allowed := false
-		for _, domain := range common.EmailDomainWhitelist {
-			if domainPart == domain {
-				allowed = true
-				break
-			}
-		}
+		allowed := slices.Contains(common.EmailDomainWhitelist, domainPart)
 		if !allowed {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -225,7 +215,6 @@ func SendEmailVerification(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 func SendPasswordResetEmail(c *gin.Context) {
@@ -261,7 +250,6 @@ func SendPasswordResetEmail(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 type PasswordResetRequest struct {
@@ -298,5 +286,13 @@ func ResetPassword(c *gin.Context) {
 		"message": "",
 		"data":    password,
 	})
-	return
+}
+
+func ReloadJSScripts(c *gin.Context) {
+	jsrt.ReloadJSScripts()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "JavaScript 脚本已重新加载",
+	})
 }
