@@ -13,7 +13,12 @@ import (
 )
 
 // EnableRequestBodyLogging 控制是否打印请求体
-var EnableRequestBodyLogging bool = false
+var EnableRequestBodyLogging bool = true
+
+// 需要过滤的字段
+var encodingFields = map[string]bool{
+	"data": true,
+}
 
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -122,6 +127,10 @@ func formatMapInterface(m map[string]interface{}) string {
 	}
 	var pairs []string
 	for k, v := range m {
+		// 跳过编解码相关字段
+		if encodingFields[strings.ToLower(k)] {
+			continue
+		}
 		// 处理值中的换行符
 		valueStr := formatValue(v)
 		valueStr = strings.ReplaceAll(valueStr, "\n", "")

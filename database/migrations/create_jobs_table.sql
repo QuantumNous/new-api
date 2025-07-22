@@ -1,0 +1,26 @@
+-- 创建jobs表
+CREATE TABLE IF NOT EXISTS jobs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL UNIQUE COMMENT '作业ID',
+    job_name VARCHAR(255) NOT NULL COMMENT '作业名称',
+    job_description TEXT COMMENT '作业描述',
+    project_name VARCHAR(255) COMMENT '项目名称',
+    model_name VARCHAR(255) COMMENT '模型名称',
+    model_version VARCHAR(100) COMMENT '模型版本',
+    bucket_name VARCHAR(255) COMMENT '存储桶名称',
+    input_path VARCHAR(500) COMMENT '输入路径',
+    input_object_key VARCHAR(500) COMMENT '输入对象键',
+    output_path VARCHAR(500) COMMENT '输出路径',
+    completion_window VARCHAR(100) COMMENT '完成窗口',
+    tags TEXT COMMENT '标签',
+    dry_run BOOLEAN DEFAULT FALSE COMMENT '是否为试运行',
+    status VARCHAR(50) DEFAULT 'pending' COMMENT '状态：pending, running, completed, failed, cancelled',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    token_id BIGINT COMMENT '令牌ID',
+    model VARCHAR(255) COMMENT '模型',
+    channel_id BIGINT COMMENT '渠道ID',
+    object_key VARCHAR(500) COMMENT '对象键',
+    other TEXT COMMENT '其他信息'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作业表'; 

@@ -160,6 +160,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
 		dataRoute.GET("/billing", controller.ExportBillingExcel)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+		dataRoute.GET("/token", middleware.TokenAuth(), controller.GetQuotaDataByToken)
 
 		logRoute.Use(middleware.CORS())
 		{
