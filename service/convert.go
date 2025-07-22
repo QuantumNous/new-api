@@ -163,7 +163,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
 					} else {
 						mediaContents := mediaMsg.ParseMediaContent()
-						encodeJson, _ := common.EncodeJson(mediaContents)
+						encodeJson, _ := common.Marshal(mediaContents)
 						oaiToolMessage.SetStringContent(string(encodeJson))
 					}
 					openAIMessages = append(openAIMessages, oaiToolMessage)

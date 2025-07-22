@@ -74,7 +74,13 @@ func InitOptionMap() {
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
 	common.OptionMap["Price"] = strconv.FormatFloat(setting.Price, 'f', -1, 64)
+	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(setting.MinTopUp)
+	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
+	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
+	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
+	common.OptionMap["StripePriceId"] = setting.StripePriceId
+	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -306,8 +312,20 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.EpayKey = value
 	case "Price":
 		setting.Price, _ = strconv.ParseFloat(value, 64)
+	case "USDExchangeRate":
+		setting.USDExchangeRate, _ = strconv.ParseFloat(value, 64)
 	case "MinTopUp":
 		setting.MinTopUp, _ = strconv.Atoi(value)
+	case "StripeApiSecret":
+		setting.StripeApiSecret = value
+	case "StripeWebhookSecret":
+		setting.StripeWebhookSecret = value
+	case "StripePriceId":
+		setting.StripePriceId = value
+	case "StripeUnitPrice":
+		setting.StripeUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "StripeMinTopUp":
+		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

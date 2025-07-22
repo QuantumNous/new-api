@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Spin, Tabs } from '@douyinfe/semi-ui';
 
-import { API, showError, showSuccess } from '../../helpers';
+import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import SettingGeminiModel from '../../pages/Setting/Model/SettingGeminiModel.js';
 import SettingClaudeModel from '../../pages/Setting/Model/SettingClaudeModel.js';
@@ -44,7 +44,7 @@ const ModelSetting = () => {
           }
         }
         if (item.key.endsWith('Enabled') || item.key.endsWith('enabled')) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }

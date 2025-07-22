@@ -1,15 +1,17 @@
 package ollama
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
+	relaycommon "one-api/relay/common"
 	"one-api/service"
+	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, error) {
@@ -82,19 +84,19 @@ func requestOpenAI2Embeddings(request dto.EmbeddingRequest) *OllamaEmbeddingRequ
 	}
 }
 
-func ollamaEmbeddingHandler(c *gin.Context, resp *http.Response, promptTokens int, model string, relayMode int) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var ollamaEmbeddingResponse OllamaEmbeddingResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	common.CloseResponseBodyGracefully(resp)
-	err = json.Unmarshal(responseBody, &ollamaEmbeddingResponse)
+	err = common.Unmarshal(responseBody, &ollamaEmbeddingResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if ollamaEmbeddingResponse.Error != "" {
-		return service.OpenAIErrorWrapper(err, "ollama_error", resp.StatusCode), nil
+		return nil, types.NewError(fmt.Errorf("ollama error: %s", ollamaEmbeddingResponse.Error), types.ErrorCodeBadResponseBody)
 	}
 	flattenedEmbeddings := flattenEmbeddings(ollamaEmbeddingResponse.Embedding)
 	data := make([]dto.OpenAIEmbeddingResponseItem, 0, 1)
@@ -103,22 +105,22 @@ func ollamaEmbeddingHandler(c *gin.Context, resp *http.Response, promptTokens in
 		Object:    "embedding",
 	})
 	usage := &dto.Usage{
-		TotalTokens:      promptTokens,
+		TotalTokens:      info.PromptTokens,
 		CompletionTokens: 0,
-		PromptTokens:     promptTokens,
+		PromptTokens:     info.PromptTokens,
 	}
 	embeddingResponse := &dto.OpenAIEmbeddingResponse{
 		Object: "list",
 		Data:   data,
-		Model:  model,
+		Model:  info.UpstreamModelName,
 		Usage:  *usage,
 	}
-	doResponseBody, err := json.Marshal(embeddingResponse)
+	doResponseBody, err := common.Marshal(embeddingResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	common.IOCopyBytesGracefully(c, resp, doResponseBody)
-	return nil, usage
+	return usage, nil
 }
 
 func flattenEmbeddings(embeddings [][]float64) []float64 {

@@ -1,10 +1,12 @@
 package controller
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
+	"one-api/common"
 	"one-api/model"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetAllQuotaDates(c *gin.Context) {
@@ -13,10 +15,7 @@ func GetAllQuotaDates(c *gin.Context) {
 	username := c.Query("username")
 	dates, err := model.GetAllQuotaDates(startTimestamp, endTimestamp, username)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -41,10 +40,7 @@ func GetUserQuotaDates(c *gin.Context) {
 	}
 	dates, err := model.GetQuotaDataByUserId(userId, startTimestamp, endTimestamp)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

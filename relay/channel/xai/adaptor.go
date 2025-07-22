@@ -8,6 +8,7 @@ import (
 	"one-api/relay/channel"
 	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
+	"one-api/types"
 	"strings"
 
 	"one-api/relay/constant"
@@ -56,6 +57,15 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	if strings.HasSuffix(info.UpstreamModelName, "-search") {
+		info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-search")
+		request.Model = info.UpstreamModelName
+		toMap := request.ToMap()
+		toMap["search_parameters"] = map[string]any{
+			"mode": "on",
+		}
+		return toMap, nil
+	}
 	if strings.HasPrefix(request.Model, "grok-3-mini") {
 		if request.MaxCompletionTokens == 0 && request.MaxTokens != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
@@ -95,15 +105,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
-		err, usage = openai.OpenaiHandlerWithUsage(c, resp, info)
+		usage, err = openai.OpenaiHandlerWithUsage(c, info, resp)
 	default:
 		if info.IsStream {
-			err, usage = xAIStreamHandler(c, resp, info)
+			usage, err = xAIStreamHandler(c, info, resp)
 		} else {
-			err, usage = xAIHandler(c, resp, info)
+			usage, err = xAIHandler(c, info, resp)
 		}
 	}
 	return

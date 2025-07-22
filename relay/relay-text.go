@@ -19,6 +19,7 @@ import (
 	"one-api/setting"
 	"one-api/setting/model_setting"
 	"one-api/setting/operation_setting"
+	"one-api/types"
 	"strings"
 	"time"
 
@@ -84,7 +85,7 @@ func getAndValidateTextRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo)
 	return textRequest, nil
 }
 
-func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
+func TextHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	relayInfo := relaycommon.GenRelayInfo(c)
 
@@ -92,8 +93,7 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	textRequest, err := getAndValidateTextRequest(c, relayInfo)
 
 	if err != nil {
-		common.LogError(c, fmt.Sprintf("getAndValidateTextRequest failed: %s", err.Error()))
-		return service.OpenAIErrorWrapperLocal(err, "invalid_text_request", http.StatusBadRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
 
 	if textRequest.WebSearchOptions != nil {
@@ -104,13 +104,13 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		words, err := checkRequestSensitive(textRequest, relayInfo)
 		if err != nil {
 			common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			return service.OpenAIErrorWrapperLocal(err, "sensitive_words_detected", http.StatusBadRequest)
+			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
 		}
 	}
 
 	err = helper.ModelMappedHelper(c, relayInfo, textRequest)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_mapped_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
 	}
 
 	// 获取 promptTokens，如果上下文中已经存在，则直接使用
@@ -122,23 +122,23 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		promptTokens, err = getPromptTokens(textRequest, relayInfo)
 		// count messages token error 计算promptTokens错误
 		if err != nil {
-			return service.OpenAIErrorWrapper(err, "count_token_messages_failed", http.StatusInternalServerError)
+			return types.NewError(err, types.ErrorCodeCountTokenFailed)
 		}
 		c.Set("prompt_tokens", promptTokens)
 	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptTokens, int(math.Max(float64(textRequest.MaxTokens), float64(textRequest.MaxCompletionTokens))))
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_price_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeModelPriceError)
 	}
 
 	// pre-consume quota 预消耗配额
-	preConsumedQuota, userQuota, openaiErr := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
-	if openaiErr != nil {
-		return openaiErr
+	preConsumedQuota, userQuota, newApiErr := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
+	if newApiErr != nil {
+		return newApiErr
 	}
 	defer func() {
-		if openaiErr != nil {
+		if newApiErr != nil {
 			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
 		}
 	}()
@@ -166,7 +166,7 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return service.OpenAIErrorWrapperLocal(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), "invalid_api_type", http.StatusBadRequest)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
 	}
 	adaptor.Init(relayInfo)
 	var requestBody io.Reader
@@ -174,32 +174,29 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
-			return service.OpenAIErrorWrapperLocal(err, "get_request_body_failed", http.StatusInternalServerError)
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest)
 		}
 		requestBody = bytes.NewBuffer(body)
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, relayInfo, textRequest)
 		if err != nil {
-			return service.OpenAIErrorWrapperLocal(err, "convert_request_failed", http.StatusInternalServerError)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 		jsonData, err := json.Marshal(convertedRequest)
 		if err != nil {
-			return service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 
 		// apply param override
 		if len(relayInfo.ParamOverride) > 0 {
 			reqMap := make(map[string]interface{})
-			err = json.Unmarshal(jsonData, &reqMap)
-			if err != nil {
-				return service.OpenAIErrorWrapperLocal(err, "param_override_unmarshal_failed", http.StatusInternalServerError)
-			}
+			_ = common.Unmarshal(jsonData, &reqMap)
 			for key, value := range relayInfo.ParamOverride {
 				reqMap[key] = value
 			}
-			jsonData, err = json.Marshal(reqMap)
+			jsonData, err = common.Marshal(reqMap)
 			if err != nil {
-				return service.OpenAIErrorWrapperLocal(err, "param_override_marshal_failed", http.StatusInternalServerError)
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)
 			}
 		}
 
@@ -213,7 +210,7 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
@@ -222,18 +219,18 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		httpResp = resp.(*http.Response)
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			openaiErr = service.RelayErrorHandler(httpResp, false)
+			newApiErr = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-			return openaiErr
+			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			return newApiErr
 		}
 	}
 
-	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
-	if openaiErr != nil {
+	usage, newApiErr := adaptor.DoResponse(c, httpResp, relayInfo)
+	if newApiErr != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-		return openaiErr
+		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		return newApiErr
 	}
 
 	if strings.HasPrefix(relayInfo.OriginModelName, "gpt-4o-audio") {
@@ -281,16 +278,16 @@ func checkRequestSensitive(textRequest *dto.GeneralOpenAIRequest, info *relaycom
 }
 
 // 预扣费并返回用户剩余配额
-func preConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) (int, int, *dto.OpenAIErrorWithStatusCode) {
+func preConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) (int, int, *types.NewAPIError) {
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {
-		return 0, 0, service.OpenAIErrorWrapperLocal(err, "get_user_quota_failed", http.StatusInternalServerError)
+		return 0, 0, types.NewError(err, types.ErrorCodeQueryDataError)
 	}
 	if userQuota <= 0 {
-		return 0, 0, service.OpenAIErrorWrapperLocal(errors.New("user quota is not enough"), "insufficient_user_quota", http.StatusForbidden)
+		return 0, 0, types.NewErrorWithStatusCode(errors.New("user quota is not enough"), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden)
 	}
 	if userQuota-preConsumedQuota < 0 {
-		return 0, 0, service.OpenAIErrorWrapperLocal(fmt.Errorf("chat pre-consumed quota failed, user quota: %s, need quota: %s", common.FormatQuota(userQuota), common.FormatQuota(preConsumedQuota)), "insufficient_user_quota", http.StatusForbidden)
+		return 0, 0, types.NewErrorWithStatusCode(fmt.Errorf("pre-consume quota failed, user quota: %s, need quota: %s", common.FormatQuota(userQuota), common.FormatQuota(preConsumedQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden)
 	}
 	relayInfo.UserQuota = userQuota
 	if userQuota > 100*preConsumedQuota {
@@ -314,11 +311,11 @@ func preConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	if preConsumedQuota > 0 {
 		err := service.PreConsumeTokenQuota(relayInfo, preConsumedQuota)
 		if err != nil {
-			return 0, 0, service.OpenAIErrorWrapperLocal(err, "pre_consume_token_quota_failed", http.StatusForbidden)
+			return 0, 0, types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden)
 		}
 		err = model.DecreaseUserQuota(relayInfo.UserId, preConsumedQuota)
 		if err != nil {
-			return 0, 0, service.OpenAIErrorWrapperLocal(err, "decrease_user_quota_failed", http.StatusInternalServerError)
+			return 0, 0, types.NewError(err, types.ErrorCodeUpdateDataError)
 		}
 	}
 	return preConsumedQuota, userQuota, nil
@@ -382,6 +379,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	// openai web search 工具计费
 	var dWebSearchQuota decimal.Decimal
 	var webSearchPrice float64
+	// response api 格式工具计费
 	if relayInfo.ResponsesUsageInfo != nil {
 		if webSearchTool, exists := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool.CallCount > 0 {
 			// 计算 web search 调用的配额 (配额 = 价格 * 调用次数 / 1000 * 分组倍率)
@@ -403,6 +401,17 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 			Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit)
 		extraContent += fmt.Sprintf("Web Search 调用 1 次，上下文大小 %s，调用花费 %s",
 			searchContextSize, dWebSearchQuota.String())
+	}
+	// claude web search tool 计费
+	var dClaudeWebSearchQuota decimal.Decimal
+	var claudeWebSearchPrice float64
+	claudeWebSearchCallCount := ctx.GetInt("claude_web_search_requests")
+	if claudeWebSearchCallCount > 0 {
+		claudeWebSearchPrice = operation_setting.GetClaudeWebSearchPricePerThousand()
+		dClaudeWebSearchQuota = decimal.NewFromFloat(claudeWebSearchPrice).
+			Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit).Mul(decimal.NewFromInt(int64(claudeWebSearchCallCount)))
+		extraContent += fmt.Sprintf("Claude Web Search 调用 %d 次，调用花费 %s",
+			claudeWebSearchCallCount, dClaudeWebSearchQuota.String())
 	}
 	// file search tool 计费
 	var dFileSearchQuota decimal.Decimal
@@ -527,6 +536,10 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 			other["web_search_call_count"] = 1
 			other["web_search_price"] = webSearchPrice
 		}
+	} else if !dClaudeWebSearchQuota.IsZero() {
+		other["web_search"] = true
+		other["web_search_call_count"] = claudeWebSearchCallCount
+		other["web_search_price"] = claudeWebSearchPrice
 	}
 	if !dFileSearchQuota.IsZero() && relayInfo.ResponsesUsageInfo != nil {
 		if fileSearchTool, exists := relayInfo.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolFileSearch]; exists {

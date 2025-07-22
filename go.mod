@@ -28,6 +28,8 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/shopspring/decimal v1.4.0
+	github.com/stripe/stripe-go/v81 v81.4.0
+	github.com/thanhpk/randstr v1.0.6
 	github.com/tiktoken-go/tokenizer v0.6.2
 	golang.org/x/crypto v0.35.0
 	golang.org/x/image v0.23.0

@@ -26,6 +26,7 @@ export default function GeneralSettings(props) {
     'general_setting.docs_link': '',
     QuotaPerUnit: '',
     RetryTimes: '',
+    USDExchangeRate: '',
     DisplayInCurrencyEnabled: false,
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
@@ -127,6 +128,16 @@ export default function GeneralSettings(props) {
                   onChange={handleFieldChange('QuotaPerUnit')}
                   showClear
                   onClick={() => setShowQuotaWarning(true)}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field={'USDExchangeRate'}
+                  label={t('美元汇率（非充值汇率，仅用于定价页面换算）')}
+                  initValue={''}
+                  placeholder={t('美元汇率')}
+                  onChange={handleFieldChange('USDExchangeRate')}
+                  showClear
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

@@ -193,3 +193,9 @@ const (
 	ChannelStatusManuallyDisabled = 2 // also don't use 0
 	ChannelStatusAutoDisabled     = 3
 )
+
+const (
+	TopUpStatusPending = "pending"
+	TopUpStatusSuccess = "success"
+	TopUpStatusExpired = "expired"
+)

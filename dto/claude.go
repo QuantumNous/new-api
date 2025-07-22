@@ -3,6 +3,7 @@ package dto
 import (
 	"encoding/json"
 	"one-api/common"
+	"one-api/types"
 )
 
 type ClaudeMetadata struct {
@@ -158,6 +159,27 @@ type InputSchema struct {
 	Required   any    `json:"required,omitempty"`
 }
 
+type ClaudeWebSearchTool struct {
+	Type         string                       `json:"type"`
+	Name         string                       `json:"name"`
+	MaxUses      int                          `json:"max_uses,omitempty"`
+	UserLocation *ClaudeWebSearchUserLocation `json:"user_location,omitempty"`
+}
+
+type ClaudeWebSearchUserLocation struct {
+	Type     string `json:"type"`
+	Timezone string `json:"timezone,omitempty"`
+	Country  string `json:"country,omitempty"`
+	Region   string `json:"region,omitempty"`
+	City     string `json:"city,omitempty"`
+}
+
+type ClaudeToolChoice struct {
+	Type                   string `json:"type"`
+	Name                   string `json:"name,omitempty"`
+	DisableParallelToolUse bool   `json:"disable_parallel_tool_use,omitempty"`
+}
+
 type ClaudeRequest struct {
 	Model             string          `json:"model"`
 	Prompt            string          `json:"prompt,omitempty"`
@@ -174,6 +196,59 @@ type ClaudeRequest struct {
 	Tools      any       `json:"tools,omitempty"`
 	ToolChoice any       `json:"tool_choice,omitempty"`
 	Thinking   *Thinking `json:"thinking,omitempty"`
+}
+
+// AddTool 添加工具到请求中
+func (c *ClaudeRequest) AddTool(tool any) {
+	if c.Tools == nil {
+		c.Tools = make([]any, 0)
+	}
+
+	switch tools := c.Tools.(type) {
+	case []any:
+		c.Tools = append(tools, tool)
+	default:
+		// 如果Tools不是[]any类型，重新初始化为[]any
+		c.Tools = []any{tool}
+	}
+}
+
+// GetTools 获取工具列表
+func (c *ClaudeRequest) GetTools() []any {
+	if c.Tools == nil {
+		return nil
+	}
+
+	switch tools := c.Tools.(type) {
+	case []any:
+		return tools
+	default:
+		return nil
+	}
+}
+
+// ProcessTools 处理工具列表，支持类型断言
+func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
+	var normalTools []*Tool
+	var webSearchTools []*ClaudeWebSearchTool
+
+	for _, tool := range tools {
+		switch t := tool.(type) {
+		case *Tool:
+			normalTools = append(normalTools, t)
+		case *ClaudeWebSearchTool:
+			webSearchTools = append(webSearchTools, t)
+		case Tool:
+			normalTools = append(normalTools, &t)
+		case ClaudeWebSearchTool:
+			webSearchTools = append(webSearchTools, &t)
+		default:
+			// 未知类型，跳过
+			continue
+		}
+	}
+
+	return normalTools, webSearchTools
 }
 
 type Thinking struct {
@@ -228,7 +303,7 @@ type ClaudeResponse struct {
 	Completion   string               `json:"completion,omitempty"`
 	StopReason   string               `json:"stop_reason,omitempty"`
 	Model        string               `json:"model,omitempty"`
-	Error        *ClaudeError         `json:"error,omitempty"`
+	Error        *types.ClaudeError   `json:"error,omitempty"`
 	Usage        *ClaudeUsage         `json:"usage,omitempty"`
 	Index        *int                 `json:"index,omitempty"`
 	ContentBlock *ClaudeMediaMessage  `json:"content_block,omitempty"`
@@ -250,8 +325,13 @@ func (c *ClaudeResponse) GetIndex() int {
 }
 
 type ClaudeUsage struct {
-	InputTokens              int `json:"input_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-	OutputTokens             int `json:"output_tokens"`
+	InputTokens              int                  `json:"input_tokens"`
+	CacheCreationInputTokens int                  `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int                  `json:"cache_read_input_tokens"`
+	OutputTokens             int                  `json:"output_tokens"`
+	ServerToolUse            *ClaudeServerToolUse `json:"server_tool_use"`
+}
+
+type ClaudeServerToolUse struct {
+	WebSearchRequests int `json:"web_search_requests"`
 }

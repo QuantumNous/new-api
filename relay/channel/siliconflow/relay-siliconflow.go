@@ -2,24 +2,26 @@ package siliconflow
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
-	"one-api/service"
+	relaycommon "one-api/relay/common"
+	"one-api/types"
+
+	"github.com/gin-gonic/gin"
 )
 
-func siliconflowRerankHandler(c *gin.Context, resp *http.Response) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func siliconflowRerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
 	common.CloseResponseBodyGracefully(resp)
 	var siliconflowResp SFRerankResponse
 	err = json.Unmarshal(responseBody, &siliconflowResp)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	usage := &dto.Usage{
 		PromptTokens:     siliconflowResp.Meta.Tokens.InputTokens,
@@ -33,10 +35,10 @@ func siliconflowRerankHandler(c *gin.Context, resp *http.Response) (*dto.OpenAIE
 
 	jsonResponse, err := json.Marshal(rerankResp)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = c.Writer.Write(jsonResponse)
-	return nil, usage
+	common.IOCopyBytesGracefully(c, resp, jsonResponse)
+	return usage, nil
 }

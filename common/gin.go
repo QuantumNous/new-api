@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/gin-gonic/gin"
 	"io"
+	"net/http"
 	"one-api/constant"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
-		err = UnmarshalJson(requestBody, &v)
+		err = Unmarshal(requestBody, &v)
 	} else {
 		// skip for now
 		// TODO: someday non json request have variant model, we will need to implementation this
@@ -85,4 +86,26 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 	}
 	var t T
 	return t, false
+}
+
+func ApiError(c *gin.Context, err error) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": err.Error(),
+	})
+}
+
+func ApiErrorMsg(c *gin.Context, msg string) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": msg,
+	})
+}
+
+func ApiSuccess(c *gin.Context, data any) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    data,
+	})
 }

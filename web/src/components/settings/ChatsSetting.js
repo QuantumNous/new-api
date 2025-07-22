@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsChats from '../../pages/Setting/Chat/SettingsChats.js';
-import { API, showError } from '../../helpers';
+import { API, showError, toBoolean } from '../../helpers';
 
 const ChatsSetting = () => {
   let [inputs, setInputs] = useState({
@@ -21,7 +21,7 @@ const ChatsSetting = () => {
           item.key.endsWith('Enabled') ||
           ['DefaultCollapseSidebar'].includes(item.key)
         ) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }

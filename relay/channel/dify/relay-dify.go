@@ -14,6 +14,7 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"os"
 	"strings"
 
@@ -209,7 +210,7 @@ func streamResponseDify2OpenAI(difyResponse DifyChunkChatCompletionResponse) *dt
 	return &response
 }
 
-func difyStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var responseText string
 	usage := &dto.Usage{}
 	var nodeToken int
@@ -247,20 +248,20 @@ func difyStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		usage = service.ResponseText2Usage(responseText, info.UpstreamModelName, info.PromptTokens)
 	}
 	usage.CompletionTokens += nodeToken
-	return nil, usage
+	return usage, nil
 }
 
-func difyHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func difyHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var difyResponse DifyChatCompletionResponse
 	responseBody, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	common.CloseResponseBodyGracefully(resp)
 	err = json.Unmarshal(responseBody, &difyResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	fullTextResponse := dto.OpenAITextResponse{
 		Id:      difyResponse.ConversationId,
@@ -279,10 +280,10 @@ func difyHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInf
 	fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = c.Writer.Write(jsonResponse)
-	return nil, &difyResponse.MetaData.Usage
+	c.Writer.Write(jsonResponse)
+	return &difyResponse.MetaData.Usage, nil
 }

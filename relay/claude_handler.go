@@ -2,10 +2,8 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -14,7 +12,10 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting/model_setting"
+	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest, err error) {
@@ -32,14 +33,14 @@ func getAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	return textRequest, nil
 }
 
-func ClaudeHelper(c *gin.Context) (claudeError *dto.ClaudeErrorWithStatusCode) {
+func ClaudeHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	relayInfo := relaycommon.GenRelayInfoClaude(c)
 
 	// get & validate textRequest 获取并验证文本请求
 	textRequest, err := getAndValidateClaudeRequest(c)
 	if err != nil {
-		return service.ClaudeErrorWrapperLocal(err, "invalid_claude_request", http.StatusBadRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
 
 	if textRequest.Stream {
@@ -48,35 +49,35 @@ func ClaudeHelper(c *gin.Context) (claudeError *dto.ClaudeErrorWithStatusCode) {
 
 	err = helper.ModelMappedHelper(c, relayInfo, textRequest)
 	if err != nil {
-		return service.ClaudeErrorWrapperLocal(err, "model_mapped_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
 	}
 
 	promptTokens, err := getClaudePromptTokens(textRequest, relayInfo)
 	// count messages token error 计算promptTokens错误
 	if err != nil {
-		return service.ClaudeErrorWrapperLocal(err, "count_token_messages_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeCountTokenFailed)
 	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptTokens, int(textRequest.MaxTokens))
 	if err != nil {
-		return service.ClaudeErrorWrapperLocal(err, "model_price_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeModelPriceError)
 	}
 
 	// pre-consume quota 预消耗配额
-	preConsumedQuota, userQuota, openaiErr := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
+	preConsumedQuota, userQuota, newAPIError := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
 
-	if openaiErr != nil {
-		return service.OpenAIErrorToClaudeError(openaiErr)
+	if newAPIError != nil {
+		return newAPIError
 	}
 	defer func() {
-		if openaiErr != nil {
+		if newAPIError != nil {
 			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
 		}
 	}()
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return service.ClaudeErrorWrapperLocal(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), "invalid_api_type", http.StatusBadRequest)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
 	}
 	adaptor.Init(relayInfo)
 	var requestBody io.Reader
@@ -109,14 +110,14 @@ func ClaudeHelper(c *gin.Context) (claudeError *dto.ClaudeErrorWithStatusCode) {
 
 	convertedRequest, err := adaptor.ConvertClaudeRequest(c, relayInfo, textRequest)
 	if err != nil {
-		return service.ClaudeErrorWrapperLocal(err, "convert_request_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 	}
-	jsonData, err := json.Marshal(convertedRequest)
+	jsonData, err := common.Marshal(convertedRequest)
 	if common.DebugEnabled {
 		println("requestBody: ", string(jsonData))
 	}
 	if err != nil {
-		return service.ClaudeErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 	}
 	requestBody = bytes.NewBuffer(jsonData)
 
@@ -124,26 +125,26 @@ func ClaudeHelper(c *gin.Context) (claudeError *dto.ClaudeErrorWithStatusCode) {
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
-		return service.ClaudeErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			openaiErr = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-			return service.OpenAIErrorToClaudeError(openaiErr)
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
 	}
 
-	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, relayInfo)
 	//log.Printf("usage: %v", usage)
-	if openaiErr != nil {
+	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-		return service.OpenAIErrorToClaudeError(openaiErr)
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return newAPIError
 	}
 	service.PostClaudeConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 	return nil

@@ -34,7 +34,7 @@ const ParameterControl = ({
             <Typography.Text strong className="text-sm">
               Temperature
             </Typography.Text>
-            <Tag size="small" className="!rounded-full">
+            <Tag size="small" shape='circle'>
               {inputs.temperature}
             </Tag>
           </div>
@@ -70,7 +70,7 @@ const ParameterControl = ({
             <Typography.Text strong className="text-sm">
               Top P
             </Typography.Text>
-            <Tag size="small" className="!rounded-full">
+            <Tag size="small" shape='circle'>
               {inputs.top_p}
             </Tag>
           </div>
@@ -106,7 +106,7 @@ const ParameterControl = ({
             <Typography.Text strong className="text-sm">
               Frequency Penalty
             </Typography.Text>
-            <Tag size="small" className="!rounded-full">
+            <Tag size="small" shape='circle'>
               {inputs.frequency_penalty}
             </Tag>
           </div>
@@ -142,7 +142,7 @@ const ParameterControl = ({
             <Typography.Text strong className="text-sm">
               Presence Penalty
             </Typography.Text>
-            <Tag size="small" className="!rounded-full">
+            <Tag size="small" shape='circle'>
               {inputs.presence_penalty}
             </Tag>
           </div>

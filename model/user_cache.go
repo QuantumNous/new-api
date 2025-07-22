@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"one-api/common"
 	"one-api/constant"
@@ -36,7 +35,7 @@ func (user *UserBase) WriteContext(c *gin.Context) {
 func (user *UserBase) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysError("failed to unmarshal setting: " + err.Error())
 		}

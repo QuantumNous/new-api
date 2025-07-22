@@ -65,6 +65,7 @@ export default function SettingsGeneralPayment(props) {
             label={t('服务器地址')}
             placeholder={'https://yourdomain.com'}
             style={{ width: '100%' }}
+            extraText={t('该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置')}
           />
           <Button onClick={submitServerAddress}>{t('更新服务器地址')}</Button>
         </Form.Section>

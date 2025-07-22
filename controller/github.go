@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
 	"strconv"
 	"time"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 type GitHubOAuthResponse struct {
@@ -103,10 +104,7 @@ func GitHubOAuth(c *gin.Context) {
 	code := c.Query("code")
 	githubUser, err := getGitHubUserInfoByCode(code)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	user := model.User{
@@ -185,10 +183,7 @@ func GitHubBind(c *gin.Context) {
 	code := c.Query("code")
 	githubUser, err := getGitHubUserInfoByCode(code)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	user := model.User{
@@ -207,19 +202,13 @@ func GitHubBind(c *gin.Context) {
 	user.Id = id.(int)
 	err = user.FillUserById()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	user.GitHubId = githubUser.Login
 	err = user.Update(false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -239,10 +228,7 @@ func GenerateOAuthCode(c *gin.Context) {
 	session.Set("oauth_state", state)
 	err := session.Save()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

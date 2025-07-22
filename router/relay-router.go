@@ -20,7 +20,7 @@ func SetRelayRouter(router *gin.Engine) {
 		modelsRouter.GET("/:model", controller.RetrieveModel)
 	}
 	playgroundRouter := router.Group("/pg")
-	playgroundRouter.Use(middleware.UserAuth())
+	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}

@@ -57,7 +57,9 @@ func GetStatus(c *gin.Context) {
 		"wechat_login":             common.WeChatAuthEnabled,
 		"server_address":           setting.ServerAddress,
 		"price":                    setting.Price,
+		"stripe_unit_price":        setting.StripeUnitPrice,
 		"min_topup":                setting.MinTopUp,
+		"stripe_min_topup":         setting.StripeMinTopUp,
 		"turnstile_check":          common.TurnstileCheckEnabled,
 		"turnstile_site_key":       common.TurnstileSiteKey,
 		"top_up_link":              common.TopUpLink,
@@ -71,12 +73,14 @@ func GetStatus(c *gin.Context) {
 		"data_export_default_time": common.DataExportDefaultTime,
 		"default_collapse_sidebar": common.DefaultCollapseSidebar,
 		"enable_online_topup":      setting.PayAddress != "" && setting.EpayId != "" && setting.EpayKey != "",
+		"enable_stripe_topup":      setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"mj_notify_enabled":        setting.MjNotifyEnabled,
 		"chats":                    setting.Chats,
 		"demo_site_enabled":        operation_setting.DemoSiteEnabled,
 		"self_use_mode_enabled":    operation_setting.SelfUseModeEnabled,
 		"default_use_auto_group":   setting.DefaultUseAutoGroup,
 		"pay_methods":              setting.PayMethods,
+		"usd_exchange_rate":        setting.USDExchangeRate,
 
 		// 面板启用开关
 		"api_info_enabled":      cs.ApiInfoEnabled,
@@ -214,10 +218,7 @@ func SendEmailVerification(c *gin.Context) {
 		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -253,10 +254,7 @@ func SendPasswordResetEmail(c *gin.Context) {
 		"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -291,10 +289,7 @@ func ResetPassword(c *gin.Context) {
 	password := common.GenerateVerificationCode(12)
 	err = model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	common.DeleteKey(req.Email, common.PasswordResetPurpose)

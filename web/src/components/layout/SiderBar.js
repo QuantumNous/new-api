@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon, sidebarIconColors } from '../../helpers/render.js';
 import { ChevronLeft } from 'lucide-react';
-import { useStyle, styleActions } from '../../context/Style/index.js';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed.js';
 import {
   isAdmin,
   isRoot,
@@ -13,7 +13,7 @@ import {
 import {
   Nav,
   Divider,
-  Tooltip,
+  Button,
 } from '@douyinfe/semi-ui';
 
 const routerMap = {
@@ -34,12 +34,11 @@ const routerMap = {
   personal: '/console/personal',
 };
 
-const SiderBar = () => {
+const SiderBar = ({ onNavigate = () => { } }) => {
   const { t } = useTranslation();
-  const { state: styleState, dispatch: styleDispatch } = useStyle();
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
-  const [isCollapsed, setIsCollapsed] = useState(styleState.siderCollapsed);
   const [chatItems, setChatItems] = useState([]);
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
@@ -217,10 +216,14 @@ const SiderBar = () => {
     }
   }, [location.pathname, routerMapState]);
 
-  // 同步折叠状态
+  // 监控折叠状态变化以更新 body class
   useEffect(() => {
-    setIsCollapsed(styleState.siderCollapsed);
-  }, [styleState.siderCollapsed]);
+    if (collapsed) {
+      document.body.classList.add('sidebar-collapsed');
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+    }
+  }, [collapsed]);
 
   // 获取菜单项对应的颜色
   const getItemColor = (itemKey) => {
@@ -323,32 +326,13 @@ const SiderBar = () => {
   return (
     <div
       className="sidebar-container"
-      style={{ width: isCollapsed ? '60px' : '180px' }}
+      style={{ width: 'var(--sidebar-current-width)' }}
     >
       <Nav
-        className="sidebar-nav custom-sidebar-nav"
-        defaultIsCollapsed={styleState.siderCollapsed}
-        isCollapsed={isCollapsed}
-        onCollapseChange={(collapsed) => {
-          setIsCollapsed(collapsed);
-          styleDispatch(styleActions.setSiderCollapsed(collapsed));
-
-          // 确保在收起侧边栏时有选中的项目
-          if (selectedKeys.length === 0) {
-            const currentPath = location.pathname;
-            const matchingKey = Object.keys(routerMapState).find(
-              (key) => routerMapState[key] === currentPath,
-            );
-
-            if (matchingKey) {
-              setSelectedKeys([matchingKey]);
-            } else if (currentPath.startsWith('/console/chat/')) {
-              setSelectedKeys(['chat']);
-            } else {
-              setSelectedKeys(['detail']); // 默认选中首页
-            }
-          }
-        }}
+        className="sidebar-nav"
+        defaultIsCollapsed={collapsed}
+        isCollapsed={collapsed}
+        onCollapseChange={toggleCollapsed}
         selectedKeys={selectedKeys}
         itemStyle="sidebar-nav-item"
         hoverStyle="sidebar-nav-item:hover"
@@ -363,6 +347,7 @@ const SiderBar = () => {
             <Link
               style={{ textDecoration: 'none' }}
               to={to}
+              onClick={onNavigate}
             >
               {itemElement}
             </Link>
@@ -383,7 +368,7 @@ const SiderBar = () => {
       >
         {/* 聊天区域 */}
         <div className="sidebar-section">
-          {!isCollapsed && (
+          {!collapsed && (
             <div className="sidebar-group-label">{t('聊天')}</div>
           )}
           {chatMenuItems.map((item) => renderSubItem(item))}
@@ -392,7 +377,7 @@ const SiderBar = () => {
         {/* 控制台区域 */}
         <Divider className="sidebar-divider" />
         <div>
-          {!isCollapsed && (
+          {!collapsed && (
             <div className="sidebar-group-label">{t('控制台')}</div>
           )}
           {workspaceItems.map((item) => renderNavItem(item))}
@@ -403,7 +388,7 @@ const SiderBar = () => {
           <>
             <Divider className="sidebar-divider" />
             <div>
-              {!isCollapsed && (
+              {!collapsed && (
                 <div className="sidebar-group-label">{t('管理员')}</div>
               )}
               {adminItems.map((item) => renderNavItem(item))}
@@ -414,7 +399,7 @@ const SiderBar = () => {
         {/* 个人中心区域 */}
         <Divider className="sidebar-divider" />
         <div>
-          {!isCollapsed && (
+          {!collapsed && (
             <div className="sidebar-group-label">{t('个人中心')}</div>
           )}
           {financeItems.map((item) => renderNavItem(item))}
@@ -422,24 +407,25 @@ const SiderBar = () => {
       </Nav>
 
       {/* 底部折叠按钮 */}
-      <div
-        className="sidebar-collapse-button"
-        onClick={() => {
-          const newCollapsed = !isCollapsed;
-          setIsCollapsed(newCollapsed);
-          styleDispatch(styleActions.setSiderCollapsed(newCollapsed));
-        }}
-      >
-        <Tooltip content={isCollapsed ? t('展开侧边栏') : t('收起侧边栏')} position="right">
-          <div className="sidebar-collapse-button-inner">
-            <span
-              className="sidebar-collapse-icon-container"
-              style={{ transform: isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}
-            >
-              <ChevronLeft size={16} strokeWidth={2.5} color="var(--semi-color-text-2)" />
-            </span>
-          </div>
-        </Tooltip>
+      <div className="sidebar-collapse-button">
+        <Button
+          theme="outline"
+          type="tertiary"
+          size="small"
+          icon={
+            <ChevronLeft
+              size={16}
+              strokeWidth={2.5}
+              color="var(--semi-color-text-2)"
+              style={{ transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            />
+          }
+          onClick={toggleCollapsed}
+          iconOnly={collapsed}
+          style={collapsed ? { padding: '4px', width: '100%' } : { padding: '4px 12px', width: '100%' }}
+        >
+          {!collapsed ? t('收起侧边栏') : null}
+        </Button>
       </div>
     </div>
   );

@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"one-api/types"
+
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -104,10 +106,10 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	return helper.ObjectData(c, lastStreamResponse)
 }
 
-func OaiStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		common.LogError(c, "invalid response or response body")
-		return service.OpenAIErrorWrapper(fmt.Errorf("invalid response"), "invalid_response", http.StatusInternalServerError), nil
+		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
 	}
 
 	defer common.CloseResponseBodyGracefully(resp)
@@ -177,26 +179,23 @@ func OaiStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	handleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
-	return nil, usage
+	return usage, nil
 }
 
-func OpenaiHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	var simpleResponse dto.OpenAITextResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
-	err = common.UnmarshalJson(responseBody, &simpleResponse)
+	err = common.Unmarshal(responseBody, &simpleResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if simpleResponse.Error != nil && simpleResponse.Error.Type != "" {
-		return &dto.OpenAIErrorWithStatusCode{
-			Error:      *simpleResponse.Error,
-			StatusCode: resp.StatusCode,
-		}, nil
+		return nil, types.WithOpenAIError(*simpleResponse.Error, resp.StatusCode)
 	}
 
 	forceFormat := false
@@ -220,28 +219,28 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	switch info.RelayFormat {
 	case relaycommon.RelayFormatOpenAI:
 		if forceFormat {
-			responseBody, err = common.EncodeJson(simpleResponse)
+			responseBody, err = common.Marshal(simpleResponse)
 			if err != nil {
-				return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
 		} else {
 			break
 		}
 	case relaycommon.RelayFormatClaude:
 		claudeResp := service.ResponseOpenAI2Claude(&simpleResponse, info)
-		claudeRespStr, err := common.EncodeJson(claudeResp)
+		claudeRespStr, err := common.Marshal(claudeResp)
 		if err != nil {
-			return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		responseBody = claudeRespStr
 	}
 
 	common.IOCopyBytesGracefully(c, resp, responseBody)
 
-	return nil, &simpleResponse.Usage
+	return &simpleResponse.Usage, nil
 }
 
-func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *dto.Usage {
 	// the status code has been judged before, if there is a body reading failure,
 	// it should be regarded as a non-recoverable error, so it should not return err for external retry.
 	// Analogous to nginx's load balancing, it will only retry if it can't be requested or
@@ -261,20 +260,20 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	if err != nil {
 		common.LogError(c, err.Error())
 	}
-	return nil, usage
+	return usage
 }
 
-func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, responseFormat string) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, responseFormat string) (*types.NewAPIError, *dto.Usage) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	// count tokens by audio file duration
 	audioTokens, err := countAudioTokens(c)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "count_audio_tokens_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeCountTokenFailed), nil
 	}
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeReadResponseBodyFailed), nil
 	}
 	// 写入新的 response body
 	common.IOCopyBytesGracefully(c, resp, responseBody)
@@ -328,9 +327,9 @@ func countAudioTokens(c *gin.Context) (int, error) {
 	return int(math.Round(math.Ceil(duration) / 60.0 * 1000)), nil // 1 minute 相当于 1k tokens
 }
 
-func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.RealtimeUsage) {
+func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
 	if info == nil || info.ClientWs == nil || info.TargetWs == nil {
-		return service.OpenAIErrorWrapper(fmt.Errorf("invalid websocket connection"), "invalid_connection", http.StatusBadRequest), nil
+		return types.NewError(fmt.Errorf("invalid websocket connection"), types.ErrorCodeBadResponse), nil
 	}
 
 	info.IsStream = true
@@ -368,7 +367,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*dto.Op
 				}
 
 				realtimeEvent := &dto.RealtimeEvent{}
-				err = common.UnmarshalJson(message, realtimeEvent)
+				err = common.Unmarshal(message, realtimeEvent)
 				if err != nil {
 					errChan <- fmt.Errorf("error unmarshalling message: %v", err)
 					return
@@ -428,7 +427,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*dto.Op
 				}
 				info.SetFirstResponseTime()
 				realtimeEvent := &dto.RealtimeEvent{}
-				err = common.UnmarshalJson(message, realtimeEvent)
+				err = common.Unmarshal(message, realtimeEvent)
 				if err != nil {
 					errChan <- fmt.Errorf("error unmarshalling message: %v", err)
 					return
@@ -553,18 +552,18 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	return err
 }
 
-func OpenaiHandlerWithUsage(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
 
 	var usageResp dto.SimpleResponse
-	err = common.UnmarshalJson(responseBody, &usageResp)
+	err = common.Unmarshal(responseBody, &usageResp)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "parse_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	// 写入新的 response body
@@ -584,5 +583,5 @@ func OpenaiHandlerWithUsage(c *gin.Context, resp *http.Response, info *relaycomm
 		usageResp.PromptTokensDetails.ImageTokens += usageResp.InputTokensDetails.ImageTokens
 		usageResp.PromptTokensDetails.TextTokens += usageResp.InputTokensDetails.TextTokens
 	}
-	return nil, &usageResp.Usage
+	return &usageResp.Usage, nil
 }

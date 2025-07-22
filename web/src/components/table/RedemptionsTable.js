@@ -53,31 +53,31 @@ const RedemptionsTable = () => {
   const renderStatus = (status, record) => {
     if (isExpired(record)) {
       return (
-        <Tag color='orange' size='large' shape='circle'>{t('已过期')}</Tag>
+        <Tag color='orange' shape='circle'>{t('已过期')}</Tag>
       );
     }
     switch (status) {
       case 1:
         return (
-          <Tag color='green' size='large' shape='circle'>
+          <Tag color='green' shape='circle'>
             {t('未使用')}
           </Tag>
         );
       case 2:
         return (
-          <Tag color='red' size='large' shape='circle'>
+          <Tag color='red' shape='circle'>
             {t('已禁用')}
           </Tag>
         );
       case 3:
         return (
-          <Tag color='grey' size='large' shape='circle'>
+          <Tag color='grey' shape='circle'>
             {t('已使用')}
           </Tag>
         );
       default:
         return (
-          <Tag color='black' size='large' shape='circle'>
+          <Tag color='black' shape='circle'>
             {t('未知状态')}
           </Tag>
         );
@@ -107,7 +107,7 @@ const RedemptionsTable = () => {
       render: (text, record, index) => {
         return (
           <div>
-            <Tag size={'large'} color={'grey'} shape='circle'>
+            <Tag color='grey' shape='circle'>
               {renderQuota(parseInt(text))}
             </Tag>
           </div>
@@ -139,6 +139,7 @@ const RedemptionsTable = () => {
       title: '',
       dataIndex: 'operate',
       fixed: 'right',
+      width: 205,
       render: (text, record, index) => {
         // 创建更多操作的下拉菜单项
         const moreMenuItems = [
@@ -151,9 +152,15 @@ const RedemptionsTable = () => {
                 title: t('确定是否要删除此兑换码？'),
                 content: t('此修改将不可逆'),
                 onOk: () => {
-                  manageRedemption(record.id, 'delete', record).then(() => {
-                    removeRecord(record.key);
-                  });
+                  (async () => {
+                    await manageRedemption(record.id, 'delete', record);
+                    await refresh();
+                    setTimeout(() => {
+                      if (redemptions.length === 0 && activePage > 1) {
+                        refresh(activePage - 1);
+                      }
+                    }, 100);
+                  })();
                 },
               });
             },
@@ -185,7 +192,6 @@ const RedemptionsTable = () => {
           <Space>
             <Popover content={record.key} style={{ padding: 20 }} position='top'>
               <Button
-                theme='light'
                 type='tertiary'
                 size="small"
               >
@@ -193,8 +199,6 @@ const RedemptionsTable = () => {
               </Button>
             </Popover>
             <Button
-              theme='light'
-              type='secondary'
               size="small"
               onClick={async () => {
                 await copyText(record.key);
@@ -203,7 +207,6 @@ const RedemptionsTable = () => {
               {t('复制')}
             </Button>
             <Button
-              theme='light'
               type='tertiary'
               size="small"
               onClick={() => {
@@ -220,7 +223,6 @@ const RedemptionsTable = () => {
               menu={moreMenuItems}
             >
               <Button
-                theme='light'
                 type='tertiary'
                 size="small"
                 icon={<IconMore />}
@@ -320,8 +322,13 @@ const RedemptionsTable = () => {
       });
   }, [pageSize]);
 
-  const refresh = async () => {
-    await loadRedemptions(activePage - 1, pageSize);
+  const refresh = async (page = activePage) => {
+    const { searchKeyword } = getFormValues();
+    if (searchKeyword === '') {
+      await loadRedemptions(page, pageSize);
+    } else {
+      await searchRedemptions(searchKeyword, page, pageSize);
+    }
   };
 
   const manageRedemption = async (id, action, record) => {
@@ -424,10 +431,10 @@ const RedemptionsTable = () => {
             <Text>{t('兑换码可以批量生成和分发，适合用于推广活动或批量充值。')}</Text>
           </div>
           <Button
-            theme='light'
-            type='secondary'
+            type='tertiary'
             className="w-full md:w-auto"
             onClick={() => setCompactMode(!compactMode)}
+            size="small"
           >
             {compactMode ? t('自适应列表') : t('紧凑列表')}
           </Button>
@@ -440,7 +447,6 @@ const RedemptionsTable = () => {
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto order-2 md:order-1">
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
-              theme='light'
               type='primary'
               className="w-full sm:w-auto"
               onClick={() => {
@@ -449,11 +455,12 @@ const RedemptionsTable = () => {
                 });
                 setShowEdit(true);
               }}
+              size="small"
             >
               {t('添加兑换码')}
             </Button>
             <Button
-              type='warning'
+              type='tertiary'
               className="w-full sm:w-auto"
               onClick={async () => {
                 if (selectedKeys.length === 0) {
@@ -467,6 +474,7 @@ const RedemptionsTable = () => {
                 }
                 await copyText(keys);
               }}
+              size="small"
             >
               {t('复制所选兑换码到剪贴板')}
             </Button>
@@ -492,6 +500,7 @@ const RedemptionsTable = () => {
                 },
               });
             }}
+            size="small"
           >
             {t('清除失效兑换码')}
           </Button>
@@ -519,23 +528,24 @@ const RedemptionsTable = () => {
                 placeholder={t('关键字(id或者名称)')}
                 showClear
                 pure
+                size="small"
               />
             </div>
             <div className="flex gap-2 w-full md:w-auto">
               <Button
-                type="primary"
+                type="tertiary"
                 htmlType="submit"
                 loading={loading || searching}
                 className="flex-1 md:flex-initial md:w-auto"
+                size="small"
               >
                 {t('查询')}
               </Button>
               <Button
-                theme="light"
+                type="tertiary"
                 onClick={() => {
                   if (formApi) {
                     formApi.reset();
-                    // 重置后立即查询，使用setTimeout确保表单重置完成
                     setTimeout(() => {
                       setActivePage(1);
                       loadRedemptions(1, pageSize);
@@ -543,6 +553,7 @@ const RedemptionsTable = () => {
                   }
                 }}
                 className="flex-1 md:flex-initial md:w-auto"
+                size="small"
               >
                 {t('重置')}
               </Button>

@@ -37,9 +37,9 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 		return
 	}
 
-	modelName := service.CoverTaskActionToModelName(platform, relayInfo.Action)
-	if platform == constant.TaskPlatformKling {
-		modelName = relayInfo.OriginModelName
+	modelName := relayInfo.OriginModelName
+	if modelName == "" {
+		modelName = service.CoverTaskActionToModelName(platform, relayInfo.Action)
 	}
 	modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
 	if !success {

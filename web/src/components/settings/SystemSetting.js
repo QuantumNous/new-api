@@ -17,10 +17,13 @@ import {
   removeTrailingSlash,
   showError,
   showSuccess,
+  toBoolean,
 } from '../../helpers';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 
 const SystemSetting = () => {
+  const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     PasswordLoginEnabled: '',
     PasswordRegisterEnabled: '',
@@ -57,13 +60,13 @@ const SystemSetting = () => {
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
     EmailDomainWhitelist: [],
-    // telegram login
     TelegramOAuthEnabled: '',
     TelegramBotToken: '',
     TelegramBotName: '',
     LinuxDOOAuthEnabled: '',
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
+    ServerAddress: '',
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -104,7 +107,7 @@ const SystemSetting = () => {
           case 'LinuxDOOAuthEnabled':
           case 'oidc.enabled':
           case 'WorkerAllowHttpImageRequestEnabled':
-            item.value = item.value === 'true';
+            item.value = toBoolean(item.value);
             break;
           case 'Price':
           case 'MinTopUp':
@@ -173,7 +176,7 @@ const SystemSetting = () => {
         });
       }
 
-      showSuccess('更新成功');
+      showSuccess(t('更新成功'));
       // 更新本地状态
       const newInputs = { ...inputs };
       options.forEach((opt) => {
@@ -181,7 +184,7 @@ const SystemSetting = () => {
       });
       setInputs(newInputs);
     } catch (error) {
-      showError('更新失败');
+      showError(t('更新失败'));
     }
     setLoading(false);
   };
@@ -203,6 +206,11 @@ const SystemSetting = () => {
       options.push({ key: 'WorkerValidKey', value: inputs.WorkerValidKey });
     }
     await updateOptions(options);
+  };
+
+  const submitServerAddress = async () => {
+    let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
+    await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
   };
 
   const submitSMTP = async () => {
@@ -244,7 +252,7 @@ const SystemSetting = () => {
         },
       ]);
     } else {
-      showError('邮箱域名白名单格式不正确');
+      showError(t('邮箱域名白名单格式不正确'));
     }
   };
 
@@ -256,19 +264,19 @@ const SystemSetting = () => {
       const domainRegex =
         /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
       if (!domainRegex.test(domain)) {
-        showError('邮箱域名格式不正确，请输入有效的域名，如 gmail.com');
+        showError(t('邮箱域名格式不正确，请输入有效的域名，如 gmail.com'));
         return;
       }
 
       // 检查是否已存在
       if (emailDomainWhitelist.includes(domain)) {
-        showError('该域名已存在于白名单中');
+        showError(t('该域名已存在于白名单中'));
         return;
       }
 
       setEmailDomainWhitelist([...emailDomainWhitelist, domain]);
       setEmailToAdd('');
-      showSuccess('已添加到白名单');
+      showSuccess(t('已添加到白名单'));
     }
   };
 
@@ -332,7 +340,7 @@ const SystemSetting = () => {
         !inputs['oidc.well_known'].startsWith('http://') &&
         !inputs['oidc.well_known'].startsWith('https://')
       ) {
-        showError('Well-Known URL 必须以 http:// 或 https:// 开头');
+        showError(t('Well-Known URL 必须以 http:// 或 https:// 开头'));
         return;
       }
       try {
@@ -341,11 +349,11 @@ const SystemSetting = () => {
           res.data['authorization_endpoint'];
         inputs['oidc.token_endpoint'] = res.data['token_endpoint'];
         inputs['oidc.user_info_endpoint'] = res.data['userinfo_endpoint'];
-        showSuccess('获取 OIDC 配置成功！');
+        showSuccess(t('获取 OIDC 配置成功！'));
       } catch (err) {
         console.error(err);
         showError(
-          '获取 OIDC 配置失败，请检查网络状况和 Well-Known URL 是否正确',
+          t('获取 OIDC 配置失败，请检查网络状况和 Well-Known URL 是否正确'),
         );
         return;
       }
@@ -487,7 +495,25 @@ const SystemSetting = () => {
               }}
             >
               <Card>
-                <Form.Section text='代理设置'>
+                <Form.Section text={t('通用设置')}>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='ServerAddress'
+                        label={t('服务器地址')}
+                        placeholder='https://yourdomain.com'
+                        extraText={t('该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitServerAddress}>{t('更新服务器地址')}</Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('代理设置')}>
                   <Text>
                     （支持{' '}
                     <a
@@ -505,14 +531,14 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='WorkerUrl'
-                        label='Worker地址'
+                        label={t('Worker地址')}
                         placeholder='例如：https://workername.yourdomain.workers.dev'
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='WorkerValidKey'
-                        label='Worker密钥'
+                        label={t('Worker密钥')}
                         placeholder='敏感信息不会发送到前端显示'
                         type='password'
                       />
@@ -522,14 +548,14 @@ const SystemSetting = () => {
                     field='WorkerAllowHttpImageRequestEnabled'
                     noLabel
                   >
-                    允许 HTTP 协议图片请求（适用于自部署代理）
+                    {t('允许 HTTP 协议图片请求（适用于自部署代理）')}
                   </Form.Checkbox>
-                  <Button onClick={submitWorker}>更新Worker设置</Button>
+                  <Button onClick={submitWorker}>{t('更新Worker设置')}</Button>
                 </Form.Section>
               </Card>
 
               <Card>
-                <Form.Section text='配置登录注册'>
+                <Form.Section text={t('配置登录注册')}>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
@@ -541,7 +567,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('PasswordLoginEnabled', e)
                         }
                       >
-                        允许通过密码进行登录
+                        {t('允许通过密码进行登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='PasswordRegisterEnabled'
@@ -550,7 +576,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('PasswordRegisterEnabled', e)
                         }
                       >
-                        允许通过密码进行注册
+                        {t('允许通过密码进行注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='EmailVerificationEnabled'
@@ -559,7 +585,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('EmailVerificationEnabled', e)
                         }
                       >
-                        通过密码注册时需要进行邮箱验证
+                        {t('通过密码注册时需要进行邮箱验证')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='RegisterEnabled'
@@ -568,7 +594,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('RegisterEnabled', e)
                         }
                       >
-                        允许新用户注册
+                        {t('允许新用户注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='TurnstileCheckEnabled'
@@ -577,7 +603,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('TurnstileCheckEnabled', e)
                         }
                       >
-                        启用 Turnstile 用户校验
+                        {t('允许 Turnstile 用户校验')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -588,7 +614,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('GitHubOAuthEnabled', e)
                         }
                       >
-                        允许通过 GitHub 账户登录 & 注册
+                        {t('允许通过 GitHub 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='LinuxDOOAuthEnabled'
@@ -597,7 +623,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('LinuxDOOAuthEnabled', e)
                         }
                       >
-                        允许通过 Linux DO 账户登录 & 注册
+                        {t('允许通过 Linux DO 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='WeChatAuthEnabled'
@@ -606,7 +632,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('WeChatAuthEnabled', e)
                         }
                       >
-                        允许通过微信登录 & 注册
+                        {t('允许通过微信登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='TelegramOAuthEnabled'
@@ -615,7 +641,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('TelegramOAuthEnabled', e)
                         }
                       >
-                        允许通过 Telegram 进行登录
+                        {t('允许通过 Telegram 进行登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field="['oidc.enabled']"
@@ -624,7 +650,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('oidc.enabled', e)
                         }
                       >
-                        允许通过 OIDC 进行登录
+                        {t('允许通过 OIDC 进行登录')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
@@ -632,8 +658,8 @@ const SystemSetting = () => {
               </Card>
 
               <Card>
-                <Form.Section text='配置邮箱域名白名单'>
-                  <Text>用以防止恶意用户利用临时邮箱批量注册</Text>
+                <Form.Section text={t('配置邮箱域名白名单')}>
+                  <Text>{t('用以防止恶意用户利用临时邮箱批量注册')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
@@ -669,11 +695,11 @@ const SystemSetting = () => {
                   <TagInput
                     value={emailDomainWhitelist}
                     onChange={setEmailDomainWhitelist}
-                    placeholder='输入域名后回车'
+                    placeholder={t('输入域名后回车')}
                     style={{ width: '100%', marginTop: 16 }}
                   />
                   <Form.Input
-                    placeholder='输入要添加的邮箱域名'
+                    placeholder={t('输入要添加的邮箱域名')}
                     value={emailToAdd}
                     onChange={(value) => setEmailToAdd(value)}
                     style={{ marginTop: 16 }}
@@ -683,7 +709,7 @@ const SystemSetting = () => {
                         type='primary'
                         onClick={handleAddEmail}
                       >
-                        添加
+                        {t('添加')}
                       </Button>
                     }
                     onEnterPress={handleAddEmail}
@@ -692,24 +718,24 @@ const SystemSetting = () => {
                     onClick={submitEmailDomainWhitelist}
                     style={{ marginTop: 10 }}
                   >
-                    保存邮箱域名白名单设置
+                    {t('保存邮箱域名白名单设置')}
                   </Button>
                 </Form.Section>
               </Card>
               <Card>
-                <Form.Section text='配置 SMTP'>
-                  <Text>用以支持系统的邮件发送</Text>
+                <Form.Section text={t('配置 SMTP')}>
+                  <Text>{t('用以支持系统的邮件发送')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPServer' label='SMTP 服务器地址' />
+                      <Form.Input field='SMTPServer' label={t('SMTP 服务器地址')} />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPPort' label='SMTP 端口' />
+                      <Form.Input field='SMTPPort' label={t('SMTP 端口')} />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPAccount' label='SMTP 账户' />
+                      <Form.Input field='SMTPAccount' label={t('SMTP 账户')} />
                     </Col>
                   </Row>
                   <Row
@@ -717,12 +743,12 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPFrom' label='SMTP 发送者邮箱' />
+                      <Form.Input field='SMTPFrom' label={t('SMTP 发送者邮箱')} />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input
                         field='SMTPToken'
-                        label='SMTP 访问凭证'
+                        label={t('SMTP 访问凭证')}
                         type='password'
                         placeholder='敏感信息不会发送到前端显示'
                       />
@@ -735,27 +761,25 @@ const SystemSetting = () => {
                           handleCheckboxChange('SMTPSSLEnabled', e)
                         }
                       >
-                        启用SMTP SSL
+                        {t('启用SMTP SSL')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
-                  <Button onClick={submitSMTP}>保存 SMTP 设置</Button>
+                  <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>
                 </Form.Section>
               </Card>
               <Card>
-                <Form.Section text='配置 OIDC'>
+                <Form.Section text={t('配置 OIDC')}>
                   <Text>
-                    用以支持通过 OIDC 登录，例如 Okta、Auth0 等兼容 OIDC 协议的
-                    IdP
+                    {t('用以支持通过 OIDC 登录，例如 Okta、Auth0 等兼容 OIDC 协议的 IdP')}
                   </Text>
                   <Banner
                     type='info'
-                    description={`主页链接填 ${inputs.ServerAddress ? inputs.ServerAddress : '网站地址'}，重定向 URL 填 ${inputs.ServerAddress ? inputs.ServerAddress : '网站地址'}/oauth/oidc`}
+                    description={`${t('主页链接填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}，${t('重定向 URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/oidc`}
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
                   <Text>
-                    若你的 OIDC Provider 支持 Discovery Endpoint，你可以仅填写
-                    OIDC Well-Known URL，系统会自动获取 OIDC 配置
+                    {t('若你的 OIDC Provider 支持 Discovery Endpoint，你可以仅填写 OIDC Well-Known URL，系统会自动获取 OIDC 配置')}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -763,15 +787,15 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field="['oidc.well_known']"
-                        label='Well-Known URL'
-                        placeholder='请输入 OIDC 的 Well-Known URL'
+                        label={t('Well-Known URL')}
+                        placeholder={t('请输入 OIDC 的 Well-Known URL')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field="['oidc.client_id']"
-                        label='Client ID'
-                        placeholder='输入 OIDC 的 Client ID'
+                        label={t('Client ID')}
+                        placeholder={t('输入 OIDC 的 Client ID')}
                       />
                     </Col>
                   </Row>
@@ -781,16 +805,16 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field="['oidc.client_secret']"
-                        label='Client Secret'
+                        label={t('Client Secret')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field="['oidc.authorization_endpoint']"
-                        label='Authorization Endpoint'
-                        placeholder='输入 OIDC 的 Authorization Endpoint'
+                        label={t('Authorization Endpoint')}
+                        placeholder={t('输入 OIDC 的 Authorization Endpoint')}
                       />
                     </Col>
                   </Row>
@@ -800,28 +824,28 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field="['oidc.token_endpoint']"
-                        label='Token Endpoint'
-                        placeholder='输入 OIDC 的 Token Endpoint'
+                        label={t('Token Endpoint')}
+                        placeholder={t('输入 OIDC 的 Token Endpoint')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field="['oidc.user_info_endpoint']"
-                        label='User Info Endpoint'
-                        placeholder='输入 OIDC 的 Userinfo Endpoint'
+                        label={t('User Info Endpoint')}
+                        placeholder={t('输入 OIDC 的 Userinfo Endpoint')}
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitOIDCSettings}>保存 OIDC 设置</Button>
+                  <Button onClick={submitOIDCSettings}>{t('保存 OIDC 设置')}</Button>
                 </Form.Section>
               </Card>
 
               <Card>
-                <Form.Section text='配置 GitHub OAuth App'>
-                  <Text>用以支持通过 GitHub 进行登录注册</Text>
+                <Form.Section text={t('配置 GitHub OAuth App')}>
+                  <Text>{t('用以支持通过 GitHub 进行登录注册')}</Text>
                   <Banner
                     type='info'
-                    description={`Homepage URL 填 ${inputs.ServerAddress ? inputs.ServerAddress : '网站地址'}，Authorization callback URL 填 ${inputs.ServerAddress ? inputs.ServerAddress : '网站地址'}/oauth/github`}
+                    description={`${t('Homepage URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}，${t('Authorization callback URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/github`}
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
                   <Row
@@ -830,27 +854,27 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='GitHubClientId'
-                        label='GitHub Client ID'
+                        label={t('GitHub Client ID')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='GitHubClientSecret'
-                        label='GitHub Client Secret'
+                        label={t('GitHub Client Secret')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                   </Row>
                   <Button onClick={submitGitHubOAuth}>
-                    保存 GitHub OAuth 设置
+                    {t('保存 GitHub OAuth 设置')}
                   </Button>
                 </Form.Section>
               </Card>
               <Card>
-                <Form.Section text='配置 Linux DO OAuth'>
+                <Form.Section text={t('配置 Linux DO OAuth')}>
                   <Text>
-                    用以支持通过 Linux DO 进行登录注册
+                    {t('用以支持通过 Linux DO 进行登录注册')}
                     <a
                       href='https://connect.linux.do/'
                       target='_blank'
@@ -861,13 +885,13 @@ const SystemSetting = () => {
                         marginRight: 4,
                       }}
                     >
-                      点击此处
+                      {t('点击此处')}
                     </a>
-                    管理你的 LinuxDO OAuth App
+                    {t('管理你的 LinuxDO OAuth App')}
                   </Text>
                   <Banner
                     type='info'
-                    description={`回调 URL 填 ${inputs.ServerAddress ? inputs.ServerAddress : '网站地址'}/oauth/linuxdo`}
+                    description={`${t('回调 URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/linuxdo`}
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
                   <Row
@@ -876,122 +900,122 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='LinuxDOClientId'
-                        label='Linux DO Client ID'
-                        placeholder='输入你注册的 LinuxDO OAuth APP 的 ID'
+                        label={t('Linux DO Client ID')}
+                        placeholder={t('输入你注册的 LinuxDO OAuth APP 的 ID')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='LinuxDOClientSecret'
-                        label='Linux DO Client Secret'
+                        label={t('Linux DO Client Secret')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                   </Row>
                   <Button onClick={submitLinuxDOOAuth}>
-                    保存 Linux DO OAuth 设置
+                    {t('保存 Linux DO OAuth 设置')}
                   </Button>
                 </Form.Section>
               </Card>
 
               <Card>
-                <Form.Section text='配置 WeChat Server'>
-                  <Text>用以支持通过微信进行登录注册</Text>
+                <Form.Section text={t('配置 WeChat Server')}>
+                  <Text>{t('用以支持通过微信进行登录注册')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input
                         field='WeChatServerAddress'
-                        label='WeChat Server 服务器地址'
+                        label={t('WeChat Server 服务器地址')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input
                         field='WeChatServerToken'
-                        label='WeChat Server 访问凭证'
+                        label={t('WeChat Server 访问凭证')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input
                         field='WeChatAccountQRCodeImageURL'
-                        label='微信公众号二维码图片链接'
+                        label={t('微信公众号二维码图片链接')}
                       />
                     </Col>
                   </Row>
                   <Button onClick={submitWeChat}>
-                    保存 WeChat Server 设置
+                    {t('保存 WeChat Server 设置')}
                   </Button>
                 </Form.Section>
               </Card>
 
               <Card>
-                <Form.Section text='配置 Telegram 登录'>
-                  <Text>用以支持通过 Telegram 进行登录注册</Text>
+                <Form.Section text={t('配置 Telegram 登录')}>
+                  <Text>{t('用以支持通过 Telegram 进行登录注册')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='TelegramBotToken'
-                        label='Telegram Bot Token'
-                        placeholder='敏感信息不会发送到前端显示'
+                        label={t('Telegram Bot Token')}
+                        placeholder={t('敏感信息不会发送到前端显示')}
                         type='password'
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='TelegramBotName'
-                        label='Telegram Bot 名称'
+                        label={t('Telegram Bot 名称')}
                       />
                     </Col>
                   </Row>
                   <Button onClick={submitTelegramSettings}>
-                    保存 Telegram 登录设置
+                    {t('保存 Telegram 登录设置')}
                   </Button>
                 </Form.Section>
               </Card>
 
               <Card>
-                <Form.Section text='配置 Turnstile'>
-                  <Text>用以支持用户校验</Text>
+                <Form.Section text={t('配置 Turnstile')}>
+                  <Text>{t('用以支持用户校验')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='TurnstileSiteKey'
-                        label='Turnstile Site Key'
+                        label={t('Turnstile Site Key')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='TurnstileSecretKey'
-                        label='Turnstile Secret Key'
+                        label={t('Turnstile Secret Key')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitTurnstile}>保存 Turnstile 设置</Button>
+                  <Button onClick={submitTurnstile}>{t('保存 Turnstile 设置')}</Button>
                 </Form.Section>
               </Card>
 
               <Modal
-                title='确认取消密码登录'
+                title={t('确认取消密码登录')}
                 visible={showPasswordLoginConfirmModal}
                 onOk={handlePasswordLoginConfirm}
                 onCancel={() => {
                   setShowPasswordLoginConfirmModal(false);
                   formApiRef.current.setValue('PasswordLoginEnabled', true);
                 }}
-                okText='确认'
-                cancelText='取消'
+                okText={t('确认')}
+                cancelText={t('取消')}
               >
-                <p>您确定要取消密码登录功能吗？这可能会影响用户的登录方式。</p>
+                <p>{t('您确定要取消密码登录功能吗？这可能会影响用户的登录方式。')}</p>
               </Modal>
             </div>
           )}

@@ -20,7 +20,7 @@ import {
   renderQuota,
   stringToColor,
   getLogOther,
-  renderModelTag,
+  renderModelTag
 } from '../../helpers';
 
 import {
@@ -78,37 +78,37 @@ const LogsTable = () => {
     switch (type) {
       case 1:
         return (
-          <Tag color='cyan' size='large' shape='circle'>
+          <Tag color='cyan' shape='circle'>
             {t('充值')}
           </Tag>
         );
       case 2:
         return (
-          <Tag color='lime' size='large' shape='circle'>
+          <Tag color='lime' shape='circle'>
             {t('消费')}
           </Tag>
         );
       case 3:
         return (
-          <Tag color='orange' size='large' shape='circle'>
+          <Tag color='orange' shape='circle'>
             {t('管理')}
           </Tag>
         );
       case 4:
         return (
-          <Tag color='purple' size='large' shape='circle'>
+          <Tag color='purple' shape='circle'>
             {t('系统')}
           </Tag>
         );
       case 5:
         return (
-          <Tag color='red' size='large' shape='circle'>
+          <Tag color='red' shape='circle'>
             {t('错误')}
           </Tag>
         );
       default:
         return (
-          <Tag color='grey' size='large' shape='circle'>
+          <Tag color='grey' shape='circle'>
             {t('未知')}
           </Tag>
         );
@@ -118,13 +118,13 @@ const LogsTable = () => {
   function renderIsStream(bool) {
     if (bool) {
       return (
-        <Tag color='blue' size='large' shape='circle'>
+        <Tag color='blue' shape='circle'>
           {t('流')}
         </Tag>
       );
     } else {
       return (
-        <Tag color='purple' size='large' shape='circle'>
+        <Tag color='purple' shape='circle'>
           {t('非流')}
         </Tag>
       );
@@ -135,21 +135,21 @@ const LogsTable = () => {
     const time = parseInt(type);
     if (time < 101) {
       return (
-        <Tag color='green' size='large' shape='circle'>
+        <Tag color='green' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else if (time < 300) {
       return (
-        <Tag color='orange' size='large' shape='circle'>
+        <Tag color='orange' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else {
       return (
-        <Tag color='red' size='large' shape='circle'>
+        <Tag color='red' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
@@ -162,21 +162,21 @@ const LogsTable = () => {
     time = time.toFixed(1);
     if (time < 3) {
       return (
-        <Tag color='green' size='large' shape='circle'>
+        <Tag color='green' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else if (time < 10) {
       return (
-        <Tag color='orange' size='large' shape='circle'>
+        <Tag color='orange' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else {
       return (
-        <Tag color='red' size='large' shape='circle'>
+        <Tag color='red' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
@@ -356,28 +356,34 @@ const LogsTable = () => {
       dataIndex: 'channel',
       className: isAdmin() ? 'tableShow' : 'tableHiddle',
       render: (text, record, index) => {
-        return isAdminUser ? (
-          record.type === 0 || record.type === 2 || record.type === 5 ? (
-            <div>
-              {
-                <Tooltip content={record.channel_name || '[未知]'}>
-                  <Tag
-                    color={colors[parseInt(text) % colors.length]}
-                    size='large'
-                    shape='circle'
-                  >
-                    {' '}
-                    {text}{' '}
-                  </Tag>
-                </Tooltip>
-              }
-            </div>
-          ) : (
-            <></>
-          )
-        ) : (
-          <></>
-        );
+        let isMultiKey = false
+        let multiKeyIndex = -1;
+        let other = getLogOther(record.other);
+        if (other?.admin_info) {
+          let adminInfo = other.admin_info;
+          if (adminInfo?.is_multi_key) {
+            isMultiKey = true;
+            multiKeyIndex = adminInfo.multi_key_index;
+          }
+        }
+
+        return isAdminUser && (record.type === 0 || record.type === 2 || record.type === 5) ? (
+          <Space>
+            <Tooltip content={record.channel_name || t('未知渠道')}>
+              <Tag
+                color={colors[parseInt(text) % colors.length]}
+                shape='circle'
+              >
+                {text}
+              </Tag>
+            </Tooltip>
+            {isMultiKey && (
+              <Tag color='white' shape='circle'>
+                {multiKeyIndex}
+              </Tag>
+            )}
+          </Space>
+        ) : null;
       },
     },
     {
@@ -389,7 +395,7 @@ const LogsTable = () => {
         return isAdminUser ? (
           <div>
             <Avatar
-              size='small'
+              size='extra-small'
               color={stringToColor(text)}
               style={{ marginRight: 4 }}
               onClick={(event) => {
@@ -415,7 +421,6 @@ const LogsTable = () => {
           <div>
             <Tag
               color='grey'
-              size='large'
               shape='circle'
               onClick={(event) => {
                 //cancel the row click event
@@ -567,7 +572,6 @@ const LogsTable = () => {
           <Tooltip content={text}>
             <Tag
               color='orange'
-              size='large'
               shape='circle'
               onClick={(event) => {
                 copyText(event, text);
@@ -693,22 +697,13 @@ const LogsTable = () => {
         onCancel={() => setShowColumnSelector(false)}
         footer={
           <div className='flex justify-end'>
-            <Button
-              theme='light'
-              onClick={() => initDefaultColumns()}
-            >
+            <Button onClick={() => initDefaultColumns()}>
               {t('重置')}
             </Button>
-            <Button
-              theme='light'
-              onClick={() => setShowColumnSelector(false)}
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('取消')}
             </Button>
-            <Button
-              type='primary'
-              onClick={() => setShowColumnSelector(false)}
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('确定')}
             </Button>
           </div>
@@ -1215,11 +1210,10 @@ const LogsTable = () => {
                 <Space>
                   <Tag
                     color='blue'
-                    size='large'
                     style={{
-                      padding: 15,
                       fontWeight: 500,
                       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      padding: 13,
                     }}
                     className='!rounded-lg'
                   >
@@ -1227,11 +1221,10 @@ const LogsTable = () => {
                   </Tag>
                   <Tag
                     color='pink'
-                    size='large'
                     style={{
-                      padding: 15,
                       fontWeight: 500,
                       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      padding: 13,
                     }}
                     className='!rounded-lg'
                   >
@@ -1239,12 +1232,11 @@ const LogsTable = () => {
                   </Tag>
                   <Tag
                     color='white'
-                    size='large'
                     style={{
-                      padding: 15,
                       border: 'none',
                       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                       fontWeight: 500,
+                      padding: 13,
                     }}
                     className='!rounded-lg'
                   >
@@ -1253,10 +1245,10 @@ const LogsTable = () => {
                 </Space>
 
                 <Button
-                  theme='light'
-                  type='secondary'
+                  type='tertiary'
                   className="w-full md:w-auto"
                   onClick={() => setCompactMode(!compactMode)}
+                  size="small"
                 >
                   {compactMode ? t('自适应列表') : t('紧凑列表')}
                 </Button>
@@ -1287,6 +1279,7 @@ const LogsTable = () => {
                       placeholder={[t('开始时间'), t('结束时间')]}
                       showClear
                       pure
+                      size="small"
                     />
                   </div>
 
@@ -1297,6 +1290,7 @@ const LogsTable = () => {
                     placeholder={t('令牌名称')}
                     showClear
                     pure
+                    size="small"
                   />
 
                   <Form.Input
@@ -1305,6 +1299,7 @@ const LogsTable = () => {
                     placeholder={t('模型名称')}
                     showClear
                     pure
+                    size="small"
                   />
 
                   <Form.Input
@@ -1313,6 +1308,7 @@ const LogsTable = () => {
                     placeholder={t('分组')}
                     showClear
                     pure
+                    size="small"
                   />
 
                   {isAdminUser && (
@@ -1323,6 +1319,7 @@ const LogsTable = () => {
                         placeholder={t('渠道 ID')}
                         showClear
                         pure
+                        size="small"
                       />
                       <Form.Input
                         field='username'
@@ -1330,6 +1327,7 @@ const LogsTable = () => {
                         placeholder={t('用户名称')}
                         showClear
                         pure
+                        size="small"
                       />
                     </>
                   )}
@@ -1351,6 +1349,7 @@ const LogsTable = () => {
                           refresh();
                         }, 0);
                       }}
+                      size="small"
                     >
                       <Form.Select.Option value='0'>
                         {t('全部')}
@@ -1375,14 +1374,15 @@ const LogsTable = () => {
 
                   <div className='flex gap-2 w-full sm:w-auto justify-end'>
                     <Button
-                      type='primary'
+                      type='tertiary'
                       htmlType='submit'
                       loading={loading}
+                      size="small"
                     >
                       {t('查询')}
                     </Button>
                     <Button
-                      theme='light'
+                      type='tertiary'
                       onClick={() => {
                         if (formApi) {
                           formApi.reset();
@@ -1392,13 +1392,14 @@ const LogsTable = () => {
                           }, 100);
                         }
                       }}
+                      size="small"
                     >
                       {t('重置')}
                     </Button>
                     <Button
-                      theme='light'
                       type='tertiary'
                       onClick={() => setShowColumnSelector(true)}
+                      size="small"
                     >
                       {t('列设置')}
                     </Button>

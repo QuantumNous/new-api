@@ -1,5 +1,5 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { isMobile } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import {
   Modal,
   Table,
@@ -26,6 +26,7 @@ const ChannelSelectorModal = forwardRef(({
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const isMobile = useIsMobile();
 
   const [filteredData, setFilteredData] = useState([]);
 
@@ -118,25 +119,25 @@ const ChannelSelectorModal = forwardRef(({
     switch (status) {
       case 1:
         return (
-          <Tag size='large' color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+          <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
             {t('已启用')}
           </Tag>
         );
       case 2:
         return (
-          <Tag size='large' color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
+          <Tag color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
             {t('已禁用')}
           </Tag>
         );
       case 3:
         return (
-          <Tag size='large' color='yellow' shape='circle' prefixIcon={<AlertCircle size={14} />}>
+          <Tag color='yellow' shape='circle' prefixIcon={<AlertCircle size={14} />}>
             {t('自动禁用')}
           </Tag>
         );
       default:
         return (
-          <Tag size='large' color='grey' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='grey' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知状态')}
           </Tag>
         );
@@ -186,7 +187,7 @@ const ChannelSelectorModal = forwardRef(({
       onCancel={onCancel}
       onOk={onOk}
       title={<span className="text-lg font-semibold">{t('选择同步渠道')}</span>}
-      size={isMobile() ? 'full-width' : 'large'}
+      size={isMobile ? 'full-width' : 'large'}
       keepDOM
       lazyRender={false}
     >

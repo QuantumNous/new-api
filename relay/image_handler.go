@@ -16,6 +16,7 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -107,23 +108,23 @@ func getAndValidImageRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.
 	return imageRequest, nil
 }
 
-func ImageHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
+func ImageHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	relayInfo := relaycommon.GenRelayInfoImage(c)
 
 	imageRequest, err := getAndValidImageRequest(c, relayInfo)
 	if err != nil {
 		common.LogError(c, fmt.Sprintf("getAndValidImageRequest failed: %s", err.Error()))
-		return service.OpenAIErrorWrapper(err, "invalid_image_request", http.StatusBadRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
 
 	err = helper.ModelMappedHelper(c, relayInfo, imageRequest)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_mapped_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
 	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, len(imageRequest.Prompt), 0)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_price_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeModelPriceError)
 	}
 	var preConsumedQuota int
 	var quota int
@@ -132,35 +133,37 @@ func ImageHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 		// modelRatio 16 = modelPrice $0.04
 		// per 1 modelRatio = $0.04 / 16
 		// priceData.ModelPrice = 0.0025 * priceData.ModelRatio
-		var openaiErr *dto.OpenAIErrorWithStatusCode
-		preConsumedQuota, userQuota, openaiErr = preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
-		if openaiErr != nil {
-			return openaiErr
+		preConsumedQuota, userQuota, newAPIError = preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
+		if newAPIError != nil {
+			return newAPIError
 		}
 		defer func() {
-			if openaiErr != nil {
+			if newAPIError != nil {
 				returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
 			}
 		}()
 
 	} else {
 		sizeRatio := 1.0
-		// Size
-		if imageRequest.Size == "256x256" {
-			sizeRatio = 0.4
-		} else if imageRequest.Size == "512x512" {
-			sizeRatio = 0.45
-		} else if imageRequest.Size == "1024x1024" {
-			sizeRatio = 1
-		} else if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
-			sizeRatio = 2
-		}
-
 		qualityRatio := 1.0
-		if imageRequest.Model == "dall-e-3" && imageRequest.Quality == "hd" {
-			qualityRatio = 2.0
-			if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
-				qualityRatio = 1.5
+
+		if strings.HasPrefix(imageRequest.Model, "dall-e") {
+			// Size
+			if imageRequest.Size == "256x256" {
+				sizeRatio = 0.4
+			} else if imageRequest.Size == "512x512" {
+				sizeRatio = 0.45
+			} else if imageRequest.Size == "1024x1024" {
+				sizeRatio = 1
+			} else if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
+				sizeRatio = 2
+			}
+
+			if imageRequest.Model == "dall-e-3" && imageRequest.Quality == "hd" {
+				qualityRatio = 2.0
+				if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
+					qualityRatio = 1.5
+				}
 			}
 		}
 
@@ -169,16 +172,16 @@ func ImageHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 		quota = int(priceData.ModelPrice * priceData.GroupRatioInfo.GroupRatio * common.QuotaPerUnit)
 		userQuota, err = model.GetUserQuota(relayInfo.UserId, false)
 		if err != nil {
-			return service.OpenAIErrorWrapperLocal(err, "get_user_quota_failed", http.StatusInternalServerError)
+			return types.NewError(err, types.ErrorCodeQueryDataError)
 		}
 		if userQuota-quota < 0 {
-			return service.OpenAIErrorWrapperLocal(fmt.Errorf("image pre-consumed quota failed, user quota: %s, need quota: %s", common.FormatQuota(userQuota), common.FormatQuota(quota)), "insufficient_user_quota", http.StatusForbidden)
+			return types.NewError(fmt.Errorf("image pre-consumed quota failed, user quota: %s, need quota: %s", common.FormatQuota(userQuota), common.FormatQuota(quota)), types.ErrorCodeInsufficientUserQuota)
 		}
 	}
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return service.OpenAIErrorWrapperLocal(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), "invalid_api_type", http.StatusBadRequest)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
 	}
 	adaptor.Init(relayInfo)
 
@@ -186,14 +189,14 @@ func ImageHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 
 	convertedRequest, err := adaptor.ConvertImageRequest(c, relayInfo, *imageRequest)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "convert_request_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 	}
 	if relayInfo.RelayMode == relayconstant.RelayModeImagesEdits {
 		requestBody = convertedRequest.(io.Reader)
 	} else {
 		jsonData, err := json.Marshal(convertedRequest)
 		if err != nil {
-			return service.OpenAIErrorWrapperLocal(err, "json_marshal_failed", http.StatusInternalServerError)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 		requestBody = bytes.NewBuffer(jsonData)
 	}
@@ -206,25 +209,25 @@ func ImageHelper(c *gin.Context) *dto.OpenAIErrorWithStatusCode {
 
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			openaiErr := service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-			return openaiErr
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
 	}
 
-	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
-	if openaiErr != nil {
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, relayInfo)
+	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-		return openaiErr
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return newAPIError
 	}
 
 	if usage.(*dto.Usage).TotalTokens == 0 {

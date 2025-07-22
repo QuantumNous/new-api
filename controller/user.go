@@ -188,10 +188,7 @@ func Register(c *gin.Context) {
 		cleanUser.Email = user.Email
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -247,81 +244,45 @@ func Register(c *gin.Context) {
 }
 
 func GetAllUsers(c *gin.Context) {
-	pageInfo, err := common.GetPageQuery(c)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "parse page query failed",
-		})
-		return
-	}
+	pageInfo := common.GetPageQuery(c)
 	users, total, err := model.GetAllUsers(pageInfo)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    pageInfo,
-	})
+
+	common.ApiSuccess(c, pageInfo)
 	return
 }
 
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
-	p, _ := strconv.Atoi(c.Query("p"))
-	pageSize, _ := strconv.Atoi(c.Query("page_size"))
-	if p < 1 {
-		p = 1
-	}
-	if pageSize < 0 {
-		pageSize = common.ItemsPerPage
-	}
-	startIdx := (p - 1) * pageSize
-	users, total, err := model.SearchUsers(keyword, group, startIdx, pageSize)
+	pageInfo := common.GetPageQuery(c)
+	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"items":     users,
-			"total":     total,
-			"page":      p,
-			"page_size": pageSize,
-		},
-	})
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(users)
+	common.ApiSuccess(c, pageInfo)
 	return
 }
 
 func GetUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	user, err := model.GetUserById(id, false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	myRole := c.GetInt("role")
@@ -344,10 +305,7 @@ func GenerateAccessToken(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	// get rand int 28-32
@@ -372,10 +330,7 @@ func GenerateAccessToken(c *gin.Context) {
 	}
 
 	if err := user.Update(false); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -395,18 +350,12 @@ func TransferAffQuota(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	tran := TransferAffQuotaRequest{}
 	if err := c.ShouldBindJSON(&tran); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	err = user.TransferAffQuotaToQuota(tran.Quota)
@@ -427,10 +376,7 @@ func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	if user.AffCode == "" {
@@ -455,10 +401,7 @@ func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	// Hide admin remarks: set to empty to trigger omitempty tag, ensuring the remark field is not included in JSON returned to regular users
@@ -479,10 +422,7 @@ func GetUserModels(c *gin.Context) {
 	}
 	user, err := model.GetUserCache(id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	groups := setting.GetUserUsableGroups(user.Group)
@@ -524,10 +464,7 @@ func UpdateUser(c *gin.Context) {
 	}
 	originUser, err := model.GetUserById(updatedUser.Id, false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	myRole := c.GetInt("role")
@@ -550,10 +487,7 @@ func UpdateUser(c *gin.Context) {
 	}
 	updatePassword := updatedUser.Password != ""
 	if err := updatedUser.Edit(updatePassword); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	if originUser.Quota != updatedUser.Quota {
@@ -599,17 +533,11 @@ func UpdateSelf(c *gin.Context) {
 	}
 	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	if err := cleanUser.Update(updatePassword); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -640,18 +568,12 @@ func checkUpdatePassword(originalPassword string, newPassword string, userId int
 func DeleteUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	originUser, err := model.GetUserById(id, false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	myRole := c.GetInt("role")
@@ -686,10 +608,7 @@ func DeleteSelf(c *gin.Context) {
 
 	err := model.DeleteUserById(id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -735,10 +654,7 @@ func CreateUser(c *gin.Context) {
 		DisplayName: user.DisplayName,
 	}
 	if err := cleanUser.Insert(0); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -848,10 +764,7 @@ func ManageUser(c *gin.Context) {
 	}
 
 	if err := user.Update(false); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	clearUser := model.User{
@@ -883,20 +796,14 @@ func EmailBind(c *gin.Context) {
 	}
 	err := user.FillUserById()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	user.Email = email
 	// no need to check if this email already taken, because we have used verification code to check it
 	err = user.Update(false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -918,19 +825,13 @@ func TopUp(c *gin.Context) {
 	req := topUpRequest{}
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	id := c.GetInt("id")
 	quota, err := model.Redeem(req.Key, id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -1013,10 +914,7 @@ func UpdateUserSetting(c *gin.Context) {
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 

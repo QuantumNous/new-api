@@ -1,14 +1,14 @@
 import React, { useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { initVChartSemiTheme } from '@visactor/vchart-semi-theme';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, Activity, Zap, Gauge, PieChart, Server, Bell, HelpCircle } from 'lucide-react';
+import { Wallet, Activity, Zap, Gauge, PieChart, Server, Bell, HelpCircle, ExternalLink } from 'lucide-react';
 import { marked } from 'marked';
 
 import {
   Card,
   Form,
   Spin,
-  IconButton,
+  Button,
   Modal,
   Avatar,
   Tabs,
@@ -18,14 +18,14 @@ import {
   Timeline,
   Collapse,
   Progress,
-  Divider
+  Divider,
+  Skeleton
 } from '@douyinfe/semi-ui';
 import {
   IconRefresh,
   IconSearch,
   IconMoneyExchangeStroked,
   IconHistogram,
-  IconRotate,
   IconCoinMoneyStroked,
   IconTextStroked,
   IconPulse,
@@ -33,15 +33,17 @@ import {
   IconTypograph,
   IconPieChart2Stroked,
   IconPlus,
-  IconMinus
+  IconMinus,
+  IconSend
 } from '@douyinfe/semi-icons';
 import { IllustrationConstruction, IllustrationConstructionDark } from '@douyinfe/semi-illustrations';
 import { VChart } from '@visactor/react-vchart';
 import {
   API,
   isAdmin,
-  isMobile,
   showError,
+  showSuccess,
+  showWarning,
   timestamp2string,
   timestamp2string1,
   getQuotaWithUnit,
@@ -50,9 +52,9 @@ import {
   renderQuota,
   modelToColor,
   copy,
-  showSuccess,
   getRelativeTime
 } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import { UserContext } from '../../context/User/index.js';
 import { StatusContext } from '../../context/Status/index.js';
 import { useTranslation } from 'react-i18next';
@@ -65,6 +67,7 @@ const Detail = (props) => {
   // ========== Hooks - Navigation & Translation ==========
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // ========== Hooks - Refs ==========
   const formRef = useRef();
@@ -192,6 +195,7 @@ const Detail = (props) => {
   const [dataExportDefaultTime, setDataExportDefaultTime] = useState(getDefaultTime());
 
   const [loading, setLoading] = useState(false);
+  const [greetingVisible, setGreetingVisible] = useState(false);
   const [quotaData, setQuotaData] = useState([]);
   const [consumeQuota, setConsumeQuota] = useState(0);
   const [consumeTokens, setConsumeTokens] = useState(0);
@@ -449,7 +453,7 @@ const Detail = (props) => {
   // ========== Hooks - Memoized Values ==========
   const performanceMetrics = useMemo(() => {
     const timeDiff = (Date.parse(end_timestamp) - Date.parse(start_timestamp)) / 60000;
-    const avgRPM = (times / timeDiff).toFixed(3);
+    const avgRPM = isNaN(times / timeDiff) ? '0' : (times / timeDiff).toFixed(3);
     const avgTPM = isNaN(consumeTokens / timeDiff) ? '0' : (consumeTokens / timeDiff).toFixed(3);
 
     return { avgRPM, avgTPM, timeDiff };
@@ -518,7 +522,7 @@ const Detail = (props) => {
         {
           title: t('当前余额'),
           value: renderQuota(userState?.user?.quota),
-          icon: <IconMoneyExchangeStroked size="large" />,
+          icon: <IconMoneyExchangeStroked />,
           avatarColor: 'blue',
           onClick: () => navigate('/console/topup'),
           trendData: [],
@@ -527,7 +531,7 @@ const Detail = (props) => {
         {
           title: t('历史消耗'),
           value: renderQuota(userState?.user?.used_quota),
-          icon: <IconHistogram size="large" />,
+          icon: <IconHistogram />,
           avatarColor: 'purple',
           trendData: [],
           trendColor: '#8b5cf6'
@@ -541,7 +545,7 @@ const Detail = (props) => {
         {
           title: t('请求次数'),
           value: userState.user?.request_count,
-          icon: <IconRotate size="large" />,
+          icon: <IconSend />,
           avatarColor: 'green',
           trendData: [],
           trendColor: '#10b981'
@@ -549,7 +553,7 @@ const Detail = (props) => {
         {
           title: t('统计次数'),
           value: times,
-          icon: <IconPulse size="large" />,
+          icon: <IconPulse />,
           avatarColor: 'cyan',
           trendData: trendData.times,
           trendColor: '#06b6d4'
@@ -563,7 +567,7 @@ const Detail = (props) => {
         {
           title: t('统计额度'),
           value: renderQuota(consumeQuota),
-          icon: <IconCoinMoneyStroked size="large" />,
+          icon: <IconCoinMoneyStroked />,
           avatarColor: 'yellow',
           trendData: trendData.consumeQuota,
           trendColor: '#f59e0b'
@@ -571,7 +575,7 @@ const Detail = (props) => {
         {
           title: t('统计Tokens'),
           value: isNaN(consumeTokens) ? 0 : consumeTokens,
-          icon: <IconTextStroked size="large" />,
+          icon: <IconTextStroked />,
           avatarColor: 'pink',
           trendData: trendData.tokens,
           trendColor: '#ec4899'
@@ -585,7 +589,7 @@ const Detail = (props) => {
         {
           title: t('平均RPM'),
           value: performanceMetrics.avgRPM,
-          icon: <IconStopwatchStroked size="large" />,
+          icon: <IconStopwatchStroked />,
           avatarColor: 'indigo',
           trendData: trendData.rpm,
           trendColor: '#6366f1'
@@ -593,7 +597,7 @@ const Detail = (props) => {
         {
           title: t('平均TPM'),
           value: performanceMetrics.avgTPM,
-          icon: <IconTypograph size="large" />,
+          icon: <IconTypograph />,
           avatarColor: 'orange',
           trendData: trendData.tpm,
           trendColor: '#f97316'
@@ -614,7 +618,7 @@ const Detail = (props) => {
   const handleSpeedTest = useCallback((apiUrl) => {
     const encodedUrl = encodeURIComponent(apiUrl);
     const speedTestUrl = `https://www.tcptest.cn/http/${encodedUrl}`;
-    window.open(speedTestUrl, '_blank');
+    window.open(speedTestUrl, '_blank', 'noopener,noreferrer');
   }, []);
 
   const handleInputChange = useCallback((value, name) => {
@@ -627,6 +631,7 @@ const Detail = (props) => {
 
   const loadQuotaData = useCallback(async () => {
     setLoading(true);
+    const startTime = Date.now();
     try {
       let url = '';
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
@@ -654,7 +659,11 @@ const Detail = (props) => {
         showError(message);
       }
     } finally {
-      setLoading(false);
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, 500 - elapsed);
+      setTimeout(() => {
+        setLoading(false);
+      }, remainingTime);
     }
   }, [start_timestamp, end_timestamp, username, dataExportDefaultTime, isAdminUser]);
 
@@ -745,6 +754,13 @@ const Detail = (props) => {
     }, 100);
     return () => clearTimeout(timer);
   }, [uptimeData, activeUptimeTab]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setGreetingVisible(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const getUserData = async () => {
     let res = await API.get(`/api/user/self`);
@@ -1104,16 +1120,23 @@ const Detail = (props) => {
   }, []);
 
   return (
-    <div className="bg-gray-50 h-full mt-[64px]">
+    <div className="bg-gray-50 h-full mt-[64px] px-2">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-semibold text-gray-800">{getGreeting}</h2>
+        <h2
+          className="text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out"
+          style={{ opacity: greetingVisible ? 1 : 0 }}
+        >
+          {getGreeting}
+        </h2>
         <div className="flex gap-3">
-          <IconButton
+          <Button
+            type='tertiary'
             icon={<IconSearch />}
             onClick={showSearchModal}
             className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
           />
-          <IconButton
+          <Button
+            type='tertiary'
             icon={<IconRefresh />}
             onClick={refresh}
             loading={loading}
@@ -1129,7 +1152,7 @@ const Detail = (props) => {
         onOk={handleSearchConfirm}
         onCancel={handleCloseModal}
         closeOnEsc={true}
-        size={isMobile() ? 'full-width' : 'small'}
+        size={isMobile ? 'full-width' : 'small'}
         centered
       >
         <Form ref={formRef} layout='vertical' className="w-full">
@@ -1174,143 +1197,159 @@ const Detail = (props) => {
         </Form>
       </Modal>
 
-      <Spin spinning={loading}>
-        <div className="mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {groupedStatsData.map((group, idx) => (
-              <Card
-                key={idx}
-                {...CARD_PROPS}
-                className={`${group.color} border-0 !rounded-2xl w-full`}
-                title={group.title}
-              >
-                <div className="space-y-4">
-                  {group.items.map((item, itemIdx) => (
-                    <div
-                      key={itemIdx}
-                      className="flex items-center justify-between cursor-pointer"
-                      onClick={item.onClick}
-                    >
-                      <div className="flex items-center">
-                        <Avatar
-                          className="mr-3"
-                          size="small"
-                          color={item.avatarColor}
-                        >
-                          {item.icon}
-                        </Avatar>
-                        <div>
-                          <div className="text-xs text-gray-500">{item.title}</div>
-                          <div className="text-lg font-semibold">{item.value}</div>
+      <div className="mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {groupedStatsData.map((group, idx) => (
+            <Card
+              key={idx}
+              {...CARD_PROPS}
+              className={`${group.color} border-0 !rounded-2xl w-full`}
+              title={group.title}
+            >
+              <div className="space-y-4">
+                {group.items.map((item, itemIdx) => (
+                  <div
+                    key={itemIdx}
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={item.onClick}
+                  >
+                    <div className="flex items-center">
+                      <Avatar
+                        className="mr-3"
+                        size="small"
+                        color={item.avatarColor}
+                      >
+                        {item.icon}
+                      </Avatar>
+                      <div>
+                        <div className="text-xs text-gray-500">{item.title}</div>
+                        <div className="text-lg font-semibold">
+                          <Skeleton
+                            loading={loading}
+                            active
+                            placeholder={
+                              <Skeleton.Paragraph
+                                active
+                                rows={1}
+                                style={{ width: '65px', height: '24px', marginTop: '4px' }}
+                              />
+                            }
+                          >
+                            {item.value}
+                          </Skeleton>
                         </div>
                       </div>
-                      {item.trendData && item.trendData.length > 0 && (
-                        <div className="w-24 h-10">
-                          <VChart
-                            spec={getTrendSpec(item.trendData, item.trendColor)}
-                            option={CHART_CONFIG}
-                          />
-                        </div>
-                      )}
                     </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <div className={`grid grid-cols-1 gap-4 ${hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}>
-            <Card
-              {...CARD_PROPS}
-              className={`shadow-sm !rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
-              title={
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3">
-                  <div className={FLEX_CENTER_GAP2}>
-                    <PieChart size={16} />
-                    {t('模型数据分析')}
+                    {(loading || (item.trendData && item.trendData.length > 0)) && (
+                      <div className="w-24 h-10">
+                        <VChart
+                          spec={getTrendSpec(item.trendData, item.trendColor)}
+                          option={CHART_CONFIG}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <Tabs
-                    type="button"
-                    activeKey={activeChartTab}
-                    onChange={setActiveChartTab}
-                  >
-                    <TabPane tab={
-                      <span>
-                        <IconHistogram />
-                        {t('消耗分布')}
-                      </span>
-                    } itemKey="1" />
-                    <TabPane tab={
-                      <span>
-                        <IconPulse />
-                        {t('消耗趋势')}
-                      </span>
-                    } itemKey="2" />
-                    <TabPane tab={
-                      <span>
-                        <IconPieChart2Stroked />
-                        {t('调用次数分布')}
-                      </span>
-                    } itemKey="3" />
-                    <TabPane tab={
-                      <span>
-                        <IconHistogram />
-                        {t('调用次数排行')}
-                      </span>
-                    } itemKey="4" />
-                  </Tabs>
-                </div>
-              }
-            >
-              <div style={{ height: 400 }}>
-                {activeChartTab === '1' && (
-                  <VChart
-                    spec={spec_line}
-                    option={CHART_CONFIG}
-                  />
-                )}
-                {activeChartTab === '2' && (
-                  <VChart
-                    spec={spec_model_line}
-                    option={CHART_CONFIG}
-                  />
-                )}
-                {activeChartTab === '3' && (
-                  <VChart
-                    spec={spec_pie}
-                    option={CHART_CONFIG}
-                  />
-                )}
-                {activeChartTab === '4' && (
-                  <VChart
-                    spec={spec_rank_bar}
-                    option={CHART_CONFIG}
-                  />
-                )}
+                ))}
               </div>
             </Card>
+          ))}
+        </div>
+      </div>
 
-            {hasApiInfoPanel && (
-              <Card
-                {...CARD_PROPS}
-                className="bg-gray-50 border-0 !rounded-2xl"
-                title={
-                  <div className={FLEX_CENTER_GAP2}>
-                    <Server size={16} />
-                    {t('API信息')}
-                  </div>
-                }
-              >
-                <div className="card-content-container">
-                  <div
-                    ref={apiScrollRef}
-                    className="space-y-3 max-h-96 overflow-y-auto card-content-scroll"
-                    onScroll={handleApiScroll}
-                  >
-                    {apiInfoData.length > 0 ? (
-                      apiInfoData.map((api) => (
+      <div className="mb-4">
+        <div className={`grid grid-cols-1 gap-4 ${hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}>
+          <Card
+            {...CARD_PROPS}
+            className={`shadow-sm !rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
+            title={
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3">
+                <div className={FLEX_CENTER_GAP2}>
+                  <PieChart size={16} />
+                  {t('模型数据分析')}
+                </div>
+                <Tabs
+                  type="button"
+                  activeKey={activeChartTab}
+                  onChange={setActiveChartTab}
+                >
+                  <TabPane tab={
+                    <span>
+                      <IconHistogram />
+                      {t('消耗分布')}
+                    </span>
+                  } itemKey="1" />
+                  <TabPane tab={
+                    <span>
+                      <IconPulse />
+                      {t('消耗趋势')}
+                    </span>
+                  } itemKey="2" />
+                  <TabPane tab={
+                    <span>
+                      <IconPieChart2Stroked />
+                      {t('调用次数分布')}
+                    </span>
+                  } itemKey="3" />
+                  <TabPane tab={
+                    <span>
+                      <IconHistogram />
+                      {t('调用次数排行')}
+                    </span>
+                  } itemKey="4" />
+                </Tabs>
+              </div>
+            }
+            bodyStyle={{ padding: 0 }}
+          >
+            <div className="h-96 p-2">
+              {activeChartTab === '1' && (
+                <VChart
+                  spec={spec_line}
+                  option={CHART_CONFIG}
+                />
+              )}
+              {activeChartTab === '2' && (
+                <VChart
+                  spec={spec_model_line}
+                  option={CHART_CONFIG}
+                />
+              )}
+              {activeChartTab === '3' && (
+                <VChart
+                  spec={spec_pie}
+                  option={CHART_CONFIG}
+                />
+              )}
+              {activeChartTab === '4' && (
+                <VChart
+                  spec={spec_rank_bar}
+                  option={CHART_CONFIG}
+                />
+              )}
+            </div>
+          </Card>
+
+          {hasApiInfoPanel && (
+            <Card
+              {...CARD_PROPS}
+              className="bg-gray-50 border-0 !rounded-2xl"
+              title={
+                <div className={FLEX_CENTER_GAP2}>
+                  <Server size={16} />
+                  {t('API信息')}
+                </div>
+              }
+              bodyStyle={{ padding: 0 }}
+            >
+              <div className="card-content-container">
+                <div
+                  ref={apiScrollRef}
+                  className="p-2 max-h-96 overflow-y-auto card-content-scroll"
+                  onScroll={handleApiScroll}
+                >
+                  {apiInfoData.length > 0 ? (
+                    apiInfoData.map((api) => (
+                      <>
                         <div key={api.id} className="flex p-2 hover:bg-white rounded-lg transition-colors cursor-pointer">
                           <div className="flex-shrink-0 mr-3">
                             <Avatar
@@ -1321,18 +1360,32 @@ const Detail = (props) => {
                             </Avatar>
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900 mb-1 !font-bold flex items-center gap-2">
-                              <Tag
-                                prefixIcon={<Gauge size={12} />}
-                                size="small"
-                                color="white"
-                                shape='circle'
-                                onClick={() => handleSpeedTest(api.url)}
-                                className="cursor-pointer hover:opacity-80 text-xs"
-                              >
-                                {t('测速')}
-                              </Tag>
-                              {api.route}
+                            <div className="flex flex-wrap items-center justify-between mb-1 w-full gap-2">
+                              <span className="text-sm font-medium text-gray-900 !font-bold break-all">
+                                {api.route}
+                              </span>
+                              <div className="flex items-center gap-1 mt-1 lg:mt-0">
+                                <Tag
+                                  prefixIcon={<Gauge size={12} />}
+                                  size="small"
+                                  color="white"
+                                  shape='circle'
+                                  onClick={() => handleSpeedTest(api.url)}
+                                  className="cursor-pointer hover:opacity-80 text-xs"
+                                >
+                                  {t('测速')}
+                                </Tag>
+                                <Tag
+                                  prefixIcon={<ExternalLink size={12} />}
+                                  size="small"
+                                  color="white"
+                                  shape='circle'
+                                  onClick={() => window.open(api.url, '_blank', 'noopener,noreferrer')}
+                                  className="cursor-pointer hover:opacity-80 text-xs"
+                                >
+                                  {t('跳转')}
+                                </Tag>
+                              </div>
                             </div>
                             <div
                               className="!text-semi-color-primary break-all cursor-pointer hover:underline mb-1"
@@ -1345,30 +1398,33 @@ const Detail = (props) => {
                             </div>
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="flex justify-center items-center py-8">
-                        <Empty
-                          image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-                          darkModeImage={<IllustrationConstructionDark style={ILLUSTRATION_SIZE} />}
-                          title={t('暂无API信息')}
-                          description={t('请联系管理员在系统设置中配置API信息')}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div
-                    className="card-content-fade-indicator"
-                    style={{ opacity: showApiScrollHint ? 1 : 0 }}
-                  />
+                        <Divider />
+                      </>
+                    ))
+                  ) : (
+                    <div className="flex justify-center items-center py-8">
+                      <Empty
+                        image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
+                        darkModeImage={<IllustrationConstructionDark style={ILLUSTRATION_SIZE} />}
+                        title={t('暂无API信息')}
+                        description={t('请联系管理员在系统设置中配置API信息')}
+                      />
+                    </div>
+                  )}
                 </div>
-              </Card>
-            )}
-          </div>
+                <div
+                  className="card-content-fade-indicator"
+                  style={{ opacity: showApiScrollHint ? 1 : 0 }}
+                />
+              </div>
+            </Card>
+          )}
         </div>
+      </div>
 
-        {/* 系统公告和常见问答卡片 */}
-        {hasInfoPanels && (
+      {/* 系统公告和常见问答卡片 */}
+      {
+        hasInfoPanels && (
           <div className="mb-4">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               {/* 公告卡片 */}
@@ -1381,7 +1437,7 @@ const Detail = (props) => {
                       <div className="flex items-center gap-2">
                         <Bell size={16} />
                         {t('系统公告')}
-                        <Tag size="small" color="grey" shape="circle">
+                        <Tag color="white" shape="circle">
                           {t('显示最新20条')}
                         </Tag>
                       </div>
@@ -1405,6 +1461,7 @@ const Detail = (props) => {
                       </div>
                     </div>
                   }
+                  bodyStyle={{ padding: 0 }}
                 >
                   <div className="card-content-container">
                     <div
@@ -1513,19 +1570,20 @@ const Detail = (props) => {
               {uptimeEnabled && (
                 <Card
                   {...CARD_PROPS}
-                  className="shadow-sm !rounded-2xl lg:col-span-1 flex flex-col"
+                  className="shadow-sm !rounded-2xl lg:col-span-1"
                   title={
                     <div className="flex items-center justify-between w-full gap-2">
                       <div className="flex items-center gap-2">
                         <Gauge size={16} />
                         {t('服务可用性')}
                       </div>
-                      <IconButton
+                      <Button
                         icon={<IconRefresh />}
                         onClick={loadUptimeData}
                         loading={uptimeLoading}
                         size="small"
                         theme="borderless"
+                        type='tertiary'
                         className="text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full"
                       />
                     </div>
@@ -1533,7 +1591,7 @@ const Detail = (props) => {
                   bodyStyle={{ padding: 0 }}
                 >
                   {/* 内容区域 */}
-                  <div className="flex-1 relative">
+                  <div className="relative">
                     <Spin spinning={uptimeLoading}>
                       {uptimeData.length > 0 ? (
                         uptimeData.length === 1 ? (
@@ -1613,9 +1671,9 @@ const Detail = (props) => {
                     </Spin>
                   </div>
 
-                  {/* 固定在底部的图例 */}
+                  {/* 图例 */}
                   {uptimeData.length > 0 && (
-                    <div className="p-3 mt-auto bg-gray-50 rounded-b-2xl">
+                    <div className="p-3 bg-gray-50 rounded-b-2xl">
                       <div className="flex flex-wrap gap-3 text-xs justify-center">
                         {uptimeLegendData.map((legend, index) => (
                           <div key={index} className="flex items-center gap-1">
@@ -1633,9 +1691,9 @@ const Detail = (props) => {
               )}
             </div>
           </div>
-        )}
-      </Spin>
-    </div>
+        )
+      }
+    </div >
   );
 };
 
