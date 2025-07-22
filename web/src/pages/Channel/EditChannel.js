@@ -56,6 +56,8 @@ function type2secretPrompt(type) {
       return '按照如下格式输入：AppId|SecretId|SecretKey';
     case 33:
       return '按照如下格式输入：Ak|Sk|Region';
+    case 101:
+      return '请输入JSON格式的鉴权信息';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -139,6 +141,16 @@ const EditChannel = (props) => {
           localModels = [
             'suno_music',
             'suno_lyrics'
+          ];
+          break;
+        case 101:
+          localModels = [
+            'Doubao-pro-128k-batch',
+            'Doubao-pro-32k-batch',
+            'Doubao-pro-4k-batch',
+            'Doubao-lite-128k-batch',
+            'Doubao-lite-32k-batch',
+            'Doubao-lite-4k-batch'
           ];
           break;
         default:
@@ -463,6 +475,14 @@ const EditChannel = (props) => {
               />
             </div>
           )}
+          {inputs.type === 101 && (
+            <div style={{ marginTop: 10 }}>
+              <Banner
+                type="info" 
+                description={t('豆包离线JOB类型支持批量处理，无需配置代理站地址和接入点地址，请使用JSON格式输入鉴权信息')}
+              />
+            </div>
+          )}
           {inputs.type === 3 && (
             <>
               <div style={{ marginTop: 10 }}>
@@ -538,7 +558,7 @@ const EditChannel = (props) => {
             value={inputs.name}
             autoComplete="new-password"
           />
-          {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && inputs.type !== 100 && (
+          {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && inputs.type !== 100 && inputs.type !== 101 && (
             <>
               <div style={{ marginTop: 10 }}>
                 <Typography.Text strong>{t('代理站地址')}：</Typography.Text>
@@ -594,12 +614,20 @@ const EditChannel = (props) => {
             />
           ) : (
             <>
-              {inputs.type === 41 ? (
+              {inputs.type === 41 || inputs.type === 101 ? (
                 <TextArea
-                  label={t('鉴权json')}
+                  label={inputs.type === 101 ? t('鉴权JSON') : t('鉴权json')}
                   name="key"
                   required
-                  placeholder={'{\n' +
+                  placeholder={inputs.type === 101 ? 
+                    '{\n' +
+                    '  "ak": "your_access_key_here",\n' +
+                    '  "sk": "your_secret_key_here",\n' +
+                    '  "endpoint": "your_endpoint_here",\n' +
+                    '  "region": "your_region_here",\n' +
+                    '  "bucket_name": "your_bucket_name_here"\n' +
+                    '}' :
+                    '{\n' +
                     '  "type": "service_account",\n' +
                     '  "project_id": "abc-bcd-123-456",\n' +
                     '  "private_key_id": "123xxxxx456",\n' +

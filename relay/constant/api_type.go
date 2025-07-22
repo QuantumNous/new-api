@@ -33,6 +33,7 @@ const (
 	APITypeOpenRouter
 	APITypeXai
 	APITypeDoubaoOffline
+	APITypeDoubaoBatchJob
 	APITypeDummy // this one is only for count, do not add any channel after this
 )
 
@@ -94,6 +95,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 	case common.ChannelTypeXai:
 		apiType = APITypeXai
 	case common.ChannelTypeDoubaoOffline:
+		apiType = APITypeVolcEngine
+	case common.ChannelTypeDoubaoBatchJob:
 		apiType = APITypeVolcEngine
 	}
 	if apiType == -1 {

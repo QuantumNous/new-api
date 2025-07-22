@@ -240,6 +240,7 @@ const (
 	ChannelTypeBaiduV2        = 46
 	ChannelTypeXai            = 47
 	ChannelTypeDoubaoOffline  = 100
+	ChannelTypeDoubaoBatchJob = 101
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -346,6 +347,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //98
 	"",                                          //99
 	"https://ark.cn-beijing.volces.com",         //100 - 豆包离线
+	"https://ark.cn-beijing.volces.com",         //101 - 豆包离线JOB
 }
 
 func init() {

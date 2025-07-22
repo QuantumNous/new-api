@@ -15,6 +15,14 @@ func SetRelayRouter(router *gin.Engine) {
 	// 添加ping路由用于测试
 	router.GET("/ping", controller.Ping)
 
+	batchJobRouter := router.Group("/batchjob")
+	batchJobRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		batchJobRouter.GET("/presign", controller.Presign)
+		batchJobRouter.POST("/register", controller.RegisterJob)
+		batchJobRouter.POST("/startjob", controller.StartJob)
+	}
+
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.TokenAuth())

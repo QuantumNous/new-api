@@ -91,6 +91,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &xai.Adaptor{}
 	case constant.APITypeDoubaoOffline:
 		return &volcengine.Adaptor{}
+	case constant.APITypeDoubaoBatchJob:
+		return &volcengine.Adaptor{}
 	}
 	return nil
 }

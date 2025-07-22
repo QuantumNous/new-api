@@ -323,8 +323,12 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 	channel.CreatedTime = common.GetTimestamp()
-	keys := strings.Split(channel.Key, "\n")
-	if channel.Type == common.ChannelTypeVertexAi {
+
+	// 对于batchjob类型，不进行换行分割，直接使用原始密钥
+	var keys []string
+	if channel.Type == common.ChannelTypeDoubaoBatchJob {
+		keys = []string{channel.Key}
+	} else if channel.Type == common.ChannelTypeVertexAi {
 		if channel.Other == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -345,6 +349,8 @@ func AddChannel(c *gin.Context) {
 			}
 		}
 		keys = []string{channel.Key}
+	} else {
+		keys = strings.Split(channel.Key, "\n")
 	}
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {

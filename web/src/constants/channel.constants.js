@@ -113,5 +113,10 @@ export const CHANNEL_OPTIONS = [
     value: 100,
     color: 'blue',
     label: '豆包离线'
+  },
+  {
+    value: 101,
+    color: 'blue',
+    label: '豆包离线JOB'
   }
 ];

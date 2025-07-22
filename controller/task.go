@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -17,6 +15,9 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func UpdateTaskBulk() {
@@ -83,7 +84,7 @@ func UpdateSunoTaskAll(ctx context.Context, taskChannelM map[int][]string, taskM
 	for channelId, taskIds := range taskChannelM {
 		err := updateSunoTaskAll(ctx, channelId, taskIds, taskM)
 		if err != nil {
-			common.LogError(ctx, fmt.Sprintf("渠道 #%d 更新异步任务失败: %d", channelId, err.Error()))
+			common.LogError(ctx, fmt.Sprintf("渠道 #%d 更新异步任务失败: %s", channelId, err.Error()))
 		}
 	}
 	return nil
@@ -135,7 +136,7 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 		return err
 	}
 	if !responseItems.IsSuccess() {
-		common.SysLog(fmt.Sprintf("渠道 #%d 未完成的任务有: %d, 成功获取到任务数: %d", channelId, len(taskIds), string(responseBody)))
+		common.SysLog(fmt.Sprintf("渠道 #%d 未完成的任务有: %d, 成功获取到任务数: %s", channelId, len(taskIds), string(responseBody)))
 		return err
 	}
 

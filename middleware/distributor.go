@@ -98,6 +98,7 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 
+			common.LogInfo(c, "userGroup: "+userGroup+" modelRequest.Model: "+modelRequest.Model)
 			if shouldSelectChannel {
 				channel, err = model.CacheGetRandomSatisfiedChannel(userGroup, modelRequest.Model, 0)
 				if err != nil {
@@ -129,6 +130,15 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
+
+	// 添加对 /batchjob/presign 和 /batchjob/register 路径的处理
+	if strings.HasPrefix(c.Request.URL.Path, "/batchjob/presign") ||
+		strings.HasPrefix(c.Request.URL.Path, "/batchjob/register") ||
+		strings.HasPrefix(c.Request.URL.Path, "/batchjob/startjob") {
+		modelRequest.Model = c.Query("model")
+		return &modelRequest, shouldSelectChannel, nil
+	}
+
 	if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
