@@ -358,6 +358,9 @@ func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retry
 	if openaiErr == nil {
 		return false
 	}
+	if openaiErr.Error.Code == "completion_tokens_zero" {
+		return true
+	}
 	if openaiErr.LocalError {
 		return false
 	}
@@ -377,6 +380,7 @@ func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retry
 		common.LogInfo(c, fmt.Sprintf("客户端连接断开，不再重试 : %s", openaiErr.Error.Message))
 		return false
 	}
+
 	if openaiErr.StatusCode == http.StatusTooManyRequests {
 		return true
 	}

@@ -290,6 +290,18 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		funcErr = service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 		return funcErr
 	}
+	// 检查 completion_tokens 是否为 0
+	var respJson struct {
+		Usage struct {
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(responseBodyBytes, &respJson); err == nil {
+		if respJson.Usage.CompletionTokens == 0 {
+			funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("completion_tokens is 0"), "completion_tokens_zero", http.StatusBadGateway)
+			return funcErr
+		}
+	}
 	// 为adaptor创建一个新的响应体
 	httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
 
