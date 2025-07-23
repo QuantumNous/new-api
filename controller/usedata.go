@@ -248,8 +248,8 @@ func GetQuotaDataByToken(c *gin.Context) {
 		return
 	}
 
-	// 按天聚合数据
-	aggregatedDates := aggregateQuotaDataByDay(dates)
+	// 按天+模型聚合数据
+	aggregatedDates := aggregateQuotaDataByDayAndModel(dates)
 
 	// 转换为简化的返回格式
 	simplifiedData := make([]map[string]interface{}, 0, len(aggregatedDates))
@@ -263,6 +263,7 @@ func GetQuotaDataByToken(c *gin.Context) {
 		simplifiedData = append(simplifiedData, map[string]interface{}{
 			"token_name": item.TokenName,
 			"username":   item.Username,
+			"model_name": item.ModelName,
 			"date":       dateStr,
 			"price":      price,
 		})
@@ -315,6 +316,56 @@ func aggregateQuotaDataByDay(data []*model.QuotaData) []*model.QuotaData {
 
 	// 按时间排序
 	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt < result[j].CreatedAt
+	})
+
+	return result
+}
+
+// aggregateQuotaDataByDayAndModel 按天+模型聚合数据
+func aggregateQuotaDataByDayAndModel(data []*model.QuotaData) []*model.QuotaData {
+	if len(data) == 0 {
+		return data
+	}
+
+	// 创建聚合映射
+	aggregated := make(map[string]*model.QuotaData)
+
+	for _, item := range data {
+		// 按天聚合：将时间戳向下取整到天
+		dayStart := (item.CreatedAt / 86400) * 86400
+		key := fmt.Sprintf("%s_%s_%s_%d", item.Username, item.TokenName, item.ModelName, dayStart)
+
+		if existing, exists := aggregated[key]; exists {
+			// 聚合数据
+			existing.Count += item.Count
+			existing.Quota += item.Quota
+			existing.TokenUsed += item.TokenUsed
+		} else {
+			// 创建新记录
+			aggregated[key] = &model.QuotaData{
+				Username:  item.Username,
+				TokenName: item.TokenName,
+				ModelName: item.ModelName,
+				Count:     item.Count,
+				Quota:     item.Quota,
+				TokenUsed: item.TokenUsed,
+				CreatedAt: dayStart,
+			}
+		}
+	}
+
+	// 转换为切片并排序
+	result := make([]*model.QuotaData, 0, len(aggregated))
+	for _, item := range aggregated {
+		result = append(result, item)
+	}
+
+	// 按时间排序
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt == result[j].CreatedAt {
+			return result[i].ModelName < result[j].ModelName
+		}
 		return result[i].CreatedAt < result[j].CreatedAt
 	})
 
