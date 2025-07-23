@@ -58,20 +58,6 @@ func Playground(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
-	//c.Set("token_name", "playground-"+group)
-	tempToken := &model.Token{
-		UserId: userId,
-		Name:   fmt.Sprintf("playground-%s", group),
-		Group:  group,
-	}
-	_ = middleware.SetupContextForToken(c, tempToken)
-	_, err = getChannel(c, group, playgroundRequest.Model, 0)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeGetChannelFailed)
-		return
-	}
-	//middleware.SetupContextForSelectedChannel(c, channel, playgroundRequest.Model)
-	common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 
 	// Write user context to ensure acceptUnsetRatio is available
 	userCache, err := model.GetUserCache(userId)
@@ -80,5 +66,19 @@ func Playground(c *gin.Context) {
 		return
 	}
 	userCache.WriteContext(c)
+
+	tempToken := &model.Token{
+		UserId: userId,
+		Name:   fmt.Sprintf("playground-%s", group),
+		Group:  group,
+	}
+	_ = middleware.SetupContextForToken(c, tempToken)
+	_, newAPIError = getChannel(c, group, playgroundRequest.Model, 0)
+	if newAPIError != nil {
+		return
+	}
+	//middleware.SetupContextForSelectedChannel(c, channel, playgroundRequest.Model)
+	common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+
 	Relay(c)
 }

@@ -18,7 +18,11 @@ func KlingRequestConvert() func(c *gin.Context) {
 			return
 		}
 
-		model, _ := originalReq["model"].(string)
+		// Support both model_name and model fields
+		model, _ := originalReq["model_name"].(string)
+		if model == "" {
+			model, _ = originalReq["model"].(string)
+		}
 		prompt, _ := originalReq["prompt"].(string)
 
 		unifiedReq := map[string]interface{}{
@@ -36,7 +40,7 @@ func KlingRequestConvert() func(c *gin.Context) {
 		// Rewrite request body and path
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 		c.Request.URL.Path = "/v1/video/generations"
-		if image := originalReq["image"]; image == "" {
+		if image, ok := originalReq["image"]; !ok || image == "" {
 			c.Set("action", constant.TaskActionTextGenerate)
 		}
 

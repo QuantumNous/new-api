@@ -1,4 +1,23 @@
-import React, { useContext, useEffect, useState } from 'react';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { UserContext } from '../../context/User/index.js';
 import { useSetTheme, useTheme } from '../../context/Theme/index.js';
@@ -31,20 +50,24 @@ import {
   Badge,
 } from '@douyinfe/semi-ui';
 import { StatusContext } from '../../context/Status/index.js';
-import { useStyle, styleActions } from '../../context/Style/index.js';
+import { useIsMobile } from '../../hooks/common/useIsMobile.js';
+import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed.js';
 
-const HeaderBar = () => {
+const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState, statusDispatch] = useContext(StatusContext);
-  const { state: styleState, dispatch: styleDispatch } = useStyle();
+  const isMobile = useIsMobile();
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [isLoading, setIsLoading] = useState(true);
+  const [logoLoaded, setLogoLoaded] = useState(false);
   let navigate = useNavigate();
   const [currentLang, setCurrentLang] = useState(i18n.language);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const loadingStartRef = useRef(Date.now());
 
   const systemName = getSystemName();
   const logo = getLogo();
@@ -194,11 +217,23 @@ const HeaderBar = () => {
   }, [i18n]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (statusState?.status !== undefined) {
+      const elapsed = Date.now() - loadingStartRef.current;
+      const remaining = Math.max(0, 500 - elapsed);
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, remaining);
+      return () => clearTimeout(timer);
+    }
+  }, [statusState?.status]);
+
+  useEffect(() => {
+    setLogoLoaded(false);
+    if (!logo) return;
+    const img = new Image();
+    img.src = logo;
+    img.onload = () => setLogoLoaded(true);
+  }, [logo]);
 
   const handleLanguageChange = (lang) => {
     i18n.changeLanguage(lang);
@@ -207,7 +242,7 @@ const HeaderBar = () => {
 
   const handleNavLinkClick = (itemKey) => {
     if (itemKey === 'home') {
-      styleDispatch(styleActions.setSider(false));
+      // styleDispatch(styleActions.setSider(false)); // This line is removed
     }
     setMobileMenuOpen(false);
   };
@@ -293,7 +328,7 @@ const HeaderBar = () => {
               placeholder={
                 <Skeleton.Title
                   active
-                  style={{ width: styleState.isMobile ? 15 : 50, height: 12 }}
+                  style={{ width: isMobile ? 15 : 50, height: 12 }}
                 />
               }
             />
@@ -329,7 +364,7 @@ const HeaderBar = () => {
               >
                 <div className="flex items-center gap-2">
                   <IconKey size="small" className="text-gray-500 dark:text-gray-400" />
-                  <span>{t('API令牌')}</span>
+                  <span>{t('令牌管理')}</span>
                 </div>
               </Dropdown.Item>
               <Dropdown.Item
@@ -388,7 +423,7 @@ const HeaderBar = () => {
       const registerButtonTextSpanClass = "!text-xs !text-white !p-1.5";
 
       if (showRegisterButton) {
-        if (styleState.isMobile) {
+        if (isMobile) {
           loginButtonClasses += " !rounded-full";
         } else {
           loginButtonClasses += " !rounded-l-full !rounded-r-none";
@@ -436,7 +471,7 @@ const HeaderBar = () => {
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
-        isMobile={styleState.isMobile}
+        isMobile={isMobile}
         defaultTab={unreadCount > 0 ? 'system' : 'inApp'}
         unreadKeys={getUnreadKeys()}
       />
@@ -447,18 +482,18 @@ const HeaderBar = () => {
               <Button
                 icon={
                   isConsoleRoute
-                    ? (styleState.showSider ? <IconClose className="text-lg" /> : <IconMenu className="text-lg" />)
+                    ? ((isMobile ? drawerOpen : collapsed) ? <IconClose className="text-lg" /> : <IconMenu className="text-lg" />)
                     : (mobileMenuOpen ? <IconClose className="text-lg" /> : <IconMenu className="text-lg" />)
                 }
                 aria-label={
                   isConsoleRoute
-                    ? (styleState.showSider ? t('关闭侧边栏') : t('打开侧边栏'))
+                    ? ((isMobile ? drawerOpen : collapsed) ? t('关闭侧边栏') : t('打开侧边栏'))
                     : (mobileMenuOpen ? t('关闭菜单') : t('打开菜单'))
                 }
                 onClick={() => {
                   if (isConsoleRoute) {
                     // 控制侧边栏的显示/隐藏，无论是否移动设备
-                    styleDispatch(styleActions.toggleSider());
+                    isMobile ? onMobileMenuToggle() : toggleCollapsed();
                   } else {
                     // 控制HeaderBar自己的移动菜单
                     setMobileMenuOpen(!mobileMenuOpen);
@@ -470,19 +505,20 @@ const HeaderBar = () => {
               />
             </div>
             <Link to="/" onClick={() => handleNavLinkClick('home')} className="flex items-center gap-2 group ml-2">
-              <Skeleton
-                loading={isLoading}
-                active
-                placeholder={
+              <div className="relative w-8 h-8 md:w-8 md:h-8">
+                {(isLoading || !logoLoaded) && (
                   <Skeleton.Image
                     active
-                    className="h-7 md:h-8 !rounded-full"
-                    style={{ width: 32, height: 32 }}
+                    className="absolute inset-0 !rounded-full"
+                    style={{ width: '100%', height: '100%' }}
                   />
-                }
-              >
-                <img src={logo} alt="logo" className="h-7 md:h-8 transition-transform duration-300 ease-in-out group-hover:scale-105 rounded-full" />
-              </Skeleton>
+                )}
+                <img
+                  src={logo}
+                  alt="logo"
+                  className={`absolute inset-0 w-full h-full transition-opacity duration-200 group-hover:scale-105 rounded-full ${(!isLoading && logoLoaded) ? 'opacity-100' : 'opacity-0'}`}
+                />
+              </div>
               <div className="hidden md:flex items-center gap-2">
                 <div className="flex items-center gap-2">
                   <Skeleton

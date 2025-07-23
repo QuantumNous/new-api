@@ -180,16 +180,18 @@ func GenRelayInfoResponses(c *gin.Context, req *dto.OpenAIResponsesRequest) *Rel
 	}
 	if len(req.Tools) > 0 {
 		for _, tool := range req.Tools {
-			info.ResponsesUsageInfo.BuiltInTools[tool.Type] = &BuildInToolInfo{
-				ToolName:  tool.Type,
+			toolType := common.Interface2String(tool["type"])
+			info.ResponsesUsageInfo.BuiltInTools[toolType] = &BuildInToolInfo{
+				ToolName:  toolType,
 				CallCount: 0,
 			}
-			switch tool.Type {
+			switch toolType {
 			case dto.BuildInToolWebSearchPreview:
-				if tool.SearchContextSize == "" {
-					tool.SearchContextSize = "medium"
+				searchContextSize := common.Interface2String(tool["search_context_size"])
+				if searchContextSize == "" {
+					searchContextSize = "medium"
 				}
-				info.ResponsesUsageInfo.BuiltInTools[tool.Type].SearchContextSize = tool.SearchContextSize
+				info.ResponsesUsageInfo.BuiltInTools[toolType].SearchContextSize = searchContextSize
 			}
 		}
 	}

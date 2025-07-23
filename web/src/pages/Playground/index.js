@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useContext, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -5,15 +24,15 @@ import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
 
 // Context
 import { UserContext } from '../../context/User/index.js';
-import { useStyle, styleActions } from '../../context/Style/index.js';
+import { useIsMobile } from '../../hooks/common/useIsMobile.js';
 
 // hooks
-import { usePlaygroundState } from '../../hooks/usePlaygroundState.js';
-import { useMessageActions } from '../../hooks/useMessageActions.js';
-import { useApiRequest } from '../../hooks/useApiRequest.js';
-import { useSyncMessageAndCustomBody } from '../../hooks/useSyncMessageAndCustomBody.js';
-import { useMessageEdit } from '../../hooks/useMessageEdit.js';
-import { useDataLoader } from '../../hooks/useDataLoader.js';
+import { usePlaygroundState } from '../../hooks/playground/usePlaygroundState.js';
+import { useMessageActions } from '../../hooks/playground/useMessageActions.js';
+import { useApiRequest } from '../../hooks/playground/useApiRequest.js';
+import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody.js';
+import { useMessageEdit } from '../../hooks/playground/useMessageEdit.js';
+import { useDataLoader } from '../../hooks/playground/useDataLoader.js';
 
 // Constants and utils
 import {
@@ -59,7 +78,8 @@ const generateAvatarDataUrl = (username) => {
 const Playground = () => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
-  const { state: styleState, dispatch: styleDispatch } = useStyle();
+  const isMobile = useIsMobile();
+  const styleState = { isMobile };
   const [searchParams] = useSearchParams();
 
   const state = usePlaygroundState();
@@ -321,19 +341,7 @@ const Playground = () => {
     }
   }, [searchParams, t]);
 
-  // 处理窗口大小变化
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      if (styleState.isMobile !== mobile) {
-        styleDispatch(styleActions.setMobile(mobile));
-      }
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [styleState.isMobile, styleDispatch]);
+  // Playground 组件无需再监听窗口变化，isMobile 由 useIsMobile Hook 自动更新
 
   // 构建预览payload
   useEffect(() => {
@@ -363,28 +371,18 @@ const Playground = () => {
   }, [setMessage, saveMessagesImmediately]);
 
   return (
-    <div className="h-full bg-gray-50 mt-[64px]">
-      <Layout style={{ height: '100%', background: 'transparent' }} className="flex flex-col md:flex-row">
-        {(showSettings || !styleState.isMobile) && (
+    <div className="h-full">
+      <Layout className="h-full bg-transparent flex flex-col md:flex-row">
+        {(showSettings || !isMobile) && (
           <Layout.Sider
-            style={{
-              background: 'transparent',
-              borderRight: 'none',
-              flexShrink: 0,
-              minWidth: styleState.isMobile ? '100%' : 320,
-              maxWidth: styleState.isMobile ? '100%' : 320,
-              height: styleState.isMobile ? 'auto' : 'calc(100vh - 66px)',
-              overflow: 'auto',
-              position: styleState.isMobile ? 'fixed' : 'relative',
-              zIndex: styleState.isMobile ? 1000 : 1,
-              width: '100%',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-            width={styleState.isMobile ? '100%' : 320}
-            className={styleState.isMobile ? 'bg-white shadow-lg' : ''}
+            className={`
+              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
+              ${isMobile
+                ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
+                : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+              }
+            `}
+            width={isMobile ? '100%' : 320}
           >
             <OptimizedSettingsPanel
               inputs={inputs}
@@ -410,7 +408,7 @@ const Playground = () => {
         )}
 
         <Layout.Content className="relative flex-1 overflow-hidden">
-          <div className="overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)]">
+          <div className="overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]">
             <div className="flex-1 flex flex-col">
               <ChatArea
                 chatRef={chatRef}
@@ -432,7 +430,7 @@ const Playground = () => {
             </div>
 
             {/* 调试面板 - 桌面端 */}
-            {showDebugPanel && !styleState.isMobile && (
+            {showDebugPanel && !isMobile && (
               <div className="w-96 flex-shrink-0 h-full">
                 <OptimizedDebugPanel
                   debugData={debugData}
@@ -446,20 +444,8 @@ const Playground = () => {
           </div>
 
           {/* 调试面板 - 移动端覆盖层 */}
-          {showDebugPanel && styleState.isMobile && (
-            <div
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 1000,
-                backgroundColor: 'white',
-                overflow: 'auto',
-              }}
-              className="shadow-lg"
-            >
+          {showDebugPanel && isMobile && (
+            <div className="fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg">
               <OptimizedDebugPanel
                 debugData={debugData}
                 activeDebugTab={activeDebugTab}

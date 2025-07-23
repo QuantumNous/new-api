@@ -260,7 +260,6 @@ func migrateDB() error {
 
 func migrateDBFast() error {
 	var wg sync.WaitGroup
-	errChan := make(chan error, 12) // Buffer size matches number of migrations
 
 	migrations := []struct {
 		model interface{}
@@ -279,6 +278,8 @@ func migrateDBFast() error {
 		{&Task{}, "Task"},
 		{&Setup{}, "Setup"},
 	}
+	// 动态计算migration数量，确保errChan缓冲区足够大
+	errChan := make(chan error, len(migrations))
 
 	for _, m := range migrations {
 		wg.Add(1)

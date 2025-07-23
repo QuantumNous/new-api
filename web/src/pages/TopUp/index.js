@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useState, useContext } from 'react';
 import {
   API,
@@ -59,6 +78,13 @@ const TopUp = () => {
     statusState?.status?.enable_online_topup || false,
   );
   const [priceRatio, setPriceRatio] = useState(statusState?.status?.price || 1);
+
+  const [stripeAmount, setStripeAmount] = useState(0.0);
+  const [stripeMinTopUp, setStripeMinTopUp] = useState(statusState?.status?.stripe_min_topup || 1);
+  const [stripeTopUpCount, setStripeTopUpCount] = useState(statusState?.status?.stripe_min_topup || 1);
+  const [enableStripeTopUp, setEnableStripeTopUp] = useState(statusState?.status?.enable_stripe_topup || false);
+  const [stripeOpen, setStripeOpen] = useState(false);
+
   const [userQuota, setUserQuota] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -161,6 +187,7 @@ const TopUp = () => {
       showError(t('管理员未开启在线充值！'));
       return;
     }
+    setPayWay(payment);
     setPaymentLoading(true);
     try {
       await getAmount();
@@ -168,7 +195,6 @@ const TopUp = () => {
         showError(t('充值数量不能小于') + minTopUp);
         return;
       }
-      setPayWay(payment);
       setOpen(true);
     } catch (error) {
       showError(t('获取金额失败'));
@@ -186,7 +212,6 @@ const TopUp = () => {
       return;
     }
     setConfirmLoading(true);
-    setOpen(false);
     try {
       const res = await API.post('/api/user/pay', {
         amount: parseInt(topUpCount),
@@ -227,8 +252,67 @@ const TopUp = () => {
       console.log(err);
       showError(t('支付请求失败'));
     } finally {
+      setOpen(false);
       setConfirmLoading(false);
     }
+  };
+
+  const stripePreTopUp = async () => {
+    if (!enableStripeTopUp) {
+      showError(t('管理员未开启在线充值！'));
+      return;
+    }
+    setPayWay('stripe');
+    setPaymentLoading(true);
+    try {
+      await getStripeAmount();
+      if (stripeTopUpCount < stripeMinTopUp) {
+        showError(t('充值数量不能小于') + stripeMinTopUp);
+        return;
+      }
+      setStripeOpen(true);
+    } catch (error) {
+      showError(t('获取金额失败'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const onlineStripeTopUp = async () => {
+    if (stripeAmount === 0) {
+      await getStripeAmount();
+    }
+    if (stripeTopUpCount < stripeMinTopUp) {
+      showError(t('充值数量不能小于') + stripeMinTopUp);
+      return;
+    }
+    setConfirmLoading(true);
+    try {
+      const res = await API.post('/api/user/stripe/pay', {
+        amount: parseInt(stripeTopUpCount),
+        payment_method: 'stripe',
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          processStripeCallback(data);
+        } else {
+          showError(data);
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      console.log(err);
+      showError(t('支付请求失败'));
+    } finally {
+      setStripeOpen(false);
+      setConfirmLoading(false);
+    }
+  }
+
+  const processStripeCallback = (data) => {
+    window.open(data.pay_link, '_blank');
   };
 
   const getUserQuota = async () => {
@@ -327,11 +411,19 @@ const TopUp = () => {
       setTopUpLink(statusState.status.top_up_link || '');
       setEnableOnlineTopUp(statusState.status.enable_online_topup || false);
       setPriceRatio(statusState.status.price || 1);
+
+      setStripeMinTopUp(statusState.status.stripe_min_topup || 1);
+      setStripeTopUpCount(statusState.status.stripe_min_topup || 1);
+      setEnableStripeTopUp(statusState.status.enable_stripe_topup || false);
     }
   }, [statusState?.status]);
 
   const renderAmount = () => {
     return amount + ' ' + t('元');
+  };
+
+  const renderStripeAmount = () => {
+    return stripeAmount + ' ' + t('元');
   };
 
   const getAmount = async (value) => {
@@ -361,8 +453,40 @@ const TopUp = () => {
     setAmountLoading(false);
   };
 
+  const getStripeAmount = async (value) => {
+    if (value === undefined) {
+      value = stripeTopUpCount
+    }
+    setAmountLoading(true);
+    try {
+      const res = await API.post('/api/user/stripe/amount', {
+        amount: parseFloat(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        // showInfo(message);
+        if (message === 'success') {
+          setStripeAmount(parseFloat(data));
+        } else {
+          setStripeAmount(0);
+          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setAmountLoading(false);
+    }
+  }
+
   const handleCancel = () => {
     setOpen(false);
+  };
+
+  const handleStripeCancel = () => {
+    setStripeOpen(false);
   };
 
   const handleTransferCancel = () => {
@@ -374,6 +498,9 @@ const TopUp = () => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
     setAmount(preset.value * priceRatio);
+
+    setStripeTopUpCount(preset.value);
+    setStripeAmount(preset.value);
   };
 
   // 格式化大数字显示
@@ -382,7 +509,7 @@ const TopUp = () => {
   };
 
   return (
-    <div className='mx-auto relative min-h-screen lg:min-h-0 mt-[64px]'>
+    <div className='mx-auto relative min-h-screen lg:min-h-0 mt-[60px]'>
       {/* 划转模态框 */}
       <Modal
         title={
@@ -494,6 +621,25 @@ const TopUp = () => {
             </Text>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+          title={t('确定要充值吗')}
+          visible={stripeOpen}
+          onOk={onlineStripeTopUp}
+          onCancel={handleStripeCancel}
+          maskClosable={false}
+          size='small'
+          centered
+          confirmLoading={confirmLoading}
+      >
+        <p>
+          {t('充值数量')}：{stripeTopUpCount}
+        </p>
+        <p>
+          {t('实付金额')}：{renderStripeAmount()}
+        </p>
+        <p>{t('是否确认充值？')}</p>
       </Modal>
 
       <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
@@ -798,7 +944,7 @@ const TopUp = () => {
                 </>
               )}
 
-              {!enableOnlineTopUp && (
+              {!enableOnlineTopUp && !enableStripeTopUp && (
                 <Banner
                   type='warning'
                   description={t(
@@ -807,6 +953,89 @@ const TopUp = () => {
                   closeIcon={null}
                   className='!rounded-2xl'
                 />
+              )}
+
+              {enableStripeTopUp && (
+                  <>
+                    {/* 桌面端显示的自定义金额和支付按钮 */}
+                    <div className='hidden md:block space-y-4'>
+                      <Divider style={{ margin: '24px 0' }}>
+                        <Text className='text-sm font-medium'>
+                          {t(!enableOnlineTopUp ? '或输入自定义金额' : 'Stripe')}
+                        </Text>
+                      </Divider>
+
+                      <div>
+                        <div className='flex justify-between mb-2'>
+                          <Text strong>{t('充值数量')}</Text>
+                          {amountLoading ? (
+                              <Skeleton.Title
+                                  style={{ width: '80px', height: '16px' }}
+                              />
+                          ) : (
+                              <Text type='tertiary'>
+                                {t('实付金额：') + renderStripeAmount()}
+                              </Text>
+                          )}
+                        </div>
+                        <InputNumber
+                            disabled={!enableStripeTopUp}
+                            placeholder={
+                                t('充值数量，最低 ') + renderQuotaWithAmount(stripeMinTopUp)
+                            }
+                            value={stripeTopUpCount}
+                            min={stripeMinTopUp}
+                            max={999999999}
+                            step={1}
+                            precision={0}
+                            onChange={async (value) => {
+                              if (value && value >= 1) {
+                                setStripeTopUpCount(value);
+                                setSelectedPreset(null);
+                                await getStripeAmount(value);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (!value || value < 1) {
+                                setStripeTopUpCount(1);
+                                getStripeAmount(1);
+                              }
+                            }}
+                            size='large'
+                            className='w-full'
+                            formatter={(value) => (value ? `${value}` : '')}
+                            parser={(value) =>
+                                value ? parseInt(value.replace(/[^\d]/g, '')) : 0
+                            }
+                        />
+                      </div>
+
+                      <div>
+                        <Text strong className='block mb-3'>
+                          {t('选择支付方式')}
+                        </Text>
+                          <div className='grid grid-cols-1 gap-3'>
+                            <Button
+                                key='stripe'
+                                type='primary'
+                                onClick={() => stripePreTopUp()}
+                                size='large'
+                                disabled={!enableStripeTopUp}
+                                loading={paymentLoading && payWay === 'stripe'}
+                                icon={<CreditCard size={16} />}
+                                style={{
+                                  height: '40px',
+                                  color: '#b161fe',
+                                }}
+                                className='transition-all hover:shadow-md w-full'
+                            >
+                              <span className='ml-1'>Stripe</span>
+                            </Button>
+                          </div>
+                      </div>
+                    </div>
+                  </>
               )}
 
               <Divider style={{ margin: '24px 0' }}>

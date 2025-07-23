@@ -50,7 +50,7 @@ func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, err
 	} else {
 		Stop, _ = request.Stop.([]string)
 	}
-	return &OllamaRequest{
+	ollamaRequest := &OllamaRequest{
 		Model:            request.Model,
 		Messages:         messages,
 		Stream:           request.Stream,
@@ -67,7 +67,11 @@ func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, err
 		Prompt:           request.Prompt,
 		StreamOptions:    request.StreamOptions,
 		Suffix:           request.Suffix,
-	}, nil
+	}
+	if think, ok := request.Extra["think"]; ok {
+		ollamaRequest.Think = think
+	}
+	return ollamaRequest, nil
 }
 
 func requestOpenAI2Embeddings(request dto.EmbeddingRequest) *OllamaEmbeddingRequest {

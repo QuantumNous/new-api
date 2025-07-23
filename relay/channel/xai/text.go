@@ -82,21 +82,26 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 	defer common.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
-	var response *dto.SimpleResponse
-	err = common.Unmarshal(responseBody, &response)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	response.Usage.CompletionTokens = response.Usage.TotalTokens - response.Usage.PromptTokens
-	response.Usage.CompletionTokenDetails.TextTokens = response.Usage.CompletionTokens - response.Usage.CompletionTokenDetails.ReasoningTokens
+	var xaiResponse ChatCompletionResponse
+	err = common.Unmarshal(responseBody, &xaiResponse)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if xaiResponse.Usage != nil {
+		xaiResponse.Usage.CompletionTokens = xaiResponse.Usage.TotalTokens - xaiResponse.Usage.PromptTokens
+		xaiResponse.Usage.CompletionTokenDetails.TextTokens = xaiResponse.Usage.CompletionTokens - xaiResponse.Usage.CompletionTokenDetails.ReasoningTokens
+	}
 
 	// new body
-	encodeJson, err := common.Marshal(response)
+	encodeJson, err := common.Marshal(xaiResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	common.IOCopyBytesGracefully(c, resp, encodeJson)
 
-	return &response.Usage, nil
+	return xaiResponse.Usage, nil
 }

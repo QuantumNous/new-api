@@ -105,22 +105,24 @@ func (e *NewAPIError) SetMessage(message string) {
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	switch e.ErrorType {
 	case ErrorTypeOpenAIError:
-		return e.RelayError.(OpenAIError)
+		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			return openAIError
+		}
 	case ErrorTypeClaudeError:
-		claudeError := e.RelayError.(ClaudeError)
-		return OpenAIError{
-			Message: e.Error(),
-			Type:    claudeError.Type,
-			Param:   "",
-			Code:    e.errorCode,
+		if claudeError, ok := e.RelayError.(ClaudeError); ok {
+			return OpenAIError{
+				Message: e.Error(),
+				Type:    claudeError.Type,
+				Param:   "",
+				Code:    e.errorCode,
+			}
 		}
-	default:
-		return OpenAIError{
-			Message: e.Error(),
-			Type:    string(e.ErrorType),
-			Param:   "",
-			Code:    e.errorCode,
-		}
+	}
+	return OpenAIError{
+		Message: e.Error(),
+		Type:    string(e.ErrorType),
+		Param:   "",
+		Code:    e.errorCode,
 	}
 }
 
@@ -152,10 +154,21 @@ func NewError(err error, errorCode ErrorCode) *NewAPIError {
 	}
 }
 
+func NewOpenAIError(err error, errorCode ErrorCode, statusCode int) *NewAPIError {
+	openaiError := OpenAIError{
+		Message: err.Error(),
+		Type:    string(errorCode),
+	}
+	return WithOpenAIError(openaiError, statusCode)
+}
+
 func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int) *NewAPIError {
 	return &NewAPIError{
-		Err:        err,
-		RelayError: nil,
+		Err: err,
+		RelayError: OpenAIError{
+			Message: err.Error(),
+			Type:    string(errorCode),
+		},
 		ErrorType:  ErrorTypeNewAPIError,
 		StatusCode: statusCode,
 		errorCode:  errorCode,

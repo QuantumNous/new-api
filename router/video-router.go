@@ -20,5 +20,7 @@ func SetVideoRouter(router *gin.Engine) {
 	{
 		klingV1Router.POST("/videos/text2video", controller.RelayTask)
 		klingV1Router.POST("/videos/image2video", controller.RelayTask)
+		klingV1Router.GET("/videos/text2video/:task_id", controller.RelayTask)
+		klingV1Router.GET("/videos/image2video/:task_id", controller.RelayTask)
 	}
 }

@@ -82,7 +82,9 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		// This is just to avoid "unknown platform" log
 		common.SysLog("CustomPass任务由专用轮询服务处理")
 	default:
-		common.SysLog(fmt.Sprintf("未知平台: %s", platform))
+		if err := UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM); err != nil {
+			common.SysLog(fmt.Sprintf("UpdateVideoTaskAll fail: %s", err))
+		}
 	}
 }
 

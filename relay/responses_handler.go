@@ -137,7 +137,7 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeDoRequestFailed)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")

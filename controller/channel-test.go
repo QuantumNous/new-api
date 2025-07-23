@@ -17,6 +17,7 @@ import (
 	"one-api/model"
 	"one-api/relay"
 	relaycommon "one-api/relay/common"
+	relayconstant "one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/types"
@@ -165,7 +166,21 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 
 	adaptor.Init(info)
 
-	convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
+	var convertedRequest any
+	// 根据 RelayMode 选择正确的转换函数
+	if info.RelayMode == relayconstant.RelayModeEmbeddings {
+		// 创建一个 EmbeddingRequest
+		embeddingRequest := dto.EmbeddingRequest{
+			Input: request.Input,
+			Model: request.Model,
+		}
+		// 调用专门用于 Embedding 的转换函数
+		convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, embeddingRequest)
+	} else {
+		// 对其他所有请求类型（如 Chat），保持原有逻辑
+		convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, request)
+	}
+
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -278,7 +293,7 @@ func buildTestRequest(model string) *dto.GeneralOpenAIRequest {
 		strings.Contains(model, "bge-") {
 		testRequest.Model = model
 		// Embedding 请求
-		testRequest.Input = []string{"hello world"}
+		testRequest.Input = []any{"hello world"} // 修改为any，因为dto/openai_request.go 的ParseInput方法无法处理[]string类型
 		return testRequest
 	}
 	// 并非Embedding 模型

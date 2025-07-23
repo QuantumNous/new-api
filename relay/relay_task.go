@@ -24,6 +24,9 @@ Task 任务通过平台、Action 区分任务
 */
 func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	platform := constant.TaskPlatform(c.GetString("platform"))
+	if platform == "" {
+		platform = GetTaskPlatform(c)
+	}
 	relayInfo := relaycommon.GenTaskRelayInfo(c)
 
 	adaptor := GetTaskAdaptor(platform)
@@ -37,9 +40,9 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 		return
 	}
 
-	modelName := service.CoverTaskActionToModelName(platform, relayInfo.Action)
-	if platform == constant.TaskPlatformKling {
-		modelName = relayInfo.OriginModelName
+	modelName := relayInfo.OriginModelName
+	if modelName == "" {
+		modelName = service.CoverTaskActionToModelName(platform, relayInfo.Action)
 	}
 	modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
 	if !success {
@@ -178,7 +181,7 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
 	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
 	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
-	relayconstant.RelayModeKlingFetchByID: videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeVideoFetchByID: videoFetchByIDRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {

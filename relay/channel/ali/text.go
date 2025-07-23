@@ -40,7 +40,7 @@ func embeddingRequestOpenAI2Ali(request dto.EmbeddingRequest) *AliEmbeddingReque
 }
 
 func aliEmbeddingHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
-	var fullTextResponse dto.OpenAIEmbeddingResponse
+	var fullTextResponse dto.FlexibleEmbeddingResponse
 	err := json.NewDecoder(resp.Body).Decode(&fullTextResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil

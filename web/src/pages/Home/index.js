@@ -1,6 +1,26 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useContext, useEffect, useState } from 'react';
 import { Button, Typography, Tag, Input, ScrollList, ScrollItem } from '@douyinfe/semi-ui';
-import { API, showError, isMobile, copy, showSuccess } from '../../helpers';
+import { API, showError, copy, showSuccess } from '../../helpers';
+import { useIsMobile } from '../../hooks/common/useIsMobile.js';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
 import { marked } from 'marked';
@@ -18,6 +38,7 @@ const Home = () => {
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
+  const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = statusState?.status?.server_address || window.location.origin;
@@ -98,7 +119,7 @@ const Home = () => {
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
-        isMobile={isMobile()}
+        isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
         <div className="w-full overflow-x-hidden">
@@ -133,7 +154,7 @@ const Home = () => {
                       readonly
                       value={serverAddress}
                       className="flex-1 !rounded-full"
-                      size={isMobile() ? 'default' : 'large'}
+                      size={isMobile ? 'default' : 'large'}
                       suffix={
                         <div className="flex items-center gap-2">
                           <ScrollList bodyHeight={32} style={{ border: 'unset', boxShadow: 'unset' }}>
@@ -160,13 +181,13 @@ const Home = () => {
                 {/* 操作按钮 */}
                 <div className="flex flex-row gap-4 justify-center items-center">
                   <Link to="/console">
-                    <Button theme="solid" type="primary" size={isMobile() ? "default" : "large"} className="!rounded-3xl px-8 py-2" icon={<IconPlay />}>
+                    <Button theme="solid" type="primary" size={isMobile ? "default" : "large"} className="!rounded-3xl px-8 py-2" icon={<IconPlay />}>
                       {t('获取密钥')}
                     </Button>
                   </Link>
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
-                      size={isMobile() ? "default" : "large"}
+                      size={isMobile ? "default" : "large"}
                       className="flex items-center !rounded-3xl px-6 py-2"
                       icon={<IconGithubLogo />}
                       onClick={() => window.open('https://github.com/QuantumNous/new-api', '_blank')}
@@ -176,7 +197,7 @@ const Home = () => {
                   ) : (
                     docsLink && (
                       <Button
-                        size={isMobile() ? "default" : "large"}
+                        size={isMobile ? "default" : "large"}
                         className="flex items-center !rounded-3xl px-6 py-2"
                         icon={<IconFile />}
                         onClick={() => window.open(docsLink, '_blank')}
@@ -272,7 +293,7 @@ const Home = () => {
               className="w-full h-screen border-none"
             />
           ) : (
-            <div className="mt-[64px]" dangerouslySetInnerHTML={{ __html: homePageContent }} />
+            <div className="mt-[60px]" dangerouslySetInnerHTML={{ __html: homePageContent }} />
           )}
         </div>
       )}

@@ -42,7 +42,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	usage.TotalTokens = responsesResponse.Usage.TotalTokens
 	// 解析 Tools 用量
 	for _, tool := range responsesResponse.Tools {
-		info.ResponsesUsageInfo.BuiltInTools[tool.Type].CallCount++
+		info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])].CallCount++
 	}
 	return &usage, nil
 }

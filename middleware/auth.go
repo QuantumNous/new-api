@@ -123,6 +123,18 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("id", id)
 	c.Set("group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
+
+	//userCache, err := model.GetUserCache(id.(int))
+	//if err != nil {
+	//	c.JSON(http.StatusOK, gin.H{
+	//		"success": false,
+	//		"message": err.Error(),
+	//	})
+	//	c.Abort()
+	//	return
+	//}
+	//userCache.WriteContext(c)
+
 	c.Next()
 }
 

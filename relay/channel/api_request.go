@@ -203,6 +203,9 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 	}
 }
 
+func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	return doRequest(c, req, info)
+}
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	var client *http.Client
 	var err error

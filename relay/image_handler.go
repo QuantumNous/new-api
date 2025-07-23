@@ -145,22 +145,25 @@ func ImageHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	} else {
 		sizeRatio := 1.0
-		// Size
-		if imageRequest.Size == "256x256" {
-			sizeRatio = 0.4
-		} else if imageRequest.Size == "512x512" {
-			sizeRatio = 0.45
-		} else if imageRequest.Size == "1024x1024" {
-			sizeRatio = 1
-		} else if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
-			sizeRatio = 2
-		}
-
 		qualityRatio := 1.0
-		if imageRequest.Model == "dall-e-3" && imageRequest.Quality == "hd" {
-			qualityRatio = 2.0
-			if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
-				qualityRatio = 1.5
+
+		if strings.HasPrefix(imageRequest.Model, "dall-e") {
+			// Size
+			if imageRequest.Size == "256x256" {
+				sizeRatio = 0.4
+			} else if imageRequest.Size == "512x512" {
+				sizeRatio = 0.45
+			} else if imageRequest.Size == "1024x1024" {
+				sizeRatio = 1
+			} else if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
+				sizeRatio = 2
+			}
+
+			if imageRequest.Model == "dall-e-3" && imageRequest.Quality == "hd" {
+				qualityRatio = 2.0
+				if imageRequest.Size == "1024x1792" || imageRequest.Size == "1792x1024" {
+					qualityRatio = 1.5
+				}
 			}
 		}
 
@@ -206,7 +209,7 @@ func ImageHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeDoRequestFailed)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	var httpResp *http.Response
 	if resp != nil {
