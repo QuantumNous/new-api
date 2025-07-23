@@ -193,7 +193,16 @@ const LogsTable = () => {
     }
   }, [visibleColumns]);
 
-  const renderType = (type) => {
+  const renderType = (type, record) => {
+    // Check if it's a CustomPass task by platform
+    if (record && record.platform === 'custompass') {
+      return (
+        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          {type}
+        </Tag>
+      );
+    }
+
     switch (type) {
       case 'MUSIC':
         return (
@@ -248,6 +257,12 @@ const LogsTable = () => {
             Jimeng
           </Tag>
         );
+      case 'custompass':
+        return (
+          <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+            CustomPass
+          </Tag>
+        );
       default:
         return (
           <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
@@ -293,6 +308,12 @@ const LogsTable = () => {
         return (
           <Tag color='orange' shape='circle' prefixIcon={<List size={14} />}>
             {t('排队中')}
+          </Tag>
+        );
+      case 'SUBMITTED':
+        return (
+          <Tag color='yellow' shape='circle' prefixIcon={<Clock size={14} />}>
+            {t('已提交')}
           </Tag>
         );
       case 'UNKNOWN':
@@ -380,7 +401,7 @@ const LogsTable = () => {
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text)}</div>;
+        return <div>{renderType(text, record)}</div>;
       },
     },
     {
@@ -395,6 +416,7 @@ const LogsTable = () => {
               setModalContent(JSON.stringify(record, null, 2));
               setIsModalOpen(true);
             }}
+            style={{ cursor: 'pointer', color: 'var(--semi-color-primary)' }}
           >
             <div>{text}</div>
           </Typography.Text>
@@ -499,6 +521,7 @@ const LogsTable = () => {
   const formInitValues = {
     channel_id: '',
     task_id: '',
+    platform: '',
     dateRange: [
       timestamp2string(zeroNow.getTime() / 1000),
       timestamp2string(now.getTime() / 1000 + 3600)
@@ -524,6 +547,7 @@ const LogsTable = () => {
     return {
       channel_id: formValues.channel_id || '',
       task_id: formValues.task_id || '',
+      platform: formValues.platform || '',
       start_timestamp,
       end_timestamp,
     };
@@ -547,12 +571,12 @@ const LogsTable = () => {
 
   const loadLogs = async (page = 1, size = pageSize) => {
     setLoading(true);
-    const { channel_id, task_id, start_timestamp, end_timestamp } = getFormValues();
+    const { channel_id, task_id, platform, start_timestamp, end_timestamp } = getFormValues();
     let localStartTimestamp = parseInt(Date.parse(start_timestamp) / 1000);
     let localEndTimestamp = parseInt(Date.parse(end_timestamp) / 1000);
     let url = isAdminUser
-      ? `/api/task/?p=${page}&page_size=${size}&channel_id=${channel_id}&task_id=${task_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`
-      : `/api/task/self?p=${page}&page_size=${size}&task_id=${task_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      ? `/api/task/?p=${page}&page_size=${size}&channel_id=${channel_id}&task_id=${task_id}&platform=${platform}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`
+      : `/api/task/self?p=${page}&page_size=${size}&task_id=${task_id}&platform=${platform}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -681,7 +705,7 @@ const LogsTable = () => {
                 stopValidateWithError={false}
               >
                 <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     {/* 时间选择器 */}
                     <div className="col-span-1 lg:col-span-2">
                       <Form.DatePicker
@@ -694,6 +718,21 @@ const LogsTable = () => {
                         size="small"
                       />
                     </div>
+
+                    {/* 平台筛选 */}
+                    <Form.Select
+                      field='platform'
+                      placeholder={t('选择平台')}
+                      showClear
+                      pure
+                      size="small"
+                      optionList={[
+                        { label: 'Suno', value: 'suno' },
+                        { label: 'Kling', value: 'kling' },
+                        { label: 'Jimeng', value: 'jimeng' },
+                        { label: 'CustomPass', value: 'custompass' },
+                      ]}
+                    />
 
                     {/* 任务 ID */}
                     <Form.Input
@@ -800,8 +839,9 @@ const LogsTable = () => {
           onOk={() => setIsModalOpen(false)}
           onCancel={() => setIsModalOpen(false)}
           closable={null}
-          bodyStyle={{ height: '400px', overflow: 'auto' }} // 设置模态框内容区域样式
-          width={800} // 设置模态框宽度
+          bodyStyle={{ height: '400px', overflow: 'auto' }}
+          width={800}
+          title={t('任务详情')}
         >
           <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
         </Modal>

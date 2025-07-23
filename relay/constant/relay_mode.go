@@ -53,6 +53,8 @@ const (
 	RelayModeRealtime
 
 	RelayModeGemini
+
+	RelayModeCustomPass
 )
 
 func Path2RelayMode(path string) int {

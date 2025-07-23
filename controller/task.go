@@ -77,8 +77,12 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		_ = UpdateSunoTaskAll(context.Background(), taskChannelM, taskM)
 	case constant.TaskPlatformKling, constant.TaskPlatformJimeng:
 		_ = UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM)
+	case constant.TaskPlatformCustomPass:
+		// CustomPass tasks are handled by dedicated CustomPassTaskPollingService
+		// This is just to avoid "unknown platform" log
+		common.SysLog("CustomPass任务由专用轮询服务处理")
 	default:
-		common.SysLog("未知平台")
+		common.SysLog(fmt.Sprintf("未知平台: %s", platform))
 	}
 }
 

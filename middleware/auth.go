@@ -234,6 +234,11 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache.WriteContext(c)
 
+		// Save full token for CustomPass
+		fullToken := strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer ")
+		fullToken = strings.TrimPrefix(fullToken, "sk-")
+		c.Set("full_token", fullToken)
+
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
 			return

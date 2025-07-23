@@ -338,6 +338,36 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	return total
 }
 
+// UpdateTaskStatus updates the status of a task by task ID
+func UpdateTaskStatus(taskID string, status string) error {
+	if taskID == "" {
+		return nil // Skip empty task IDs
+	}
+
+	// Convert string status to TaskStatus type
+	var taskStatus TaskStatus
+	switch status {
+	case "PENDING", "QUEUED":
+		taskStatus = TaskStatusQueued
+	case "IN_PROGRESS", "PROCESSING", "RUNNING":
+		taskStatus = TaskStatusInProgress
+	case "SUCCESS", "COMPLETED", "FINISHED":
+		taskStatus = TaskStatusSuccess
+	case "FAILURE", "FAILED", "ERROR", "CANCELLED":
+		taskStatus = TaskStatusFailure
+	default:
+		taskStatus = TaskStatusUnknown
+	}
+
+	// Update task status in database
+	result := DB.Model(&Task{}).Where("task_id = ?", taskID).Updates(map[string]interface{}{
+		"status":     taskStatus,
+		"updated_at": time.Now().Unix(),
+	})
+
+	return result.Error
+}
+
 // TaskCountAllUserTask returns total tasks for given user
 func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	var total int64

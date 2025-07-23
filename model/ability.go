@@ -315,3 +315,22 @@ func FixAbility() (int, int, error) {
 	InitChannelCache()
 	return successCount, failCount, nil
 }
+
+// GetModelGroups returns all groups that the given model belongs to
+func GetModelGroups(modelName string) ([]string, error) {
+	var groups []string
+	err := DB.Table("abilities").
+		Where("model = ? AND enabled = ?", modelName, true).
+		Distinct("abilities.group").
+		Pluck("abilities.group", &groups).Error
+	return groups, err
+}
+
+// GetModelPrimaryGroup returns the primary group for a model (the first enabled group found)
+func GetModelPrimaryGroup(modelName string) string {
+	groups, err := GetModelGroups(modelName)
+	if err != nil || len(groups) == 0 {
+		return "default" // fallback to default group
+	}
+	return groups[0] // return the first group as primary
+}

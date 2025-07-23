@@ -107,6 +107,12 @@ func main() {
 		gopool.Go(func() {
 			controller.UpdateTaskBulk()
 		})
+		// Start CustomPass task polling service
+		taskPollingService := service.GetTaskPollingService()
+		err := taskPollingService.Start()
+		if err != nil {
+			common.SysError(fmt.Sprintf("Failed to start CustomPass task polling service: %v", err))
+		}
 	}
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true

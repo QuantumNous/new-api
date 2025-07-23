@@ -884,8 +884,9 @@ func GetTagModels(c *gin.Context) {
 // CopyChannel handles cloning an existing channel with its key.
 // POST /api/channel/copy/:id
 // Optional query params:
-//   suffix         - string appended to the original name (default "_复制")
-//   reset_balance  - bool, when true will reset balance & used_quota to 0 (default true)
+//
+//	suffix         - string appended to the original name (default "_复制")
+//	reset_balance  - bool, when true will reset balance & used_quota to 0 (default true)
 func CopyChannel(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -910,7 +911,7 @@ func CopyChannel(c *gin.Context) {
 
 	// clone channel
 	clone := *origin // shallow copy is sufficient as we will overwrite primitives
-	clone.Id = 0      // let DB auto-generate
+	clone.Id = 0     // let DB auto-generate
 	clone.CreatedTime = common.GetTimestamp()
 	clone.Name = origin.Name + suffix
 	clone.TestTime = 0
