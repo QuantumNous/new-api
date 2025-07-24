@@ -171,6 +171,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	// 如果不支持StreamOptions，将StreamOptions设置为nil
 	if !relayInfo.SupportStreamOptions || !textRequest.Stream {
 		textRequest.StreamOptions = nil
+
 	} else {
 		// 如果支持StreamOptions，且请求中没有设置StreamOptions，根据配置文件设置StreamOptions
 		if constant.ForceStreamOption {
@@ -285,25 +286,45 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	}
 
 	// 读取响应体并创建副本
-	responseBodyBytes, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		funcErr = service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
-		return funcErr
-	}
-	// 检查 completion_tokens 是否为 0
-	var respJson struct {
-		Usage struct {
-			CompletionTokens int `json:"completion_tokens"`
-		} `json:"usage"`
-	}
-	if err := json.Unmarshal(responseBodyBytes, &respJson); err == nil {
-		if respJson.Usage.CompletionTokens == 0 {
-			funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("completion_tokens is 0"), "completion_tokens_zero", http.StatusBadGateway)
+	var responseBodyBytes []byte
+	var usage interface{}
+	if relayInfo.IsStream {
+		// 设置流式响应头
+		helper.SetEventStreamHeaders(c)
+		// 流式响应，主流程用TeeReader+buf
+		var buf bytes.Buffer
+		tee := io.TeeReader(httpResp.Body, &buf)
+		httpResp.Body = io.NopCloser(tee)
+		var openaiErr *dto.OpenAIErrorWithStatusCode
+		usage, openaiErr = adaptor.DoResponse(c, httpResp, relayInfo)
+		responseBodyBytes = buf.Bytes()
+		if openaiErr != nil {
+			funcErr = openaiErr
+			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+			// common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
+			return openaiErr
+		}
+		common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
+		statusCode = resp.(*http.Response).StatusCode
+	} else {
+		var err error
+		var openaiErr *dto.OpenAIErrorWithStatusCode
+		responseBodyBytes, err = io.ReadAll(httpResp.Body)
+		if err != nil {
+			funcErr = service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 			return funcErr
 		}
+		httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
+		usage, openaiErr = adaptor.DoResponse(c, httpResp, relayInfo)
+		if openaiErr != nil {
+			funcErr = openaiErr
+			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+			common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
+			return openaiErr
+		}
+		common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
+		statusCode = resp.(*http.Response).StatusCode
 	}
-	// 为adaptor创建一个新的响应体
-	httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
 
 	// 限制日志大小，避免内存泄漏
 	if len(responseBodyBytes) <= 2048 {
@@ -311,18 +332,6 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	} else {
 		common.LogInfo(c, fmt.Sprintf("response body too large (size: %d bytes), skipping print", len(responseBodyBytes)))
 	}
-
-	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
-	if openaiErr != nil {
-		funcErr = openaiErr
-		// reset status code 重置状态码
-		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-		common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
-		return openaiErr
-	}
-	common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
-	// 设置状态码用于指标记录
-	statusCode = resp.(*http.Response).StatusCode
 
 	// Store request and response data together if persistence is enabled and status code is 200
 	if model.RequestPersistenceEnabled && httpResp.StatusCode == http.StatusOK && !(c.GetHeader("X-Test-Traffic") == "true") {
@@ -355,6 +364,11 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		service.PostAudioConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 	} else {
 		postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	}
+
+	if usage.(*dto.Usage).CompletionTokens == 0 && relayInfo.OriginModelName == "gemini-2.5-pro" {
+		funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("completion_tokens is 0"), "completion_tokens_zero", http.StatusBadGateway)
+		return funcErr
 	}
 
 	return nil

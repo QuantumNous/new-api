@@ -75,6 +75,8 @@ type ToolCallRequest struct {
 	ID       string          `json:"id,omitempty"`
 	Type     string          `json:"type"`
 	Function FunctionRequest `json:"function"`
+	Name     string          `json:"name,omitempty"`
+	MaxUses  int             `json:"max_uses,omitempty"`
 }
 
 type FunctionRequest struct {

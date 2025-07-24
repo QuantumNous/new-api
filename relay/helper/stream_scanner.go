@@ -30,7 +30,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	var (
 		stopChan = make(chan bool, 2)
-		scanner  = bufio.NewScanner(resp.Body)
+		reader   = bufio.NewReader(resp.Body)
 		ticker   = time.NewTicker(streamingTimeout)
 	)
 
@@ -39,7 +39,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		close(stopChan)
 	}()
 
-	scanner.Split(bufio.ScanLines)
 	SetEventStreamHeaders(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -47,20 +46,28 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
 	common.RelayCtxGo(ctx, func() {
-		for scanner.Scan() {
+		for {
+			line, err := reader.ReadString('\n')
 			ticker.Reset(streamingTimeout)
-			data := scanner.Text()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				common.LogError(c, "reader error: "+err.Error())
+				break
+			}
+			line = strings.TrimRight(line, "\r\n")
 			if common.DebugEnabled {
-				println(data)
+				println(line)
 			}
 
-			if len(data) < 6 {
+			if len(line) < 6 {
 				continue
 			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
+			if line[:5] != "data:" && line[:6] != "[DONE]" {
 				continue
 			}
-			data = data[5:]
+			data := line[5:]
 			data = strings.TrimLeft(data, " ")
 			data = strings.TrimSuffix(data, "\"")
 			if !strings.HasPrefix(data, "[DONE]") {
@@ -69,12 +76,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				if !success {
 					break
 				}
-			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			if err != io.EOF {
-				common.LogError(c, "scanner error: "+err.Error())
 			}
 		}
 
