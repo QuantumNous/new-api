@@ -174,6 +174,9 @@ func FetchUpstreamModels(c *gin.Context) {
 		url = fmt.Sprintf("%s/v1beta/openai/models", baseURL)
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
+	case common.ChannelTypeCustom:
+		baseURL = strings.Replace(baseURL, "/chat/completions", "", -1)
+		url = fmt.Sprintf("%s/models", baseURL)
 	}
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
