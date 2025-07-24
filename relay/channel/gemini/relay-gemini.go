@@ -557,33 +557,34 @@ func GeminiChatStreamHandler(c *gin.Context, resp *http.Response, info *relaycom
 	createAt := common.GetTimestamp()
 	var usage = &dto.Usage{}
 
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
-		var geminiResponse GeminiChatResponse
-		err := json.Unmarshal([]byte(data), &geminiResponse)
-		if err != nil {
-			common.LogError(c, "error unmarshalling stream response: "+err.Error())
-			return false
-		}
+	helper.StreamScannerHandler(c, resp, info,
+		func(data string) bool {
+			var geminiResponse GeminiChatResponse
+			err := json.Unmarshal([]byte(data), &geminiResponse)
+			if err != nil {
+				common.LogError(c, "error unmarshalling stream response: "+err.Error())
+				return false
+			}
 
-		response, isStop := streamResponseGeminiChat2OpenAI(&geminiResponse)
-		response.Id = id
-		response.Created = createAt
-		response.Model = info.UpstreamModelName
-		// responseText += response.Choices[0].Delta.GetContentString()
-		if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
-			usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
-			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount
-		}
-		err = helper.ObjectData(c, response)
-		if err != nil {
-			common.LogError(c, err.Error())
-		}
-		if isStop {
-			response := helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, constant.FinishReasonStop)
-			helper.ObjectData(c, response)
-		}
-		return true
-	})
+			response, isStop := streamResponseGeminiChat2OpenAI(&geminiResponse)
+			response.Id = id
+			response.Created = createAt
+			response.Model = info.UpstreamModelName
+			// responseText += response.Choices[0].Delta.GetContentString()
+			if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
+				usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
+				usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount
+			}
+			err = helper.ObjectData(c, response)
+			if err != nil {
+				common.LogError(c, err.Error())
+			}
+			if isStop {
+				response := helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, constant.FinishReasonStop)
+				helper.ObjectData(c, response)
+			}
+			return true
+		})
 
 	var response *dto.ChatCompletionsStreamResponse
 

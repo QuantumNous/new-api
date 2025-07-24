@@ -78,6 +78,7 @@ var streamSupportedChannels = map[int]bool{
 	common.ChannelTypeAzure:      true,
 	common.ChannelTypeVolcEngine: true,
 	common.ChannelTypeOllama:     true,
+	common.ChannelTypeVertexAi:   true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
