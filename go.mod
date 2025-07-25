@@ -30,19 +30,19 @@ require (
 	github.com/stripe/stripe-go/v81 v81.4.0
 	github.com/thanhpk/randstr v1.0.6
 	github.com/tiktoken-go/tokenizer v0.6.2
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/image v0.23.0
-	golang.org/x/net v0.38.0
-	golang.org/x/sync v0.12.0
-	gorm.io/driver/clickhouse v0.6.1
+	golang.org/x/net v0.35.0
+	golang.org/x/sync v0.11.0
+	gorm.io/driver/clickhouse v0.6.0
 	gorm.io/driver/mysql v1.4.3
 	gorm.io/driver/postgres v1.5.2
-	gorm.io/gorm v1.25.10
+	gorm.io/gorm v1.25.2
 )
 
 require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
-	github.com/ClickHouse/clickhouse-go/v2 v2.23.2 // indirect
+	github.com/ClickHouse/clickhouse-go/v2 v2.30.0 // indirect
 	github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.5 // indirect
@@ -98,8 +98,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.26.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20240404231335-c0f41cb1a7a0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.22.5 // indirect
