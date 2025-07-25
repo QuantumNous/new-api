@@ -327,12 +327,39 @@ func migrateDBFast() error {
 func migrateLOGDB() error {
 	var err error
 	if common.LogSqlType == common.DatabaseTypeClickHouse {
-		// ClickHouse specific table options for optimal log storage
-		err = LOG_DB.Set("gorm:table_options", "ENGINE=MergeTree() ORDER BY (created_at, id) PARTITION BY toYYYYMM(toDateTime(created_at))").AutoMigrate(&Log{})
+		// Get log retention days from environment variable, default to 365 days (12 months)
+		retentionDays := common.GetEnvOrDefault("LOG_RETENTION_DAYS", 365)
+
+		// ClickHouse specific table options for optimal log storage with compression and TTL
+		tableOptions := fmt.Sprintf(`ENGINE=MergeTree() 
+ORDER BY (toYYYYMM(toDateTime(created_at)), user_id, created_at, id)
+PARTITION BY toYYYYMM(toDateTime(created_at))
+TTL toDateTime(created_at) + INTERVAL %d DAY
+SETTINGS index_granularity = 8192, 
+         compress_primary_key = 1,
+         vertical_merge_algorithm_min_rows_to_activate = 16,
+         vertical_merge_algorithm_min_columns_to_activate = 11`, retentionDays)
+
+		err = LOG_DB.Set("gorm:table_options", tableOptions).AutoMigrate(&Log{})
 		if err != nil {
 			return err
 		}
-		common.SysLog("ClickHouse log database migrated with MergeTree engine")
+
+		// Create additional indices for flexible query patterns
+		indices := []string{
+			"CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs (created_at) TYPE minmax",
+			"CREATE INDEX IF NOT EXISTS idx_logs_created_user ON logs (created_at, user_id) TYPE minmax",
+			"CREATE INDEX IF NOT EXISTS idx_logs_created_model ON logs (created_at, model_name) TYPE minmax",
+			"CREATE INDEX IF NOT EXISTS idx_logs_model_name ON logs (model_name) TYPE set(0)",
+		}
+
+		for _, index := range indices {
+			if err = LOG_DB.Exec(index).Error; err != nil {
+				common.SysLog(fmt.Sprintf("Warning: Failed to create index: %s, error: %v", index, err))
+			}
+		}
+
+		common.SysLog(fmt.Sprintf("ClickHouse log database migrated with optimized MergeTree engine, compression, %d days TTL, and indices", retentionDays))
 	} else {
 		if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
 			return err
