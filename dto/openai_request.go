@@ -74,9 +74,15 @@ type ThinkingOptions struct {
 type ToolCallRequest struct {
 	ID       string          `json:"id,omitempty"`
 	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function"`
+	Function FunctionRequest `json:"function,omitempty"`
 	Name     string          `json:"name,omitempty"`
 	MaxUses  int             `json:"max_uses,omitempty"`
+}
+
+type ClaudeToolCallRequest struct {
+	Type    string `json:"type"`
+	Name    string `json:"name,omitempty"`
+	MaxUses int    `json:"max_uses,omitempty"`
 }
 
 type FunctionRequest struct {
