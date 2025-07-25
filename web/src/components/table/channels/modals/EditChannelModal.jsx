@@ -704,20 +704,20 @@ const EditChannelModal = (props) => {
           }
         }}
       >{t('批量创建')}</Checkbox>
-      {/*{batch && (*/}
-      {/*  <Checkbox disabled={isEdit} checked={multiToSingle} onChange={() => {*/}
-      {/*    setMultiToSingle(prev => !prev);*/}
-      {/*    setInputs(prev => {*/}
-      {/*      const newInputs = { ...prev };*/}
-      {/*      if (!multiToSingle) {*/}
-      {/*        newInputs.multi_key_mode = multiKeyMode;*/}
-      {/*      } else {*/}
-      {/*        delete newInputs.multi_key_mode;*/}
-      {/*      }*/}
-      {/*      return newInputs;*/}
-      {/*    });*/}
-      {/*  }}>{t('密钥聚合模式')}</Checkbox>*/}
-      {/*)}*/}
+      {batch && (
+        <Checkbox disabled={isEdit} checked={multiToSingle} onChange={() => {
+          setMultiToSingle(prev => !prev);
+          setInputs(prev => {
+            const newInputs = { ...prev };
+            if (!multiToSingle) {
+              newInputs.multi_key_mode = multiKeyMode;
+            } else {
+              delete newInputs.multi_key_mode;
+            }
+            return newInputs;
+          });
+        }}>{t('密钥聚合模式')}</Checkbox>
+      )}
     </Space>
   ) : null;
 

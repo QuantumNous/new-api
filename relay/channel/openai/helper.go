@@ -27,7 +27,7 @@ func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 
 func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
 	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
 		return err
 	}
 
@@ -174,7 +174,7 @@ func handleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case relaycommon.RelayFormatClaude:
 		info.ClaudeConvertInfo.Done = true
 		var streamResponse dto.ChatCompletionsStreamResponse
-		if err := json.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
+		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
 			common.SysError("error unmarshalling stream response: " + err.Error())
 			return
 		}
@@ -183,7 +183,7 @@ func handleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 
 		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
 		for _, resp := range claudeResponses {
-			helper.ClaudeData(c, *resp)
+			_ = helper.ClaudeData(c, *resp)
 		}
 	}
 }

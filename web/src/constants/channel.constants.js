@@ -157,6 +157,11 @@ export const CHANNEL_OPTIONS = [
   {
     value: 52,
     color: 'purple',
+    label: 'Vidu',
+  },
+  {
+    value: 53,
+    color: 'green',
     label: '自定义透传渠道',
   },
 ];
