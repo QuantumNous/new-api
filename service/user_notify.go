@@ -3,7 +3,6 @@ package service
 import (
 	"fmt"
 	"one-api/common"
-	"one-api/constant"
 	"one-api/dto"
 	"one-api/model"
 	"strings"
@@ -17,10 +16,10 @@ func NotifyRootUser(t string, subject string, content string) {
 	}
 }
 
-func NotifyUser(userId int, userEmail string, userSetting map[string]interface{}, data dto.Notify) error {
-	notifyType, ok := userSetting[constant.UserSettingNotifyType]
-	if !ok {
-		notifyType = constant.NotifyTypeEmail
+func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
+	notifyType := userSetting.NotifyType
+	if notifyType == "" {
+		notifyType = dto.NotifyTypeEmail
 	}
 
 	// Check notification limit
@@ -34,34 +33,23 @@ func NotifyUser(userId int, userEmail string, userSetting map[string]interface{}
 	}
 
 	switch notifyType {
-	case constant.NotifyTypeEmail:
+	case dto.NotifyTypeEmail:
 		// check setting email
-		if settingEmail, ok := userSetting[constant.UserSettingNotificationEmail]; ok {
-			userEmail = settingEmail.(string)
-		}
+		userEmail = userSetting.NotificationEmail
 		if userEmail == "" {
 			common.SysLog(fmt.Sprintf("user %d has no email, skip sending email", userId))
 			return nil
 		}
 		return sendEmailNotify(userEmail, data)
-	case constant.NotifyTypeWebhook:
-		webhookURL, ok := userSetting[constant.UserSettingWebhookUrl]
-		if !ok {
+	case dto.NotifyTypeWebhook:
+		webhookURLStr := userSetting.WebhookUrl
+		if webhookURLStr == "" {
 			common.SysError(fmt.Sprintf("user %d has no webhook url, skip sending webhook", userId))
-			return nil
-		}
-		webhookURLStr, ok := webhookURL.(string)
-		if !ok {
-			common.SysError(fmt.Sprintf("user %d webhook url is not string type", userId))
 			return nil
 		}
 
 		// 获取 webhook secret
-		var webhookSecret string
-		if secret, ok := userSetting[constant.UserSettingWebhookSecret]; ok {
-			webhookSecret, _ = secret.(string)
-		}
-
+		webhookSecret := userSetting.WebhookSecret
 		return SendWebhookNotify(webhookURLStr, webhookSecret, data)
 	}
 	return nil

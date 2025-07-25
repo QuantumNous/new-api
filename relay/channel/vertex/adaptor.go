@@ -14,6 +14,7 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
 	"one-api/setting/model_setting"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -208,19 +209,19 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.IsStream {
 		switch a.RequestMode {
 		case RequestModeClaude:
 			err, usage = claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
-				usage, err = gemini.GeminiTextGenerationStreamHandler(c, resp, info)
+				usage, err = gemini.GeminiTextGenerationStreamHandler(c, info, resp)
 			} else {
-				err, usage = gemini.GeminiChatStreamHandler(c, resp, info)
+				usage, err = gemini.GeminiChatStreamHandler(c, info, resp)
 			}
 		case RequestModeLlama:
-			err, usage = openai.OaiStreamHandler(c, resp, info)
+			usage, err = openai.OaiStreamHandler(c, info, resp)
 		}
 	} else {
 		switch a.RequestMode {
@@ -228,12 +229,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			err, usage = claude.ClaudeHandler(c, resp, claude.RequestModeMessage, info)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
-				usage, err = gemini.GeminiTextGenerationHandler(c, resp, info)
+				usage, err = gemini.GeminiTextGenerationHandler(c, info, resp)
 			} else {
-				err, usage = gemini.GeminiChatHandler(c, resp, info)
+				usage, err = gemini.GeminiChatHandler(c, info, resp)
 			}
 		case RequestModeLlama:
-			err, usage = openai.OpenaiHandler(c, resp, info)
+			usage, err = openai.OpenaiHandler(c, info, resp)
 		}
 	}
 	return

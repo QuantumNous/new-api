@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Spin, Button, Modal } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess } from '../../helpers';
+import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import SettingsAPIInfo from '../../pages/Setting/Dashboard/SettingsAPIInfo.js';
 import SettingsAnnouncements from '../../pages/Setting/Dashboard/SettingsAnnouncements.js';
 import SettingsFAQ from '../../pages/Setting/Dashboard/SettingsFAQ.js';
@@ -45,7 +45,7 @@ const DashboardSetting = () => {
         }
         if (item.key.endsWith('Enabled') &&
           (item.key === 'DataExportEnabled')) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         }
       });
       setInputs(newInputs);

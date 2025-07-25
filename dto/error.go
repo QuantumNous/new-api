@@ -1,5 +1,7 @@
 package dto
 
+import "one-api/types"
+
 type OpenAIError struct {
 	Message string `json:"message"`
 	Type    string `json:"type"`
@@ -14,11 +16,11 @@ type OpenAIErrorWithStatusCode struct {
 }
 
 type GeneralErrorResponse struct {
-	Error    OpenAIError `json:"error"`
-	Message  string      `json:"message"`
-	Msg      string      `json:"msg"`
-	Err      string      `json:"err"`
-	ErrorMsg string      `json:"error_msg"`
+	Error    types.OpenAIError `json:"error"`
+	Message  string            `json:"message"`
+	Msg      string            `json:"msg"`
+	Err      string            `json:"err"`
+	ErrorMsg string            `json:"error_msg"`
 	Header   struct {
 		Message string `json:"message"`
 	} `json:"header"`

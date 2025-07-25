@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"one-api/constant"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -24,7 +25,7 @@ func printHelp() {
 	fmt.Println("Usage: one-api [--port <port>] [--log-dir <log directory>] [--version] [--help]")
 }
 
-func LoadEnv() {
+func InitEnv() {
 	flag.Parse()
 
 	if *PrintVersion {
@@ -95,4 +96,25 @@ func LoadEnv() {
 	GlobalWebRateLimitEnable = GetEnvOrDefaultBool("GLOBAL_WEB_RATE_LIMIT_ENABLE", true)
 	GlobalWebRateLimitNum = GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT", 60)
 	GlobalWebRateLimitDuration = int64(GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT_DURATION", 180))
+
+	initConstantEnv()
+}
+
+func initConstantEnv() {
+	constant.StreamingTimeout = GetEnvOrDefault("STREAMING_TIMEOUT", 120)
+	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
+	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 20)
+	// ForceStreamOption 覆盖请求参数，强制返回usage信息
+	constant.ForceStreamOption = GetEnvOrDefaultBool("FORCE_STREAM_OPTION", true)
+	constant.GetMediaToken = GetEnvOrDefaultBool("GET_MEDIA_TOKEN", true)
+	constant.GetMediaTokenNotStream = GetEnvOrDefaultBool("GET_MEDIA_TOKEN_NOT_STREAM", true)
+	constant.UpdateTask = GetEnvOrDefaultBool("UPDATE_TASK", true)
+	constant.AzureDefaultAPIVersion = GetEnvOrDefaultString("AZURE_DEFAULT_API_VERSION", "2025-04-01-preview")
+	constant.GeminiVisionMaxImageNum = GetEnvOrDefault("GEMINI_VISION_MAX_IMAGE_NUM", 16)
+	constant.NotifyLimitCount = GetEnvOrDefault("NOTIFY_LIMIT_COUNT", 2)
+	constant.NotificationLimitDurationMinute = GetEnvOrDefault("NOTIFICATION_LIMIT_DURATION_MINUTE", 10)
+	// GenerateDefaultToken 是否生成初始令牌，默认关闭。
+	constant.GenerateDefaultToken = GetEnvOrDefaultBool("GENERATE_DEFAULT_TOKEN", false)
+	// 是否启用错误日志
+	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 }

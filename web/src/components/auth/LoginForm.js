@@ -34,20 +34,20 @@ import LinuxDoIcon from '../common/logo/LinuxDoIcon.js';
 import { useTranslation } from 'react-i18next';
 
 const LoginForm = () => {
+  let navigate = useNavigate();
+  const { t } = useTranslation();
   const [inputs, setInputs] = useState({
     username: '',
     password: '',
     wechat_verification_code: '',
   });
+  const { username, password } = inputs;
   const [searchParams, setSearchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState(false);
-  const { username, password } = inputs;
   const [userState, userDispatch] = useContext(UserContext);
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
-  let navigate = useNavigate();
-  const [status, setStatus] = useState({});
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
@@ -59,7 +59,6 @@ const LoginForm = () => {
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [otherLoginOptionsLoading, setOtherLoginOptionsLoading] = useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
-  const { t } = useTranslation();
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -69,18 +68,21 @@ const LoginForm = () => {
     localStorage.setItem('aff', affCode);
   }
 
+  const [status] = useState(() => {
+    const savedStatus = localStorage.getItem('status');
+    return savedStatus ? JSON.parse(savedStatus) : {};
+  });
+
+  useEffect(() => {
+    if (status.turnstile_check) {
+      setTurnstileEnabled(true);
+      setTurnstileSiteKey(status.turnstile_site_key);
+    }
+  }, [status]);
+
   useEffect(() => {
     if (searchParams.get('expired')) {
       showError(t('未登录或登录已过期，请重新登录'));
-    }
-    let status = localStorage.getItem('status');
-    if (status) {
-      status = JSON.parse(status);
-      setStatus(status);
-      if (status.turnstile_check) {
-        setTurnstileEnabled(true);
-        setTurnstileSiteKey(status.turnstile_site_key);
-      }
     }
   }, []);
 
@@ -356,9 +358,19 @@ const LoginForm = () => {
                 </Button>
               </div>
 
-              <div className="mt-6 text-center text-sm">
-                <Text>{t('没有账户？')} <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">{t('注册')}</Link></Text>
-              </div>
+              {!status.self_use_mode_enabled && (
+                <div className="mt-6 text-center text-sm">
+                  <Text>
+                    {t('没有账户？')}{' '}
+                    <Link
+                      to="/register"
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {t('注册')}
+                    </Link>
+                  </Text>
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -387,7 +399,6 @@ const LoginForm = () => {
                   placeholder={t('请输入您的用户名或邮箱地址')}
                   name="username"
                   size="large"
-                  className="!rounded-md"
                   onChange={(value) => handleChange('username', value)}
                   prefix={<IconMail />}
                 />
@@ -399,7 +410,6 @@ const LoginForm = () => {
                   name="password"
                   mode="password"
                   size="large"
-                  className="!rounded-md"
                   onChange={(value) => handleChange('password', value)}
                   prefix={<IconLock />}
                 />
@@ -451,9 +461,19 @@ const LoginForm = () => {
                 </>
               )}
 
-              <div className="mt-6 text-center text-sm">
-                <Text>{t('没有账户？')} <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">{t('注册')}</Link></Text>
-              </div>
+              {!status.self_use_mode_enabled && (
+                <div className="mt-6 text-center text-sm">
+                  <Text>
+                    {t('没有账户？')}{' '}
+                    <Link
+                      to="/register"
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {t('注册')}
+                    </Link>
+                  </Text>
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -499,8 +519,11 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-sm">
+    <div className="relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* 背景模糊晕染球 */}
+      <div className="blur-ball blur-ball-indigo" style={{ top: '-80px', right: '-80px', transform: 'none' }} />
+      <div className="blur-ball blur-ball-teal" style={{ top: '50%', left: '-120px' }} />
+      <div className="w-full max-w-sm mt-[64px]">
         {showEmailLogin || !(status.github_oauth || status.oidc_enabled || status.wechat_login || status.linuxdo_oauth || status.telegram_oauth)
           ? renderEmailLoginForm()
           : renderOAuthOptions()}

@@ -6,8 +6,11 @@ import (
 )
 
 var Chats = []map[string]string{
+	//{
+	//	"ChatGPT Next Web 官方示例": "https://app.nextchat.dev/#/?settings={\"key\":\"{key}\",\"url\":\"{address}\"}",
+	//},
 	{
-		"ChatGPT Next Web 官方示例": "https://app.nextchat.dev/#/?settings={\"key\":\"{key}\",\"url\":\"{address}\"}",
+		"Cherry Studio": "cherrystudio://providers/api-keys?v=1&data={cherryConfig}",
 	},
 	{
 		"Lobe Chat 官方示例": "https://chat-preview.lobehub.com/?settings={\"keyVaults\":{\"openai\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\"}}}",

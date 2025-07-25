@@ -7,9 +7,8 @@ import {
   timestamp2string,
   renderGroup,
   renderQuota,
-  getQuotaPerUnit
+  getModelCategories
 } from '../../helpers';
-
 import { ITEMS_PER_PAGE } from '../../constants';
 import {
   Button,
@@ -23,39 +22,29 @@ import {
   SplitButtonGroup,
   Table,
   Tag,
+  AvatarGroup,
+  Avatar,
+  Tooltip,
+  Progress,
+  Switch,
+  Input,
   Typography
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark
 } from '@douyinfe/semi-illustrations';
-
 import {
-  CheckCircle,
-  Shield,
-  XCircle,
-  Clock,
-  Gauge,
-  HelpCircle,
-  Infinity,
-  Coins,
-  Key
-} from 'lucide-react';
-
-import {
-  IconPlus,
-  IconCopy,
   IconSearch,
   IconTreeTriangleDown,
+  IconCopy,
   IconEyeOpened,
-  IconEdit,
-  IconDelete,
-  IconStop,
-  IconPlay,
-  IconMore
+  IconEyeClosed,
 } from '@douyinfe/semi-icons';
+import { Key } from 'lucide-react';
 import EditToken from '../../pages/Token/EditToken';
 import { useTranslation } from 'react-i18next';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -66,49 +55,6 @@ function renderTimestamp(timestamp) {
 const TokensTable = () => {
   const { t } = useTranslation();
 
-  const renderStatus = (status, model_limits_enabled = false) => {
-    switch (status) {
-      case 1:
-        if (model_limits_enabled) {
-          return (
-            <Tag color='green' size='large' shape='circle' prefixIcon={<Shield size={14} />}>
-              {t('已启用：限制模型')}
-            </Tag>
-          );
-        } else {
-          return (
-            <Tag color='green' size='large' shape='circle' prefixIcon={<CheckCircle size={14} />}>
-              {t('已启用')}
-            </Tag>
-          );
-        }
-      case 2:
-        return (
-          <Tag color='red' size='large' shape='circle' prefixIcon={<XCircle size={14} />}>
-            {t('已禁用')}
-          </Tag>
-        );
-      case 3:
-        return (
-          <Tag color='yellow' size='large' shape='circle' prefixIcon={<Clock size={14} />}>
-            {t('已过期')}
-          </Tag>
-        );
-      case 4:
-        return (
-          <Tag color='grey' size='large' shape='circle' prefixIcon={<Gauge size={14} />}>
-            {t('已耗尽')}
-          </Tag>
-        );
-      default:
-        return (
-          <Tag color='black' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
-            {t('未知状态')}
-          </Tag>
-        );
-    }
-  };
-
   const columns = [
     {
       title: t('名称'),
@@ -118,65 +64,253 @@ const TokensTable = () => {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',
-      render: (text, record, index) => {
-        return (
-          <div>
-            <Space>
-              {renderStatus(text, record.model_limits_enabled)}
-              {renderGroup(record.group)}
-            </Space>
-          </div>
-        );
-      },
-    },
-    {
-      title: t('已用额度'),
-      dataIndex: 'used_quota',
-      render: (text, record, index) => {
-        return (
-          <div>
-            <Tag size={'large'} color={'grey'} shape='circle' prefixIcon={<Coins size={14} />}>
-              {renderQuota(parseInt(text))}
-            </Tag>
-          </div>
-        );
-      },
-    },
-    {
-      title: t('剩余额度'),
-      dataIndex: 'remain_quota',
-      render: (text, record, index) => {
-        const getQuotaColor = (quotaValue) => {
-          const quotaPerUnit = getQuotaPerUnit();
-          const dollarAmount = quotaValue / quotaPerUnit;
-
-          if (dollarAmount <= 0) {
-            return 'red';
-          } else if (dollarAmount <= 100) {
-            return 'yellow';
+      render: (text, record) => {
+        const enabled = text === 1;
+        const handleToggle = (checked) => {
+          if (checked) {
+            manageToken(record.id, 'enable', record);
           } else {
-            return 'green';
+            manageToken(record.id, 'disable', record);
           }
         };
 
-        return (
-          <div>
-            {record.unlimited_quota ? (
-              <Tag size={'large'} color={'white'} shape='circle' prefixIcon={<Infinity size={14} />}>
-                {t('无限制')}
-              </Tag>
-            ) : (
-              <Tag
-                size={'large'}
-                color={getQuotaColor(parseInt(text))}
-                shape='circle'
-                prefixIcon={<Coins size={14} />}
-              >
-                {renderQuota(parseInt(text))}
-              </Tag>
-            )}
+        let tagColor = 'black';
+        let tagText = t('未知状态');
+        if (enabled) {
+          tagColor = 'green';
+          tagText = t('已启用');
+        } else if (text === 2) {
+          tagColor = 'red';
+          tagText = t('已禁用');
+        } else if (text === 3) {
+          tagColor = 'yellow';
+          tagText = t('已过期');
+        } else if (text === 4) {
+          tagColor = 'grey';
+          tagText = t('已耗尽');
+        }
+
+        const used = parseInt(record.used_quota) || 0;
+        const remain = parseInt(record.remain_quota) || 0;
+        const total = used + remain;
+        const percent = total > 0 ? (remain / total) * 100 : 0;
+
+        const getProgressColor = (pct) => {
+          if (pct === 100) return 'var(--semi-color-success)';
+          if (pct <= 10) return 'var(--semi-color-danger)';
+          if (pct <= 30) return 'var(--semi-color-warning)';
+          return undefined;
+        };
+
+        const quotaSuffix = record.unlimited_quota ? (
+          <div className='text-xs'>{t('无限额度')}</div>
+        ) : (
+          <div className='flex flex-col items-end'>
+            <span className='text-xs leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
+            <Progress
+              percent={percent}
+              stroke={getProgressColor(percent)}
+              aria-label='quota usage'
+              format={() => `${percent.toFixed(0)}%`}
+              style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
+            />
           </div>
         );
+
+        const content = (
+          <Tag
+            color={tagColor}
+            shape='circle'
+            size='large'
+            prefixIcon={
+              <Switch
+                size='small'
+                checked={enabled}
+                onChange={handleToggle}
+                aria-label='token status switch'
+              />
+            }
+            suffixIcon={quotaSuffix}
+          >
+            {tagText}
+          </Tag>
+        );
+
+        if (record.unlimited_quota) {
+          return content;
+        }
+
+        return (
+          <Tooltip
+            content={
+              <div className='text-xs'>
+                <div>{t('已用额度')}: {renderQuota(used)}</div>
+                <div>{t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)</div>
+                <div>{t('总额度')}: {renderQuota(total)}</div>
+              </div>
+            }
+          >
+            {content}
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: t('分组'),
+      dataIndex: 'group',
+      key: 'group',
+      render: (text) => {
+        if (text === 'auto') {
+          return (
+            <Tooltip
+              content={t('当前分组为 auto，会自动选择最优分组，当一个组不可用时自动降级到下一个组（熔断机制）')}
+              position='top'
+            >
+              <Tag color='white' shape='circle'> {t('智能熔断')} </Tag>
+            </Tooltip>
+          );
+        }
+        return renderGroup(text);
+      },
+    },
+    {
+      title: t('密钥'),
+      key: 'token_key',
+      render: (text, record) => {
+        const fullKey = 'sk-' + record.key;
+        const maskedKey = 'sk-' + record.key.slice(0, 4) + '**********' + record.key.slice(-4);
+        const revealed = !!showKeys[record.id];
+
+        return (
+          <div className='w-[200px]'>
+            <Input
+              readOnly
+              value={revealed ? fullKey : maskedKey}
+              size='small'
+              suffix={
+                <div className='flex items-center'>
+                  <Button
+                    theme='borderless'
+                    size='small'
+                    type='tertiary'
+                    icon={revealed ? <IconEyeClosed /> : <IconEyeOpened />}
+                    aria-label='toggle token visibility'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowKeys(prev => ({ ...prev, [record.id]: !revealed }));
+                    }}
+                  />
+                  <Button
+                    theme='borderless'
+                    size='small'
+                    type='tertiary'
+                    icon={<IconCopy />}
+                    aria-label='copy token key'
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await copyText(fullKey);
+                    }}
+                  />
+                </div>
+              }
+            />
+          </div>
+        );
+      },
+    },
+    {
+      title: t('可用模型'),
+      dataIndex: 'model_limits',
+      render: (text, record) => {
+        if (record.model_limits_enabled && text) {
+          const models = text.split(',').filter(Boolean);
+          const categories = getModelCategories(t);
+
+          const vendorAvatars = [];
+          const matchedModels = new Set();
+          Object.entries(categories).forEach(([key, category]) => {
+            if (key === 'all') return;
+            if (!category.icon || !category.filter) return;
+            const vendorModels = models.filter((m) => category.filter({ model_name: m }));
+            if (vendorModels.length > 0) {
+              vendorAvatars.push(
+                <Tooltip key={key} content={vendorModels.join(', ')} position='top' showArrow>
+                  <Avatar size='extra-extra-small' alt={category.label} color='transparent'>
+                    {category.icon}
+                  </Avatar>
+                </Tooltip>
+              );
+              vendorModels.forEach((m) => matchedModels.add(m));
+            }
+          });
+
+          const unmatchedModels = models.filter((m) => !matchedModels.has(m));
+          if (unmatchedModels.length > 0) {
+            vendorAvatars.push(
+              <Tooltip key='unknown' content={unmatchedModels.join(', ')} position='top' showArrow>
+                <Avatar size='extra-extra-small' alt='unknown'>
+                  {t('其他')}
+                </Avatar>
+              </Tooltip>
+            );
+          }
+
+          return (
+            <AvatarGroup size='extra-extra-small'>
+              {vendorAvatars}
+            </AvatarGroup>
+          );
+        } else {
+          return (
+            <Tag color='white' shape='circle'>
+              {t('无限制')}
+            </Tag>
+          );
+        }
+      },
+    },
+    {
+      title: t('IP限制'),
+      dataIndex: 'allow_ips',
+      render: (text) => {
+        if (!text || text.trim() === '') {
+          return (
+            <Tag color='white' shape='circle'>
+              {t('无限制')}
+            </Tag>
+          );
+        }
+
+        const ips = text
+          .split('\n')
+          .map((ip) => ip.trim())
+          .filter(Boolean);
+
+        const displayIps = ips.slice(0, 1);
+        const extraCount = ips.length - displayIps.length;
+
+        const ipTags = displayIps.map((ip, idx) => (
+          <Tag key={idx} shape='circle'>
+            {ip}
+          </Tag>
+        ));
+
+        if (extraCount > 0) {
+          ipTags.push(
+            <Tooltip
+              key='extra'
+              content={ips.slice(1).join(', ')}
+              position='top'
+              showArrow
+            >
+              <Tag shape='circle'>
+                {'+' + extraCount}
+              </Tag>
+            </Tooltip>
+          );
+        }
+
+        return <Space wrap>{ipTags}</Space>;
       },
     },
     {
@@ -231,72 +365,15 @@ const TokensTable = () => {
           }
         }
 
-        // 创建更多操作的下拉菜单项
-        const moreMenuItems = [
-          {
-            node: 'item',
-            name: t('查看'),
-            icon: <IconEyeOpened />,
-            onClick: () => {
-              Modal.info({
-                title: t('令牌详情'),
-                content: 'sk-' + record.key,
-                size: 'large',
-              });
-            },
-          },
-          {
-            node: 'item',
-            name: t('删除'),
-            icon: <IconDelete />,
-            type: 'danger',
-            onClick: () => {
-              Modal.confirm({
-                title: t('确定是否要删除此令牌？'),
-                content: t('此修改将不可逆'),
-                onOk: () => {
-                  manageToken(record.id, 'delete', record).then(() => {
-                    removeRecord(record.key);
-                  });
-                },
-              });
-            },
-          }
-        ];
-
-        // 动态添加启用/禁用按钮
-        if (record.status === 1) {
-          moreMenuItems.push({
-            node: 'item',
-            name: t('禁用'),
-            icon: <IconStop />,
-            type: 'warning',
-            onClick: () => {
-              manageToken(record.id, 'disable', record);
-            },
-          });
-        } else {
-          moreMenuItems.push({
-            node: 'item',
-            name: t('启用'),
-            icon: <IconPlay />,
-            type: 'secondary',
-            onClick: () => {
-              manageToken(record.id, 'enable', record);
-            },
-          });
-        }
-
         return (
           <Space wrap>
             <SplitButtonGroup
-              className="!rounded-full overflow-hidden"
+              className="overflow-hidden"
               aria-label={t('项目操作按钮组')}
             >
               <Button
-                theme='light'
                 size="small"
-                style={{ color: 'rgba(var(--semi-teal-7), 1)' }}
+                type='tertiary'
                 onClick={() => {
                   if (chatsArray.length === 0) {
                     showError(t('请联系管理员配置聊天链接'));
@@ -317,11 +394,7 @@ const TokensTable = () => {
                 menu={chatsArray}
               >
                 <Button
-                  style={{
-                    padding: '4px 4px',
-                    color: 'rgba(var(--semi-teal-7), 1)',
-                  }}
-                  type='primary'
+                  type='tertiary'
                   icon={<IconTreeTriangleDown />}
                   size="small"
                 ></Button>
@@ -329,24 +402,8 @@ const TokensTable = () => {
             </SplitButtonGroup>
 
             <Button
-              icon={<IconCopy />}
-              theme='light'
-              type='secondary'
-              size="small"
-              className="!rounded-full"
-              onClick={async (text) => {
-                await copyText('sk-' + record.key);
-              }}
-            >
-              {t('复制')}
-            </Button>
-
-            <Button
-              icon={<IconEdit />}
-              theme='light'
               type='tertiary'
               size="small"
-              className="!rounded-full"
               onClick={() => {
                 setEditingToken(record);
                 setShowEdit(true);
@@ -355,19 +412,24 @@ const TokensTable = () => {
               {t('编辑')}
             </Button>
 
-            <Dropdown
-              trigger='click'
-              position='bottomRight'
-              menu={moreMenuItems}
+            <Button
+              type='danger'
+              size="small"
+              onClick={() => {
+                Modal.confirm({
+                  title: t('确定是否要删除此令牌？'),
+                  content: t('此修改将不可逆'),
+                  onOk: () => {
+                    (async () => {
+                      await manageToken(record.id, 'delete', record);
+                      await refresh();
+                    })();
+                  },
+                });
+              }}
             >
-              <Button
-                icon={<IconMore />}
-                theme='light'
-                type='tertiary'
-                size="small"
-                className="!rounded-full"
-              />
-            </Dropdown>
+              {t('删除')}
+            </Button>
           </Space>
         );
       },
@@ -385,6 +447,8 @@ const TokensTable = () => {
   const [editingToken, setEditingToken] = useState({
     id: undefined,
   });
+  const [compactMode, setCompactMode] = useTableCompactMode('tokens');
+  const [showKeys, setShowKeys] = useState({});
 
   // Form 初始值
   const formInitValues = {
@@ -433,8 +497,9 @@ const TokensTable = () => {
     setLoading(false);
   };
 
-  const refresh = async () => {
-    await loadTokens(1);
+  const refresh = async (page = activePage) => {
+    await loadTokens(page);
+    setSelectedKeys([]);
   };
 
   const copyText = async (text) => {
@@ -459,9 +524,22 @@ const TokensTable = () => {
     if (serverAddress === '') {
       serverAddress = window.location.origin;
     }
-    let encodedServerAddress = encodeURIComponent(serverAddress);
-    url = url.replaceAll('{address}', encodedServerAddress);
-    url = url.replaceAll('{key}', 'sk-' + record.key);
+    if (url.includes('{cherryConfig}') === true) {
+      let cherryConfig = {
+        id: 'new-api',
+        baseUrl: serverAddress,
+        apiKey: 'sk-' + record.key,
+      }
+      // 替换 {cherryConfig} 为base64编码的JSON字符串
+      let encodedConfig = encodeURIComponent(
+        btoa(JSON.stringify(cherryConfig))
+      );
+      url = url.replaceAll('{cherryConfig}', encodedConfig);
+    } else {
+      let encodedServerAddress = encodeURIComponent(serverAddress);
+      url = url.replaceAll('{address}', encodedServerAddress);
+      url = url.replaceAll('{key}', 'sk-' + record.key);
+    }
 
     window.open(url, '_blank');
   };
@@ -583,52 +661,139 @@ const TokensTable = () => {
     }
   };
 
+  const batchDeleteTokens = async () => {
+    if (selectedKeys.length === 0) {
+      showError(t('请先选择要删除的令牌！'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const ids = selectedKeys.map((token) => token.id);
+      const res = await API.post('/api/token/batch', { ids });
+      if (res?.data?.success) {
+        const count = res.data.data || 0;
+        showSuccess(t('已删除 {{count}} 个令牌！', { count }));
+        await refresh();
+        setTimeout(() => {
+          if (tokens.length === 0 && activePage > 1) {
+            refresh(activePage - 1);
+          }
+        }, 100);
+      } else {
+        showError(res?.data?.message || t('删除失败'));
+      }
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderHeader = () => (
     <div className="flex flex-col w-full">
       <div className="mb-2">
-        <div className="flex items-center text-blue-500">
-          <Key size={16} className="mr-2" />
-          <Text>{t('令牌用于API访问认证，可以设置额度限制和模型权限。')}</Text>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+          <div className="flex items-center text-blue-500">
+            <Key size={16} className="mr-2" />
+            <Text>{t('令牌用于API访问认证，可以设置额度限制和模型权限。')}</Text>
+          </div>
+          <Button
+            type="tertiary"
+            className="w-full md:w-auto"
+            onClick={() => setCompactMode(!compactMode)}
+            size="small"
+          >
+            {compactMode ? t('自适应列表') : t('紧凑列表')}
+          </Button>
         </div>
       </div>
 
       <Divider margin="12px" />
 
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
-        <div className="flex gap-2 w-full md:w-auto order-2 md:order-1">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1">
           <Button
-            theme="light"
             type="primary"
-            icon={<IconPlus />}
-            className="!rounded-full w-full md:w-auto"
+            className="flex-1 md:flex-initial"
             onClick={() => {
               setEditingToken({
                 id: undefined,
               });
               setShowEdit(true);
             }}
+            size="small"
           >
             {t('添加令牌')}
           </Button>
           <Button
-            theme="light"
-            type="warning"
-            icon={<IconCopy />}
-            className="!rounded-full w-full md:w-auto"
-            onClick={async () => {
+            type='tertiary'
+            className="flex-1 md:flex-initial"
+            onClick={() => {
               if (selectedKeys.length === 0) {
                 showError(t('请至少选择一个令牌！'));
                 return;
               }
-              let keys = '';
-              for (let i = 0; i < selectedKeys.length; i++) {
-                keys +=
-                  selectedKeys[i].name + '    sk-' + selectedKeys[i].key + '\n';
-              }
-              await copyText(keys);
+              Modal.info({
+                title: t('复制令牌'),
+                icon: null,
+                content: t('请选择你的复制方式'),
+                footer: (
+                  <Space>
+                    <Button
+                      type='tertiary'
+                      onClick={async () => {
+                        let content = '';
+                        for (let i = 0; i < selectedKeys.length; i++) {
+                          content +=
+                            selectedKeys[i].name + '    sk-' + selectedKeys[i].key + '\n';
+                        }
+                        await copyText(content);
+                        Modal.destroyAll();
+                      }}
+                    >
+                      {t('名称+密钥')}
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        let content = '';
+                        for (let i = 0; i < selectedKeys.length; i++) {
+                          content += 'sk-' + selectedKeys[i].key + '\n';
+                        }
+                        await copyText(content);
+                        Modal.destroyAll();
+                      }}
+                    >
+                      {t('仅密钥')}
+                    </Button>
+                  </Space>
+                ),
+              });
             }}
+            size="small"
           >
-            {t('复制所选令牌到剪贴板')}
+            {t('复制所选令牌')}
+          </Button>
+          <Button
+            type='danger'
+            className="w-full md:w-auto"
+            onClick={() => {
+              if (selectedKeys.length === 0) {
+                showError(t('请至少选择一个令牌！'));
+                return;
+              }
+              Modal.confirm({
+                title: t('批量删除令牌'),
+                content: (
+                  <div>
+                    {t('确定要删除所选的 {{count}} 个令牌吗？', { count: selectedKeys.length })}
+                  </div>
+                ),
+                onOk: () => batchDeleteTokens(),
+              });
+            }}
+            size="small"
+          >
+            {t('删除所选令牌')}
           </Button>
         </div>
 
@@ -649,9 +814,9 @@ const TokensTable = () => {
                 field="searchKeyword"
                 prefix={<IconSearch />}
                 placeholder={t('搜索关键字')}
-                className="!rounded-full"
                 showClear
                 pure
+                size="small"
               />
             </div>
             <div className="relative w-full md:w-56">
@@ -659,22 +824,23 @@ const TokensTable = () => {
                 field="searchToken"
                 prefix={<IconSearch />}
                 placeholder={t('密钥')}
-                className="!rounded-full"
                 showClear
                 pure
+                size="small"
               />
             </div>
             <div className="flex gap-2 w-full md:w-auto">
               <Button
-                type="primary"
+                type="tertiary"
                 htmlType="submit"
                 loading={loading || searching}
-                className="!rounded-full flex-1 md:flex-initial md:w-auto"
+                className="flex-1 md:flex-initial md:w-auto"
+                size="small"
               >
                 {t('查询')}
               </Button>
               <Button
-                theme="light"
+                type='tertiary'
                 onClick={() => {
                   if (formApi) {
                     formApi.reset();
@@ -684,7 +850,8 @@ const TokensTable = () => {
                     }, 100);
                   }
                 }}
-                className="!rounded-full flex-1 md:flex-initial md:w-auto"
+                className="flex-1 md:flex-initial md:w-auto"
+                size="small"
               >
                 {t('重置')}
               </Button>
@@ -711,9 +878,15 @@ const TokensTable = () => {
         bordered={false}
       >
         <Table
-          columns={columns}
+          columns={compactMode ? columns.map(col => {
+            if (col.dataIndex === 'operate') {
+              const { fixed, ...rest } = col;
+              return rest;
+            }
+            return col;
+          }) : columns}
           dataSource={tokens}
-          scroll={{ x: 'max-content' }}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
           pagination={{
             currentPage: activePage,
             pageSize: pageSize,

@@ -175,7 +175,7 @@ export default function RequestRateLimit(props) {
                 ]}
                   extraText={
                     <div>
-                      <p style={{ marginBottom: -15 }}>{t('说明：')}</p>
+                      <p>{t('说明：')}</p>
                       <ul>
                         <li>{t('使用 JSON 对象格式，格式为：{"组名": [最多请求次数, 最多请求完成次数]}')}</li>
                       <li>{t('示例：{"default": [200, 100], "vip": [0, 1000]}。')}</li>

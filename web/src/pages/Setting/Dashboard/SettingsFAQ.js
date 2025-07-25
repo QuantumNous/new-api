@@ -8,7 +8,8 @@ import {
   Empty,
   Divider,
   Modal,
-  Switch
+  Switch,
+  Tooltip
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -54,13 +55,17 @@ const SettingsFAQ = ({ options, refresh }) => {
       dataIndex: 'question',
       key: 'question',
       render: (text) => (
-        <div style={{
-          maxWidth: '300px',
-          wordBreak: 'break-word',
-          fontWeight: 'bold'
-        }}>
-          {text}
-        </div>
+        <Tooltip content={text} showArrow>
+          <div style={{
+            maxWidth: '300px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontWeight: 'bold'
+          }}>
+            {text}
+          </div>
+        </Tooltip>
       )
     },
     {
@@ -68,14 +73,17 @@ const SettingsFAQ = ({ options, refresh }) => {
       dataIndex: 'answer',
       key: 'answer',
       render: (text) => (
-        <div style={{
-          maxWidth: '400px',
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap',
-          color: 'var(--semi-color-text-1)'
-        }}>
-          {text}
-        </div>
+        <Tooltip content={text} showArrow>
+          <div style={{
+            maxWidth: '400px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: 'var(--semi-color-text-1)'
+          }}>
+            {text}
+          </div>
+        </Tooltip>
       )
     },
     {
@@ -90,7 +98,6 @@ const SettingsFAQ = ({ options, refresh }) => {
             theme='light'
             type='tertiary'
             size='small'
-            className="!rounded-full"
             onClick={() => handleEditFaq(record)}
           >
             {t('编辑')}
@@ -100,7 +107,6 @@ const SettingsFAQ = ({ options, refresh }) => {
             type='danger'
             theme='light'
             size='small'
-            className="!rounded-full"
             onClick={() => handleDeleteFaq(record)}
           >
             {t('删除')}
@@ -289,7 +295,7 @@ const SettingsFAQ = ({ options, refresh }) => {
             theme='light'
             type='primary'
             icon={<Plus size={14} />}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
             onClick={handleAddFaq}
           >
             {t('添加问答')}
@@ -300,7 +306,7 @@ const SettingsFAQ = ({ options, refresh }) => {
             theme='light'
             onClick={handleBatchDelete}
             disabled={selectedRowKeys.length === 0}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
           >
             {t('批量删除')} {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
           </Button>
@@ -310,7 +316,7 @@ const SettingsFAQ = ({ options, refresh }) => {
             loading={loading}
             disabled={!hasChanges}
             type='secondary'
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
           >
             {t('保存设置')}
           </Button>
@@ -389,7 +395,7 @@ const SettingsFAQ = ({ options, refresh }) => {
               style={{ padding: 30 }}
             />
           }
-          className="rounded-xl overflow-hidden"
+          className="overflow-hidden"
         />
       </Form.Section>
 
@@ -400,7 +406,6 @@ const SettingsFAQ = ({ options, refresh }) => {
         onCancel={() => setShowFaqModal(false)}
         okText={t('保存')}
         cancelText={t('取消')}
-        className="rounded-xl"
         confirmLoading={modalLoading}
         width={800}
       >
@@ -416,7 +421,7 @@ const SettingsFAQ = ({ options, refresh }) => {
           <Form.TextArea
             field='answer'
             label={t('回答内容')}
-            placeholder={t('请输入回答内容')}
+            placeholder={t('请输入回答内容（支持 Markdown/HTML）')}
             maxCount={1000}
             rows={6}
             rules={[{ required: true, message: t('请输入回答内容') }]}
@@ -436,7 +441,6 @@ const SettingsFAQ = ({ options, refresh }) => {
         okText={t('确认删除')}
         cancelText={t('取消')}
         type="warning"
-        className="rounded-xl"
         okButtonProps={{
           type: 'danger',
           theme: 'solid'

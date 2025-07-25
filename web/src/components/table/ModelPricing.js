@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useMemo, useState } from 'react';
-import { API, copy, showError, showInfo, showSuccess, getModelCategories, renderModelTag } from '../../helpers';
+import { API, copy, showError, showInfo, showSuccess, getModelCategories, renderModelTag, stringToColor } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -16,8 +16,9 @@ import {
   Card,
   Tabs,
   TabPane,
-  Dropdown,
-  Empty
+  Empty,
+  Switch,
+  Select
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -33,6 +34,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { UserContext } from '../../context/User/index.js';
 import { AlertCircle } from 'lucide-react';
+import { StatusContext } from '../../context/Status/index.js';
 
 const ModelPricing = () => {
   const { t } = useTranslation();
@@ -44,6 +46,14 @@ const ModelPricing = () => {
   const [selectedGroup, setSelectedGroup] = useState('default');
   const [activeKey, setActiveKey] = useState('all');
   const [pageSize, setPageSize] = useState(10);
+
+  const [currency, setCurrency] = useState('USD');
+  const [showWithRecharge, setShowWithRecharge] = useState(false);
+  const [tokenUnit, setTokenUnit] = useState('M');
+  const [statusState] = useContext(StatusContext);
+  // 充值汇率（price）与美元兑人民币汇率（usd_exchange_rate）
+  const priceRate = useMemo(() => statusState?.status?.price ?? 1, [statusState]);
+  const usdExchangeRate = useMemo(() => statusState?.status?.usd_exchange_rate ?? priceRate, [statusState, priceRate]);
 
   const rowSelection = useMemo(
     () => ({
@@ -77,13 +87,13 @@ const ModelPricing = () => {
     switch (type) {
       case 1:
         return (
-          <Tag color='teal' size='large' shape='circle'>
+          <Tag color='teal' shape='circle'>
             {t('按次计费')}
           </Tag>
         );
       case 0:
         return (
-          <Tag color='violet' size='large' shape='circle'>
+          <Tag color='violet' shape='circle'>
             {t('按量计费')}
           </Tag>
         );
@@ -107,6 +117,37 @@ const ModelPricing = () => {
     ) : null;
   }
 
+  function renderSupportedEndpoints(endpoints) {
+    if (!endpoints || endpoints.length === 0) {
+      return null;
+    }
+    return (
+      <Space wrap>
+        {endpoints.map((endpoint, idx) => (
+          <Tag
+            key={endpoint}
+            color={stringToColor(endpoint)}
+            shape='circle'
+          >
+            {endpoint}
+          </Tag>
+        ))}
+      </Space>
+    );
+  }
+
+  const displayPrice = (usdPrice) => {
+    let priceInUSD = usdPrice;
+    if (showWithRecharge) {
+      priceInUSD = usdPrice * priceRate / usdExchangeRate;
+    }
+
+    if (currency === 'CNY') {
+      return `¥${(priceInUSD * usdExchangeRate).toFixed(3)}`;
+    }
+    return `$${priceInUSD.toFixed(3)}`;
+  };
+
   const columns = [
     {
       title: t('可用性'),
@@ -120,6 +161,13 @@ const ModelPricing = () => {
         return Number(aAvailable) - Number(bAvailable);
       },
       defaultSortOrder: 'descend',
+    },
+    {
+      title: t('可用端点类型'),
+      dataIndex: 'supported_endpoint_types',
+      render: (text, record, index) => {
+        return renderSupportedEndpoints(text);
+      },
     },
     {
       title: t('模型名称'),
@@ -153,7 +201,7 @@ const ModelPricing = () => {
               if (usableGroup[group]) {
                 if (group === selectedGroup) {
                   return (
-                    <Tag color='blue' size='large' shape='circle' prefixIcon={<IconVerify />}>
+                    <Tag color='blue' shape='circle' prefixIcon={<IconVerify />}>
                       {group}
                     </Tag>
                   );
@@ -161,7 +209,7 @@ const ModelPricing = () => {
                   return (
                     <Tag
                       color='blue'
-                      size='large'
+                      shape='circle'
                       onClick={() => {
                         setSelectedGroup(group);
                         showInfo(
@@ -171,7 +219,7 @@ const ModelPricing = () => {
                           }),
                         );
                       }}
-                      className="cursor-pointer hover:opacity-80 transition-opacity !rounded-full"
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
                     >
                       {group}
                     </Tag>
@@ -220,33 +268,54 @@ const ModelPricing = () => {
       },
     },
     {
-      title: t('模型价格'),
+      title: (
+        <div className="flex items-center space-x-2">
+          <span>{t('模型价格')}</span>
+          {/* 计费单位切换 */}
+          <Switch
+            checked={tokenUnit === 'K'}
+            onChange={(checked) => setTokenUnit(checked ? 'K' : 'M')}
+            checkedText="K"
+            uncheckedText="M"
+          />
+        </div>
+      ),
       dataIndex: 'model_price',
       render: (text, record, index) => {
         let content = text;
         if (record.quota_type === 0) {
-          let inputRatioPrice =
-            record.model_ratio * 2 * groupRatio[selectedGroup];
-          let completionRatioPrice =
-            record.model_ratio *
-            record.completion_ratio *
-            2 *
-            groupRatio[selectedGroup];
+          let inputRatioPriceUSD = record.model_ratio * 2 * groupRatio[selectedGroup];
+          let completionRatioPriceUSD =
+            record.model_ratio * record.completion_ratio * 2 * groupRatio[selectedGroup];
+
+          const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+          const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
+
+          let displayInput = displayPrice(inputRatioPriceUSD);
+          let displayCompletion = displayPrice(completionRatioPriceUSD);
+
+          const divisor = unitDivisor;
+          const numInput = parseFloat(displayInput.replace(/[^0-9.]/g, '')) / divisor;
+          const numCompletion = parseFloat(displayCompletion.replace(/[^0-9.]/g, '')) / divisor;
+
+          displayInput = `${currency === 'CNY' ? '¥' : '$'}${numInput.toFixed(3)}`;
+          displayCompletion = `${currency === 'CNY' ? '¥' : '$'}${numCompletion.toFixed(3)}`;
           content = (
             <div className="space-y-1">
               <div className="text-gray-700">
-                {t('提示')} ${inputRatioPrice.toFixed(3)} / 1M tokens
+                {t('提示')} {displayInput} / 1{unitLabel} tokens
               </div>
               <div className="text-gray-700">
-                {t('补全')} ${completionRatioPrice.toFixed(3)} / 1M tokens
+                {t('补全')} {displayCompletion} / 1{unitLabel} tokens
               </div>
             </div>
           );
         } else {
-          let price = parseFloat(text) * groupRatio[selectedGroup];
+          let priceUSD = parseFloat(text) * groupRatio[selectedGroup];
+          let displayVal = displayPrice(priceUSD);
           content = (
             <div className="text-gray-700">
-              {t('模型价格')}：${price.toFixed(3)}
+              {t('模型价格')}：{displayVal}
             </div>
           );
         }
@@ -257,7 +326,7 @@ const ModelPricing = () => {
 
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userState, userDispatch] = useContext(UserContext);
+  const [userState] = useContext(UserContext);
   const [groupRatio, setGroupRatio] = useState({});
   const [usableGroup, setUsableGroup] = useState({});
 
@@ -334,57 +403,6 @@ const ModelPricing = () => {
     return counts;
   }, [models, modelCategories]);
 
-  const renderArrow = (items, pos, handleArrowClick) => {
-    const style = {
-      width: 32,
-      height: 32,
-      margin: '0 12px',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderRadius: '100%',
-      background: 'rgba(var(--semi-grey-1), 1)',
-      color: 'var(--semi-color-text)',
-      cursor: 'pointer',
-    };
-    return (
-      <Dropdown
-        render={
-          <Dropdown.Menu>
-            {items.map(item => {
-              const key = item.itemKey;
-              const modelCount = categoryCounts[key] || 0;
-
-              return (
-                <Dropdown.Item
-                  key={item.itemKey}
-                  onClick={() => setActiveKey(item.itemKey)}
-                  icon={modelCategories[item.itemKey]?.icon}
-                >
-                  <div className="flex items-center gap-2">
-                    {modelCategories[item.itemKey]?.label || item.itemKey}
-                    <Tag
-                      color={activeKey === item.itemKey ? 'red' : 'grey'}
-                      size='small'
-                      shape='circle'
-                    >
-                      {modelCount}
-                    </Tag>
-                  </div>
-                </Dropdown.Item>
-              );
-            })}
-          </Dropdown.Menu>
-        }
-      >
-        <div style={style} onClick={handleArrowClick}>
-          {pos === 'start' ? '←' : '→'}
-        </div>
-      </Dropdown>
-    );
-  };
-
-  // 检查分类是否有对应的模型
   const availableCategories = useMemo(() => {
     if (!models.length) return ['all'];
 
@@ -394,11 +412,9 @@ const ModelPricing = () => {
     }).map(([key]) => key);
   }, [models]);
 
-  // 渲染标签页
   const renderTabs = () => {
     return (
       <Tabs
-        renderArrow={renderArrow}
         activeKey={activeKey}
         type="card"
         collapsible
@@ -418,7 +434,6 @@ const ModelPricing = () => {
                     {category.label}
                     <Tag
                       color={activeKey === key ? 'red' : 'grey'}
-                      size='small'
                       shape='circle'
                     >
                       {modelCount}
@@ -434,16 +449,13 @@ const ModelPricing = () => {
     );
   };
 
-  // 优化过滤逻辑
   const filteredModels = useMemo(() => {
     let result = models;
 
-    // 先按分类过滤
     if (activeKey !== 'all') {
       result = result.filter(model => modelCategories[activeKey].filter(model));
     }
 
-    // 再按搜索词过滤
     if (filteredValue.length > 0) {
       const searchTerm = filteredValue[0].toLowerCase();
       result = result.filter(model =>
@@ -454,7 +466,6 @@ const ModelPricing = () => {
     return result;
   }, [activeKey, models, filteredValue]);
 
-  // 搜索和操作区组件
   const SearchAndActions = useMemo(() => (
     <Card className="!rounded-xl mb-6" bordered={false}>
       <div className="flex flex-wrap items-center gap-4">
@@ -462,12 +473,10 @@ const ModelPricing = () => {
           <Input
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
-            className="!rounded-lg"
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onChange={handleChange}
             showClear
-            size="large"
           />
         </div>
         <Button
@@ -476,16 +485,35 @@ const ModelPricing = () => {
           icon={<IconCopy />}
           onClick={() => copyText(selectedRowKeys)}
           disabled={selectedRowKeys.length === 0}
-          className="!rounded-lg !bg-blue-500 hover:!bg-blue-600 text-white"
-          size="large"
+          className="!bg-blue-500 hover:!bg-blue-600 text-white"
         >
           {t('复制选中模型')}
         </Button>
+
+        {/* 充值价格显示开关 */}
+        <Space align="center">
+          <span>{t('以充值价格显示')}</span>
+          <Switch
+            checked={showWithRecharge}
+            onChange={setShowWithRecharge}
+            size="small"
+          />
+          {showWithRecharge && (
+            <Select
+              value={currency}
+              onChange={setCurrency}
+              size="small"
+              style={{ width: 100 }}
+            >
+              <Select.Option value="USD">USD ($)</Select.Option>
+              <Select.Option value="CNY">CNY (¥)</Select.Option>
+            </Select>
+          )}
+        </Space>
       </div>
     </Card>
-  ), [selectedRowKeys, t]);
+  ), [selectedRowKeys, t, showWithRecharge, currency]);
 
-  // 表格组件
   const ModelTable = useMemo(() => (
     <Card className="!rounded-xl overflow-hidden" bordered={false}>
       <Table
@@ -523,10 +551,10 @@ const ModelPricing = () => {
     <div className="bg-gray-50">
       <Layout>
         <Layout.Content>
-          <div className="flex justify-center p-4 sm:p-6 md:p-8">
+          <div className="flex justify-center">
             <div className="w-full">
               {/* 主卡片容器 */}
-              <Card className="!rounded-2xl shadow-lg border-0">
+              <Card bordered={false} className="!rounded-2xl shadow-lg border-0">
                 {/* 顶部状态卡片 */}
                 <Card
                   className="!rounded-2xl !border-0 !shadow-md overflow-hidden mb-6"
@@ -536,13 +564,6 @@ const ModelPricing = () => {
                   }}
                   bodyStyle={{ padding: 0 }}
                 >
-                  {/* 装饰性背景元素 */}
-                  <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-5 rounded-full"></div>
-                    <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-white opacity-3 rounded-full"></div>
-                    <div className="absolute top-1/2 right-1/4 w-24 h-24 bg-yellow-400 opacity-10 rounded-full"></div>
-                  </div>
-
                   <div className="relative p-6 sm:p-8" style={{ color: 'white' }}>
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
                       <div className="flex items-start">
@@ -565,7 +586,7 @@ const ModelPricing = () => {
                               <div className="flex items-center">
                                 <AlertCircle size={14} className="mr-1.5 flex-shrink-0" />
                                 <span className="truncate">
-                                  {t('未登录，使用默认分组倍率')}: {groupRatio['default']}
+                                  {t('未登录，使用默认分组倍率：')}{groupRatio['default']}
                                 </span>
                               </div>
                             )}

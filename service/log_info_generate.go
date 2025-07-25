@@ -1,8 +1,11 @@
 package service
 
 import (
+	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
+	"one-api/relay/helper"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,6 +30,11 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 	adminInfo := make(map[string]interface{})
 	adminInfo["use_channel"] = ctx.GetStringSlice("use_channel")
+	isMultiKey := common.GetContextKeyBool(ctx, constant.ContextKeyChannelIsMultiKey)
+	if isMultiKey {
+		adminInfo["is_multi_key"] = true
+		adminInfo["multi_key_index"] = common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex)
+	}
 	other["admin_info"] = adminInfo
 	return other
 }
@@ -62,4 +70,14 @@ func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	info["cache_creation_tokens"] = cacheCreationTokens
 	info["cache_creation_ratio"] = cacheCreationRatio
 	return info
+}
+
+func GenerateMjOtherInfo(priceData helper.PerCallPriceData) map[string]interface{} {
+	other := make(map[string]interface{})
+	other["model_price"] = priceData.ModelPrice
+	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
+	if priceData.GroupRatioInfo.HasSpecialRatio {
+		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
+	}
+	return other
 }

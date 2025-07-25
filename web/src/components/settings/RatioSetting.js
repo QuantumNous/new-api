@@ -8,7 +8,7 @@ import ModelSettingsVisualEditor from '../../pages/Setting/Ratio/ModelSettingsVi
 import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor.js';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync.js';
 
-import { API, showError } from '../../helpers';
+import { API, showError, toBoolean } from '../../helpers';
 
 const RatioSetting = () => {
   const { t } = useTranslation();
@@ -51,7 +51,7 @@ const RatioSetting = () => {
           }
         }
         if (['DefaultUseAutoGroup', 'ExposeRatioEnabled'].includes(item.key)) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }
@@ -84,7 +84,16 @@ const RatioSetting = () => {
       <Card style={{ marginTop: '10px' }}>
         <Tabs type='card'>
           <Tabs.TabPane tab={t('模型倍率设置')} itemKey='model'>
-            <ModelRatioSettings options={inputs} refresh={onRefresh} />
+            <ModelRatioSettings
+              options={inputs}
+              refresh={onRefresh}
+            />
+          </Tabs.TabPane>
+          <Tabs.TabPane tab={t('分组倍率设置')} itemKey='group'>
+            <GroupRatioSettings
+              options={inputs}
+              refresh={onRefresh}
+            />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('可视化倍率设置')} itemKey='visual'>
             <ModelSettingsVisualEditor
@@ -105,10 +114,6 @@ const RatioSetting = () => {
             />
           </Tabs.TabPane>
         </Tabs>
-      </Card>
-      {/* 分组倍率设置 */}
-      <Card style={{ marginTop: '10px' }}>
-        <GroupRatioSettings options={inputs} refresh={onRefresh} />
       </Card>
     </Spin>
   );

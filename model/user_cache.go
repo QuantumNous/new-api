@@ -1,10 +1,10 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"one-api/common"
 	"one-api/constant"
+	"one-api/dto"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,28 +24,23 @@ type UserBase struct {
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
-	c.Set(constant.ContextKeyUserGroup, user.Group)
-	c.Set(constant.ContextKeyUserQuota, user.Quota)
-	c.Set(constant.ContextKeyUserStatus, user.Status)
-	c.Set(constant.ContextKeyUserEmail, user.Email)
-	c.Set("username", user.Username)
-	c.Set(constant.ContextKeyUserSetting, user.GetSetting())
+	common.SetContextKey(c, constant.ContextKeyUserGroup, user.Group)
+	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
+	common.SetContextKey(c, constant.ContextKeyUserStatus, user.Status)
+	common.SetContextKey(c, constant.ContextKeyUserEmail, user.Email)
+	common.SetContextKey(c, constant.ContextKeyUserName, user.Username)
+	common.SetContextKey(c, constant.ContextKeyUserSetting, user.GetSetting())
 }
 
-func (user *UserBase) GetSetting() map[string]interface{} {
-	if user.Setting == "" {
-		return nil
+func (user *UserBase) GetSetting() dto.UserSetting {
+	setting := dto.UserSetting{}
+	if user.Setting != "" {
+		err := common.Unmarshal([]byte(user.Setting), &setting)
+		if err != nil {
+			common.SysError("failed to unmarshal setting: " + err.Error())
+		}
 	}
-	return common.StrToMap(user.Setting)
-}
-
-func (user *UserBase) SetSetting(setting map[string]interface{}) {
-	settingBytes, err := json.Marshal(setting)
-	if err != nil {
-		common.SysError("failed to marshal setting: " + err.Error())
-		return
-	}
-	user.Setting = string(settingBytes)
+	return setting
 }
 
 // getUserCacheKey returns the key for user cache
@@ -70,7 +65,7 @@ func updateUserCache(user User) error {
 	return common.RedisHSetObj(
 		getUserCacheKey(user.Id),
 		user.ToBaseUser(),
-		time.Duration(constant.RedisKeyCacheSeconds())*time.Second,
+		time.Duration(common.RedisKeyCacheSeconds())*time.Second,
 	)
 }
 
@@ -174,11 +169,10 @@ func getUserNameCache(userId int) (string, error) {
 	return cache.Username, nil
 }
 
-func getUserSettingCache(userId int) (map[string]interface{}, error) {
-	setting := make(map[string]interface{})
+func getUserSettingCache(userId int) (dto.UserSetting, error) {
 	cache, err := GetUserCache(userId)
 	if err != nil {
-		return setting, err
+		return dto.UserSetting{}, err
 	}
 	return cache.GetSetting(), nil
 }

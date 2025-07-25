@@ -73,15 +73,15 @@ func GetGroupRatio(name string) float64 {
 	return ratio
 }
 
-func GetGroupGroupRatio(group, name string) (float64, bool) {
+func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
 	groupGroupRatioMutex.RLock()
 	defer groupGroupRatioMutex.RUnlock()
 
-	gp, ok := GroupGroupRatio[group]
+	gp, ok := GroupGroupRatio[userGroup]
 	if !ok {
 		return -1, false
 	}
-	ratio, ok := gp[name]
+	ratio, ok := gp[usingGroup]
 	if !ok {
 		return -1, false
 	}

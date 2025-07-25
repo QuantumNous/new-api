@@ -1,7 +1,6 @@
 package gemini
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -9,20 +8,19 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *dto.OpenAIErrorWithStatusCode) {
+func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer common.CloseResponseBodyGracefully(resp)
+
 	// 读取响应体
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
-	}
-	err = resp.Body.Close()
-	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	if common.DebugEnabled {
@@ -31,9 +29,9 @@ func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 
 	// 解析为 Gemini 原生响应格式
 	var geminiResponse GeminiChatResponse
-	err = common.DecodeJson(responseBody, &geminiResponse)
+	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	// 计算使用量（基于 UsageMetadata）
@@ -54,23 +52,17 @@ func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 	}
 
 	// 直接返回 Gemini 原生格式的 JSON 响应
-	jsonResponse, err := json.Marshal(geminiResponse)
+	jsonResponse, err := common.Marshal(geminiResponse)
 	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
-	// 设置响应头并写入响应
-	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = c.Writer.Write(jsonResponse)
-	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "write_response_failed", http.StatusInternalServerError)
-	}
+	common.IOCopyBytesGracefully(c, resp, jsonResponse)
 
 	return &usage, nil
 }
 
-func GeminiTextGenerationStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *dto.OpenAIErrorWithStatusCode) {
+func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
 	var imageCount int
 
@@ -80,7 +72,7 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, resp *http.Response, info
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var geminiResponse GeminiChatResponse
-		err := common.DecodeJsonStr(data, &geminiResponse)
+		err := common.UnmarshalJsonStr(data, &geminiResponse)
 		if err != nil {
 			common.LogError(c, "error unmarshalling stream response: "+err.Error())
 			return false

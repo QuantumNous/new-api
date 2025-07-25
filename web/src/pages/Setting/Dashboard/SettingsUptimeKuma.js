@@ -101,7 +101,6 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             theme='light'
             type='tertiary'
             size='small'
-            className="!rounded-full"
             onClick={() => handleEditGroup(record)}
           >
             {t('编辑')}
@@ -111,7 +110,6 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             type='danger'
             theme='light'
             size='small'
-            className="!rounded-full"
             onClick={() => handleDeleteGroup(record)}
           >
             {t('删除')}
@@ -314,7 +312,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             theme='light'
             type='primary'
             icon={<Plus size={14} />}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
             onClick={handleAddGroup}
           >
             {t('添加分类')}
@@ -325,7 +323,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             theme='light'
             onClick={handleBatchDelete}
             disabled={selectedRowKeys.length === 0}
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
           >
             {t('批量删除')} {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
           </Button>
@@ -335,7 +333,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             loading={loading}
             disabled={!hasChanges}
             type='secondary'
-            className="!rounded-full w-full md:w-auto"
+            className="w-full md:w-auto"
           >
             {t('保存设置')}
           </Button>
@@ -413,7 +411,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
               style={{ padding: 30 }}
             />
           }
-          className="rounded-xl overflow-hidden"
+          className="overflow-hidden"
         />
       </Form.Section>
 
@@ -424,7 +422,6 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         onCancel={() => setShowUptimeModal(false)}
         okText={t('保存')}
         cancelText={t('取消')}
-        className="rounded-xl"
         confirmLoading={modalLoading}
         width={600}
       >
@@ -467,7 +464,6 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         okText={t('确认删除')}
         cancelText={t('取消')}
         type="warning"
-        className="rounded-xl"
         okButtonProps={{
           type: 'danger',
           theme: 'solid'

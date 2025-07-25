@@ -34,7 +34,6 @@ import {
   Layout,
   Modal,
   Progress,
-  Skeleton,
   Table,
   Tag,
   Typography
@@ -47,8 +46,9 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import {
   IconEyeOpened,
   IconSearch,
-  IconSetting
 } from '@douyinfe/semi-icons';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
+import { TASK_ACTION_GENERATE, TASK_ACTION_TEXT_GENERATE } from '../../constants/common.constant';
 
 const { Text } = Typography;
 
@@ -105,7 +105,7 @@ function renderDuration(submit_time, finishTime) {
 
   // 返回带有样式的颜色标签
   return (
-    <Tag color={color} size='large' prefixIcon={<Clock size={14} />}>
+    <Tag color={color} prefixIcon={<Clock size={14} />}>
       {durationSec} 秒
     </Tag>
   );
@@ -197,48 +197,60 @@ const LogsTable = () => {
     switch (type) {
       case 'MUSIC':
         return (
-          <Tag color='grey' size='large' shape='circle' prefixIcon={<Music size={14} />}>
+          <Tag color='grey' shape='circle' prefixIcon={<Music size={14} />}>
             {t('生成音乐')}
           </Tag>
         );
       case 'LYRICS':
         return (
-          <Tag color='pink' size='large' shape='circle' prefixIcon={<FileText size={14} />}>
+          <Tag color='pink' shape='circle' prefixIcon={<FileText size={14} />}>
             {t('生成歌词')}
           </Tag>
         );
-      case 'generate':
+      case TASK_ACTION_GENERATE:
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Sparkles size={14} />}>
-            {t('生成视频')}
+          <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+            {t('图生视频')}
+          </Tag>
+        );
+      case TASK_ACTION_TEXT_GENERATE:
+        return (
+          <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+            {t('文生视频')}
           </Tag>
         );
       default:
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
     }
   };
 
-  const renderPlatform = (type) => {
-    switch (type) {
+  const renderPlatform = (platform) => {
+    switch (platform) {
       case 'suno':
         return (
-          <Tag color='green' size='large' shape='circle' prefixIcon={<Music size={14} />}>
+          <Tag color='green' shape='circle' prefixIcon={<Music size={14} />}>
             Suno
           </Tag>
         );
       case 'kling':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Video size={14} />}>
+          <Tag color='orange' shape='circle' prefixIcon={<Video size={14} />}>
             Kling
+          </Tag>
+        );
+      case 'jimeng':
+        return (
+          <Tag color='purple' shape='circle' prefixIcon={<Video size={14} />}>
+            Jimeng
           </Tag>
         );
       default:
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
@@ -249,55 +261,55 @@ const LogsTable = () => {
     switch (type) {
       case 'SUCCESS':
         return (
-          <Tag color='green' size='large' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+          <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
             {t('成功')}
           </Tag>
         );
       case 'NOT_START':
         return (
-          <Tag color='grey' size='large' shape='circle' prefixIcon={<Pause size={14} />}>
+          <Tag color='grey' shape='circle' prefixIcon={<Pause size={14} />}>
             {t('未启动')}
           </Tag>
         );
       case 'SUBMITTED':
         return (
-          <Tag color='yellow' size='large' shape='circle' prefixIcon={<Clock size={14} />}>
+          <Tag color='yellow' shape='circle' prefixIcon={<Clock size={14} />}>
             {t('队列中')}
           </Tag>
         );
       case 'IN_PROGRESS':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Play size={14} />}>
+          <Tag color='blue' shape='circle' prefixIcon={<Play size={14} />}>
             {t('执行中')}
           </Tag>
         );
       case 'FAILURE':
         return (
-          <Tag color='red' size='large' shape='circle' prefixIcon={<XCircle size={14} />}>
+          <Tag color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
             {t('失败')}
           </Tag>
         );
       case 'QUEUED':
         return (
-          <Tag color='orange' size='large' shape='circle' prefixIcon={<List size={14} />}>
+          <Tag color='orange' shape='circle' prefixIcon={<List size={14} />}>
             {t('排队中')}
           </Tag>
         );
       case 'UNKNOWN':
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
       case '':
         return (
-          <Tag color='grey' size='large' shape='circle' prefixIcon={<Loader size={14} />}>
+          <Tag color='grey' shape='circle' prefixIcon={<Loader size={14} />}>
             {t('正在提交')}
           </Tag>
         );
       default:
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
@@ -432,7 +444,7 @@ const LogsTable = () => {
       fixed: 'right',
       render: (text, record, index) => {
         // 仅当为视频生成任务且成功，且 fail_reason 是 URL 时显示可点击链接
-        const isVideoTask = record.action === 'generate';
+        const isVideoTask = record.action === TASK_ACTION_GENERATE || record.action === TASK_ACTION_TEXT_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
         if (isSuccess && isVideoTask && isUrl) {
@@ -470,6 +482,8 @@ const LogsTable = () => {
   const [logCount, setLogCount] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const [compactMode, setCompactMode] = useTableCompactMode('taskLogs');
 
   useEffect(() => {
     const localPageSize = parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
@@ -581,25 +595,13 @@ const LogsTable = () => {
         onCancel={() => setShowColumnSelector(false)}
         footer={
           <div className="flex justify-end">
-            <Button
-              theme="light"
-              onClick={() => initDefaultColumns()}
-              className="!rounded-full"
-            >
+            <Button onClick={() => initDefaultColumns()}>
               {t('重置')}
             </Button>
-            <Button
-              theme="light"
-              onClick={() => setShowColumnSelector(false)}
-              className="!rounded-full"
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('取消')}
             </Button>
-            <Button
-              type='primary'
-              onClick={() => setShowColumnSelector(false)}
-              className="!rounded-full"
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('确定')}
             </Button>
           </div>
@@ -650,21 +652,19 @@ const LogsTable = () => {
           className="!rounded-2xl mb-4"
           title={
             <div className="flex flex-col w-full">
-              <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
                 <div className="flex items-center text-orange-500 mb-2 md:mb-0">
                   <IconEyeOpened className="mr-2" />
-                  {loading ? (
-                    <Skeleton.Title
-                      style={{
-                        width: 300,
-                        marginBottom: 0,
-                        marginTop: 0
-                      }}
-                    />
-                  ) : (
-                    <Text>{t('任务记录')}</Text>
-                  )}
+                  <Text>{t('任务记录')}</Text>
                 </div>
+                <Button
+                  type='tertiary'
+                  className="w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
+                  size="small"
+                >
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
               </div>
 
               <Divider margin="12px" />
@@ -691,6 +691,7 @@ const LogsTable = () => {
                         placeholder={[t('开始时间'), t('结束时间')]}
                         showClear
                         pure
+                        size="small"
                       />
                     </div>
 
@@ -699,9 +700,9 @@ const LogsTable = () => {
                       field='task_id'
                       prefix={<IconSearch />}
                       placeholder={t('任务 ID')}
-                      className="!rounded-full"
                       showClear
                       pure
+                      size="small"
                     />
 
                     {/* 渠道 ID - 仅管理员可见 */}
@@ -710,9 +711,9 @@ const LogsTable = () => {
                         field='channel_id'
                         prefix={<IconSearch />}
                         placeholder={t('渠道 ID')}
-                        className="!rounded-full"
                         showClear
                         pure
+                        size="small"
                       />
                     )}
                   </div>
@@ -722,15 +723,15 @@ const LogsTable = () => {
                     <div></div>
                     <div className="flex gap-2">
                       <Button
-                        type='primary'
+                        type='tertiary'
                         htmlType='submit'
                         loading={loading}
-                        className="!rounded-full"
+                        size="small"
                       >
                         {t('查询')}
                       </Button>
                       <Button
-                        theme='light'
+                        type='tertiary'
                         onClick={() => {
                           if (formApi) {
                             formApi.reset();
@@ -740,16 +741,14 @@ const LogsTable = () => {
                             }, 100);
                           }
                         }}
-                        className="!rounded-full"
+                        size="small"
                       >
                         {t('重置')}
                       </Button>
                       <Button
-                        theme='light'
                         type='tertiary'
-                        icon={<IconSetting />}
                         onClick={() => setShowColumnSelector(true)}
-                        className="!rounded-full"
+                        size="small"
                       >
                         {t('列设置')}
                       </Button>
@@ -763,11 +762,11 @@ const LogsTable = () => {
           bordered={false}
         >
           <Table
-            columns={getVisibleColumns()}
+            columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
             dataSource={logs}
             rowKey='key'
             loading={loading}
-            scroll={{ x: 'max-content' }}
+            scroll={compactMode ? undefined : { x: 'max-content' }}
             className="rounded-xl overflow-hidden"
             size="middle"
             empty={

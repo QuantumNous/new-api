@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/model"
 	"strconv"
 	"strings"
@@ -40,18 +41,25 @@ type OpenAIModelsResponse struct {
 	Success bool          `json:"success"`
 }
 
+func parseStatusFilter(statusParam string) int {
+	switch strings.ToLower(statusParam) {
+	case "enabled", "1":
+		return common.ChannelStatusEnabled
+	case "disabled", "0":
+		return 0
+	default:
+		return -1
+	}
+}
+
 func GetAllChannels(c *gin.Context) {
-	p, _ := strconv.Atoi(c.Query("p"))
-	pageSize, _ := strconv.Atoi(c.Query("page_size"))
-	if p < 1 {
-		p = 1
-	}
-	if pageSize < 1 {
-		pageSize = common.ItemsPerPage
-	}
+	pageInfo := common.GetPageQuery(c)
 	channelData := make([]*model.Channel, 0)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+	statusParam := c.Query("status")
+	// statusFilter: -1 all, 1 enabled, 0 disabled (include auto & manual)
+	statusFilter := parseStatusFilter(statusParam)
 	// type filter
 	typeStr := c.Query("type")
 	typeFilter := -1
@@ -64,53 +72,81 @@ func GetAllChannels(c *gin.Context) {
 	var total int64
 
 	if enableTagMode {
-		// tag 分页：先分页 tag，再取各 tag 下 channels
-		tags, err := model.GetPaginatedTags((p-1)*pageSize, pageSize)
+		tags, err := model.GetPaginatedTags(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 		for _, tag := range tags {
-			if tag != nil && *tag != "" {
-				tagChannel, err := model.GetChannelsByTag(*tag, idSort)
-				if err == nil {
-					channelData = append(channelData, tagChannel...)
-				}
+			if tag == nil || *tag == "" {
+				continue
 			}
+			tagChannels, err := model.GetChannelsByTag(*tag, idSort)
+			if err != nil {
+				continue
+			}
+			filtered := make([]*model.Channel, 0)
+			for _, ch := range tagChannels {
+				if statusFilter == common.ChannelStatusEnabled && ch.Status != common.ChannelStatusEnabled {
+					continue
+				}
+				if statusFilter == 0 && ch.Status == common.ChannelStatusEnabled {
+					continue
+				}
+				if typeFilter >= 0 && ch.Type != typeFilter {
+					continue
+				}
+				filtered = append(filtered, ch)
+			}
+			channelData = append(channelData, filtered...)
 		}
-		// 计算 tag 总数用于分页
 		total, _ = model.CountAllTags()
-	} else if typeFilter >= 0 {
-		channels, err := model.GetChannelsByType((p-1)*pageSize, pageSize, idSort, typeFilter)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
-			return
-		}
-		channelData = channels
-		total, _ = model.CountChannelsByType(typeFilter)
 	} else {
-		channels, err := model.GetAllChannels((p-1)*pageSize, pageSize, false, idSort)
+		baseQuery := model.DB.Model(&model.Channel{})
+		if typeFilter >= 0 {
+			baseQuery = baseQuery.Where("type = ?", typeFilter)
+		}
+		if statusFilter == common.ChannelStatusEnabled {
+			baseQuery = baseQuery.Where("status = ?", common.ChannelStatusEnabled)
+		} else if statusFilter == 0 {
+			baseQuery = baseQuery.Where("status != ?", common.ChannelStatusEnabled)
+		}
+
+		baseQuery.Count(&total)
+
+		order := "priority desc"
+		if idSort {
+			order = "id desc"
+		}
+
+		err := baseQuery.Order(order).Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("key").Find(&channelData).Error
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 			return
 		}
-		channelData = channels
-		total, _ = model.CountAllChannels()
 	}
 
-	// calculate type counts
-	typeCounts, _ := model.CountChannelsGroupByType()
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"items":       channelData,
-			"total":       total,
-			"page":        p,
-			"page_size":   pageSize,
-			"type_counts": typeCounts,
-		},
+	countQuery := model.DB.Model(&model.Channel{})
+	if statusFilter == common.ChannelStatusEnabled {
+		countQuery = countQuery.Where("status = ?", common.ChannelStatusEnabled)
+	} else if statusFilter == 0 {
+		countQuery = countQuery.Where("status != ?", common.ChannelStatusEnabled)
+	}
+	var results []struct {
+		Type  int64
+		Count int64
+	}
+	_ = countQuery.Select("type, count(*) as count").Group("type").Find(&results).Error
+	typeCounts := make(map[int64]int64)
+	for _, r := range results {
+		typeCounts[r.Type] = r.Count
+	}
+	common.ApiSuccess(c, gin.H{
+		"items":       channelData,
+		"total":       total,
+		"page":        pageInfo.GetPage(),
+		"page_size":   pageInfo.GetPageSize(),
+		"type_counts": typeCounts,
 	})
 	return
 }
@@ -118,46 +154,30 @@ func GetAllChannels(c *gin.Context) {
 func FetchUpstreamModels(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
 	channel, err := model.GetChannelById(id, true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
-	//if channel.Type != common.ChannelTypeOpenAI {
-	//	c.JSON(http.StatusOK, gin.H{
-	//		"success": false,
-	//		"message": "仅支持 OpenAI 类型渠道",
-	//	})
-	//	return
-	//}
-	baseURL := common.ChannelBaseURLs[channel.Type]
+	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 	switch channel.Type {
-	case common.ChannelTypeGemini:
+	case constant.ChannelTypeGemini:
 		url = fmt.Sprintf("%s/v1beta/openai/models", baseURL)
-	case common.ChannelTypeAli:
+	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
 	}
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -173,7 +193,7 @@ func FetchUpstreamModels(c *gin.Context) {
 	var ids []string
 	for _, model := range result.Data {
 		id := model.ID
-		if channel.Type == common.ChannelTypeGemini {
+		if channel.Type == constant.ChannelTypeGemini {
 			id = strings.TrimPrefix(id, "models/")
 		}
 		ids = append(ids, id)
@@ -187,18 +207,18 @@ func FetchUpstreamModels(c *gin.Context) {
 }
 
 func FixChannelsAbilities(c *gin.Context) {
-	count, err := model.FixAbility()
+	success, fails, err := model.FixAbility()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    count,
+		"data": gin.H{
+			"success": success,
+			"fails":   fails,
+		},
 	})
 }
 
@@ -206,6 +226,8 @@ func SearchChannels(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
 	modelKeyword := c.Query("model")
+	statusParam := c.Query("status")
+	statusFilter := parseStatusFilter(statusParam)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
 	channelData := make([]*model.Channel, 0)
@@ -238,17 +260,71 @@ func SearchChannels(c *gin.Context) {
 		channelData = channels
 	}
 
+	if statusFilter == common.ChannelStatusEnabled || statusFilter == 0 {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if statusFilter == common.ChannelStatusEnabled && ch.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			if statusFilter == 0 && ch.Status == common.ChannelStatusEnabled {
+				continue
+			}
+			filtered = append(filtered, ch)
+		}
+		channelData = filtered
+	}
+
 	// calculate type counts for search results
 	typeCounts := make(map[int64]int64)
 	for _, channel := range channelData {
 		typeCounts[int64(channel.Type)]++
 	}
 
+	typeParam := c.Query("type")
+	typeFilter := -1
+	if typeParam != "" {
+		if tp, err := strconv.Atoi(typeParam); err == nil {
+			typeFilter = tp
+		}
+	}
+
+	if typeFilter >= 0 {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if ch.Type == typeFilter {
+				filtered = append(filtered, ch)
+			}
+		}
+		channelData = filtered
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("p", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	total := len(channelData)
+	startIdx := (page - 1) * pageSize
+	if startIdx > total {
+		startIdx = total
+	}
+	endIdx := startIdx + pageSize
+	if endIdx > total {
+		endIdx = total
+	}
+
+	pagedData := channelData[startIdx:endIdx]
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":       channelData,
+			"items":       pagedData,
+			"total":       total,
 			"type_counts": typeCounts,
 		},
 	})
@@ -258,18 +334,12 @@ func SearchChannels(c *gin.Context) {
 func GetChannel(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	channel, err := model.GetChannelById(id, false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -280,66 +350,167 @@ func GetChannel(c *gin.Context) {
 	return
 }
 
-func AddChannel(c *gin.Context) {
-	channel := model.Channel{}
-	err := c.ShouldBindJSON(&channel)
+// validateChannel 通用的渠道校验函数
+func validateChannel(channel *model.Channel, isAdd bool) error {
+	// 校验 channel settings
+	if err := channel.ValidateSettings(); err != nil {
+		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
+	}
+
+	// 如果是添加操作，检查 channel 和 key 是否为空
+	if isAdd {
+		if channel == nil || channel.Key == "" {
+			return fmt.Errorf("channel cannot be empty")
+		}
+
+		// 检查模型名称长度是否超过 255
+		for _, m := range channel.GetModels() {
+			if len(m) > 255 {
+				return fmt.Errorf("模型名称过长: %s", m)
+			}
+		}
+	}
+
+	// VertexAI 特殊校验
+	if channel.Type == constant.ChannelTypeVertexAi {
+		if channel.Other == "" {
+			return fmt.Errorf("部署地区不能为空")
+		}
+
+		regionMap, err := common.StrToMap(channel.Other)
+		if err != nil {
+			return fmt.Errorf("部署地区必须是标准的Json格式，例如{\"default\": \"us-central1\", \"region2\": \"us-east1\"}")
+		}
+
+		if regionMap["default"] == nil {
+			return fmt.Errorf("部署地区必须包含default字段")
+		}
+	}
+
+	return nil
+}
+
+type AddChannelRequest struct {
+	Mode         string                `json:"mode"`
+	MultiKeyMode constant.MultiKeyMode `json:"multi_key_mode"`
+	Channel      *model.Channel        `json:"channel"`
+}
+
+func getVertexArrayKeys(keys string) ([]string, error) {
+	if keys == "" {
+		return nil, nil
+	}
+	var keyArray []interface{}
+	err := common.Unmarshal([]byte(keys), &keyArray)
 	if err != nil {
+		return nil, fmt.Errorf("批量添加 Vertex AI 必须使用标准的JsonArray格式，例如[{key1}, {key2}...]，请检查输入: %w", err)
+	}
+	cleanKeys := make([]string, 0, len(keyArray))
+	for _, key := range keyArray {
+		var keyStr string
+		switch v := key.(type) {
+		case string:
+			keyStr = strings.TrimSpace(v)
+		default:
+			bytes, err := json.Marshal(v)
+			if err != nil {
+				return nil, fmt.Errorf("Vertex AI key JSON 编码失败: %w", err)
+			}
+			keyStr = string(bytes)
+		}
+		if keyStr != "" {
+			cleanKeys = append(cleanKeys, keyStr)
+		}
+	}
+	if len(cleanKeys) == 0 {
+		return nil, fmt.Errorf("批量添加 Vertex AI 的 keys 不能为空")
+	}
+	return cleanKeys, nil
+}
+
+func AddChannel(c *gin.Context) {
+	addChannelRequest := AddChannelRequest{}
+	err := c.ShouldBindJSON(&addChannelRequest)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 使用统一的校验函数
+	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	channel.CreatedTime = common.GetTimestamp()
-	keys := strings.Split(channel.Key, "\n")
-	if channel.Type == common.ChannelTypeVertexAi {
-		if channel.Other == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "部署地区不能为空",
-			})
-			return
-		} else {
-			if common.IsJsonStr(channel.Other) {
-				// must have default
-				regionMap := common.StrToMap(channel.Other)
-				if regionMap["default"] == nil {
-					c.JSON(http.StatusOK, gin.H{
-						"success": false,
-						"message": "部署地区必须包含default字段",
-					})
-					return
-				}
+
+	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
+	keys := make([]string, 0)
+	switch addChannelRequest.Mode {
+	case "multi_to_single":
+		addChannelRequest.Channel.ChannelInfo.IsMultiKey = true
+		addChannelRequest.Channel.ChannelInfo.MultiKeyMode = addChannelRequest.MultiKeyMode
+		if addChannelRequest.Channel.Type == constant.ChannelTypeVertexAi {
+			array, err := getVertexArrayKeys(addChannelRequest.Channel.Key)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
 			}
+			addChannelRequest.Channel.ChannelInfo.MultiKeySize = len(array)
+			addChannelRequest.Channel.Key = strings.Join(array, "\n")
+		} else {
+			cleanKeys := make([]string, 0)
+			for _, key := range strings.Split(addChannelRequest.Channel.Key, "\n") {
+				if key == "" {
+					continue
+				}
+				key = strings.TrimSpace(key)
+				cleanKeys = append(cleanKeys, key)
+			}
+			addChannelRequest.Channel.ChannelInfo.MultiKeySize = len(cleanKeys)
+			addChannelRequest.Channel.Key = strings.Join(cleanKeys, "\n")
 		}
-		keys = []string{channel.Key}
+		keys = []string{addChannelRequest.Channel.Key}
+	case "batch":
+		if addChannelRequest.Channel.Type == constant.ChannelTypeVertexAi {
+			// multi json
+			keys, err = getVertexArrayKeys(addChannelRequest.Channel.Key)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+		} else {
+			keys = strings.Split(addChannelRequest.Channel.Key, "\n")
+		}
+	case "single":
+		keys = []string{addChannelRequest.Channel.Key}
+	default:
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "不支持的添加模式",
+		})
+		return
 	}
+
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
 		if key == "" {
 			continue
 		}
-		localChannel := channel
+		localChannel := addChannelRequest.Channel
 		localChannel.Key = key
-		// Validate the length of the model name
-		models := strings.Split(localChannel.Models, ",")
-		for _, model := range models {
-			if len(model) > 255 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("模型名称过长: %s", model),
-				})
-				return
-			}
-		}
-		channels = append(channels, localChannel)
+		channels = append(channels, *localChannel)
 	}
 	err = model.BatchInsertChannels(channels)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -354,12 +525,10 @@ func DeleteChannel(c *gin.Context) {
 	channel := model.Channel{Id: id}
 	err := channel.Delete()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -370,12 +539,10 @@ func DeleteChannel(c *gin.Context) {
 func DeleteDisabledChannel(c *gin.Context) {
 	rows, err := model.DeleteDisabledChannel()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -406,12 +573,10 @@ func DisableTagChannels(c *gin.Context) {
 	}
 	err = model.DisableChannelByTag(channelTag.Tag)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -431,12 +596,10 @@ func EnableTagChannels(c *gin.Context) {
 	}
 	err = model.EnableChannelByTag(channelTag.Tag)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -463,12 +626,10 @@ func EditTagChannels(c *gin.Context) {
 	}
 	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -493,12 +654,10 @@ func DeleteChannelBatch(c *gin.Context) {
 	}
 	err = model.BatchDeleteChannels(channelBatch.Ids)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -507,9 +666,29 @@ func DeleteChannelBatch(c *gin.Context) {
 	return
 }
 
+type PatchChannel struct {
+	model.Channel
+	MultiKeyMode *string `json:"multi_key_mode"`
+}
+
 func UpdateChannel(c *gin.Context) {
-	channel := model.Channel{}
+	channel := PatchChannel{}
 	err := c.ShouldBindJSON(&channel)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 使用统一的校验函数
+	if err := validateChannel(&channel.Channel, false); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
+	originChannel, err := model.GetChannelById(channel.Id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -517,35 +696,21 @@ func UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
-	if channel.Type == common.ChannelTypeVertexAi {
-		if channel.Other == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "部署地区不能为空",
-			})
-			return
-		} else {
-			if common.IsJsonStr(channel.Other) {
-				// must have default
-				regionMap := common.StrToMap(channel.Other)
-				if regionMap["default"] == nil {
-					c.JSON(http.StatusOK, gin.H{
-						"success": false,
-						"message": "部署地区必须包含default字段",
-					})
-					return
-				}
-			}
-		}
+
+	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
+	channel.ChannelInfo = originChannel.ChannelInfo
+
+	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
+	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
+		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
 	}
 	err = channel.Update()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
+	channel.Key = ""
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -571,7 +736,7 @@ func FetchModels(c *gin.Context) {
 
 	baseURL := req.BaseURL
 	if baseURL == "" {
-		baseURL = common.ChannelBaseURLs[req.Type]
+		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
 
 	client := &http.Client{}
@@ -647,12 +812,10 @@ func BatchSetChannelTag(c *gin.Context) {
 	}
 	err = model.BatchSetChannelTag(channelBatch.Ids, channelBatch.Tag)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -700,4 +863,54 @@ func GetTagModels(c *gin.Context) {
 		"data":    longestModels,
 	})
 	return
+}
+
+// CopyChannel handles cloning an existing channel with its key.
+// POST /api/channel/copy/:id
+// Optional query params:
+//
+//	suffix         - string appended to the original name (default "_复制")
+//	reset_balance  - bool, when true will reset balance & used_quota to 0 (default true)
+func CopyChannel(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid id"})
+		return
+	}
+
+	suffix := c.DefaultQuery("suffix", "_复制")
+	resetBalance := true
+	if rbStr := c.DefaultQuery("reset_balance", "true"); rbStr != "" {
+		if v, err := strconv.ParseBool(rbStr); err == nil {
+			resetBalance = v
+		}
+	}
+
+	// fetch original channel with key
+	origin, err := model.GetChannelById(id, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	// clone channel
+	clone := *origin // shallow copy is sufficient as we will overwrite primitives
+	clone.Id = 0     // let DB auto-generate
+	clone.CreatedTime = common.GetTimestamp()
+	clone.Name = origin.Name + suffix
+	clone.TestTime = 0
+	clone.ResponseTime = 0
+	if resetBalance {
+		clone.Balance = 0
+		clone.UsedQuota = 0
+	}
+
+	// insert
+	if err := model.BatchInsertChannels([]model.Channel{clone}); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	model.InitChannelCache()
+	// success
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{"id": clone.Id}})
 }

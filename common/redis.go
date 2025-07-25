@@ -16,6 +16,10 @@ import (
 var RDB *redis.Client
 var RedisEnabled = true
 
+func RedisKeyCacheSeconds() int {
+	return SyncFrequency
+}
+
 // InitRedisClient This function is called after init()
 func InitRedisClient() (err error) {
 	if os.Getenv("REDIS_CONN_STRING") == "" {

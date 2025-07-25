@@ -20,7 +20,7 @@ import {
   renderQuota,
   stringToColor,
   getLogOther,
-  renderModelTag,
+  renderModelTag
 } from '../../helpers';
 
 import {
@@ -47,8 +47,9 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { ITEMS_PER_PAGE } from '../../constants';
 import Paragraph from '@douyinfe/semi-ui/lib/es/typography/paragraph';
-import { IconSetting, IconSearch, IconHelpCircle } from '@douyinfe/semi-icons';
+import { IconSearch, IconHelpCircle } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -77,37 +78,37 @@ const LogsTable = () => {
     switch (type) {
       case 1:
         return (
-          <Tag color='cyan' size='large' shape='circle'>
+          <Tag color='cyan' shape='circle'>
             {t('充值')}
           </Tag>
         );
       case 2:
         return (
-          <Tag color='lime' size='large' shape='circle'>
+          <Tag color='lime' shape='circle'>
             {t('消费')}
           </Tag>
         );
       case 3:
         return (
-          <Tag color='orange' size='large' shape='circle'>
+          <Tag color='orange' shape='circle'>
             {t('管理')}
           </Tag>
         );
       case 4:
         return (
-          <Tag color='purple' size='large' shape='circle'>
+          <Tag color='purple' shape='circle'>
             {t('系统')}
           </Tag>
         );
       case 5:
         return (
-          <Tag color='red' size='large' shape='circle'>
+          <Tag color='red' shape='circle'>
             {t('错误')}
           </Tag>
         );
       default:
         return (
-          <Tag color='grey' size='large' shape='circle'>
+          <Tag color='grey' shape='circle'>
             {t('未知')}
           </Tag>
         );
@@ -117,13 +118,13 @@ const LogsTable = () => {
   function renderIsStream(bool) {
     if (bool) {
       return (
-        <Tag color='blue' size='large' shape='circle'>
+        <Tag color='blue' shape='circle'>
           {t('流')}
         </Tag>
       );
     } else {
       return (
-        <Tag color='purple' size='large' shape='circle'>
+        <Tag color='purple' shape='circle'>
           {t('非流')}
         </Tag>
       );
@@ -134,21 +135,21 @@ const LogsTable = () => {
     const time = parseInt(type);
     if (time < 101) {
       return (
-        <Tag color='green' size='large' shape='circle'>
+        <Tag color='green' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else if (time < 300) {
       return (
-        <Tag color='orange' size='large' shape='circle'>
+        <Tag color='orange' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else {
       return (
-        <Tag color='red' size='large' shape='circle'>
+        <Tag color='red' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
@@ -161,21 +162,21 @@ const LogsTable = () => {
     time = time.toFixed(1);
     if (time < 3) {
       return (
-        <Tag color='green' size='large' shape='circle'>
+        <Tag color='green' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else if (time < 10) {
       return (
-        <Tag color='orange' size='large' shape='circle'>
+        <Tag color='orange' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
       );
     } else {
       return (
-        <Tag color='red' size='large' shape='circle'>
+        <Tag color='red' shape='circle'>
           {' '}
           {time} s{' '}
         </Tag>
@@ -192,7 +193,7 @@ const LogsTable = () => {
     if (!modelMapped) {
       return renderModelTag(record.model_name, {
         onClick: (event) => {
-          copyText(event, record.model_name).then((r) => {});
+          copyText(event, record.model_name).then((r) => { });
         },
       });
     } else {
@@ -209,7 +210,7 @@ const LogsTable = () => {
                       </Text>
                       {renderModelTag(record.model_name, {
                         onClick: (event) => {
-                          copyText(event, record.model_name).then((r) => {});
+                          copyText(event, record.model_name).then((r) => { });
                         },
                       })}
                     </div>
@@ -220,7 +221,7 @@ const LogsTable = () => {
                       {renderModelTag(other.upstream_model_name, {
                         onClick: (event) => {
                           copyText(event, other.upstream_model_name).then(
-                            (r) => {},
+                            (r) => { },
                           );
                         },
                       })}
@@ -231,7 +232,7 @@ const LogsTable = () => {
             >
               {renderModelTag(record.model_name, {
                 onClick: (event) => {
-                  copyText(event, record.model_name).then((r) => {});
+                  copyText(event, record.model_name).then((r) => { });
                 },
                 suffixIcon: (
                   <Route
@@ -355,28 +356,34 @@ const LogsTable = () => {
       dataIndex: 'channel',
       className: isAdmin() ? 'tableShow' : 'tableHiddle',
       render: (text, record, index) => {
-        return isAdminUser ? (
-          record.type === 0 || record.type === 2 || record.type === 5 ? (
-            <div>
-              {
-                <Tooltip content={record.channel_name || '[未知]'}>
-                  <Tag
-                    color={colors[parseInt(text) % colors.length]}
-                    size='large'
-                    shape='circle'
-                  >
-                    {' '}
-                    {text}{' '}
-                  </Tag>
-                </Tooltip>
-              }
-            </div>
-          ) : (
-            <></>
-          )
-        ) : (
-          <></>
-        );
+        let isMultiKey = false
+        let multiKeyIndex = -1;
+        let other = getLogOther(record.other);
+        if (other?.admin_info) {
+          let adminInfo = other.admin_info;
+          if (adminInfo?.is_multi_key) {
+            isMultiKey = true;
+            multiKeyIndex = adminInfo.multi_key_index;
+          }
+        }
+
+        return isAdminUser && (record.type === 0 || record.type === 2 || record.type === 5) ? (
+          <Space>
+            <Tooltip content={record.channel_name || t('未知渠道')}>
+              <Tag
+                color={colors[parseInt(text) % colors.length]}
+                shape='circle'
+              >
+                {text}
+              </Tag>
+            </Tooltip>
+            {isMultiKey && (
+              <Tag color='white' shape='circle'>
+                {multiKeyIndex}
+              </Tag>
+            )}
+          </Space>
+        ) : null;
       },
     },
     {
@@ -388,7 +395,7 @@ const LogsTable = () => {
         return isAdminUser ? (
           <div>
             <Avatar
-              size='small'
+              size='extra-small'
               color={stringToColor(text)}
               style={{ marginRight: 4 }}
               onClick={(event) => {
@@ -414,7 +421,6 @@ const LogsTable = () => {
           <div>
             <Tag
               color='grey'
-              size='large'
               shape='circle'
               onClick={(event) => {
                 //cancel the row click event
@@ -566,7 +572,6 @@ const LogsTable = () => {
           <Tooltip content={text}>
             <Tag
               color='orange'
-              size='large'
               shape='circle'
               onClick={(event) => {
                 copyText(event, text);
@@ -636,23 +641,23 @@ const LogsTable = () => {
         }
         let content = other?.claude
           ? renderClaudeModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              other.cache_creation_tokens || 0,
-              other.cache_creation_ratio || 1.0,
-            )
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            other.cache_creation_tokens || 0,
+            other.cache_creation_ratio || 1.0,
+          )
           : renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-            );
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+          );
         return (
           <Paragraph
             ellipsis={{
@@ -692,25 +697,13 @@ const LogsTable = () => {
         onCancel={() => setShowColumnSelector(false)}
         footer={
           <div className='flex justify-end'>
-            <Button
-              theme='light'
-              onClick={() => initDefaultColumns()}
-              className='!rounded-full'
-            >
+            <Button onClick={() => initDefaultColumns()}>
               {t('重置')}
             </Button>
-            <Button
-              theme='light'
-              onClick={() => setShowColumnSelector(false)}
-              className='!rounded-full'
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('取消')}
             </Button>
-            <Button
-              type='primary'
-              onClick={() => setShowColumnSelector(false)}
-              className='!rounded-full'
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('确定')}
             </Button>
           </div>
@@ -985,27 +978,27 @@ const LogsTable = () => {
           key: t('日志详情'),
           value: other?.claude
             ? renderClaudeLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                other.cache_creation_ratio || 1.0,
-              )
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              other.cache_creation_ratio || 1.0,
+            )
             : renderLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                false,
-                1.0,
-                other.web_search || false,
-                other.web_search_call_count || 0,
-                other.file_search || false,
-                other.file_search_call_count || 0,
-              ),
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              false,
+              1.0,
+              other.web_search || false,
+              other.web_search_call_count || 0,
+              other.file_search || false,
+              other.file_search_call_count || 0,
+            ),
         });
       }
       if (logs[i].type === 2) {
@@ -1145,7 +1138,7 @@ const LogsTable = () => {
 
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => {}); // 不传入logType，让其从表单获取最新值
+    loadLogs(page, pageSize).then((r) => { }); // 不传入logType，让其从表单获取最新值
   };
 
   const handlePageSizeChange = async (size) => {
@@ -1203,6 +1196,8 @@ const LogsTable = () => {
     );
   };
 
+  const [compactMode, setCompactMode] = useTableCompactMode('logs');
+
   return (
     <>
       {renderColumnSelector()}
@@ -1211,45 +1206,53 @@ const LogsTable = () => {
         title={
           <div className='flex flex-col w-full'>
             <Spin spinning={loadingStat}>
-              <Space>
-                <Tag
-                  color='blue'
-                  size='large'
-                  style={{
-                    padding: 15,
-                    borderRadius: '9999px',
-                    fontWeight: 500,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                  }}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+                <Space>
+                  <Tag
+                    color='blue'
+                    style={{
+                      fontWeight: 500,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      padding: 13,
+                    }}
+                    className='!rounded-lg'
+                  >
+                    {t('消耗额度')}: {renderQuota(stat.quota)}
+                  </Tag>
+                  <Tag
+                    color='pink'
+                    style={{
+                      fontWeight: 500,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      padding: 13,
+                    }}
+                    className='!rounded-lg'
+                  >
+                    RPM: {stat.rpm}
+                  </Tag>
+                  <Tag
+                    color='white'
+                    style={{
+                      border: 'none',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      fontWeight: 500,
+                      padding: 13,
+                    }}
+                    className='!rounded-lg'
+                  >
+                    TPM: {stat.tpm}
+                  </Tag>
+                </Space>
+
+                <Button
+                  type='tertiary'
+                  className="w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
+                  size="small"
                 >
-                  {t('消耗额度')}: {renderQuota(stat.quota)}
-                </Tag>
-                <Tag
-                  color='pink'
-                  size='large'
-                  style={{
-                    padding: 15,
-                    borderRadius: '9999px',
-                    fontWeight: 500,
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                  }}
-                >
-                  RPM: {stat.rpm}
-                </Tag>
-                <Tag
-                  color='white'
-                  size='large'
-                  style={{
-                    padding: 15,
-                    border: 'none',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                    borderRadius: '9999px',
-                    fontWeight: 500,
-                  }}
-                >
-                  TPM: {stat.tpm}
-                </Tag>
-              </Space>
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
+              </div>
             </Spin>
 
             <Divider margin='12px' />
@@ -1276,6 +1279,7 @@ const LogsTable = () => {
                       placeholder={[t('开始时间'), t('结束时间')]}
                       showClear
                       pure
+                      size="small"
                     />
                   </div>
 
@@ -1284,27 +1288,27 @@ const LogsTable = () => {
                     field='token_name'
                     prefix={<IconSearch />}
                     placeholder={t('令牌名称')}
-                    className='!rounded-full'
                     showClear
                     pure
+                    size="small"
                   />
 
                   <Form.Input
                     field='model_name'
                     prefix={<IconSearch />}
                     placeholder={t('模型名称')}
-                    className='!rounded-full'
                     showClear
                     pure
+                    size="small"
                   />
 
                   <Form.Input
                     field='group'
                     prefix={<IconSearch />}
                     placeholder={t('分组')}
-                    className='!rounded-full'
                     showClear
                     pure
+                    size="small"
                   />
 
                   {isAdminUser && (
@@ -1313,17 +1317,17 @@ const LogsTable = () => {
                         field='channel'
                         prefix={<IconSearch />}
                         placeholder={t('渠道 ID')}
-                        className='!rounded-full'
                         showClear
                         pure
+                        size="small"
                       />
                       <Form.Input
                         field='username'
                         prefix={<IconSearch />}
                         placeholder={t('用户名称')}
-                        className='!rounded-full'
                         showClear
                         pure
+                        size="small"
                       />
                     </>
                   )}
@@ -1336,7 +1340,7 @@ const LogsTable = () => {
                     <Form.Select
                       field='logType'
                       placeholder={t('日志类型')}
-                      className='!rounded-full w-full sm:w-auto min-w-[120px]'
+                      className='w-full sm:w-auto min-w-[120px]'
                       showClear
                       pure
                       onChange={() => {
@@ -1345,6 +1349,7 @@ const LogsTable = () => {
                           refresh();
                         }, 0);
                       }}
+                      size="small"
                     >
                       <Form.Select.Option value='0'>
                         {t('全部')}
@@ -1369,35 +1374,32 @@ const LogsTable = () => {
 
                   <div className='flex gap-2 w-full sm:w-auto justify-end'>
                     <Button
-                      type='primary'
+                      type='tertiary'
                       htmlType='submit'
                       loading={loading}
-                      className='!rounded-full'
+                      size="small"
                     >
                       {t('查询')}
                     </Button>
                     <Button
-                      theme='light'
+                      type='tertiary'
                       onClick={() => {
                         if (formApi) {
                           formApi.reset();
                           setLogType(0);
-                          // 重置后立即查询，使用setTimeout确保表单重置完成
                           setTimeout(() => {
                             refresh();
                           }, 100);
                         }
                       }}
-                      className='!rounded-full'
+                      size="small"
                     >
                       {t('重置')}
                     </Button>
                     <Button
-                      theme='light'
                       type='tertiary'
-                      icon={<IconSetting />}
                       onClick={() => setShowColumnSelector(true)}
-                      className='!rounded-full'
+                      size="small"
                     >
                       {t('列设置')}
                     </Button>
@@ -1411,7 +1413,7 @@ const LogsTable = () => {
         bordered={false}
       >
         <Table
-          columns={getVisibleColumns()}
+          columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
           {...(hasExpandableRows() && {
             expandedRowRender: expandRowRender,
             expandRowByClick: true,
@@ -1421,7 +1423,7 @@ const LogsTable = () => {
           dataSource={logs}
           rowKey='key'
           loading={loading}
-          scroll={{ x: 'max-content' }}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
           className='rounded-xl overflow-hidden'
           size='middle'
           empty={

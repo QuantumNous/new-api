@@ -57,12 +57,18 @@ type MidjourneyDto struct {
 	StartTime   int64       `json:"startTime"`
 	FinishTime  int64       `json:"finishTime"`
 	ImageUrl    string      `json:"imageUrl"`
+	VideoUrl    string      `json:"videoUrl"`
+	VideoUrls   []ImgUrls   `json:"videoUrls"`
 	Status      string      `json:"status"`
 	Progress    string      `json:"progress"`
 	FailReason  string      `json:"failReason"`
 	Buttons     any         `json:"buttons"`
 	MaskBase64  string      `json:"maskBase64"`
 	Properties  *Properties `json:"properties"`
+}
+
+type ImgUrls struct {
+	Url string `json:"url"`
 }
 
 type MidjourneyStatus struct {

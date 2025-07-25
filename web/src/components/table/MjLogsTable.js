@@ -24,7 +24,7 @@ import {
   XCircle,
   Loader,
   AlertCircle,
-  Hash
+  Hash,
 } from 'lucide-react';
 import {
   API,
@@ -59,8 +59,8 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import {
   IconEyeOpened,
   IconSearch,
-  IconSetting
 } from '@douyinfe/semi-icons';
+import { useTableCompactMode } from '../../hooks/useTableCompactMode';
 
 const { Text } = Typography;
 
@@ -107,6 +107,7 @@ const LogsTable = () => {
   const [visibleColumns, setVisibleColumns] = useState({});
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const isAdminUser = isAdmin();
+  const [compactMode, setCompactMode] = useTableCompactMode('mjLogs');
 
   // 加载保存的列偏好设置
   useEffect(() => {
@@ -184,103 +185,115 @@ const LogsTable = () => {
     switch (type) {
       case 'IMAGINE':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Palette size={14} />}>
+          <Tag color='blue' shape='circle' prefixIcon={<Palette size={14} />}>
             {t('绘图')}
           </Tag>
         );
       case 'UPSCALE':
         return (
-          <Tag color='orange' size='large' shape='circle' prefixIcon={<ZoomIn size={14} />}>
+          <Tag color='orange' shape='circle' prefixIcon={<ZoomIn size={14} />}>
             {t('放大')}
+          </Tag>
+        );
+      case 'VIDEO':
+        return (
+          <Tag color='orange' shape='circle' prefixIcon={<Video size={14} />}>
+            {t('视频')}
+          </Tag>
+        );
+      case 'EDITS':
+        return (
+          <Tag color='orange' shape='circle' prefixIcon={<Video size={14} />}>
+            {t('编辑')}
           </Tag>
         );
       case 'VARIATION':
         return (
-          <Tag color='purple' size='large' shape='circle' prefixIcon={<Shuffle size={14} />}>
+          <Tag color='purple' shape='circle' prefixIcon={<Shuffle size={14} />}>
             {t('变换')}
           </Tag>
         );
       case 'HIGH_VARIATION':
         return (
-          <Tag color='purple' size='large' shape='circle' prefixIcon={<Shuffle size={14} />}>
+          <Tag color='purple' shape='circle' prefixIcon={<Shuffle size={14} />}>
             {t('强变换')}
           </Tag>
         );
       case 'LOW_VARIATION':
         return (
-          <Tag color='purple' size='large' shape='circle' prefixIcon={<Shuffle size={14} />}>
+          <Tag color='purple' shape='circle' prefixIcon={<Shuffle size={14} />}>
             {t('弱变换')}
           </Tag>
         );
       case 'PAN':
         return (
-          <Tag color='cyan' size='large' shape='circle' prefixIcon={<Move size={14} />}>
+          <Tag color='cyan' shape='circle' prefixIcon={<Move size={14} />}>
             {t('平移')}
           </Tag>
         );
       case 'DESCRIBE':
         return (
-          <Tag color='yellow' size='large' shape='circle' prefixIcon={<FileText size={14} />}>
+          <Tag color='yellow' shape='circle' prefixIcon={<FileText size={14} />}>
             {t('图生文')}
           </Tag>
         );
       case 'BLEND':
         return (
-          <Tag color='lime' size='large' shape='circle' prefixIcon={<Blend size={14} />}>
+          <Tag color='lime' shape='circle' prefixIcon={<Blend size={14} />}>
             {t('图混合')}
           </Tag>
         );
       case 'UPLOAD':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Upload size={14} />}>
+          <Tag color='blue' shape='circle' prefixIcon={<Upload size={14} />}>
             上传文件
           </Tag>
         );
       case 'SHORTEN':
         return (
-          <Tag color='pink' size='large' shape='circle' prefixIcon={<Minimize2 size={14} />}>
+          <Tag color='pink' shape='circle' prefixIcon={<Minimize2 size={14} />}>
             {t('缩词')}
           </Tag>
         );
       case 'REROLL':
         return (
-          <Tag color='indigo' size='large' shape='circle' prefixIcon={<RotateCcw size={14} />}>
+          <Tag color='indigo' shape='circle' prefixIcon={<RotateCcw size={14} />}>
             {t('重绘')}
           </Tag>
         );
       case 'INPAINT':
         return (
-          <Tag color='violet' size='large' shape='circle' prefixIcon={<PaintBucket size={14} />}>
+          <Tag color='violet' shape='circle' prefixIcon={<PaintBucket size={14} />}>
             {t('局部重绘-提交')}
           </Tag>
         );
       case 'ZOOM':
         return (
-          <Tag color='teal' size='large' shape='circle' prefixIcon={<Focus size={14} />}>
+          <Tag color='teal' shape='circle' prefixIcon={<Focus size={14} />}>
             {t('变焦')}
           </Tag>
         );
       case 'CUSTOM_ZOOM':
         return (
-          <Tag color='teal' size='large' shape='circle' prefixIcon={<Move3D size={14} />}>
+          <Tag color='teal' shape='circle' prefixIcon={<Move3D size={14} />}>
             {t('自定义变焦-提交')}
           </Tag>
         );
       case 'MODAL':
         return (
-          <Tag color='green' size='large' shape='circle' prefixIcon={<Monitor size={14} />}>
+          <Tag color='green' shape='circle' prefixIcon={<Monitor size={14} />}>
             {t('窗口处理')}
           </Tag>
         );
       case 'SWAP_FACE':
         return (
-          <Tag color='light-green' size='large' shape='circle' prefixIcon={<UserCheck size={14} />}>
+          <Tag color='light-green' shape='circle' prefixIcon={<UserCheck size={14} />}>
             {t('换脸')}
           </Tag>
         );
       default:
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
@@ -291,31 +304,31 @@ const LogsTable = () => {
     switch (code) {
       case 1:
         return (
-          <Tag color='green' size='large' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+          <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
             {t('已提交')}
           </Tag>
         );
       case 21:
         return (
-          <Tag color='lime' size='large' shape='circle' prefixIcon={<Clock size={14} />}>
+          <Tag color='lime' shape='circle' prefixIcon={<Clock size={14} />}>
             {t('等待中')}
           </Tag>
         );
       case 22:
         return (
-          <Tag color='orange' size='large' shape='circle' prefixIcon={<Copy size={14} />}>
+          <Tag color='orange' shape='circle' prefixIcon={<Copy size={14} />}>
             {t('重复提交')}
           </Tag>
         );
       case 0:
         return (
-          <Tag color='yellow' size='large' shape='circle' prefixIcon={<FileX size={14} />}>
+          <Tag color='yellow' shape='circle' prefixIcon={<FileX size={14} />}>
             {t('未提交')}
           </Tag>
         );
       default:
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
@@ -326,43 +339,43 @@ const LogsTable = () => {
     switch (type) {
       case 'SUCCESS':
         return (
-          <Tag color='green' size='large' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+          <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
             {t('成功')}
           </Tag>
         );
       case 'NOT_START':
         return (
-          <Tag color='grey' size='large' shape='circle' prefixIcon={<Pause size={14} />}>
+          <Tag color='grey' shape='circle' prefixIcon={<Pause size={14} />}>
             {t('未启动')}
           </Tag>
         );
       case 'SUBMITTED':
         return (
-          <Tag color='yellow' size='large' shape='circle' prefixIcon={<Clock size={14} />}>
+          <Tag color='yellow' shape='circle' prefixIcon={<Clock size={14} />}>
             {t('队列中')}
           </Tag>
         );
       case 'IN_PROGRESS':
         return (
-          <Tag color='blue' size='large' shape='circle' prefixIcon={<Loader size={14} />}>
+          <Tag color='blue' shape='circle' prefixIcon={<Loader size={14} />}>
             {t('执行中')}
           </Tag>
         );
       case 'FAILURE':
         return (
-          <Tag color='red' size='large' shape='circle' prefixIcon={<XCircle size={14} />}>
+          <Tag color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
             {t('失败')}
           </Tag>
         );
       case 'MODAL':
         return (
-          <Tag color='yellow' size='large' shape='circle' prefixIcon={<AlertCircle size={14} />}>
+          <Tag color='yellow' shape='circle' prefixIcon={<AlertCircle size={14} />}>
             {t('窗口等待')}
           </Tag>
         );
       default:
         return (
-          <Tag color='white' size='large' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+          <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
             {t('未知')}
           </Tag>
         );
@@ -392,7 +405,7 @@ const LogsTable = () => {
     const color = durationSec > 60 ? 'red' : 'green';
 
     return (
-      <Tag color={color} size='large' shape='circle' prefixIcon={<Clock size={14} />}>
+      <Tag color={color} shape='circle' prefixIcon={<Clock size={14} />}>
         {durationSec} {t('秒')}
       </Tag>
     );
@@ -426,7 +439,6 @@ const LogsTable = () => {
           <div>
             <Tag
               color={colors[parseInt(text) % colors.length]}
-              size='large'
               shape='circle'
               prefixIcon={<Hash size={14} />}
               onClick={() => {
@@ -510,11 +522,11 @@ const LogsTable = () => {
         }
         return (
           <Button
+            size="small"
             onClick={() => {
               setModalImageUrl(text);
               setIsModalOpenurl(true);
             }}
-            className="!rounded-full"
           >
             {t('查看图片')}
           </Button>
@@ -729,25 +741,13 @@ const LogsTable = () => {
         onCancel={() => setShowColumnSelector(false)}
         footer={
           <div className="flex justify-end">
-            <Button
-              theme="light"
-              onClick={() => initDefaultColumns()}
-              className="!rounded-full"
-            >
+            <Button onClick={() => initDefaultColumns()}>
               {t('重置')}
             </Button>
-            <Button
-              theme="light"
-              onClick={() => setShowColumnSelector(false)}
-              className="!rounded-full"
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('取消')}
             </Button>
-            <Button
-              type='primary'
-              onClick={() => setShowColumnSelector(false)}
-              className="!rounded-full"
-            >
+            <Button onClick={() => setShowColumnSelector(false)}>
               {t('确定')}
             </Button>
           </div>
@@ -802,7 +802,7 @@ const LogsTable = () => {
           className="!rounded-2xl mb-4"
           title={
             <div className="flex flex-col w-full">
-              <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
                 <div className="flex items-center text-orange-500 mb-2 md:mb-0">
                   <IconEyeOpened className="mr-2" />
                   {loading ? (
@@ -821,6 +821,14 @@ const LogsTable = () => {
                     </Text>
                   )}
                 </div>
+                <Button
+                  type='tertiary'
+                  className="w-full md:w-auto"
+                  onClick={() => setCompactMode(!compactMode)}
+                  size="small"
+                >
+                  {compactMode ? t('自适应列表') : t('紧凑列表')}
+                </Button>
               </div>
 
               <Divider margin="12px" />
@@ -847,6 +855,7 @@ const LogsTable = () => {
                         placeholder={[t('开始时间'), t('结束时间')]}
                         showClear
                         pure
+                        size="small"
                       />
                     </div>
 
@@ -855,9 +864,9 @@ const LogsTable = () => {
                       field='mj_id'
                       prefix={<IconSearch />}
                       placeholder={t('任务 ID')}
-                      className="!rounded-full"
                       showClear
                       pure
+                      size="small"
                     />
 
                     {/* 渠道 ID - 仅管理员可见 */}
@@ -866,9 +875,9 @@ const LogsTable = () => {
                         field='channel_id'
                         prefix={<IconSearch />}
                         placeholder={t('渠道 ID')}
-                        className="!rounded-full"
                         showClear
                         pure
+                        size="small"
                       />
                     )}
                   </div>
@@ -878,15 +887,15 @@ const LogsTable = () => {
                     <div></div>
                     <div className="flex gap-2">
                       <Button
-                        type='primary'
+                        type='tertiary'
                         htmlType='submit'
                         loading={loading}
-                        className="!rounded-full"
+                        size="small"
                       >
                         {t('查询')}
                       </Button>
                       <Button
-                        theme='light'
+                        type='tertiary'
                         onClick={() => {
                           if (formApi) {
                             formApi.reset();
@@ -896,16 +905,14 @@ const LogsTable = () => {
                             }, 100);
                           }
                         }}
-                        className="!rounded-full"
+                        size="small"
                       >
                         {t('重置')}
                       </Button>
                       <Button
-                        theme='light'
                         type='tertiary'
-                        icon={<IconSetting />}
                         onClick={() => setShowColumnSelector(true)}
-                        className="!rounded-full"
+                        size="small"
                       >
                         {t('列设置')}
                       </Button>
@@ -919,11 +926,11 @@ const LogsTable = () => {
           bordered={false}
         >
           <Table
-            columns={getVisibleColumns()}
+            columns={compactMode ? getVisibleColumns().map(({ fixed, ...rest }) => rest) : getVisibleColumns()}
             dataSource={logs}
             rowKey='key'
             loading={loading}
-            scroll={{ x: 'max-content' }}
+            scroll={compactMode ? undefined : { x: 'max-content' }}
             className="rounded-xl overflow-hidden"
             size="middle"
             empty={

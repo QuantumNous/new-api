@@ -3,19 +3,22 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
 	"one-api/relay/channel/claude"
 	relaycommon "one-api/relay/common"
+	"one-api/relay/helper"
+	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	bedrockruntimeTypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 )
 
 func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
@@ -65,24 +68,21 @@ func awsModelCrossRegion(awsModelId, awsRegionPrefix string) string {
 	return modelPrefix + "." + awsModelId
 }
 
-func awsModelID(requestModel string) (string, error) {
+func awsModelID(requestModel string) string {
 	if awsModelID, ok := awsModelIDMap[requestModel]; ok {
-		return awsModelID, nil
+		return awsModelID
 	}
 
-	return requestModel, nil
+	return requestModel
 }
 
-func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, requestMode int) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, requestMode int) (*types.NewAPIError, *dto.Usage) {
 	awsCli, err := newAwsClient(c, info)
 	if err != nil {
-		return wrapErr(errors.Wrap(err, "newAwsClient")), nil
+		return types.NewError(err, types.ErrorCodeChannelAwsClientError), nil
 	}
 
-	awsModelId, err := awsModelID(c.GetString("request_model"))
-	if err != nil {
-		return wrapErr(errors.Wrap(err, "awsModelID")), nil
-	}
+	awsModelId := awsModelID(c.GetString("request_model"))
 
 	awsRegionPrefix := awsRegionPrefix(awsCli.Options().Region)
 	canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
@@ -98,42 +98,42 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, requestMode int) (*
 
 	claudeReq_, ok := c.Get("converted_request")
 	if !ok {
-		return wrapErr(errors.New("request not found")), nil
+		return types.NewError(errors.New("aws claude request not found"), types.ErrorCodeInvalidRequest), nil
 	}
 	claudeReq := claudeReq_.(*dto.ClaudeRequest)
 	awsClaudeReq := copyRequest(claudeReq)
 	awsReq.Body, err = json.Marshal(awsClaudeReq)
 	if err != nil {
-		return wrapErr(errors.Wrap(err, "marshal request")), nil
+		return types.NewError(errors.Wrap(err, "marshal request"), types.ErrorCodeBadResponseBody), nil
 	}
 
 	awsResp, err := awsCli.InvokeModel(c.Request.Context(), awsReq)
 	if err != nil {
-		return wrapErr(errors.Wrap(err, "InvokeModel")), nil
+		return types.NewError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeChannelAwsClientError), nil
 	}
 
 	claudeInfo := &claude.ClaudeResponseInfo{
-		ResponseId:   fmt.Sprintf("chatcmpl-%s", common.GetUUID()),
+		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
 		Model:        info.UpstreamModelName,
 		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
 
-	claude.HandleClaudeResponseData(c, info, claudeInfo, awsResp.Body, RequestModeMessage)
+	handlerErr := claude.HandleClaudeResponseData(c, info, claudeInfo, awsResp.Body, RequestModeMessage)
+	if handlerErr != nil {
+		return handlerErr, nil
+	}
 	return nil, claudeInfo.Usage
 }
 
-func awsStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func awsStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*types.NewAPIError, *dto.Usage) {
 	awsCli, err := newAwsClient(c, info)
 	if err != nil {
-		return wrapErr(errors.Wrap(err, "newAwsClient")), nil
+		return types.NewError(err, types.ErrorCodeChannelAwsClientError), nil
 	}
 
-	awsModelId, err := awsModelID(c.GetString("request_model"))
-	if err != nil {
-		return wrapErr(errors.Wrap(err, "awsModelID")), nil
-	}
+	awsModelId := awsModelID(c.GetString("request_model"))
 
 	awsRegionPrefix := awsRegionPrefix(awsCli.Options().Region)
 	canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
@@ -149,25 +149,25 @@ func awsStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	claudeReq_, ok := c.Get("converted_request")
 	if !ok {
-		return wrapErr(errors.New("request not found")), nil
+		return types.NewError(errors.New("aws claude request not found"), types.ErrorCodeInvalidRequest), nil
 	}
 	claudeReq := claudeReq_.(*dto.ClaudeRequest)
 
 	awsClaudeReq := copyRequest(claudeReq)
 	awsReq.Body, err = json.Marshal(awsClaudeReq)
 	if err != nil {
-		return wrapErr(errors.Wrap(err, "marshal request")), nil
+		return types.NewError(errors.Wrap(err, "marshal request"), types.ErrorCodeBadResponseBody), nil
 	}
 
 	awsResp, err := awsCli.InvokeModelWithResponseStream(c.Request.Context(), awsReq)
 	if err != nil {
-		return wrapErr(errors.Wrap(err, "InvokeModelWithResponseStream")), nil
+		return types.NewError(errors.Wrap(err, "InvokeModelWithResponseStream"), types.ErrorCodeChannelAwsClientError), nil
 	}
 	stream := awsResp.GetStream()
 	defer stream.Close()
 
 	claudeInfo := &claude.ClaudeResponseInfo{
-		ResponseId:   fmt.Sprintf("chatcmpl-%s", common.GetUUID()),
+		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
 		Model:        info.UpstreamModelName,
 		ResponseText: strings.Builder{},
@@ -176,18 +176,18 @@ func awsStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	for event := range stream.Events() {
 		switch v := event.(type) {
-		case *types.ResponseStreamMemberChunk:
+		case *bedrockruntimeTypes.ResponseStreamMemberChunk:
 			info.SetFirstResponseTime()
 			respErr := claude.HandleStreamResponseData(c, info, claudeInfo, string(v.Value.Bytes), RequestModeMessage)
 			if respErr != nil {
 				return respErr, nil
 			}
-		case *types.UnknownUnionMember:
+		case *bedrockruntimeTypes.UnknownUnionMember:
 			fmt.Println("unknown tag:", v.Tag)
-			return wrapErr(errors.New("unknown response type")), nil
+			return types.NewError(errors.New("unknown response type"), types.ErrorCodeInvalidRequest), nil
 		default:
 			fmt.Println("union is nil or unknown type")
-			return wrapErr(errors.New("nil or unknown response type")), nil
+			return types.NewError(errors.New("nil or unknown response type"), types.ErrorCodeInvalidRequest), nil
 		}
 	}
 

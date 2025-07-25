@@ -1,9 +1,7 @@
 package xai
 
 import (
-	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -12,7 +10,10 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage *dto.Usage) *dto.ChatCompletionsStreamResponse {
@@ -34,7 +35,7 @@ func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage 
 	return openAIResp
 }
 
-func xAIStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	usage := &dto.Usage{}
 	var responseTextBuilder strings.Builder
 	var toolCount int
@@ -73,47 +74,34 @@ func xAIStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	}
 
 	helper.Done(c)
-	err := resp.Body.Close()
-	if err != nil {
-		//return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-		common.SysError("close_response_body_failed: " + err.Error())
-	}
-	return nil, usage
+	common.CloseResponseBodyGracefully(resp)
+	return usage, nil
 }
 
-func xAIHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer common.CloseResponseBodyGracefully(resp)
+
 	responseBody, err := io.ReadAll(resp.Body)
-	var response *dto.TextResponse
-	err = common.DecodeJson(responseBody, &response)
 	if err != nil {
-		common.SysError("error unmarshalling stream response: " + err.Error())
-		return nil, nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	response.Usage.CompletionTokens = response.Usage.TotalTokens - response.Usage.PromptTokens
-	response.Usage.CompletionTokenDetails.TextTokens = response.Usage.CompletionTokens - response.Usage.CompletionTokenDetails.ReasoningTokens
+	var xaiResponse ChatCompletionResponse
+	err = common.Unmarshal(responseBody, &xaiResponse)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if xaiResponse.Usage != nil {
+		xaiResponse.Usage.CompletionTokens = xaiResponse.Usage.TotalTokens - xaiResponse.Usage.PromptTokens
+		xaiResponse.Usage.CompletionTokenDetails.TextTokens = xaiResponse.Usage.CompletionTokens - xaiResponse.Usage.CompletionTokenDetails.ReasoningTokens
+	}
 
 	// new body
-	encodeJson, err := common.EncodeJson(response)
+	encodeJson, err := common.Marshal(xaiResponse)
 	if err != nil {
-		common.SysError("error marshalling stream response: " + err.Error())
-		return nil, nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
-	// set new body
-	resp.Body = io.NopCloser(bytes.NewBuffer(encodeJson))
+	common.IOCopyBytesGracefully(c, resp, encodeJson)
 
-	for k, v := range resp.Header {
-		c.Writer.Header().Set(k, v[0])
-	}
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = io.Copy(c.Writer, resp.Body)
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError), nil
-	}
-	err = resp.Body.Close()
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-	}
-
-	return nil, &response.Usage
+	return xaiResponse.Usage, nil
 }

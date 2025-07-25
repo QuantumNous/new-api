@@ -1,15 +1,17 @@
 package ollama
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
+	"one-api/common"
 	"one-api/dto"
+	relaycommon "one-api/relay/common"
 	"one-api/service"
+	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, error) {
@@ -82,22 +84,19 @@ func requestOpenAI2Embeddings(request dto.EmbeddingRequest) *OllamaEmbeddingRequ
 	}
 }
 
-func ollamaEmbeddingHandler(c *gin.Context, resp *http.Response, promptTokens int, model string, relayMode int) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var ollamaEmbeddingResponse OllamaEmbeddingResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	err = resp.Body.Close()
+	common.CloseResponseBodyGracefully(resp)
+	err = common.Unmarshal(responseBody, &ollamaEmbeddingResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-	}
-	err = json.Unmarshal(responseBody, &ollamaEmbeddingResponse)
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if ollamaEmbeddingResponse.Error != "" {
-		return service.OpenAIErrorWrapper(err, "ollama_error", resp.StatusCode), nil
+		return nil, types.NewError(fmt.Errorf("ollama error: %s", ollamaEmbeddingResponse.Error), types.ErrorCodeBadResponseBody)
 	}
 	flattenedEmbeddings := flattenEmbeddings(ollamaEmbeddingResponse.Embedding)
 	data := make([]dto.OpenAIEmbeddingResponseItem, 0, 1)
@@ -106,46 +105,22 @@ func ollamaEmbeddingHandler(c *gin.Context, resp *http.Response, promptTokens in
 		Object:    "embedding",
 	})
 	usage := &dto.Usage{
-		TotalTokens:      promptTokens,
+		TotalTokens:      info.PromptTokens,
 		CompletionTokens: 0,
-		PromptTokens:     promptTokens,
+		PromptTokens:     info.PromptTokens,
 	}
 	embeddingResponse := &dto.OpenAIEmbeddingResponse{
 		Object: "list",
 		Data:   data,
-		Model:  model,
+		Model:  info.UpstreamModelName,
 		Usage:  *usage,
 	}
-	doResponseBody, err := json.Marshal(embeddingResponse)
+	doResponseBody, err := common.Marshal(embeddingResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(doResponseBody))
-	// We shouldn't set the header before we parse the response body, because the parse part may fail.
-	// And then we will have to send an error response, but in this case, the header has already been set.
-	// So the httpClient will be confused by the response.
-	// For example, Postman will report error, and we cannot check the response at all.
-	// Copy headers
-	for k, v := range resp.Header {
-		// 删除任何现有的相同头部，以防止重复添加头部
-		c.Writer.Header().Del(k)
-		for _, vv := range v {
-			c.Writer.Header().Add(k, vv)
-		}
-	}
-	// reset content length
-	c.Writer.Header().Del("Content-Length")
-	c.Writer.Header().Set("Content-Length", fmt.Sprintf("%d", len(doResponseBody)))
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = io.Copy(c.Writer, resp.Body)
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError), nil
-	}
-	err = resp.Body.Close()
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
-	}
-	return nil, usage
+	common.IOCopyBytesGracefully(c, resp, doResponseBody)
+	return usage, nil
 }
 
 func flattenEmbeddings(embeddings [][]float64) []float64 {

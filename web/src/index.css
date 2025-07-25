@@ -14,6 +14,22 @@
 }
 
 /* ==================== 全局基础样式 ==================== */
+/* 侧边栏宽度相关的 CSS 变量，配合 .sidebar-collapsed 类和媒体查询实现响应式布局 */
+:root {
+  --sidebar-width: 180px;
+  /* 展开时宽度 */
+  --sidebar-width-collapsed: 60px;  /* 折叠后宽度，显示图标栏 */
+  /* 折叠后宽度 */
+  --sidebar-current-width: var(--sidebar-width);
+}
+
+/* 当 body 上存在 .sidebar-collapsed 类时，使用折叠宽度 */
+body.sidebar-collapsed {
+  --sidebar-current-width: var(--sidebar-width-collapsed);
+}
+
+/* 移除了在移动端强制设为 0 的限制，改由 React 控制是否渲染侧边栏以实现显示/隐藏 */
+
 body {
   font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
@@ -43,6 +59,7 @@ code {
 
 /* ==================== 导航和侧边栏样式 ==================== */
 /* 导航项样式 */
+.semi-input-textarea-wrapper,
 .semi-navigation-sub-title,
 .semi-chat-inputBox-sendButton,
 .semi-page-item,
@@ -53,11 +70,16 @@ code {
 .semi-select,
 .semi-button,
 .semi-datepicker-range-input {
-  border-radius: 9999px !important;
+  border-radius: 10px !important;
 }
 
 .semi-navigation-item {
   margin-bottom: 4px !important;
+  padding: 4px 12px !important;
+}
+
+.semi-navigation-sub-title {
+  padding: 0 !important;
 }
 
 .semi-navigation-item-icon {
@@ -69,6 +91,7 @@ code {
   margin-right: 0;
 }
 
+.semi-navigation-item,
 .semi-navigation-sub-title {
   height: 100% !important;
 }
@@ -375,6 +398,7 @@ code {
 }
 
 /* 隐藏卡片内容区域的滚动条 */
+.model-test-scroll,
 .card-content-scroll,
 .model-settings-scroll,
 .thinking-content-scroll,
@@ -385,6 +409,7 @@ code {
   scrollbar-width: none;
 }
 
+.model-test-scroll::-webkit-scrollbar,
 .card-content-scroll::-webkit-scrollbar,
 .model-settings-scroll::-webkit-scrollbar,
 .thinking-content-scroll::-webkit-scrollbar,
@@ -528,4 +553,66 @@ code {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* ==================== ScrollList 定制样式 ==================== */
+.semi-scrolllist,
+.semi-scrolllist * {
+  -ms-overflow-style: none;
+  /* IE, Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  background: transparent !important;
+}
+
+.semi-scrolllist::-webkit-scrollbar,
+.semi-scrolllist *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.semi-scrolllist-body {
+  padding: 1px !important;
+}
+
+.semi-scrolllist-list-outer {
+  padding-right: 0 !important;
+}
+
+/* ==================== Banner 背景模糊球 ==================== */
+.blur-ball {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.blur-ball-indigo {
+  background: #6366f1;
+  /* indigo-500 */
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0.5;
+}
+
+.blur-ball-teal {
+  background: #14b8a6;
+  /* teal-400 */
+  top: 200px;
+  left: 30%;
+  opacity: 0.4;
+}
+
+/* 浅色主题下让模糊球更柔和 */
+html:not(.dark) .blur-ball-indigo {
+  opacity: 0.25;
+}
+
+html:not(.dark) .blur-ball-teal {
+  opacity: 0.2;
 }

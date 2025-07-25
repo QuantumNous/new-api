@@ -14,8 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var group2model2channels map[string]map[string][]*Channel
-var channelsIDM map[int]*Channel
+var group2model2channels map[string]map[string][]int // enabled channel
+var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
@@ -24,7 +24,7 @@ func InitChannelCache() {
 	}
 	newChannelId2channel := make(map[int]*Channel)
 	var channels []*Channel
-	DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels)
+	DB.Find(&channels)
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 	}
@@ -34,21 +34,22 @@ func InitChannelCache() {
 	for _, ability := range abilities {
 		groups[ability.Group] = true
 	}
-	newGroup2model2channels := make(map[string]map[string][]*Channel)
-	newChannelsIDM := make(map[int]*Channel)
+	newGroup2model2channels := make(map[string]map[string][]int)
 	for group := range groups {
-		newGroup2model2channels[group] = make(map[string][]*Channel)
+		newGroup2model2channels[group] = make(map[string][]int)
 	}
 	for _, channel := range channels {
-		newChannelsIDM[channel.Id] = channel
+		if channel.Status != common.ChannelStatusEnabled {
+			continue // skip disabled channels
+		}
 		groups := strings.Split(channel.Group, ",")
 		for _, group := range groups {
 			models := strings.Split(channel.Models, ",")
 			for _, model := range models {
 				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]*Channel, 0)
+					newGroup2model2channels[group][model] = make([]int, 0)
 				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel)
+				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
 			}
 		}
 	}
@@ -57,7 +58,7 @@ func InitChannelCache() {
 	for group, model2channels := range newGroup2model2channels {
 		for model, channels := range model2channels {
 			sort.Slice(channels, func(i, j int) bool {
-				return channels[i].GetPriority() > channels[j].GetPriority()
+				return newChannelId2channel[channels[i]].GetPriority() > newChannelId2channel[channels[j]].GetPriority()
 			})
 			newGroup2model2channels[group][model] = channels
 		}
@@ -65,7 +66,7 @@ func InitChannelCache() {
 
 	channelSyncLock.Lock()
 	group2model2channels = newGroup2model2channels
-	channelsIDM = newChannelsIDM
+	channelsIDM = newChannelId2channel
 	channelSyncLock.Unlock()
 	common.SysLog("channels synced from database")
 }
@@ -128,16 +129,27 @@ func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
 	channels := group2model2channels[group][model]
-	channelSyncLock.RUnlock()
 
 	if len(channels) == 0 {
 		return nil, errors.New("channel not found")
 	}
 
+	if len(channels) == 1 {
+		if channel, ok := channelsIDM[channels[0]]; ok {
+			return channel, nil
+		}
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+	}
+
 	uniquePriorities := make(map[int]bool)
-	for _, channel := range channels {
-		uniquePriorities[int(channel.GetPriority())] = true
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			uniquePriorities[int(channel.GetPriority())] = true
+		} else {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+		}
 	}
 	var sortedUniquePriorities []int
 	for priority := range uniquePriorities {
@@ -152,9 +164,13 @@ func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	// get the priority for the given retry number
 	var targetChannels []*Channel
-	for _, channel := range channels {
-		if channel.GetPriority() == targetPriority {
-			targetChannels = append(targetChannels, channel)
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			if channel.GetPriority() == targetPriority {
+				targetChannels = append(targetChannels, channel)
+			}
+		} else {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
 	}
 
@@ -188,9 +204,33 @@ func CacheGetChannel(id int) (*Channel, error) {
 
 	c, ok := channelsIDM[id]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("当前渠道# %d，已不存在", id))
+		return nil, fmt.Errorf("渠道# %d，已不存在", id)
+	}
+	if c.Status != common.ChannelStatusEnabled {
+		return nil, fmt.Errorf("渠道# %d，已被禁用", id)
 	}
 	return c, nil
+}
+
+func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
+	if !common.MemoryCacheEnabled {
+		channel, err := GetChannelById(id, true)
+		if err != nil {
+			return nil, err
+		}
+		return &channel.ChannelInfo, nil
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	c, ok := channelsIDM[id]
+	if !ok {
+		return nil, fmt.Errorf("渠道# %d，已不存在", id)
+	}
+	if c.Status != common.ChannelStatusEnabled {
+		return nil, fmt.Errorf("渠道# %d，已被禁用", id)
+	}
+	return &c.ChannelInfo, nil
 }
 
 func CacheUpdateChannelStatus(id int, status int) {
@@ -202,4 +242,21 @@ func CacheUpdateChannelStatus(id int, status int) {
 	if channel, ok := channelsIDM[id]; ok {
 		channel.Status = status
 	}
+}
+
+func CacheUpdateChannel(channel *Channel) {
+	if !common.MemoryCacheEnabled {
+		return
+	}
+	channelSyncLock.Lock()
+	defer channelSyncLock.Unlock()
+	if channel == nil {
+		return
+	}
+
+	println("CacheUpdateChannel:", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
+
+	println("before:", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
+	channelsIDM[channel.Id] = channel
+	println("after :", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"net/http"
 	"one-api/common"
@@ -14,10 +15,7 @@ import (
 	"one-api/relay/channel/minimax"
 	"one-api/relay/channel/moonshot"
 	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
 	"one-api/setting"
-
-	"github.com/gin-gonic/gin"
 )
 
 // https://platform.openai.com/docs/api-reference/models/list
@@ -26,30 +24,10 @@ var openAIModels []dto.OpenAIModels
 var openAIModelsMap map[string]dto.OpenAIModels
 var channelId2Models map[int][]string
 
-func getPermission() []dto.OpenAIModelPermission {
-	var permission []dto.OpenAIModelPermission
-	permission = append(permission, dto.OpenAIModelPermission{
-		Id:                 "modelperm-LwHkVFn8AcMItP432fKKDIKJ",
-		Object:             "model_permission",
-		Created:            1626777600,
-		AllowCreateEngine:  true,
-		AllowSampling:      true,
-		AllowLogprobs:      true,
-		AllowSearchIndices: false,
-		AllowView:          true,
-		AllowFineTuning:    false,
-		Organization:       "*",
-		Group:              nil,
-		IsBlocking:         false,
-	})
-	return permission
-}
-
 func init() {
 	// https://platform.openai.com/docs/models/model-endpoint-compatibility
-	permission := getPermission()
-	for i := 0; i < relayconstant.APITypeDummy; i++ {
-		if i == relayconstant.APITypeAIProxyLibrary {
+	for i := 0; i < constant.APITypeDummy; i++ {
+		if i == constant.APITypeAIProxyLibrary {
 			continue
 		}
 		adaptor := relay.GetAdaptor(i)
@@ -57,69 +35,51 @@ func init() {
 		modelNames := adaptor.GetModelList()
 		for _, modelName := range modelNames {
 			openAIModels = append(openAIModels, dto.OpenAIModels{
-				Id:         modelName,
-				Object:     "model",
-				Created:    1626777600,
-				OwnedBy:    channelName,
-				Permission: permission,
-				Root:       modelName,
-				Parent:     nil,
+				Id:      modelName,
+				Object:  "model",
+				Created: 1626777600,
+				OwnedBy: channelName,
 			})
 		}
 	}
 	for _, modelName := range ai360.ModelList {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
-			Id:         modelName,
-			Object:     "model",
-			Created:    1626777600,
-			OwnedBy:    ai360.ChannelName,
-			Permission: permission,
-			Root:       modelName,
-			Parent:     nil,
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: ai360.ChannelName,
 		})
 	}
 	for _, modelName := range moonshot.ModelList {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
-			Id:         modelName,
-			Object:     "model",
-			Created:    1626777600,
-			OwnedBy:    moonshot.ChannelName,
-			Permission: permission,
-			Root:       modelName,
-			Parent:     nil,
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: moonshot.ChannelName,
 		})
 	}
 	for _, modelName := range lingyiwanwu.ModelList {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
-			Id:         modelName,
-			Object:     "model",
-			Created:    1626777600,
-			OwnedBy:    lingyiwanwu.ChannelName,
-			Permission: permission,
-			Root:       modelName,
-			Parent:     nil,
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: lingyiwanwu.ChannelName,
 		})
 	}
 	for _, modelName := range minimax.ModelList {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
-			Id:         modelName,
-			Object:     "model",
-			Created:    1626777600,
-			OwnedBy:    minimax.ChannelName,
-			Permission: permission,
-			Root:       modelName,
-			Parent:     nil,
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: minimax.ChannelName,
 		})
 	}
 	for modelName, _ := range constant.MidjourneyModel2Action {
 		openAIModels = append(openAIModels, dto.OpenAIModels{
-			Id:         modelName,
-			Object:     "model",
-			Created:    1626777600,
-			OwnedBy:    "midjourney",
-			Permission: permission,
-			Root:       modelName,
-			Parent:     nil,
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: "midjourney",
 		})
 	}
 	openAIModelsMap = make(map[string]dto.OpenAIModels)
@@ -127,9 +87,9 @@ func init() {
 		openAIModelsMap[aiModel.Id] = aiModel
 	}
 	channelId2Models = make(map[int][]string)
-	for i := 1; i <= common.ChannelTypeDummy; i++ {
-		apiType, success := relayconstant.ChannelType2APIType(i)
-		if !success || apiType == relayconstant.APITypeAIProxyLibrary {
+	for i := 1; i <= constant.ChannelTypeDummy; i++ {
+		apiType, success := common.ChannelType2APIType(i)
+		if !success || apiType == constant.APITypeAIProxyLibrary {
 			continue
 		}
 		meta := &relaycommon.RelayInfo{ChannelType: i}
@@ -144,11 +104,10 @@ func init() {
 
 func ListModels(c *gin.Context) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
-	permission := getPermission()
 
-	modelLimitEnable := c.GetBool("token_model_limit_enabled")
+	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	if modelLimitEnable {
-		s, ok := c.Get("token_model_limit")
+		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
 		var tokenModelLimit map[string]bool
 		if ok {
 			tokenModelLimit = s.(map[string]bool)
@@ -156,23 +115,22 @@ func ListModels(c *gin.Context) {
 			tokenModelLimit = map[string]bool{}
 		}
 		for allowModel, _ := range tokenModelLimit {
-			if _, ok := openAIModelsMap[allowModel]; ok {
-				userOpenAiModels = append(userOpenAiModels, openAIModelsMap[allowModel])
+			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
+				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
+				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			} else {
 				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:         allowModel,
-					Object:     "model",
-					Created:    1626777600,
-					OwnedBy:    "custom",
-					Permission: permission,
-					Root:       allowModel,
-					Parent:     nil,
+					Id:                     allowModel,
+					Object:                 "model",
+					Created:                1626777600,
+					OwnedBy:                "custom",
+					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
 				})
 			}
 		}
 	} else {
 		userId := c.GetInt("id")
-		userGroup, err := model.GetUserGroup(userId, true)
+		userGroup, err := model.GetUserGroup(userId, false)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -181,14 +139,14 @@ func ListModels(c *gin.Context) {
 			return
 		}
 		group := userGroup
-		tokenGroup := c.GetString("token_group")
+		tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 		if tokenGroup != "" {
 			group = tokenGroup
 		}
 		var models []string
 		if tokenGroup == "auto" {
 			for _, autoGroup := range setting.AutoGroups {
-				groupModels := model.GetGroupModels(autoGroup)
+				groupModels := model.GetGroupEnabledModels(autoGroup)
 				for _, g := range groupModels {
 					if !common.StringsContains(models, g) {
 						models = append(models, g)
@@ -196,20 +154,19 @@ func ListModels(c *gin.Context) {
 				}
 			}
 		} else {
-			models = model.GetGroupModels(group)
+			models = model.GetGroupEnabledModels(group)
 		}
-		for _, s := range models {
-			if _, ok := openAIModelsMap[s]; ok {
-				userOpenAiModels = append(userOpenAiModels, openAIModelsMap[s])
+		for _, modelName := range models {
+			if oaiModel, ok := openAIModelsMap[modelName]; ok {
+				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			} else {
 				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:         s,
-					Object:     "model",
-					Created:    1626777600,
-					OwnedBy:    "custom",
-					Permission: permission,
-					Root:       s,
-					Parent:     nil,
+					Id:                     modelName,
+					Object:                 "model",
+					Created:                1626777600,
+					OwnedBy:                "custom",
+					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
 				})
 			}
 		}

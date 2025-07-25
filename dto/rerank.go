@@ -4,7 +4,7 @@ type RerankRequest struct {
 	Documents       []any  `json:"documents"`
 	Query           string `json:"query"`
 	Model           string `json:"model"`
-	TopN            int    `json:"top_n"`
+	TopN            int    `json:"top_n,omitempty"`
 	ReturnDocuments *bool  `json:"return_documents,omitempty"`
 	MaxChunkPerDoc  int    `json:"max_chunk_per_doc,omitempty"`
 	OverLapTokens   int    `json:"overlap_tokens,omitempty"`

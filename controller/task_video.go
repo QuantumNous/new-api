@@ -2,27 +2,26 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"one-api/common"
 	"one-api/constant"
 	"one-api/model"
 	"one-api/relay"
 	"one-api/relay/channel"
+	"time"
 )
 
-func UpdateVideoTaskAll(ctx context.Context, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
+func UpdateVideoTaskAll(ctx context.Context, platform constant.TaskPlatform, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
 	for channelId, taskIds := range taskChannelM {
-		if err := updateVideoTaskAll(ctx, channelId, taskIds, taskM); err != nil {
+		if err := updateVideoTaskAll(ctx, platform, channelId, taskIds, taskM); err != nil {
 			common.LogError(ctx, fmt.Sprintf("Channel #%d failed to update video async tasks: %s", channelId, err.Error()))
 		}
 	}
 	return nil
 }
 
-func updateVideoTaskAll(ctx context.Context, channelId int, taskIds []string, taskM map[string]*model.Task) error {
+func updateVideoTaskAll(ctx context.Context, platform constant.TaskPlatform, channelId int, taskIds []string, taskM map[string]*model.Task) error {
 	common.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskIds)))
 	if len(taskIds) == 0 {
 		return nil
@@ -39,7 +38,7 @@ func updateVideoTaskAll(ctx context.Context, channelId int, taskIds []string, ta
 		}
 		return fmt.Errorf("CacheGetChannel failed: %w", err)
 	}
-	adaptor := relay.GetTaskAdaptor(constant.TaskPlatformKling)
+	adaptor := relay.GetTaskAdaptor(platform)
 	if adaptor == nil {
 		return fmt.Errorf("video adaptor not found")
 	}
@@ -52,41 +51,9 @@ func updateVideoTaskAll(ctx context.Context, channelId int, taskIds []string, ta
 }
 
 func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, channel *model.Channel, taskId string, taskM map[string]*model.Task) error {
-	baseURL := common.ChannelBaseURLs[channel.Type]
+	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
-	}
-	resp, err := adaptor.FetchTask(baseURL, channel.Key, map[string]any{
-		"task_id": taskId,
-	})
-	if err != nil {
-		return fmt.Errorf("FetchTask failed for task %s: %w", taskId, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Get Video Task status code: %d", resp.StatusCode)
-	}
-	defer resp.Body.Close()
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("ReadAll failed for task %s: %w", taskId, err)
-	}
-
-	var responseItem map[string]interface{}
-	err = json.Unmarshal(responseBody, &responseItem)
-	if err != nil {
-		common.LogError(ctx, fmt.Sprintf("Failed to parse video task response body: %v, body: %s", err, string(responseBody)))
-		return fmt.Errorf("Unmarshal failed for task %s: %w", taskId, err)
-	}
-
-	code, _ := responseItem["code"].(float64)
-	if code != 0 {
-		return fmt.Errorf("video task fetch failed for task %s", taskId)
-	}
-
-	data, ok := responseItem["data"].(map[string]interface{})
-	if !ok {
-		common.LogError(ctx, fmt.Sprintf("Video task data format error: %s", string(responseBody)))
-		return fmt.Errorf("video task data format error for task %s", taskId)
 	}
 
 	task := taskM[taskId]
@@ -94,32 +61,58 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		common.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
-
-	if status, ok := data["task_status"].(string); ok {
-		switch status {
-		case "submitted", "queued":
-			task.Status = model.TaskStatusSubmitted
-		case "processing":
-			task.Status = model.TaskStatusInProgress
-		case "succeed":
-			task.Status = model.TaskStatusSuccess
-			task.Progress = "100%"
-			if url, err := adaptor.ParseResultUrl(responseItem); err == nil {
-				task.FailReason = url
-			} else {
-				common.LogWarn(ctx, fmt.Sprintf("Failed to get url from body for task %s: %s", task.TaskID, err.Error()))
-			}
-		case "failed":
-			task.Status = model.TaskStatusFailure
-			task.Progress = "100%"
-			if reason, ok := data["fail_reason"].(string); ok {
-				task.FailReason = reason
-			}
-		}
+	resp, err := adaptor.FetchTask(baseURL, channel.Key, map[string]any{
+		"task_id": taskId,
+		"action":  task.Action,
+	})
+	if err != nil {
+		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
+	}
+	//if resp.StatusCode != http.StatusOK {
+	//return fmt.Errorf("get Video Task status code: %d", resp.StatusCode)
+	//}
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	// If task failed, refund quota
-	if task.Status == model.TaskStatusFailure {
+	taskResult, err := adaptor.ParseTaskResult(responseBody)
+	if err != nil {
+		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+	}
+	//if taskResult.Code != 0 {
+	//	return fmt.Errorf("video task fetch failed for task %s", taskId)
+	//}
+
+	now := time.Now().Unix()
+	if taskResult.Status == "" {
+		return fmt.Errorf("task %s status is empty", taskId)
+	}
+	task.Status = model.TaskStatus(taskResult.Status)
+	switch taskResult.Status {
+	case model.TaskStatusSubmitted:
+		task.Progress = "10%"
+	case model.TaskStatusQueued:
+		task.Progress = "20%"
+	case model.TaskStatusInProgress:
+		task.Progress = "30%"
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
+	case model.TaskStatusSuccess:
+		task.Progress = "100%"
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.FailReason = taskResult.Url
+	case model.TaskStatusFailure:
+		task.Status = model.TaskStatusFailure
+		task.Progress = "100%"
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.FailReason = taskResult.Reason
 		common.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		quota := task.Quota
 		if quota != 0 {
@@ -129,6 +122,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 			logContent := fmt.Sprintf("Video async task failed %s, refund %s", task.TaskID, common.LogQuota(quota))
 			model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
 		}
+	default:
+		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, taskId)
+	}
+	if taskResult.Progress != "" {
+		task.Progress = taskResult.Progress
 	}
 
 	task.Data = responseBody

@@ -13,9 +13,8 @@ import (
 )
 
 var httpClient *http.Client
-var impatientHTTPClient *http.Client
 
-func init() {
+func InitHttpClient() {
 	if common.RelayTimeout == 0 {
 		httpClient = &http.Client{}
 	} else {
@@ -23,18 +22,10 @@ func init() {
 			Timeout: time.Duration(common.RelayTimeout) * time.Second,
 		}
 	}
-
-	impatientHTTPClient = &http.Client{
-		Timeout: 5 * time.Second,
-	}
 }
 
 func GetHttpClient() *http.Client {
 	return httpClient
-}
-
-func GetImpatientHttpClient() *http.Client {
-	return impatientHTTPClient
 }
 
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端

@@ -9,6 +9,7 @@ import (
 	"one-api/relay/channel"
 	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	req.Set("Authorization", "Bearer "+info.ApiKey)
+        keyParts := strings.Split(info.ApiKey, "|")
+	if len(keyParts) == 0 || keyParts[0] == "" {
+        	return errors.New("invalid API key: authorization token is required")
+        }
+	 if len(keyParts) > 1 {
+               if keyParts[1] != "" {
+                       req.Set("appid", keyParts[1])
+               }
+        }
+	req.Set("Authorization", "Bearer "+keyParts[0])
 	return nil
 }
 
@@ -83,11 +93,11 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.IsStream {
-		err, usage = openai.OaiStreamHandler(c, resp, info)
+		usage, err = openai.OaiStreamHandler(c, info, resp)
 	} else {
-		err, usage = openai.OpenaiHandler(c, resp, info)
+		usage, err = openai.OpenaiHandler(c, info, resp)
 	}
 	return
 }

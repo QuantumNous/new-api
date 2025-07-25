@@ -26,6 +26,7 @@ jobs:
       - name: Build Frontend
         env:
           CI: ""
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           cd web
           bun install
