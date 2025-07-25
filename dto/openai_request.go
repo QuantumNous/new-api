@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"maps"
 	"one-api/common"
 	"strings"
 )
@@ -71,6 +72,30 @@ func (r *GeneralOpenAIRequest) ToMap() map[string]any {
 	data, _ := common.Marshal(r)
 	_ = common.Unmarshal(data, &result)
 	return result
+}
+
+func (r *GeneralOpenAIRequest) MarshalJSON() ([]byte, error) {
+	type Alias GeneralOpenAIRequest
+	base := (*Alias)(r)
+	data, err := json.Marshal(base)
+	if err != nil {
+		return nil, err
+	}
+	if len(r.ExtraBody) == 0 {
+		return data, nil
+	}
+
+	// parse extraBody to request
+	var result map[string]any
+	if err = json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	var extraBodyMap map[string]any
+	if err = json.Unmarshal(r.ExtraBody, &extraBodyMap); err != nil {
+		return nil, err
+	}
+	maps.Copy(result, extraBodyMap)
+	return json.Marshal(result)
 }
 
 type ToolCallRequest struct {
