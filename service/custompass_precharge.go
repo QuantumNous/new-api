@@ -357,13 +357,26 @@ func (s *CustomPassPrechargeServiceImpl) CalculatePrechargeAmount(modelName stri
 		return 0, nil
 	}
 
-	// For CustomPass, we'll use a simplified billing approach
-	// Since pricing is configured per channel, we'll use token-based calculation
-	// with a default ratio and let the actual billing be handled by the channel configuration
-	var quota int64
+	// Get model configuration from ratio_setting
+	modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(modelName)
+	if !hasRatio || modelRatio <= 0 {
+		// If no ratio configured, use default ratio 1.0
+		modelRatio = 1.0
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费] 模型 %s 未配置比率，使用默认比率: %.4f", modelName, modelRatio))
+	} else {
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费] 获取模型比率 - 模型: %s, 比率: %.4f", modelName, modelRatio))
+	}
 
-	// Use token-based billing with default ratio
-	quota = s.calculateTokenBasedQuota(usage, 1.0, userGroup)
+	// Get completion ratio for output tokens
+	completionRatio := ratio_setting.GetCompletionRatio(modelName)
+	if completionRatio <= 0 {
+		completionRatio = 1.0
+	}
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费] 获取补全比率 - 模型: %s, 补全比率: %.4f", modelName, completionRatio))
+
+	// Calculate quota with actual model configuration
+	var quota int64
+	quota = s.calculateTokenBasedQuotaWithCompletionRatio(usage, modelRatio, completionRatio, userGroup)
 	common.SysLog(fmt.Sprintf("[CustomPass预扣费] Token基础配额计算完成 - 基础配额: %d", quota))
 
 	// Apply group ratio
@@ -389,7 +402,7 @@ func (s *CustomPassPrechargeServiceImpl) CalculatePrechargeAmount(modelName stri
 	return finalQuota, nil
 }
 
-// calculateTokenBasedQuota calculates quota for token-based billing
+// calculateTokenBasedQuota calculates quota for token-based billing (deprecated, kept for compatibility)
 func (s *CustomPassPrechargeServiceImpl) calculateTokenBasedQuota(usage *Usage, modelRatio float64, userGroup string) int64 {
 	common.SysLog(fmt.Sprintf("[CustomPass Token计算] 开始计算Token基础配额 - 模型比率: %.4f, 用户组: %s", modelRatio, userGroup))
 	
@@ -408,6 +421,34 @@ func (s *CustomPassPrechargeServiceImpl) calculateTokenBasedQuota(usage *Usage, 
 	common.SysLog(fmt.Sprintf("[CustomPass Token计算] 应用模型比率 - 原配额: %.0f, 模型比率: %.4f, 最终配额: %.0f", baseQuota, modelRatio, quota))
 
 	finalQuota := int64(quota)
+	common.SysLog(fmt.Sprintf("[CustomPass Token计算] Token配额计算完成 - 最终配额: %d", finalQuota))
+	
+	return finalQuota
+}
+
+// calculateTokenBasedQuotaWithCompletionRatio calculates quota with separate ratios for input and output tokens
+func (s *CustomPassPrechargeServiceImpl) calculateTokenBasedQuotaWithCompletionRatio(usage *Usage, modelRatio, completionRatio float64, userGroup string) int64 {
+	common.SysLog(fmt.Sprintf("[CustomPass Token计算] 开始计算Token配额 - 模型比率: %.4f, 补全比率: %.4f, 用户组: %s", 
+		modelRatio, completionRatio, userGroup))
+	
+	// Get input and output tokens
+	inputTokens := usage.GetInputTokens()
+	outputTokens := usage.GetOutputTokens()
+	
+	common.SysLog(fmt.Sprintf("[CustomPass Token计算] Token详情 - 输入tokens: %d, 输出tokens: %d", inputTokens, outputTokens))
+
+	// Calculate costs separately for input and output tokens
+	inputCost := float64(inputTokens) * modelRatio
+	outputCost := float64(outputTokens) * modelRatio * completionRatio
+	
+	common.SysLog(fmt.Sprintf("[CustomPass Token计算] 输入token费用: %d * %.4f = %.2f", inputTokens, modelRatio, inputCost))
+	common.SysLog(fmt.Sprintf("[CustomPass Token计算] 输出token费用: %d * %.4f * %.4f = %.2f", outputTokens, modelRatio, completionRatio, outputCost))
+
+	// Total quota
+	totalQuota := inputCost + outputCost
+	common.SysLog(fmt.Sprintf("[CustomPass Token计算] 总费用: %.2f + %.2f = %.2f", inputCost, outputCost, totalQuota))
+
+	finalQuota := int64(totalQuota)
 	common.SysLog(fmt.Sprintf("[CustomPass Token计算] Token配额计算完成 - 最终配额: %d", finalQuota))
 	
 	return finalQuota

@@ -133,7 +133,20 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
-	if strings.Contains(c.Request.URL.Path, "/mj/") {
+	if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
+		// CustomPass requests: extract model name directly from URL path
+		modelPath := strings.TrimPrefix(c.Request.URL.Path, "/pass/")
+		if modelPath != "" {
+			// For async mode, keep the full model path including /submit suffix
+			// The modelPath will be used as the actual model name for billing and processing
+			// Example: custom-image-gen/submit is the complete model name for async tasks
+			modelRequest.Model = modelPath
+		}
+		// Debug log
+		fmt.Printf("DEBUG: CustomPass URL=%s, extracted model=%s\n", c.Request.URL.Path, modelRequest.Model)
+		// Set relay mode for CustomPass
+		c.Set("relay_mode", "custompass")
+	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
 			relayMode == relayconstant.RelayModeMidjourneyTaskFetchByCondition ||
@@ -237,19 +250,6 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			return nil, false, errors.New("无效的请求, " + err.Error())
 		}
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
-	} else if strings.HasPrefix(c.Request.URL.Path, "/pass/") {
-		// CustomPass requests: extract model name directly from URL path
-		modelPath := strings.TrimPrefix(c.Request.URL.Path, "/pass/")
-		if modelPath != "" {
-			// For async mode, keep the full model path including /submit suffix
-			// The modelPath will be used as the actual model name for billing and processing
-			// Example: custom-image-gen/submit is the complete model name for async tasks
-			modelRequest.Model = modelPath
-		}
-		// Debug log
-		fmt.Printf("DEBUG: CustomPass URL=%s, extracted model=%s\n", c.Request.URL.Path, modelRequest.Model)
-		// Set relay mode for CustomPass
-		c.Set("relay_mode", "custompass")
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }

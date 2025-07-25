@@ -92,7 +92,7 @@ func (s *CustomPassBillingServiceImpl) DetermineBillingMode(modelName string) Bi
 	}
 
 	// Check if model has ratio configuration (usage-based billing)
-	ratio, hasRatio := ratio_setting.GetModelRatio(modelName)
+	ratio, hasRatio, _ := ratio_setting.GetModelRatio(modelName)
 	common.SysLog(fmt.Sprintf("[CustomPass计费模式] 使用量比率检查 - 模型: %s, 比率: %.6f, 有比率: %v", 
 		modelName, ratio, hasRatio))
 	
@@ -174,7 +174,7 @@ func (s *CustomPassBillingServiceImpl) calculateUsageBasedAmount(modelName strin
 		modelName, usage.GetInputTokens(), usage.GetOutputTokens()))
 
 	// Get base model ratio
-	modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 	common.SysLog(fmt.Sprintf("[CustomPass-Billing-Debug] 获取模型比率 - 模型: %s, 比率: %.6f", modelName, modelRatio))
 
 	// Calculate prompt tokens cost

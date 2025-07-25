@@ -169,17 +169,77 @@ func executeTwoRequestMode(c *gin.Context, params *TwoRequestParams, prechargeRe
 		}
 	}
 
-	// Convert Usage to service.Usage
-	serviceUsage := &service.Usage{
-		PromptTokens:     prechargeResp.Usage.PromptTokens,
-		CompletionTokens: prechargeResp.Usage.CompletionTokens,
-		TotalTokens:      prechargeResp.Usage.TotalTokens,
-		InputTokens:      prechargeResp.Usage.InputTokens,
-		OutputTokens:     prechargeResp.Usage.OutputTokens,
+	// Log the usage from precharge response for debugging
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ===== 预扣费响应的Usage (executeTwoRequestMode) ====="))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] PromptTokens: %d", prechargeResp.Usage.PromptTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] CompletionTokens: %d", prechargeResp.Usage.CompletionTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] TotalTokens: %d", prechargeResp.Usage.TotalTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] InputTokens: %d", prechargeResp.Usage.InputTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] OutputTokens: %d", prechargeResp.Usage.OutputTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 实际输入tokens: %d", prechargeResp.Usage.GetInputTokens()))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 实际输出tokens: %d", prechargeResp.Usage.GetOutputTokens()))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ================================================"))
+
+	// Step 2: Send real request first to get actual usage
+	common.SysLog("[CustomPass-TwoRequest-Debug] 开始发起真实请求以获取实际usage")
+	realResp, err := makeUpstreamRequest(c, params.Channel, "POST", 
+		buildUpstreamURL(params.Channel.GetBaseURL(), params.ModelName), 
+		params.RequestBody, params.AuthService, params.HTTPClient)
+	if err != nil {
+		common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 真实请求失败: %v", err))
+		return nil, err
 	}
 
-	// Execute precharge using the usage from precharge response
-	prechargeResult, err := params.PrechargeService.ExecutePrecharge(params.User, params.ModelName, serviceUsage)
+	common.SysLog("[CustomPass-TwoRequest-Debug] 真实请求成功")
+	
+	// Determine which usage to use for precharge: prefer real response usage, fallback to precharge usage
+	var finalUsage *Usage
+	var serviceUsageForPrecharge *service.Usage
+	
+	if realResp.Usage != nil {
+		// Use usage from real response if available
+		finalUsage = realResp.Usage
+		serviceUsageForPrecharge = &service.Usage{
+			PromptTokens:     realResp.Usage.PromptTokens,
+			CompletionTokens: realResp.Usage.CompletionTokens,
+			TotalTokens:      realResp.Usage.TotalTokens,
+			InputTokens:      realResp.Usage.InputTokens,
+			OutputTokens:     realResp.Usage.OutputTokens,
+		}
+		common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ===== 使用真实请求的Usage进行预扣费 ====="))
+		common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 真实请求usage - 输入: %d, 输出: %d, 总计: %d", 
+			realResp.Usage.GetInputTokens(), realResp.Usage.GetOutputTokens(), 
+			realResp.Usage.GetInputTokens() + realResp.Usage.GetOutputTokens()))
+		if prechargeResp.Usage != nil {
+			common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 预扣费请求usage(仅供参考) - 输入: %d, 输出: %d, 总计: %d", 
+				prechargeResp.Usage.GetInputTokens(), prechargeResp.Usage.GetOutputTokens(),
+				prechargeResp.Usage.GetInputTokens() + prechargeResp.Usage.GetOutputTokens()))
+			common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 差异 - 输入tokens差: %d, 输出tokens差: %d", 
+				realResp.Usage.GetInputTokens() - prechargeResp.Usage.GetInputTokens(),
+				realResp.Usage.GetOutputTokens() - prechargeResp.Usage.GetOutputTokens()))
+		}
+		common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ================================================"))
+	} else {
+		// Fallback to precharge usage if real response doesn't have usage
+		finalUsage = prechargeResp.Usage
+		serviceUsageForPrecharge = &service.Usage{
+			PromptTokens:     prechargeResp.Usage.PromptTokens,
+			CompletionTokens: prechargeResp.Usage.CompletionTokens,
+			TotalTokens:      prechargeResp.Usage.TotalTokens,
+			InputTokens:      prechargeResp.Usage.InputTokens,
+			OutputTokens:     prechargeResp.Usage.OutputTokens,
+		}
+		common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ===== 真实请求无Usage，使用预扣费请求的Usage ====="))
+		if prechargeResp.Usage != nil {
+			common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 预扣费请求usage - 输入: %d, 输出: %d, 总计: %d", 
+				prechargeResp.Usage.GetInputTokens(), prechargeResp.Usage.GetOutputTokens(),
+				prechargeResp.Usage.GetInputTokens() + prechargeResp.Usage.GetOutputTokens()))
+		}
+		common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ================================================"))
+	}
+
+	// Execute precharge using the final usage (real usage if available, otherwise precharge usage)
+	prechargeResult, err := params.PrechargeService.ExecutePrecharge(params.User, params.ModelName, serviceUsageForPrecharge)
 	if err != nil {
 		return nil, &CustomPassError{
 			Code:    ErrCodeInsufficientQuota,
@@ -188,27 +248,27 @@ func executeTwoRequestMode(c *gin.Context, params *TwoRequestParams, prechargeRe
 		}
 	}
 	prechargeAmount := prechargeResult.PrechargeAmount
-
-	// Step 2: Send real request after successful precharge
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 预扣费成功(金额: %d)，开始发起真实请求", prechargeAmount))
-	realResp, err := makeUpstreamRequest(c, params.Channel, "POST", 
-		buildUpstreamURL(params.Channel.GetBaseURL(), params.ModelName), 
-		params.RequestBody, params.AuthService, params.HTTPClient)
-	if err != nil {
-		common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 真实请求失败: %v，将退款预扣费金额: %d", err, prechargeAmount))
-		// Refund precharge amount on error
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 基于最终usage的预扣费成功(金额: %d)", prechargeAmount))
+	
+	// Check if real request was successful
+	if !realResp.IsSuccess() {
+		// Refund precharge amount on failed real request
 		if prechargeAmount > 0 {
+			common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 真实请求响应失败，退还预扣费: %d", prechargeAmount))
 			params.PrechargeService.ProcessRefund(params.User.Id, prechargeAmount, 0)
 		}
-		return nil, err
+		return nil, &CustomPassError{
+			Code:    ErrCodeUpstreamError,
+			Message: "上游请求失败",
+			Details: realResp.GetMessage(),
+		}
 	}
-
-	common.SysLog("[CustomPass-TwoRequest-Debug] 真实请求成功，完成两次请求流程")
+	
 	return &TwoRequestResult{
 		Response:        realResp,
-		PrechargeAmount: prechargeAmount,
+		PrechargeAmount: prechargeAmount, // Now based on final usage
 		RequestCount:    2,
-		PrechargeUsage:  prechargeResp.Usage, // Use usage from precharge response
+		PrechargeUsage:  finalUsage, // Use final usage for consistent billing
 	}, nil
 }
 
@@ -315,8 +375,10 @@ func executeSingleRequestMode(c *gin.Context, params *TwoRequestParams, precharg
 
 // handlePrechargeRequest handles the precharge request to upstream
 func handlePrechargeRequest(c *gin.Context, params *TwoRequestParams) (*UpstreamResponse, error) {
-	// Build upstream URL with precharge query parameter
+	// Build upstream URL (handles both sync and async models)
 	upstreamURL := buildUpstreamURL(params.Channel.GetBaseURL(), params.ModelName)
+	
+	// Add precharge query parameter
 	upstreamURL += "?precharge=true"
 
 	// Make precharge request with original request body
@@ -325,7 +387,18 @@ func handlePrechargeRequest(c *gin.Context, params *TwoRequestParams) (*Upstream
 
 // buildUpstreamURL builds the upstream API URL for the given model
 func buildUpstreamURL(baseURL, modelName string) string {
+	// For async models ending with /submit, construct submit endpoint
+	if strings.HasSuffix(modelName, "/submit") {
+		return buildTaskSubmitURL(baseURL, modelName)
+	}
 	return fmt.Sprintf("%s/%s", strings.TrimSuffix(baseURL, "/"), modelName)
+}
+
+// buildTaskSubmitURL builds the URL for task submission
+func buildTaskSubmitURL(baseURL, modelName string) string {
+	// Remove /submit suffix from model name for URL construction
+	cleanModelName := strings.TrimSuffix(modelName, "/submit")
+	return fmt.Sprintf("%s/%s/submit", strings.TrimSuffix(baseURL, "/"), cleanModelName)
 }
 
 // makeUpstreamRequest makes HTTP request to upstream API
@@ -347,7 +420,7 @@ func makeUpstreamRequest(c *gin.Context, channel *model.Channel, method, url str
 
 	// Build authentication headers
 	userToken := c.GetString("token_key")
-	headers := authService.BuildUpstreamHeaders(channel.Key, userToken)
+	headers := authService.BuildUpstreamHeaders(channel, userToken)
 
 	// Set headers
 	for key, value := range headers {
@@ -396,9 +469,28 @@ func makeUpstreamRequest(c *gin.Context, channel *model.Channel, method, url str
 		return nil, err
 	}
 
+	// Log parsed response structure before validation
+	common.SysLog(fmt.Sprintf("[CustomPass-Response-Debug] 验证前的上游响应内容 - Code: %v, Message: %s, Msg: %s, Type: %s, Usage: %+v", 
+		upstreamResp.Code, upstreamResp.Message, upstreamResp.Msg, upstreamResp.Type, upstreamResp.Usage))
+	
 	// Validate response structure
 	if err := upstreamResp.ValidateResponse(); err != nil {
+		common.SysError(fmt.Sprintf("[CustomPass-Response-Debug] 响应验证失败: %v", err))
 		return nil, err
+	}
+
+	// Check if upstream returned an error
+	if !upstreamResp.IsSuccess() {
+		errorMsg := upstreamResp.GetMessage()
+		if errorMsg == "" {
+			errorMsg = fmt.Sprintf("上游API返回错误，code: %v", upstreamResp.Code)
+		}
+		common.SysError(fmt.Sprintf("[CustomPass-Response-Debug] 上游API返回错误 - Code: %v, Message: %s", upstreamResp.Code, errorMsg))
+		return nil, &CustomPassError{
+			Code:    ErrCodeUpstreamError,
+			Message: errorMsg,
+			Details: fmt.Sprintf("upstream code: %v", upstreamResp.Code),
+		}
 	}
 
 	return upstreamResp, nil

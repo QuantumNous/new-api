@@ -401,14 +401,22 @@ func (s *PollingServiceImpl) QueryChannelModelTasks(channel *model.Channel, task
 		return fmt.Errorf("failed to read query response: %w", err)
 	}
 
+	// Log raw response before parsing
+	common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] 原始查询响应: %s", string(responseBody)))
+	
 	// Parse response
 	var queryResponse TaskQueryResponse
 	if err := json.Unmarshal(responseBody, &queryResponse); err != nil {
 		return fmt.Errorf("failed to parse query response: %w", err)
 	}
 
+	// Log parsed response structure before validation
+	common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] 验证前的查询响应内容 - Code: %v, Message: %s, Msg: %s, Data数量: %d", 
+		queryResponse.Code, queryResponse.Message, queryResponse.Msg, len(queryResponse.Data)))
+	
 	// Validate response
 	if err := queryResponse.ValidateResponse(); err != nil {
+		common.SysError(fmt.Sprintf("[CustomPass-Polling-Debug] 查询响应验证失败: %v", err))
 		return fmt.Errorf("invalid query response: %w", err)
 	}
 

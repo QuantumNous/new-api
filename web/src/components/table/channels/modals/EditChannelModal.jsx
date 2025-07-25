@@ -1120,7 +1120,7 @@ const EditChannelModal = (props) => {
                         placeholder={t('可选，默认为 X-Custom-Token')}
                         onChange={(value) => handleInputChange('other', value)}
                         showClear
-                        helpText={t('用于向上游API传递用户token的HTTP头名称，优先级高于环境变量配置')}
+                        helpText={t('用于向上游API传递用户token的HTTP头名称，环境变量CUSTOM_PASS_HEADER_KEY的优先级更高')}
                       />
                     </>
                   )}
@@ -1261,8 +1261,7 @@ const EditChannelModal = (props) => {
                           showClear
                         />
                       </div>
-                  
-                  )}
+                    )}
 
                   {inputs.type === 37 && (
                     <Banner
@@ -1323,6 +1322,7 @@ const EditChannelModal = (props) => {
                     </div>
                   )}
                 </Card>
+                )}
 
                 {/* Model Configuration Card */}
                 <Card className="!rounded-2xl shadow-sm border-0 mb-6">
@@ -1561,8 +1561,8 @@ const EditChannelModal = (props) => {
                           <div>
                             <Text strong>{t('CustomPass 配置优先级说明')}:</Text>
                             <div className="mt-2">
-                              <Text>{t('1. 渠道配置 > 环境变量 > 默认值')}</Text><br/>
-                              <Text>{t('2. 自定义Token头：渠道配置 > CUSTOM_PASS_HEADER_KEY > X-Custom-Token')}</Text><br/>
+                              <Text>{t('1. 环境变量 > 渠道配置 > 默认值')}</Text><br/>
+                              <Text>{t('2. 自定义Token头：CUSTOM_PASS_HEADER_KEY > 渠道配置 > X-Custom-Token')}</Text><br/>
                               <Text>{t('3. 状态映射：渠道配置 > CUSTOM_PASS_STATUS_* > 内置映射')}</Text>
                             </div>
                           </div>

@@ -27,17 +27,8 @@ type AsyncAdaptor interface {
 	// QueryTasks queries multiple tasks by their IDs
 	QueryTasks(taskIDs []string, channel *model.Channel, modelName string) (*TaskQueryResponse, error)
 
-	// ProcessTaskSubmission processes task submission with precharge
-	ProcessTaskSubmission(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*model.Task, error)
-
 	// HandleTaskCompletion handles task completion and settlement
 	HandleTaskCompletion(task *model.Task, taskInfo *TaskInfo, channel *model.Channel) error
-
-	// BuildTaskQueryURL builds the URL for task query endpoint
-	BuildTaskQueryURL(baseURL, modelName string) string
-
-	// BuildTaskSubmitURL builds the URL for task submission
-	BuildTaskSubmitURL(baseURL, modelName string) string
 }
 
 // AsyncAdaptorImpl implements AsyncAdaptor interface
@@ -104,79 +95,65 @@ func (a *AsyncAdaptorImpl) SubmitTask(c *gin.Context, channel *model.Channel, mo
 		}
 	}
 
-	// Create initial task record (without precharge)
-	task, err := a.ProcessTaskSubmission(c, channel, modelName, requestBody)
+	// Submit task using two-request flow (handles both billing and non-billing models)
+	submitResp, prechargeAmount, responseUsage, err := a.submitTaskWithTwoRequestFlow(c, channel, modelName, requestBody, user)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check if model requires billing first, like sync adaptor does
-	requiresBilling, err := a.checkModelBilling(modelName)
-	if err != nil {
-		// Update task status to failed on billing check failure
-		task.Status = model.TaskStatusFailure
-		task.FailReason = err.Error()
-		task.Update()
-		return nil, err
-	}
-
-	var submitResp *TaskSubmitResponse
-	var prechargeAmount int64 = 0
-	var responseUsage *Usage
-
-	if requiresBilling {
-		// Submit task to upstream API using two-request flow (with precharge)
-		common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 模型%s需要计费，开始异步任务预扣费流程", modelName))
-		submitResp, prechargeAmount, responseUsage, err = a.submitTaskToUpstream(c, channel, modelName, requestBody, task)
-		if err != nil {
-			// Update task status to failed on submission failure
-			task.Status = model.TaskStatusFailure
-			task.FailReason = err.Error()
-			task.Update()
-			return nil, err
-		}
-	} else {
-		// Model doesn't require billing, submit task directly without precharge
-		common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 模型%s不需要计费，直接提交异步任务", modelName))
-		submitResp, err = a.submitTaskDirectly(c, channel, modelName, requestBody)
-		if err != nil {
-			// Update task status to failed on submission failure
-			task.Status = model.TaskStatusFailure
-			task.FailReason = err.Error()
-			task.Update()
-			return nil, err
-		}
 	}
 
 	// Extract task ID from response
 	upstreamTaskID, err := submitResp.ExtractTaskID()
 	if err != nil {
-		// Refund precharge amount and update task status to failed on invalid response
+		// Refund precharge amount on invalid response
 		if prechargeAmount > 0 {
 			common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 提取任务ID失败，退还预扣费: %d", prechargeAmount))
 			if refundErr := a.prechargeService.ProcessRefund(user.Id, prechargeAmount, 0); refundErr != nil {
 				common.SysError(fmt.Sprintf("预扣费退款失败: %v", refundErr))
 			}
 		}
-		task.Status = model.TaskStatusFailure
-		task.FailReason = err.Error()
-		task.Update()
 		return nil, err
 	}
 
-	// Update task with upstream task ID, status and actual precharge amount
-	task.TaskID = upstreamTaskID
-	task.Status = model.TaskStatusSubmitted
-	task.Progress = "0%"
-	task.StartTime = time.Now().Unix()
-	task.Quota = int(prechargeAmount) // Set the actual precharge amount that was deducted
+	// Only create task record after successful upstream submission
+	task := &model.Task{
+		Platform:   constant.TaskPlatformCustomPass,
+		UserId:     user.Id,
+		ChannelId:  channel.Id,
+		Action:     modelName,
+		TaskID:     upstreamTaskID,
+		Status:     model.TaskStatusSubmitted,
+		Progress:   "0%",
+		SubmitTime: time.Now().Unix(),
+		StartTime:  time.Now().Unix(),
+		Properties: model.Properties{
+			Input: string(requestBody),
+		},
+		Quota: int(prechargeAmount),
+	}
 
 	// Store upstream response data
 	task.SetData(submitResp.Data)
 
-	err = task.Update()
-	if err != nil {
-		common.SysError(fmt.Sprintf("更新任务状态失败: %v", err))
+	// Insert task into database
+	if model.DB != nil {
+		err = task.Insert()
+		if err != nil {
+			// Refund precharge amount if task creation failed
+			if prechargeAmount > 0 {
+				common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 创建任务记录失败，退还预扣费: %d", prechargeAmount))
+				if refundErr := a.prechargeService.ProcessRefund(user.Id, prechargeAmount, 0); refundErr != nil {
+					common.SysError(fmt.Sprintf("预扣费退款失败: %v", refundErr))
+				}
+			}
+			return nil, &CustomPassError{
+				Code:    ErrCodeSystemError,
+				Message: "创建任务记录失败",
+				Details: err.Error(),
+			}
+		}
+	} else {
+		// In test environment, simulate successful insertion
+		task.ID = 1
 	}
 
 	// Record precharge consumption log using system standard mechanism (like sync mode)
@@ -216,7 +193,7 @@ func (a *AsyncAdaptorImpl) QueryTasks(taskIDs []string, channel *model.Channel, 
 	}
 
 	// Build query URL
-	queryURL := a.BuildTaskQueryURL(channel.GetBaseURL(), modelName)
+	queryURL := buildTaskQueryURL(channel.GetBaseURL(), modelName)
 
 	// Make query request
 	queryResp, err := a.makeUpstreamRequest(nil, channel, "POST", queryURL, requestBody)
@@ -265,51 +242,6 @@ func (a *AsyncAdaptorImpl) QueryTasks(taskIDs []string, channel *model.Channel, 
 	return &taskQueryResp, nil
 }
 
-// ProcessTaskSubmission processes task submission without precharge logic
-// The precharge will be handled by the two-request flow in submitTaskToUpstream
-func (a *AsyncAdaptorImpl) ProcessTaskSubmission(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*model.Task, error) {
-	// Get user from context
-	userToken := c.GetString("token_key")
-	if userToken == "" {
-		userToken = c.GetString("token")
-	}
-	user, err := a.authService.ValidateUserToken(userToken)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create task record without precharge (will be handled in two-request flow)
-	task := &model.Task{
-		Platform:   constant.TaskPlatformCustomPass,
-		UserId:     user.Id,
-		ChannelId:  channel.Id,
-		Action:     modelName, // Use model name as action
-		Status:     model.TaskStatusNotStart,
-		Progress:   "0%",
-		SubmitTime: time.Now().Unix(),
-		Properties: model.Properties{
-			Input: string(requestBody),
-		},
-		Quota: 0, // Will be set after two-request flow completes
-	}
-
-	// Insert task into database (skip in test environment)
-	if model.DB != nil {
-		err = task.Insert()
-		if err != nil {
-			return nil, &CustomPassError{
-				Code:    ErrCodeSystemError,
-				Message: "创建任务记录失败",
-				Details: err.Error(),
-			}
-		}
-	} else {
-		// In test environment, simulate successful insertion
-		task.ID = 1
-	}
-
-	return task, nil
-}
 
 // HandleTaskCompletion handles task completion and performs settlement
 func (a *AsyncAdaptorImpl) HandleTaskCompletion(task *model.Task, taskInfo *TaskInfo, channel *model.Channel) error {
@@ -365,35 +297,9 @@ func (a *AsyncAdaptorImpl) HandleTaskCompletion(task *model.Task, taskInfo *Task
 	return nil
 }
 
-// BuildTaskQueryURL builds the URL for task query endpoint
-func (a *AsyncAdaptorImpl) BuildTaskQueryURL(baseURL, modelName string) string {
-	// Remove /submit suffix from model name for URL construction
-	cleanModelName := strings.TrimSuffix(modelName, "/submit")
-	return fmt.Sprintf("%s/%s/task/list-by-condition", strings.TrimSuffix(baseURL, "/"), cleanModelName)
-}
 
-// BuildTaskSubmitURL builds the URL for task submission
-func (a *AsyncAdaptorImpl) BuildTaskSubmitURL(baseURL, modelName string) string {
-	// Remove /submit suffix from model name for URL construction
-	cleanModelName := strings.TrimSuffix(modelName, "/submit")
-	return fmt.Sprintf("%s/%s/submit", strings.TrimSuffix(baseURL, "/"), cleanModelName)
-}
-
-// submitTaskToUpstream submits task to upstream API using two-stage request pattern with proper precharge handling
-func (a *AsyncAdaptorImpl) submitTaskToUpstream(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte, task *model.Task) (*TaskSubmitResponse, int64, *Usage, error) {
-	// Get user from context for two-request flow
-	userToken := c.GetString("token_key")
-	if userToken == "" {
-		userToken = c.GetString("token")
-	}
-	user, err := a.authService.ValidateUserToken(userToken)
-	if err != nil {
-		return nil, 0, nil, &CustomPassError{
-			Code:    ErrCodeInvalidRequest,
-			Message: "用户认证失败",
-			Details: err.Error(),
-		}
-	}
+// submitTaskWithTwoRequestFlow submits task to upstream API using two-request flow pattern
+func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte, user *model.User) (*TaskSubmitResponse, int64, *Usage, error) {
 
 	// Use the common two-request flow for upstream requests
 	params := &TwoRequestParams{
@@ -483,39 +389,6 @@ func (a *AsyncAdaptorImpl) submitTaskToUpstream(c *gin.Context, channel *model.C
 	return &submitResp, result.PrechargeAmount, result.PrechargeUsage, nil
 }
 
-// submitTaskDirectly submits task to upstream API without precharge for free models
-func (a *AsyncAdaptorImpl) submitTaskDirectly(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*TaskSubmitResponse, error) {
-	// Build submit URL
-	submitURL := a.BuildTaskSubmitURL(channel.GetBaseURL(), modelName)
-
-	// Make direct request without precharge
-	upstreamResp, err := a.makeUpstreamRequest(c, channel, "POST", submitURL, requestBody)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if response is successful
-	if !upstreamResp.IsSuccess() {
-		return nil, &CustomPassError{
-			Code:    ErrCodeUpstreamError,
-			Message: "任务提交失败",
-			Details: upstreamResp.GetMessage(),
-		}
-	}
-
-	// Parse response as TaskSubmitResponse
-	var submitResp TaskSubmitResponse
-	respData, _ := json.Marshal(upstreamResp)
-	if err := json.Unmarshal(respData, &submitResp); err != nil {
-		return nil, &CustomPassError{
-			Code:    ErrCodeUpstreamError,
-			Message: "解析任务提交响应失败",
-			Details: err.Error(),
-		}
-	}
-
-	return &submitResp, nil
-}
 
 func (a *AsyncAdaptorImpl) makeUpstreamRequest(c *gin.Context, channel *model.Channel, method, url string, body []byte) (*UpstreamResponse, error) {
 	// Create request with context
@@ -549,7 +422,7 @@ func (a *AsyncAdaptorImpl) makeUpstreamRequest(c *gin.Context, channel *model.Ch
 			userToken = c.GetString("token")
 		}
 	}
-	headers := a.authService.BuildUpstreamHeaders(channel.Key, userToken)
+	headers := a.authService.BuildUpstreamHeaders(channel, userToken)
 
 	// Set headers
 	for key, value := range headers {
@@ -592,9 +465,28 @@ func (a *AsyncAdaptorImpl) makeUpstreamRequest(c *gin.Context, channel *model.Ch
 		return nil, err
 	}
 
+	// Log parsed response structure before validation
+	common.SysLog(fmt.Sprintf("[CustomPass-Response-Debug] 验证前的上游响应内容 - Code: %v, Message: %s, Msg: %s, Type: %s, Usage: %+v", 
+		upstreamResp.Code, upstreamResp.Message, upstreamResp.Msg, upstreamResp.Type, upstreamResp.Usage))
+	
 	// Validate response structure
 	if err := upstreamResp.ValidateResponse(); err != nil {
+		common.SysError(fmt.Sprintf("[CustomPass-Response-Debug] 响应验证失败: %v", err))
 		return nil, err
+	}
+
+	// Check if upstream returned an error
+	if !upstreamResp.IsSuccess() {
+		errorMsg := upstreamResp.GetMessage()
+		if errorMsg == "" {
+			errorMsg = fmt.Sprintf("上游API返回错误，code: %v", upstreamResp.Code)
+		}
+		common.SysError(fmt.Sprintf("[CustomPass-Response-Debug] 上游API返回错误 - Code: %v, Message: %s", upstreamResp.Code, errorMsg))
+		return nil, &CustomPassError{
+			Code:    ErrCodeUpstreamError,
+			Message: errorMsg,
+			Details: fmt.Sprintf("upstream code: %v", upstreamResp.Code),
+		}
 	}
 
 	return upstreamResp, nil
@@ -685,6 +577,18 @@ func (a *AsyncAdaptorImpl) recordPrechargeConsumptionLog(c *gin.Context, user *m
 	// Use actual usage from the precharge response (not final response - same as sync mode!)
 	inputTokens := usage.GetInputTokens()
 	outputTokens := usage.GetOutputTokens()
+	
+	// Log detailed usage information for debugging
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ===== 记录消费日志时的Usage (recordPrechargeConsumptionLog) ====="))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] PromptTokens: %d", usage.PromptTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] CompletionTokens: %d", usage.CompletionTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] TotalTokens: %d", usage.TotalTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] InputTokens: %d", usage.InputTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] OutputTokens: %d", usage.OutputTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 实际输入tokens (GetInputTokens): %d", inputTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 实际输出tokens (GetOutputTokens): %d", outputTokens))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] 预扣费金额: %d", prechargeAmount))
+	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ================================================"))
 	
 	common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 使用precharge响应的usage记录日志 - 输入:%d, 输出:%d tokens", inputTokens, outputTokens))
 	
@@ -777,6 +681,16 @@ func (a *AsyncAdaptorImpl) recordTaskSettlementLog(task *model.Task, usage *Usag
 	}()
 }
 
+// Internal helper functions
+
+// buildTaskQueryURL builds the URL for task query endpoint
+func buildTaskQueryURL(baseURL, modelName string) string {
+	// Remove /submit suffix from model name for URL construction
+	cleanModelName := strings.TrimSuffix(modelName, "/submit")
+	return fmt.Sprintf("%s/%s/task/list-by-condition", strings.TrimSuffix(baseURL, "/"), cleanModelName)
+}
+
+
 // Convenience functions for external use
 
 // ProcessAsyncTaskSubmission processes an asynchronous task submission
@@ -789,18 +703,6 @@ func ProcessAsyncTaskSubmission(c *gin.Context, channel *model.Channel, modelNam
 func QueryAsyncTasks(taskIDs []string, channel *model.Channel, modelName string) (*TaskQueryResponse, error) {
 	adaptor := NewAsyncAdaptor()
 	return adaptor.QueryTasks(taskIDs, channel, modelName)
-}
-
-// BuildAsyncTaskQueryURL builds URL for async task queries
-func BuildAsyncTaskQueryURL(baseURL, modelName string) string {
-	adaptor := NewAsyncAdaptor()
-	return adaptor.BuildTaskQueryURL(baseURL, modelName)
-}
-
-// BuildAsyncTaskSubmitURL builds URL for async task submission
-func BuildAsyncTaskSubmitURL(baseURL, modelName string) string {
-	adaptor := NewAsyncAdaptor()
-	return adaptor.BuildTaskSubmitURL(baseURL, modelName)
 }
 
 // HandleAsyncTaskCompletion handles completion of an async task

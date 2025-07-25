@@ -62,7 +62,7 @@ setup_environment() {
     print_message $BLUE "设置环境变量..."
     
     # 设置SQLite数据库文件路径
-    export SQLITE_PATH="../one-api.db"
+    # export SQLITE_PATH="../one-api.db"
     
     # 设置其他常用环境变量
     export DEBUG=true

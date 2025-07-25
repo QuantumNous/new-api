@@ -238,10 +238,8 @@ func (r *UpstreamResponse) ValidateResponse() error {
 		return NewCustomPassError(ErrCodeUpstreamResponse, "上游响应缺少code字段")
 	}
 
-	// For error responses, message or msg field should exist
-	if !r.IsSuccess() && r.Message == "" && r.Msg == "" {
-		return NewCustomPassError(ErrCodeUpstreamResponse, "上游错误响应缺少message或msg字段")
-	}
+	// For error responses, we don't require message or msg field to have content
+	// Empty string is valid, upstream might not provide error details
 
 	// Validate usage if present
 	if r.Usage != nil {

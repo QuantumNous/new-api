@@ -53,7 +53,7 @@ This is **New API**, a next-generation large model gateway and AI asset manageme
 - **Production**: Supports MySQL (≥5.7.8) and PostgreSQL (≥9.6)
 - **ORM**: GORM for database operations
 - **Caching**: Redis optional for multi-instance deployments
-- 数据库文件在 `../one-api.db`
+- 数据库的配置在 .env 中
 
 ### Environment Configuration
 Key environment variables for development:
@@ -86,3 +86,6 @@ Key environment variables for development:
 
 ## CustomPass Development Notes
 - 我希望所有custompass的修改都应该在不入侵公共代码的前提下进行,关键是不要影响其他的功能
+
+## Configuration
+- 数据库的配置在 .env 中

@@ -571,7 +571,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 // IsModelUsageBasedBilling checks if a model uses usage-based billing
 func IsModelUsageBasedBilling(modelName string) bool {
 	// Check if model has ratio configuration (indicates usage-based billing)
-	ratio, hasRatio := ratio_setting.GetModelRatio(modelName)
+	ratio, hasRatio, _ := ratio_setting.GetModelRatio(modelName)
 	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 模型使用量计费检查 - 模型: %s, 有比率配置: %t, 比率值: %.6f", 
 		modelName, hasRatio, ratio))
 	return hasRatio
@@ -587,7 +587,7 @@ func CalculateQuotaByTokens(modelName string, promptTokens, completionTokens int
 	}
 
 	// Get model ratio
-	modelRatio, hasRatio := ratio_setting.GetModelRatio(modelName)
+	modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(modelName)
 	if !hasRatio || modelRatio <= 0 {
 		common.SysLog(fmt.Sprintf("[CustomPass-Debug] 模型 %s 未配置使用量计费或比率无效", modelName))
 		return 0, fmt.Errorf("model %s does not have usage-based billing configured", modelName)

@@ -1,11 +1,8 @@
 package custompass
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
@@ -22,15 +19,6 @@ import (
 type SyncAdaptor interface {
 	// ProcessRequest processes a synchronous CustomPass request
 	ProcessRequest(c *gin.Context, channel *model.Channel, modelName string) error
-
-	// BuildUpstreamURL builds the upstream API URL
-	BuildUpstreamURL(baseURL, modelName string) string
-
-	// HandlePrecharge handles precharge request and returns precharge response
-	HandlePrecharge(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*UpstreamResponse, error)
-
-	// HandleRealRequest handles the real request after precharge
-	HandleRealRequest(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*UpstreamResponse, error)
 
 	// ProcessResponse processes the upstream response and handles billing
 	ProcessResponse(c *gin.Context, user *model.User, modelName string, response *UpstreamResponse, prechargeAmount int64) error
@@ -108,90 +96,28 @@ func (a *SyncAdaptorImpl) ProcessRequest(c *gin.Context, channel *model.Channel,
 		}
 	}
 
-	// Check if model requires billing
-	requiresBilling, err := a.checkModelBilling(modelName)
+
+	// Use the common two-request flow for all requests
+	params := &TwoRequestParams{
+		User:             user,
+		Channel:          channel,
+		ModelName:        modelName,
+		RequestBody:      requestBody,
+		AuthService:      a.authService,
+		PrechargeService: a.prechargeService,
+		BillingService:   a.billingService,
+		HTTPClient:       a.httpClient,
+	}
+
+	result, err := ExecuteTwoRequestFlow(c, params)
 	if err != nil {
 		return err
 	}
 
-	if requiresBilling {
-		// Use the common two-request flow
-		params := &TwoRequestParams{
-			User:             user,
-			Channel:          channel,
-			ModelName:        modelName,
-			RequestBody:      requestBody,
-			AuthService:      a.authService,
-			PrechargeService: a.prechargeService,
-			BillingService:   a.billingService,
-			HTTPClient:       a.httpClient,
-		}
-
-		result, err := ExecuteTwoRequestFlow(c, params)
-		if err != nil {
-			return err
-		}
-
-		// Process response and handle billing
-		return a.ProcessResponse(c, user, modelName, result.Response, result.PrechargeAmount)
-	} else {
-		// Model doesn't require billing, send request directly
-		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型%s不需要计费，直接发起请求", modelName))
-		realResp, err := a.HandleRealRequest(c, channel, modelName, requestBody)
-		if err != nil {
-			return err
-		}
-
-		// Process response without billing
-		return a.ProcessResponse(c, user, modelName, realResp, 0)
-	}
+	// Process response and handle billing
+	return a.ProcessResponse(c, user, modelName, result.Response, result.PrechargeAmount)
 }
 
-// BuildUpstreamURL builds the upstream API URL for the given model
-func (a *SyncAdaptorImpl) BuildUpstreamURL(baseURL, modelName string) string {
-	return fmt.Sprintf("%s/%s", strings.TrimSuffix(baseURL, "/"), modelName)
-}
-
-// HandlePrecharge handles precharge request to get usage estimation
-func (a *SyncAdaptorImpl) HandlePrecharge(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*UpstreamResponse, error) {
-	// Build upstream URL
-	upstreamURL := a.BuildUpstreamURL(channel.GetBaseURL(), modelName)
-
-	// Add precharge parameter to request body
-	var requestData map[string]interface{}
-	if err := json.Unmarshal(requestBody, &requestData); err != nil {
-		return nil, &CustomPassError{
-			Code:    ErrCodeInvalidRequest,
-			Message: "解析请求体失败",
-			Details: err.Error(),
-		}
-	}
-
-	// Add precharge flag
-	requestData["precharge"] = true
-
-	// Marshal modified request
-	modifiedBody, err := json.Marshal(requestData)
-	if err != nil {
-		return nil, &CustomPassError{
-			Code:    ErrCodeInvalidRequest,
-			Message: "构建预扣费请求失败",
-			Details: err.Error(),
-		}
-	}
-
-	// Make precharge request
-	return a.makeUpstreamRequest(c, channel, "POST", upstreamURL, modifiedBody)
-}
-
-// HandleRealRequest handles the real request after precharge
-func (a *SyncAdaptorImpl) HandleRealRequest(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte) (*UpstreamResponse, error) {
-	// Build upstream URL
-	upstreamURL := a.BuildUpstreamURL(channel.GetBaseURL(), modelName)
-
-	// Make real request (without precharge flag)
-	return a.makeUpstreamRequest(c, channel, "POST", upstreamURL, requestBody)
-}
 
 // ProcessResponse processes the upstream response and handles billing settlement
 func (a *SyncAdaptorImpl) ProcessResponse(c *gin.Context, user *model.User, modelName string, response *UpstreamResponse, prechargeAmount int64) error {
@@ -320,86 +246,6 @@ func (a *SyncAdaptorImpl) ProcessResponse(c *gin.Context, user *model.User, mode
 	return nil
 }
 
-// makeUpstreamRequest makes HTTP request to upstream API
-func (a *SyncAdaptorImpl) makeUpstreamRequest(c *gin.Context, channel *model.Channel, method, url string, body []byte) (*UpstreamResponse, error) {
-	// Create request with context
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, &CustomPassError{
-			Code:    ErrCodeSystemError,
-			Message: "创建上游请求失败",
-			Details: err.Error(),
-		}
-	}
-
-	// Build authentication headers
-	// Use full_token if available (for CustomPass), otherwise use token_key or token
-	userToken := c.GetString("full_token")
-	if userToken == "" {
-		userToken = c.GetString("token_key")
-	}
-	if userToken == "" {
-		userToken = c.GetString("token")
-	}
-	headers := a.authService.BuildUpstreamHeaders(channel.Key, userToken)
-
-	// Set headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	// Set additional headers
-	req.Header.Set("Content-Type", "application/json")
-	if userAgent := c.GetHeader("User-Agent"); userAgent != "" {
-		req.Header.Set("User-Agent", userAgent)
-	}
-
-	// Log upstream request details
-	common.SysLog(fmt.Sprintf("[CustomPass-Request-Debug] 同步适配器上游API - URL: %s", url))
-	common.SysLog(fmt.Sprintf("[CustomPass-Request-Debug] 同步适配器Headers: %+v", headers))
-	common.SysLog(fmt.Sprintf("[CustomPass-Request-Debug] 同步适配器Body: %s", string(body)))
-
-	// Make request
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
-		return nil, &CustomPassError{
-			Code:    ErrCodeTimeout,
-			Message: "上游API请求失败",
-			Details: err.Error(),
-		}
-	}
-	defer resp.Body.Close()
-
-	// Read response body
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &CustomPassError{
-			Code:    ErrCodeUpstreamError,
-			Message: "读取上游响应失败",
-			Details: err.Error(),
-		}
-	}
-
-	// Log upstream response
-	common.SysLog(fmt.Sprintf("[CustomPass-Response-Debug] 同步适配器响应状态码: %d", resp.StatusCode))
-	common.SysLog(fmt.Sprintf("[CustomPass-Response-Debug] 同步适配器响应Body: %s", string(respBody)))
-
-	// Parse response
-	upstreamResp, err := ParseUpstreamResponse(respBody)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate response structure
-	if err := upstreamResp.ValidateResponse(); err != nil {
-		return nil, err
-	}
-
-	return upstreamResp, nil
-}
 
 // checkModelBilling checks if the model requires billing
 func (a *SyncAdaptorImpl) checkModelBilling(modelName string) (bool, error) {
@@ -431,10 +277,4 @@ func (a *SyncAdaptorImpl) checkModelBilling(modelName string) (bool, error) {
 func ProcessSyncRequest(c *gin.Context, channel *model.Channel, modelName string) error {
 	adaptor := NewSyncAdaptor()
 	return adaptor.ProcessRequest(c, channel, modelName)
-}
-
-// BuildSyncUpstreamURL builds upstream URL for sync requests
-func BuildSyncUpstreamURL(baseURL, modelName string) string {
-	adaptor := NewSyncAdaptor()
-	return adaptor.BuildUpstreamURL(baseURL, modelName)
 }

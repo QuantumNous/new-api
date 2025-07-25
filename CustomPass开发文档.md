@@ -172,7 +172,7 @@ CustomPass适配器
    - 这是系统内部的必经流程，不是可选的
 
 2. **预扣费金额确定**：
-   - **按量计费模型**：需要向上游发送带 `?precharge=true` 的请求获取预估usage
+   - **按量计费模型**：需要向上游发送带预扣费标记的请求获取预估usage
    - **按次计费模型**：直接使用模型配置的固定价格
    - **免费模型**：不执行扣费操作，不记录消费日志
 
@@ -192,6 +192,79 @@ CustomPass适配器
    - **异步请求**：
      - 任务成功：使用查询接口返回的最终usage结算，多退少补
      - 任务失败：自动退还全部预扣费
+
+### 1.5 两次请求流程（ExecuteTwoRequestFlow）
+
+CustomPass系统内部实现了统一的两次请求流程，用于处理预扣费和实际请求。这个流程对客户端完全透明。
+
+#### 1.5.1 流程架构
+
+```
+ExecuteTwoRequestFlow
+    ↓
+检查模型是否需要计费
+    ├── 不需要计费 → 直接发送请求 → 返回结果
+    └── 需要计费 → 进入预扣费流程
+                    ↓
+                发送预扣费请求（在请求体中添加 "precharge": true）
+                    ↓
+                检查响应类型
+                    ├── type=precharge → 执行两次请求模式
+                    │   ├── 使用预扣费响应的usage计算预扣费
+                    │   ├── 执行预扣费
+                    │   └── 发送真实请求（不含precharge标记）
+                    └── 非precharge → 执行单次请求模式
+                        ├── 使用实际响应的usage计算预扣费
+                        └── 直接使用第一次响应作为结果
+```
+
+#### 1.5.2 请求参数结构
+
+```go
+type TwoRequestParams struct {
+    User             *model.User                       // 用户信息
+    Channel          *model.Channel                    // 渠道配置
+    ModelName        string                            // 模型名称
+    RequestBody      []byte                            // 原始请求体
+    AuthService      service.CustomPassAuthService     // 认证服务
+    PrechargeService service.CustomPassPrechargeService // 预扣费服务
+    BillingService   service.CustomPassBillingService   // 计费服务
+    HTTPClient       *http.Client                      // HTTP客户端
+}
+```
+
+#### 1.5.3 返回结果结构
+
+```go
+type TwoRequestResult struct {
+    Response        *UpstreamResponse  // 最终的上游响应
+    PrechargeAmount int64              // 预扣费金额
+    RequestCount    int                // 请求次数（1或2）
+    PrechargeUsage  *Usage             // 预扣费响应的usage（用于日志记录）
+}
+```
+
+#### 1.5.4 两种执行模式
+
+**两次请求模式**（上游支持预扣费）：
+1. 第一次请求：发送带 `"precharge": true` 的请求
+2. 上游返回 `type=precharge` 和预估usage
+3. 系统基于预估usage执行预扣费
+4. 第二次请求：发送真实请求（不含precharge）
+5. 使用真实响应的usage进行最终结算
+
+**单次请求模式**（上游不支持预扣费）：
+1. 第一次请求：发送带 `"precharge": true` 的请求
+2. 上游忽略precharge，直接返回执行结果
+3. 系统基于实际usage执行预扣费（预扣费=最终费用）
+4. 不需要第二次请求
+
+#### 1.5.5 重要实现细节
+
+- **预扣费标记**：通过在请求体中添加 `"precharge": true` 字段实现，而非URL参数
+- **客户端透明**：客户端请求中不允许包含precharge参数，系统会自动处理
+- **Usage优先级**：异步模式始终使用预扣费响应的usage进行计费记录
+- **错误处理**：任何阶段失败都会自动退还已扣除的预扣费
 
 ## 2. 核心组件分析
 
@@ -489,43 +562,51 @@ Content-Type: application/json
 
 1. **状态映射转换**：
    - 系统接收到上游API返回的任务状态后，首先根据环境变量配置的状态映射规则进行转换
-   - 将上游的自定义状态（如"success"、"finished"等）映射为系统标准状态（"completed"、"failed"、"processing"）
-   - 如果上游状态不在映射列表中，则保持原状态不变，打印错误日志
+   - 将上游的自定义状态（如"success"、"finished"等）映射为系统标准状态（"SUCCESS"、"FAILURE"、"IN_PROGRESS"）
+   - 状态映射使用不区分大小写的匹配（`strings.EqualFold`）
+   - 如果上游状态不在映射列表中，返回"UNKNOWN"状态
 
 2. **数据库状态更新**：
-   - 更新任务的当前状态字段
+   - 更新任务的当前状态字段为系统内部状态值：
+     - SUCCESS → `model.TaskStatusSuccess`
+     - FAILURE → `model.TaskStatusFailure`
+     - IN_PROGRESS → `model.TaskStatusInProgress`
    - 同步任务进度信息（如果上游提供）
-   - 记录状态更新时间戳
-   - 保持任务历史状态变更记录
+   - 记录状态更新时间戳（`FinishTime`用于完成/失败状态）
+   - **重要**：保留原始上游响应数据，不覆盖已存储的data字段
 
 3. **完成状态处理**：
    - 当任务状态为"completed"时，系统执行以下操作：
-     - 记录任务完成时间
-     - 保存上游返回的完整数据作为data
+     - 设置任务状态为 `model.TaskStatusSuccess`
+     - 设置进度为 "100%"
+     - 记录任务完成时间（`FinishTime`）
+     - 保持原始上游响应数据不变
+     - 如果任务有预扣费（`task.Quota > 0`），执行计费结算
      - 提取最终的usage信息用于计费结算
      - 执行最终计费结算，计算实际消费金额
      - 如果有预扣费，计算差额并退还多扣部分
-     - 生成完整的计费日志记录
+     - 记录结算日志（不是消费日志，因为预扣费时已记录）
 
 4. **失败状态处理**：
    - 当任务状态为"failed"时，系统执行以下操作：
-     - 记录任务失败时间
-     - 保存错误信息到任务表以及上游返回的完整数据作为data
-     - 自动退还所有预扣费用到用户账户
-     - 生成失败日志记录，包含错误详情
+     - 设置任务状态为 `model.TaskStatusFailure`
+     - 保存错误信息到 `FailReason` 字段
+     - 记录任务失败时间（`FinishTime`）
+     - 如果任务有预扣费（`task.Quota > 0`），自动退还全部预扣费
+     - 使用 `prechargeService.ProcessRefund` 执行退款
 
 5. **进行中状态处理**：
    - 当任务状态为"processing"时，系统执行以下操作：
-     - 更新任务进度信息
-     - 保持任务在轮询队列中
-     - 检查任务是否超过最大生命周期
-     - 如果超时，标记为失败并执行失败处理流程
+     - 设置任务状态为 `model.TaskStatusInProgress`
+     - 更新任务进度信息（如果上游提供）
+     - 保持任务在轮询队列中继续查询
+     - **注意**：当前实现中未包含任务超时检查逻辑
 
 6. **数据一致性保证**：
-   - 所有状态更新操作在数据库事务中执行
+   - 所有状态更新通过 `task.Update()` 方法执行
    - 确保状态变更和计费操作的原子性
    - 在更新失败时进行回滚，保持数据一致性
-   - 记录所有状态变更的审计日志
+   - 异步记录结算日志，避免阻塞主流程
 
 #### 3.4.8 错误处理与重试
 
@@ -616,13 +697,22 @@ CustomPass要求上游API提供以下接口来支持不同的功能模式：
 - **适用场景**: 文本生成、图像分析、语音转换等实时处理任务
 
 **预扣费支持（仅供CustomPass系统内部使用）**:
-- **接口**: `POST {base_url}/{model}?precharge=true`
+- **接口**: `POST {base_url}/{model}` （在请求体中添加 `"precharge": true`）
 - **用途**: CustomPass系统内部用于获取预扣费信息
-- **重要说明**: 该参数是系统保留的查询参数，仅供CustomPass系统内部使用，客户端请求中不允许包含此参数，否则系统将报错
-- **请求格式**: 与同步接口相同的JSON数据
+- **重要说明**: 
+  - 预扣费标记通过在请求体JSON中添加 `"precharge": true` 字段实现
+  - 客户端请求中不允许包含 `?precharge=true` 查询参数，否则系统将报错
+  - 该机制对客户端完全透明，系统内部自动处理
+- **请求格式**: 
+  ```json
+  {
+    "precharge": true,
+    // 其他原始请求参数
+  }
+  ```
 - **响应方式**: 
-  - **支持预扣费**: 返回 `type=precharge` 和估算usage，不执行真实任务，CustomPass会再次调用不带precharge参数的接口执行真实任务
-  - **不支持预扣费**: 忽略precharge参数，直接执行并返回结果
+  - **支持预扣费**: 返回 `type=precharge` 和估算usage，不执行真实任务，CustomPass会再次调用（不含`precharge`字段）执行真实任务
+  - **不支持预扣费**: 忽略precharge字段，直接执行并返回结果
 
 #### 5.1.2 异步任务接口（可选）
 如果模型名称以 `/submit` 结尾，需要提供以下接口：
@@ -638,13 +728,22 @@ CustomPass要求上游API提供以下接口来支持不同的功能模式：
 - **响应要求**: 返回task_id、初始状态和可选的预估usage
 
 **预扣费支持（仅供CustomPass系统内部使用）**:
-- **接口**: `POST {base_url}/{model_without_submit}/submit?precharge=true`
+- **接口**: `POST {base_url}/{model_without_submit}/submit` （在请求体中添加 `"precharge": true`）
 - **用途**: CustomPass系统内部用于获取预扣费信息
-- **重要说明**: 该参数是系统保留的查询参数，仅供CustomPass系统内部使用，客户端请求中不允许包含此参数，否则系统将报错
-- **请求格式**: 与任务提交接口相同的JSON数据
+- **重要说明**: 
+  - 预扣费标记通过在请求体JSON中添加 `"precharge": true` 字段实现
+  - 客户端请求中不允许包含 `?precharge=true` 查询参数，否则系统将报错
+  - 该机制对客户端完全透明，系统内部自动处理
+- **请求格式**: 
+  ```json
+  {
+    "precharge": true,
+    // 其他任务参数
+  }
+  ```
 - **响应方式**: 
-  - **支持预扣费**: 返回 `type=precharge` 和估算usage，不提交真实任务，CustomPass会再次调用不带precharge参数的接口提交真实任务
-  - **不支持预扣费**: 忽略precharge参数，直接提交任务并返回task_id
+  - **支持预扣费**: 返回 `type=precharge` 和估算usage，不提交真实任务，CustomPass会再次调用（不含`precharge`字段）提交真实任务
+  - **不支持预挣费**: 忽略precharge字段，直接提交任务并返回task_id
 - **注意**: 异步任务总是使用第一次调用返回的usage作为预扣费金额
 
 **任务查询接口**:
@@ -742,7 +841,36 @@ CustomPass要求上游API返回标准的usage信息用于计费。usage字段格
 }
 ```
 
-#### 5.3.3 计费说明
+#### 5.3.3 Usage字段验证
+
+**验证规则**：
+- **token数量验证**: 所有token数量不能为负数
+- **总数验证**: `total_tokens` 必须等于 `prompt_tokens + completion_tokens`
+- **兼容性处理**: 
+  - 如果提供了 `input_tokens`，系统优先使用它作为输入token数
+  - 如果提供了 `output_tokens`，系统优先使用它作为输出token数
+  - 否则使用标准的 `prompt_tokens` 和 `completion_tokens`
+
+**获取token数量的方法**：
+```go
+// 获取输入token数（优先使用input_tokens）
+func (u *Usage) GetInputTokens() int {
+    if u.InputTokens > 0 {
+        return u.InputTokens
+    }
+    return u.PromptTokens
+}
+
+// 获取输出token数（优先使用output_tokens）
+func (u *Usage) GetOutputTokens() int {
+    if u.OutputTokens > 0 {
+        return u.OutputTokens
+    }
+    return u.CompletionTokens
+}
+```
+
+#### 5.3.4 计费说明
 - **必需字段**: 系统只需要`prompt_tokens`、`completion_tokens`、`total_tokens`即可进行计费
 - **详细分类**: `prompt_tokens_details`和`completion_tokens_details`用于高级计费策略（如缓存折扣）
 - **兼容性**: 系统同时支持标准格式和其他格式的usage字段
@@ -762,7 +890,10 @@ Content-Type: application/json
 }
 ```
 
-**重要说明**：`?precharge=true` 参数是系统保留的查询参数，仅供CustomPass系统内部使用。客户端请求中不允许包含此参数，否则系统将报错。客户端正常调用API，系统会自动处理预扣费逻辑。
+**重要说明**：
+- 预扣费标记通过在请求体JSON中添加 `"precharge": true` 字段实现，而非URL参数
+- 客户端请求中不允许包含 `?precharge=true` 查询参数，否则系统将报错
+- 客户端正常调用API，系统会自动处理预扣费逻辑，该过程对客户端完全透明
 
 #### 上游响应格式
 ```json
@@ -1089,7 +1220,10 @@ CustomPass系统内部会自动执行预扣费流程：
 
 ### 6.3 结算流程
 
-**重要说明**：`?precharge=true`参数是**系统保留的查询参数**，仅供CustomPass系统内部向上游API发起请求时使用。如果客户端请求中包含此参数，系统将报错。
+**重要说明**：
+- 预扣费标记通过在请求体JSON中添加 `"precharge": true` 字段实现
+- 如果客户端请求URL中包含 `?precharge=true` 查询参数，系统将报错
+- 预扣费机制对客户端完全透明，由系统内部自动处理
 
 #### 6.3.1 同步接口结算
 
@@ -1101,11 +1235,11 @@ POST /pass/{model}     (系统内部自动处理预扣费)    给客户端的响
 
 **CustomPass系统内部处理流程**：
 ```
-1. 系统内部向上游发起预扣费请求（带precharge参数）
-   ├── 返回type=precharge → 执行预扣费 → 发起真实请求 → 使用真实请求的usage结算
+1. 系统内部向上游发起预扣费请求（在请求体中添加 "precharge": true）
+   ├── 返回type=precharge → 执行预扣费 → 发起真实请求（不含precharge字段） → 使用真实请求的usage结算
    └── 未返回type=precharge → 直接执行 → 使用返回的usage结算
 
-2. 系统内部向上游发起真实请求（不带precharge参数）
+2. 系统内部向上游发起真实请求（请求体中不含precharge字段）
    └── 直接执行 → 使用返回的usage结算
 ```
 
@@ -1120,8 +1254,8 @@ POST /pass/{model}/submit              POST /pass/{model}/task/list-by-condition
 **CustomPass系统内部处理流程**：
 ```
 1. 任务提交阶段（系统内部处理）
-   ├── 向上游发起预扣费请求（带precharge参数）→ 如果返回type=precharge，使用usage进行预扣费
-   └── 向上游发起真实请求（不带precharge参数）→ 使用返回的usage进行预扣费
+   ├── 向上游发起预扣费请求（请求体含"precharge": true）→ 如果返回type=precharge，使用usage进行预扣费
+   └── 向上游发起真实请求（请求体不含precharge字段）→ 使用返回的usage进行预扣费
 
 2. 任务完成阶段（系统内部轮询）
    ├── 任务查询接口返回usage → 使用查询返回的usage作为最终结算
@@ -1145,11 +1279,20 @@ POST /pass/{model}/submit              POST /pass/{model}/task/list-by-condition
 ```json
 // 客户端正常调用（不带precharge参数）
 POST /pass/custom-text-pro
+{
+  "prompt": "用户请求内容",
+  "max_tokens": 1000
+}
 
 // 系统内部处理流程（对客户端透明）：
 
 // 1. CustomPass系统内部向上游发送预扣费请求
-POST {upstream_baseurl}/custom-text-pro?precharge=true
+POST {upstream_baseurl}/custom-text-pro
+{
+  "precharge": true,
+  "prompt": "用户请求内容",
+  "max_tokens": 1000
+}
 
 // 2. 预扣费响应
 {
@@ -1169,6 +1312,10 @@ POST {upstream_baseurl}/custom-text-pro?precharge=true
 
 // 4. CustomPass系统内部向上游发送真实请求
 POST {upstream_baseurl}/custom-text-pro
+{
+  "prompt": "用户请求内容",
+  "max_tokens": 1000
+}
 
 // 5. 真实响应
 {
@@ -1435,12 +1582,57 @@ VALUES (@user_id, @model, @prompt_tokens, @completion_tokens, @actual_quota);
 
 ### 6.8 消费日志记录
 
-#### 6.8.1 记录条件
+#### 6.8.1 记录时机和条件
+
+**同步模式**：
+- **记录时机**: 在最终结算完成后记录消费日志
 - **按量计费**: 必须记录消费日志（写入数据库logs表）
 - **按次计费**: 必须记录消费日志（写入数据库logs表）  
 - **免费模式**: 不记录消费日志（不写数据到数据库）
 
-#### 6.8.2 数据库日志内容
+**异步模式**：
+- **记录时机**: 
+  - 任务提交时：记录预扣费消费日志
+  - 任务完成时：记录结算信息日志（系统日志类型）
+- **特点**: 预扣费即记录最终消费，后续结算只记录差额信息
+
+#### 6.8.2 日志记录实现
+
+**同步模式日志记录**：
+```go
+// 使用标准的 RecordConsumeLog 函数记录
+model.RecordConsumeLog(c, user.Id, model.RecordConsumeLogParams{
+    ChannelId:        relayInfo.ChannelId,
+    PromptTokens:     response.Usage.GetInputTokens(),
+    CompletionTokens: response.Usage.GetOutputTokens(),
+    ModelName:        modelName,
+    TokenName:        tokenName,
+    Quota:            int(actualAmount),
+    Content:          fmt.Sprintf("CustomPass同步请求: %s", modelName),
+    IsStream:         false,
+    Group:            relayInfo.UsingGroup,
+    Other:            other,
+})
+```
+
+**异步模式日志记录**：
+```go
+// 任务提交时记录预扣费消费日志
+model.RecordConsumeLog(c, user.Id, model.RecordConsumeLogParams{
+    ChannelId:        relayInfo.ChannelId,
+    PromptTokens:     inputTokens,      // 使用预扣费响应的usage
+    CompletionTokens: outputTokens,     // 使用预扣费响应的usage
+    ModelName:        modelName,
+    TokenName:        tokenName,
+    Quota:            int(prechargeAmount),
+    Content:          fmt.Sprintf("CustomPass异步任务预扣费: %s", modelName),
+    IsStream:         false,
+    Group:            relayInfo.UsingGroup,
+    Other:            other,
+})
+```
+
+#### 6.8.3 数据库日志内容
 写入数据库logs表的记录内容：
 
 ```json
@@ -1468,8 +1660,11 @@ VALUES (@user_id, @model, @prompt_tokens, @completion_tokens, @actual_quota);
 
 **字段说明**：
 - `quota`: 本次实际消费的quota（四舍五入后的整数）
-- `other`: JSON字符串，存储计费详情和管理信息：
-  - `model_ratio`: 模型倍率
+- `prompt_tokens` / `completion_tokens`: 
+  - 同步模式：使用最终响应的实际token数
+  - 异步模式：使用预扣费时的token数
+- `other`: 使用 `service.GenerateTextOtherInfo` 生成的JSON字符串，包含：
+  - `model_ratio`: 模型倍率（通过 helper.ModelPriceHelper 获取）
   - `model_group_ratio`: 模型分组倍率  
   - `completion_ratio`: 补全倍率
   - `model_price`: 模型固定价格
@@ -1477,7 +1672,26 @@ VALUES (@user_id, @model, @prompt_tokens, @completion_tokens, @actual_quota);
   - `frt`: 首次响应时间(毫秒)
   - `admin_info`: 管理信息（使用的渠道等）
 - `type`: 日志类型，消费记录为 `LogTypeConsume=2`
-- 所有token相关字段为实际消费的token数量
+
+#### 6.8.4 结算日志记录（仅异步模式）
+
+异步任务完成后，系统会异步记录结算信息：
+```go
+// 使用系统日志类型记录结算信息
+model.LOG_DB.Create(&model.Log{
+    UserId:           task.UserId,
+    CreatedAt:        time.Now().Unix(),
+    Type:             model.LogTypeSystem,  // 系统日志类型
+    Content:          fmt.Sprintf("CustomPass异步任务结算: %s - 实际使用 输入:%d 输出:%d tokens", 
+                        task.Action, usage.GetInputTokens(), usage.GetOutputTokens()),
+    ModelName:        task.Action,
+    Quota:            0,  // 不记录quota变化，因为结算已由prechargeService处理
+    PromptTokens:     usage.GetInputTokens(),
+    CompletionTokens: usage.GetOutputTokens(),
+    ChannelId:        task.ChannelId,
+    Username:         user.Username,
+})
+```
 
 
 ## 7. 配置管理
@@ -1535,4 +1749,201 @@ CUSTOM_PASS_DB_POOL_SIZE=50
 
 # 缓存过期时间（秒）- 默认300秒
 CUSTOM_PASS_CACHE_EXPIRE=300
+```
+
+## 8. 错误处理机制
+
+### 8.1 错误类型系统
+
+CustomPass实现了完善的错误处理机制，使用统一的错误类型和错误码。
+
+#### 8.1.1 错误结构定义
+
+```go
+type CustomPassError struct {
+    Code    string      // 错误码
+    Message string      // 错误消息
+    Details string      // 详细错误信息
+    Cause   error       // 原始错误
+}
+```
+
+#### 8.1.2 错误码定义
+
+```go
+const (
+    ErrCodeInvalidRequest    = "INVALID_REQUEST"     // 无效请求
+    ErrCodeAuthError         = "AUTH_ERROR"          // 认证失败
+    ErrCodePrechargeError    = "PRECHARGE_ERROR"     // 预扣费失败
+    ErrCodeBillingError      = "BILLING_ERROR"       // 计费错误
+    ErrCodeUpstreamError     = "UPSTREAM_ERROR"      // 上游API错误
+    ErrCodeUpstreamResponse  = "UPSTREAM_RESPONSE"   // 上游响应格式错误
+    ErrCodeTimeout           = "TIMEOUT"              // 请求超时
+    ErrCodeSystemError       = "SYSTEM_ERROR"         // 系统内部错误
+    ErrCodeTaskNotFound      = "TASK_NOT_FOUND"      // 任务不存在
+    ErrCodeTaskStatusInvalid = "TASK_STATUS_INVALID" // 任务状态无效
+)
+```
+
+### 8.2 错误处理流程
+
+#### 8.2.1 请求验证错误
+
+- **客户端包含precharge参数**：立即返回错误，不执行任何操作
+- **用户token缺失**：返回认证错误
+- **渠道访问验证失败**：返回权限错误
+
+#### 8.2.2 预扣费错误处理
+
+- **预扣费请求失败**：不扣除任何费用，直接返回错误
+- **预扣费后真实请求失败**：自动退还已扣除的预扣费
+- **任务提交失败**：退还预扣费，不创建任务记录
+
+#### 8.2.3 上游响应错误
+
+- **缺少必须字段**：返回响应格式错误
+- **Usage验证失败**：返回详细的验证错误信息
+- **上游返回错误码**：透传上游错误信息
+
+#### 8.2.4 轮询错误处理
+
+- **查询超时**：跳过本次查询，等待下一个轮询周期
+- **任务不存在**：记录错误日志，从轮询列表中移除
+- **状态映射失败**：使用"UNKNOWN"状态，继续轮询
+
+### 8.3 退款机制
+
+#### 8.3.1 自动退款场景
+
+1. **真实请求失败**：预扣费后如果真实请求失败，自动退还全部预扣费
+2. **任务提交失败**：无法创建任务记录时退还预扣费
+3. **任务执行失败**：异步任务最终失败时退还全部预扣费
+4. **解析响应失败**：无法解析任务ID或响应格式时退款
+
+#### 8.3.2 退款实现
+
+```go
+// 使用prechargeService执行退款
+if err := prechargeService.ProcessRefund(userId, prechargeAmount, 0); err != nil {
+    common.SysError(fmt.Sprintf("退款失败: %v", err))
+}
+```
+
+### 8.4 错误日志记录
+
+#### 8.4.1 系统日志
+
+- **错误级别**：使用 `common.SysError` 记录错误
+- **调试日志**：使用 `common.SysLog` 记录调试信息
+- **日志格式**：包含错误码、消息和详细信息
+
+#### 8.4.2 客户端错误响应
+
+```json
+{
+  "error": {
+    "message": "错误消息",
+    "type": "错误类型",
+    "code": "错误码"
+  }
+}
+```
+
+## 9. 配置管理
+
+### 9.1 环境变量配置
+
+#### 9.1.1 基础配置
+```bash
+# 自定义token header名称
+CUSTOM_PASS_HEADER_KEY=X-Custom-Token
+```
+
+#### 9.1.2 状态映射配置
+```bash
+# 状态映射配置
+CUSTOM_PASS_STATUS_SUCCESS=completed,success,finished
+CUSTOM_PASS_STATUS_FAILED=failed,error,cancelled
+CUSTOM_PASS_STATUS_PROCESSING=processing,pending,running
+```
+
+#### 9.1.3 轮询机制配置
+```bash
+# 轮询间隔（秒）- 默认30秒
+CUSTOM_PASS_POLL_INTERVAL=30
+
+# 单次查询超时时间（秒）- 默认15秒
+CUSTOM_PASS_TASK_TIMEOUT=15
+
+# 最大并发查询数 - 默认100
+CUSTOM_PASS_MAX_CONCURRENT=100
+
+# 任务最大生命周期（秒）- 默认3600秒（1小时）
+CUSTOM_PASS_TASK_MAX_LIFETIME=3600
+
+# 批量查询任务数限制 - 默认50个
+CUSTOM_PASS_BATCH_SIZE=50
+
+### 9.2 配置文件支持
+
+CustomPass支持通过JSON配置文件进行配置，且支持热加载。
+
+#### 9.2.1 配置文件路径
+
+- 默认路径：`./config/custompass.json`
+- 环境变量指定：`CUSTOM_PASS_CONFIG_FILE=/path/to/config.json`
+
+#### 9.2.2 配置文件格式
+
+```json
+{
+  "poll_interval": 30,
+  "task_timeout": 15,
+  "max_concurrent": 100,
+  "task_max_lifetime": 3600,
+  "batch_size": 50,
+  "header_key": "X-Custom-Token",
+  "status_success": ["completed", "success", "finished"],
+  "status_failed": ["failed", "error", "cancelled"],
+  "status_processing": ["processing", "pending", "running"]
+}
+```
+
+#### 9.2.3 配置优先级
+
+1. 环境变量（最高优先级）
+2. 配置文件
+3. 默认值（最低优先级）
+
+### 9.3 配置热加载
+
+CustomPass支持配置文件的热加载，无需重启服务。
+
+#### 9.3.1 热加载机制
+
+- **文件监控**：使用 `fsnotify` 监控配置文件变化
+- **自动重载**：检测到文件变化后自动重新加载配置
+- **平滑过渡**：新配置对新请求生效，不影响进行中的请求
+
+#### 9.3.2 支持热加载的配置项
+
+- 轮询相关配置（间隔、超时、并发数等）
+- 状态映射配置
+- Header名称配置
+
+**注意**：数据库连接等核心配置不支持热加载。
+
+### 9.4 配置验证
+
+#### 9.4.1 验证规则
+
+- **轮询间隔**：必须 > 0
+- **超时时间**：必须 > 0 且 < 600
+- **批量大小**：必须 > 0 且 <= 1000
+- **状态映射**：不能为空数组
+
+#### 9.4.2 验证失败处理
+
+- **启动时**：验证失败将阻止服务启动
+- **热加载时**：验证失败将保持原配置，记录错误日志
 

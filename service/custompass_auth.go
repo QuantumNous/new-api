@@ -14,7 +14,7 @@ type CustomPassAuthService interface {
 	ValidateUserToken(token string) (*model.User, error)
 
 	// BuildUpstreamHeaders builds authentication headers for upstream API requests
-	BuildUpstreamHeaders(channelKey, userToken string) map[string]string
+	BuildUpstreamHeaders(channel *model.Channel, userToken string) map[string]string
 
 	// ValidateChannelAccess validates if user has access to the channel
 	ValidateChannelAccess(user *model.User, channel *model.Channel) error
@@ -101,17 +101,17 @@ func (s *CustomPassAuthServiceImpl) ValidateUserToken(token string) (*model.User
 }
 
 // BuildUpstreamHeaders builds authentication headers for upstream API requests
-func (s *CustomPassAuthServiceImpl) BuildUpstreamHeaders(channelKey, userToken string) map[string]string {
+func (s *CustomPassAuthServiceImpl) BuildUpstreamHeaders(channel *model.Channel, userToken string) map[string]string {
 	headers := make(map[string]string)
 
 	// Set Authorization header with channel API key
-	if channelKey != "" {
-		headers["Authorization"] = "Bearer " + channelKey
+	if channel != nil && channel.Key != "" {
+		headers["Authorization"] = "Bearer " + channel.Key
 	}
 
 	// Set custom token header with user token
 	if userToken != "" {
-		customHeaderKey := s.getCustomTokenHeaderFromEnv()
+		customHeaderKey := s.GetCustomTokenHeader(channel)
 		headers[customHeaderKey] = userToken
 	}
 
@@ -142,28 +142,23 @@ func (s *CustomPassAuthServiceImpl) ValidateChannelAccess(user *model.User, chan
 		}
 	}
 
-	// Check user group access if channel has group restrictions
-	if channel.Group != "" && channel.Group != "default" {
-		if user.Group != channel.Group {
-			return &CustomPassAuthError{
-				Code:    "GROUP_ACCESS_DENIED",
-				Message: fmt.Sprintf("用户组 '%s' 无权访问渠道组 '%s'", user.Group, channel.Group),
-			}
-		}
-	}
+	// CustomPass 不验证用户组与渠道组匹配，与其他模型保持一致
+	// 只要用户token有效且渠道启用即可访问
 
 	return nil
 }
 
 // GetCustomTokenHeader returns the custom token header name based on configuration
 func (s *CustomPassAuthServiceImpl) GetCustomTokenHeader(channel *model.Channel) string {
-	// Priority 1: Channel configuration (if implemented in the future)
-	// This would require extending the Channel model to support custom settings
-	// For now, we'll skip this and go to environment variable
-
-	// Priority 2: Environment variable
+	// Priority 1: Environment variable
 	if envHeader := os.Getenv("CUSTOM_PASS_HEADER_KEY"); envHeader != "" {
 		return envHeader
+	}
+
+	// Priority 2: Channel configuration from frontend (stored in Other field)
+	if channel != nil && channel.Other != "" {
+		// The Other field contains the custom token header name for CustomPass channels
+		return channel.Other
 	}
 
 	// Priority 3: Default value
@@ -231,9 +226,9 @@ func ValidateTokenFormat(token string) error {
 }
 
 // BuildAuthHeaders is a convenience function to build authentication headers
-func BuildAuthHeaders(channelKey, userToken string) map[string]string {
+func BuildAuthHeaders(channel *model.Channel, userToken string) map[string]string {
 	service := NewCustomPassAuthService()
-	return service.BuildUpstreamHeaders(channelKey, userToken)
+	return service.BuildUpstreamHeaders(channel, userToken)
 }
 
 // ValidateUserAccess is a convenience function to validate user access
