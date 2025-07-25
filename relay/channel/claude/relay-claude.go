@@ -64,6 +64,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	claudeTools := make([]Tool, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
+
 		if params, ok := tool.Function.Parameters.(map[string]any); ok {
 			claudeTool := Tool{
 				Name:        tool.Function.Name,
@@ -618,27 +619,47 @@ func ClaudeMessage2OpenAIRequest(claudeReq *ClaudeRequest) (*dto.GeneralOpenAIRe
 					continue
 				}
 
-				name, _ := tool["name"].(string)
-				desc, _ := tool["description"].(string)
-				schema, _ := tool["input_schema"].(map[string]interface{})
-
-				params := make(map[string]interface{}, 3)
-				if schema != nil {
-					for _, key := range []string{"type", "properties", "required"} {
-						if val, exist := schema[key]; exist {
-							params[key] = val
+				// 检查是否有 input_schema 字段
+				if _, hasInputSchema := tool["input_schema"].(map[string]interface{}); !hasInputSchema {
+					// 如果没有 input_schema 字段，直接使用原始格式
+					maxUses := 0
+					if maxUsesVal, exists := tool["max_uses"]; exists {
+						switch v := maxUsesVal.(type) {
+						case int:
+							maxUses = v
+						case float64:
+							maxUses = int(v)
 						}
 					}
-				}
+					openaiTools = append(openaiTools, dto.ToolCallRequest{
+						Type:    tool["type"].(string),
+						Name:    tool["name"].(string),
+						MaxUses: maxUses,
+					})
+				} else {
+					// 如果没有 function 字段，按照 Claude 格式处理
+					name, _ := tool["name"].(string)
+					desc, _ := tool["description"].(string)
+					schema, _ := tool["input_schema"].(map[string]interface{})
 
-				openaiTools = append(openaiTools, dto.ToolCallRequest{
-					Type: "function",
-					Function: dto.FunctionRequest{
-						Name:        name,
-						Description: desc,
-						Parameters:  params,
-					},
-				})
+					params := make(map[string]interface{}, 3)
+					if schema != nil {
+						for _, key := range []string{"type", "properties", "required"} {
+							if val, exist := schema[key]; exist {
+								params[key] = val
+							}
+						}
+					}
+
+					openaiTools = append(openaiTools, dto.ToolCallRequest{
+						Type: "function",
+						Function: dto.FunctionRequest{
+							Name:        name,
+							Description: desc,
+							Parameters:  params,
+						},
+					})
+				}
 			}
 		}
 

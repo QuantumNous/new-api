@@ -3,6 +3,7 @@ package channel
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -54,11 +55,17 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	// 处理 request body，去掉空的 function name
+	processedBody, err := processRequestBody(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("process request body failed: %w", err)
+	}
+
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequest(c.Request.Method, fullRequestURL, processedBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -71,6 +78,54 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
 	return resp, nil
+}
+
+// processRequestBody 处理请求体，去掉空的 function name
+func processRequestBody(requestBody io.Reader) (io.Reader, error) {
+	// 读取原始请求体
+	bodyBytes, err := io.ReadAll(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("read request body failed: %w", err)
+	}
+
+	// 尝试解析为 JSON
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &jsonData); err != nil {
+		// 如果不是有效的 JSON，直接返回原始数据
+		return bytes.NewReader(bodyBytes), nil
+	}
+
+	// 处理 tools 数组
+	if tools, ok := jsonData["tools"].([]interface{}); ok {
+		var filteredTools []interface{}
+		for _, tool := range tools {
+			if toolMap, ok := tool.(map[string]interface{}); ok {
+				// 检查是否有 function 字段且 name 为空
+				if function, exists := toolMap["function"]; exists {
+					if functionMap, ok := function.(map[string]interface{}); ok {
+						if name, nameExists := functionMap["name"]; nameExists {
+							if nameStr, ok := name.(string); ok && nameStr == "" {
+								// 如果 function.name 为空，去掉整个 function 字段
+								delete(toolMap, "function")
+							}
+						}
+					}
+				}
+				filteredTools = append(filteredTools, toolMap)
+			} else {
+				filteredTools = append(filteredTools, tool)
+			}
+		}
+		jsonData["tools"] = filteredTools
+	}
+
+	// 重新序列化为 JSON
+	processedBytes, err := json.Marshal(jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("marshal processed json failed: %w", err)
+	}
+
+	return bytes.NewReader(processedBytes), nil
 }
 
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
@@ -187,6 +242,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	// 打印请求头
 	requestId := c.GetString(onecommon.RequestIdKey)
+	// 新增：打印请求URL
+	onecommon.LogInfo(c, fmt.Sprintf("request url: %s", req.URL.String()))
 	ctx := context.WithValue(c.Request.Context(), onecommon.RequestIdKey, requestId)
 	ctx = context.WithValue(ctx, "gin_context", c)
 	onecommon.LogInfo(ctx, fmt.Sprintf("request headers: %v", req.Header))
