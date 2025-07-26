@@ -13,6 +13,9 @@ var AutomaticDisableKeywords = []string{
 	"The security token included in the request is invalid",
 	"Operation not allowed",
 	"Your account is not authorized",
+	// Claude Code
+	"Invalid bearer token",
+	"OAuth authentication is currently not allowed for this endpoint",
 }
 
 func AutomaticDisableKeywordsToString() string {

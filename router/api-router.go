@@ -120,6 +120,9 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/batch/tag", controller.BatchSetChannelTag)
 			channelRoute.GET("/tag/models", controller.GetTagModels)
 			channelRoute.POST("/copy/:id", controller.CopyChannel)
+			// Claude OAuth路由
+			channelRoute.GET("/claude/oauth/url", controller.GenerateClaudeOAuthURL)
+			channelRoute.POST("/claude/oauth/exchange", controller.ExchangeClaudeOAuthCode)
 		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
