@@ -851,14 +851,16 @@ func FetchModels(c *gin.Context) {
 	}
 
 	// 设置认证头（可以复用现有的逻辑）
-	key := strings.TrimSpace(strings.Split(req.Key, "\n")[0])
-	switch req.Type {
-	case constant.ChannelTypeAnthropic:
-		request.Header.Set("x-api-key", key)
-		request.Header.Set("anthropic-version", "2023-06-01")
-		request.Header.Set("Content-Type", "application/json")
-	default:
-		request.Header.Set("Authorization", "Bearer "+key)
+	// Create a temporary channel object for header generation
+	tempChannel := &model.Channel{
+		Type: req.Type,
+		Key:  strings.TrimSpace(strings.Split(req.Key, "\n")[0]),
+	}
+	headers := getAuthHeaders(tempChannel)
+	for key, values := range headers {
+		for _, value := range values {
+			request.Header.Add(key, value)
+		}
 	}
 
 	// 发起请求
