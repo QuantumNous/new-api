@@ -2,13 +2,14 @@ package model
 
 import (
 	"fmt"
-	"github.com/xuri/excelize/v2"
-	"gorm.io/gorm"
 	"one-api/common"
 	"one-api/setting/operation_setting"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm"
 )
 
 // QuotaData 柱状图数据
@@ -22,6 +23,17 @@ type QuotaData struct {
 	TokenUsed int    `json:"token_used" gorm:"default:0"`
 	Count     int    `json:"count" gorm:"default:0"`
 	Quota     int    `json:"quota" gorm:"default:0"`
+}
+
+// QuotaDataByDay 按天聚合的数据结构
+type QuotaDataByDay struct {
+	Username  string `json:"username"`
+	TokenName string `json:"token_name"`
+	ModelName string `json:"model_name"`
+	Count     int    `json:"count"`
+	Price     int    `json:"price"`
+	TokenUsed int    `json:"token_used"`
+	DateStr   string `json:"date_str"` // FROM_UNIXTIME返回的日期字符串
 }
 
 type BillingData struct {
@@ -45,7 +57,7 @@ type BillingJsonData struct {
 	CompletionsTokens  float32 `json:"completions_tokens"`
 	PromptPricing      float32 `json:"prompt_pricing"`
 	CompletionsPricing float32 `json:"completions_pricing"`
-	/**/ Cost          float32 `json:"cost"`
+	/**/ Cost float32 `json:"cost"`
 }
 
 func UpdateQuotaData() {
@@ -167,6 +179,30 @@ func GetAllQuotaDates(startTime int64, endTime int64, username, tokenName string
 	return quotaDatas, err
 }
 
+// GetAllQuotaDatesByDay 按天聚合查询数据
+func GetAllQuotaDatesByDay(startTime int64, endTime int64, username, tokenName string) (quotaData []*QuotaDataByDay, err error) {
+	var quotaDatas []*QuotaDataByDay
+
+	// 构建查询，使用FROM_UNIXTIME按天聚合
+	query := DB.Table("quota_data").
+		Select("username, token_name, model_name, sum(count) as count, sum(quota)/500000 as price, sum(token_used) as token_used, FROM_UNIXTIME(created_at, '%Y-%m-%d') as date_str").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+
+	// 添加用户名和token名称过滤条件
+	if username != "" {
+		query = query.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		query = query.Where("token_name = ?", tokenName)
+	}
+
+	// 按天聚合分组
+	err = query.Group("FROM_UNIXTIME(created_at, '%Y-%m-%d'), username, token_name, model_name").
+		Find(&quotaDatas).Error
+
+	return quotaDatas, err
+}
+
 func GetBilling(startTime int64, endTime int64, userName, tokenname string) (billingJsonData []*BillingJsonData, err error) {
 	// 将时间戳转换为当天的开始时间（00:00:00）
 	if endTime > time.Now().Unix() {
@@ -205,7 +241,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				if tokenname != "" {
 					err = DB.Table(tableName).
 						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-							"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
@@ -217,7 +253,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				} else {
 					err = DB.Table(tableName).
 						Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-							"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+																"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 						Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 						Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 						Where(fmt.Sprintf("%s.username = ?", tableName), userName).
@@ -230,7 +266,7 @@ func GetBilling(startTime int64, endTime int64, userName, tokenname string) (bil
 				// 分页查询原始日志数据
 				err = DB.Table(tableName).
 					Select(fmt.Sprintf("%s.channel_id, channels.name as channel_name, channels.tag as channel_tag, "+
-						"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
+															"%s.model_name, %s.prompt_tokens, %s.completion_tokens", tableName, tableName, tableName, tableName)).
 					Joins(fmt.Sprintf("JOIN channels ON %s.channel_id = channels.id", tableName)). // 修复这里
 					Where(fmt.Sprintf("%s.created_at BETWEEN ? AND ?", tableName), dayStart, dayEnd).
 					Order(fmt.Sprintf("%s.id", tableName)). // 修复这里
