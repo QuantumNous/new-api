@@ -39,6 +39,7 @@ const TaskLogsTable = (taskLogsData) => {
     handlePageSizeChange,
     copyText,
     openContentModal,
+    openVideoModal,
     isAdminUser,
     t,
     COLUMN_KEYS,
@@ -51,6 +52,7 @@ const TaskLogsTable = (taskLogsData) => {
       COLUMN_KEYS,
       copyText,
       openContentModal,
+      openVideoModal,
       isAdminUser,
     });
   }, [
@@ -58,6 +60,7 @@ const TaskLogsTable = (taskLogsData) => {
     COLUMN_KEYS,
     copyText,
     openContentModal,
+    openVideoModal,
     isAdminUser,
   ]);
 

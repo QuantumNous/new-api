@@ -24,6 +24,7 @@ const ContentModal = ({
   isModalOpen,
   setIsModalOpen,
   modalContent,
+  isVideo,
 }) => {
   return (
     <Modal
@@ -34,7 +35,11 @@ const ContentModal = ({
       bodyStyle={{ height: '400px', overflow: 'auto' }}
       width={800}
     >
-      <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
+      {isVideo ? (
+        <video src={modalContent} controls style={{ width: '100%' }} autoPlay />
+      ) : (
+        <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
+      )}
     </Modal>
   );
 };
