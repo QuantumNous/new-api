@@ -2,12 +2,13 @@ package volcengine
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/textproto"
 	"one-api/dto"
 	"one-api/relay/channel"
 	"one-api/relay/channel/openai"
@@ -15,6 +16,7 @@ import (
 	"one-api/relay/constant"
 	"one-api/types"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -37,124 +39,129 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	switch info.RelayMode {
 	case constant.RelayModeImagesEdits:
-
-		var requestBody bytes.Buffer
-		writer := multipart.NewWriter(&requestBody)
-
-		writer.WriteField("model", request.Model)
-		// 获取所有表单字段
-		formData := c.Request.PostForm
-		// 遍历表单字段并打印输出
-		for key, values := range formData {
-			if key == "model" {
-				continue
-			}
-			for _, value := range values {
-				writer.WriteField(key, value)
-			}
-		}
-
-		// Parse the multipart form to handle both single image and multiple images
-		if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32MB max memory
+		// Volcengine image edit API requires JSON format instead of multipart/form-data
+		const maxMemory = 32 << 20 // 32MB
+		if err := c.Request.ParseMultipartForm(maxMemory); err != nil {
 			return nil, errors.New("failed to parse multipart form")
 		}
 
-		if c.Request.MultipartForm != nil && c.Request.MultipartForm.File != nil {
-			// Check if "image" field exists in any form, including array notation
-			var imageFiles []*multipart.FileHeader
-			var exists bool
-
-			// First check for standard "image" field
-			if imageFiles, exists = c.Request.MultipartForm.File["image"]; !exists || len(imageFiles) == 0 {
-				// If not found, check for "image[]" field
-				if imageFiles, exists = c.Request.MultipartForm.File["image[]"]; !exists || len(imageFiles) == 0 {
-					// If still not found, iterate through all fields to find any that start with "image["
-					foundArrayImages := false
-					for fieldName, files := range c.Request.MultipartForm.File {
-						if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
-							foundArrayImages = true
-							for _, file := range files {
-								imageFiles = append(imageFiles, file)
-							}
-						}
-					}
-
-					// If no image fields found at all
-					if !foundArrayImages && (len(imageFiles) == 0) {
-						return nil, errors.New("image is required")
-					}
-				}
-			}
-
-			// Process all image files
-			for i, fileHeader := range imageFiles {
-				file, err := fileHeader.Open()
-				if err != nil {
-					return nil, fmt.Errorf("failed to open image file %d: %w", i, err)
-				}
-				defer file.Close()
-
-				// If multiple images, use image[] as the field name
-				fieldName := "image"
-				if len(imageFiles) > 1 {
-					fieldName = "image[]"
-				}
-
-				// Determine MIME type based on file extension
-				mimeType := detectImageMimeType(fileHeader.Filename)
-
-				// Create a form file with the appropriate content type
-				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileHeader.Filename))
-				h.Set("Content-Type", mimeType)
-
-				part, err := writer.CreatePart(h)
-				if err != nil {
-					return nil, fmt.Errorf("create form part failed for image %d: %w", i, err)
-				}
-
-				if _, err := io.Copy(part, file); err != nil {
-					return nil, fmt.Errorf("copy file failed for image %d: %w", i, err)
-				}
-			}
-
-			// Handle mask file if present
-			if maskFiles, exists := c.Request.MultipartForm.File["mask"]; exists && len(maskFiles) > 0 {
-				maskFile, err := maskFiles[0].Open()
-				if err != nil {
-					return nil, errors.New("failed to open mask file")
-				}
-				defer maskFile.Close()
-
-				// Determine MIME type for mask file
-				mimeType := detectImageMimeType(maskFiles[0].Filename)
-
-				// Create a form file with the appropriate content type
-				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskFiles[0].Filename))
-				h.Set("Content-Type", mimeType)
-
-				maskPart, err := writer.CreatePart(h)
-				if err != nil {
-					return nil, errors.New("create form file failed for mask")
-				}
-
-				if _, err := io.Copy(maskPart, maskFile); err != nil {
-					return nil, errors.New("copy mask file failed")
-				}
-			}
-		} else {
-			return nil, errors.New("no multipart form data found")
+		jsonRequest, err := buildVolcengineImageRequest(c, request.Model)
+		if err != nil {
+			return nil, err
 		}
 
-		// 关闭 multipart 编写器以设置分界线
-		writer.Close()
-		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-		return bytes.NewReader(requestBody.Bytes()), nil
+		jsonData, err := json.Marshal(jsonRequest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal json request: %w", err)
+		}
 
+		return bytes.NewReader(jsonData), nil
 	default:
 		return request, nil
 	}
+}
+
+// buildVolcengineImageRequest creates a JSON request for Volcengine image APIs.
+func buildVolcengineImageRequest(c *gin.Context, model string) (map[string]any, error) {
+	// Initialize empty request map for multipart form data
+	jsonRequest := make(map[string]any)
+
+	// Set model parameter
+	jsonRequest["model"] = model
+	processFormFields(c, jsonRequest)
+
+	// Handle image file
+	imageFile := extractFirstImageFile(c)
+	if imageFile != nil {
+		base64Image, err := fileHeaderToBase64(imageFile)
+		if err != nil {
+			return nil, err
+		}
+		jsonRequest["image"] = base64Image
+	}
+
+	return jsonRequest, nil
+}
+
+// processFormFields processes form fields and adds them to the request map
+func processFormFields(c *gin.Context, jsonRequest map[string]any) {
+	if c.Request.PostForm == nil {
+		return
+	}
+
+	for key, values := range c.Request.PostForm {
+		if key == "model" {
+			continue
+		}
+		if len(values) > 0 {
+			switch key {
+			case "n", "seed":
+				if v, err := strconv.Atoi(values[0]); err == nil {
+					jsonRequest[key] = v
+				}
+			case "guidance_scale":
+				if v, err := strconv.ParseFloat(values[0], 64); err == nil {
+					jsonRequest[key] = v
+				}
+			case "watermark":
+				jsonRequest[key] = values[0] == "true"
+			default:
+				jsonRequest[key] = values[0]
+			}
+		}
+	}
+}
+
+// extractFirstImageFile finds the first uploaded image file from various possible field names.
+func extractFirstImageFile(c *gin.Context) *multipart.FileHeader {
+	if c.Request.MultipartForm == nil || c.Request.MultipartForm.File == nil {
+		return nil
+	}
+
+	// Define possible field names for the image
+	fieldNames := []string{"image", "image[]"}
+
+	for _, fieldName := range fieldNames {
+		if files, ok := c.Request.MultipartForm.File[fieldName]; ok && len(files) > 0 {
+			return files[0]
+		}
+	}
+
+	// Fallback: check for fields like "image[0]", "image[1]" etc.
+	for fieldName, files := range c.Request.MultipartForm.File {
+		if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
+			return files[0]
+		}
+	}
+
+	return nil
+}
+
+// fileHeaderToBase64 converts an uploaded file to a data URI string.
+func fileHeaderToBase64(fileHeader *multipart.FileHeader) (string, error) {
+	// Define maximum allowed file size (10MB)
+	const maxFileSize = 10 << 20 // 10MB
+
+	// Check file size before processing
+	if fileHeader.Size > maxFileSize {
+		return "", fmt.Errorf("image file size %d bytes exceeds maximum allowed size of %d bytes", fileHeader.Size, maxFileSize)
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return "", fmt.Errorf("failed to open image file: %w", err)
+	}
+	defer file.Close()
+
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image file: %w", err)
+	}
+
+	fileBase64 := base64.StdEncoding.EncodeToString(fileContent)
+	mimeType := detectImageMimeType(fileHeader.Filename)
+
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, fileBase64), nil
 }
 
 // detectImageMimeType determines the MIME type based on the file extension
@@ -191,6 +198,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/api/v3/embeddings", info.BaseUrl), nil
 	case constant.RelayModeImagesGenerations:
 		return fmt.Sprintf("%s/api/v3/images/generations", info.BaseUrl), nil
+	case constant.RelayModeImagesEdits:
+		return info.BaseUrl + "/api/v3/images/generations", nil
 	default:
 	}
 	return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
@@ -198,6 +207,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+	req.Set("Content-Type", "application/json")
 	req.Set("Authorization", "Bearer "+info.ApiKey)
 	return nil
 }

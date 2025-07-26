@@ -16,6 +16,8 @@ type ImageRequest struct {
 	Moderation     string          `json:"moderation,omitempty"`
 	OutputFormat   string          `json:"output_format,omitempty"`
 	Watermark      *bool           `json:"watermark,omitempty"`
+	Seed           int             `json:"seed,omitempty"`
+	GuidanceScale  float64         `json:"guidance_scale,omitempty"`
 }
 
 type ImageResponse struct {
