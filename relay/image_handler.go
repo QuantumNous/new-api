@@ -7,6 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
 	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
@@ -17,9 +22,6 @@ import (
 	"one-api/service"
 	"one-api/setting"
 	"one-api/types"
-	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 func getAndValidImageRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.ImageRequest, error) {
@@ -48,8 +50,31 @@ func getAndValidImageRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.
 		}
 
 		if info.ApiType == constant.APITypeVolcEngine {
-			watermark := formData.Has("watermark")
-			imageRequest.Watermark = &watermark
+			if wmStr := formData.Get("watermark"); wmStr != "" {
+				wm, err := strconv.ParseBool(wmStr)
+				if err != nil {
+					return nil, fmt.Errorf("invalid watermark value %q: %w", wmStr, err)
+				}
+				imageRequest.Watermark = &wm
+			}
+
+			guidanceScaleStr := formData.Get("guidance_scale")
+			if guidanceScaleStr != "" {
+				guidanceScale, err := strconv.ParseFloat(guidanceScaleStr, 64)
+				if err != nil {
+					return nil, fmt.Errorf("invalid guidance_scale parameter: %v", err)
+				}
+				imageRequest.GuidanceScale = guidanceScale
+			}
+
+			seedStr := formData.Get("seed")
+			if seedStr != "" {
+				seed, err := strconv.Atoi(seedStr)
+				if err != nil {
+					return nil, fmt.Errorf("invalid seed parameter: %v", err)
+				}
+				imageRequest.Seed = seed
+			}
 		}
 	default:
 		err := common.UnmarshalBodyReusable(c, imageRequest)
