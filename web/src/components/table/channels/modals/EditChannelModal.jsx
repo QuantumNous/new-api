@@ -1562,7 +1562,7 @@ const EditChannelModal = (props) => {
                       extraText={
                         <Text
                             className="!text-semi-color-primary cursor-pointer"
-                            onClick={() => handleInputChange('header_override', JSON.stringify({ "OE-Key": 0 }, null, 2))}
+                            onClick={() => handleInputChange('header_override', JSON.stringify({ "OE-Key": "xxxx" }, null, 2))}
                         >
                           {t('填入模板')}
                         </Text>
