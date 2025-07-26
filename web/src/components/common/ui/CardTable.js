@@ -23,6 +23,7 @@ import { Table, Card, Skeleton, Pagination, Empty, Button, Collapsible } from '@
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
 
 /**
  * CardTable 响应式表格组件
@@ -40,25 +41,8 @@ const CardTable = ({
 }) => {
   const isMobile = useIsMobile();
   const { t } = useTranslation();
-
-  const [showSkeleton, setShowSkeleton] = useState(loading);
-  const loadingStartRef = useRef(Date.now());
-
-  useEffect(() => {
-    if (loading) {
-      loadingStartRef.current = Date.now();
-      setShowSkeleton(true);
-    } else {
-      const elapsed = Date.now() - loadingStartRef.current;
-      const remaining = Math.max(0, 500 - elapsed);
-      if (remaining === 0) {
-        setShowSkeleton(false);
-      } else {
-        const timer = setTimeout(() => setShowSkeleton(false), remaining);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [loading]);
+  
+  const showSkeleton = useMinimumLoadingTime(loading);
 
   const getRowKey = (record, index) => {
     if (typeof rowKey === 'function') return rowKey(record);

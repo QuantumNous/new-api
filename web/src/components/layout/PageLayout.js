@@ -42,7 +42,7 @@ const PageLayout = () => {
   const { i18n } = useTranslation();
   const location = useLocation();
 
-  const shouldHideFooter = location.pathname.startsWith('/console');
+  const shouldHideFooter = location.pathname.startsWith('/console') || location.pathname === '/pricing';
 
   const shouldInnerPadding = location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&

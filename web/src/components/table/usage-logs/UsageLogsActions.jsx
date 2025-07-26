@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
 
 const LogsActions = ({
   stat,
@@ -30,27 +31,9 @@ const LogsActions = ({
   setCompactMode,
   t,
 }) => {
-  const [showSkeleton, setShowSkeleton] = useState(loadingStat);
+  const showSkeleton = useMinimumLoadingTime(loadingStat);
   const needSkeleton = !showStat || showSkeleton;
-  const loadingStartRef = useRef(Date.now());
 
-  useEffect(() => {
-    if (loadingStat) {
-      loadingStartRef.current = Date.now();
-      setShowSkeleton(true);
-    } else {
-      const elapsed = Date.now() - loadingStartRef.current;
-      const remaining = Math.max(0, 500 - elapsed);
-      if (remaining === 0) {
-        setShowSkeleton(false);
-      } else {
-        const timer = setTimeout(() => setShowSkeleton(false), remaining);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [loadingStat]);
-
-  // Skeleton placeholder layout (three tag-size blocks)
   const placeholder = (
     <Space>
       <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />

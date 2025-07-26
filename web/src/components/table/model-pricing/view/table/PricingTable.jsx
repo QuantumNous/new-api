@@ -23,82 +23,88 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark
 } from '@douyinfe/semi-illustrations';
-import { getModelPricingColumns } from './ModelPricingColumnDefs.js';
+import { getPricingTableColumns } from './PricingTableColumns';
 
-const ModelPricingTable = ({
+const PricingTable = ({
   filteredModels,
   loading,
   rowSelection,
   pageSize,
   setPageSize,
   selectedGroup,
-  usableGroup,
   groupRatio,
   copyText,
   setModalImageUrl,
   setIsModalOpenurl,
   currency,
-  showWithRecharge,
   tokenUnit,
   setTokenUnit,
   displayPrice,
-  filteredValue,
-  handleGroupClick,
+  searchValue,
+  showRatio,
+  compactMode = false,
+  openModelDetail,
   t
 }) => {
+
   const columns = useMemo(() => {
-    return getModelPricingColumns({
+    return getPricingTableColumns({
       t,
       selectedGroup,
-      usableGroup,
       groupRatio,
       copyText,
       setModalImageUrl,
       setIsModalOpenurl,
       currency,
-      showWithRecharge,
       tokenUnit,
-      setTokenUnit,
       displayPrice,
-      handleGroupClick,
+      showRatio,
     });
   }, [
     t,
     selectedGroup,
-    usableGroup,
     groupRatio,
     copyText,
     setModalImageUrl,
     setIsModalOpenurl,
     currency,
-    showWithRecharge,
     tokenUnit,
-    setTokenUnit,
     displayPrice,
-    handleGroupClick,
+    showRatio,
   ]);
 
-  // 更新列定义中的 filteredValue
-  const tableColumns = useMemo(() => {
-    return columns.map(column => {
+  // 更新列定义中的 searchValue
+  const processedColumns = useMemo(() => {
+    const cols = columns.map(column => {
       if (column.dataIndex === 'model_name') {
         return {
           ...column,
-          filteredValue
+          filteredValue: searchValue ? [searchValue] : []
         };
       }
       return column;
     });
-  }, [columns, filteredValue]);
+
+    // Remove fixed property when in compact mode (mobile view)
+    if (compactMode) {
+      return cols.map(({ fixed, ...rest }) => rest);
+    }
+    return cols;
+  }, [columns, searchValue, compactMode]);
 
   const ModelTable = useMemo(() => (
     <Card className="!rounded-xl overflow-hidden" bordered={false}>
       <Table
-        columns={tableColumns}
+        columns={processedColumns}
         dataSource={filteredModels}
         loading={loading}
         rowSelection={rowSelection}
         className="custom-table"
+        scroll={compactMode ? undefined : { x: 'max-content' }}
+        onRow={(record) => ({
+          onClick: () => openModelDetail && openModelDetail(record),
+          style: { cursor: 'pointer' }
+        })}
         empty={
           <Empty
             image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
@@ -116,9 +122,9 @@ const ModelPricingTable = ({
         }}
       />
     </Card>
-  ), [filteredModels, loading, tableColumns, rowSelection, pageSize, setPageSize, t]);
+  ), [filteredModels, loading, processedColumns, rowSelection, pageSize, setPageSize, openModelDetail, t, compactMode]);
 
   return ModelTable;
 };
 
-export default ModelPricingTable; 
+export default PricingTable; 

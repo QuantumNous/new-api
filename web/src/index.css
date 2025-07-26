@@ -391,7 +391,8 @@ code {
   background: transparent;
 }
 
-/* 隐藏卡片内容区域的滚动条 */
+/* 隐藏内容区域滚动条 */
+.pricing-scroll-hide,
 .model-test-scroll,
 .card-content-scroll,
 .model-settings-scroll,
@@ -403,6 +404,7 @@ code {
   scrollbar-width: none;
 }
 
+.pricing-scroll-hide::-webkit-scrollbar,
 .model-test-scroll::-webkit-scrollbar,
 .card-content-scroll::-webkit-scrollbar,
 .model-settings-scroll::-webkit-scrollbar,
@@ -615,4 +617,59 @@ html:not(.dark) .blur-ball-teal {
     height: calc(100vh - 77px);
     max-height: calc(100vh - 77px);
   }
+}
+
+/* ==================== 模型定价页面布局 ==================== */
+.pricing-layout {
+  height: calc(100vh - 60px);
+  overflow: hidden;
+  margin-top: 60px;
+}
+
+.pricing-sidebar {
+  min-width: 460px;
+  max-width: 460px;
+  height: calc(100vh - 60px);
+  background-color: var(--semi-color-bg-0);
+  border-right: 1px solid var(--semi-color-border);
+  overflow: auto;
+}
+
+.pricing-content {
+  height: calc(100vh - 60px);
+  background-color: var(--semi-color-bg-0);
+  display: flex;
+  flex-direction: column;
+}
+
+.pricing-pagination-divider {
+  border-color: var(--semi-color-border);
+}
+
+.pricing-content-mobile {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.pricing-search-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--semi-color-border);
+  background-color: var(--semi-color-bg-0);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.pricing-view-container {
+  flex: 1;
+  overflow: auto;
+}
+
+.pricing-view-container-mobile {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }

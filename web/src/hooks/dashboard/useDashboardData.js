@@ -24,6 +24,7 @@ import { API, isAdmin, showError, timestamp2string } from '../../helpers';
 import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
 import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
+import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
@@ -35,6 +36,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [loading, setLoading] = useState(false);
   const [greetingVisible, setGreetingVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const showLoading = useMinimumLoadingTime(loading);
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
@@ -145,7 +147,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(async () => {
     setLoading(true);
-    const startTime = Date.now();
     try {
       let url = '';
       const { start_timestamp, end_timestamp, username } = inputs;
@@ -177,11 +178,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         return [];
       }
     } finally {
-      const elapsed = Date.now() - startTime;
-      const remainingTime = Math.max(0, 500 - elapsed);
-      setTimeout(() => {
-        setLoading(false);
-      }, remainingTime);
+      setLoading(false);
     }
   }, [inputs, dataExportDefaultTime, isAdminUser, now]);
 
@@ -246,7 +243,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   return {
     // 基础状态
-    loading,
+    loading: showLoading,
     greetingVisible,
     searchModalVisible,
 

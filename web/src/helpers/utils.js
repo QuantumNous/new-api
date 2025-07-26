@@ -573,6 +573,72 @@ export const selectFilter = (input, option) => {
 };
 
 // -------------------------------
+// 模型定价计算工具函数
+export const calculateModelPrice = ({
+  record,
+  selectedGroup,
+  groupRatio,
+  tokenUnit,
+  displayPrice,
+  currency,
+  precision = 4
+}) => {
+  if (record.quota_type === 0) {
+    // 按量计费
+    const inputRatioPriceUSD = record.model_ratio * 2 * groupRatio[selectedGroup];
+    const completionRatioPriceUSD =
+      record.model_ratio * record.completion_ratio * 2 * groupRatio[selectedGroup];
+
+    const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+    const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
+
+    const rawDisplayInput = displayPrice(inputRatioPriceUSD);
+    const rawDisplayCompletion = displayPrice(completionRatioPriceUSD);
+
+    const numInput = parseFloat(rawDisplayInput.replace(/[^0-9.]/g, '')) / unitDivisor;
+    const numCompletion = parseFloat(rawDisplayCompletion.replace(/[^0-9.]/g, '')) / unitDivisor;
+
+    return {
+      inputPrice: `${currency === 'CNY' ? '¥' : '$'}${numInput.toFixed(precision)}`,
+      completionPrice: `${currency === 'CNY' ? '¥' : '$'}${numCompletion.toFixed(precision)}`,
+      unitLabel,
+      isPerToken: true
+    };
+  } else {
+    // 按次计费
+    const priceUSD = parseFloat(record.model_price) * groupRatio[selectedGroup];
+    const displayVal = displayPrice(priceUSD);
+
+    return {
+      price: displayVal,
+      isPerToken: false
+    };
+  }
+};
+
+// 格式化价格信息（用于卡片视图）
+export const formatPriceInfo = (priceData, t) => {
+  if (priceData.isPerToken) {
+    return (
+      <>
+        <span style={{ color: 'var(--semi-color-text-1)' }}>
+          {t('提示')} {priceData.inputPrice}/{priceData.unitLabel}
+        </span>
+        <span style={{ color: 'var(--semi-color-text-1)' }}>
+          {t('补全')} {priceData.completionPrice}/{priceData.unitLabel}
+        </span>
+      </>
+    );
+  } else {
+    return (
+      <span style={{ color: 'var(--semi-color-text-1)' }}>
+        {t('模型价格')} {priceData.price}
+      </span>
+    );
+  }
+};
+
+// -------------------------------
 // CardPro 分页配置函数
 // 用于创建 CardPro 的 paginationArea 配置
 export const createCardProPagination = ({
@@ -619,4 +685,46 @@ export const createCardProPagination = ({
       />
     </>
   );
+};
+
+// 模型定价筛选条件默认值
+const DEFAULT_PRICING_FILTERS = {
+  search: '',
+  showWithRecharge: false,
+  currency: 'USD',
+  showRatio: false,
+  viewMode: 'card',
+  tokenUnit: 'M',
+  filterGroup: 'all',
+  filterQuotaType: 'all',
+  filterEndpointType: 'all',
+  currentPage: 1,
+};
+
+// 重置模型定价筛选条件
+export const resetPricingFilters = ({
+  handleChange,
+  setActiveKey,
+  availableCategories,
+  setShowWithRecharge,
+  setCurrency,
+  setShowRatio,
+  setViewMode,
+  setFilterGroup,
+  setFilterQuotaType,
+  setFilterEndpointType,
+  setCurrentPage,
+  setTokenUnit,
+}) => {
+  handleChange?.(DEFAULT_PRICING_FILTERS.search);
+  availableCategories?.length > 0 && setActiveKey?.(availableCategories[0]);
+  setShowWithRecharge?.(DEFAULT_PRICING_FILTERS.showWithRecharge);
+  setCurrency?.(DEFAULT_PRICING_FILTERS.currency);
+  setShowRatio?.(DEFAULT_PRICING_FILTERS.showRatio);
+  setViewMode?.(DEFAULT_PRICING_FILTERS.viewMode);
+  setTokenUnit?.(DEFAULT_PRICING_FILTERS.tokenUnit);
+  setFilterGroup?.(DEFAULT_PRICING_FILTERS.filterGroup);
+  setFilterQuotaType?.(DEFAULT_PRICING_FILTERS.filterQuotaType);
+  setFilterEndpointType?.(DEFAULT_PRICING_FILTERS.filterEndpointType);
+  setCurrentPage?.(DEFAULT_PRICING_FILTERS.currentPage);
 };

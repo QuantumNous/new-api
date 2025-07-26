@@ -18,12 +18,27 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import ModelPricingPage from '../../components/table/model-pricing/layout/PricingPage';
+import { Button } from '@douyinfe/semi-ui';
 
-const Pricing = () => (
-  <>
-    <ModelPricingPage />
-  </>
-);
+const FilterModalFooter = ({ onReset, onConfirm, t }) => {
+  return (
+    <div className="flex justify-end">
+      <Button
+        theme="outline"
+        type='tertiary'
+        onClick={onReset}
+      >
+        {t('重置')}
+      </Button>
+      <Button
+        theme="solid"
+        type="primary"
+        onClick={onConfirm}
+      >
+        {t('确定')}
+      </Button>
+    </div>
+  );
+};
 
-export default Pricing;
+export default FilterModalFooter; 

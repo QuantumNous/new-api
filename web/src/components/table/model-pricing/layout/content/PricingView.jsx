@@ -18,12 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import ModelPricingPage from '../../components/table/model-pricing/layout/PricingPage';
+import PricingTable from '../../view/table/PricingTable';
+import PricingCardView from '../../view/card/PricingCardView';
 
-const Pricing = () => (
-  <>
-    <ModelPricingPage />
-  </>
-);
+const PricingView = ({
+  viewMode = 'table',
+  ...props
+}) => {
+  return viewMode === 'card' ?
+    <PricingCardView {...props} /> :
+    <PricingTable {...props} />;
+};
 
-export default Pricing;
+export default PricingView; 

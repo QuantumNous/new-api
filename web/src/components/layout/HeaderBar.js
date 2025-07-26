@@ -52,6 +52,7 @@ import {
 import { StatusContext } from '../../context/Status/index.js';
 import { useIsMobile } from '../../hooks/common/useIsMobile.js';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed.js';
+import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime.js';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { t, i18n } = useTranslation();
@@ -59,7 +60,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [statusState, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
-  const [isLoading, setIsLoading] = useState(true);
   const [logoLoaded, setLogoLoaded] = useState(false);
   let navigate = useNavigate();
   const [currentLang, setCurrentLang] = useState(i18n.language);
@@ -67,7 +67,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const location = useLocation();
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const loadingStartRef = useRef(Date.now());
+
+  const loading = statusState?.status === undefined;
+  const isLoading = useMinimumLoadingTime(loading);
 
   const systemName = getSystemName();
   const logo = getLogo();
@@ -128,7 +130,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       to: '/console',
     },
     {
-      text: t('定价'),
+      text: t('模型广场'),
       itemKey: 'pricing',
       to: '/pricing',
     },
@@ -215,17 +217,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       i18n.off('languageChanged', handleLanguageChanged);
     };
   }, [i18n]);
-
-  useEffect(() => {
-    if (statusState?.status !== undefined) {
-      const elapsed = Date.now() - loadingStartRef.current;
-      const remaining = Math.max(0, 500 - elapsed);
-      const timer = setTimeout(() => {
-        setIsLoading(false);
-      }, remaining);
-      return () => clearTimeout(timer);
-    }
-  }, [statusState?.status]);
 
   useEffect(() => {
     setLogoLoaded(false);
@@ -467,7 +458,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   };
 
   return (
-    <header className="text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg">
+    <header className="text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg" style={{ borderBottom: '1px solid var(--semi-color-border)' }}>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
