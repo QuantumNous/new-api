@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"one-api/common"
 	"one-api/model"
-	"sort"
 	"strconv"
 	"time"
 
@@ -222,24 +221,10 @@ func GetQuotaDataByToken(c *gin.Context) {
 
 		// 普通用户查询时，使用当前用户信息
 		username = userCache.Username
-
 	}
 
-	// 查询数据
-	var dates []*model.QuotaData
-	var err error
-
-	if username != "" && queryTokenName != "" {
-		// 按用户名和指定token名称查询
-		dates, err = model.GetQuotaDataByUsername(username, queryTokenName, startTimestamp, endTimestamp)
-	} else if username != "" {
-		// 按用户名查询所有token的数据
-		dates, err = model.GetQuotaDataByUsername(username, "", startTimestamp, endTimestamp)
-	} else {
-		// 管理员可以查询所有数据
-		dates, err = model.GetAllQuotaDates(startTimestamp, endTimestamp, "", "")
-	}
-
+	// 直接使用按天聚合查询
+	dates, err := model.GetAllQuotaDatesByDay(startTimestamp, endTimestamp, username, queryTokenName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -248,24 +233,16 @@ func GetQuotaDataByToken(c *gin.Context) {
 		return
 	}
 
-	// 按天+模型聚合数据
-	aggregatedDates := aggregateQuotaDataByDayAndModel(dates)
-
 	// 转换为简化的返回格式
-	simplifiedData := make([]map[string]interface{}, 0, len(aggregatedDates))
-	for _, item := range aggregatedDates {
-		// 计算价格：quota / 50000
-		price := float64(item.Quota) / 50000.0
-
-		// 转换为当天日期字符串
-		dateStr := time.Unix(item.CreatedAt, 0).Format("2006-01-02")
+	simplifiedData := make([]map[string]interface{}, 0, len(dates))
+	for _, item := range dates {
 
 		simplifiedData = append(simplifiedData, map[string]interface{}{
 			"token_name": item.TokenName,
 			"username":   item.Username,
 			"model_name": item.ModelName,
-			"date":       dateStr,
-			"price":      price,
+			"date":       item.DateStr, // 直接使用FROM_UNIXTIME返回的日期字符串
+			"price":      item.Price,
 		})
 	}
 
@@ -274,100 +251,4 @@ func GetQuotaDataByToken(c *gin.Context) {
 		"message": "",
 		"data":    simplifiedData,
 	})
-}
-
-// aggregateQuotaDataByDay 按天聚合数据
-func aggregateQuotaDataByDay(data []*model.QuotaData) []*model.QuotaData {
-	if len(data) == 0 {
-		return data
-	}
-
-	// 创建聚合映射
-	aggregated := make(map[string]*model.QuotaData)
-
-	for _, item := range data {
-		// 按天聚合：将时间戳向下取整到天
-		dayStart := (item.CreatedAt / 86400) * 86400
-		key := fmt.Sprintf("%s_%s_%d", item.Username, item.TokenName, dayStart)
-
-		if existing, exists := aggregated[key]; exists {
-			// 聚合数据
-			existing.Count += item.Count
-			existing.Quota += item.Quota
-			existing.TokenUsed += item.TokenUsed
-		} else {
-			// 创建新记录
-			aggregated[key] = &model.QuotaData{
-				Username:  item.Username,
-				TokenName: item.TokenName,
-				Count:     item.Count,
-				Quota:     item.Quota,
-				TokenUsed: item.TokenUsed,
-				CreatedAt: dayStart,
-			}
-		}
-	}
-
-	// 转换为切片并排序
-	result := make([]*model.QuotaData, 0, len(aggregated))
-	for _, item := range aggregated {
-		result = append(result, item)
-	}
-
-	// 按时间排序
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].CreatedAt < result[j].CreatedAt
-	})
-
-	return result
-}
-
-// aggregateQuotaDataByDayAndModel 按天+模型聚合数据
-func aggregateQuotaDataByDayAndModel(data []*model.QuotaData) []*model.QuotaData {
-	if len(data) == 0 {
-		return data
-	}
-
-	// 创建聚合映射
-	aggregated := make(map[string]*model.QuotaData)
-
-	for _, item := range data {
-		// 按天聚合：将时间戳向下取整到天
-		dayStart := (item.CreatedAt / 86400) * 86400
-		key := fmt.Sprintf("%s_%s_%s_%d", item.Username, item.TokenName, item.ModelName, dayStart)
-
-		if existing, exists := aggregated[key]; exists {
-			// 聚合数据
-			existing.Count += item.Count
-			existing.Quota += item.Quota
-			existing.TokenUsed += item.TokenUsed
-		} else {
-			// 创建新记录
-			aggregated[key] = &model.QuotaData{
-				Username:  item.Username,
-				TokenName: item.TokenName,
-				ModelName: item.ModelName,
-				Count:     item.Count,
-				Quota:     item.Quota,
-				TokenUsed: item.TokenUsed,
-				CreatedAt: dayStart,
-			}
-		}
-	}
-
-	// 转换为切片并排序
-	result := make([]*model.QuotaData, 0, len(aggregated))
-	for _, item := range aggregated {
-		result = append(result, item)
-	}
-
-	// 按时间排序
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].CreatedAt == result[j].CreatedAt {
-			return result[i].ModelName < result[j].ModelName
-		}
-		return result[i].CreatedAt < result[j].CreatedAt
-	})
-
-	return result
 }
