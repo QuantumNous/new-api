@@ -793,22 +793,55 @@ func (s *TaskPollingService) performTaskSettlement(localTask *model.Task, taskIn
 	common.SysLog(fmt.Sprintf("[CustomPass-Billing] 异步任务实际使用量 - 模型: %s, 输入tokens: %d, 输出tokens: %d, 总计: %d", 
 		localTask.Action, actualUsage.GetInputTokens(), actualUsage.GetOutputTokens(), actualUsage.GetInputTokens()+actualUsage.GetOutputTokens()))
 
-	// Get user information for group
-	var userGroup string = "default"
-	if user, err := model.GetUserById(localTask.UserId, false); err == nil {
-		userGroup = user.Group
-	}
-
-	// Calculate ratios for settlement (using manual calculation since we don't have full context)
+	// 使用从任务属性中保存的计费信息，而不是重新计算
 	var groupRatio, userRatio float64 = 1.0, 1.0
+	var userGroup string = "default"
 	
-	// Get group ratio
-	groupRatio = ratio_setting.GetGroupRatio(userGroup)
-	
-	// Check for user group special ratio - this requires both user group and using group
-	// For task polling, we'll use the user's group as both userGroup and usingGroup
-	if specialRatio, hasSpecial := ratio_setting.GetGroupGroupRatio(userGroup, userGroup); hasSpecial {
-		userRatio = specialRatio
+	// 优先使用任务创建时保存的计费信息
+	if localTask.Properties.BillingInfo != nil {
+		billingInfo := localTask.Properties.BillingInfo
+		groupRatio = billingInfo.GroupRatio
+		
+		// 使用保存的用户组倍率（分组特殊倍率）
+		if billingInfo.HasSpecialRatio {
+			userRatio = billingInfo.UserGroupRatio
+		}
+		
+		// 打印完整的保存计费信息
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] ========== 使用保存的计费信息 =========="))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] 任务ID: %s, 模型: %s, 用户ID: %d", localTask.TaskID, localTask.Action, localTask.UserId))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] 预收费金额: %d", localTask.Quota))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] 保存的计费信息详情:"))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 组倍率 (GroupRatio): %.6f", billingInfo.GroupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 用户组倍率 (UserGroupRatio): %.6f", billingInfo.UserGroupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 模型倍率 (ModelRatio): %.6f", billingInfo.ModelRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 补全倍率 (CompletionRatio): %.6f", billingInfo.CompletionRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 模型价格 (ModelPrice): %.6f", billingInfo.ModelPrice))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 计费模式 (BillingMode): %s", billingInfo.BillingMode))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 使用特殊倍率 (HasSpecialRatio): %t", billingInfo.HasSpecialRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] 最终使用的倍率:"))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 组倍率: %.6f", groupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing]   - 用户倍率: %.6f", userRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] ================================================"))
+	} else {
+		// 向后兼容：如果没有保存的计费信息，则使用原有的计算方式
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] 未找到保存的计费信息，使用向后兼容方式计算倍率"))
+		
+		// Get user information for group
+		if user, err := model.GetUserById(localTask.UserId, false); err == nil {
+			userGroup = user.Group
+		}
+
+		// Get group ratio
+		groupRatio = ratio_setting.GetGroupRatio(userGroup)
+		
+		// Check for user group special ratio - this requires both user group and using group
+		// For task polling, we'll use the user's group as both userGroup and usingGroup
+		if specialRatio, hasSpecial := ratio_setting.GetGroupGroupRatio(userGroup, userGroup); hasSpecial {
+			userRatio = specialRatio
+		}
+		
+		common.SysLog(fmt.Sprintf("[CustomPass-Billing] 向后兼容计算结果 - 组倍率: %.6f, 用户组倍率: %.6f", groupRatio, userRatio))
 	}
 
 	// Create a mock context for ProcessSettlement (it needs gin.Context for logging)
@@ -913,21 +946,55 @@ func (s *TaskPollingService) performFailedTaskSettlement(localTask *model.Task) 
 
 	common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 失败任务使用零使用量进行结算 - 模型: %s, usage全部为0", localTask.Action))
 
-	// Get user information for group
-	var userGroup string = "default"
-	if user, err := model.GetUserById(localTask.UserId, false); err == nil {
-		userGroup = user.Group
-	}
-
-	// Calculate ratios for settlement
+	// 使用从任务属性中保存的计费信息，而不是重新计算
 	var groupRatio, userRatio float64 = 1.0, 1.0
+	var userGroup string = "default"
 	
-	// Get group ratio
-	groupRatio = ratio_setting.GetGroupRatio(userGroup)
-	
-	// Check for user group special ratio
-	if specialRatio, hasSpecial := ratio_setting.GetGroupGroupRatio(userGroup, userGroup); hasSpecial {
-		userRatio = specialRatio
+	// 优先使用任务创建时保存的计费信息
+	if localTask.Properties.BillingInfo != nil {
+		billingInfo := localTask.Properties.BillingInfo
+		groupRatio = billingInfo.GroupRatio
+		
+		// 使用保存的用户组倍率（分组特殊倍率）
+		if billingInfo.HasSpecialRatio {
+			userRatio = billingInfo.UserGroupRatio
+		}
+		
+		// 打印完整的保存计费信息（失败任务版本）
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] ========== 使用保存的计费信息（失败任务） =========="))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 任务ID: %s, 模型: %s, 用户ID: %d", localTask.TaskID, localTask.Action, localTask.UserId))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 预收费金额: %d", localTask.Quota))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 保存的计费信息详情:"))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 组倍率 (GroupRatio): %.6f", billingInfo.GroupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 用户组倍率 (UserGroupRatio): %.6f", billingInfo.UserGroupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 模型倍率 (ModelRatio): %.6f", billingInfo.ModelRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 补全倍率 (CompletionRatio): %.6f", billingInfo.CompletionRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 模型价格 (ModelPrice): %.6f", billingInfo.ModelPrice))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 计费模式 (BillingMode): %s", billingInfo.BillingMode))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 使用特殊倍率 (HasSpecialRatio): %t", billingInfo.HasSpecialRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 最终使用的倍率:"))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 组倍率: %.6f", groupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement]   - 用户倍率: %.6f", userRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 失败任务将使用零使用量进行结算（全额退费）"))
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] ================================================"))
+	} else {
+		// 向后兼容：如果没有保存的计费信息，则使用原有的计算方式
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 未找到保存的计费信息，使用向后兼容方式计算倍率"))
+		
+		// Get user information for group
+		if user, err := model.GetUserById(localTask.UserId, false); err == nil {
+			userGroup = user.Group
+		}
+
+		// Calculate ratios for settlement
+		groupRatio = ratio_setting.GetGroupRatio(userGroup)
+		
+		// Check for user group special ratio
+		if specialRatio, hasSpecial := ratio_setting.GetGroupGroupRatio(userGroup, userGroup); hasSpecial {
+			userRatio = specialRatio
+		}
+		
+		common.SysLog(fmt.Sprintf("[CustomPass-FailedTask-Settlement] 向后兼容计算结果 - 组倍率: %.6f, 用户组倍率: %.6f", groupRatio, userRatio))
 	}
 
 	// Create a mock context for ProcessSettlement

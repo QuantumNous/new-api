@@ -96,7 +96,7 @@ func (a *AsyncAdaptorImpl) SubmitTask(c *gin.Context, channel *model.Channel, mo
 	}
 
 	// Submit task using two-request flow (handles both billing and non-billing models)
-	submitResp, prechargeAmount, responseUsage, err := a.submitTaskWithTwoRequestFlow(c, channel, modelName, requestBody, user)
+	submitResp, prechargeAmount, responseUsage, billingInfo, err := a.submitTaskWithTwoRequestFlow(c, channel, modelName, requestBody, user)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,8 @@ func (a *AsyncAdaptorImpl) SubmitTask(c *gin.Context, channel *model.Channel, mo
 		SubmitTime: time.Now().Unix(),
 		StartTime:  time.Now().Unix(),
 		Properties: model.Properties{
-			Input: string(requestBody),
+			Input:       string(requestBody),
+			BillingInfo: billingInfo, // Save billing context from precharge
 		},
 		Quota: int(prechargeAmount),
 	}
@@ -299,7 +300,7 @@ func (a *AsyncAdaptorImpl) HandleTaskCompletion(task *model.Task, taskInfo *Task
 
 
 // submitTaskWithTwoRequestFlow submits task to upstream API using two-request flow pattern
-func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte, user *model.User) (*TaskSubmitResponse, int64, *Usage, error) {
+func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel *model.Channel, modelName string, requestBody []byte, user *model.User) (*TaskSubmitResponse, int64, *Usage, *model.BillingInfo, error) {
 
 	// Use the common two-request flow for upstream requests
 	params := &TwoRequestParams{
@@ -318,7 +319,7 @@ func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel 
 	result, err := ExecuteTwoRequestFlow(c, params)
 	if err != nil {
 		common.SysError(fmt.Sprintf("[CustomPass-Async-Debug] 异步任务二次请求失败: %v", err))
-		return nil, 0, nil, err
+		return nil, 0, nil, nil, err
 	}
 
 	common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 异步任务二次请求完成 - 请求次数: %d, 预扣费金额: %d", 
@@ -334,7 +335,7 @@ func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel 
 				common.SysError(fmt.Sprintf("预扣费退款失败: %v", refundErr))
 			}
 		}
-		return nil, 0, nil, &CustomPassError{
+		return nil, 0, nil, nil, &CustomPassError{
 			Code:    ErrCodeUpstreamError,
 			Message: "任务提交失败",
 			Details: result.Response.GetMessage(),
@@ -356,7 +357,7 @@ func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel 
 					common.SysError(fmt.Sprintf("预扣费退款失败: %v", refundErr))
 				}
 			}
-			return nil, 0, nil, &CustomPassError{
+			return nil, 0, nil, nil, &CustomPassError{
 				Code:    ErrCodeUpstreamError,
 				Message: "序列化任务提交响应失败",
 				Details: err.Error(),
@@ -371,7 +372,7 @@ func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel 
 					common.SysError(fmt.Sprintf("预扣费退款失败: %v", refundErr))
 				}
 			}
-			return nil, 0, nil, &CustomPassError{
+			return nil, 0, nil, nil, &CustomPassError{
 				Code:    ErrCodeUpstreamError,
 				Message: "解析任务提交响应失败",
 				Details: err.Error(),
@@ -386,7 +387,7 @@ func (a *AsyncAdaptorImpl) submitTaskWithTwoRequestFlow(c *gin.Context, channel 
 
 	// Return the response, the actual precharge amount that was deducted, and the usage information from precharge
 	common.SysLog(fmt.Sprintf("[CustomPass-Async-Debug] 异步任务提交成功，预扣费金额: %d", result.PrechargeAmount))
-	return &submitResp, result.PrechargeAmount, result.PrechargeUsage, nil
+	return &submitResp, result.PrechargeAmount, result.PrechargeUsage, result.BillingInfo, nil
 }
 
 

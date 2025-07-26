@@ -25,6 +25,7 @@ type TwoRequestResult struct {
 	PrechargeAmount int64
 	RequestCount    int // 1 for single request, 2 for two requests
 	PrechargeUsage  *Usage // Usage from precharge response (for consistent billing logging)
+	BillingInfo     *model.BillingInfo // Billing context used for precharge
 }
 
 // TwoRequestParams contains parameters for two-request operation
@@ -135,6 +136,7 @@ func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoReques
 			PrechargeAmount: 0,
 			RequestCount:    1,
 			PrechargeUsage:  nil, // No precharge for free models
+			BillingInfo:     nil, // No billing for free models
 		}, nil
 	}
 
@@ -239,7 +241,7 @@ func executeTwoRequestMode(c *gin.Context, params *TwoRequestParams, prechargeRe
 	}
 
 	// Execute precharge using the final usage (real usage if available, otherwise precharge usage)
-	prechargeResult, err := params.PrechargeService.ExecutePrecharge(params.User, params.ModelName, serviceUsageForPrecharge)
+	prechargeResult, billingInfo, err := params.PrechargeService.ExecutePrecharge(c, params.User, params.ModelName, serviceUsageForPrecharge)
 	if err != nil {
 		return nil, &CustomPassError{
 			Code:    ErrCodeInsufficientQuota,
@@ -269,6 +271,7 @@ func executeTwoRequestMode(c *gin.Context, params *TwoRequestParams, prechargeRe
 		PrechargeAmount: prechargeAmount, // Now based on final usage
 		RequestCount:    2,
 		PrechargeUsage:  finalUsage, // Use final usage for consistent billing
+		BillingInfo:     billingInfo, // Include billing context
 	}, nil
 }
 
@@ -319,7 +322,7 @@ func executeSingleRequestMode(c *gin.Context, params *TwoRequestParams, precharg
 			serviceUsage.PromptTokens, serviceUsage.CompletionTokens))
 
 		// Execute precharge with actual usage from response
-		prechargeResult, err := params.PrechargeService.ExecutePrecharge(params.User, params.ModelName, serviceUsage)
+		prechargeResult, billingInfo, err := params.PrechargeService.ExecutePrecharge(c, params.User, params.ModelName, serviceUsage)
 		if err != nil {
 			common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 实际用量预扣费失败: %v", err))
 			return nil, &CustomPassError{
@@ -336,10 +339,14 @@ func executeSingleRequestMode(c *gin.Context, params *TwoRequestParams, precharg
 			PrechargeAmount: prechargeAmount,
 			RequestCount:    1,
 			PrechargeUsage:  prechargeResp.Usage, // Use usage from precharge response (same as response in single request mode)
+			BillingInfo:     billingInfo, // Include billing context
 		}, nil
 	} else {
 		// For fixed-price or free models, usage is not required
 		var prechargeAmount int64 = 0
+		var billingInfo *model.BillingInfo = nil
+		var prechargeResult *service.PrechargeResult
+		var err error
 		
 		if billingMode == service.BillingModeFixed {
 			// For fixed-price models, calculate based on fixed price
@@ -349,7 +356,7 @@ func executeSingleRequestMode(c *gin.Context, params *TwoRequestParams, precharg
 				TotalTokens:      2,
 			}
 
-			prechargeResult, err := params.PrechargeService.ExecutePrecharge(params.User, params.ModelName, estimatedUsage)
+			prechargeResult, billingInfo, err = params.PrechargeService.ExecutePrecharge(c, params.User, params.ModelName, estimatedUsage)
 			if err != nil {
 				common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 固定价格模型预扣费失败: %v", err))
 				return nil, &CustomPassError{
@@ -369,6 +376,7 @@ func executeSingleRequestMode(c *gin.Context, params *TwoRequestParams, precharg
 			PrechargeAmount: prechargeAmount,
 			RequestCount:    1,
 			PrechargeUsage:  prechargeResp.Usage, // Use usage from precharge response (may be nil for free models)
+			BillingInfo:     billingInfo, // Include billing context (may be nil for free models)
 		}, nil
 	}
 }

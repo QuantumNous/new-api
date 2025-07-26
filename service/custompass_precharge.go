@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"one-api/common"
 	"one-api/model"
+	"one-api/relay/helper"
+	relaycommon "one-api/relay/common"
 	"one-api/setting/ratio_setting"
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -52,7 +55,7 @@ func (u *Usage) GetOutputTokens() int {
 // CustomPassPrechargeService interface defines precharge operations for CustomPass
 type CustomPassPrechargeService interface {
 	// ExecutePrecharge executes precharge operation with transaction boundary
-	ExecutePrecharge(user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, error)
+	ExecutePrecharge(c *gin.Context, user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, *model.BillingInfo, error)
 
 	// CalculatePrechargeAmount calculates precharge amount based on model and usage
 	CalculatePrechargeAmount(modelName string, usage *Usage, userGroup string) (int64, error)
@@ -113,13 +116,13 @@ func NewCustomPassPrechargeService() CustomPassPrechargeService {
 }
 
 // ExecutePrecharge executes precharge operation with transaction boundary and concurrency control
-func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, error) {
+func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(c *gin.Context, user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, *model.BillingInfo, error) {
 	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 开始执行预扣费 - 用户ID: %d, 用户名: %s, 模型: %s", 
 		user.Id, user.Username, modelName))
 	
 	if user == nil {
 		common.SysLog("[CustomPass预扣费执行] 错误: 用户信息为空")
-		return nil, &PrechargeError{
+		return nil, nil, &PrechargeError{
 			Code:    ErrCodeUserNotFound,
 			Message: "用户信息不能为空",
 		}
@@ -127,7 +130,7 @@ func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(user *model.User, mode
 
 	if estimatedUsage == nil {
 		common.SysLog("[CustomPass预扣费执行] 错误: 预估使用量为空")
-		return nil, &PrechargeError{
+		return nil, nil, &PrechargeError{
 			Code:    ErrCodeInvalidUsage,
 			Message: "预估使用量不能为空",
 		}
@@ -139,18 +142,128 @@ func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(user *model.User, mode
 	// Validate usage data
 	if err := estimatedUsage.Validate(); err != nil {
 		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 使用量验证失败: %v", err))
-		return nil, &PrechargeError{
+		return nil, nil, &PrechargeError{
 			Code:    ErrCodeInvalidUsage,
 			Message: "预估使用量数据无效",
 			Details: err.Error(),
 		}
 	}
 
-	// Calculate precharge amount
-	amount, err := s.CalculatePrechargeAmount(modelName, estimatedUsage, user.Group)
-	if err != nil {
-		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 预扣费计算失败: %v", err))
-		return nil, err
+	// Create relayInfo for standard billing calculation
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    user.Id,
+		UserGroup: user.Group,
+		UsingGroup: user.Group, // Default to user's group, may be changed by HandleGroupRatio
+		OriginModelName: modelName,
+	}
+
+
+	// Calculate precharge amount using the billing service
+	billingService := NewCustomPassBillingService()
+	
+	// Determine billing mode
+	billingMode := billingService.DetermineBillingMode(modelName)
+	billingModeStr := getBillingModeString(billingMode)
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 计费模式 - 模式: %s", billingModeStr))
+	
+	// For free models, create minimal billing info and skip complex calculations
+	var billingInfo *model.BillingInfo
+	var groupRatioInfo helper.GroupRatioInfo
+	var hasGroupRatioInfo bool
+	
+	if billingMode == BillingModeFree {
+		// For free models, create minimal billing info without group ratio calculations
+		billingInfo = &model.BillingInfo{
+			BillingMode:     "free",
+			GroupRatio:      1.0,
+			UserGroupRatio:  1.0,
+			ModelRatio:      0.0,
+			CompletionRatio: 1.0,
+			ModelPrice:      0.0,
+			HasSpecialRatio: false,
+		}
+		common.SysLog("[CustomPass预扣费执行] 免费模型，跳过复杂的组倍率和价格计算")
+	} else {
+		// For paid models, get full billing information
+		// Use standard HandleGroupRatio to get correct ratios
+		groupRatioInfo = helper.HandleGroupRatio(c, relayInfo)
+		hasGroupRatioInfo = true
+		
+		// Get model ratios and prices
+		modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
+		modelPrice, _ := ratio_setting.GetModelPrice(modelName, false)
+		completionRatio := ratio_setting.GetCompletionRatio(modelName)
+		
+		// Create billing info to return
+		billingInfo = &model.BillingInfo{
+			GroupRatio:      groupRatioInfo.GroupRatio,
+			UserGroupRatio:  groupRatioInfo.GroupSpecialRatio,
+			ModelRatio:      modelRatio,
+			CompletionRatio: completionRatio,
+			ModelPrice:      modelPrice,
+			HasSpecialRatio: groupRatioInfo.HasSpecialRatio,
+		}
+		
+		// Set billing mode string
+		switch billingMode {
+		case BillingModeUsage:
+			billingInfo.BillingMode = "usage"
+		case BillingModeFixed:
+			billingInfo.BillingMode = "fixed"
+		}
+	}
+	
+	// 打印使用新方法获取到的计费信息
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] ========== 计费信息 =========="))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 用户ID: %d, 模型: %s", user.Id, modelName))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] RelayInfo详情:"))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - 用户组 (UserGroup): %s", relayInfo.UserGroup))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - 使用组 (UsingGroup): %s", relayInfo.UsingGroup))
+	
+	if hasGroupRatioInfo {
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] HandleGroupRatio返回结果:"))
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - 组倍率 (GroupRatio): %.6f", groupRatioInfo.GroupRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - 分组特殊倍率 (GroupSpecialRatio): %.6f", groupRatioInfo.GroupSpecialRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - 使用特殊倍率 (HasSpecialRatio): %t", groupRatioInfo.HasSpecialRatio))
+	} else {
+		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] GroupRatioInfo: 免费模型，未计算组倍率"))
+	}
+	
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 最终构建的BillingInfo:"))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - BillingMode: %s", billingInfo.BillingMode))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - GroupRatio: %.6f", billingInfo.GroupRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - UserGroupRatio: %.6f", billingInfo.UserGroupRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - ModelRatio: %.6f", billingInfo.ModelRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - CompletionRatio: %.6f", billingInfo.CompletionRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - ModelPrice: %.6f", billingInfo.ModelPrice))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行]   - HasSpecialRatio: %t", billingInfo.HasSpecialRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] ======================================="))
+	
+	
+	// Calculate amount based on billing mode
+	var amount int64
+	var err error
+	
+	if billingMode == BillingModeFree {
+		amount = 0
+		common.SysLog("[CustomPass预扣费执行] 免费模型，预扣费金额为0")
+	} else {
+		// Use effective user ratio (group special ratio if exists, otherwise 1.0)
+		effectiveUserRatio := 1.0
+		if hasGroupRatioInfo && groupRatioInfo.HasSpecialRatio {
+			effectiveUserRatio = groupRatioInfo.GroupSpecialRatio
+		}
+		
+		groupRatio := 1.0
+		if hasGroupRatioInfo {
+			groupRatio = groupRatioInfo.GroupRatio
+		}
+		
+		amount, err = billingService.CalculatePrechargeAmount(modelName, estimatedUsage, groupRatio, effectiveUserRatio)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 预扣费计算失败: %v", err))
+			return nil, nil, err
+		}
 	}
 
 	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 预扣费计算完成 - 金额: %s", common.LogQuota(int(amount))))
@@ -160,7 +273,7 @@ func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(user *model.User, mode
 		return &PrechargeResult{
 			PrechargeAmount: 0,
 			Success:         true,
-		}, nil
+		}, billingInfo, nil
 	}
 
 	// Get user-specific lock to prevent concurrent operations
@@ -202,12 +315,12 @@ func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(user *model.User, mode
 
 	if err != nil {
 		common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 预扣费最终失败 - 用户ID: %d, 错误: %v", user.Id, err))
-		return nil, err
+		return nil, nil, err
 	}
 
 	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 预扣费执行完成 - 用户ID: %d, 金额: %s, 事务ID: %s", 
 		user.Id, common.LogQuota(int(result.PrechargeAmount)), result.TransactionID))
-	return result, nil
+	return result, billingInfo, nil
 }
 
 // executePrechargeTransaction executes the precharge transaction with proper locking
@@ -631,9 +744,9 @@ func GetPrechargeErrorCode(err error) string {
 // Convenience functions for common operations
 
 // ValidateAndPrecharge validates user and executes precharge in one operation
-func ValidateAndPrecharge(user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, error) {
+func ValidateAndPrecharge(c *gin.Context, user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, *model.BillingInfo, error) {
 	service := NewCustomPassPrechargeService()
-	return service.ExecutePrecharge(user, modelName, estimatedUsage)
+	return service.ExecutePrecharge(c, user, modelName, estimatedUsage)
 }
 
 // CalculateQuota calculates quota for given model and usage
@@ -646,4 +759,18 @@ func CalculateQuota(modelName string, usage *Usage, userGroup string) (int64, er
 func SettleTransaction(userID int, prechargeAmount, actualAmount int64) error {
 	service := NewCustomPassPrechargeService()
 	return service.ProcessSettlement(userID, prechargeAmount, actualAmount)
+}
+
+// getBillingModeString converts BillingMode enum to string for logging
+func getBillingModeString(mode BillingMode) string {
+	switch mode {
+	case BillingModeFree:
+		return "free"
+	case BillingModeUsage:
+		return "usage"
+	case BillingModeFixed:
+		return "fixed"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(mode))
+	}
 }

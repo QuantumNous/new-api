@@ -134,8 +134,10 @@ func (s *CustomPassBillingServiceImpl) CalculatePrechargeAmount(modelName string
 		// Fixed price billing - charge per request
 		price, exists := ratio_setting.GetModelPrice(modelName, false)
 		common.SysLog(fmt.Sprintf("[CustomPass计费] 固定计费模式 - 模型价格: %.6f, 价格存在: %v", price, exists))
-		result = int64(math.Round(price * common.QuotaPerUnit)) // Convert to quota using system constant
-		common.SysLog(fmt.Sprintf("[CustomPass计费] 固定计费计算 - 原价格: %.6f, 配额: %d", price, result))
+		// Apply group ratio and user ratio for consistency with other per-call billing channels
+		result = int64(math.Round(price * common.QuotaPerUnit * groupRatio * userRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass计费] 固定计费计算 - 原价格: %.6f, 组比率: %.6f, 用户比率: %.6f, 配额: %d", 
+			price, groupRatio, userRatio, result))
 		return result, nil
 
 	case BillingModeUsage:
@@ -227,7 +229,13 @@ func (s *CustomPassBillingServiceImpl) ProcessSettlement(c *gin.Context, userID 
 		return nil
 	}
 
-	// Calculate actual amount with provided ratios
+	// For fixed price billing, no settlement needed since precharge amount already includes all ratios
+	if billingMode == BillingModeFixed {
+		common.SysLog(fmt.Sprintf("[CustomPass-Settlement-Debug] 按次计费模式，预扣费已包含所有比率，无需结算"))
+		return nil
+	}
+
+	// Calculate actual amount with provided ratios (only for usage-based billing)
 	actualAmount, err := s.CalculateFinalAmount(modelName, actualUsage, groupRatio, userRatio)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("[CustomPass-Settlement-Debug] 计算实际费用失败: %v", err))
