@@ -1551,6 +1551,26 @@ const EditChannelModal = (props) => {
                   />
 
                   <Form.TextArea
+                      field='header_override'
+                      label={t('请求头覆盖')}
+                      placeholder={
+                          t('此项可选，用于覆盖请求头。为一个 JSON 字符串，例如：') +
+                          '\n{\n  "OE-Key": "xxxxx"\n}'
+                      }
+                      autosize
+                      onChange={(value) => handleInputChange('header_override', value)}
+                      extraText={
+                        <Text
+                            className="!text-semi-color-primary cursor-pointer"
+                            onClick={() => handleInputChange('header_override', JSON.stringify({ "OE-Key": 0 }, null, 2))}
+                        >
+                          {t('填入模板')}
+                        </Text>
+                      }
+                      showClear
+                  />
+
+                  <Form.TextArea
                     field='status_code_mapping'
                     label={t('状态码复写')}
                     placeholder={

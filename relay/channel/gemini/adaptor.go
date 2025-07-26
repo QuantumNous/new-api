@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"one-api/common"
 	"one-api/dto"
 	"one-api/relay/channel"
@@ -103,7 +104,22 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.IsStream {
 		action = "streamGenerateContent?alt=sse"
 	}
-	return fmt.Sprintf("%s/%s/models/%s:%s", info.BaseUrl, version, info.UpstreamModelName, action), nil
+
+	geminiUrl := fmt.Sprintf("%s/%s/models/%s:%s", info.BaseUrl, version, info.UpstreamModelName, action)
+	// 判断是否是腾讯edgeone的网关,特殊处理腾讯的格式
+	if _, ok := info.HeaderOverride["OE-Key"]; len(info.HeaderOverride) > 0 && ok {
+		u, err := url.Parse(geminiUrl)
+		if err != nil {
+			return geminiUrl, err
+		}
+
+		q := u.Query()
+		q.Add("key", info.ApiKey)
+		u.RawQuery = q.Encode()
+		geminiUrl = u.String()
+	}
+
+	return geminiUrl, nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {

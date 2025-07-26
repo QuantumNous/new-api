@@ -32,6 +32,19 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 			req.Set("Accept", "text/event-stream")
 		}
 	}
+
+	if len(info.HeaderOverride) > 0 {
+		for k, v := range info.HeaderOverride {
+			value, _ := common2.Any2Type[string](v)
+			req.Set(k, value)
+		}
+	}
+
+	headerJson, _ := common2.Marshal(req)
+	if common2.DebugEnabled {
+		println("requestHeader: ", string(headerJson))
+	}
+
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
