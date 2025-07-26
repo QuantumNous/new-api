@@ -88,6 +88,7 @@ type RelayInfo struct {
 	BaseUrl              string
 	SupportStreamOptions bool
 	ShouldIncludeUsage   bool
+	DisablePing          bool // 是否禁止向下游发送自定义 Ping
 	IsModelMapped        bool
 	ClientWs             *websocket.Conn
 	TargetWs             *websocket.Conn
