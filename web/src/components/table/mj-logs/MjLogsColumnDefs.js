@@ -48,9 +48,9 @@ import {
   XCircle,
   Loader,
   AlertCircle,
-  Hash,
-  Video
+  Hash
 } from 'lucide-react';
+import { Video } from 'lucide-react';
 
 const colors = [
   'amber',

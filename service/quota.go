@@ -20,6 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type TokenDetails struct {
@@ -449,6 +450,63 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if err != nil {
 		return err
 	}
+	// Note: PreConsumedQuota is tracked separately to avoid modifying public RelayInfo struct
+	return nil
+}
+
+// PreConsumeQuotaWithUserDeduction deducts quota from both token and user immediately
+func PreConsumeQuotaWithUserDeduction(relayInfo *relaycommon.RelayInfo, quota int) error {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	if relayInfo.IsPlayground {
+		return nil
+	}
+
+	// Start transaction
+	tx := model.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer tx.Rollback()
+
+	// Check and deduct token quota (if not unlimited)
+	if !relayInfo.TokenUnlimited {
+		token, err := model.GetTokenByKey(relayInfo.TokenKey, false)
+		if err != nil {
+			return err
+		}
+		if token.RemainQuota < quota {
+			return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", common.FormatQuota(token.RemainQuota), common.FormatQuota(quota))
+		}
+		// Deduct from token within transaction
+		err = tx.Model(&model.Token{}).Where("id = ? AND `key` = ?", relayInfo.TokenId, relayInfo.TokenKey).
+			Update("remain_quota", gorm.Expr("remain_quota - ?", quota)).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	// Check and deduct user quota
+	var user model.User
+	err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", relayInfo.UserId).First(&user).Error
+	if err != nil {
+		return err
+	}
+	if user.Quota < quota {
+		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", common.FormatQuota(user.Quota), common.FormatQuota(quota))
+	}
+	err = tx.Model(&user).Update("quota", gorm.Expr("quota - ?", quota)).Error
+	if err != nil {
+		return err
+	}
+
+	// Commit transaction
+	if err = tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Note: PreConsumedQuota is tracked separately to avoid modifying public RelayInfo struct
 	return nil
 }
 
@@ -507,4 +565,67 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			}
 		}
 	})
+}
+
+
+// IsModelUsageBasedBilling checks if a model uses usage-based billing
+func IsModelUsageBasedBilling(modelName string) bool {
+	// Check if model has ratio configuration (indicates usage-based billing)
+	ratio, hasRatio, _ := ratio_setting.GetModelRatio(modelName)
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 模型使用量计费检查 - 模型: %s, 有比率配置: %t, 比率值: %.6f", 
+		modelName, hasRatio, ratio))
+	return hasRatio
+}
+
+// CalculateQuotaByTokens calculates quota based on actual token usage
+func CalculateQuotaByTokens(modelName string, promptTokens, completionTokens int, userGroup string) (int, error) {
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 开始实际用量计费计算 - 模型: %s, 输入tokens: %d, 输出tokens: %d, 用户组: %s", 
+		modelName, promptTokens, completionTokens, userGroup))
+
+	if promptTokens < 0 || completionTokens < 0 {
+		return 0, fmt.Errorf("token counts cannot be negative")
+	}
+
+	// Get model ratio
+	modelRatio, hasRatio, _ := ratio_setting.GetModelRatio(modelName)
+	if !hasRatio || modelRatio <= 0 {
+		common.SysLog(fmt.Sprintf("[CustomPass-Debug] 模型 %s 未配置使用量计费或比率无效", modelName))
+		return 0, fmt.Errorf("model %s does not have usage-based billing configured", modelName)
+	}
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 获取模型比率 - 模型: %s, 比率: %.6f", modelName, modelRatio))
+
+	// Calculate base cost for prompt tokens
+	promptCost := float64(promptTokens) * modelRatio
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 输入token计费 - tokens: %d, 比率: %.6f, 费用: %.6f", 
+		promptTokens, modelRatio, promptCost))
+
+	// Calculate cost for completion tokens with completion ratio
+	completionRatio := ratio_setting.GetCompletionRatio(modelName)
+	if completionRatio <= 0 {
+		completionRatio = 1.0 // Default to 1.0 if not configured
+	}
+	completionCost := float64(completionTokens) * modelRatio * completionRatio
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 输出token计费 - tokens: %d, 模型比率: %.6f, 补全比率: %.6f, 费用: %.6f", 
+		completionTokens, modelRatio, completionRatio, completionCost))
+
+	// Total base cost
+	totalCost := promptCost + completionCost
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 基础费用计算 - 输入费用: %.6f, 输出费用: %.6f, 总费用: %.6f", 
+		promptCost, completionCost, totalCost))
+
+	// Apply group ratio
+	groupRatio := ratio_setting.GetGroupRatio(userGroup)
+	if groupRatio <= 0 {
+		groupRatio = 1.0 // Default to 1.0 if not configured
+	}
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 应用用户组比率 - 用户组: %s, 组比率: %.6f", userGroup, groupRatio))
+
+	// Calculate final quota
+	finalQuota := totalCost * groupRatio
+	finalQuotaInt := int(math.Round(finalQuota))
+	
+	common.SysLog(fmt.Sprintf("[CustomPass-Debug] 最终计费结果 - 基础费用: %.6f, 组比率: %.6f, 最终费用: %.6f, 整数额度: %d", 
+		totalCost, groupRatio, finalQuota, finalQuotaInt))
+
+	return finalQuotaInt, nil
 }

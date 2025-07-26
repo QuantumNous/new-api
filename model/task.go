@@ -53,6 +53,20 @@ func (t *Task) GetData(v any) error {
 
 type Properties struct {
 	Input string `json:"input"`
+	
+	// 计费信息（新增字段）
+	BillingInfo *BillingInfo `json:"billing_info,omitempty"`
+}
+
+// BillingInfo 存储任务创建时的计费上下文信息
+type BillingInfo struct {
+	GroupRatio      float64 `json:"group_ratio"`           // 用户组基础倍率
+	UserGroupRatio  float64 `json:"user_group_ratio"`      // 分组特殊倍率（如果存在）  
+	ModelRatio      float64 `json:"model_ratio"`           // 模型倍率
+	CompletionRatio float64 `json:"completion_ratio"`      // 补全倍率
+	ModelPrice      float64 `json:"model_price"`           // 模型价格（固定价格模式）
+	BillingMode     string  `json:"billing_mode"`          // 计费模式：free/usage/fixed
+	HasSpecialRatio bool    `json:"has_special_ratio"`     // 是否使用了分组特殊倍率
 }
 
 func (m *Properties) Scan(val interface{}) error {
@@ -336,6 +350,36 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	}
 	_ = query.Count(&total).Error
 	return total
+}
+
+// UpdateTaskStatus updates the status of a task by task ID
+func UpdateTaskStatus(taskID string, status string) error {
+	if taskID == "" {
+		return nil // Skip empty task IDs
+	}
+
+	// Convert string status to TaskStatus type
+	var taskStatus TaskStatus
+	switch status {
+	case "PENDING", "QUEUED":
+		taskStatus = TaskStatusQueued
+	case "IN_PROGRESS", "PROCESSING", "RUNNING":
+		taskStatus = TaskStatusInProgress
+	case "SUCCESS", "COMPLETED", "FINISHED":
+		taskStatus = TaskStatusSuccess
+	case "FAILURE", "FAILED", "ERROR", "CANCELLED":
+		taskStatus = TaskStatusFailure
+	default:
+		taskStatus = TaskStatusUnknown
+	}
+
+	// Update task status in database
+	result := DB.Model(&Task{}).Where("task_id = ?", taskID).Updates(map[string]interface{}{
+		"status":     taskStatus,
+		"updated_at": time.Now().Unix(),
+	})
+
+	return result.Error
 }
 
 // TaskCountAllUserTask returns total tasks for given user

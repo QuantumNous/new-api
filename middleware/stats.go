@@ -18,12 +18,12 @@ func StatsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 增加活跃连接数
 		atomic.AddInt64(&globalStats.activeConnections, 1)
-		
+
 		// 确保在请求结束时减少连接数
 		defer func() {
 			atomic.AddInt64(&globalStats.activeConnections, -1)
 		}()
-		
+
 		c.Next()
 	}
 }
@@ -38,4 +38,4 @@ func GetStats() StatsInfo {
 	return StatsInfo{
 		ActiveConnections: atomic.LoadInt64(&globalStats.activeConnections),
 	}
-} 
+}
