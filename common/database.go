@@ -4,6 +4,7 @@ const (
 	DatabaseTypeMySQL      = "mysql"
 	DatabaseTypeSQLite     = "sqlite"
 	DatabaseTypePostgreSQL = "postgres"
+	DatabaseTypeClickHouse = "clickhouse"
 )
 
 var UsingSQLite = false
