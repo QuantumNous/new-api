@@ -99,6 +99,7 @@ type RelayInfo struct {
 	ReasoningEffort      string
 	ChannelSetting       dto.ChannelSettings
 	ParamOverride        map[string]interface{}
+	HeaderOverride       map[string]interface{}
 	UserSetting          dto.UserSetting
 	UserEmail            string
 	UserQuota            int
@@ -216,6 +217,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
+	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 
 	tokenId := common.GetContextKeyInt(c, constant.ContextKeyTokenId)
 	tokenKey := common.GetContextKeyString(c, constant.ContextKeyTokenKey)
@@ -254,6 +256,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 
 		ChannelCreateTime: c.GetInt64("channel_create_time"),
 		ParamOverride:     paramOverride,
+		HeaderOverride:    headerOverride,
 		RelayFormat:       RelayFormatOpenAI,
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
