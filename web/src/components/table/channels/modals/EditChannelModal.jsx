@@ -45,6 +45,7 @@ import {
   Row,
   Col,
   Highlight,
+  Input,
 } from '@douyinfe/semi-ui';
 import { getChannelModels, copy, getChannelIcon, getModelCategories, modelSelectFilter } from '../../../../helpers';
 import {
@@ -89,6 +90,8 @@ function type2secretPrompt(type) {
       return '按照如下格式输入: AccessKey|SecretKey, 如果上游是New API，则直接输ApiKey';
     case 51:
       return '按照如下格式输入: Access Key ID|Secret Access Key';
+    case 53:
+      return '按照如下格式输入：AccessToken|RefreshToken';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -141,6 +144,10 @@ const EditChannelModal = (props) => {
   const [customModel, setCustomModel] = useState('');
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [isModalOpenurl, setIsModalOpenurl] = useState(false);
+  const [showOAuthModal, setShowOAuthModal] = useState(false);
+  const [authorizationCode, setAuthorizationCode] = useState('');
+  const [oauthParams, setOauthParams] = useState(null);
+  const [isExchangingCode, setIsExchangingCode] = useState(false);
   const formApiRef = useRef(null);
   const [vertexKeys, setVertexKeys] = useState([]);
   const [vertexFileList, setVertexFileList] = useState([]);
@@ -347,6 +354,20 @@ const EditChannelModal = (props) => {
         data.system_prompt = '';
       }
 
+      // 特殊处理Claude Code渠道的密钥拆分和系统提示词
+      if (data.type === 53) {
+        // 拆分密钥
+        if (data.key) {
+          const keyParts = data.key.split('|');
+          if (keyParts.length === 2) {
+            data.access_token = keyParts[0];
+            data.refresh_token = keyParts[1];
+          }
+        }
+        // 强制设置固定系统提示词
+        data.system_prompt = "You are Claude Code, Anthropic's official CLI for Claude.";
+      }
+
       setInputs(data);
       if (formApiRef.current) {
         formApiRef.current.setValues(data);
@@ -466,6 +487,72 @@ const EditChannelModal = (props) => {
       );
     } catch (error) {
       showError(error.message);
+    }
+  };
+
+  // 生成OAuth授权URL
+  const handleGenerateOAuth = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get('/api/channel/claude/oauth/url');
+      if (res.data.success) {
+        setOauthParams(res.data.data);
+        setShowOAuthModal(true);
+        showSuccess(t('OAuth授权URL生成成功'));
+      } else {
+        showError(res.data.message || t('生成OAuth授权URL失败'));
+      }
+    } catch (error) {
+      showError(t('生成OAuth授权URL失败：') + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 交换授权码
+  const handleExchangeCode = async () => {
+    if (!authorizationCode.trim()) {
+      showError(t('请输入授权码'));
+      return;
+    }
+
+    if (!oauthParams) {
+      showError(t('OAuth参数丢失，请重新生成'));
+      return;
+    }
+
+    try {
+      setIsExchangingCode(true);
+      const res = await API.post('/api/channel/claude/oauth/exchange', {
+        authorization_code: authorizationCode,
+        code_verifier: oauthParams.code_verifier,
+        state: oauthParams.state,
+      });
+
+      if (res.data.success) {
+        const tokenData = res.data.data;
+        // 自动填充access token和refresh token
+        handleInputChange('access_token', tokenData.access_token);
+        handleInputChange('refresh_token', tokenData.refresh_token);
+        handleInputChange('key', `${tokenData.access_token}|${tokenData.refresh_token}`);
+        
+        // 更新表单字段
+        if (formApiRef.current) {
+          formApiRef.current.setValue('access_token', tokenData.access_token);
+          formApiRef.current.setValue('refresh_token', tokenData.refresh_token);
+        }
+
+        setShowOAuthModal(false);
+        setAuthorizationCode('');
+        setOauthParams(null);
+        showSuccess(t('授权码交换成功，已自动填充tokens'));
+      } else {
+        showError(res.data.message || t('授权码交换失败'));
+      }
+    } catch (error) {
+      showError(t('授权码交换失败：') + error.message);
+    } finally {
+      setIsExchangingCode(false);
     }
   };
 
@@ -781,7 +868,7 @@ const EditChannelModal = (props) => {
   const batchExtra = batchAllowed ? (
     <Space>
       <Checkbox
-        disabled={isEdit}
+        disabled={isEdit || inputs.type === 53}
         checked={batch}
         onChange={(e) => {
           const checked = e.target.checked;
@@ -1116,6 +1203,49 @@ const EditChannelModal = (props) => {
                               extraText={batchExtra}
                             />
                           )}
+                        </>
+                      ) : inputs.type === 53 ? (
+                        <>
+                          <Form.Input
+                            field='access_token'
+                            label={isEdit ? t('Access Token（编辑模式下，保存的密钥不会显示）') : t('Access Token')}
+                            placeholder={t('请输入Claude Code Access Token')}
+                            rules={isEdit ? [] : [{ required: true, message: t('请输入Access Token') }]}
+                            autoComplete='new-password'
+                            onChange={(value) => {
+                              handleInputChange('access_token', value);
+                              // 同时更新key字段，格式为access_token|refresh_token
+                              const refreshToken = inputs.refresh_token || '';
+                              handleInputChange('key', `${value}|${refreshToken}`);
+                            }}
+                            suffix={
+                              <Button
+                                size="small"
+                                type="primary"
+                                theme="light"
+                                onClick={handleGenerateOAuth}
+                              >
+                                {t('生成OAuth授权码')}
+                              </Button>
+                            }
+                            extraText={batchExtra}
+                            showClear
+                          />
+                          <Form.Input
+                            field='refresh_token'
+                            label={isEdit ? t('Refresh Token（编辑模式下，保存的密钥不会显示）') : t('Refresh Token')}
+                            placeholder={t('请输入Claude Code Refresh Token')}
+                            rules={isEdit ? [] : [{ required: true, message: t('请输入Refresh Token') }]}
+                            autoComplete='new-password'
+                            onChange={(value) => {
+                              handleInputChange('refresh_token', value);
+                              // 同时更新key字段，格式为access_token|refresh_token
+                              const accessToken = inputs.access_token || '';
+                              handleInputChange('key', `${accessToken}|${value}`);
+                            }}
+                            extraText={batchExtra}
+                            showClear
+                          />
                         </>
                       ) : (
                         <Form.Input
@@ -1631,11 +1761,19 @@ const EditChannelModal = (props) => {
                   <Form.TextArea
                     field='system_prompt'
                     label={t('系统提示词')}
-                    placeholder={t('输入系统提示词，用户的系统提示词将优先于此设置')}
-                    onChange={(value) => handleChannelSettingsChange('system_prompt', value)}
+                    placeholder={inputs.type === 53 ? t('Claude Code渠道系统提示词已固定') : t('输入系统提示词，用户的系统提示词将优先于此设置')}
+                    onChange={(value) => {
+                      if (inputs.type === 53) {
+                        // Claude Code渠道系统提示词固定，不允许修改
+                        return;
+                      }
+                      handleChannelSettingsChange('system_prompt', value);
+                    }}
+                    disabled={inputs.type === 53}
+                    value={inputs.type === 53 ? "You are Claude Code, Anthropic's official CLI for Claude." : undefined}
                     autosize
-                    showClear
-                    extraText={t('用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置')}
+                    showClear={inputs.type !== 53}
+                    extraText={inputs.type === 53 ? t('Claude Code渠道系统提示词固定为官方CLI身份，不可修改') : t('用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置')}
                   />
                 </Card>
               </div>
@@ -1648,6 +1786,68 @@ const EditChannelModal = (props) => {
           onVisibleChange={(visible) => setIsModalOpenurl(visible)}
         />
       </SideSheet>
+
+      {/* OAuth Authorization Modal */}
+      <Modal
+        title={t('生成Claude Code OAuth授权码')}
+        visible={showOAuthModal}
+        onCancel={() => {
+          setShowOAuthModal(false);
+          setAuthorizationCode('');
+          setOauthParams(null);
+        }}
+        onOk={handleExchangeCode}
+        okText={isExchangingCode ? t('交换中...') : t('确认')}
+        cancelText={t('取消')}
+        confirmLoading={isExchangingCode}
+        width={600}
+      >
+        <div className="space-y-4">
+          <div>
+            <Text className="text-sm font-medium mb-2 block">{t('请访问以下授权地址：')}</Text>
+            <div className="p-3 bg-gray-50 rounded-lg border">
+              <Text 
+                link
+                underline
+                className="text-sm font-mono break-all cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={() => {
+                  if (oauthParams?.auth_url) {
+                    window.open(oauthParams.auth_url, '_blank');
+                  }
+                }}
+              >
+                {oauthParams?.auth_url || t('正在生成授权地址...')}
+              </Text>
+              <div className="mt-2">
+                <Text 
+                  copyable={{ content: oauthParams?.auth_url }}
+                  type="tertiary" 
+                  size="small"
+                >
+                  {t('复制链接')}
+                </Text>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <Text className="text-sm font-medium mb-2 block">{t('授权后，请将获得的授权码粘贴到下方：')}</Text>
+            <Input
+              value={authorizationCode}
+              onChange={setAuthorizationCode}
+              placeholder={t('请输入授权码或回调URL')}
+              showClear
+              style={{ width: '100%' }}
+            />
+          </div>
+          
+          <Banner
+            type="info"
+            description={t('获得授权码后，系统将自动换取access token和refresh token并填充到表单中。')}
+            className="!rounded-lg"
+          />
+        </div>
+      </Modal>
     </>
   );
 };

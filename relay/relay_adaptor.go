@@ -9,6 +9,7 @@ import (
 	"one-api/relay/channel/baidu"
 	"one-api/relay/channel/baidu_v2"
 	"one-api/relay/channel/claude"
+	"one-api/relay/channel/claude_code"
 	"one-api/relay/channel/cloudflare"
 	"one-api/relay/channel/cohere"
 	"one-api/relay/channel/coze"
@@ -98,6 +99,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &coze.Adaptor{}
 	case constant.APITypeJimeng:
 		return &jimeng.Adaptor{}
+	case constant.APITypeClaudeCode:
+		return &claude_code.Adaptor{}
 	}
 	return nil
 }

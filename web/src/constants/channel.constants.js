@@ -159,6 +159,11 @@ export const CHANNEL_OPTIONS = [
     color: 'purple',
     label: 'Vidu',
   },
+  {
+    value: 53,
+    color: 'indigo',
+    label: 'Claude Code',
+  },
 ];
 
 export const MODEL_TABLE_PAGE_SIZE = 10;
