@@ -81,7 +81,7 @@ func getGeminiInputTokens(req *gemini.GeminiChatRequest, info *relaycommon.Relay
 
 func isNoThinkingRequest(req *gemini.GeminiChatRequest) bool {
 	if req.GenerationConfig.ThinkingConfig != nil && req.GenerationConfig.ThinkingConfig.ThinkingBudget != nil {
-		return *req.GenerationConfig.ThinkingConfig.ThinkingBudget <= 0
+		return *req.GenerationConfig.ThinkingConfig.ThinkingBudget == 0
 	}
 	return false
 }
