@@ -24,6 +24,12 @@ CURRENT_SCRIPT="$0"
 # 格式：# YYYY-MM-DD: 
 # 格式：# - 具体修改内容描述
 # 
+# 2025-07-25:
+# - 新增 -m 参数用于启动 mock server
+# - 添加 mock server 端口冲突检测和处理功能
+# - 为 mock server 提供端口冲突时的用户选择选项（结束进程、更换端口、退出）
+# - 实现 start_mock_server 函数，支持启动测试目录中的 mock_server.py
+# 
 # 2025-07-20:
 # - 新增 --clean 参数，用于清除本地编译的文件以防止缓存问题
 # - 添加 clean_compiled_files 函数，清除 new-api 二进制文件和 web/dist 目录
@@ -56,6 +62,7 @@ NC='\033[0m' # No Color
 
 # 默认端口配置
 DEFAULT_PORT=3000
+MOCK_SERVER_PORT=8080
 
 # 环境变量设置
 setup_environment() {
@@ -219,6 +226,7 @@ show_help() {
     echo "  -b, --build     编译前后端后启动"
     echo "  -f, --frontend  编译前端后启动"
     echo "  -bk, --backend  编译后端后启动"
+    echo "  -m, --mock      启动 mock server (用于测试)"
     echo "  --clean         清除本地编译文件 (new-api 二进制文件和 web/dist 目录)"
     echo "  --push          推送当前脚本到基准目录"
     echo "  --pull          从基准目录拉取脚本到当前目录"
@@ -231,6 +239,7 @@ show_help() {
     echo "  $0 -b           # 编译前后端后启动"
     echo "  $0 --frontend   # 编译前端后启动"
     echo "  $0 -bk          # 编译后端后启动"
+    echo "  $0 -m           # 启动 mock server"
     echo "  $0 --clean      # 清除编译文件"
     echo "  $0 --push       # 推送脚本到基准目录"
     echo "  $0 --pull       # 从基准目录拉取脚本"
@@ -498,6 +507,132 @@ direct_start() {
     start_service
 }
 
+# 处理 mock server 端口冲突
+handle_mock_port_conflict() {
+    local port=$1
+    print_message $RED "Mock server 端口 $port 已被占用！"
+    print_message $YELLOW "占用端口的进程信息："
+    get_port_process_info $port
+    echo ""
+    
+    print_message $YELLOW "请选择处理方式："
+    echo "1) 结束占用端口的进程"
+    echo "2) 使用其他端口启动 mock server"
+    echo "3) 退出"
+    echo -n "请输入选择 (1-3): "
+    
+    read -r choice
+    case $choice in
+        1)
+            kill_port_process $port
+            ;;
+        2)
+            choose_mock_alternative_port
+            ;;
+        3)
+            print_message $YELLOW "退出启动"
+            exit 0
+            ;;
+        *)
+            print_message $RED "无效选择，退出启动"
+            exit 1
+            ;;
+    esac
+}
+
+# 选择 mock server 的其他端口
+choose_mock_alternative_port() {
+    print_message $BLUE "正在寻找可用端口..."
+    
+    # 从当前端口开始，寻找下一个可用端口
+    local new_port=$((MOCK_SERVER_PORT + 1))
+    local max_attempts=100
+    local attempts=0
+    
+    while [ $attempts -lt $max_attempts ]; do
+        if ! check_port $new_port; then
+            print_message $GREEN "找到可用端口: $new_port"
+            export MOCK_SERVER_PORT=$new_port
+            return 0
+        fi
+        new_port=$((new_port + 1))
+        attempts=$((attempts + 1))
+    done
+    
+    # 如果没找到可用端口，让用户手动输入
+    print_message $YELLOW "未找到可用端口，请手动输入端口号："
+    echo -n "端口号: "
+    read -r manual_port
+    
+    if [[ "$manual_port" =~ ^[0-9]+$ ]] && [ "$manual_port" -ge 1024 ] && [ "$manual_port" -le 65535 ]; then
+        if check_port $manual_port; then
+            print_message $RED "端口 $manual_port 也被占用"
+            exit 1
+        else
+            export MOCK_SERVER_PORT=$manual_port
+            print_message $GREEN "将使用端口: $MOCK_SERVER_PORT"
+        fi
+    else
+        print_message $RED "无效的端口号"
+        exit 1
+    fi
+}
+
+# 启动 mock server
+start_mock_server() {
+    print_message $BLUE "启动 Mock Server..."
+    
+    # 检查 test 目录是否存在
+    if [ ! -d "test" ]; then
+        print_message $RED "未找到 test 目录"
+        return 1
+    fi
+    
+    # 检查 mock_server.py 是否存在
+    if [ ! -f "test/mock_server.py" ]; then
+        print_message $RED "未找到 test/mock_server.py 文件"
+        return 1
+    fi
+    
+    # 检查端口冲突
+    if check_port $MOCK_SERVER_PORT; then
+        handle_mock_port_conflict $MOCK_SERVER_PORT
+    fi
+    
+    print_message $GREEN "准备在端口 $MOCK_SERVER_PORT 启动 Mock Server..."
+    
+    # 进入 test 目录
+    cd test
+    
+    # 检查 uv 是否安装
+    if ! command -v uv &> /dev/null; then
+        print_message $YELLOW "uv 未安装，尝试使用 python 直接启动..."
+        
+        # 检查 python 是否可用
+        if ! command -v python &> /dev/null 2>&1; then
+            print_message $RED "python 未找到，请先安装 Python"
+            cd ..
+            return 1
+        fi
+        
+        # 使用 python 直接启动
+        print_message $GREEN "🌐 Mock Server 启动在 http://localhost:$MOCK_SERVER_PORT"
+        print_message $GREEN "📚 API 文档地址: http://localhost:$MOCK_SERVER_PORT/docs"
+        print_message $GREEN "🔍 健康检查: http://localhost:$MOCK_SERVER_PORT/health"
+        print_message $YELLOW "按 Ctrl+C 停止服务器"
+        MOCK_SERVER_PORT=$MOCK_SERVER_PORT python mock_server.py
+    else
+        # 使用 uv 启动
+        print_message $GREEN "🌐 Mock Server 启动在 http://localhost:$MOCK_SERVER_PORT"
+        print_message $GREEN "📚 API 文档地址: http://localhost:$MOCK_SERVER_PORT/docs"
+        print_message $GREEN "🔍 健康检查: http://localhost:$MOCK_SERVER_PORT/health"
+        print_message $YELLOW "按 Ctrl+C 停止服务器"
+        MOCK_SERVER_PORT=$MOCK_SERVER_PORT uv run --no-project python mock_server.py
+    fi
+    
+    cd ..
+}
+
 # 主函数
 main() {
     # 首先检查更新 (已禁用以避免覆盖本地修改)
@@ -517,6 +652,9 @@ main() {
             ;;
         -bk|--backend)
             backend_and_start
+            ;;
+        -m|--mock)
+            start_mock_server
             ;;
         --clean)
             clean_compiled_files

@@ -1096,7 +1096,7 @@ const EditChannelModal = (props) => {
                     />
                   )}
 
-                  {inputs.type === 52 && (
+                  {inputs.type === 53 && (
                     <>
                       <Banner
                         type='info'
@@ -1226,7 +1226,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && (
+                    {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && inputs.type !== 53 && (
                       <div>
                         <Form.Input
                           field='base_url'
@@ -1263,65 +1263,20 @@ const EditChannelModal = (props) => {
                       </div>
                     )}
 
-                  {inputs.type === 37 && (
-                    <Banner
-                      type='warning'
-                      description={t('Dify渠道只适配chatflow和agent，并且agent不支持图片！')}
-                      className='!rounded-lg'
-                    />
-                  )}
-
-                  {inputs.type === 52 && (
-                    <div>
-                      <Form.Input
-                        field='base_url'
-                        label={t('上游API地址')}
-                        placeholder={t('请输入上游API的完整地址，例如：https://api.example.com')}
-                        onChange={(value) => handleInputChange('base_url', value)}
-                        showClear
-                        rules={[{ required: true, message: t('请输入上游API地址') }]}
-                        helpText={t('CustomPass渠道需要配置上游API的完整地址')}
-                      />
-                    </div>
-                  )}
-
-                  {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && inputs.type !== 52 && (
-                    <div>
-                      <Form.Input
-                        field='base_url'
-                        label={t('API地址')}
-                        placeholder={t('此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/')}
-                        onChange={(value) => handleInputChange('base_url', value)}
-                        showClear
-                        extraText={t('对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写')}
-                      />
-                    </div>
-                  )}
-
-                  {inputs.type === 22 && (
-                    <div>
-                      <Form.Input
-                        field='base_url'
-                        label={t('私有部署地址')}
-                        placeholder={t('请输入私有部署地址，格式为：https://fastgpt.run/api/openapi')}
-                        onChange={(value) => handleInputChange('base_url', value)}
-                        showClear
-                      />
-                    </div>
-                  )}
-
-                  {inputs.type === 36 && (
-                    <div>
-                      <Form.Input
-                        field='base_url'
-                        label={t('注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用')}
-                        placeholder={t('请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com')}
-                        onChange={(value) => handleInputChange('base_url', value)}
-                        showClear
-                      />
-                    </div>
-                  )}
-                </Card>
+                    {inputs.type === 53 && (
+                      <div>
+                        <Form.Input
+                          field='base_url'
+                          label={t('上游API地址')}
+                          placeholder={t('请输入上游API的完整地址，例如：https://api.example.com')}
+                          onChange={(value) => handleInputChange('base_url', value)}
+                          showClear
+                          rules={[{ required: true, message: t('请输入上游API地址') }]}
+                          helpText={t('CustomPass渠道需要配置上游API的完整地址')}
+                        />
+                      </div>
+                    )}
+                  </Card>
                 )}
 
                 {/* Model Configuration Card */}
@@ -1337,7 +1292,7 @@ const EditChannelModal = (props) => {
                     </div>
                   </div>
 
-                  {inputs.type === 52 && (
+                  {inputs.type === 53 && (
                     <Banner
                       type='info'
                       description={
@@ -1346,8 +1301,7 @@ const EditChannelModal = (props) => {
                           <div className="mt-2">
                             <Text>{t('• 同步模型：直接透传，立即返回结果，如：gpt-4, claude-3')}</Text><br/>
                             <Text>{t('• 异步模型：模型名称必须以 /submit 结尾，如：custom-image-gen/submit')}</Text><br/>
-                            <Text>{t('• 支持混合配置：可同时配置同步和异步模型')}</Text><br/>
-                            <Text>{t('• 计费策略：支持免费、按量计费和按次计费三种模式')}</Text>
+                            <Text>{t('• 系统会根据模型名称自动识别处理模式')}</Text>
                           </div>
                         </div>
                       }
@@ -1406,7 +1360,7 @@ const EditChannelModal = (props) => {
                   <Form.Input
                     field='custom_model'
                     label={t('自定义模型名称')}
-                    placeholder={inputs.type === 52 ? t('输入模型名称，异步模型需以/submit结尾，多个用逗号分隔') : t('输入自定义模型名称')}
+                    placeholder={inputs.type === 53 ? t('输入模型名称，异步模型需以/submit结尾，多个用逗号分隔') : t('输入自定义模型名称')}
                     onChange={(value) => setCustomModel(value.trim())}
                     value={customModel}
                     suffix={
@@ -1414,7 +1368,7 @@ const EditChannelModal = (props) => {
                         {t('填入')}
                       </Button>
                     }
-                    helpText={inputs.type === 52 ? t('示例：gpt-4,claude-3,custom-image-gen/submit') : undefined}
+                    helpText={inputs.type === 53 ? t('示例：gpt-4,claude-3,custom-image-gen/submit') : undefined}
                   />
 
                   <Form.Input
@@ -1444,6 +1398,25 @@ const EditChannelModal = (props) => {
                     }
                     showClear
                   />
+
+                  {inputs.type === 53 && (
+                    <>
+                      <Banner
+                        type='info'
+                        description={
+                          <div>
+                            <Text strong>{t('CustomPass 配置优先级说明')}:</Text>
+                            <div className="mt-2">
+                              <Text>{t('1. 环境变量 > 渠道配置 > 默认值')}</Text><br/>
+                              <Text>{t('2. CUSTOM_PASS_HEADER_KEY 环境变量可全局设置Token头名称')}</Text><br/>
+                              <Text>{t('3. 渠道额外设置可覆盖特定配置项')}</Text>
+                            </div>
+                          </div>
+                        }
+                        className='!rounded-lg mt-4'
+                      />
+                    </>
+                  )}
                 </Card>
 
                 {/* Advanced Settings Card */}
@@ -1552,49 +1525,6 @@ const EditChannelModal = (props) => {
                     }
                     showClear
                   />
-
-                  {inputs.type === 52 && (
-                    <>
-                      <Banner
-                        type='info'
-                        description={
-                          <div>
-                            <Text strong>{t('CustomPass 配置优先级说明')}:</Text>
-                            <div className="mt-2">
-                              <Text>{t('1. 环境变量 > 渠道配置 > 默认值')}</Text><br/>
-                              <Text>{t('2. 自定义Token头：CUSTOM_PASS_HEADER_KEY > 渠道配置 > X-Custom-Token')}</Text><br/>
-                              <Text>{t('3. 状态映射：渠道配置 > CUSTOM_PASS_STATUS_* > 内置映射')}</Text>
-                            </div>
-                          </div>
-                        }
-                        className='!rounded-lg mb-4'
-                      />
-                      <Form.TextArea
-                        field='custompass_status_mapping'
-                        label={t('状态映射配置')}
-                        placeholder={
-                          t('可选，用于配置异步任务状态映射，为一个 JSON 字符串，例如：') +
-                          '\n{\n  "success": ["completed", "success", "finished"],\n  "failed": ["failed", "error", "cancelled"],\n  "processing": ["processing", "pending", "running"]\n}'
-                        }
-                        autosize
-                        onChange={(value) => handleInputChange('custompass_status_mapping', value)}
-                        extraText={
-                          <Text
-                            className="!text-semi-color-primary cursor-pointer"
-                            onClick={() => handleInputChange('custompass_status_mapping', JSON.stringify({
-                              success: ["completed", "success", "finished"],
-                              failed: ["failed", "error", "cancelled"],
-                              processing: ["processing", "pending", "running"]
-                            }, null, 2))}
-                          >
-                            {t('填入模板')}
-                          </Text>
-                        }
-                        showClear
-                        helpText={t('用于将上游API返回的任务状态映射到系统内部状态')}
-                      />
-                    </>
-                  )}
 
                   <Form.TextArea
                     field='setting'
