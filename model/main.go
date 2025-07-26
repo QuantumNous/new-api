@@ -182,6 +182,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		}
 		return gorm.Open(mysql.Open(dsn), &gorm.Config{
 			PrepareStmt: true, // precompile SQL
+			// For Gorm NewVersion:	DisableForeignKeyConstraintWhenMigrating: true,  Disable FK constraints during migration
 		})
 	}
 	// Use SQLite
@@ -350,7 +351,6 @@ SETTINGS index_granularity = 8192,
 			"CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs (created_at) TYPE minmax",
 			"CREATE INDEX IF NOT EXISTS idx_logs_created_user ON logs (created_at, user_id) TYPE minmax",
 			"CREATE INDEX IF NOT EXISTS idx_logs_created_model ON logs (created_at, model_name) TYPE minmax",
-			"CREATE INDEX IF NOT EXISTS idx_logs_model_name ON logs (model_name) TYPE set(0)",
 		}
 
 		for _, index := range indices {

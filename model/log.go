@@ -60,15 +60,24 @@ func formatUserLogs(logs []*Log) {
 }
 
 func GetLogByKey(key string) (logs []*Log, err error) {
+	var query *gorm.DB
 	if os.Getenv("LOG_SQL_DSN") != "" {
 		var tk Token
 		if err = DB.Model(&Token{}).Where(logKeyCol+"=?", strings.TrimPrefix(key, "sk-")).First(&tk).Error; err != nil {
 			return nil, err
 		}
-		err = LOG_DB.Model(&Log{}).Where("token_id=?", tk.Id).Find(&logs).Error
+		query = LOG_DB.Model(&Log{}).Where("token_id=?", tk.Id)
 	} else {
-		err = LOG_DB.Joins("left join tokens on tokens.id = logs.token_id").Where("tokens.key = ?", strings.TrimPrefix(key, "sk-")).Find(&logs).Error
+		query = LOG_DB.Joins("left join tokens on tokens.id = logs.token_id").Where("tokens.key = ?", strings.TrimPrefix(key, "sk-"))
 	}
+
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		// Clickhouse does not use primary key (id) for ordering.
+		err = query.Order("created_at desc").Find(&logs).Error
+	} else {
+		err = query.Order("id desc").Find(&logs).Error
+	}
+
 	formatUserLogs(logs)
 	return logs, err
 }
@@ -231,7 +240,11 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if err != nil {
 		return nil, 0, err
 	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		err = tx.Order("logs.created_at desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	} else {
+		err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	}
 	if err != nil {
 		return nil, 0, err
 	}
@@ -294,7 +307,11 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	if err != nil {
 		return nil, 0, err
 	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		err = tx.Order("logs.created_at desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	} else {
+		err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	}
 	if err != nil {
 		return nil, 0, err
 	}
@@ -304,12 +321,20 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 }
 
 func SearchAllLogs(keyword string) (logs []*Log, err error) {
-	err = LOG_DB.Where("type = ? or content LIKE ?", keyword, keyword+"%").Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		err = LOG_DB.Where("type = ? or content LIKE ?", keyword, keyword+"%").Order("created_at desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	} else {
+		err = LOG_DB.Where("type = ? or content LIKE ?", keyword, keyword+"%").Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	}
 	return logs, err
 }
 
 func SearchUserLogs(userId int, keyword string) (logs []*Log, err error) {
-	err = LOG_DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		err = LOG_DB.Where("user_id = ? and type = ?", userId, keyword).Order("created_at desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	} else {
+		err = LOG_DB.Where("user_id = ? and type = ?", userId, keyword).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	}
 	formatUserLogs(logs)
 	return logs, err
 }
@@ -373,7 +398,7 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	} else {
 		selectSQL = "ifnull(sum(prompt_tokens),0) + ifnull(sum(completion_tokens),0)"
 	}
-	
+
 	tx := LOG_DB.Table("logs").Select(selectSQL)
 	if username != "" {
 		tx = tx.Where("username = ?", username)
