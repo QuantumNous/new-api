@@ -80,6 +80,12 @@ func main() {
 		common.SysLog(fmt.Sprintf("log sample ratio set to %d%%", ratio))
 	}
 
+	// 读取请求体日志配置
+	if os.Getenv("ENABLE_REQUEST_BODY_LOGGING") == "true" {
+		middleware.EnableRequestBodyLogging = true
+		common.SysLog("request body logging enabled")
+	}
+
 	common.SetupLogger()
 	common.SysLog("New API " + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {
