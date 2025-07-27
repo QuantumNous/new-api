@@ -517,6 +517,9 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		common.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
 			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, preConsumedQuota))
 	} else {
+		if !ratio.IsZero() && quota == 0 {
+			quota = 1
+		}
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
