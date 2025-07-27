@@ -13,7 +13,7 @@ import (
 )
 
 // EnableRequestBodyLogging 控制是否打印请求体
-var EnableRequestBodyLogging bool = true
+var EnableRequestBodyLogging bool = false
 
 // 需要过滤的字段
 var encodingFields = map[string]bool{
