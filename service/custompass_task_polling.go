@@ -411,44 +411,91 @@ func (s *TaskPollingService) processChannelTasks(channelId int, tasks []*model.T
 		return
 	}
 
-	// Extract task IDs for query and get model name from first task
-	taskIDs := make([]string, 0, len(tasks))
-	taskMap := make(map[string]*model.Task)
-	var modelName string
-
+	// Group tasks by model and client token
+	type taskGroup struct {
+		token     string
+		headerKey string
+		tasks     []*model.Task
+		taskMap   map[string]*model.Task
+	}
+	
+	// Group by model first, then by token
+	tasksByModel := make(map[string]map[string]*taskGroup)
+	
 	for _, task := range tasks {
-		if task.TaskID != "" {
-			taskIDs = append(taskIDs, task.TaskID)
-			taskMap[task.TaskID] = task
-			// Use the model name from the first task (all tasks in a channel should have the same model)
-			if modelName == "" {
-				modelName = task.Action
+		if task.TaskID == "" {
+			continue
+		}
+		
+		modelName := task.Action
+		if modelName == "" {
+			continue
+		}
+		
+		// Extract client token and header key from Properties.Input
+		clientToken := ""
+		headerKey := "X-Custom-Token" // default
+		
+		if task.Properties.Input != "" {
+			var inputData map[string]interface{}
+			if err := json.Unmarshal([]byte(task.Properties.Input), &inputData); err == nil {
+				if token, ok := inputData["token"].(string); ok {
+					clientToken = token
+				}
+				if key, ok := inputData["headerKey"].(string); ok {
+					headerKey = key
+				}
 			}
 		}
+		
+		// Initialize model group if not exists
+		if _, exists := tasksByModel[modelName]; !exists {
+			tasksByModel[modelName] = make(map[string]*taskGroup)
+		}
+		
+		// Initialize token group if not exists
+		if _, exists := tasksByModel[modelName][clientToken]; !exists {
+			tasksByModel[modelName][clientToken] = &taskGroup{
+				token:     clientToken,
+				headerKey: headerKey,
+				tasks:     []*model.Task{},
+				taskMap:   make(map[string]*model.Task),
+			}
+		}
+		
+		group := tasksByModel[modelName][clientToken]
+		group.tasks = append(group.tasks, task)
+		group.taskMap[task.TaskID] = task
 	}
-
-	if len(taskIDs) == 0 {
-		return
+	
+	// Process each model and token group
+	for modelName, tokenGroups := range tasksByModel {
+		for _, group := range tokenGroups {
+			// Extract task IDs
+			taskIDs := make([]string, 0, len(group.tasks))
+			for _, task := range group.tasks {
+				taskIDs = append(taskIDs, task.TaskID)
+			}
+			
+			if len(taskIDs) == 0 {
+				continue
+			}
+			
+			// Query upstream for task status with token information
+			taskInfos, err := s.queryUpstreamTasksWithToken(channel, taskIDs, modelName, group.token, group.headerKey)
+			if err != nil {
+				common.SysError(fmt.Sprintf("Failed to query upstream tasks for channel %d: %v", channelId, err))
+				continue
+			}
+			
+			// Update local task statuses
+			s.updateTaskStatuses(group.taskMap, taskInfos)
+		}
 	}
-
-	if modelName == "" {
-		common.SysError(fmt.Sprintf("No model name found for tasks in channel %d", channelId))
-		return
-	}
-
-	// Query upstream for task status
-	taskInfos, err := s.queryUpstreamTasks(channel, taskIDs, modelName)
-	if err != nil {
-		common.SysError(fmt.Sprintf("Failed to query upstream tasks for channel %d: %v", channelId, err))
-		return
-	}
-
-	// Update local task statuses
-	s.updateTaskStatuses(taskMap, taskInfos)
 }
 
-// queryUpstreamTasks queries upstream API for task statuses
-func (s *TaskPollingService) queryUpstreamTasks(channel *model.Channel, taskIDs []string, modelName string) ([]*TaskInfo, error) {
+// queryUpstreamTasksWithToken queries upstream API for task statuses with client token
+func (s *TaskPollingService) queryUpstreamTasksWithToken(channel *model.Channel, taskIDs []string, modelName string, clientToken string, headerKey string) ([]*TaskInfo, error) {
 	// Build query request
 	queryReq := TaskQueryRequest{
 		TaskIDs: taskIDs,
@@ -459,13 +506,9 @@ func (s *TaskPollingService) queryUpstreamTasks(channel *model.Channel, taskIDs 
 		return nil, fmt.Errorf("failed to marshal query request: %v", err)
 	}
 
-	// Build upstream URL with model_without_submit
+	// Build upstream URL
 	baseURL := channel.GetBaseURL()
-	if baseURL == "" {
-		return nil, fmt.Errorf("channel base URL not configured")
-	}
-
-	// For task query, remove /submit suffix to get base model name (model_without_submit)
+	// Remove /submit suffix if present
 	baseModelName := strings.TrimSuffix(modelName, "/submit")
 	upstreamURL := fmt.Sprintf("%s/%s/task/list-by-condition", strings.TrimSuffix(baseURL, "/"), baseModelName)
 
@@ -473,6 +516,12 @@ func (s *TaskPollingService) queryUpstreamTasks(channel *model.Channel, taskIDs 
 	headers := map[string]string{
 		"Authorization": "Bearer " + channel.Key,
 		"Content-Type":  "application/json",
+	}
+	
+	// Add client token header if available
+	if clientToken != "" && headerKey != "" {
+		headers[headerKey] = clientToken
+		common.SysLog(fmt.Sprintf("[CustomPass-Request-Debug] 添加客户端token头 - %s: %s", headerKey, clientToken))
 	}
 
 	// Log upstream request details
@@ -507,21 +556,26 @@ func (s *TaskPollingService) queryUpstreamTasks(channel *model.Channel, taskIDs 
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	// Log upstream response
-	common.SysLog(fmt.Sprintf("[CustomPass-Response-Debug] 任务轮询响应状态码: %d", resp.StatusCode))
-	common.SysLog(fmt.Sprintf("[CustomPass-Response-Debug] 任务轮询响应Body: %s", string(respBody)))
+	// Log raw response
+	common.SysLog(fmt.Sprintf("[CustomPass-Request-Debug] 任务轮询Raw Response: %s", string(respBody)))
 
 	// Parse response
 	var queryResp TaskQueryResponse
 	if err := json.Unmarshal(respBody, &queryResp); err != nil {
-		return nil, fmt.Errorf("failed to parse query response: %v", err)
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
+	// Check response status
 	if !queryResp.IsSuccess() {
-		return nil, fmt.Errorf("upstream query failed: %s", queryResp.GetMessage())
+		return nil, fmt.Errorf("upstream query failed: code=%v, message=%s", queryResp.Code, queryResp.GetMessage())
 	}
 
-	return queryResp.GetTaskList(), nil
+	return queryResp.Data, nil
+}
+
+// queryUpstreamTasks queries upstream API for task statuses (backward compatibility)
+func (s *TaskPollingService) queryUpstreamTasks(channel *model.Channel, taskIDs []string, modelName string) ([]*TaskInfo, error) {
+	return s.queryUpstreamTasksWithToken(channel, taskIDs, modelName, "", "")
 }
 
 // updateTaskStatuses updates local task statuses based on upstream response

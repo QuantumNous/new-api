@@ -352,82 +352,147 @@ func (s *PollingServiceImpl) QueryChannelModelTasks(channel *model.Channel, task
 		return nil
 	}
 
-	// Extract task IDs
-	taskIDs := make([]string, len(tasks))
-	for i, task := range tasks {
-		taskIDs[i] = task.TaskID
+	// Group tasks by client token and header key
+	type tokenGroup struct {
+		token     string
+		headerKey string
+		tasks     []*model.Task
 	}
-
-	// Build query request
-	queryRequest := &TaskQueryRequest{
-		TaskIDs: taskIDs,
-	}
-
-	// Build query URL using model-specific endpoint
-	baseURL := channel.GetBaseURL()
-	if !strings.HasSuffix(baseURL, "/") {
-		baseURL += "/"
-	}
-	// Remove /submit suffix from model name for URL construction
-	cleanModelName := strings.TrimSuffix(modelName, "/submit")
-	queryURL := fmt.Sprintf("%s%s/task/list-by-condition", baseURL, cleanModelName)
-
-	// Build request body
-	requestBody, err := json.Marshal(queryRequest)
-	if err != nil {
-		return fmt.Errorf("failed to marshal query request: %w", err)
-	}
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(s.ctx, "POST", queryURL, bytes.NewBuffer(requestBody))
-	if err != nil {
-		return fmt.Errorf("failed to create query request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+channel.Key)
-
-	// Send request
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send query request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read query response: %w", err)
-	}
-
-	// Log raw response before parsing
-	common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] 原始查询响应: %s", string(responseBody)))
+	tokenGroups := make(map[string]*tokenGroup)
 	
-	// Parse response
-	var queryResponse TaskQueryResponse
-	if err := json.Unmarshal(responseBody, &queryResponse); err != nil {
-		return fmt.Errorf("failed to parse query response: %w", err)
+	for _, task := range tasks {
+		// Log task information for debugging
+		common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] Task ID: %s, Properties.Input: %s", 
+			task.TaskID, task.Properties.Input))
+		
+		// Extract client token and header key from Properties.Input
+		clientToken := ""
+		headerKey := "X-Custom-Token" // default
+		
+		if task.Properties.Input != "" {
+			var inputData map[string]interface{}
+			if err := json.Unmarshal([]byte(task.Properties.Input), &inputData); err == nil {
+				if token, ok := inputData["token"].(string); ok {
+					clientToken = token
+				}
+				if key, ok := inputData["headerKey"].(string); ok {
+					headerKey = key
+				}
+				// Log extracted values
+				common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] Task ID: %s, Extracted token: %s, headerKey: %s", 
+					task.TaskID, clientToken, headerKey))
+			} else {
+				common.SysError(fmt.Sprintf("[CustomPass-Polling-Debug] Failed to parse Properties.Input for task %s: %v", 
+					task.TaskID, err))
+			}
+		}
+		
+		// Group by token
+		groupKey := clientToken
+		if _, exists := tokenGroups[groupKey]; !exists {
+			tokenGroups[groupKey] = &tokenGroup{
+				token:     clientToken,
+				headerKey: headerKey,
+				tasks:     []*model.Task{},
+			}
+		}
+		tokenGroups[groupKey].tasks = append(tokenGroups[groupKey].tasks, task)
 	}
 
-	// Log parsed response structure before validation
-	common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] 验证前的查询响应内容 - Code: %v, Message: %s, Msg: %s, Data数量: %d", 
-		queryResponse.Code, queryResponse.Message, queryResponse.Msg, len(queryResponse.Data)))
-	
-	// Validate response
-	if err := queryResponse.ValidateResponse(); err != nil {
-		common.SysError(fmt.Sprintf("[CustomPass-Polling-Debug] 查询响应验证失败: %v", err))
-		return fmt.Errorf("invalid query response: %w", err)
+	// Query tasks for each client token group
+	for _, group := range tokenGroups {
+		// Extract task IDs
+		taskIDs := make([]string, len(group.tasks))
+		for i, task := range group.tasks {
+			taskIDs[i] = task.TaskID
+		}
+
+		// Build query request
+		queryRequest := &TaskQueryRequest{
+			TaskIDs: taskIDs,
+		}
+
+		// Build query URL using model-specific endpoint
+		baseURL := channel.GetBaseURL()
+		if !strings.HasSuffix(baseURL, "/") {
+			baseURL += "/"
+		}
+		// Remove /submit suffix from model name for URL construction
+		cleanModelName := strings.TrimSuffix(modelName, "/submit")
+		queryURL := fmt.Sprintf("%s%s/task/list-by-condition", baseURL, cleanModelName)
+
+		// Build request body
+		requestBody, err := json.Marshal(queryRequest)
+		if err != nil {
+			return fmt.Errorf("failed to marshal query request: %w", err)
+		}
+
+		// Create HTTP request
+		req, err := http.NewRequestWithContext(s.ctx, "POST", queryURL, bytes.NewBuffer(requestBody))
+		if err != nil {
+			return fmt.Errorf("failed to create query request: %w", err)
+		}
+
+		// Set headers
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+channel.Key)
+		
+		// Add client token header if available
+		if group.token != "" {
+			req.Header.Set(group.headerKey, group.token)
+			common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] Setting custom header - %s: %s", 
+				group.headerKey, group.token))
+		}
+		
+		// Log all headers for debugging
+		common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] Request URL: %s", queryURL))
+		common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] Request Headers: %+v", req.Header))
+
+		// Send request
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send query request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		// Read response
+		responseBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read query response: %w", err)
+		}
+
+		// Log raw response before parsing
+		common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] 原始查询响应: %s", string(responseBody)))
+		
+		// Parse response
+		var queryResponse TaskQueryResponse
+		if err := json.Unmarshal(responseBody, &queryResponse); err != nil {
+			return fmt.Errorf("failed to parse query response: %w", err)
+		}
+
+		// Log parsed response structure before validation
+		common.SysLog(fmt.Sprintf("[CustomPass-Polling-Debug] 验证前的查询响应内容 - Code: %v, Message: %s, Msg: %s, Data数量: %d", 
+			queryResponse.Code, queryResponse.Message, queryResponse.Msg, len(queryResponse.Data)))
+		
+		// Validate response
+		if err := queryResponse.ValidateResponse(); err != nil {
+			common.SysError(fmt.Sprintf("[CustomPass-Polling-Debug] 查询响应验证失败: %v", err))
+			return fmt.Errorf("invalid query response: %w", err)
+		}
+
+		// Check if response indicates success
+		if !queryResponse.IsSuccess() {
+			return fmt.Errorf("query request failed: %s", queryResponse.GetMessage())
+		}
+
+		// Process task updates
+		statusMapping := s.config.GetStatusMapping()
+		if err := s.ProcessTaskUpdates(group.tasks, queryResponse.Data, statusMapping); err != nil {
+			return err
+		}
 	}
 
-	// Check if response indicates success
-	if !queryResponse.IsSuccess() {
-		return fmt.Errorf("query request failed: %s", queryResponse.GetMessage())
-	}
-
-	// Process task updates
-	statusMapping := s.config.GetStatusMapping()
-	return s.ProcessTaskUpdates(tasks, queryResponse.Data, statusMapping)
+	return nil
 }
 
 // QueryChannelTasks queries tasks for a specific channel (backward compatibility)

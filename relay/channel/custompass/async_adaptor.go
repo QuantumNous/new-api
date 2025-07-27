@@ -114,6 +114,17 @@ func (a *AsyncAdaptorImpl) SubmitTask(c *gin.Context, channel *model.Channel, mo
 		return nil, err
 	}
 
+	// Get custom header key (userToken already retrieved above)
+	customHeaderKey := a.authService.GetCustomTokenHeader(channel)
+	
+	// Create input object with payload, token and header key
+	inputData := map[string]interface{}{
+		"payload":    json.RawMessage(requestBody),
+		"token":      userToken,
+		"headerKey":  customHeaderKey,
+	}
+	inputJSON, _ := json.Marshal(inputData)
+
 	// Only create task record after successful upstream submission
 	task := &model.Task{
 		Platform:   constant.TaskPlatformCustomPass,
@@ -126,7 +137,7 @@ func (a *AsyncAdaptorImpl) SubmitTask(c *gin.Context, channel *model.Channel, mo
 		SubmitTime: time.Now().Unix(),
 		StartTime:  time.Now().Unix(),
 		Properties: model.Properties{
-			Input:       string(requestBody),
+			Input:       string(inputJSON),
 			BillingInfo: billingInfo, // Save billing context from precharge
 		},
 		Quota: int(prechargeAmount),
