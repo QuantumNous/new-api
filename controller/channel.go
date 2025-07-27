@@ -7,6 +7,7 @@ import (
 	"one-api/common"
 	"one-api/constant"
 	"one-api/model"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -168,14 +169,42 @@ func FetchUpstreamModels(c *gin.Context) {
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
-	url := fmt.Sprintf("%s/v1/models", baseURL)
-	switch channel.Type {
-	case constant.ChannelTypeGemini:
-		url = fmt.Sprintf("%s/v1beta/openai/models", baseURL)
-	case constant.ChannelTypeAli:
-		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
+
+	// 处理URL
+	// 1. 处理 '#'，只保留前方内容
+	processedURL, _, found := strings.Cut(baseURL, "#")
+
+	var url string
+	if found {
+		url = processedURL
+	} else {
+		// 没有找到 '#'，继续检查版本号
+		re := regexp.MustCompile(`//v\d/`)
+		hasVersionPattern := re.MatchString(processedURL)
+
+		if hasVersionPattern {
+			// 替换为 /
+			processedURL = re.ReplaceAllString(processedURL, "/")
+		}
+
+		switch channel.Type {
+		case constant.ChannelTypeGemini:
+			// curl https://example.com/v1beta/models?key=$GEMINI_API_KEY
+			url = fmt.Sprintf("%s/v1beta/openai/models?key=%s", processedURL, channel.Key)
+		case constant.ChannelTypeAli:
+			url = fmt.Sprintf("%s/compatible-mode/v1/models", processedURL)
+		default:
+			if hasVersionPattern {
+				url = fmt.Sprintf("%s/models", processedURL)
+			} else {
+				url = fmt.Sprintf("%s/v1/models", processedURL)
+			}
+		}
 	}
+
+	// 获取响应体
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+
 	if err != nil {
 		common.ApiError(c, err)
 		return
