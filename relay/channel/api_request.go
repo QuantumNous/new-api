@@ -24,11 +24,16 @@ import (
 
 func ProcessURL(fullRequestURL string) string {
 	// 强制处理 '#'，只保留前方内容
-	processedURL, _, _ := strings.Cut(fullRequestURL, "#")
+	processedURL, _, found := strings.Cut(fullRequestURL, "#")
 
-	// 使用正则表达式处理版本号路径
-	re := regexp.MustCompile(`(/v\d/)//v\d/`)
-	finalURL := re.ReplaceAllString(processedURL, "$1")
+	// 如果找到了 '#'，直接返回截取后的字符串
+	if found {
+		return processedURL
+	}
+
+	// 使用正则表达式处理版本号路径 //v4/ -> /
+	re := regexp.MustCompile(`//v\d/`)
+	finalURL := re.ReplaceAllString(processedURL, "/")
 
 	return finalURL
 }
