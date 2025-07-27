@@ -202,9 +202,13 @@ func FetchUpstreamModels(c *gin.Context) {
 		}
 	}
 
-	// 获取响应体
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
-
+	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
+	var body []byte
+	if channel.Type == constant.ChannelTypeGemini {
+		body, err = GetResponseBody("GET", url, channel, nil) // I don't know why, but Gemini requires no AuthHeader
+	} else {
+		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
