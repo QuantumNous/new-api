@@ -100,6 +100,10 @@ func Distribute() func(c *gin.Context) {
 			}
 
 			if shouldSelectChannel {
+				if modelRequest.Model == "" {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, "未指定模型名称，模型名称不能为空")
+					return
+				}
 				var selectGroup string
 				channel, selectGroup, err = model.CacheGetRandomSatisfiedChannel(c, userGroup, modelRequest.Model, 0)
 				if err != nil {
@@ -107,18 +111,17 @@ func Distribute() func(c *gin.Context) {
 					if userGroup == "auto" {
 						showGroup = fmt.Sprintf("auto(%s)", selectGroup)
 					}
-					message := fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道", showGroup, modelRequest.Model)
+					message := fmt.Sprintf("获取分组 %s 下模型 %s 的可用渠道失败（数据库一致性已被破坏，distributor）: %s", showGroup, modelRequest.Model, err.Error())
 					// 如果错误，但是渠道不为空，说明是数据库一致性问题
-					if channel != nil {
-						common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-						message = "数据库一致性已被破坏，请联系管理员"
-					}
-					// 如果错误，而且渠道为空，说明是没有可用渠道
+					//if channel != nil {
+					//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
+					//	message = "数据库一致性已被破坏，请联系管理员"
+					//}
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message)
 					return
 				}
 				if channel == nil {
-					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道（数据库一致性已被破坏）", userGroup, modelRequest.Model))
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("分组 %s 下模型 %s 无可用渠道（distributor）", userGroup, modelRequest.Model))
 					return
 				}
 			}
@@ -174,22 +177,13 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
 		err = common.UnmarshalBodyReusable(c, &modelRequest)
-		var platform string
-		var relayMode int
-		if strings.HasPrefix(modelRequest.Model, "jimeng") {
-			platform = string(constant.TaskPlatformJimeng)
-			relayMode = relayconstant.Path2RelayJimeng(c.Request.Method, c.Request.URL.Path)
-			if relayMode == relayconstant.RelayModeJimengFetchByID {
-				shouldSelectChannel = false
-			}
-		} else {
-			platform = string(constant.TaskPlatformKling)
-			relayMode = relayconstant.Path2RelayKling(c.Request.Method, c.Request.URL.Path)
-			if relayMode == relayconstant.RelayModeKlingFetchByID {
-				shouldSelectChannel = false
-			}
+		relayMode := relayconstant.RelayModeUnknown
+		if c.Request.Method == http.MethodPost {
+			relayMode = relayconstant.RelayModeVideoSubmit
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
 		}
-		c.Set("platform", platform)
 		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent

@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useContext, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -5,15 +24,15 @@ import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
 
 // Context
 import { UserContext } from '../../context/User/index.js';
-import { useIsMobile } from '../../hooks/useIsMobile.js';
+import { useIsMobile } from '../../hooks/common/useIsMobile.js';
 
 // hooks
-import { usePlaygroundState } from '../../hooks/usePlaygroundState.js';
-import { useMessageActions } from '../../hooks/useMessageActions.js';
-import { useApiRequest } from '../../hooks/useApiRequest.js';
-import { useSyncMessageAndCustomBody } from '../../hooks/useSyncMessageAndCustomBody.js';
-import { useMessageEdit } from '../../hooks/useMessageEdit.js';
-import { useDataLoader } from '../../hooks/useDataLoader.js';
+import { usePlaygroundState } from '../../hooks/playground/usePlaygroundState.js';
+import { useMessageActions } from '../../hooks/playground/useMessageActions.js';
+import { useApiRequest } from '../../hooks/playground/useApiRequest.js';
+import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody.js';
+import { useMessageEdit } from '../../hooks/playground/useMessageEdit.js';
+import { useDataLoader } from '../../hooks/playground/useDataLoader.js';
 
 // Constants and utils
 import {
@@ -352,28 +371,18 @@ const Playground = () => {
   }, [setMessage, saveMessagesImmediately]);
 
   return (
-    <div className="h-full bg-gray-50 mt-[64px]">
-      <Layout style={{ height: '100%', background: 'transparent' }} className="flex flex-col md:flex-row">
+    <div className="h-full">
+      <Layout className="h-full bg-transparent flex flex-col md:flex-row">
         {(showSettings || !isMobile) && (
           <Layout.Sider
-            style={{
-              background: 'transparent',
-              borderRight: 'none',
-              flexShrink: 0,
-              minWidth: isMobile ? '100%' : 320,
-              maxWidth: isMobile ? '100%' : 320,
-              height: isMobile ? 'auto' : 'calc(100vh - 66px)',
-              overflow: 'auto',
-              position: isMobile ? 'fixed' : 'relative',
-              zIndex: isMobile ? 1000 : 1,
-              width: '100%',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
+            className={`
+              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
+              ${isMobile
+                ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
+                : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+              }
+            `}
             width={isMobile ? '100%' : 320}
-            className={isMobile ? 'bg-white shadow-lg' : ''}
           >
             <OptimizedSettingsPanel
               inputs={inputs}
@@ -399,7 +408,7 @@ const Playground = () => {
         )}
 
         <Layout.Content className="relative flex-1 overflow-hidden">
-          <div className="overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)]">
+          <div className="overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]">
             <div className="flex-1 flex flex-col">
               <ChatArea
                 chatRef={chatRef}
@@ -436,19 +445,7 @@ const Playground = () => {
 
           {/* 调试面板 - 移动端覆盖层 */}
           {showDebugPanel && isMobile && (
-            <div
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 1000,
-                backgroundColor: 'white',
-                overflow: 'auto',
-              }}
-              className="shadow-lg"
-            >
+            <div className="fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg">
               <OptimizedDebugPanel
                 debugData={debugData}
                 activeDebugTab={activeDebugTab}

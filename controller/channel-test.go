@@ -69,6 +69,12 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 			newAPIError: nil,
 		}
 	}
+	if channel.Type == constant.ChannelTypeVidu {
+		return testResult{
+			localErr:    errors.New("vidu channel test is not supported"),
+			newAPIError: nil,
+		}
+	}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 

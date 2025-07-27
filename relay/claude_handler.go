@@ -80,7 +80,6 @@ func ClaudeHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
 	}
 	adaptor.Init(relayInfo)
-	var requestBody io.Reader
 
 	if textRequest.MaxTokens == 0 {
 		textRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
@@ -108,18 +107,41 @@ func ClaudeHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		relayInfo.UpstreamModelName = textRequest.Model
 	}
 
-	convertedRequest, err := adaptor.ConvertClaudeRequest(c, relayInfo, textRequest)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+	var requestBody io.Reader
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || relayInfo.ChannelSetting.PassThroughBodyEnabled {
+		body, err := common.GetRequestBody(c)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest)
+		}
+		requestBody = bytes.NewBuffer(body)
+	} else {
+		convertedRequest, err := adaptor.ConvertClaudeRequest(c, relayInfo, textRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		}
+		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		}
+
+		// apply param override
+		if len(relayInfo.ParamOverride) > 0 {
+			reqMap := make(map[string]interface{})
+			_ = common.Unmarshal(jsonData, &reqMap)
+			for key, value := range relayInfo.ParamOverride {
+				reqMap[key] = value
+			}
+			jsonData, err = common.Marshal(reqMap)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)
+			}
+		}
+
+		if common.DebugEnabled {
+			println("requestBody: ", string(jsonData))
+		}
+		requestBody = bytes.NewBuffer(jsonData)
 	}
-	jsonData, err := common.Marshal(convertedRequest)
-	if common.DebugEnabled {
-		println("requestBody: ", string(jsonData))
-	}
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
-	}
-	requestBody = bytes.NewBuffer(jsonData)
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response

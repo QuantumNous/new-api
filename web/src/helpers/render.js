@@ -1,55 +1,74 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import i18next from 'i18next';
 import {Modal, Tag, Typography} from '@douyinfe/semi-ui';
 import {copy, showSuccess} from './utils';
-import {MOBILE_BREAKPOINT} from '../hooks/useIsMobile.js';
+import {MOBILE_BREAKPOINT} from '../hooks/common/useIsMobile.js';
 import {visit} from 'unist-util-visit';
 import {
-  Ai360,
-  Claude,
-  Cloudflare,
-  Cohere,
-  Coze,
-  DeepSeek,
-  Dify,
-  Doubao,
-  FastGPT,
-  Gemini,
-  Hunyuan,
-  Jimeng,
-  Jina,
-  Kling,
-  Midjourney,
-  Minimax,
-  Mistral,
-  Moonshot,
-  Ollama,
-  OpenAI,
-  OpenRouter,
-  Qwen,
-  SiliconCloud,
-  Spark,
-  Suno,
-  Wenxin,
-  XAI,
-  Xinference,
-  Yi,
-  Zhipu,
+    Ai360,
+    Claude,
+    Cloudflare,
+    Cohere,
+    Coze,
+    DeepSeek,
+    Dify,
+    Doubao,
+    FastGPT,
+    Gemini,
+    Hunyuan,
+    Jimeng,
+    Jina,
+    Kling,
+    Midjourney,
+    Minimax,
+    Mistral,
+    Moonshot,
+    Ollama,
+    OpenAI,
+    OpenRouter,
+    Qwen,
+    SiliconCloud,
+    Spark,
+    Suno,
+    Wenxin,
+    XAI,
+    Xinference,
+    Yi,
+    Zhipu,
 } from '@lobehub/icons';
 
 import {
-  BarChart3,
-  CheckSquare,
-  CircleUser,
-  CreditCard,
-  Gift,
-  Image as ImageIcon,
-  Key,
-  Layers,
-  LayoutDashboard,
-  MessageSquare,
-  Settings,
-  TerminalSquare,
-  User,
+    BarChart3,
+    CheckSquare,
+    CircleUser,
+    CreditCard,
+    Gift,
+    Image as ImageIcon,
+    Key,
+    Layers,
+    LayoutDashboard,
+    MessageSquare,
+    Settings,
+    TerminalSquare,
+    User,
 } from 'lucide-react';
 
 // 侧边栏图标颜色映射

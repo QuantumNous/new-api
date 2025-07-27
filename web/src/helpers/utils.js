@@ -1,10 +1,29 @@
-import { Toast } from '@douyinfe/semi-ui';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import { Toast, Pagination } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
 import { THINK_TAG_REGEX, MESSAGE_ROLES } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
-import { MOBILE_BREAKPOINT } from '../hooks/useIsMobile.js';
+import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile.js';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -538,3 +557,66 @@ export function setTableCompactMode(compact, tableKey = 'global') {
   modes[tableKey] = compact;
   writeTableCompactModes(modes);
 }
+
+// -------------------------------
+// Select 组件统一过滤逻辑
+// 使用方式： <Select filter={selectFilter} ... />
+// 统一的 Select 搜索过滤逻辑 -- 支持同时匹配 option.value 与 option.label
+export const selectFilter = (input, option) => {
+  if (!input) return true;
+
+  const keyword = input.trim().toLowerCase();
+  const valueText = (option?.value ?? '').toString().toLowerCase();
+  const labelText = (option?.label ?? '').toString().toLowerCase();
+
+  return valueText.includes(keyword) || labelText.includes(keyword);
+};
+
+// -------------------------------
+// CardPro 分页配置函数
+// 用于创建 CardPro 的 paginationArea 配置
+export const createCardProPagination = ({
+  currentPage,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+  isMobile = false,
+  pageSizeOpts = [10, 20, 50, 100],
+  showSizeChanger = true,
+  t = (key) => key,
+}) => {
+  if (!total || total <= 0) return null;
+
+  const start = (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, total);
+  const totalText = `${t('显示第')} ${start} ${t('条 - 第')} ${end} ${t('条，共')} ${total} ${t('条')}`;
+
+  return (
+    <>
+      {/* 桌面端左侧总数信息 */}
+      {!isMobile && (
+        <span
+          className="text-sm select-none"
+          style={{ color: 'var(--semi-color-text-2)' }}
+        >
+          {totalText}
+        </span>
+      )}
+
+      {/* 右侧分页控件 */}
+      <Pagination
+        currentPage={currentPage}
+        pageSize={pageSize}
+        total={total}
+        pageSizeOpts={pageSizeOpts}
+        showSizeChanger={showSizeChanger}
+        onPageSizeChange={onPageSizeChange}
+        onPageChange={onPageChange}
+        size={isMobile ? "small" : "default"}
+        showQuickJumper={isMobile}
+        showTotal
+      />
+    </>
+  );
+};

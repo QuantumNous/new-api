@@ -123,30 +123,19 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var toolCount int
 	var usage = &dto.Usage{}
 	var streamItems []string // store stream items
-	var forceFormat bool
-	var thinkToContent bool
-
-	if info.ChannelSetting.ForceFormat {
-		forceFormat = true
-	}
-
-	if info.ChannelSetting.ThinkingToContent {
-		thinkToContent = true
-	}
-
-	var (
-		lastStreamData string
-	)
+	var lastStreamData string
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		if lastStreamData != "" {
-			err := handleStreamFormat(c, info, lastStreamData, forceFormat, thinkToContent)
+			err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 			if err != nil {
 				common.SysError("error handling stream format: " + err.Error())
 			}
 		}
-		lastStreamData = data
-		streamItems = append(streamItems, data)
+		if len(data) > 0 {
+			lastStreamData = data
+			streamItems = append(streamItems, data)
+		}
 		return true
 	})
 
@@ -154,16 +143,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	shouldSendLastResp := true
 	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
 		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		common.SysError("error handling last response: " + err.Error())
+		common.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
 	}
 
-	if shouldSendLastResp && info.RelayFormat == relaycommon.RelayFormatOpenAI {
-		_ = sendStreamData(c, info, lastStreamData, forceFormat, thinkToContent)
+	if info.RelayFormat == relaycommon.RelayFormatOpenAI {
+		if shouldSendLastResp {
+			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+		}
 	}
 
 	// 处理token计算
 	if err := processTokens(info.RelayMode, streamItems, &responseTextBuilder, &toolCount); err != nil {
-		common.SysError("error processing tokens: " + err.Error())
+		common.LogError(c, "error processing tokens: "+err.Error())
 	}
 
 	if !containStreamUsage {
@@ -176,8 +167,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 	}
-
-	handleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
+	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
 }

@@ -44,12 +44,14 @@ type requestPayload struct {
 	Duration    string  `json:"duration,omitempty"`
 	AspectRatio string  `json:"aspect_ratio,omitempty"`
 	ModelName   string  `json:"model_name,omitempty"`
+	Model       string  `json:"model,omitempty"` // Compatible with upstreams that only recognize "model"
 	CfgScale    float64 `json:"cfg_scale,omitempty"`
 }
 
 type responsePayload struct {
 	Code      int    `json:"code"`
 	Message   string `json:"message"`
+	TaskId    string `json:"task_id"`
 	RequestId string `json:"request_id"`
 	Data      struct {
 		TaskId        string `json:"task_id"`
@@ -73,21 +75,16 @@ type responsePayload struct {
 
 type TaskAdaptor struct {
 	ChannelType int
-	accessKey   string
-	secretKey   string
+	apiKey      string
 	baseURL     string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.TaskRelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.BaseUrl
+	a.apiKey = info.ApiKey
 
 	// apiKey format: "access_key|secret_key"
-	keyParts := strings.Split(info.ApiKey, "|")
-	if len(keyParts) == 2 {
-		a.accessKey = strings.TrimSpace(keyParts[0])
-		a.secretKey = strings.TrimSpace(keyParts[1])
-	}
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
@@ -166,27 +163,19 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	// Attempt Kling response parse first.
 	var kResp responsePayload
-	if err := json.Unmarshal(responseBody, &kResp); err == nil && kResp.Code == 0 {
-		c.JSON(http.StatusOK, gin.H{"task_id": kResp.Data.TaskId})
-		return kResp.Data.TaskId, responseBody, nil
-	}
-
-	// Fallback generic task response.
-	var generic dto.TaskResponse[string]
-	if err := json.Unmarshal(responseBody, &generic); err != nil {
-		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
+	err = json.Unmarshal(responseBody, &kResp)
+	if err != nil {
+		taskErr = service.TaskErrorWrapper(err, "unmarshal_response_failed", http.StatusInternalServerError)
 		return
 	}
-
-	if !generic.IsSuccess() {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf(generic.Message), generic.Code, http.StatusInternalServerError)
+	if kResp.Code != 0 {
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf(kResp.Message), "task_failed", http.StatusBadRequest)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"task_id": generic.Data})
-	return generic.Data, responseBody, nil
+	kResp.TaskId = kResp.Data.TaskId
+	c.JSON(http.StatusOK, kResp)
+	return kResp.Data.TaskId, responseBody, nil
 }
 
 // FetchTask fetch task status
@@ -239,6 +228,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req *SubmitReq) (*requestPayload, 
 		Duration:    fmt.Sprintf("%d", defaultInt(req.Duration, 5)),
 		AspectRatio: a.getAspectRatio(req.Size),
 		ModelName:   req.Model,
+		Model:       req.Model, // Keep consistent with model_name, double writing improves compatibility
 		CfgScale:    0.5,
 	}
 	if r.ModelName == "" {
@@ -288,21 +278,25 @@ func defaultInt(v int, def int) int {
 // ============================
 
 func (a *TaskAdaptor) createJWTToken() (string, error) {
-	return a.createJWTTokenWithKeys(a.accessKey, a.secretKey)
+	return a.createJWTTokenWithKey(a.apiKey)
 }
+
+//func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
+//	parts := strings.Split(apiKey, "|")
+//	if len(parts) != 2 {
+//		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
+//	}
+//	return a.createJWTTokenWithKey(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+//}
 
 func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
-	parts := strings.Split(apiKey, "|")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
-	}
-	return a.createJWTTokenWithKeys(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-}
 
-func (a *TaskAdaptor) createJWTTokenWithKeys(accessKey, secretKey string) (string, error) {
-	if accessKey == "" || secretKey == "" {
-		return "", fmt.Errorf("access key and secret key are required")
+	keyParts := strings.Split(apiKey, "|")
+	accessKey := strings.TrimSpace(keyParts[0])
+	if len(keyParts) == 1 {
+		return accessKey, nil
 	}
+	secretKey := strings.TrimSpace(keyParts[1])
 	now := time.Now().Unix()
 	claims := jwt.MapClaims{
 		"iss": accessKey,
@@ -315,12 +309,12 @@ func (a *TaskAdaptor) createJWTTokenWithKeys(accessKey, secretKey string) (strin
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	taskInfo := &relaycommon.TaskInfo{}
 	resPayload := responsePayload{}
 	err := json.Unmarshal(respBody, &resPayload)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal response body")
 	}
-	taskInfo := &relaycommon.TaskInfo{}
 	taskInfo.Code = resPayload.Code
 	taskInfo.TaskID = resPayload.Data.TaskId
 	taskInfo.Reason = resPayload.Message

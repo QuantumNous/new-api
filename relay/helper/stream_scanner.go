@@ -234,6 +234,12 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				case <-stopChan:
 					return
 				}
+			} else {
+				// done, 处理完成标志，直接退出停止读取剩余数据防止出错
+				if common.DebugEnabled {
+					println("received [DONE], stopping scanner")
+				}
+				return
 			}
 		}
 

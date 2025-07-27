@@ -14,7 +14,7 @@ import (
 )
 
 // 辅助函数
-func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
+func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 	switch info.RelayFormat {
 	case relaycommon.RelayFormatOpenAI:
@@ -27,7 +27,7 @@ func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 
 func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
 	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
 		return err
 	}
 
@@ -158,7 +158,7 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	return nil
 }
 
-func handleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStreamData string,
+func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStreamData string,
 	responseId string, createAt int64, model string, systemFingerprint string,
 	usage *dto.Usage, containStreamUsage bool) {
 
@@ -174,7 +174,7 @@ func handleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case relaycommon.RelayFormatClaude:
 		info.ClaudeConvertInfo.Done = true
 		var streamResponse dto.ChatCompletionsStreamResponse
-		if err := json.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
+		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
 			common.SysError("error unmarshalling stream response: " + err.Error())
 			return
 		}
@@ -183,7 +183,7 @@ func handleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 
 		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
 		for _, resp := range claudeResponses {
-			helper.ClaudeData(c, *resp)
+			_ = helper.ClaudeData(c, *resp)
 		}
 	}
 }

@@ -1,18 +1,36 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { lazy, Suspense } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
-import Loading from './components/common/Loading.js';
+import Loading from './components/common/ui/Loading.js';
 import User from './pages/User';
 import { AuthRedirect, PrivateRoute } from './helpers';
 import RegisterForm from './components/auth/RegisterForm.js';
 import LoginForm from './components/auth/LoginForm.js';
 import NotFound from './pages/NotFound';
 import Setting from './pages/Setting';
-import EditUser from './pages/User/EditUser';
+
 import PasswordResetForm from './components/auth/PasswordResetForm.js';
 import PasswordResetConfirm from './components/auth/PasswordResetConfirm.js';
 import Channel from './pages/Channel';
 import Token from './pages/Token';
-import EditChannel from './pages/Channel/EditChannel';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
@@ -28,7 +46,7 @@ import Setup from './pages/Setup/index.js';
 import SetupCheck from './components/layout/SetupCheck.js';
 
 const Home = lazy(() => import('./pages/Home'));
-const Detail = lazy(() => import('./pages/Detail'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 
 function App() {
@@ -62,22 +80,6 @@ function App() {
           }
         />
         <Route
-          path='/console/channel/edit/:id'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditChannel />
-            </Suspense>
-          }
-        />
-        <Route
-          path='/console/channel/add'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditChannel />
-            </Suspense>
-          }
-        />
-        <Route
           path='/console/token'
           element={
             <PrivateRoute>
@@ -107,22 +109,6 @@ function App() {
             <PrivateRoute>
               <User />
             </PrivateRoute>
-          }
-        />
-        <Route
-          path='/console/user/edit/:id'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditUser />
-            </Suspense>
-          }
-        />
-        <Route
-          path='/console/user/edit'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditUser />
-            </Suspense>
           }
         />
         <Route
@@ -228,7 +214,7 @@ function App() {
           element={
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Detail />
+                <Dashboard />
               </Suspense>
             </PrivateRoute>
           }

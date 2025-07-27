@@ -14,21 +14,15 @@
 }
 
 /* ==================== 全局基础样式 ==================== */
-/* 侧边栏宽度相关的 CSS 变量，配合 .sidebar-collapsed 类和媒体查询实现响应式布局 */
 :root {
   --sidebar-width: 180px;
-  /* 展开时宽度 */
-  --sidebar-width-collapsed: 60px;  /* 折叠后宽度，显示图标栏 */
-  /* 折叠后宽度 */
+  --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
 }
 
-/* 当 body 上存在 .sidebar-collapsed 类时，使用折叠宽度 */
 body.sidebar-collapsed {
   --sidebar-current-width: var(--sidebar-width-collapsed);
 }
-
-/* 移除了在移动端强制设为 0 的限制，改由 React 控制是否渲染侧边栏以实现显示/隐藏 */
 
 body {
   font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
@@ -438,27 +432,6 @@ code {
   background: transparent;
 }
 
-/* ==================== 响应式/移动端样式 ==================== */
-@media only screen and (max-width: 767px) {
-
-  /* 移动端表格样式调整 */
-  .semi-table-tbody,
-  .semi-table-row,
-  .semi-table-row-cell {
-    display: block !important;
-    width: auto !important;
-    padding: 2px !important;
-  }
-
-  .semi-table-row-cell {
-    border-bottom: 0 !important;
-  }
-
-  .semi-table-tbody>.semi-table-row {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  }
-}
-
 /* ==================== 同步倍率 - 渠道选择器 ==================== */
 
 .components-transfer-source-item,
@@ -615,4 +588,31 @@ html:not(.dark) .blur-ball-indigo {
 
 html:not(.dark) .blur-ball-teal {
   opacity: 0.2;
+}
+
+/* ==================== 表格卡片滚动设置 ==================== */
+.table-scroll-card {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 110px);
+  max-height: calc(100vh - 110px);
+}
+
+.table-scroll-card .semi-card-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.table-scroll-card .semi-card-body::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .table-scroll-card {
+    height: calc(100vh - 77px);
+    max-height: calc(100vh - 77px);
+  }
 }

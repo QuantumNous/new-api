@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -171,10 +170,13 @@ func TextHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	adaptor.Init(relayInfo)
 	var requestBody io.Reader
 
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || relayInfo.ChannelSetting.PassThroughBodyEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest)
+		}
+		if common.DebugEnabled {
+			println("requestBody: ", string(body))
 		}
 		requestBody = bytes.NewBuffer(body)
 	} else {
@@ -182,7 +184,28 @@ func TextHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
-		jsonData, err := json.Marshal(convertedRequest)
+
+		if relayInfo.ChannelSetting.SystemPrompt != "" {
+			// 如果有系统提示，则将其添加到请求中
+			request := convertedRequest.(*dto.GeneralOpenAIRequest)
+			containSystemPrompt := false
+			for _, message := range request.Messages {
+				if message.Role == request.GetSystemRoleName() {
+					containSystemPrompt = true
+					break
+				}
+			}
+			if !containSystemPrompt {
+				// 如果没有系统提示，则添加系统提示
+				systemMessage := dto.Message{
+					Role:    request.GetSystemRoleName(),
+					Content: relayInfo.ChannelSetting.SystemPrompt,
+				}
+				request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
+			}
+		}
+
+		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}

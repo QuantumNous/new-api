@@ -75,10 +75,10 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		//_ = UpdateMidjourneyTaskAll(context.Background(), tasks)
 	case constant.TaskPlatformSuno:
 		_ = UpdateSunoTaskAll(context.Background(), taskChannelM, taskM)
-	case constant.TaskPlatformKling, constant.TaskPlatformJimeng:
-		_ = UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM)
 	default:
-		common.SysLog("未知平台")
+		if err := UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM); err != nil {
+			common.SysLog(fmt.Sprintf("UpdateVideoTaskAll fail: %s", err))
+		}
 	}
 }
 
