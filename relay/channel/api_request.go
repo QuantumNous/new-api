@@ -12,6 +12,8 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting/operation_setting"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +21,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+func ProcessURL(fullRequestURL string) string {
+	// 强制处理 '#'，只保留前方内容
+	processedURL, _, _ := strings.Cut(fullRequestURL, "#")
+
+	// 使用正则表达式处理版本号路径
+	re := regexp.MustCompile(`(/v\d/)//v\d/`)
+	finalURL := re.ReplaceAllString(processedURL, "$1")
+
+	return finalURL
+}
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
 	if info.RelayMode == constant.RelayModeAudioTranscription || info.RelayMode == constant.RelayModeAudioTranslation {
@@ -35,10 +48,11 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	originRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	fullRequestURL := ProcessURL(originRequestURL)
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
@@ -58,10 +72,11 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	originRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	fullRequestURL := ProcessURL(originRequestURL)
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
@@ -84,10 +99,11 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 }
 
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
+	originRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	fullRequestURL := ProcessURL(originRequestURL)
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
