@@ -283,6 +283,11 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, promptTokens int, model 
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
 	}
+	if simpleResponse.Usage.OutputTokens > 0 || simpleResponse.Usage.InputTokens > 0 {
+		simpleResponse.Usage.CompletionTokens = simpleResponse.Usage.OutputTokens
+		simpleResponse.Usage.PromptTokens = simpleResponse.Usage.InputTokens
+		simpleResponse.Usage.TotalTokens = simpleResponse.Usage.PromptTokens + simpleResponse.Usage.CompletionTokens
+	}
 	common.LogInfo(c, fmt.Sprintf("response headers: %v", resp.Header))
 	usageJson, _ := json.Marshal(simpleResponse.Usage)
 	common.LogInfo(c, fmt.Sprintf("raw response Usage: %s", string(usageJson)))
