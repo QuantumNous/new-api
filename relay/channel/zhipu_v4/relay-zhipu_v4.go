@@ -1,4 +1,4 @@
-package zhipu_4v
+package zhipu_v4
 
 import (
 	"github.com/golang-jwt/jwt"

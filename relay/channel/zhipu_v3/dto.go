@@ -1,4 +1,4 @@
-package zhipu
+package zhipu_v3
 
 import (
 	"one-api/dto"
