@@ -196,14 +196,16 @@ export async function getOAuthState() {
 export async function onOIDCClicked(auth_url, client_id, openInNewTab = false) {
   const state = await getOAuthState();
   if (!state) return;
-  const redirect_uri = `${window.location.origin}/oauth/oidc`;
-  const response_type = 'code';
-  const scope = 'openid profile email';
-  const url = `${auth_url}?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=${response_type}&scope=${scope}&state=${state}`;
+  const url = new URL(auth_url);
+  url.searchParams.set('client_id', client_id);
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'openid profile email');
+  url.searchParams.set('state', state);
   if (openInNewTab) {
-    window.open(url);
+    window.open(url.toString(), '_blank');
   } else {
-    window.location.href = url;
+    window.location.href = url.toString();
   }
 }
 
