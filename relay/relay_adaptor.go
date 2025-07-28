@@ -32,8 +32,8 @@ import (
 	"one-api/relay/channel/volcengine"
 	"one-api/relay/channel/xai"
 	"one-api/relay/channel/xunfei"
-	"one-api/relay/channel/zhipu"
-	"one-api/relay/channel/zhipu_4v"
+	"one-api/relay/channel/zhipu_v3"
+	"one-api/relay/channel/zhipu_v4"
 )
 
 func GetAdaptor(apiType int) channel.Adaptor {
