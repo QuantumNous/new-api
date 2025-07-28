@@ -1,4 +1,4 @@
-package zhipu
+package zhipu_v3
 
 var ModelList = []string{
 	"chatglm_turbo", "chatglm_pro", "chatglm_std", "chatglm_lite",

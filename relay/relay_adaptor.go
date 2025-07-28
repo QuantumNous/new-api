@@ -54,10 +54,10 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &tencent.Adaptor{}
 	case constant.APITypeXunfei:
 		return &xunfei.Adaptor{}
-	case constant.APITypeZhipu:
-		return &zhipu.Adaptor{}
+	case constant.APITypeZhipuV3:
+		return &zhipu_v3.Adaptor{}
 	case constant.APITypeZhipuV4:
-		return &zhipu_4v.Adaptor{}
+		return &zhipu_v4.Adaptor{}
 	case constant.APITypeOllama:
 		return &ollama.Adaptor{}
 	case constant.APITypePerplexity:

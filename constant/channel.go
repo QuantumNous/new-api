@@ -17,7 +17,7 @@ const (
 	ChannelTypeAIGC2D         = 13
 	ChannelTypeAnthropic      = 14
 	ChannelTypeBaidu          = 15
-	ChannelTypeZhipu          = 16
+	ChannelTypeZhipu_v3       = 16
 	ChannelTypeAli            = 17
 	ChannelTypeXunfei         = 18
 	ChannelType360            = 19

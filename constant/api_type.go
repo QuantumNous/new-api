@@ -5,7 +5,7 @@ const (
 	APITypeAnthropic
 	APITypePaLM
 	APITypeBaidu
-	APITypeZhipu
+	APITypeZhipuV3
 	APITypeAli
 	APITypeXunfei
 	APITypeAIProxyLibrary
