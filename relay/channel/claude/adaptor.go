@@ -3,7 +3,6 @@ package claude
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/dto"
@@ -11,6 +10,8 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/setting/model_setting"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
