@@ -1,201 +1,103 @@
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
+# **New API 许可协议 (Licensing)**
 
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+本项目采用**基于使用场景的双重许可 (Usage-Based Dual Licensing)** 模式。
 
-   1. Definitions.
+**核心原则：**
 
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
+- **默认许可:** 本项目默认在 **GNU Affero 通用公共许可证 v3.0 (AGPLv3)** 下提供。任何用户在遵守 AGPLv3 条款和下述附加限制的前提下，均可免费使用。
+- **商业许可:** 在特定商业场景下，或当您希望获得 AGPLv3 之外的权利时，**必须**获取**商业许可证 (Commercial License)**。
 
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
+---
 
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
+## **1. 开源许可证 (Open Source License): AGPLv3 - 适用于基础使用**
 
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
+- 在遵守 **AGPLv3** 条款的前提下，您可以自由地使用、修改和分发 New API。AGPLv3 的完整文本可以访问 [https://www.gnu.org/licenses/agpl-3.0.html](https://www.gnu.org/licenses/agpl-3.0.html) 获取。
+- **核心义务:** AGPLv3 的一个关键要求是，如果您修改了 New API 并通过网络提供服务 (SaaS)，或者分发了修改后的版本，您必须以 AGPLv3 许可证向所有用户提供相应的**完整源代码**。
+- **附加限制 (重要):** 在仅使用 AGPLv3 开源许可证的情况下，您**必须**完整保留项目代码中原有的品牌标识、LOGO 及版权声明信息。**禁止以任何形式修改、移除或遮盖**这些信息。如需移除，必须获取商业许可证。
+- 使用前请务必仔细阅读并理解 AGPLv3 的所有条款及上述附加限制。
 
-      "Source" form shall mean the preferred form for making modifications,
-      including but not limited to software source code, documentation
-      source, and configuration files.
+## **2. 商业许可证 (Commercial License) - 适用于高级场景及闭源需求**
 
-      "Object" form shall mean any form resulting from mechanical
-      transformation or translation of a Source form, including but
-      not limited to compiled object code, generated documentation,
-      and conversions to other media types.
+在以下任一情况下，您**必须**联系我们获取并签署一份商业许可证，才能合法使用 New API：
 
-      "Work" shall mean the work of authorship, whether in Source or
-      Object form, made available under the License, as indicated by a
-      copyright notice that is included in or attached to the work
-      (an example is provided in the Appendix below).
+- **场景一：移除品牌和版权信息**  
+  您希望在您的产品或服务中移除 New API 的 LOGO、UI界面中的版权声明或其他品牌标识。
 
-      "Derivative Works" shall mean any work, whether in Source or Object
-      form, that is based on (or derived from) the Work and for which the
-      editorial revisions, annotations, elaborations, or other modifications
-      represent, as a whole, an original work of authorship. For the purposes
-      of this License, Derivative Works shall not include works that remain
-      separable from, or merely link (or bind by name) to the interfaces of,
-      the Work and Derivative Works thereof.
+- **场景二：规避 AGPLv3 开源义务**  
+  您基于 New API 进行了修改，并希望：  
+    - 通过网络提供服务（SaaS），但**不希望**向您的服务用户公开您修改后的源代码。  
+    - 分发一个集成了 New API 的软件产品，但**不希望**以 AGPLv3 许可证发布您的产品或公开源代码。
 
-      "Contribution" shall mean any work of authorship, including
-      the original version of the Work and any modifications or additions
-      to that Work or Derivative Works thereof, that is intentionally
-      submitted to Licensor for inclusion in the Work by the copyright owner
-      or by an individual or Legal Entity authorized to submit on behalf of
-      the copyright owner. For the purposes of this definition, "submitted"
-      means any form of electronic, verbal, or written communication sent
-      to the Licensor or its representatives, including but not limited to
-      communication on electronic mailing lists, source code control systems,
-      and issue tracking systems that are managed by, or on behalf of, the
-      Licensor for the purpose of discussing and improving the Work, but
-      excluding communication that is conspicuously marked or otherwise
-      designated in writing by the copyright owner as "Not a Contribution."
+- **场景三：企业政策与集成需求**  
+    - 您所在公司的政策、客户合同或项目要求不允许使用 AGPLv3 许可的软件。  
+    - 您需要进行 OEM 集成，将 New API 作为您闭源商业产品的一部分进行再分发。
 
-      "Contributor" shall mean Licensor and any individual or Legal Entity
-      on behalf of whom a Contribution has been received by Licensor and
-      subsequently incorporated within the Work.
+- **场景四：需要商业支持与保障**  
+    您需要 AGPLv3 未提供的商业保障，如官方技术支持等。
 
-   2. Grant of Copyright License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      copyright license to reproduce, prepare Derivative Works of,
-      publicly display, publicly perform, sublicense, and distribute the
-      Work and such Derivative Works in Source or Object form.
+**获取商业许可：**  
+请通过电子邮件 **support@quantumnous.com** 联系 New API 团队洽谈商业授权事宜。
 
-   3. Grant of Patent License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      (except as stated in this section) patent license to make, have made,
-      use, offer to sell, sell, import, and otherwise transfer the Work,
-      where such license applies only to those patent claims licensable
-      by such Contributor that are necessarily infringed by their
-      Contribution(s) alone or by combination of their Contribution(s)
-      with the Work to which such Contribution(s) was submitted. If You
-      institute patent litigation against any entity (including a
-      cross-claim or counterclaim in a lawsuit) alleging that the Work
-      or a Contribution incorporated within the Work constitutes direct
-      or contributory patent infringement, then any patent licenses
-      granted to You under this License for that Work shall terminate
-      as of the date such litigation is filed.
+## **3. 贡献 (Contributions)**
 
-   4. Redistribution. You may reproduce and distribute copies of the
-      Work or Derivative Works thereof in any medium, with or without
-      modifications, and in Source or Object form, provided that You
-      meet the following conditions:
+- 我们欢迎社区对 New API 的贡献。所有向本项目提交的贡献（例如通过 Pull Request）都将被视为在 **AGPLv3** 许可证下提供。
+- 通过向本项目提交贡献，即表示您同意您的代码以 AGPLv3 许可证授权给本项目及所有后续使用者（无论这些使用者最终遵循 AGPLv3 还是商业许可）。
+- 您也理解并同意，您的贡献可能会被包含在根据商业许可证分发的 New API 版本中。
 
-      (a) You must give any other recipients of the Work or
-          Derivative Works a copy of this License; and
+## **4. 其他条款 (Other Terms)**
 
-      (b) You must cause any modified files to carry prominent notices
-          stating that You changed the files; and
+- 关于商业许可证的具体条款、条件和价格，以双方签署的正式商业许可协议为准。
+- 项目维护者保留根据需要更新本许可政策的权利。相关更新将通过项目官方渠道（如代码仓库、官方网站）进行通知。
 
-      (c) You must retain, in the Source form of any Derivative Works
-          that You distribute, all copyright, patent, trademark, and
-          attribution notices from the Source form of the Work,
-          excluding those notices that do not pertain to any part of
-          the Derivative Works; and
+---
 
-      (d) If the Work includes a "NOTICE" text file as part of its
-          distribution, then any Derivative Works that You distribute must
-          include a readable copy of the attribution notices contained
-          within such NOTICE file, excluding those notices that do not
-          pertain to any part of the Derivative Works, in at least one
-          of the following places: within a NOTICE text file distributed
-          as part of the Derivative Works; within the Source form or
-          documentation, if provided along with the Derivative Works; or,
-          within a display generated by the Derivative Works, if and
-          wherever such third-party notices normally appear. The contents
-          of the NOTICE file are for informational purposes only and
-          do not modify the License. You may add Your own attribution
-          notices within Derivative Works that You distribute, alongside
-          or as an addendum to the NOTICE text from the Work, provided
-          that such additional attribution notices cannot be construed
-          as modifying the License.
+# **New API Licensing**
 
-      You may add Your own copyright statement to Your modifications and
-      may provide additional or different license terms and conditions
-      for use, reproduction, or distribution of Your modifications, or
-      for any such Derivative Works as a whole, provided Your use,
-      reproduction, and distribution of the Work otherwise complies with
-      the conditions stated in this License.
+This project uses a **Usage-Based Dual Licensing** model.
 
-   5. Submission of Contributions. Unless You explicitly state otherwise,
-      any Contribution intentionally submitted for inclusion in the Work
-      by You to the Licensor shall be under the terms and conditions of
-      this License, without any additional terms or conditions.
-      Notwithstanding the above, nothing herein shall supersede or modify
-      the terms of any separate license agreement you may have executed
-      with Licensor regarding such Contributions.
+**Core Principles:**
 
-   6. Trademarks. This License does not grant permission to use the trade
-      names, trademarks, service marks, or product names of the Licensor,
-      except as required for reasonable and customary use in describing the
-      origin of the Work and reproducing the content of the NOTICE file.
+- **Default License:** This project is available by default under the **GNU Affero General Public License v3.0 (AGPLv3)**. Any user may use it free of charge, provided they comply with both the AGPLv3 terms and the additional restrictions listed below.
+- **Commercial License:** For specific commercial scenarios, or if you require rights beyond those granted by AGPLv3, you **must** obtain a **Commercial License**.
 
-   7. Disclaimer of Warranty. Unless required by applicable law or
-      agreed to in writing, Licensor provides the Work (and each
-      Contributor provides its Contributions) on an "AS IS" BASIS,
-      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-      implied, including, without limitation, any warranties or conditions
-      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-      PARTICULAR PURPOSE. You are solely responsible for determining the
-      appropriateness of using or redistributing the Work and assume any
-      risks associated with Your exercise of permissions under this License.
+---
 
-   8. Limitation of Liability. In no event and under no legal theory,
-      whether in tort (including negligence), contract, or otherwise,
-      unless required by applicable law (such as deliberate and grossly
-      negligent acts) or agreed to in writing, shall any Contributor be
-      liable to You for damages, including any direct, indirect, special,
-      incidental, or consequential damages of any character arising as a
-      result of this License or out of the use or inability to use the
-      Work (including but not limited to damages for loss of goodwill,
-      work stoppage, computer failure or malfunction, or any and all
-      other commercial damages or losses), even if such Contributor
-      has been advised of the possibility of such damages.
+## **1. Open Source License: AGPLv3 – For Basic Usage**
 
-   9. Accepting Warranty or Additional Liability. While redistributing
-      the Work or Derivative Works thereof, You may choose to offer,
-      and charge a fee for, acceptance of support, warranty, indemnity,
-      or other liability obligations and/or rights consistent with this
-      License. However, in accepting such obligations, You may act only
-      on Your own behalf and on Your sole responsibility, not on behalf
-      of any other Contributor, and only if You agree to indemnify,
-      defend, and hold each Contributor harmless for any liability
-      incurred by, or claims asserted against, such Contributor by reason
-      of your accepting any such warranty or additional liability.
+- Under the terms of the **AGPLv3**, you are free to use, modify, and distribute New API. The complete AGPLv3 license text can be viewed at [https://www.gnu.org/licenses/agpl-3.0.html](https://www.gnu.org/licenses/agpl-3.0.html).
+- **Core Obligation:** A key AGPLv3 requirement is that if you modify New API and provide it as a network service (SaaS), or distribute a modified version, you must make the **complete corresponding source code** available to all users under the AGPLv3 license.
+- **Additional Restriction (Important):** When using only the AGPLv3 open-source license, you **must** retain all original branding, logos, and copyright statements within the project’s code. **You are strictly prohibited from modifying, removing, or concealing** any such information. If you wish to remove this, you must obtain a Commercial License.
+- Please read and ensure that you fully understand all AGPLv3 terms and the above additional restriction before use.
 
-   END OF TERMS AND CONDITIONS
+## **2. Commercial License – For Advanced Scenarios & Closed Source Needs**
 
-   APPENDIX: How to apply the Apache License to your work.
+You **must** contact us to obtain and sign a Commercial License in any of the following scenarios in order to legally use New API:
 
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
+- **Scenario 1: Removal of Branding and Copyright**  
+  You wish to remove the New API logo, copyright statement, or other branding elements from your product or service.
 
-   Copyright [yyyy] [name of copyright owner]
+- **Scenario 2: Avoidance of AGPLv3 Open Source Obligations**  
+  You have modified New API and wish to:
+    - Offer it as a network service (SaaS) **without** disclosing your modifications' source code to your users.
+    - Distribute a software product integrated with New API **without** releasing your product under AGPLv3 or open-sourcing the code.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+- **Scenario 3: Enterprise Policy & Integration Needs**  
+    - Your organization’s policies, client contracts, or project requirements prohibit the use of AGPLv3-licensed software.
+    - You require OEM integration and need to redistribute New API as part of your closed-source commercial product.
 
-       http://www.apache.org/licenses/LICENSE-2.0
+- **Scenario 4: Commercial Support and Assurances**  
+    You require commercial assurances not provided by AGPLv3, such as official technical support.
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+**Obtaining a Commercial License:**  
+Please contact the New API team via email at **support@quantumnous.com** to discuss commercial licensing.
+
+## **3. Contributions**
+
+- We welcome community contributions to New API. All contributions (e.g., via Pull Request) are deemed to be provided under the **AGPLv3** license.
+- By submitting a contribution, you agree that your code is licensed to this project and all downstream users under the AGPLv3 license (regardless of whether those users ultimately operate under AGPLv3 or a Commercial License).
+- You also acknowledge and agree that your contribution may be included in New API releases distributed under a Commercial License.
+
+## **4. Other Terms**
+
+- The specific terms, conditions, and pricing of the Commercial License are governed by the formal commercial license agreement executed by both parties.
+- Project maintainers reserve the right to update this licensing policy as needed. Updates will be communicated via official project channels (e.g., repository, official website).

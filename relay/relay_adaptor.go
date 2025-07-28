@@ -1,8 +1,8 @@
 package relay
 
 import (
+	"github.com/gin-gonic/gin"
 	"one-api/constant"
-	commonconstant "one-api/constant"
 	"one-api/relay/channel"
 	"one-api/relay/channel/ali"
 	"one-api/relay/channel/aws"
@@ -27,6 +27,7 @@ import (
 	taskjimeng "one-api/relay/channel/task/jimeng"
 	"one-api/relay/channel/task/kling"
 	"one-api/relay/channel/task/suno"
+	taskVidu "one-api/relay/channel/task/vidu"
 	"one-api/relay/channel/tencent"
 	"one-api/relay/channel/vertex"
 	"one-api/relay/channel/volcengine"
@@ -34,6 +35,7 @@ import (
 	"one-api/relay/channel/xunfei"
 	"one-api/relay/channel/zhipu"
 	"one-api/relay/channel/zhipu_4v"
+	"strconv"
 )
 
 func GetAdaptor(apiType int) channel.Adaptor {
@@ -100,16 +102,30 @@ func GetAdaptor(apiType int) channel.Adaptor {
 	return nil
 }
 
-func GetTaskAdaptor(platform commonconstant.TaskPlatform) channel.TaskAdaptor {
+func GetTaskPlatform(c *gin.Context) constant.TaskPlatform {
+	channelType := c.GetInt("channel_type")
+	if channelType > 0 {
+		return constant.TaskPlatform(strconv.Itoa(channelType))
+	}
+	return constant.TaskPlatform(c.GetString("platform"))
+}
+
+func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 	switch platform {
 	//case constant.APITypeAIProxyLibrary:
 	//	return &aiproxy.Adaptor{}
-	case commonconstant.TaskPlatformSuno:
+	case constant.TaskPlatformSuno:
 		return &suno.TaskAdaptor{}
-	case commonconstant.TaskPlatformKling:
-		return &kling.TaskAdaptor{}
-	case commonconstant.TaskPlatformJimeng:
-		return &taskjimeng.TaskAdaptor{}
+	}
+	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
+		switch channelType {
+		case constant.ChannelTypeKling:
+			return &kling.TaskAdaptor{}
+		case constant.ChannelTypeJimeng:
+			return &taskjimeng.TaskAdaptor{}
+		case constant.ChannelTypeVidu:
+			return &taskVidu.TaskAdaptor{}
+		}
 	}
 	return nil
 }

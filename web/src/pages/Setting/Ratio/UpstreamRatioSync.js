@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Button,
@@ -19,7 +38,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { API, showError, showSuccess, showWarning, stringToColor } from '../../../helpers';
-import { useIsMobile } from '../../../hooks/useIsMobile.js';
+import { useIsMobile } from '../../../hooks/common/useIsMobile.js';
 import { DEFAULT_ENDPOINT } from '../../../constants';
 import { useTranslation } from 'react-i18next';
 import {
@@ -689,11 +708,6 @@ export default function UpstreamRatioSync(props) {
           total: filteredDataSource.length,
           showSizeChanger: true,
           showQuickJumper: true,
-          formatPageText: (page) => t('第 {{start}} - {{end}} 条，共 {{total}} 条', {
-            start: page.currentStart,
-            end: page.currentEnd,
-            total: filteredDataSource.length,
-          }),
           pageSizeOptions: ['5', '10', '20', '50'],
           onChange: (page, size) => {
             setCurrentPage(page);

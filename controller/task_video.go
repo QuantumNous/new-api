@@ -2,13 +2,16 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"one-api/common"
 	"one-api/constant"
+	"one-api/dto"
 	"one-api/model"
 	"one-api/relay"
 	"one-api/relay/channel"
+	relaycommon "one-api/relay/common"
 	"time"
 )
 
@@ -77,13 +80,21 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	taskResult, err := adaptor.ParseTaskResult(responseBody)
-	if err != nil {
+	taskResult := &relaycommon.TaskInfo{}
+	// try parse as New API response format
+	var responseItems dto.TaskResponse[model.Task]
+	if err = json.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
+		t := responseItems.Data
+		taskResult.TaskID = t.TaskID
+		taskResult.Status = string(t.Status)
+		taskResult.Url = t.FailReason
+		taskResult.Progress = t.Progress
+		taskResult.Reason = t.FailReason
+	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+	} else {
+		task.Data = responseBody
 	}
-	//if taskResult.Code != 0 {
-	//	return fmt.Errorf("video task fetch failed for task %s", taskId)
-	//}
 
 	now := time.Now().Unix()
 	if taskResult.Status == "" {
@@ -128,8 +139,6 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 	if taskResult.Progress != "" {
 		task.Progress = taskResult.Progress
 	}
-
-	task.Data = responseBody
 	if err := task.Update(); err != nil {
 		common.SysError("UpdateVideoTask task error: " + err.Error())
 	}

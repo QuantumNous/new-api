@@ -136,7 +136,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 			}
 		}
 	} else {
-		return nil, errors.New("channel not found")
+		return nil, nil
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err

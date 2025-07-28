@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -194,16 +195,39 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		}
 	}
 
-	requestBody, err := json.Marshal(req)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+	var requestBody io.Reader
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || relayInfo.ChannelSetting.PassThroughBodyEnabled {
+		body, err := common.GetRequestBody(c)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest)
+		}
+		requestBody = bytes.NewReader(body)
+	} else {
+		jsonData, err := json.Marshal(req)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		}
+
+		// apply param override
+		if len(relayInfo.ParamOverride) > 0 {
+			reqMap := make(map[string]interface{})
+			_ = common.Unmarshal(jsonData, &reqMap)
+			for key, value := range relayInfo.ParamOverride {
+				reqMap[key] = value
+			}
+			jsonData, err = common.Marshal(reqMap)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)
+			}
+		}
+
+		if common.DebugEnabled {
+			println("Gemini request body: %s", string(jsonData))
+		}
+		requestBody = bytes.NewReader(jsonData)
 	}
 
-	if common.DebugEnabled {
-		println("Gemini request body: %s", string(requestBody))
-	}
-
-	resp, err := adaptor.DoRequest(c, relayInfo, bytes.NewReader(requestBody))
+	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
 		common.LogError(c, "Do gemini request failed: "+err.Error())
 		return types.NewError(err, types.ErrorCodeDoRequestFailed)

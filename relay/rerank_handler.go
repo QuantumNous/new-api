@@ -3,12 +3,14 @@ package relay
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/setting/model_setting"
 	"one-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -70,18 +72,42 @@ func RerankHelper(c *gin.Context, relayMode int) (newAPIError *types.NewAPIError
 	}
 	adaptor.Init(relayInfo)
 
-	convertedRequest, err := adaptor.ConvertRerankRequest(c, relayInfo.RelayMode, *rerankRequest)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+	var requestBody io.Reader
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || relayInfo.ChannelSetting.PassThroughBodyEnabled {
+		body, err := common.GetRequestBody(c)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest)
+		}
+		requestBody = bytes.NewBuffer(body)
+	} else {
+		convertedRequest, err := adaptor.ConvertRerankRequest(c, relayInfo.RelayMode, *rerankRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		}
+		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		}
+
+		// apply param override
+		if len(relayInfo.ParamOverride) > 0 {
+			reqMap := make(map[string]interface{})
+			_ = common.Unmarshal(jsonData, &reqMap)
+			for key, value := range relayInfo.ParamOverride {
+				reqMap[key] = value
+			}
+			jsonData, err = common.Marshal(reqMap)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)
+			}
+		}
+
+		if common.DebugEnabled {
+			println(fmt.Sprintf("Rerank request body: %s", string(jsonData)))
+		}
+		requestBody = bytes.NewBuffer(jsonData)
 	}
-	jsonData, err := common.Marshal(convertedRequest)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
-	}
-	requestBody := bytes.NewBuffer(jsonData)
-	if common.DebugEnabled {
-		println(fmt.Sprintf("Rerank request body: %s", requestBody.String()))
-	}
+
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)

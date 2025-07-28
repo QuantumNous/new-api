@@ -1,6 +1,9 @@
 package ollama
 
-import "one-api/dto"
+import (
+	"encoding/json"
+	"one-api/dto"
+)
 
 type OllamaRequest struct {
 	Model            string                `json:"model,omitempty"`
@@ -19,6 +22,7 @@ type OllamaRequest struct {
 	Suffix           any                   `json:"suffix,omitempty"`
 	StreamOptions    *dto.StreamOptions    `json:"stream_options,omitempty"`
 	Prompt           any                   `json:"prompt,omitempty"`
+	Think            json.RawMessage       `json:"think,omitempty"`
 }
 
 type Options struct {

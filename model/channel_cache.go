@@ -109,9 +109,6 @@ func CacheGetRandomSatisfiedChannel(c *gin.Context, group string, model string, 
 			return nil, group, err
 		}
 	}
-	if channel == nil {
-		return nil, group, errors.New("channel not found")
-	}
 	return channel, selectGroup, nil
 }
 
@@ -133,7 +130,7 @@ func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	channels := group2model2channels[group][model]
 
 	if len(channels) == 0 {
-		return nil, errors.New("channel not found")
+		return nil, nil
 	}
 
 	if len(channels) == 1 {

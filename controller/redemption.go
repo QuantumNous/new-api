@@ -6,6 +6,7 @@ import (
 	"one-api/common"
 	"one-api/model"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,7 +64,7 @@ func AddRedemption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if len(redemption.Name) == 0 || len(redemption.Name) > 20 {
+	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "兑换码名称长度必须在1-20之间",

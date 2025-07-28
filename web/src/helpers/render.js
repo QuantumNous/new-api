@@ -1,7 +1,26 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import i18next from 'i18next';
 import { Modal, Tag, Typography } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
-import { MOBILE_BREAKPOINT } from '../hooks/useIsMobile.js';
+import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile.js';
 import { visit } from 'unist-util-visit';
 import {
   OpenAI,
@@ -864,12 +883,22 @@ export function renderQuotaWithAmount(amount) {
 }
 
 export function renderQuota(quota, digits = 2) {
+
   let quotaPerUnit = localStorage.getItem('quota_per_unit');
   let displayInCurrency = localStorage.getItem('display_in_currency');
   quotaPerUnit = parseFloat(quotaPerUnit);
   displayInCurrency = displayInCurrency === 'true';
   if (displayInCurrency) {
-    return '$' + (quota / quotaPerUnit).toFixed(digits);
+    const result = quota / quotaPerUnit;
+    const fixedResult = result.toFixed(digits);
+    
+    // 如果 toFixed 后结果为 0 但原始值不为 0，显示最小值
+    if (parseFloat(fixedResult) === 0 && quota > 0 && result > 0) {
+      const minValue = Math.pow(10, -digits);
+      return '$' + minValue.toFixed(digits);
+    }
+    
+    return '$' + fixedResult;
   }
   return renderNumber(quota);
 }

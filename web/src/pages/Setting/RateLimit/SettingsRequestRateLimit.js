@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import {
@@ -128,6 +147,7 @@ export default function RequestRateLimit(props) {
                   label={t('用户每周期最多请求次数')}
                   step={1}
                   min={0}
+                  max={100000000}
                   suffix={t('次')}
                   extraText={t('包括失败请求的次数，0代表不限制')}
                   field={'ModelRequestRateLimitCount'}
@@ -144,6 +164,7 @@ export default function RequestRateLimit(props) {
                   label={t('用户每周期最多请求完成次数')}
                   step={1}
                   min={1}
+                  max={100000000}
                   suffix={t('次')}
                   extraText={t('只包括请求成功的次数')}
                   field={'ModelRequestRateLimitSuccessCount'}
@@ -180,6 +201,7 @@ export default function RequestRateLimit(props) {
                         <li>{t('使用 JSON 对象格式，格式为：{"组名": [最多请求次数, 最多请求完成次数]}')}</li>
                       <li>{t('示例：{"default": [200, 100], "vip": [0, 1000]}。')}</li>
                       <li>{t('[最多请求次数]必须大于等于0，[最多请求完成次数]必须大于等于1。')}</li>
+                        <li>{t('[最多请求次数]和[最多请求完成次数]的最大值为2147483647。')}</li>
                         <li>{t('分组速率配置优先级高于全局速率限制。')}</li>
                         <li>{t('限制周期统一使用上方配置的“限制周期”值。')}</li>
                       </ul>
