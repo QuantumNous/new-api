@@ -27,13 +27,13 @@ type QuotaData struct {
 
 // QuotaDataByDay 按天聚合的数据结构
 type QuotaDataByDay struct {
-	Username  string `json:"username"`
-	TokenName string `json:"token_name"`
-	ModelName string `json:"model_name"`
-	Count     int    `json:"count"`
-	Price     int    `json:"price"`
-	TokenUsed int    `json:"token_used"`
-	DateStr   string `json:"date_str"` // FROM_UNIXTIME返回的日期字符串
+	Username  string  `json:"username"`
+	TokenName string  `json:"token_name"`
+	ModelName string  `json:"model_name"`
+	Count     int     `json:"count"`
+	Price     float64 `json:"price"`
+	TokenUsed int     `json:"token_used"`
+	DateStr   string  `json:"date_str"` // FROM_UNIXTIME返回的日期字符串
 }
 
 type BillingData struct {
