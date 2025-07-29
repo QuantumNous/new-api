@@ -23,17 +23,14 @@ import (
 )
 
 func ProcessURL(fullRequestURL string) string {
-	// 强制处理 '#'，只保留前方内容
-	processedURL, _, found := strings.Cut(fullRequestURL, "#")
-
-	// 如果找到了 '#'，直接返回截取后的字符串
-	if found {
-		return processedURL
+	// 只处理结尾的 '#'
+	if strings.HasSuffix(fullRequestURL, "#") {
+		return strings.TrimSuffix(fullRequestURL, "#")
 	}
 
 	// 使用正则表达式处理版本号路径 //v4/ -> /
 	re := regexp.MustCompile(`//v\d/`)
-	finalURL := re.ReplaceAllString(processedURL, "/")
+	finalURL := re.ReplaceAllString(fullRequestURL, "/")
 
 	return finalURL
 }
