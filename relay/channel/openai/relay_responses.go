@@ -9,33 +9,27 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func OaiResponsesHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	// read response body
 	var responsesResponse dto.OpenAIResponsesResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
-	err = common.UnmarshalJson(responseBody, &responsesResponse)
+	err = common.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if responsesResponse.Error != nil {
-		return &dto.OpenAIErrorWithStatusCode{
-			Error: dto.OpenAIError{
-				Message: responsesResponse.Error.Message,
-				Type:    "openai_error",
-				Code:    responsesResponse.Error.Code,
-			},
-			StatusCode: resp.StatusCode,
-		}, nil
+		return nil, types.WithOpenAIError(*responsesResponse.Error, resp.StatusCode)
 	}
 
 	// 写入新的 response body
@@ -48,15 +42,15 @@ func OaiResponsesHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	usage.TotalTokens = responsesResponse.Usage.TotalTokens
 	// 解析 Tools 用量
 	for _, tool := range responsesResponse.Tools {
-		info.ResponsesUsageInfo.BuiltInTools[tool.Type].CallCount++
+		info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])].CallCount++
 	}
-	return nil, &usage
+	return &usage, nil
 }
 
-func OaiResponsesStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		common.LogError(c, "invalid response or response body")
-		return service.OpenAIErrorWrapper(fmt.Errorf("invalid response"), "invalid_response", http.StatusInternalServerError), nil
+		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
 	}
 
 	var usage = &dto.Usage{}
@@ -99,5 +93,5 @@ func OaiResponsesStreamHandler(c *gin.Context, resp *http.Response, info *relayc
 		}
 	}
 
-	return nil, usage
+	return usage, nil
 }

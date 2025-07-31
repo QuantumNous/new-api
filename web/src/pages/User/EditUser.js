@@ -2,12 +2,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
-  isMobile,
   showError,
   showSuccess,
   renderQuota,
   renderQuotaWithPrompt,
 } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import {
   Button,
   Modal,
@@ -41,6 +41,7 @@ const EditUser = (props) => {
   const [loading, setLoading] = useState(true);
   const [addQuotaModalOpen, setIsModalOpen] = useState(false);
   const [addQuotaLocal, setAddQuotaLocal] = useState('');
+  const isMobile = useIsMobile();
   const [groupOptions, setGroupOptions] = useState([]);
   const formApiRef = useRef(null);
 
@@ -137,7 +138,7 @@ const EditUser = (props) => {
         }
         bodyStyle={{ padding: 0 }}
         visible={props.visible}
-        width={isMobile() ? '100%' : 600}
+        width={isMobile ? '100%' : 600}
         footer={
           <div className='flex justify-end bg-white'>
             <Space>

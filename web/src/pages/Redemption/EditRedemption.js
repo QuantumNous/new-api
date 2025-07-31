@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import {
   API,
   downloadTextAsFile,
-  isMobile,
   showError,
   showSuccess,
   renderQuota,
   renderQuotaWithPrompt,
 } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import {
   Button,
   Modal,
@@ -36,6 +36,7 @@ const EditRedemption = (props) => {
   const { t } = useTranslation();
   const isEdit = props.editingRedemption.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
+  const isMobile = useIsMobile();
   const formApiRef = useRef(null);
 
   const getInitValues = () => ({
@@ -155,7 +156,7 @@ const EditRedemption = (props) => {
         }
         bodyStyle={{ padding: '0' }}
         visible={props.visiable}
-        width={isMobile() ? '100%' : 600}
+        width={isMobile ? '100%' : 600}
         footer={
           <div className="flex justify-end bg-white">
             <Space>

@@ -14,6 +14,22 @@
 }
 
 /* ==================== 全局基础样式 ==================== */
+/* 侧边栏宽度相关的 CSS 变量，配合 .sidebar-collapsed 类和媒体查询实现响应式布局 */
+:root {
+  --sidebar-width: 180px;
+  /* 展开时宽度 */
+  --sidebar-width-collapsed: 60px;  /* 折叠后宽度，显示图标栏 */
+  /* 折叠后宽度 */
+  --sidebar-current-width: var(--sidebar-width);
+}
+
+/* 当 body 上存在 .sidebar-collapsed 类时，使用折叠宽度 */
+body.sidebar-collapsed {
+  --sidebar-current-width: var(--sidebar-width-collapsed);
+}
+
+/* 移除了在移动端强制设为 0 的限制，改由 React 控制是否渲染侧边栏以实现显示/隐藏 */
+
 body {
   font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
@@ -59,6 +75,11 @@ code {
 
 .semi-navigation-item {
   margin-bottom: 4px !important;
+  padding: 4px 12px !important;
+}
+
+.semi-navigation-sub-title {
+  padding: 0 !important;
 }
 
 .semi-navigation-item-icon {
@@ -70,6 +91,7 @@ code {
   margin-right: 0;
 }
 
+.semi-navigation-item,
 .semi-navigation-sub-title {
   height: 100% !important;
 }

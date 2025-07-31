@@ -14,6 +14,7 @@ import (
 	"one-api/service"
 	"one-api/setting"
 	"one-api/setting/model_setting"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -104,11 +105,11 @@ func trimModelThinking(modelName string) string {
 	return modelName
 }
 
-func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
+func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	req, err := getAndValidateGeminiRequest(c)
 	if err != nil {
 		common.LogError(c, fmt.Sprintf("getAndValidateGeminiRequest error: %s", err.Error()))
-		return service.OpenAIErrorWrapperLocal(err, "invalid_gemini_request", http.StatusBadRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
 
 	relayInfo := relaycommon.GenRelayInfoGemini(c)
@@ -120,14 +121,14 @@ func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		sensitiveWords, err := checkGeminiInputSensitive(req)
 		if err != nil {
 			common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(sensitiveWords, ", ")))
-			return service.OpenAIErrorWrapperLocal(err, "check_request_sensitive_error", http.StatusBadRequest)
+			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
 		}
 	}
 
 	// model mapped 模型映射
 	err = helper.ModelMappedHelper(c, relayInfo, req)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_mapped_error", http.StatusBadRequest)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
 	}
 
 	if value, exists := c.Get("prompt_tokens"); exists {
@@ -158,23 +159,23 @@ func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.PromptTokens, int(req.GenerationConfig.MaxOutputTokens))
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_price_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeModelPriceError)
 	}
 
 	// pre consume quota
-	preConsumedQuota, userQuota, openaiErr := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
-	if openaiErr != nil {
-		return openaiErr
+	preConsumedQuota, userQuota, newAPIError := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
+	if newAPIError != nil {
+		return newAPIError
 	}
 	defer func() {
-		if openaiErr != nil {
+		if newAPIError != nil {
 			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
 		}
 	}()
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return service.OpenAIErrorWrapperLocal(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), "invalid_api_type", http.StatusBadRequest)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
 	}
 
 	adaptor.Init(relayInfo)
@@ -195,7 +196,7 @@ func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 
 	requestBody, err := json.Marshal(req)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "marshal_text_request_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 	}
 
 	if common.DebugEnabled {
@@ -205,7 +206,7 @@ func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	resp, err := adaptor.DoRequest(c, relayInfo, bytes.NewReader(requestBody))
 	if err != nil {
 		common.LogError(c, "Do gemini request failed: "+err.Error())
-		return service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
@@ -215,10 +216,10 @@ func GeminiHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		httpResp = resp.(*http.Response)
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			openaiErr = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-			return openaiErr
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
 	}
 

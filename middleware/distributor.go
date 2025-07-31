@@ -12,6 +12,7 @@ import (
 	"one-api/service"
 	"one-api/setting"
 	"one-api/setting/ratio_setting"
+	"one-api/types"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 
 type ModelRequest struct {
 	Model string `json:"model"`
+	Group string `json:"group,omitempty"`
 }
 
 func Distribute() func(c *gin.Context) {
@@ -237,28 +239,47 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("relay_mode", relayMode)
 	}
+	if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+		// playground chat completions
+		err = common.UnmarshalBodyReusable(c, &modelRequest)
+		if err != nil {
+			return nil, false, errors.New("无效的请求, " + err.Error())
+		}
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+	}
 	return &modelRequest, shouldSelectChannel, nil
 }
 
-func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) {
+func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
-		return
+		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed)
 	}
-	c.Set("channel_id", channel.Id)
-	c.Set("channel_name", channel.Name)
+	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
+	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
-	c.Set("channel_create_time", channel.CreatedTime)
+	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
-	c.Set("param_override", channel.GetParamOverride())
-	if nil != channel.OpenAIOrganization && "" != *channel.OpenAIOrganization {
-		c.Set("channel_organization", *channel.OpenAIOrganization)
+	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, channel.GetParamOverride())
+	if nil != channel.OpenAIOrganization && *channel.OpenAIOrganization != "" {
+		common.SetContextKey(c, constant.ContextKeyChannelOrganization, *channel.OpenAIOrganization)
 	}
-	c.Set("auto_ban", channel.GetAutoBan())
-	c.Set("model_mapping", channel.GetModelMapping())
-	c.Set("status_code_mapping", channel.GetStatusCodeMapping())
-	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
-	common.SetContextKey(c, constant.ContextKeyBaseUrl, channel.GetBaseURL())
+	common.SetContextKey(c, constant.ContextKeyChannelAutoBan, channel.GetAutoBan())
+	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
+	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
+
+	key, index, newAPIError := channel.GetNextEnabledKey()
+	if newAPIError != nil {
+		return newAPIError
+	}
+	if channel.ChannelInfo.IsMultiKey {
+		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
+		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
+	}
+	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
+	common.SetContextKey(c, constant.ContextKeyChannelKey, key)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
+
 	// TODO: api_version统一
 	switch channel.Type {
 	case constant.ChannelTypeAzure:
@@ -278,6 +299,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	case constant.ChannelTypeCoze:
 		c.Set("bot_id", channel.Other)
 	}
+	return nil
 }
 
 // extractModelNameFromGeminiPath 从 Gemini API URL 路径中提取模型名

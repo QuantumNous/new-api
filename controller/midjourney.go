@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -13,8 +12,9 @@ import (
 	"one-api/model"
 	"one-api/service"
 	"one-api/setting"
-	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func UpdateMidjourneyTaskBulk() {
@@ -213,14 +213,7 @@ func checkMjTaskNeedUpdate(oldTask *model.Midjourney, newTask dto.MidjourneyDto)
 }
 
 func GetAllMidjourney(c *gin.Context) {
-	p, _ := strconv.Atoi(c.Query("p"))
-	if p < 1 {
-		p = 1
-	}
-	pageSize, _ := strconv.Atoi(c.Query("page_size"))
-	if pageSize <= 0 {
-		pageSize = common.ItemsPerPage
-	}
+	pageInfo := common.GetPageQuery(c)
 
 	// 解析其他查询参数
 	queryParams := model.TaskQueryParams{
@@ -230,7 +223,7 @@ func GetAllMidjourney(c *gin.Context) {
 		EndTimestamp:   c.Query("end_timestamp"),
 	}
 
-	items := model.GetAllTasks((p-1)*pageSize, pageSize, queryParams)
+	items := model.GetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	total := model.CountAllTasks(queryParams)
 
 	if setting.MjForwardUrlEnabled {
@@ -239,27 +232,13 @@ func GetAllMidjourney(c *gin.Context) {
 			items[i] = midjourney
 		}
 	}
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"items":     items,
-			"total":     total,
-			"page":      p,
-			"page_size": pageSize,
-		},
-	})
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
 }
 
 func GetUserMidjourney(c *gin.Context) {
-	p, _ := strconv.Atoi(c.Query("p"))
-	if p < 1 {
-		p = 1
-	}
-	pageSize, _ := strconv.Atoi(c.Query("page_size"))
-	if pageSize <= 0 {
-		pageSize = common.ItemsPerPage
-	}
+	pageInfo := common.GetPageQuery(c)
 
 	userId := c.GetInt("id")
 
@@ -269,7 +248,7 @@ func GetUserMidjourney(c *gin.Context) {
 		EndTimestamp:   c.Query("end_timestamp"),
 	}
 
-	items := model.GetAllUserTask(userId, (p-1)*pageSize, pageSize, queryParams)
+	items := model.GetAllUserTask(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	total := model.CountAllUserTask(userId, queryParams)
 
 	if setting.MjForwardUrlEnabled {
@@ -278,14 +257,7 @@ func GetUserMidjourney(c *gin.Context) {
 			items[i] = midjourney
 		}
 	}
-	c.JSON(200, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"items":     items,
-			"total":     total,
-			"page":      p,
-			"page_size": pageSize,
-		},
-	})
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
 }

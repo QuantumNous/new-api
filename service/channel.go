@@ -8,6 +8,7 @@ import (
 	"one-api/dto"
 	"one-api/model"
 	"one-api/setting/operation_setting"
+	"one-api/types"
 	"strings"
 )
 
@@ -16,17 +17,17 @@ func formatNotifyType(channelId int, status int) string {
 }
 
 // disable & notify
-func DisableChannel(channelId int, channelName string, reason string) {
-	success := model.UpdateChannelStatusById(channelId, common.ChannelStatusAutoDisabled, reason)
+func DisableChannel(channelError types.ChannelError, reason string) {
+	success := model.UpdateChannelStatus(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason)
 	if success {
-		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelName, channelId)
-		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelName, channelId, reason)
-		NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusAutoDisabled), subject, content)
+		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelError.ChannelName, channelError.ChannelId)
+		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
+		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
 	}
 }
 
-func EnableChannel(channelId int, channelName string) {
-	success := model.UpdateChannelStatusById(channelId, common.ChannelStatusEnabled, "")
+func EnableChannel(channelId int, usingKey string, channelName string) {
+	success := model.UpdateChannelStatus(channelId, usingKey, common.ChannelStatusEnabled, "")
 	if success {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
@@ -34,14 +35,17 @@ func EnableChannel(channelId int, channelName string) {
 	}
 }
 
-func ShouldDisableChannel(channelType int, err *dto.OpenAIErrorWithStatusCode) bool {
+func ShouldDisableChannel(channelType int, err *types.NewAPIError) bool {
 	if !common.AutomaticDisableChannelEnabled {
 		return false
 	}
 	if err == nil {
 		return false
 	}
-	if err.LocalError {
+	if types.IsChannelError(err) {
+		return true
+	}
+	if types.IsLocalError(err) {
 		return false
 	}
 	if err.StatusCode == http.StatusUnauthorized {
@@ -53,7 +57,8 @@ func ShouldDisableChannel(channelType int, err *dto.OpenAIErrorWithStatusCode) b
 			return true
 		}
 	}
-	switch err.Error.Code {
+	oaiErr := err.ToOpenAIError()
+	switch oaiErr.Code {
 	case "invalid_api_key":
 		return true
 	case "account_deactivated":
@@ -63,7 +68,7 @@ func ShouldDisableChannel(channelType int, err *dto.OpenAIErrorWithStatusCode) b
 	case "pre_consume_token_quota_failed":
 		return true
 	}
-	switch err.Error.Type {
+	switch oaiErr.Type {
 	case "insufficient_quota":
 		return true
 	case "insufficient_user_quota":
@@ -77,23 +82,16 @@ func ShouldDisableChannel(channelType int, err *dto.OpenAIErrorWithStatusCode) b
 		return true
 	}
 
-	lowerMessage := strings.ToLower(err.Error.Message)
+	lowerMessage := strings.ToLower(err.Error())
 	search, _ := AcSearch(lowerMessage, operation_setting.AutomaticDisableKeywords, true)
-	if search {
-		return true
-	}
-
-	return false
+	return search
 }
 
-func ShouldEnableChannel(err error, openaiWithStatusErr *dto.OpenAIErrorWithStatusCode, status int) bool {
+func ShouldEnableChannel(newAPIError *types.NewAPIError, status int) bool {
 	if !common.AutomaticEnableChannelEnabled {
 		return false
 	}
-	if err != nil {
-		return false
-	}
-	if openaiWithStatusErr != nil {
+	if newAPIError != nil {
 		return false
 	}
 	if status != common.ChannelStatusAutoDisabled {

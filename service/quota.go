@@ -96,7 +96,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
-	modelRatio, _ := ratio_setting.GetModelRatio(modelName)
+	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
 	autoGroup, exists := ctx.Get("auto_group")
 	if exists {
@@ -326,7 +326,7 @@ func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData helper.PriceData
 	promptCacheReadPrice := quotaPrice * priceData.CacheRatio
 	completionPrice := quotaPrice * priceData.CompletionRatio
 
-	cost := usage.Cost
+	cost, _ := usage.Cost.(float64)
 	totalPromptTokens := float64(usage.PromptTokens)
 	completionTokens := float64(usage.CompletionTokens)
 	promptCacheReadTokens := float64(usage.PromptTokensDetails.CachedTokens)

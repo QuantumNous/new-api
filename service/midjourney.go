@@ -204,7 +204,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	req.Header.Set("Accept", c.Request.Header.Get("Accept"))
-	auth := c.Request.Header.Get("Authorization")
+	auth := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
 	if auth != "" {
 		auth = strings.TrimPrefix(auth, "Bearer ")
 		req.Header.Set("mj-api-secret", auth)

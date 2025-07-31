@@ -8,7 +8,7 @@ import ModelSettingsVisualEditor from '../../pages/Setting/Ratio/ModelSettingsVi
 import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor.js';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync.js';
 
-import { API, showError } from '../../helpers';
+import { API, showError, toBoolean } from '../../helpers';
 
 const RatioSetting = () => {
   const { t } = useTranslation();
@@ -51,7 +51,7 @@ const RatioSetting = () => {
           }
         }
         if (['DefaultUseAutoGroup', 'ExposeRatioEnabled'].includes(item.key)) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsDrawing from '../../pages/Setting/Drawing/SettingsDrawing.js';
-import { API, showError } from '../../helpers';
+import { API, showError, toBoolean } from '../../helpers';
 
 const DrawingSetting = () => {
   let [inputs, setInputs] = useState({
@@ -23,7 +23,7 @@ const DrawingSetting = () => {
       let newInputs = {};
       data.forEach((item) => {
         if (item.key.endsWith('Enabled')) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }

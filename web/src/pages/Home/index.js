@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Button, Typography, Tag, Input, ScrollList, ScrollItem } from '@douyinfe/semi-ui';
-import { API, showError, isMobile, copy, showSuccess } from '../../helpers';
+import { API, showError, copy, showSuccess } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
 import { marked } from 'marked';
@@ -18,6 +19,7 @@ const Home = () => {
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
+  const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = statusState?.status?.server_address || window.location.origin;
@@ -98,7 +100,7 @@ const Home = () => {
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
-        isMobile={isMobile()}
+        isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
         <div className="w-full overflow-x-hidden">
@@ -133,7 +135,7 @@ const Home = () => {
                       readonly
                       value={serverAddress}
                       className="flex-1 !rounded-full"
-                      size={isMobile() ? 'default' : 'large'}
+                      size={isMobile ? 'default' : 'large'}
                       suffix={
                         <div className="flex items-center gap-2">
                           <ScrollList bodyHeight={32} style={{ border: 'unset', boxShadow: 'unset' }}>
@@ -160,13 +162,13 @@ const Home = () => {
                 {/* 操作按钮 */}
                 <div className="flex flex-row gap-4 justify-center items-center">
                   <Link to="/console">
-                    <Button theme="solid" type="primary" size={isMobile() ? "default" : "large"} className="!rounded-3xl px-8 py-2" icon={<IconPlay />}>
+                    <Button theme="solid" type="primary" size={isMobile ? "default" : "large"} className="!rounded-3xl px-8 py-2" icon={<IconPlay />}>
                       {t('获取密钥')}
                     </Button>
                   </Link>
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
-                      size={isMobile() ? "default" : "large"}
+                      size={isMobile ? "default" : "large"}
                       className="flex items-center !rounded-3xl px-6 py-2"
                       icon={<IconGithubLogo />}
                       onClick={() => window.open('https://github.com/QuantumNous/new-api', '_blank')}
@@ -176,7 +178,7 @@ const Home = () => {
                   ) : (
                     docsLink && (
                       <Button
-                        size={isMobile() ? "default" : "large"}
+                        size={isMobile ? "default" : "large"}
                         className="flex items-center !rounded-3xl px-6 py-2"
                         icon={<IconFile />}
                         onClick={() => window.open(docsLink, '_blank')}

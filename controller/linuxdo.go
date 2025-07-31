@@ -38,10 +38,7 @@ func LinuxDoBind(c *gin.Context) {
 	code := c.Query("code")
 	linuxdoUser, err := getLinuxdoUserInfoByCode(code, c)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -63,20 +60,14 @@ func LinuxDoBind(c *gin.Context) {
 
 	err = user.FillUserById()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
 	user.LinuxDOId = strconv.Itoa(linuxdoUser.Id)
 	err = user.Update(false)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 
@@ -202,10 +193,7 @@ func LinuxdoOAuth(c *gin.Context) {
 	code := c.Query("code")
 	linuxdoUser, err := getLinuxdoUserInfoByCode(code, c)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiError(c, err)
 		return
 	}
 

@@ -17,11 +17,20 @@ const (
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 
 	/* channel related keys */
-	ContextKeyBaseUrl        ContextKey = "base_url"
-	ContextKeyChannelType    ContextKey = "channel_type"
-	ContextKeyChannelId      ContextKey = "channel_id"
-	ContextKeyChannelSetting ContextKey = "channel_setting"
-	ContextKeyParamOverride  ContextKey = "param_override"
+	ContextKeyChannelId                ContextKey = "channel_id"
+	ContextKeyChannelName              ContextKey = "channel_name"
+	ContextKeyChannelCreateTime        ContextKey = "channel_create_time"
+	ContextKeyChannelBaseUrl           ContextKey = "base_url"
+	ContextKeyChannelType              ContextKey = "channel_type"
+	ContextKeyChannelSetting           ContextKey = "channel_setting"
+	ContextKeyChannelParamOverride     ContextKey = "param_override"
+	ContextKeyChannelOrganization      ContextKey = "channel_organization"
+	ContextKeyChannelAutoBan           ContextKey = "auto_ban"
+	ContextKeyChannelModelMapping      ContextKey = "model_mapping"
+	ContextKeyChannelStatusCodeMapping ContextKey = "status_code_mapping"
+	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
+	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
+	ContextKeyChannelKey               ContextKey = "channel_key"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 
-import { API, showError } from '../../helpers/index.js';
+import { API, showError, toBoolean } from '../../helpers/index.js';
 import { useTranslation } from 'react-i18next';
 import RequestRateLimit from '../../pages/Setting/RateLimit/SettingsRequestRateLimit.js';
 
@@ -28,7 +28,7 @@ const RateLimitSetting = () => {
         }
 
         if (item.key.endsWith('Enabled')) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }

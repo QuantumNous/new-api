@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { API, isMobile, showError, showSuccess } from '../../helpers';
+import { API, showError, showSuccess } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import {
   Button,
   SideSheet,
@@ -26,6 +27,7 @@ const AddUser = (props) => {
   const { t } = useTranslation();
   const formApiRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   const getInitValues = () => ({
     username: '',
@@ -67,7 +69,7 @@ const AddUser = (props) => {
         }
         bodyStyle={{ padding: '0' }}
         visible={props.visible}
-        width={isMobile() ? '100%' : 600}
+        width={isMobile ? '100%' : 600}
         footer={
           <div className="flex justify-end bg-white">
             <Space>

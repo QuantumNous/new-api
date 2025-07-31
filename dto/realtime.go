@@ -1,5 +1,7 @@
 package dto
 
+import "one-api/types"
+
 const (
 	RealtimeEventTypeError              = "error"
 	RealtimeEventTypeSessionUpdate      = "session.update"
@@ -23,12 +25,12 @@ type RealtimeEvent struct {
 	EventId string `json:"event_id"`
 	Type    string `json:"type"`
 	//PreviousItemId string `json:"previous_item_id"`
-	Session  *RealtimeSession  `json:"session,omitempty"`
-	Item     *RealtimeItem     `json:"item,omitempty"`
-	Error    *OpenAIError      `json:"error,omitempty"`
-	Response *RealtimeResponse `json:"response,omitempty"`
-	Delta    string            `json:"delta,omitempty"`
-	Audio    string            `json:"audio,omitempty"`
+	Session  *RealtimeSession   `json:"session,omitempty"`
+	Item     *RealtimeItem      `json:"item,omitempty"`
+	Error    *types.OpenAIError `json:"error,omitempty"`
+	Response *RealtimeResponse  `json:"response,omitempty"`
+	Delta    string             `json:"delta,omitempty"`
+	Audio    string             `json:"audio,omitempty"`
 }
 
 type RealtimeResponse struct {

@@ -8,17 +8,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
+	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // https://cloud.tencent.com/document/product/1729/97732
@@ -86,7 +89,7 @@ func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.Cha
 	return &response
 }
 
-func tencentStreamHandler(c *gin.Context, resp *http.Response) (*dto.OpenAIErrorWithStatusCode, string) {
+func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var responseText string
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
@@ -126,38 +129,35 @@ func tencentStreamHandler(c *gin.Context, resp *http.Response) (*dto.OpenAIError
 
 	common.CloseResponseBodyGracefully(resp)
 
-	return nil, responseText
+	return service.ResponseText2Usage(responseText, info.UpstreamModelName, info.PromptTokens), nil
 }
 
-func tencentHandler(c *gin.Context, resp *http.Response) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var tencentSb TencentChatResponseSB
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
 	common.CloseResponseBodyGracefully(resp)
 	err = json.Unmarshal(responseBody, &tencentSb)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if tencentSb.Response.Error.Code != 0 {
-		return &dto.OpenAIErrorWithStatusCode{
-			Error: dto.OpenAIError{
-				Message: tencentSb.Response.Error.Message,
-				Code:    tencentSb.Response.Error.Code,
-			},
-			StatusCode: resp.StatusCode,
-		}, nil
+		return nil, types.WithOpenAIError(types.OpenAIError{
+			Message: tencentSb.Response.Error.Message,
+			Code:    tencentSb.Response.Error.Code,
+		}, resp.StatusCode)
 	}
 	fullTextResponse := responseTencent2OpenAI(&tencentSb.Response)
-	jsonResponse, err := json.Marshal(fullTextResponse)
+	jsonResponse, err := common.Marshal(fullTextResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = c.Writer.Write(jsonResponse)
-	return nil, &fullTextResponse.Usage
+	common.IOCopyBytesGracefully(c, resp, jsonResponse)
+	return &fullTextResponse.Usage, nil
 }
 
 func parseTencentConfig(config string) (appId int64, secretId string, secretKey string, err error) {

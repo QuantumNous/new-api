@@ -10,6 +10,7 @@ import (
 	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
+	"one-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -94,20 +95,20 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case constant.RelayModeEmbeddings:
 		fallthrough
 	case constant.RelayModeChatCompletions:
 		if info.IsStream {
-			err, usage = cfStreamHandler(c, resp, info)
+			err, usage = cfStreamHandler(c, info, resp)
 		} else {
-			err, usage = cfHandler(c, resp, info)
+			err, usage = cfHandler(c, info, resp)
 		}
 	case constant.RelayModeAudioTranslation:
 		fallthrough
 	case constant.RelayModeAudioTranscription:
-		err, usage = cfSTTHandler(c, resp, info)
+		err, usage = cfSTTHandler(c, info, resp)
 	}
 	return
 }
