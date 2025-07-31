@@ -5,7 +5,7 @@ import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
 
 // Context
 import { UserContext } from '../../context/User/index.js';
-import { useStyle, styleActions } from '../../context/Style/index.js';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 
 // hooks
 import { usePlaygroundState } from '../../hooks/usePlaygroundState.js';
@@ -59,7 +59,8 @@ const generateAvatarDataUrl = (username) => {
 const Playground = () => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
-  const { state: styleState, dispatch: styleDispatch } = useStyle();
+  const isMobile = useIsMobile();
+  const styleState = { isMobile };
   const [searchParams] = useSearchParams();
 
   const state = usePlaygroundState();
@@ -321,19 +322,7 @@ const Playground = () => {
     }
   }, [searchParams, t]);
 
-  // 处理窗口大小变化
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      if (styleState.isMobile !== mobile) {
-        styleDispatch(styleActions.setMobile(mobile));
-      }
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [styleState.isMobile, styleDispatch]);
+  // Playground 组件无需再监听窗口变化，isMobile 由 useIsMobile Hook 自动更新
 
   // 构建预览payload
   useEffect(() => {
@@ -365,26 +354,26 @@ const Playground = () => {
   return (
     <div className="h-full bg-gray-50 mt-[64px]">
       <Layout style={{ height: '100%', background: 'transparent' }} className="flex flex-col md:flex-row">
-        {(showSettings || !styleState.isMobile) && (
+        {(showSettings || !isMobile) && (
           <Layout.Sider
             style={{
               background: 'transparent',
               borderRight: 'none',
               flexShrink: 0,
-              minWidth: styleState.isMobile ? '100%' : 320,
-              maxWidth: styleState.isMobile ? '100%' : 320,
-              height: styleState.isMobile ? 'auto' : 'calc(100vh - 66px)',
+              minWidth: isMobile ? '100%' : 320,
+              maxWidth: isMobile ? '100%' : 320,
+              height: isMobile ? 'auto' : 'calc(100vh - 66px)',
               overflow: 'auto',
-              position: styleState.isMobile ? 'fixed' : 'relative',
-              zIndex: styleState.isMobile ? 1000 : 1,
+              position: isMobile ? 'fixed' : 'relative',
+              zIndex: isMobile ? 1000 : 1,
               width: '100%',
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
             }}
-            width={styleState.isMobile ? '100%' : 320}
-            className={styleState.isMobile ? 'bg-white shadow-lg' : ''}
+            width={isMobile ? '100%' : 320}
+            className={isMobile ? 'bg-white shadow-lg' : ''}
           >
             <OptimizedSettingsPanel
               inputs={inputs}
@@ -432,7 +421,7 @@ const Playground = () => {
             </div>
 
             {/* 调试面板 - 桌面端 */}
-            {showDebugPanel && !styleState.isMobile && (
+            {showDebugPanel && !isMobile && (
               <div className="w-96 flex-shrink-0 h-full">
                 <OptimizedDebugPanel
                   debugData={debugData}
@@ -446,7 +435,7 @@ const Playground = () => {
           </div>
 
           {/* 调试面板 - 移动端覆盖层 */}
-          {showDebugPanel && styleState.isMobile && (
+          {showDebugPanel && isMobile && (
             <div
               style={{
                 position: 'fixed',

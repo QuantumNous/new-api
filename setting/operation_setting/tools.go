@@ -23,6 +23,15 @@ const (
 	Gemini20FlashInputAudioPrice            = 0.70
 )
 
+const (
+	// Claude Web search
+	ClaudeWebSearchPrice = 10.00
+)
+
+func GetClaudeWebSearchPricePerThousand() float64 {
+	return ClaudeWebSearchPrice
+}
+
 func GetWebSearchPricePerThousand(modelName string, contextSize string) float64 {
 	// 确定模型类型
 	// https://platform.openai.com/docs/pricing Web search 价格按模型类型和 search context size 收费

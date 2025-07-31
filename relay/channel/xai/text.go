@@ -10,6 +10,7 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,7 @@ func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage 
 	return openAIResp
 }
 
-func xAIStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	usage := &dto.Usage{}
 	var responseTextBuilder strings.Builder
 	var toolCount int
@@ -74,30 +75,33 @@ func xAIStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	helper.Done(c)
 	common.CloseResponseBodyGracefully(resp)
-	return nil, usage
+	return usage, nil
 }
 
-func xAIHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
-	var response *dto.SimpleResponse
-	err = common.UnmarshalJson(responseBody, &response)
 	if err != nil {
-		common.SysError("error unmarshalling stream response: " + err.Error())
-		return nil, nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	response.Usage.CompletionTokens = response.Usage.TotalTokens - response.Usage.PromptTokens
-	response.Usage.CompletionTokenDetails.TextTokens = response.Usage.CompletionTokens - response.Usage.CompletionTokenDetails.ReasoningTokens
+	var xaiResponse ChatCompletionResponse
+	err = common.Unmarshal(responseBody, &xaiResponse)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if xaiResponse.Usage != nil {
+		xaiResponse.Usage.CompletionTokens = xaiResponse.Usage.TotalTokens - xaiResponse.Usage.PromptTokens
+		xaiResponse.Usage.CompletionTokenDetails.TextTokens = xaiResponse.Usage.CompletionTokens - xaiResponse.Usage.CompletionTokenDetails.ReasoningTokens
+	}
 
 	// new body
-	encodeJson, err := common.EncodeJson(response)
+	encodeJson, err := common.Marshal(xaiResponse)
 	if err != nil {
-		common.SysError("error marshalling stream response: " + err.Error())
-		return nil, nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	common.IOCopyBytesGracefully(c, resp, encodeJson)
 
-	return nil, &response.Usage
+	return xaiResponse.Usage, nil
 }

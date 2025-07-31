@@ -7,7 +7,7 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
-	"one-api/service"
+	"one-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,29 +31,26 @@ func ConvertRerankRequest(request dto.RerankRequest) *AliRerankRequest {
 	}
 }
 
-func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeReadResponseBodyFailed), nil
 	}
 	common.CloseResponseBodyGracefully(resp)
 
 	var aliResponse AliRerankResponse
 	err = json.Unmarshal(responseBody, &aliResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 
 	if aliResponse.Code != "" {
-		return &dto.OpenAIErrorWithStatusCode{
-			Error: dto.OpenAIError{
-				Message: aliResponse.Message,
-				Type:    aliResponse.Code,
-				Param:   aliResponse.RequestId,
-				Code:    aliResponse.Code,
-			},
-			StatusCode: resp.StatusCode,
-		}, nil
+		return types.WithOpenAIError(types.OpenAIError{
+			Message: aliResponse.Message,
+			Type:    aliResponse.Code,
+			Param:   aliResponse.RequestId,
+			Code:    aliResponse.Code,
+		}, resp.StatusCode), nil
 	}
 
 	usage := dto.Usage{
@@ -68,14 +65,10 @@ func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 
 	jsonResponse, err := json.Marshal(rerankResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = c.Writer.Write(jsonResponse)
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "write_response_body_failed", http.StatusInternalServerError), nil
-	}
-
+	c.Writer.Write(jsonResponse)
 	return nil, &usage
 }

@@ -5,7 +5,7 @@ import SettingsSensitiveWords from '../../pages/Setting/Operation/SettingsSensit
 import SettingsLog from '../../pages/Setting/Operation/SettingsLog.js';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring.js';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit.js';
-import { API, showError } from '../../helpers';
+import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
   let [inputs, setInputs] = useState({
@@ -19,6 +19,7 @@ const OperationSetting = () => {
     TopUpLink: '',
     'general_setting.docs_link': '',
     QuotaPerUnit: 0,
+    USDExchangeRate: 0,
     RetryTimes: 0,
     DisplayInCurrencyEnabled: false,
     DisplayTokenStatEnabled: false,
@@ -54,7 +55,7 @@ const OperationSetting = () => {
           item.key.endsWith('Enabled') ||
           ['DefaultCollapseSidebar'].includes(item.key)
         ) {
-          newInputs[item.key] = item.value === 'true' ? true : false;
+          newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;
         }

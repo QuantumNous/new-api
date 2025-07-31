@@ -3,7 +3,6 @@ package relay
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -12,7 +11,10 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting"
+	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func getAndValidAudioRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.AudioRequest, error) {
@@ -54,13 +56,13 @@ func getAndValidAudioRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.
 	return audioRequest, nil
 }
 
-func AudioHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
+func AudioHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	relayInfo := relaycommon.GenRelayInfoOpenAIAudio(c)
 	audioRequest, err := getAndValidAudioRequest(c, relayInfo)
 
 	if err != nil {
 		common.LogError(c, fmt.Sprintf("getAndValidAudioRequest failed: %s", err.Error()))
-		return service.OpenAIErrorWrapper(err, "invalid_audio_request", http.StatusBadRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
 
 	promptTokens := 0
@@ -73,7 +75,7 @@ func AudioHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, preConsumedTokens, 0)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_price_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeModelPriceError)
 	}
 
 	preConsumedQuota, userQuota, openaiErr := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
@@ -88,23 +90,23 @@ func AudioHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 
 	err = helper.ModelMappedHelper(c, relayInfo, audioRequest)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "model_mapped_error", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
 	}
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return service.OpenAIErrorWrapperLocal(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), "invalid_api_type", http.StatusBadRequest)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
 	}
 	adaptor.Init(relayInfo)
 
 	ioReader, err := adaptor.ConvertAudioRequest(c, relayInfo, *audioRequest)
 	if err != nil {
-		return service.OpenAIErrorWrapperLocal(err, "convert_request_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 	}
 
 	resp, err := adaptor.DoRequest(c, relayInfo, ioReader)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		return types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
@@ -112,18 +114,18 @@ func AudioHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			openaiErr = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-			return openaiErr
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
 	}
 
-	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
-	if openaiErr != nil {
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, relayInfo)
+	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
-		return openaiErr
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return newAPIError
 	}
 
 	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")

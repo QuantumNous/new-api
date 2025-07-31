@@ -1,7 +1,6 @@
 package common_handler
 
 import (
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
@@ -9,13 +8,15 @@ import (
 	"one-api/dto"
 	"one-api/relay/channel/xinference"
 	relaycommon "one-api/relay/common"
-	"one-api/service"
+	"one-api/types"
+
+	"github.com/gin-gonic/gin"
 )
 
-func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
 	common.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
@@ -24,9 +25,9 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	var jinaResp dto.RerankResponse
 	if info.ChannelType == constant.ChannelTypeXinference {
 		var xinRerankResponse xinference.XinRerankResponse
-		err = common.UnmarshalJson(responseBody, &xinRerankResponse)
+		err = common.Unmarshal(responseBody, &xinRerankResponse)
 		if err != nil {
-			return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		jinaRespResults := make([]dto.RerankResponseResult, len(xinRerankResponse.Results))
 		for i, result := range xinRerankResponse.Results {
@@ -59,14 +60,14 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			},
 		}
 	} else {
-		err = common.UnmarshalJson(responseBody, &jinaResp)
+		err = common.Unmarshal(responseBody, &jinaResp)
 		if err != nil {
-			return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		jinaResp.Usage.PromptTokens = jinaResp.Usage.TotalTokens
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.JSON(http.StatusOK, jinaResp)
-	return nil, &jinaResp.Usage
+	return &jinaResp.Usage, nil
 }

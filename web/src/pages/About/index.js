@@ -105,7 +105,7 @@ const About = () => {
   );
 
   return (
-    <div className="mt-[64px]">
+    <div className="mt-[64px] px-2">
       {aboutLoaded && about === '' ? (
         <div className="flex justify-center items-center h-screen p-8">
           <Empty

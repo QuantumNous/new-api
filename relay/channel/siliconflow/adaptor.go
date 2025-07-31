@@ -10,6 +10,7 @@ import (
 	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
+	"one-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -76,20 +77,20 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return request, nil
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case constant.RelayModeRerank:
-		err, usage = siliconflowRerankHandler(c, resp)
+		usage, err = siliconflowRerankHandler(c, info, resp)
 	case constant.RelayModeCompletions:
 		fallthrough
 	case constant.RelayModeChatCompletions:
 		if info.IsStream {
-			err, usage = openai.OaiStreamHandler(c, resp, info)
+			usage, err = openai.OaiStreamHandler(c, info, resp)
 		} else {
-			err, usage = openai.OpenaiHandler(c, resp, info)
+			usage, err = openai.OpenaiHandler(c, info, resp)
 		}
 	case constant.RelayModeEmbeddings:
-		err, usage = openai.OpenaiHandler(c, resp, info)
+		usage, err = openai.OpenaiHandler(c, info, resp)
 	}
 	return
 }

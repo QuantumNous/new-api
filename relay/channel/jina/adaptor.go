@@ -11,6 +11,7 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/common_handler"
 	"one-api/relay/constant"
+	"one-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -73,11 +74,11 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return request, nil
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeRerank {
-		err, usage = common_handler.RerankHandler(c, info, resp)
+		usage, err = common_handler.RerankHandler(c, info, resp)
 	} else if info.RelayMode == constant.RelayModeEmbeddings {
-		err, usage = openai.OpenaiHandler(c, resp, info)
+		usage, err = openai.OpenaiHandler(c, info, resp)
 	}
 	return
 }

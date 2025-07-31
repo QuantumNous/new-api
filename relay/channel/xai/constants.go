@@ -1,6 +1,8 @@
 package xai
 
 var ModelList = []string{
+	// grok-4
+	"grok-4", "grok-4-0709", "grok-4-0709-search",
 	// grok-3
 	"grok-3-beta", "grok-3-mini-beta",
 	// grok-3 mini

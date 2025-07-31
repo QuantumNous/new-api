@@ -27,7 +27,7 @@ type Log struct {
 	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
 	UseTime          int    `json:"use_time" gorm:"default:0"`
-	IsStream         bool   `json:"is_stream" gorm:"default:false"`
+	IsStream         bool   `json:"is_stream"`
 	ChannelId        int    `json:"channel" gorm:"index"`
 	ChannelName      string `json:"channel_name" gorm:"->"`
 	TokenId          int    `json:"token_id" gorm:"default:0;index"`
@@ -49,7 +49,7 @@ func formatUserLogs(logs []*Log) {
 	for i := range logs {
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
-		otherMap = common.StrToMap(logs[i].Other)
+		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
 			// delete admin
 			delete(otherMap, "admin_info")

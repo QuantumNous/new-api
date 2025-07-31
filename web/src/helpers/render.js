@@ -1,6 +1,7 @@
 import i18next from 'i18next';
 import { Modal, Tag, Typography } from '@douyinfe/semi-ui';
-import { copy, isMobile, showSuccess } from './utils';
+import { copy, showSuccess } from './utils';
+import { MOBILE_BREAKPOINT } from '../hooks/useIsMobile.js';
 import { visit } from 'unist-util-visit';
 import {
   OpenAI,
@@ -31,6 +32,8 @@ import {
   Coze,
   SiliconCloud,
   FastGPT,
+  Kling,
+  Jimeng,
 } from '@lobehub/icons';
 
 import {
@@ -51,18 +54,18 @@ import {
 
 // 侧边栏图标颜色映射
 export const sidebarIconColors = {
-  dashboard: '#4F46E5', // 紫蓝色
+  dashboard: '#10B981', // 绿色
   terminal: '#10B981', // 绿色
   message: '#06B6D4', // 青色
   key: '#3B82F6', // 蓝色
-  chart: '#8B5CF6', // 紫色
+  chart: '#F59E0B', // 琥珀色
   image: '#EC4899', // 粉色
   check: '#F59E0B', // 琥珀色
   credit: '#F97316', // 橙色
   layers: '#EF4444', // 红色
   gift: '#F43F5E', // 玫红色
-  user: '#6366F1', // 靛蓝色
-  settings: '#6B7280', // 灰色
+  user: '#10B981', // 绿色
+  settings: '#F97316', // 橙色
 };
 
 // 获取侧边栏Lucide图标组件
@@ -386,6 +389,10 @@ export function getChannelIcon(channelType) {
       return <XAI size={iconSize} />;
     case 49: // Coze
       return <Coze size={iconSize} />;
+    case 50: // 可灵 Kling
+      return <Kling.Color size={iconSize} />;
+    case 51: // 即梦 Jimeng
+      return <Jimeng.Color size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;
@@ -533,7 +540,7 @@ export function stringToColor(str) {
 export function renderModelTag(modelName, options = {}) {
   const {
     color,
-    size = 'large',
+    size = 'default',
     shape = 'circle',
     onClick,
     suffixIcon,
@@ -578,7 +585,7 @@ export function renderText(text, limit) {
 export function renderGroup(group) {
   if (group === '') {
     return (
-      <Tag size='large' key='default' color='orange' shape='circle'>
+      <Tag key='default' color='white' shape='circle'>
         {i18next.t('用户分组')}
       </Tag>
     );
@@ -597,7 +604,6 @@ export function renderGroup(group) {
     <span key={group}>
       {groups.map((group) => (
         <Tag
-          size='large'
           color={tagColors[group] || stringToColor(group)}
           key={group}
           shape='circle'
@@ -664,7 +670,8 @@ const measureTextWidth = (
 };
 
 export function truncateText(text, maxWidth = 200) {
-  if (!isMobile()) {
+  const isMobileScreen = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches;
+  if (!isMobileScreen) {
     return text;
   }
   if (!text) return text;

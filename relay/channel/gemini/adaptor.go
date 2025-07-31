@@ -11,8 +11,8 @@ import (
 	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
-	"one-api/service"
 	"one-api/setting/model_setting"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -168,30 +168,30 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeGemini {
 		if info.IsStream {
-			return GeminiTextGenerationStreamHandler(c, resp, info)
+			return GeminiTextGenerationStreamHandler(c, info, resp)
 		} else {
-			return GeminiTextGenerationHandler(c, resp, info)
+			return GeminiTextGenerationHandler(c, info, resp)
 		}
 	}
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return GeminiImageHandler(c, resp, info)
+		return GeminiImageHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model
 	if strings.HasPrefix(info.UpstreamModelName, "text-embedding") ||
 		strings.HasPrefix(info.UpstreamModelName, "embedding") ||
 		strings.HasPrefix(info.UpstreamModelName, "gemini-embedding") {
-		return GeminiEmbeddingHandler(c, resp, info)
+		return GeminiEmbeddingHandler(c, info, resp)
 	}
 
 	if info.IsStream {
-		err, usage = GeminiChatStreamHandler(c, resp, info)
+		return GeminiChatStreamHandler(c, info, resp)
 	} else {
-		err, usage = GeminiChatHandler(c, resp, info)
+		return GeminiChatHandler(c, info, resp)
 	}
 
 	//if usage.(*dto.Usage).CompletionTokenDetails.ReasoningTokens > 100 {
@@ -205,23 +205,23 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	//	}
 	//}
 
-	return
+	return nil, types.NewError(errors.New("not implemented"), types.ErrorCodeBadResponseBody)
 }
 
-func GeminiImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *dto.OpenAIErrorWithStatusCode) {
+func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
-		return nil, service.OpenAIErrorWrapper(readErr, "read_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(readErr, types.ErrorCodeBadResponseBody)
 	}
 	_ = resp.Body.Close()
 
 	var geminiResponse GeminiImageResponse
 	if jsonErr := json.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
-		return nil, service.OpenAIErrorWrapper(jsonErr, "unmarshal_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
 
 	if len(geminiResponse.Predictions) == 0 {
-		return nil, service.OpenAIErrorWrapper(errors.New("no images generated"), "no_images", http.StatusBadRequest)
+		return nil, types.NewError(errors.New("no images generated"), types.ErrorCodeBadResponseBody)
 	}
 
 	// convert to openai format response
@@ -241,7 +241,7 @@ func GeminiImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 
 	jsonResponse, jsonErr := json.Marshal(openAIResponse)
 	if jsonErr != nil {
-		return nil, service.OpenAIErrorWrapper(jsonErr, "marshal_response_failed", http.StatusInternalServerError)
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
@@ -253,7 +253,7 @@ func GeminiImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 	const imageTokens = 258
 	generatedImages := len(openAIResponse.Data)
 
-	usage = &dto.Usage{
+	usage := &dto.Usage{
 		PromptTokens:     imageTokens * generatedImages, // each generated image has fixed 258 tokens
 		CompletionTokens: 0,                             // image generation does not calculate completion tokens
 		TotalTokens:      imageTokens * generatedImages,

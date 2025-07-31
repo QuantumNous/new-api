@@ -8,18 +8,19 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/types"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *dto.OpenAIErrorWithStatusCode) {
+func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	// 读取响应体
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	if common.DebugEnabled {
@@ -28,9 +29,9 @@ func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 
 	// 解析为 Gemini 原生响应格式
 	var geminiResponse GeminiChatResponse
-	err = common.UnmarshalJson(responseBody, &geminiResponse)
+	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	// 计算使用量（基于 UsageMetadata）
@@ -51,9 +52,9 @@ func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 	}
 
 	// 直接返回 Gemini 原生格式的 JSON 响应
-	jsonResponse, err := common.EncodeJson(geminiResponse)
+	jsonResponse, err := common.Marshal(geminiResponse)
 	if err != nil {
-		return nil, service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError)
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
 	common.IOCopyBytesGracefully(c, resp, jsonResponse)
@@ -61,7 +62,7 @@ func GeminiTextGenerationHandler(c *gin.Context, resp *http.Response, info *rela
 	return &usage, nil
 }
 
-func GeminiTextGenerationStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *dto.OpenAIErrorWithStatusCode) {
+func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
 	var imageCount int
 

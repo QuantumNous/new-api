@@ -1,15 +1,14 @@
 package common
 
 import (
-	"github.com/gin-gonic/gin"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 type PageInfo struct {
-	Page           int   `json:"page"`            // page num 页码
-	PageSize       int   `json:"page_size"`       // page size 页大小
-	StartTimestamp int64 `json:"start_timestamp"` // 秒级
-	EndTimestamp   int64 `json:"end_timestamp"`   // 秒级
+	Page     int `json:"page"`      // page num 页码
+	PageSize int `json:"page_size"` // page size 页大小
 
 	Total int `json:"total"` // 总条数，后设置
 	Items any `json:"items"` // 数据，后设置
@@ -39,11 +38,14 @@ func (p *PageInfo) SetItems(items any) {
 	p.Items = items
 }
 
-func GetPageQuery(c *gin.Context) (*PageInfo, error) {
+func GetPageQuery(c *gin.Context) *PageInfo {
 	pageInfo := &PageInfo{}
-	err := c.BindQuery(pageInfo)
-	if err != nil {
-		return nil, err
+	// 手动获取并处理每个参数
+	if page, err := strconv.Atoi(c.Query("page")); err == nil {
+		pageInfo.Page = page
+	}
+	if pageSize, err := strconv.Atoi(c.Query("page_size")); err == nil {
+		pageInfo.PageSize = pageSize
 	}
 	if pageInfo.Page < 1 {
 		// 兼容
@@ -56,7 +58,25 @@ func GetPageQuery(c *gin.Context) (*PageInfo, error) {
 	}
 
 	if pageInfo.PageSize == 0 {
-		pageInfo.PageSize = ItemsPerPage
+		// 兼容
+		pageSize, _ := strconv.Atoi(c.Query("ps"))
+		if pageSize != 0 {
+			pageInfo.PageSize = pageSize
+		}
+		if pageInfo.PageSize == 0 {
+			pageSize, _ = strconv.Atoi(c.Query("size")) // token page
+			if pageSize != 0 {
+				pageInfo.PageSize = pageSize
+			}
+		}
+		if pageInfo.PageSize == 0 {
+			pageInfo.PageSize = ItemsPerPage
+		}
 	}
-	return pageInfo, nil
+
+	if pageInfo.PageSize > 100 {
+		pageInfo.PageSize = 100
+	}
+
+	return pageInfo
 }

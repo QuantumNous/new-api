@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess, updateAPI, setUserData } from '../../helpers';
@@ -7,22 +7,28 @@ import Loading from '../common/Loading';
 
 const OAuth2Callback = (props) => {
   const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const [, userDispatch] = useContext(UserContext);
+  const navigate = useNavigate();
 
-  const [userState, userDispatch] = useContext(UserContext);
-  const [prompt, setPrompt] = useState(t('处理中...'));
+  // 最大重试次数
+  const MAX_RETRIES = 3;
 
-  let navigate = useNavigate();
+  const sendCode = async (code, state, retry = 0) => {
+    try {
+      const { data: resData } = await API.get(
+        `/api/oauth/${props.type}?code=${code}&state=${state}`,
+      );
 
-  const sendCode = async (code, state, count) => {
-    const res = await API.get(
-      `/api/oauth/${props.type}?code=${code}&state=${state}`,
-    );
-    const { success, message, data } = res.data;
-    if (success) {
+      const { success, message, data } = resData;
+
+      if (!success) {
+        throw new Error(message || 'OAuth2 callback error');
+      }
+
       if (message === 'bind') {
         showSuccess(t('绑定成功！'));
-        navigate('/console/setting');
+        navigate('/console/personal');
       } else {
         userDispatch({ type: 'login', payload: data });
         localStorage.setItem('user', JSON.stringify(data));
@@ -31,27 +37,34 @@ const OAuth2Callback = (props) => {
         showSuccess(t('登录成功！'));
         navigate('/console/token');
       }
-    } else {
-      showError(message);
-      if (count === 0) {
-        setPrompt(t('操作失败，重定向至登录界面中...'));
-        navigate('/console/setting'); // in case this is failed to bind GitHub
-        return;
+    } catch (error) {
+      if (retry < MAX_RETRIES) {
+        // 递增的退避等待
+        await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
+        return sendCode(code, state, retry + 1);
       }
-      count++;
-      setPrompt(t('出现错误，第 ${count} 次重试中...', { count }));
-      await new Promise((resolve) => setTimeout(resolve, count * 2000));
-      await sendCode(code, state, count);
+
+      // 重试次数耗尽，提示错误并返回设置页面
+      showError(error.message || t('授权失败'));
+      navigate('/console/personal');
     }
   };
 
   useEffect(() => {
-    let code = searchParams.get('code');
-    let state = searchParams.get('state');
-    sendCode(code, state, 0).then();
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+
+    // 参数缺失直接返回
+    if (!code) {
+      showError(t('未获取到授权码'));
+      navigate('/console/personal');
+      return;
+    }
+
+    sendCode(code, state);
   }, []);
 
-  return <Loading prompt={prompt} />;
+  return <Loading />;
 };
 
 export default OAuth2Callback;

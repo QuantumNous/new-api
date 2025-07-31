@@ -1,9 +1,15 @@
 package model
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"math/rand"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
+	"one-api/types"
 	"strings"
 	"sync"
 
@@ -36,8 +42,138 @@ type Channel struct {
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
 	OtherInfo         string  `json:"other_info"`
 	Tag               *string `json:"tag" gorm:"index"`
-	Setting           *string `json:"setting" gorm:"type:text"`
+	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
+	// add after v0.8.5
+	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
+}
+
+type ChannelInfo struct {
+	IsMultiKey           bool                  `json:"is_multi_key"`            // 是否多Key模式
+	MultiKeySize         int                   `json:"multi_key_size"`          // 多Key模式下的Key数量
+	MultiKeyStatusList   map[int]int           `json:"multi_key_status_list"`   // key状态列表，key index -> status
+	MultiKeyPollingIndex int                   `json:"multi_key_polling_index"` // 多Key模式下轮询的key索引
+	MultiKeyMode         constant.MultiKeyMode `json:"multi_key_mode"`
+}
+
+// Value implements driver.Valuer interface
+func (c ChannelInfo) Value() (driver.Value, error) {
+	return common.Marshal(&c)
+}
+
+// Scan implements sql.Scanner interface
+func (c *ChannelInfo) Scan(value interface{}) error {
+	bytesValue, _ := value.([]byte)
+	return common.Unmarshal(bytesValue, c)
+}
+
+func (channel *Channel) getKeys() []string {
+	if channel.Key == "" {
+		return []string{}
+	}
+	trimmed := strings.TrimSpace(channel.Key)
+	// If the key starts with '[', try to parse it as a JSON array (e.g., for Vertex AI scenarios)
+	if strings.HasPrefix(trimmed, "[") {
+		var arr []json.RawMessage
+		if err := json.Unmarshal([]byte(trimmed), &arr); err == nil {
+			res := make([]string, len(arr))
+			for i, v := range arr {
+				res[i] = string(v)
+			}
+			return res
+		}
+	}
+	// Otherwise, fall back to splitting by newline
+	keys := strings.Split(strings.Trim(channel.Key, "\n"), "\n")
+	return keys
+}
+
+func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
+	// If not in multi-key mode, return the original key string directly.
+	if !channel.ChannelInfo.IsMultiKey {
+		return channel.Key, 0, nil
+	}
+
+	// Obtain all keys (split by \n)
+	keys := channel.getKeys()
+	if len(keys) == 0 {
+		// No keys available, return error, should disable the channel
+		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	statusList := channel.ChannelInfo.MultiKeyStatusList
+	// helper to get key status, default to enabled when missing
+	getStatus := func(idx int) int {
+		if statusList == nil {
+			return common.ChannelStatusEnabled
+		}
+		if status, ok := statusList[idx]; ok {
+			return status
+		}
+		return common.ChannelStatusEnabled
+	}
+
+	// Collect indexes of enabled keys
+	enabledIdx := make([]int, 0, len(keys))
+	for i := range keys {
+		if getStatus(i) == common.ChannelStatusEnabled {
+			enabledIdx = append(enabledIdx, i)
+		}
+	}
+	// If no specific status list or none enabled, fall back to first key
+	if len(enabledIdx) == 0 {
+		return keys[0], 0, nil
+	}
+
+	switch channel.ChannelInfo.MultiKeyMode {
+	case constant.MultiKeyModeRandom:
+		// Randomly pick one enabled key
+		selectedIdx := enabledIdx[rand.Intn(len(enabledIdx))]
+		return keys[selectedIdx], selectedIdx, nil
+	case constant.MultiKeyModePolling:
+		// Use channel-specific lock to ensure thread-safe polling
+		lock := getChannelPollingLock(channel.Id)
+		lock.Lock()
+		defer lock.Unlock()
+
+		channelInfo, err := CacheGetChannelInfo(channel.Id)
+		if err != nil {
+			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed)
+		}
+		//println("before polling index:", channel.ChannelInfo.MultiKeyPollingIndex)
+		defer func() {
+			if common.DebugEnabled {
+				println(fmt.Sprintf("channel %d polling index: %d", channel.Id, channel.ChannelInfo.MultiKeyPollingIndex))
+			}
+			if !common.MemoryCacheEnabled {
+				_ = channel.SaveChannelInfo()
+			} else {
+				// CacheUpdateChannel(channel)
+			}
+		}()
+		// Start from the saved polling index and look for the next enabled key
+		start := channelInfo.MultiKeyPollingIndex
+		if start < 0 || start >= len(keys) {
+			start = 0
+		}
+		for i := 0; i < len(keys); i++ {
+			idx := (start + i) % len(keys)
+			if getStatus(idx) == common.ChannelStatusEnabled {
+				// update polling index for next call (point to the next position)
+				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
+				return keys[idx], idx, nil
+			}
+		}
+		// Fallback – should not happen, but return first enabled key
+		return keys[enabledIdx[0]], enabledIdx[0], nil
+	default:
+		// Unknown mode, default to first enabled key (or original key string)
+		return keys[enabledIdx[0]], enabledIdx[0], nil
+	}
+}
+
+func (channel *Channel) SaveChannelInfo() error {
+	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }
 
 func (channel *Channel) GetModels() []string {
@@ -175,14 +311,20 @@ func SearchChannels(keyword string, group string, model string, idSort bool) ([]
 }
 
 func GetChannelById(id int, selectAll bool) (*Channel, error) {
-	channel := Channel{Id: id}
+	channel := &Channel{Id: id}
 	var err error = nil
 	if selectAll {
-		err = DB.First(&channel, "id = ?", id).Error
+		err = DB.First(channel, "id = ?", id).Error
 	} else {
-		err = DB.Omit("key").First(&channel, "id = ?", id).Error
+		err = DB.Omit("key").First(channel, "id = ?", id).Error
 	}
-	return &channel, err
+	if err != nil {
+		return nil, err
+	}
+	if channel == nil {
+		return nil, errors.New("channel not found")
+	}
+	return channel, nil
 }
 
 func BatchInsertChannels(channels []Channel) error {
@@ -266,6 +408,44 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
+	if channel.ChannelInfo.IsMultiKey {
+		var keyStr string
+		if channel.Key != "" {
+			keyStr = channel.Key
+		} else {
+			// If key is not provided, read the existing key from the database
+			if existing, err := GetChannelById(channel.Id, true); err == nil {
+				keyStr = existing.Key
+			}
+		}
+		// Parse the key list (supports newline separation or JSON array)
+		keys := []string{}
+		if keyStr != "" {
+			trimmed := strings.TrimSpace(keyStr)
+			if strings.HasPrefix(trimmed, "[") {
+				var arr []json.RawMessage
+				if err := json.Unmarshal([]byte(trimmed), &arr); err == nil {
+					keys = make([]string, len(arr))
+					for i, v := range arr {
+						keys[i] = string(v)
+					}
+				}
+			}
+			if len(keys) == 0 { // fallback to newline split
+				keys = strings.Split(strings.Trim(keyStr, "\n"), "\n")
+			}
+		}
+		channel.ChannelInfo.MultiKeySize = len(keys)
+		// Clean up status data that exceeds the new key count to prevent index out of range
+		if channel.ChannelInfo.MultiKeyStatusList != nil {
+			for idx := range channel.ChannelInfo.MultiKeyStatusList {
+				if idx >= channel.ChannelInfo.MultiKeySize {
+					delete(channel.ChannelInfo.MultiKeyStatusList, idx)
+				}
+			}
+		}
+	}
 	var err error
 	err = DB.Model(channel).Updates(channel).Error
 	if err != nil {
@@ -308,48 +488,128 @@ func (channel *Channel) Delete() error {
 
 var channelStatusLock sync.Mutex
 
-func UpdateChannelStatusById(id int, status int, reason string) bool {
+// channelPollingLocks stores locks for each channel.id to ensure thread-safe polling
+var channelPollingLocks sync.Map
+
+// getChannelPollingLock returns or creates a mutex for the given channel ID
+func getChannelPollingLock(channelId int) *sync.Mutex {
+	if lock, exists := channelPollingLocks.Load(channelId); exists {
+		return lock.(*sync.Mutex)
+	}
+	// Create new lock for this channel
+	newLock := &sync.Mutex{}
+	actual, _ := channelPollingLocks.LoadOrStore(channelId, newLock)
+	return actual.(*sync.Mutex)
+}
+
+// CleanupChannelPollingLocks removes locks for channels that no longer exist
+// This is optional and can be called periodically to prevent memory leaks
+func CleanupChannelPollingLocks() {
+	var activeChannelIds []int
+	DB.Model(&Channel{}).Pluck("id", &activeChannelIds)
+
+	activeChannelSet := make(map[int]bool)
+	for _, id := range activeChannelIds {
+		activeChannelSet[id] = true
+	}
+
+	channelPollingLocks.Range(func(key, value interface{}) bool {
+		channelId := key.(int)
+		if !activeChannelSet[channelId] {
+			channelPollingLocks.Delete(channelId)
+		}
+		return true
+	})
+}
+
+func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int) {
+	keys := channel.getKeys()
+	if len(keys) == 0 {
+		channel.Status = status
+	} else {
+		var keyIndex int
+		for i, key := range keys {
+			if key == usingKey {
+				keyIndex = i
+				break
+			}
+		}
+		if channel.ChannelInfo.MultiKeyStatusList == nil {
+			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
+		}
+		if status == common.ChannelStatusEnabled {
+			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+		} else {
+			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
+		}
+		if len(channel.ChannelInfo.MultiKeyStatusList) >= channel.ChannelInfo.MultiKeySize {
+			channel.Status = common.ChannelStatusAutoDisabled
+			info := channel.GetOtherInfo()
+			info["status_reason"] = "All keys are disabled"
+			info["status_time"] = common.GetTimestamp()
+			channel.SetOtherInfo(info)
+		}
+	}
+}
+
+func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
 		defer channelStatusLock.Unlock()
 
-		channelCache, _ := CacheGetChannel(id)
-		// 如果缓存渠道存在，且状态已是目标状态，直接返回
-		if channelCache != nil && channelCache.Status == status {
+		channelCache, _ := CacheGetChannel(channelId)
+		if channelCache == nil {
 			return false
 		}
-		// 如果缓存渠道不存在(说明已经被禁用)，且要设置的状态不为启用，直接返回
-		if channelCache == nil && status != common.ChannelStatusEnabled {
-			return false
+		if channelCache.ChannelInfo.IsMultiKey {
+			// 如果是多Key模式，更新缓存中的状态
+			handlerMultiKeyUpdate(channelCache, usingKey, status)
+			//CacheUpdateChannel(channelCache)
+			//return true
+		} else {
+			// 如果缓存渠道存在，且状态已是目标状态，直接返回
+			if channelCache.Status == status {
+				return false
+			}
+			// 如果缓存渠道不存在(说明已经被禁用)，且要设置的状态不为启用，直接返回
+			if status != common.ChannelStatusEnabled {
+				return false
+			}
+			CacheUpdateChannelStatus(channelId, status)
 		}
-		CacheUpdateChannelStatus(id, status)
 	}
-	err := UpdateAbilityStatus(id, status == common.ChannelStatusEnabled)
+
+	shouldUpdateAbilities := false
+	defer func() {
+		if shouldUpdateAbilities {
+			err := UpdateAbilityStatus(channelId, status == common.ChannelStatusEnabled)
+			if err != nil {
+				common.SysError("failed to update ability status: " + err.Error())
+			}
+		}
+	}()
+	channel, err := GetChannelById(channelId, true)
 	if err != nil {
-		common.SysError("failed to update ability status: " + err.Error())
 		return false
-	}
-	channel, err := GetChannelById(id, true)
-	if err != nil {
-		// find channel by id error, directly update status
-		result := DB.Model(&Channel{}).Where("id = ?", id).Update("status", status)
-		if result.Error != nil {
-			common.SysError("failed to update channel status: " + result.Error.Error())
-			return false
-		}
-		if result.RowsAffected == 0 {
-			return false
-		}
 	} else {
 		if channel.Status == status {
 			return false
 		}
-		// find channel by id success, update status and other info
-		info := channel.GetOtherInfo()
-		info["status_reason"] = reason
-		info["status_time"] = common.GetTimestamp()
-		channel.SetOtherInfo(info)
-		channel.Status = status
+
+		if channel.ChannelInfo.IsMultiKey {
+			beforeStatus := channel.Status
+			handlerMultiKeyUpdate(channel, usingKey, status)
+			if beforeStatus != channel.Status {
+				shouldUpdateAbilities = true
+			}
+		} else {
+			info := channel.GetOtherInfo()
+			info["status_reason"] = reason
+			info["status_time"] = common.GetTimestamp()
+			channel.SetOtherInfo(info)
+			channel.Status = status
+			shouldUpdateAbilities = true
+		}
 		err = channel.Save()
 		if err != nil {
 			common.SysError("failed to update channel status: " + err.Error())
@@ -532,6 +792,8 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 		err := json.Unmarshal([]byte(*channel.Setting), &setting)
 		if err != nil {
 			common.SysError("failed to unmarshal setting: " + err.Error())
+			channel.Setting = nil // 清空设置以避免后续错误
+			_ = channel.Save()    // 保存修改
 		}
 	}
 	return setting

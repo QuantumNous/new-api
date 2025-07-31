@@ -4,6 +4,7 @@ import React from 'react';
 import { toast } from 'react-toastify';
 import { THINK_TAG_REGEX, MESSAGE_ROLES } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
+import { MOBILE_BREAKPOINT } from '../hooks/useIsMobile.js';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -67,9 +68,7 @@ export async function copy(text) {
   return okay;
 }
 
-export function isMobile() {
-  return window.innerWidth <= 600;
-}
+// isMobile 函数已移除，请改用 useIsMobile Hook
 
 let showErrorOptions = { autoClose: toastConstants.ERROR_TIMEOUT };
 let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
@@ -77,7 +76,8 @@ let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
 let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
 let showNoticeOptions = { autoClose: false };
 
-if (isMobile()) {
+const isMobileScreen = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches;
+if (isMobileScreen) {
   showErrorOptions.position = 'top-center';
   // showErrorOptions.transition = 'flip';
 

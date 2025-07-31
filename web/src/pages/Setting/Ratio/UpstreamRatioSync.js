@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   CheckCircle,
 } from 'lucide-react';
-import { API, showError, showSuccess, showWarning, stringToColor, isMobile } from '../../../helpers';
+import { API, showError, showSuccess, showWarning, stringToColor } from '../../../helpers';
+import { useIsMobile } from '../../../hooks/useIsMobile.js';
 import { DEFAULT_ENDPOINT } from '../../../constants';
 import { useTranslation } from 'react-i18next';
 import {
@@ -28,6 +29,7 @@ import {
 import ChannelSelectorModal from '../../../components/settings/ChannelSelectorModal';
 
 function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
+  const isMobile = useIsMobile();
   const columns = [
     { title: t('渠道'), dataIndex: 'channel' },
     { title: t('模型'), dataIndex: 'model' },
@@ -49,7 +51,7 @@ function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
       visible={visible}
       onCancel={onCancel}
       onOk={onOk}
-      size={isMobile() ? 'full-width' : 'large'}
+      size={isMobile ? 'full-width' : 'large'}
     >
       <Table columns={columns} dataSource={items} pagination={false} size="small" />
     </Modal>
@@ -61,6 +63,7 @@ export default function UpstreamRatioSync(props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   // 渠道选择相关
   const [allChannels, setAllChannels] = useState([]);

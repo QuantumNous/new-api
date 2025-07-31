@@ -369,7 +369,7 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	return name
 }
 
-func GetModelRatio(name string) (float64, bool) {
+func GetModelRatio(name string) (float64, bool, string) {
 	modelRatioMapMutex.RLock()
 	defer modelRatioMapMutex.RUnlock()
 
@@ -380,9 +380,9 @@ func GetModelRatio(name string) (float64, bool) {
 	}
 	ratio, ok := modelRatioMap[name]
 	if !ok {
-		return 37.5, operation_setting.SelfUseModeEnabled
+		return 37.5, operation_setting.SelfUseModeEnabled, name
 	}
-	return ratio, true
+	return ratio, true, name
 }
 
 func DefaultModelRatio2JSONString() string {

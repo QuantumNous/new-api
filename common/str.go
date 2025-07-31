@@ -32,16 +32,30 @@ func MapToJsonStr(m map[string]interface{}) string {
 	return string(bytes)
 }
 
-func StrToMap(str string) map[string]interface{} {
+func StrToMap(str string) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
-	err := json.Unmarshal([]byte(str), &m)
+	err := Unmarshal([]byte(str), &m)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return m
+	return m, nil
 }
 
-func IsJsonStr(str string) bool {
+func StrToJsonArray(str string) ([]interface{}, error) {
+	var js []interface{}
+	err := json.Unmarshal([]byte(str), &js)
+	if err != nil {
+		return nil, err
+	}
+	return js, nil
+}
+
+func IsJsonArray(str string) bool {
+	var js []interface{}
+	return json.Unmarshal([]byte(str), &js) == nil
+}
+
+func IsJsonObject(str string) bool {
 	var js map[string]interface{}
 	return json.Unmarshal([]byte(str), &js) == nil
 }

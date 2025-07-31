@@ -57,7 +57,7 @@ func initCol() {
 		}
 	}
 	// log sql type and database type
-	common.SysLog("Using Log SQL Type: " + common.LogSqlType)
+	//common.SysLog("Using Log SQL Type: " + common.LogSqlType)
 }
 
 var DB *gorm.DB
@@ -225,12 +225,6 @@ func InitLogDB() (err error) {
 		if !common.IsMasterNode {
 			return nil
 		}
-		//if common.UsingMySQL {
-		//	_, _ = sqlDB.Exec("DROP INDEX idx_channels_key ON channels;")             // TODO: delete this line when most users have upgraded
-		//	_, _ = sqlDB.Exec("ALTER TABLE midjourneys MODIFY action VARCHAR(40);")   // TODO: delete this line when most users have upgraded
-		//	_, _ = sqlDB.Exec("ALTER TABLE midjourneys MODIFY progress VARCHAR(30);") // TODO: delete this line when most users have upgraded
-		//	_, _ = sqlDB.Exec("ALTER TABLE midjourneys MODIFY status VARCHAR(20);")   // TODO: delete this line when most users have upgraded
-		//}
 		common.SysLog("database migration started")
 		err = migrateLOGDB()
 		return err
@@ -266,7 +260,6 @@ func migrateDB() error {
 
 func migrateDBFast() error {
 	var wg sync.WaitGroup
-	errChan := make(chan error, 12) // Buffer size matches number of migrations
 
 	migrations := []struct {
 		model interface{}
@@ -285,6 +278,8 @@ func migrateDBFast() error {
 		{&Task{}, "Task"},
 		{&Setup{}, "Setup"},
 	}
+	// 动态计算migration数量，确保errChan缓冲区足够大
+	errChan := make(chan error, len(migrations))
 
 	for _, m := range migrations {
 		wg.Add(1)

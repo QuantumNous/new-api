@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
 	"one-api/service"
+	"one-api/types"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func oaiImage2Ali(request dto.ImageRequest) *AliImageRequest {
@@ -124,49 +126,46 @@ func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, info *relayc
 	return &imageResponse
 }
 
-func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
 	responseFormat := c.GetString("response_format")
 
 	var aliTaskResponse AliResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeReadResponseBodyFailed), nil
 	}
 	common.CloseResponseBodyGracefully(resp)
 	err = json.Unmarshal(responseBody, &aliTaskResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 
 	if aliTaskResponse.Message != "" {
 		common.LogError(c, "ali_async_task_failed: "+aliTaskResponse.Message)
-		return service.OpenAIErrorWrapper(errors.New(aliTaskResponse.Message), "ali_async_task_failed", http.StatusInternalServerError), nil
+		return types.NewError(errors.New(aliTaskResponse.Message), types.ErrorCodeBadResponse), nil
 	}
 
 	aliResponse, _, err := asyncTaskWait(info, aliTaskResponse.Output.TaskId)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "ali_async_task_wait_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeBadResponse), nil
 	}
 
 	if aliResponse.Output.TaskStatus != "SUCCEEDED" {
-		return &dto.OpenAIErrorWithStatusCode{
-			Error: dto.OpenAIError{
-				Message: aliResponse.Output.Message,
-				Type:    "ali_error",
-				Param:   "",
-				Code:    aliResponse.Output.Code,
-			},
-			StatusCode: resp.StatusCode,
-		}, nil
+		return types.WithOpenAIError(types.OpenAIError{
+			Message: aliResponse.Output.Message,
+			Type:    "ali_error",
+			Param:   "",
+			Code:    aliResponse.Output.Code,
+		}, resp.StatusCode), nil
 	}
 
 	fullTextResponse := responseAli2OpenAIImage(c, aliResponse, info, responseFormat)
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {
-		return service.OpenAIErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = c.Writer.Write(jsonResponse)
-	return nil, nil
+	c.Writer.Write(jsonResponse)
+	return nil, &dto.Usage{}
 }

@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import {
   API,
-  isMobile,
   showError,
   showSuccess,
   timestamp2string,
   renderGroupOption,
   renderQuotaWithPrompt,
+  getModelCategories,
 } from '../../helpers';
+import { useIsMobile } from '../../hooks/useIsMobile.js';
 import {
   Button,
   SideSheet,
@@ -37,6 +38,7 @@ const EditToken = (props) => {
   const { t } = useTranslation();
   const [statusState, statusDispatch] = useContext(StatusContext);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -78,10 +80,25 @@ const EditToken = (props) => {
     let res = await API.get(`/api/user/models`);
     const { success, message, data } = res.data;
     if (success) {
-      let localModelOptions = data.map((model) => ({
-        label: model,
-        value: model,
-      }));
+      const categories = getModelCategories(t);
+      let localModelOptions = data.map((model) => {
+        let icon = null;
+        for (const [key, category] of Object.entries(categories)) {
+          if (key !== 'all' && category.filter({ model_name: model })) {
+            icon = category.icon;
+            break;
+          }
+        }
+        return {
+          label: (
+            <span className="flex items-center gap-1">
+              {icon}
+              {model}
+            </span>
+          ),
+          value: model,
+        };
+      });
       setModels(localModelOptions);
     } else {
       showError(t(message));
@@ -261,7 +278,7 @@ const EditToken = (props) => {
       }
       bodyStyle={{ padding: '0' }}
       visible={props.visiable}
-      width={isMobile() ? '100%' : 600}
+      width={isMobile ? '100%' : 600}
       footer={
         <div className='flex justify-end bg-white'>
           <Space>
@@ -345,7 +362,23 @@ const EditToken = (props) => {
                       label={t('过期时间')}
                       type='dateTime'
                       placeholder={t('请选择过期时间')}
-                      rules={[{ required: true, message: t('请选择过期时间') }]}
+                      rules={[
+                        { required: true, message: t('请选择过期时间') },
+                        {
+                          validator: (rule, value) => {
+                            // 允许 -1 表示永不过期，也允许空值在必填校验时被拦截
+                            if (value === -1 || !value) return Promise.resolve();
+                            const time = Date.parse(value);
+                            if (isNaN(time)) {
+                              return Promise.reject(t('过期时间格式错误！'));
+                            }
+                            if (time <= Date.now()) {
+                              return Promise.reject(t('过期时间不能早于当前时间！'));
+                            }
+                            return Promise.resolve();
+                          },
+                        },
+                      ]}
                       showClear
                       style={{ width: '100%' }}
                     />
@@ -454,6 +487,20 @@ const EditToken = (props) => {
                 </div>
                 <Row gutter={12}>
                   <Col span={24}>
+                    <Form.Select
+                      field='model_limits'
+                      label={t('模型限制列表')}
+                      placeholder={t('请选择该令牌支持的模型，留空支持所有模型')}
+                      multiple
+                      optionList={models}
+                      extraText={t('非必要，不建议启用模型限制')}
+                      filter
+                      searchPosition='dropdown'
+                      showClear
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                  <Col span={24}>
                     <Form.TextArea
                       field='allow_ips'
                       label={t('IP白名单')}
@@ -461,19 +508,6 @@ const EditToken = (props) => {
                       autosize
                       rows={1}
                       extraText={t('请勿过度信任此功能，IP可能被伪造')}
-                      showClear
-                      style={{ width: '100%' }}
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Select
-                      field='model_limits'
-                      label={t('模型限制列表')}
-                      placeholder={t('请选择该令牌支持的模型，留空支持所有模型')}
-                      multiple
-                      optionList={models}
-                      maxTagCount={3}
-                      extraText={t('非必要，不建议启用模型限制')}
                       showClear
                       style={{ width: '100%' }}
                     />
