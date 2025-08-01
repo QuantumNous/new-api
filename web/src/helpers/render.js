@@ -226,7 +226,9 @@ export const getModelCategories = (() => {
           model.model_name.toLowerCase().includes('ada') ||
           model.model_name.toLowerCase().includes('o1') ||
           model.model_name.toLowerCase().includes('o3') ||
-          model.model_name.toLowerCase().includes('o4'),
+          model.model_name.toLowerCase().includes('o4') ||
+          model.model_name.toLowerCase().includes('codex-') ||
+          model.model_name.toLowerCase().includes('computer-'),
       },
       anthropic: {
         label: 'Anthropic',
@@ -236,12 +238,16 @@ export const getModelCategories = (() => {
       gemini: {
         label: 'Gemini',
         icon: <Gemini.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('gemini'),
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('gemini') ||
+          model.model_name.toLowerCase().includes('gemma'),
       },
       moonshot: {
         label: 'Moonshot',
         icon: <Moonshot />,
-        filter: (model) => model.model_name.toLowerCase().includes('moonshot'),
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('moonshot') ||
+          model.model_name.toLowerCase().includes('kimi'),
       },
       zhipu: {
         label: t('智谱'),
@@ -253,7 +259,10 @@ export const getModelCategories = (() => {
       qwen: {
         label: t('通义千问'),
         icon: <Qwen.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('qwen'),
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('qwen') ||
+          model.model_name.toLowerCase().includes('qwq') ||
+          model.model_name.toLowerCase().includes('qvq'),
       },
       deepseek: {
         label: 'DeepSeek',
