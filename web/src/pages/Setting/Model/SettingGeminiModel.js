@@ -49,6 +49,7 @@ export default function SettingGeminiModel(props) {
     'gemini.supported_imagine_models': '',
     'gemini.thinking_adapter_enabled': false,
     'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+    'gemini.include_thoughts_summary_enabled': true,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -235,6 +236,21 @@ export default function SettingGeminiModel(props) {
                     setInputs({
                       ...inputs,
                       'gemini.thinking_adapter_budget_tokens_percentage': value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={16}>
+                <Form.Switch
+                  label={t('包含思考摘要')}
+                  field={'gemini.include_thoughts_summary_enabled'}
+                  extraText={t('开启思考过程摘要并将收到的摘要包含在回复中。仅在模型支持和思考预算不为0时生效。')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'gemini.include_thoughts_summary_enabled': value,
                     })
                   }
                 />
