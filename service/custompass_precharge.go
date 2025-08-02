@@ -117,6 +117,8 @@ func NewCustomPassPrechargeService() CustomPassPrechargeService {
 
 // ExecutePrecharge executes precharge operation with transaction boundary and concurrency control
 func (s *CustomPassPrechargeServiceImpl) ExecutePrecharge(c *gin.Context, user *model.User, modelName string, estimatedUsage *Usage) (*PrechargeResult, *model.BillingInfo, error) {
+	common.SysLog(fmt.Sprintf("[第一次计费-开始] ===== 开始执行预扣费流程 ===== 用户ID: %d, 用户名: %s, 模型: %s", 
+		user.Id, user.Username, modelName))
 	common.SysLog(fmt.Sprintf("[CustomPass预扣费执行] 开始执行预扣费 - 用户ID: %d, 用户名: %s, 模型: %s", 
 		user.Id, user.Username, modelName))
 	
@@ -417,6 +419,8 @@ func (s *CustomPassPrechargeServiceImpl) executePrechargeTransaction(userID int,
 
 	common.SysLog(fmt.Sprintf("[CustomPass事务] 预扣费事务成功 - 用户ID: %d, 事务ID: %s, 扣除金额: %s, 扣除后余额: %s", 
 		userID, transactionID, common.LogQuota(int(amount)), common.LogQuota(user.Quota-int(amount))))
+	common.SysLog(fmt.Sprintf("[第一次计费-结束] ===== 预扣费流程执行完成 ===== 用户ID: %d, 事务ID: %s, 扣除金额: %s", 
+		userID, transactionID, common.LogQuota(int(amount))))
 
 	return &PrechargeResult{
 		PrechargeAmount: amount,

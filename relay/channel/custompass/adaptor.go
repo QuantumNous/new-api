@@ -13,7 +13,6 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
-	"one-api/setting/ratio_setting"
 	"one-api/types"
 	"strings"
 	"time"
@@ -130,8 +129,15 @@ func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoReques
 			buildUpstreamURL(params.Channel.GetBaseURL(), params.ModelName), 
 			params.RequestBody, params.AuthService, params.HTTPClient)
 		if err != nil {
-			helper.RecordConsumeLog(c, params.User.Id, params.Channel.Id, 0, 0, params.ModelName, 
-				c.GetString("token_name"), 0, params.User.Group, "请求失败: " + err.Error())
+			model.RecordConsumeLog(c, params.User.Id, model.RecordConsumeLogParams{
+				ChannelId:        params.Channel.Id,
+				PromptTokens:     0,
+				CompletionTokens: 0,
+				ModelName:        params.ModelName,
+				TokenName:        c.GetString("token_name"),
+				Quota:            0,
+				Content:          "请求失败: " + err.Error(),
+			})
 			return nil, err
 		}
 
@@ -148,69 +154,90 @@ func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoReques
 	// 定义返回结果变量                                                                     
 	var result *TwoRequestResult                                                            
                                                                                      
-	// Step 1: 获取模型的价格、倍率、分组和用户的特殊分组                                   
+	// Step 1: 构建RelayInfo用于标准价格计算                                   
 	billingMode := params.BillingService.DetermineBillingMode(params.ModelName)             
-	modelPrice, _ := ratio_setting.GetModelPrice(params.ModelName, false)                   
-	modelRatio, _, _ := ratio_setting.GetModelRatio(params.ModelName)                       
-	completionRatio := ratio_setting.GetCompletionRatio(params.ModelName)                   
-																							
-	relayInfo := &relaycommon.RelayInfo{                                                    
-		UserGroup: params.User.Group,                                                       
-		UsingGroup: params.User.Group,                                                      
-	}                                                                                       
-	groupRatioInfo := helper.HandleGroupRatio(c, relayInfo)
-																							
-	// 构建 BillingInfo                                                                     
-	billingInfo := &model.BillingInfo{                                                      
-		GroupRatio:      1.0,                                                               
-		UserGroupRatio:  1.0,                                                               
-		ModelRatio:      modelRatio,                                                        
-		CompletionRatio: completionRatio,                                                   
-		ModelPrice:      modelPrice,                                                        
-		BillingMode:     billingModeToString(billingMode),                                  
-		HasSpecialRatio: false,                                                             
-	}                                                                                       
-																							
-	billingInfo.GroupRatio = groupRatioInfo.GroupRatio                                  
-	billingInfo.UserGroupRatio = groupRatioInfo.GroupSpecialRatio                       
-	billingInfo.HasSpecialRatio = groupRatioInfo.HasSpecialRatio                        
 	
+	// 构建RelayInfo，让标准流程处理分组逻辑
+	relayInfo := &relaycommon.RelayInfo{
+		UserGroup: params.User.Group,
+		UsingGroup: params.User.Group, // 初始值，HandleGroupRatio会根据auto_group更新
+		OriginModelName: params.ModelName,
+	}
 
-	// 打印倍率和分组等信息                                                                                                             
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ===== 计费信息 ====="))                                                    
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型: %s", params.ModelName))                                              
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 用户ID: %d, 用户组: %s", params.User.Id, params.User.Group))               
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 计费模式: %s", billingInfo.BillingMode))                                   
-	if billingMode == service.BillingModeFixed {                                                                                        
-		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 固定价格: %.6f", billingInfo.ModelPrice))                              
-	} else if billingMode == service.BillingModeUsage {                                                                                 
-		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型倍率: %.6f", billingInfo.ModelRatio))                              
-		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 补全倍率: %.6f", billingInfo.CompletionRatio))                         
-	}                                                                                                                                                                                                                                          
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 组倍率: %.6f", billingInfo.GroupRatio))                                
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 用户特殊倍率: %.6f", billingInfo.UserGroupRatio))                      
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 是否使用特殊倍率: %t", billingInfo.HasSpecialRatio))                   
-	
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ===================="))  
+	// 设置用户设置信息（如果需要的话）
+	if params.User != nil {
+		relayInfo.UserSetting = dto.UserSetting{
+			AcceptUnsetRatioModel: false, // 根据实际需求设置
+		}
+	}
 
-	// Step 2: Send precharge request to get usage estimation
+	// 先获取预扣费响应以获得token信息
 	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型%s需要计费，开始预扣费请求流程", params.ModelName))
 	prechargeResp, err := handlePrechargeRequest(c, params)
 	if err != nil {
 		common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 预扣费请求失败: %v", err))
-		helper.RecordConsumeLog(c, params.User.Id, params.Channel.Id, 0, 0, params.ModelName, 
-			c.GetString("token_name"), 0, params.User.Group, "预扣费请求失败: " + err.Error())
+		model.RecordConsumeLog(c, params.User.Id, model.RecordConsumeLogParams{
+			ChannelId:        params.Channel.Id,
+			PromptTokens:     0,
+			CompletionTokens: 0,
+			ModelName:        params.ModelName,
+			TokenName:        c.GetString("token_name"),
+			Quota:            0,
+			Content:          "预扣费请求失败: " + err.Error(),
+		})
 		return nil, err
 	}
 
 	if prechargeResp.Usage == nil {                               
-             return nil, &CustomPassError{                             
-                 Code:    ErrCodeUpstreamError,                        
-                 Message: "预扣费响应缺少usage信息",                   
-             }                                                         
-         }
+		return nil, &CustomPassError{                             
+			Code:    ErrCodeUpstreamError,                        
+			Message: "预扣费响应缺少usage信息",                   
+		}                                                         
+	}
 
-	//Step 3: 计算预扣费金额信息
+	// 使用标准ModelPriceHelper进行价格计算
+	priceData, err := helper.ModelPriceHelper(c, relayInfo, 
+		prechargeResp.Usage.GetInputTokens(), 
+		prechargeResp.Usage.GetOutputTokens())
+	if err != nil {
+		common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ModelPriceHelper失败: %v", err))
+		return nil, &CustomPassError{
+			Code:    ErrCodeSystemError,
+			Message: "价格计算失败",
+			Details: err.Error(),
+		}
+	}
+	
+	// 构建 BillingInfo
+	billingInfo := &model.BillingInfo{
+		GroupRatio:      priceData.GroupRatioInfo.GroupRatio,
+		UserGroupRatio:  priceData.GroupRatioInfo.GroupSpecialRatio,
+		ModelRatio:      priceData.ModelRatio,
+		CompletionRatio: priceData.CompletionRatio,
+		ModelPrice:      priceData.ModelPrice,
+		BillingMode:     billingModeToString(billingMode),
+		HasSpecialRatio: priceData.GroupRatioInfo.HasSpecialRatio,
+	}
+
+	// 打印计费信息 (使用标准ModelPriceHelper的结果)
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ===== 标准价格计算结果 ====="))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型: %s", params.ModelName))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 用户ID: %d, 用户组: %s", params.User.Id, params.User.Group))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 使用分组: %s", relayInfo.UsingGroup))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 计费模式: %s", billingInfo.BillingMode))
+	if priceData.UsePrice {
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 固定价格: %.6f", billingInfo.ModelPrice))
+	} else {
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型倍率: %.6f", billingInfo.ModelRatio))
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 补全倍率: %.6f", billingInfo.CompletionRatio))
+	}
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 组倍率: %.6f", billingInfo.GroupRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 用户特殊倍率: %.6f", billingInfo.UserGroupRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 是否使用特殊倍率: %t", billingInfo.HasSpecialRatio))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 预消费配额: %d", priceData.ShouldPreConsumedQuota))
+	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ======================"))
+
+	// Step 3: 计算预扣费金额信息
 
 	// Log the usage from precharge response for debugging
 	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ===== 预扣费响应的Usage (executeTwoRequestMode) ====="))
@@ -224,52 +251,20 @@ func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoReques
 	common.SysLog(fmt.Sprintf("[CustomPass-Usage-Debug] ================================================"))
 	
 	
-	// 计算预扣费金额，并打印计算过程日志                                                                          
+	// 计算预扣费金额，使用标准ModelPriceHelper的结果                                                                          
 	var prechargeAmount int64 = 0                                                                                  
 	var finalUsage *Usage = prechargeResp.Usage                                                                    
                                                                                                                 
 	// 只有非免费的计费模式才需要计算预扣费
 	if billingMode != service.BillingModeFree {
-		// 非免费模式必须有分组信息
-		if !hasGroupRatioInfo {
-			return nil, &CustomPassError{
-				Code:    ErrCodeSystemError,
-				Message: "计费模型缺少分组倍率配置",
-			}
-		}
+		// 直接使用ModelPriceHelper计算的预消费配额
+		prechargeAmount = int64(priceData.ShouldPreConsumedQuota)
 		
-		// 确定有效的用户倍率                                                                                      
-		effectiveUserRatio := 1.0                                                                                  
-		if groupRatioInfo.HasSpecialRatio {                                                                        
-			effectiveUserRatio = groupRatioInfo.GroupSpecialRatio                                                  
-		}                                                                                                          																									
-		groupRatio := groupRatioInfo.GroupRatio                                                                    
-																											
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ===== 预扣费计算 ====="))                         
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 计费模式: %s", billingInfo.BillingMode))          
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 组倍率: %.6f", groupRatio))                       
-	common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 用户倍率: %.6f", effectiveUserRatio))             
-																											
-	// 转换Usage为service.Usage                                                                                
-	serviceUsage := &service.Usage{                                                                            
-		PromptTokens:     prechargeResp.Usage.PromptTokens,                                                    
-		CompletionTokens: prechargeResp.Usage.CompletionTokens,                                                
-		TotalTokens:      prechargeResp.Usage.TotalTokens,                                                     
-		InputTokens:      prechargeResp.Usage.InputTokens,                                                     
-		OutputTokens:     prechargeResp.Usage.OutputTokens,                                                    
-	}                                                                                                          
-		amount, err := params.BillingService.CalculatePrechargeAmount(params.ModelName, serviceUsage, groupRatio, effectiveUserRatio)                                                                                            
-		if err != nil {       
-			helper.RecordConsumeLog(c, params.User.Id, params.Channel.Id, 0, 0, params.ModelName, 
-				c.GetString("token_name"), 0, params.User.Group, "预扣费计算失败: " + err.Error())
-			return nil, &CustomPassError{                                                                          
-				Code:    ErrCodeSystemError,                                                                       
-				Message: "预扣费计算失败",                                                                         
-				Details: err.Error(),                                                                              
-			}                                                                                                      
-		}                                                                                                          
-		prechargeAmount = amount                                                                                   
-		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 计算得出预扣费金额: %d (￥%.4f)",                 
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ===== 预扣费计算 ====="))                         
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 计费模式: %s", billingInfo.BillingMode))          
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 组倍率: %.6f", billingInfo.GroupRatio))                       
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 用户倍率: %.6f", billingInfo.UserGroupRatio))             
+		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 使用标准ModelPriceHelper计算得出预扣费金额: %d (￥%.4f)",                 
 			prechargeAmount, float64(prechargeAmount)/common.QuotaPerUnit))                                        
 		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] ===================="))
 	} else {
@@ -324,8 +319,15 @@ func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoReques
         if err != nil {                                                                     
             common.SysError(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 二次请求失败: %v", err))
             // 记录错误信息到logs
-            helper.RecordConsumeLog(c, params.User.Id, params.Channel.Id, 0, 0, params.ModelName, 
-                c.GetString("token_name"), prechargeAmount, params.User.Group, "二次请求失败: " + err.Error())
+            model.RecordConsumeLog(c, params.User.Id, model.RecordConsumeLogParams{
+				ChannelId:        params.Channel.Id,
+				PromptTokens:     0,
+				CompletionTokens: 0,
+				ModelName:        params.ModelName,
+				TokenName:        c.GetString("token_name"),
+				Quota:            int(prechargeAmount),
+				Content:          "二次请求失败: " + err.Error(),
+			})
             
             // 退还预扣费
             if prechargeAmount > 0 {
@@ -363,6 +365,7 @@ func executeSecondBizRequest(c *gin.Context, params *TwoRequestParams, precharge
 
 	// Send business request
 	common.SysLog("[CustomPass-SecondBizRequest-Debug] 发起真实业务请求")
+	common.SysLog(fmt.Sprintf("[CustomPass-SecondBizRequest-Debug] 第二次请求上游接口 - URL: %s", buildUpstreamURL(params.Channel.GetBaseURL(), params.ModelName)))
 	realResp, err := makeUpstreamRequest(c, params.Channel, "POST", 
 		buildUpstreamURL(params.Channel.GetBaseURL(), params.ModelName), 
 		params.RequestBody, params.AuthService, params.HTTPClient)

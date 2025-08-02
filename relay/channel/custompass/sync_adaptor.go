@@ -154,9 +154,23 @@ func (a *SyncAdaptorImpl) ProcessResponse(c *gin.Context, user *model.User, mode
 				OutputTokens:     response.Usage.OutputTokens,
 			}
 
-			// Calculate actual amount based on real usage using billingService
-			groupRatio := a.billingService.CalculateGroupRatio(user.Group)
-			userRatio := a.billingService.CalculateUserRatio(user.Id)
+			// 使用与预扣费阶段一致的倍率计算方式
+			relayInfo := &relaycommon.RelayInfo{
+				UserId:          user.Id,
+				UserGroup:       user.Group,
+				UsingGroup:      user.Group,
+				OriginModelName: modelName,
+			}
+
+			// 使用标准的HandleGroupRatio获取正确的倍率
+			groupRatioInfo := helper.HandleGroupRatio(c, relayInfo)
+			groupRatio := groupRatioInfo.GroupRatio
+
+			// 用户倍率保持简单处理
+			userRatio := 1.0
+			if groupRatioInfo.HasSpecialRatio {
+				userRatio = groupRatioInfo.GroupSpecialRatio
+			}
 			
 			calculatedAmount, err := a.billingService.CalculatePrechargeAmount(modelName, serviceUsage, groupRatio, userRatio)
 			if err != nil {
