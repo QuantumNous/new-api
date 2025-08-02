@@ -70,6 +70,28 @@ func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *dto.Cla
 	return &claudeRequest
 }
 
+func Effort2ClaudeThinking(ReasoningEffort string) *dto.Thinking {
+	var thinking *dto.Thinking
+	switch ReasoningEffort {
+	case "low":
+		thinking = &dto.Thinking{
+			Type:         "enabled",
+			BudgetTokens: common.GetPointer[int](1280),
+		}
+	case "medium":
+		thinking = &dto.Thinking{
+			Type:         "enabled",
+			BudgetTokens: common.GetPointer[int](2048),
+		}
+	case "high":
+		thinking = &dto.Thinking{
+			Type:         "enabled",
+			BudgetTokens: common.GetPointer[int](4096),
+		}
+	}
+	return thinking
+}
+
 func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
@@ -191,23 +213,7 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 	}
 
 	if textRequest.ReasoningEffort != "" {
-		switch textRequest.ReasoningEffort {
-		case "low":
-			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](1280),
-			}
-		case "medium":
-			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](2048),
-			}
-		case "high":
-			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](4096),
-			}
-		}
+		claudeRequest.Thinking = Effort2ClaudeThinking(textRequest.ReasoningEffort)
 	}
 
 	// 指定了 reasoning 参数,覆盖 budgetTokens
@@ -216,7 +222,11 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 		if err := common.Unmarshal(textRequest.Reasoning, &reasoning); err != nil {
 			return nil, err
 		}
-
+		effort := reasoning.Effort
+		if effort != "" {
+			claudeRequest.Thinking = Effort2ClaudeThinking(textRequest.ReasoningEffort)
+		}
+		// 优先budgetTokens
 		budgetTokens := reasoning.MaxTokens
 		if budgetTokens > 0 {
 			claudeRequest.Thinking = &dto.Thinking{
