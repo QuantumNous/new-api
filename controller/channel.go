@@ -60,6 +60,22 @@ type GoogleOpenAICompatibleResponse struct {
 	NextPageToken string                         `json:"nextPageToken"`
 }
 
+// AnthropicModel 定义Anthropic API返回的模型结构
+type AnthropicModel struct {
+	ID          string `json:"id"`
+	CreatedAt   string `json:"created_at"`
+	DisplayName string `json:"display_name"`
+	Type        string `json:"type"`
+}
+
+// AnthropicModelsResponse 定义Anthropic API响应结构
+type AnthropicModelsResponse struct {
+	Data    []AnthropicModel `json:"data"`
+	FirstID string           `json:"first_id"`
+	HasMore bool             `json:"has_more"`
+	LastID  string           `json:"last_id"`
+}
+
 func parseStatusFilter(statusParam string) int {
 	switch strings.ToLower(statusParam) {
 	case "enabled", "1":
@@ -201,9 +217,16 @@ func FetchUpstreamModels(c *gin.Context) {
 
 	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
 	var body []byte
-	if channel.Type == constant.ChannelTypeGemini {
+	switch channel.Type {
+	case constant.ChannelTypeGemini:
 		body, err = GetResponseBody("GET", url, channel, nil) // I don't know why, but Gemini requires no AuthHeader
-	} else {
+	case constant.ChannelTypeAnthropic:
+		// Authropic模型获取Header
+		header := http.Header{}
+		header.Add("x-api-key", channel.Key)
+		header.Add("anthropic-version", "2023-06-01")
+		body, err = GetResponseBody("GET", url, channel, header)
+	default:
 		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	}
 	if err != nil {
@@ -226,6 +249,17 @@ func FetchUpstreamModels(c *gin.Context) {
 						ID: gModel.Name,
 					})
 				}
+			}
+			parseSuccess = true
+		}
+	case constant.ChannelTypeAnthropic:
+		var anthropicResult AnthropicModelsResponse
+		if err = json.Unmarshal(body, &anthropicResult); err == nil {
+			// 转换Anthropic格式到OpenAI格式
+			for _, model := range anthropicResult.Data {
+				result.Data = append(result.Data, OpenAIModel{
+					ID: model.ID,
+				})
 			}
 			parseSuccess = true
 		}
