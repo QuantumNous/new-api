@@ -116,13 +116,10 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 // ExecuteTwoRequestFlow executes the two-request logic with precharge and billing
 // This is a common function that can be used by both sync and async adaptors
 func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoRequestResult, error) {
-	// Check if model requires billing
-	requiresBilling, err := checkModelBilling(params.ModelName)
-	if err != nil {
-		return nil, err
-	}
-
-	if !requiresBilling {
+	// Determine billing mode for the model
+	billingMode := params.BillingService.DetermineBillingMode(params.ModelName)
+	
+	if billingMode == service.BillingModeFree {
 		// Model doesn't require billing, send request directly
 		common.SysLog(fmt.Sprintf("[CustomPass-TwoRequest-Debug] 模型%s不需要计费，直接发起请求", params.ModelName))
 		realResp, err := makeUpstreamRequest(c, params.Channel, "POST", 
@@ -154,8 +151,7 @@ func ExecuteTwoRequestFlow(c *gin.Context, params *TwoRequestParams) (*TwoReques
 	// 定义返回结果变量                                                                     
 	var result *TwoRequestResult                                                            
                                                                                      
-	// Step 1: 构建RelayInfo用于标准价格计算                                   
-	billingMode := params.BillingService.DetermineBillingMode(params.ModelName)             
+	// Step 1: 构建RelayInfo用于标准价格计算             
 	
 	// 构建RelayInfo，让标准流程处理分组逻辑
 	relayInfo := &relaycommon.RelayInfo{
@@ -525,29 +521,6 @@ func makeUpstreamRequest(c *gin.Context, channel *model.Channel, method, url str
 	return upstreamResp, nil
 }
 
-// checkModelBilling checks if the model requires billing
-func checkModelBilling(modelName string) (bool, error) {
-	// Handle test environment where DB might be nil
-	if model.DB == nil {
-		// In test environment, assume billing is required for testing purposes
-		// unless the model name contains "free"
-		return !strings.Contains(strings.ToLower(modelName), "free"), nil
-	}
-
-	// Check if model exists in ability table
-	var abilityCount int64
-	err := model.DB.Model(&model.Ability{}).Where("model = ? AND enabled = ?", modelName, true).Count(&abilityCount).Error
-	if err != nil {
-		return false, &CustomPassError{
-			Code:    ErrCodeSystemError,
-			Message: "查询模型配置失败",
-			Details: err.Error(),
-		}
-	}
-
-	// If model not found in ability table, treat as free model
-	return abilityCount > 0, nil
-}
 
 // billingModeToString converts BillingMode to string
 func billingModeToString(mode service.BillingMode) string {

@@ -20,6 +20,7 @@ const (
 	ErrCodePrechargeError    = "PRECHARGE_ERROR"
 	ErrCodeBillingError      = "BILLING_ERROR"
 	ErrCodeConcurrencyError  = "CONCURRENCY_ERROR"
+	ErrCodeModelNotFound     = "MODEL_NOT_FOUND"
 )
 
 // CustomPassError represents a structured error for CustomPass operations
@@ -220,7 +221,7 @@ func NewCustomPassError(code, message string) *CustomPassError {
 		httpStatus = http.StatusGatewayTimeout
 	case ErrCodeAuthError:
 		httpStatus = http.StatusUnauthorized
-	case ErrCodeTaskNotFound:
+	case ErrCodeTaskNotFound, ErrCodeModelNotFound:
 		httpStatus = http.StatusNotFound
 	case ErrCodeConcurrencyError:
 		httpStatus = http.StatusConflict
@@ -247,7 +248,7 @@ func NewCustomPassErrorWithCause(code, message string, cause error) *CustomPassE
 		httpStatus = http.StatusGatewayTimeout
 	case ErrCodeAuthError:
 		httpStatus = http.StatusUnauthorized
-	case ErrCodeTaskNotFound:
+	case ErrCodeTaskNotFound, ErrCodeModelNotFound:
 		httpStatus = http.StatusNotFound
 	case ErrCodeConcurrencyError:
 		httpStatus = http.StatusConflict
@@ -295,7 +296,7 @@ func WrapError(err error, code, message string) *CustomPassError {
 		httpStatus = http.StatusGatewayTimeout
 	case ErrCodeAuthError:
 		httpStatus = http.StatusUnauthorized
-	case ErrCodeTaskNotFound:
+	case ErrCodeTaskNotFound, ErrCodeModelNotFound:
 		httpStatus = http.StatusNotFound
 	case ErrCodeConcurrencyError:
 		httpStatus = http.StatusConflict
