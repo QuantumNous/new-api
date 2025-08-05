@@ -7,15 +7,15 @@ import (
 )
 
 type ResponseFormat struct {
-	Type       string            `json:"type,omitempty"`
-	JsonSchema *FormatJsonSchema `json:"json_schema,omitempty"`
+	Type       string          `json:"type,omitempty"`
+	JsonSchema json.RawMessage `json:"json_schema,omitempty"`
 }
 
 type FormatJsonSchema struct {
-	Description string `json:"description,omitempty"`
-	Name        string `json:"name"`
-	Schema      any    `json:"schema,omitempty"`
-	Strict      any    `json:"strict,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Name        string          `json:"name"`
+	Schema      any             `json:"schema,omitempty"`
+	Strict      json.RawMessage `json:"strict,omitempty"`
 }
 
 type GeneralOpenAIRequest struct {
@@ -71,6 +71,15 @@ func (r *GeneralOpenAIRequest) ToMap() map[string]any {
 	data, _ := common.Marshal(r)
 	_ = common.Unmarshal(data, &result)
 	return result
+}
+
+func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
+	if strings.HasPrefix(r.Model, "o") {
+		if !strings.HasPrefix(r.Model, "o1-mini") && !strings.HasPrefix(r.Model, "o1-preview") {
+			return "developer"
+		}
+	}
+	return "system"
 }
 
 type ToolCallRequest struct {

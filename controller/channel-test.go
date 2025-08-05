@@ -209,7 +209,7 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 		return testResult{
 			context:     c,
 			localErr:    err,
-			newAPIError: types.NewError(err, types.ErrorCodeDoRequestFailed),
+			newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
 		}
 	}
 	var httpResp *http.Response
@@ -220,7 +220,7 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 			return testResult{
 				context:     c,
 				localErr:    err,
-				newAPIError: types.NewError(err, types.ErrorCodeBadResponse),
+				newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
 			}
 		}
 	}
@@ -236,7 +236,7 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 		return testResult{
 			context:     c,
 			localErr:    errors.New("usage is nil"),
-			newAPIError: types.NewError(errors.New("usage is nil"), types.ErrorCodeBadResponseBody),
+			newAPIError: types.NewOpenAIError(errors.New("usage is nil"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
 	usage := usageA.(*dto.Usage)
@@ -246,7 +246,7 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 		return testResult{
 			context:     c,
 			localErr:    err,
-			newAPIError: types.NewError(err, types.ErrorCodeReadResponseBodyFailed),
+			newAPIError: types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError),
 		}
 	}
 	info.PromptTokens = usage.PromptTokens
@@ -332,8 +332,11 @@ func TestChannel(c *gin.Context) {
 	}
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		channel, err = model.GetChannelById(channelId, true)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	//defer func() {
 	//	if channel.ChannelInfo.IsMultiKey {
@@ -417,7 +420,7 @@ func testAllChannels(notify bool) error {
 			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
 				if milliseconds > disableThreshold {
 					err := errors.New(fmt.Sprintf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0))
-					newAPIError = types.NewError(err, types.ErrorCodeChannelResponseTimeExceeded)
+					newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
 					shouldBanChannel = true
 				}
 			}

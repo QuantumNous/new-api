@@ -83,6 +83,10 @@ export const useChannelsData = () => {
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [modelTablePage, setModelTablePage] = useState(1);
 
+  // Multi-key management states
+  const [showMultiKeyManageModal, setShowMultiKeyManageModal] = useState(false);
+  const [currentMultiKeyChannel, setCurrentMultiKeyChannel] = useState(null);
+
   // Refs
   const requestCounter = useRef(0);
   const allSelectingRef = useRef(false);
@@ -884,6 +888,12 @@ export const useChannelsData = () => {
     modelTablePage,
     setModelTablePage,
     allSelectingRef,
+
+    // Multi-key management states
+    showMultiKeyManageModal,
+    setShowMultiKeyManageModal,
+    currentMultiKeyChannel,
+    setCurrentMultiKeyChannel,
 
     // Form
     formApi,

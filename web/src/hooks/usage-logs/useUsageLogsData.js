@@ -74,6 +74,8 @@ export const useLogsData = () => {
 
   // User and admin
   const isAdminUser = isAdmin();
+  // Role-specific storage key to prevent different roles from overwriting each other
+  const STORAGE_KEY = isAdminUser ? 'logs-table-columns-admin' : 'logs-table-columns-user';
 
   // Statistics state
   const [stat, setStat] = useState({
@@ -110,12 +112,19 @@ export const useLogsData = () => {
 
   // Load saved column preferences from localStorage
   useEffect(() => {
-    const savedColumns = localStorage.getItem('logs-table-columns');
+    const savedColumns = localStorage.getItem(STORAGE_KEY);
     if (savedColumns) {
       try {
         const parsed = JSON.parse(savedColumns);
         const defaults = getDefaultColumnVisibility();
         const merged = { ...defaults, ...parsed };
+
+        // For non-admin users, force-hide admin-only columns (does not touch admin settings)
+        if (!isAdminUser) {
+          merged[COLUMN_KEYS.CHANNEL] = false;
+          merged[COLUMN_KEYS.USERNAME] = false;
+          merged[COLUMN_KEYS.RETRY] = false;
+        }
         setVisibleColumns(merged);
       } catch (e) {
         console.error('Failed to parse saved column preferences', e);
@@ -150,7 +159,7 @@ export const useLogsData = () => {
   const initDefaultColumns = () => {
     const defaults = getDefaultColumnVisibility();
     setVisibleColumns(defaults);
-    localStorage.setItem('logs-table-columns', JSON.stringify(defaults));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
   };
 
   // Handle column visibility change
@@ -180,13 +189,10 @@ export const useLogsData = () => {
     setVisibleColumns(updatedColumns);
   };
 
-  // Update table when column visibility changes
+  // Persist column settings to the role-specific STORAGE_KEY
   useEffect(() => {
     if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(
-        'logs-table-columns',
-        JSON.stringify(visibleColumns),
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
     }
   }, [visibleColumns]);
 

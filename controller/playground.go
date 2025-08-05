@@ -28,19 +28,19 @@ func Playground(c *gin.Context) {
 
 	useAccessToken := c.GetBool("use_access_token")
 	if useAccessToken {
-		newAPIError = types.NewError(errors.New("暂不支持使用 access token"), types.ErrorCodeAccessDenied)
+		newAPIError = types.NewError(errors.New("暂不支持使用 access token"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
 		return
 	}
 
 	playgroundRequest := &dto.PlayGroundRequest{}
 	err := common.UnmarshalBodyReusable(c, playgroundRequest)
 	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 
 	if playgroundRequest.Model == "" {
-		newAPIError = types.NewError(errors.New("请选择模型"), types.ErrorCodeInvalidRequest)
+		newAPIError = types.NewError(errors.New("请选择模型"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 	c.Set("original_model", playgroundRequest.Model)
@@ -51,7 +51,7 @@ func Playground(c *gin.Context) {
 		group = userGroup
 	} else {
 		if !setting.GroupInUserUsableGroups(group) && group != userGroup {
-			newAPIError = types.NewError(errors.New("无权访问该分组"), types.ErrorCodeAccessDenied)
+			newAPIError = types.NewError(errors.New("无权访问该分组"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
 			return
 		}
 		c.Set("group", group)
@@ -62,7 +62,7 @@ func Playground(c *gin.Context) {
 	// Write user context to ensure acceptUnsetRatio is available
 	userCache, err := model.GetUserCache(userId)
 	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError)
+		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		return
 	}
 	userCache.WriteContext(c)

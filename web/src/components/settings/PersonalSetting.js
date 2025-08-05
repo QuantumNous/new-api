@@ -36,6 +36,7 @@ import {
   renderModelTag,
   getModelCategories
 } from '../../helpers';
+import TwoFASetting from './TwoFASetting';
 import Turnstile from 'react-turnstile';
 import { UserContext } from '../../context/User';
 import { useTheme } from '../../context/Theme';
@@ -1040,6 +1041,9 @@ const PersonalSetting = () => {
                             </Button>
                           </div>
                         </Card>
+
+                        {/* 两步验证设置 */}
+                        <TwoFASetting />
 
                         {/* 危险区域 */}
                         <Card

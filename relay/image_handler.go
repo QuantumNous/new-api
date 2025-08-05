@@ -16,6 +16,7 @@ import (
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting"
+	"one-api/setting/model_setting"
 	"one-api/types"
 	"strings"
 
@@ -114,17 +115,17 @@ func ImageHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	imageRequest, err := getAndValidImageRequest(c, relayInfo)
 	if err != nil {
 		common.LogError(c, fmt.Sprintf("getAndValidImageRequest failed: %s", err.Error()))
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	err = helper.ModelMappedHelper(c, relayInfo, imageRequest)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, len(imageRequest.Prompt), 0)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
 	}
 	var preConsumedQuota int
 	var quota int
@@ -172,37 +173,58 @@ func ImageHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		quota = int(priceData.ModelPrice * priceData.GroupRatioInfo.GroupRatio * common.QuotaPerUnit)
 		userQuota, err = model.GetUserQuota(relayInfo.UserId, false)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeQueryDataError)
+			return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if userQuota-quota < 0 {
-			return types.NewError(fmt.Errorf("image pre-consumed quota failed, user quota: %s, need quota: %s", common.FormatQuota(userQuota), common.FormatQuota(quota)), types.ErrorCodeInsufficientUserQuota)
+			return types.NewError(fmt.Errorf("image pre-consumed quota failed, user quota: %s, need quota: %s", common.FormatQuota(userQuota), common.FormatQuota(quota)), types.ErrorCodeInsufficientUserQuota, types.ErrOptionWithSkipRetry())
 		}
 	}
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(relayInfo)
 
 	var requestBody io.Reader
 
-	convertedRequest, err := adaptor.ConvertImageRequest(c, relayInfo, *imageRequest)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
-	}
-	if relayInfo.RelayMode == relayconstant.RelayModeImagesEdits {
-		requestBody = convertedRequest.(io.Reader)
-	} else {
-		jsonData, err := json.Marshal(convertedRequest)
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || relayInfo.ChannelSetting.PassThroughBodyEnabled {
+		body, err := common.GetRequestBody(c)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = bytes.NewBuffer(jsonData)
-	}
+		requestBody = bytes.NewBuffer(body)
+	} else {
+		convertedRequest, err := adaptor.ConvertImageRequest(c, relayInfo, *imageRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if relayInfo.RelayMode == relayconstant.RelayModeImagesEdits {
+			requestBody = convertedRequest.(io.Reader)
+		} else {
+			jsonData, err := json.Marshal(convertedRequest)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
 
-	if common.DebugEnabled {
-		println(fmt.Sprintf("image request body: %s", requestBody))
+			// apply param override
+			if len(relayInfo.ParamOverride) > 0 {
+				reqMap := make(map[string]interface{})
+				_ = common.Unmarshal(jsonData, &reqMap)
+				for key, value := range relayInfo.ParamOverride {
+					reqMap[key] = value
+				}
+				jsonData, err = common.Marshal(reqMap)
+				if err != nil {
+					return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+				}
+			}
+
+			if common.DebugEnabled {
+				println(fmt.Sprintf("image request body: %s", string(jsonData)))
+			}
+			requestBody = bytes.NewBuffer(jsonData)
+		}
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")

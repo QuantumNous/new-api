@@ -1,6 +1,9 @@
-package gemini
+package dto
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"one-api/common"
+)
 
 type GeminiChatRequest struct {
 	Contents           []GeminiChatContent        `json:"contents"`
@@ -32,7 +35,7 @@ func (g *GeminiInlineData) UnmarshalJSON(data []byte) error {
 		MimeTypeSnake string `json:"mime_type"`
 	}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -53,7 +56,7 @@ type FunctionCall struct {
 	Arguments    any    `json:"args"`
 }
 
-type FunctionResponse struct {
+type GeminiFunctionResponse struct {
 	Name     string                 `json:"name"`
 	Response map[string]interface{} `json:"response"`
 }
@@ -78,7 +81,7 @@ type GeminiPart struct {
 	Thought             bool                           `json:"thought,omitempty"`
 	InlineData          *GeminiInlineData              `json:"inlineData,omitempty"`
 	FunctionCall        *FunctionCall                  `json:"functionCall,omitempty"`
-	FunctionResponse    *FunctionResponse              `json:"functionResponse,omitempty"`
+	FunctionResponse    *GeminiFunctionResponse        `json:"functionResponse,omitempty"`
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
@@ -93,7 +96,7 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 		InlineDataSnake *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
 	}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 

@@ -41,19 +41,25 @@ type Channel struct {
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
 	OtherInfo         string  `json:"other_info"`
+	Settings          string  `json:"settings"`
 	Tag               *string `json:"tag" gorm:"index"`
 	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
+
+	// cache info
+	Keys []string `json:"-" gorm:"-"`
 }
 
 type ChannelInfo struct {
-	IsMultiKey           bool                  `json:"is_multi_key"`            // 是否多Key模式
-	MultiKeySize         int                   `json:"multi_key_size"`          // 多Key模式下的Key数量
-	MultiKeyStatusList   map[int]int           `json:"multi_key_status_list"`   // key状态列表，key index -> status
-	MultiKeyPollingIndex int                   `json:"multi_key_polling_index"` // 多Key模式下轮询的key索引
-	MultiKeyMode         constant.MultiKeyMode `json:"multi_key_mode"`
+	IsMultiKey             bool                  `json:"is_multi_key"`                        // 是否多Key模式
+	MultiKeySize           int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
+	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
+	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
+	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
+	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
+	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
 }
 
 // Value implements driver.Valuer interface
@@ -67,15 +73,18 @@ func (c *ChannelInfo) Scan(value interface{}) error {
 	return common.Unmarshal(bytesValue, c)
 }
 
-func (channel *Channel) getKeys() []string {
+func (channel *Channel) GetKeys() []string {
 	if channel.Key == "" {
 		return []string{}
+	}
+	if len(channel.Keys) > 0 {
+		return channel.Keys
 	}
 	trimmed := strings.TrimSpace(channel.Key)
 	// If the key starts with '[', try to parse it as a JSON array (e.g., for Vertex AI scenarios)
 	if strings.HasPrefix(trimmed, "[") {
 		var arr []json.RawMessage
-		if err := json.Unmarshal([]byte(trimmed), &arr); err == nil {
+		if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
 			res := make([]string, len(arr))
 			for i, v := range arr {
 				res[i] = string(v)
@@ -95,7 +104,7 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	}
 
 	// Obtain all keys (split by \n)
-	keys := channel.getKeys()
+	keys := channel.GetKeys()
 	if len(keys) == 0 {
 		// No keys available, return error, should disable the channel
 		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
@@ -132,13 +141,13 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return keys[selectedIdx], selectedIdx, nil
 	case constant.MultiKeyModePolling:
 		// Use channel-specific lock to ensure thread-safe polling
-		lock := getChannelPollingLock(channel.Id)
+		lock := GetChannelPollingLock(channel.Id)
 		lock.Lock()
 		defer lock.Unlock()
 
 		channelInfo, err := CacheGetChannelInfo(channel.Id)
 		if err != nil {
-			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed)
+			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		}
 		//println("before polling index:", channel.ChannelInfo.MultiKeyPollingIndex)
 		defer func() {
@@ -197,7 +206,7 @@ func (channel *Channel) GetGroups() []string {
 func (channel *Channel) GetOtherInfo() map[string]interface{} {
 	otherInfo := make(map[string]interface{})
 	if channel.OtherInfo != "" {
-		err := json.Unmarshal([]byte(channel.OtherInfo), &otherInfo)
+		err := common.Unmarshal([]byte(channel.OtherInfo), &otherInfo)
 		if err != nil {
 			common.SysError("failed to unmarshal other info: " + err.Error())
 		}
@@ -425,7 +434,7 @@ func (channel *Channel) Update() error {
 			trimmed := strings.TrimSpace(keyStr)
 			if strings.HasPrefix(trimmed, "[") {
 				var arr []json.RawMessage
-				if err := json.Unmarshal([]byte(trimmed), &arr); err == nil {
+				if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
 					keys = make([]string, len(arr))
 					for i, v := range arr {
 						keys[i] = string(v)
@@ -491,8 +500,8 @@ var channelStatusLock sync.Mutex
 // channelPollingLocks stores locks for each channel.id to ensure thread-safe polling
 var channelPollingLocks sync.Map
 
-// getChannelPollingLock returns or creates a mutex for the given channel ID
-func getChannelPollingLock(channelId int) *sync.Mutex {
+// GetChannelPollingLock returns or creates a mutex for the given channel ID
+func GetChannelPollingLock(channelId int) *sync.Mutex {
 	if lock, exists := channelPollingLocks.Load(channelId); exists {
 		return lock.(*sync.Mutex)
 	}
@@ -522,8 +531,8 @@ func CleanupChannelPollingLocks() {
 	})
 }
 
-func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int) {
-	keys := channel.getKeys()
+func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) {
+	keys := channel.GetKeys()
 	if len(keys) == 0 {
 		channel.Status = status
 	} else {
@@ -541,6 +550,14 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int) {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
 		} else {
 			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
+			if channel.ChannelInfo.MultiKeyDisabledReason == nil {
+				channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+			}
+			if channel.ChannelInfo.MultiKeyDisabledTime == nil {
+				channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
+			}
+			channel.ChannelInfo.MultiKeyDisabledReason[keyIndex] = reason
+			channel.ChannelInfo.MultiKeyDisabledTime[keyIndex] = common.GetTimestamp()
 		}
 		if len(channel.ChannelInfo.MultiKeyStatusList) >= channel.ChannelInfo.MultiKeySize {
 			channel.Status = common.ChannelStatusAutoDisabled
@@ -563,16 +580,12 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 		}
 		if channelCache.ChannelInfo.IsMultiKey {
 			// 如果是多Key模式，更新缓存中的状态
-			handlerMultiKeyUpdate(channelCache, usingKey, status)
+			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
 			//CacheUpdateChannel(channelCache)
 			//return true
 		} else {
 			// 如果缓存渠道存在，且状态已是目标状态，直接返回
 			if channelCache.Status == status {
-				return false
-			}
-			// 如果缓存渠道不存在(说明已经被禁用)，且要设置的状态不为启用，直接返回
-			if status != common.ChannelStatusEnabled {
 				return false
 			}
 			CacheUpdateChannelStatus(channelId, status)
@@ -598,7 +611,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 
 		if channel.ChannelInfo.IsMultiKey {
 			beforeStatus := channel.Status
-			handlerMultiKeyUpdate(channel, usingKey, status)
+			handlerMultiKeyUpdate(channel, usingKey, status, reason)
 			if beforeStatus != channel.Status {
 				shouldUpdateAbilities = true
 			}
@@ -778,7 +791,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 func (channel *Channel) ValidateSettings() error {
 	channelParams := &dto.ChannelSettings{}
 	if channel.Setting != nil && *channel.Setting != "" {
-		err := json.Unmarshal([]byte(*channel.Setting), channelParams)
+		err := common.Unmarshal([]byte(*channel.Setting), channelParams)
 		if err != nil {
 			return err
 		}
@@ -789,7 +802,7 @@ func (channel *Channel) ValidateSettings() error {
 func (channel *Channel) GetSetting() dto.ChannelSettings {
 	setting := dto.ChannelSettings{}
 	if channel.Setting != nil && *channel.Setting != "" {
-		err := json.Unmarshal([]byte(*channel.Setting), &setting)
+		err := common.Unmarshal([]byte(*channel.Setting), &setting)
 		if err != nil {
 			common.SysError("failed to unmarshal setting: " + err.Error())
 			channel.Setting = nil // 清空设置以避免后续错误
@@ -800,7 +813,7 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 }
 
 func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysError("failed to marshal setting: " + err.Error())
 		return
@@ -811,7 +824,7 @@ func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
 func (channel *Channel) GetParamOverride() map[string]interface{} {
 	paramOverride := make(map[string]interface{})
 	if channel.ParamOverride != nil && *channel.ParamOverride != "" {
-		err := json.Unmarshal([]byte(*channel.ParamOverride), &paramOverride)
+		err := common.Unmarshal([]byte(*channel.ParamOverride), &paramOverride)
 		if err != nil {
 			common.SysError("failed to unmarshal param override: " + err.Error())
 		}

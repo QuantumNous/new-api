@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"one-api/common"
 	"strings"
 )
 
@@ -15,8 +16,8 @@ type OpenAIError struct {
 }
 
 type ClaudeError struct {
-	Message string `json:"message,omitempty"`
 	Type    string `json:"type,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type ErrorType string
@@ -28,6 +29,7 @@ const (
 	ErrorTypeMidjourneyError ErrorType = "midjourney_error"
 	ErrorTypeGeminiError     ErrorType = "gemini_error"
 	ErrorTypeRerankError     ErrorType = "rerank_error"
+	ErrorTypeUpstreamError   ErrorType = "upstream_error"
 )
 
 type ErrorCode string
@@ -62,6 +64,7 @@ const (
 	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"
 	ErrorCodeBadResponse            ErrorCode = "bad_response"
 	ErrorCodeBadResponseBody        ErrorCode = "bad_response_body"
+	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -73,11 +76,13 @@ const (
 )
 
 type NewAPIError struct {
-	Err        error
-	RelayError any
-	errorType  ErrorType
-	errorCode  ErrorCode
-	StatusCode int
+	Err            error
+	RelayError     any
+	skipRetry      bool
+	recordErrorLog *bool
+	errorType      ErrorType
+	errorCode      ErrorCode
+	StatusCode     int
 }
 
 func (e *NewAPIError) GetErrorCode() ErrorCode {
@@ -105,19 +110,30 @@ func (e *NewAPIError) Error() string {
 	return e.Err.Error()
 }
 
+func (e *NewAPIError) MaskSensitiveError() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return string(e.errorCode)
+	}
+	return common.MaskSensitiveInfo(e.Err.Error())
+}
+
 func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
 }
 
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
+	var result OpenAIError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
 		if openAIError, ok := e.RelayError.(OpenAIError); ok {
-			return openAIError
+			result = openAIError
 		}
 	case ErrorTypeClaudeError:
 		if claudeError, ok := e.RelayError.(ClaudeError); ok {
-			return OpenAIError{
+			result = OpenAIError{
 				Message: e.Error(),
 				Type:    claudeError.Type,
 				Param:   "",
@@ -125,59 +141,70 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 			}
 		}
 	}
-	return OpenAIError{
+	result = OpenAIError{
 		Message: e.Error(),
 		Type:    string(e.errorType),
 		Param:   "",
 		Code:    e.errorCode,
 	}
+	result.Message = common.MaskSensitiveInfo(result.Message)
+	return result
 }
 
 func (e *NewAPIError) ToClaudeError() ClaudeError {
+	var result ClaudeError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
 		openAIError := e.RelayError.(OpenAIError)
-		return ClaudeError{
+		result = ClaudeError{
 			Message: e.Error(),
 			Type:    fmt.Sprintf("%v", openAIError.Code),
 		}
 	case ErrorTypeClaudeError:
-		return e.RelayError.(ClaudeError)
+		result = e.RelayError.(ClaudeError)
 	default:
-		return ClaudeError{
+		result = ClaudeError{
 			Message: e.Error(),
 			Type:    string(e.errorType),
 		}
 	}
+	result.Message = common.MaskSensitiveInfo(result.Message)
+	return result
 }
 
-func NewError(err error, errorCode ErrorCode) *NewAPIError {
-	return &NewAPIError{
+type NewAPIErrorOptions func(*NewAPIError)
+
+func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPIError {
+	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
 		errorType:  ErrorTypeNewAPIError,
 		StatusCode: http.StatusInternalServerError,
 		errorCode:  errorCode,
 	}
+	for _, op := range ops {
+		op(e)
+	}
+	return e
 }
 
-func NewOpenAIError(err error, errorCode ErrorCode, statusCode int) *NewAPIError {
+func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	openaiError := OpenAIError{
 		Message: err.Error(),
 		Type:    string(errorCode),
 	}
-	return WithOpenAIError(openaiError, statusCode)
+	return WithOpenAIError(openaiError, statusCode, ops...)
 }
 
-func InitOpenAIError(errorCode ErrorCode, statusCode int) *NewAPIError {
+func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	openaiError := OpenAIError{
 		Type: string(errorCode),
 	}
-	return WithOpenAIError(openaiError, statusCode)
+	return WithOpenAIError(openaiError, statusCode, ops...)
 }
 
-func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int) *NewAPIError {
-	return &NewAPIError{
+func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	e := &NewAPIError{
 		Err: err,
 		RelayError: OpenAIError{
 			Message: err.Error(),
@@ -187,30 +214,49 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int) *New
 		StatusCode: statusCode,
 		errorCode:  errorCode,
 	}
+	for _, op := range ops {
+		op(e)
+	}
+
+	return e
 }
 
-func WithOpenAIError(openAIError OpenAIError, statusCode int) *NewAPIError {
+func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	code, ok := openAIError.Code.(string)
 	if !ok {
 		code = fmt.Sprintf("%v", openAIError.Code)
 	}
-	return &NewAPIError{
+	if openAIError.Type == "" {
+		openAIError.Type = "upstream_error"
+	}
+	e := &NewAPIError{
 		RelayError: openAIError,
 		errorType:  ErrorTypeOpenAIError,
 		StatusCode: statusCode,
 		Err:        errors.New(openAIError.Message),
 		errorCode:  ErrorCode(code),
 	}
+	for _, op := range ops {
+		op(e)
+	}
+	return e
 }
 
-func WithClaudeError(claudeError ClaudeError, statusCode int) *NewAPIError {
-	return &NewAPIError{
+func WithClaudeError(claudeError ClaudeError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	if claudeError.Type == "" {
+		claudeError.Type = "upstream_error"
+	}
+	e := &NewAPIError{
 		RelayError: claudeError,
 		errorType:  ErrorTypeClaudeError,
 		StatusCode: statusCode,
 		Err:        errors.New(claudeError.Message),
 		errorCode:  ErrorCode(claudeError.Type),
 	}
+	for _, op := range ops {
+		op(e)
+	}
+	return e
 }
 
 func IsChannelError(err *NewAPIError) bool {
@@ -220,10 +266,33 @@ func IsChannelError(err *NewAPIError) bool {
 	return strings.HasPrefix(string(err.errorCode), "channel:")
 }
 
-func IsLocalError(err *NewAPIError) bool {
+func IsSkipRetryError(err *NewAPIError) bool {
 	if err == nil {
 		return false
 	}
 
-	return err.errorType == ErrorTypeNewAPIError
+	return err.skipRetry
+}
+
+func ErrOptionWithSkipRetry() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.skipRetry = true
+	}
+}
+
+func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.recordErrorLog = common.GetPointer(false)
+	}
+}
+
+func IsRecordErrorLog(e *NewAPIError) bool {
+	if e == nil {
+		return false
+	}
+	if e.recordErrorLog == nil {
+		// default to true if not set
+		return true
+	}
+	return *e.recordErrorLog
 }

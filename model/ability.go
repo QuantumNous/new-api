@@ -136,7 +136,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 			}
 		}
 	} else {
-		return nil, errors.New("channel not found")
+		return nil, nil
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
@@ -284,6 +284,21 @@ func FixAbility() (int, int, error) {
 		return 0, 0, errors.New("已经有一个修复任务在运行中，请稍后再试")
 	}
 	defer fixLock.Unlock()
+
+	// truncate abilities table
+	if common.UsingSQLite {
+		err := DB.Exec("DELETE FROM abilities").Error
+		if err != nil {
+			common.SysError(fmt.Sprintf("Delete abilities failed: %s", err.Error()))
+			return 0, 0, err
+		}
+	} else {
+		err := DB.Exec("TRUNCATE TABLE abilities").Error
+		if err != nil {
+			common.SysError(fmt.Sprintf("Truncate abilities failed: %s", err.Error()))
+			return 0, 0, err
+		}
+	}
 	var channels []*Channel
 	// Find all channels
 	err := DB.Model(&Channel{}).Find(&channels).Error

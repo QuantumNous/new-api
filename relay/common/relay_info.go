@@ -60,17 +60,19 @@ type ResponsesUsageInfo struct {
 }
 
 type RelayInfo struct {
-	ChannelType       int
-	ChannelId         int
-	TokenId           int
-	TokenKey          string
-	UserId            int
-	UsingGroup        string // 使用的分组
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
-	isFirstResponse   bool
+	ChannelType          int
+	ChannelId            int
+	ChannelIsMultiKey    bool // 是否多密钥
+	ChannelMultiKeyIndex int  // 多密钥索引
+	TokenId              int
+	TokenKey             string
+	UserId               int
+	UsingGroup           string // 使用的分组
+	UserGroup            string // 用户所在分组
+	TokenUnlimited       bool
+	StartTime            time.Time
+	FirstResponseTime    time.Time
+	isFirstResponse      bool
 	//SendLastReasoningResponse bool
 	ApiType           int
 	IsStream          bool
@@ -88,6 +90,7 @@ type RelayInfo struct {
 	BaseUrl              string
 	SupportStreamOptions bool
 	ShouldIncludeUsage   bool
+	DisablePing          bool // 是否禁止向下游发送自定义 Ping
 	IsModelMapped        bool
 	ClientWs             *websocket.Conn
 	TargetWs             *websocket.Conn
@@ -259,6 +262,9 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,
 		},
+
+		ChannelIsMultiKey:    common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
+		ChannelMultiKeyIndex: common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/pg") {
 		info.IsPlayground = true

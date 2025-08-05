@@ -30,6 +30,7 @@ import ModelTestModal from './modals/ModelTestModal.jsx';
 import ColumnSelectorModal from './modals/ColumnSelectorModal.jsx';
 import EditChannelModal from './modals/EditChannelModal.jsx';
 import EditTagModal from './modals/EditTagModal.jsx';
+import MultiKeyManageModal from './modals/MultiKeyManageModal.jsx';
 import { createCardProPagination } from '../../../helpers/utils';
 
 const ChannelsPage = () => {
@@ -54,6 +55,12 @@ const ChannelsPage = () => {
       />
       <BatchTagModal {...channelsData} />
       <ModelTestModal {...channelsData} />
+      <MultiKeyManageModal
+        visible={channelsData.showMultiKeyManageModal}
+        onCancel={() => channelsData.setShowMultiKeyManageModal(false)}
+        channel={channelsData.currentMultiKeyChannel}
+        onRefresh={channelsData.refresh}
+      />
 
       {/* Main Content */}
       <CardPro

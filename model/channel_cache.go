@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/setting"
 	"sort"
 	"strings"
@@ -66,6 +67,20 @@ func InitChannelCache() {
 
 	channelSyncLock.Lock()
 	group2model2channels = newGroup2model2channels
+	//channelsIDM = newChannelId2channel
+	for i, channel := range newChannelId2channel {
+		if channel.ChannelInfo.IsMultiKey {
+			channel.Keys = channel.GetKeys()
+			if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
+				if oldChannel, ok := channelsIDM[i]; ok {
+					// 存在旧的渠道，如果是多key且轮询，保留轮询索引信息
+					if oldChannel.ChannelInfo.IsMultiKey && oldChannel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
+						channel.ChannelInfo.MultiKeyPollingIndex = oldChannel.ChannelInfo.MultiKeyPollingIndex
+					}
+				}
+			}
+		}
+	}
 	channelsIDM = newChannelId2channel
 	channelSyncLock.Unlock()
 	common.SysLog("channels synced from database")
@@ -130,7 +145,7 @@ func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	channels := group2model2channels[group][model]
 
 	if len(channels) == 0 {
-		return nil, errors.New("channel not found")
+		return nil, nil
 	}
 
 	if len(channels) == 1 {
@@ -203,9 +218,6 @@ func CacheGetChannel(id int) (*Channel, error) {
 	if !ok {
 		return nil, fmt.Errorf("渠道# %d，已不存在", id)
 	}
-	if c.Status != common.ChannelStatusEnabled {
-		return nil, fmt.Errorf("渠道# %d，已被禁用", id)
-	}
 	return c, nil
 }
 
@@ -224,9 +236,6 @@ func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 	if !ok {
 		return nil, fmt.Errorf("渠道# %d，已不存在", id)
 	}
-	if c.Status != common.ChannelStatusEnabled {
-		return nil, fmt.Errorf("渠道# %d，已被禁用", id)
-	}
 	return &c.ChannelInfo, nil
 }
 
@@ -238,6 +247,20 @@ func CacheUpdateChannelStatus(id int, status int) {
 	defer channelSyncLock.Unlock()
 	if channel, ok := channelsIDM[id]; ok {
 		channel.Status = status
+	}
+	if status != common.ChannelStatusEnabled {
+		// delete the channel from group2model2channels
+		for group, model2channels := range group2model2channels {
+			for model, channels := range model2channels {
+				for i, channelId := range channels {
+					if channelId == id {
+						// remove the channel from the slice
+						group2model2channels[group][model] = append(channels[:i], channels[i+1:]...)
+						break
+					}
+				}
+			}
+		}
 	}
 }
 

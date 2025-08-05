@@ -57,6 +57,9 @@ const ChannelsTable = (channelsData) => {
     setEditingTag,
     copySelectedChannel,
     refresh,
+    // Multi-key management
+    setShowMultiKeyManageModal,
+    setCurrentMultiKeyChannel,
   } = channelsData;
 
   // Get all columns
@@ -79,6 +82,8 @@ const ChannelsTable = (channelsData) => {
       refresh,
       activePage,
       channels,
+      setShowMultiKeyManageModal,
+      setCurrentMultiKeyChannel,
     });
   }, [
     t,
@@ -98,6 +103,8 @@ const ChannelsTable = (channelsData) => {
     refresh,
     activePage,
     channels,
+    setShowMultiKeyManageModal,
+    setCurrentMultiKeyChannel,
   ]);
 
   // Filter columns based on visibility settings

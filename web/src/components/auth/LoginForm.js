@@ -50,6 +50,7 @@ import { IconGithubLogo, IconMail, IconLock } from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon.js';
 import WeChatIcon from '../common/logo/WeChatIcon.js';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon.js';
+import TwoFAVerification from './TwoFAVerification.js';
 import { useTranslation } from 'react-i18next';
 
 const LoginForm = () => {
@@ -78,6 +79,7 @@ const LoginForm = () => {
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [otherLoginOptionsLoading, setOtherLoginOptionsLoading] = useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
+  const [showTwoFA, setShowTwoFA] = useState(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -162,6 +164,13 @@ const LoginForm = () => {
         );
         const { success, message, data } = res.data;
         if (success) {
+          // 检查是否需要2FA验证
+          if (data && data.require_2fa) {
+            setShowTwoFA(true);
+            setLoginLoading(false);
+            return;
+          }
+          
           userDispatch({ type: 'login', payload: data });
           setUserData(data);
           updateAPI();
@@ -278,6 +287,21 @@ const LoginForm = () => {
     setOtherLoginOptionsLoading(true);
     setShowEmailLogin(false);
     setOtherLoginOptionsLoading(false);
+  };
+
+  // 2FA验证成功处理
+  const handle2FASuccess = (data) => {
+    userDispatch({ type: 'login', payload: data });
+    setUserData(data);
+    updateAPI();
+    showSuccess('登录成功！');
+    navigate('/console');
+  };
+
+  // 返回登录页面
+  const handleBackToLogin = () => {
+    setShowTwoFA(false);
+    setInputs({ username: '', password: '', wechat_verification_code: '' });
   };
 
   const renderOAuthOptions = () => {
@@ -537,6 +561,35 @@ const LoginForm = () => {
     );
   };
 
+  // 2FA验证弹窗
+  const render2FAModal = () => {
+    return (
+      <Modal
+        title={
+          <div className="flex items-center">
+            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-3">
+              <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M6 8a2 2 0 11-4 0 2 2 0 014 0zM8 7a1 1 0 100 2h8a1 1 0 100-2H8zM6 14a2 2 0 11-4 0 2 2 0 014 0zM8 13a1 1 0 100 2h8a1 1 0 100-2H8z" clipRule="evenodd" />
+              </svg>
+            </div>
+            两步验证
+          </div>
+        }
+        visible={showTwoFA}
+        onCancel={handleBackToLogin}
+        footer={null}
+        width={450}
+        centered
+      >
+        <TwoFAVerification 
+          onSuccess={handle2FASuccess}
+          onBack={handleBackToLogin}
+          isModal={true}
+        />
+      </Modal>
+    );
+  };
+
   return (
     <div className="relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       {/* 背景模糊晕染球 */}
@@ -547,6 +600,7 @@ const LoginForm = () => {
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
+        {render2FAModal()}
 
         {turnstileEnabled && (
           <div className="flex justify-center mt-6">

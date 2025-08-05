@@ -210,7 +210,9 @@ export const getChannelsColumns = ({
   copySelectedChannel,
   refresh,
   activePage,
-  channels
+  channels,
+  setShowMultiKeyManageModal,
+  setCurrentMultiKeyChannel
 }) => {
   return [
     {
@@ -503,47 +505,7 @@ export const getChannelsColumns = ({
                 />
               </SplitButtonGroup>
 
-              {record.channel_info?.is_multi_key ? (
-                <SplitButtonGroup
-                  aria-label={t('多密钥渠道操作项目组')}
-                >
-                  {
-                    record.status === 1 ? (
-                      <Button
-                        type='danger'
-                        size="small"
-                        onClick={() => manageChannel(record.id, 'disable', record)}
-                      >
-                        {t('禁用')}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="small"
-                        onClick={() => manageChannel(record.id, 'enable', record)}
-                      >
-                        {t('启用')}
-                      </Button>
-                    )
-                  }
-                  <Dropdown
-                    trigger='click'
-                    position='bottomRight'
-                    menu={[
-                      {
-                        node: 'item',
-                        name: t('启用全部密钥'),
-                        onClick: () => manageChannel(record.id, 'enable_all', record),
-                      }
-                    ]}
-                  >
-                    <Button
-                      type='tertiary'
-                      size="small"
-                      icon={<IconTreeTriangleDown />}
-                    />
-                  </Dropdown>
-                </SplitButtonGroup>
-              ) : (
+              {
                 record.status === 1 ? (
                   <Button
                     type='danger'
@@ -560,18 +522,55 @@ export const getChannelsColumns = ({
                     {t('启用')}
                   </Button>
                 )
-              )}
+              }
 
-              <Button
-                type='tertiary'
-                size="small"
-                onClick={() => {
-                  setEditingChannel(record);
-                  setShowEdit(true);
-                }}
-              >
-                {t('编辑')}
-              </Button>
+              {record.channel_info?.is_multi_key ? (
+                <SplitButtonGroup
+                  aria-label={t('多密钥渠道操作项目组')}
+                >
+                  <Button
+                    type='tertiary'
+                    size="small"
+                    onClick={() => {
+                      setEditingChannel(record);
+                      setShowEdit(true);
+                    }}
+                  >
+                    {t('编辑')}
+                  </Button>
+                  <Dropdown
+                    trigger='click'
+                    position='bottomRight'
+                    menu={[
+                      {
+                        node: 'item',
+                        name: t('多key管理'),
+                        onClick: () => {
+                          setCurrentMultiKeyChannel(record);
+                          setShowMultiKeyManageModal(true);
+                        },
+                      }
+                    ]}
+                  >
+                    <Button
+                      type='tertiary'
+                      size="small"
+                      icon={<IconTreeTriangleDown />}
+                    />
+                  </Dropdown>
+                </SplitButtonGroup>
+              ) : (
+                <Button
+                  type='tertiary'
+                  size="small"
+                  onClick={() => {
+                    setEditingChannel(record);
+                    setShowEdit(true);
+                  }}
+                >
+                  {t('编辑')}
+                </Button>
+              )}
 
               <Dropdown
                 trigger='click'
