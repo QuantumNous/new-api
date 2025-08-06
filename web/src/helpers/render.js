@@ -330,6 +330,31 @@ export const getModelCategories = (() => {
         icon: <Doubao.Color />,
         filter: (model) => model.model_name.toLowerCase().includes('doubao'),
       },
+      kimi: {
+        label: 'Kimi',
+        icon: <Moonshot />,
+        filter: (model) => model.model_name.toLowerCase().includes('kimi'),
+      },
+      kling: {
+        label: 'Kling',
+        icon: <Kling.Color />,
+        filter: (model) => model.model_name.toLowerCase().includes('kling'),
+      },
+      jimeng: {
+        label: t('即梦'),
+        icon: <Jimeng.Color />,
+        filter: (model) => model.model_name.toLowerCase().includes('jimeng'),
+      },
+      other: {
+        label: t('其他'),
+        icon: null,
+        filter: (model) => {
+          const allFilters = Object.entries(categoriesCache)
+            .filter(([key]) => key !== 'all' && key !== 'other')
+            .map(([, category]) => category.filter);
+          return !allFilters.some(filter => filter(model));
+        },
+      },
     };
 
     lastLocale = currentLocale;
