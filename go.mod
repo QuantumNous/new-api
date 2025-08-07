@@ -7,9 +7,10 @@ require (
 	github.com/Calcium-Ion/go-epay v0.0.4
 	github.com/andybalholm/brotli v1.1.1
 	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
-	github.com/aws/aws-sdk-go-v2 v1.26.1
+	github.com/aws/aws-sdk-go-v2 v1.37.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.11
-	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.7.4
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.33.0
+	github.com/aws/smithy-go v1.22.5
 	github.com/bytedance/gopkg v0.0.0-20220118071334-3db87571198b
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-contrib/gzip v0.0.6
@@ -24,6 +25,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
+	github.com/pquerna/otp v1.5.0
 	github.com/samber/lo v1.39.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/shopspring/decimal v1.4.0
@@ -41,10 +43,9 @@ require (
 
 require (
 	github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.2 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.5 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.5 // indirect
-	github.com/aws/smithy-go v1.20.2 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.2 // indirect
 	github.com/boombuler/barcode v1.1.0 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
@@ -81,7 +82,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.1 // indirect
-	github.com/pquerna/otp v1.5.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect

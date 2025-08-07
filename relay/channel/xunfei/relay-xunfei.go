@@ -48,7 +48,7 @@ func requestOpenAI2Xunfei(request dto.GeneralOpenAIRequest, xunfeiAppId string, 
 	xunfeiRequest.Parameter.Chat.Domain = domain
 	xunfeiRequest.Parameter.Chat.Temperature = request.Temperature
 	xunfeiRequest.Parameter.Chat.TopK = request.N
-	xunfeiRequest.Parameter.Chat.MaxTokens = request.MaxTokens
+	xunfeiRequest.Parameter.Chat.MaxTokens = request.GetMaxTokens()
 	xunfeiRequest.Payload.Message.Text = messages
 	return &xunfeiRequest
 }

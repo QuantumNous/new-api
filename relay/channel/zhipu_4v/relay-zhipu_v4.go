@@ -105,7 +105,7 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIReq
 		Messages:    messages,
 		Temperature: request.Temperature,
 		TopP:        request.TopP,
-		MaxTokens:   request.MaxTokens,
+		MaxTokens:   request.GetMaxTokens(),
 		Stop:        Stop,
 		Tools:       request.Tools,
 		ToolChoice:  request.ToolChoice,

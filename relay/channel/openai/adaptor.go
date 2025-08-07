@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
@@ -171,6 +172,23 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		if len(request.Usage) == 0 {
 			request.Usage = json.RawMessage(`{"include":true}`)
+		}
+		if strings.HasSuffix(info.UpstreamModelName, "-thinking") {
+			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
+			request.Model = info.UpstreamModelName
+			if len(request.Reasoning) == 0 {
+				reasoning := map[string]any{
+					"enabled": true,
+				}
+				if request.ReasoningEffort != "" {
+					reasoning["effort"] = request.ReasoningEffort
+				}
+				marshal, err := common.Marshal(reasoning)
+				if err != nil {
+					return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+				}
+				request.Reasoning = marshal
+			}
 		}
 	}
 	if strings.HasPrefix(request.Model, "o") {

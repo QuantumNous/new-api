@@ -120,6 +120,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	action := "generateContent"
 	if info.IsStream {
 		action = "streamGenerateContent?alt=sse"
+		if info.RelayMode == constant.RelayModeGemini {
+			info.DisablePing = true
+		}
 	}
 	return fmt.Sprintf("%s/%s/models/%s:%s", info.BaseUrl, version, info.UpstreamModelName, action), nil
 }
@@ -193,7 +196,6 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeGemini {
 		if info.IsStream {
-			info.DisablePing = true
 			return GeminiTextGenerationStreamHandler(c, info, resp)
 		} else {
 			return GeminiTextGenerationHandler(c, info, resp)

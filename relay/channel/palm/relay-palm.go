@@ -18,30 +18,6 @@ import (
 // https://developers.generativeai.google/api/rest/generativelanguage/models/generateMessage#request-body
 // https://developers.generativeai.google/api/rest/generativelanguage/models/generateMessage#response-body
 
-func requestOpenAI2PaLM(textRequest dto.GeneralOpenAIRequest) *PaLMChatRequest {
-	palmRequest := PaLMChatRequest{
-		Prompt: PaLMPrompt{
-			Messages: make([]PaLMChatMessage, 0, len(textRequest.Messages)),
-		},
-		Temperature:    textRequest.Temperature,
-		CandidateCount: textRequest.N,
-		TopP:           textRequest.TopP,
-		TopK:           textRequest.MaxTokens,
-	}
-	for _, message := range textRequest.Messages {
-		palmMessage := PaLMChatMessage{
-			Content: message.StringContent(),
-		}
-		if message.Role == "user" {
-			palmMessage.Author = "0"
-		} else {
-			palmMessage.Author = "1"
-		}
-		palmRequest.Prompt.Messages = append(palmRequest.Prompt.Messages, palmMessage)
-	}
-	return &palmRequest
-}
-
 func responsePaLM2OpenAI(response *PaLMChatResponse) *dto.OpenAITextResponse {
 	fullTextResponse := dto.OpenAITextResponse{
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),

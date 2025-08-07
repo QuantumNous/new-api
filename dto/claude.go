@@ -361,7 +361,7 @@ type ClaudeUsage struct {
 	CacheCreationInputTokens int                  `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     int                  `json:"cache_read_input_tokens"`
 	OutputTokens             int                  `json:"output_tokens"`
-	ServerToolUse            *ClaudeServerToolUse `json:"server_tool_use"`
+	ServerToolUse            *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
 }
 
 type ClaudeServerToolUse struct {

@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/model"
+	"one-api/setting"
+	"one-api/setting/ratio_setting"
 	"strconv"
 	"strings"
 
@@ -234,6 +237,16 @@ func TokenAuth() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusUnauthorized, err.Error())
 			return
 		}
+
+		allowIpsMap := token.GetIpLimitsMap()
+		if len(allowIpsMap) != 0 {
+			clientIp := c.ClientIP()
+			if _, ok := allowIpsMap[clientIp]; !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中")
+				return
+			}
+		}
+
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusInternalServerError, err.Error())
@@ -247,10 +260,30 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache.WriteContext(c)
 
+
 		// Save full token for CustomPass
 		fullToken := strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer ")
 		fullToken = strings.TrimPrefix(fullToken, "sk-")
 		c.Set("full_token", fullToken)
+    
+		userGroup := userCache.Group
+		tokenGroup := token.Group
+		if tokenGroup != "" {
+			// check common.UserUsableGroups[userGroup]
+			if _, ok := setting.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("令牌分组 %s 已被禁用", tokenGroup))
+				return
+			}
+			// check group in common.GroupRatio
+			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
+				if tokenGroup != "auto" {
+					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+					return
+				}
+			}
+			userGroup = tokenGroup
+		}
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
@@ -278,7 +311,6 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	} else {
 		c.Set("token_model_limit_enabled", false)
 	}
-	c.Set("allow_ips", token.GetIpLimitsMap())
 	c.Set("token_group", token.Group)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {

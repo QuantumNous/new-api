@@ -44,6 +44,7 @@ export default function ModelSettingsVisualEditor(props) {
   const { t } = useTranslation();
   const [models, setModels] = useState([]);
   const [visible, setVisible] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [currentModel, setCurrentModel] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -386,9 +387,11 @@ export default function ModelSettingsVisualEditor(props) {
     setCurrentModel(null);
     setPricingMode('per-token');
     setPricingSubMode('ratio');
+    setIsEditMode(false);
   };
 
   const editModel = (record) => {
+    setIsEditMode(true);
     // Determine which pricing mode to use based on the model's current configuration
     let initialPricingMode = 'per-token';
     let initialPricingSubMode = 'ratio';
@@ -500,13 +503,7 @@ export default function ModelSettingsVisualEditor(props) {
       </Space>
 
       <Modal
-        title={
-          currentModel &&
-            currentModel.name &&
-            models.some((model) => model.name === currentModel.name)
-            ? t('编辑模型')
-            : t('添加模型')
-        }
+        title={isEditMode ? t('编辑模型') : t('添加模型')}
         visible={visible}
         onCancel={() => {
           resetModalState();
@@ -562,11 +559,7 @@ export default function ModelSettingsVisualEditor(props) {
             label={t('模型名称')}
             placeholder='strawberry'
             required
-            disabled={
-              currentModel &&
-              currentModel.name &&
-              models.some((model) => model.name === currentModel.name)
-            }
+            disabled={isEditMode}
             onChange={(value) =>
               setCurrentModel((prev) => ({ ...prev, name: value }))
             }

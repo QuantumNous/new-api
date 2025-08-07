@@ -225,6 +225,9 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	userId := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 	tokenUnlimited := common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited)
 	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
 	// firstResponseTime = time.Now() - 1 second
 
 	apiType, _ := common.ChannelType2APIType(channelType)

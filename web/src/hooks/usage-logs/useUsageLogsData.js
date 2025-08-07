@@ -366,6 +366,7 @@ export const useLogsData = () => {
               other.model_price,
               other.group_ratio,
               other?.user_group_ratio,
+              other.cache_ratio || 1.0,
               false,
               1.0,
               other.web_search || false,

@@ -1160,6 +1160,7 @@ export function renderLogContent(
   modelPrice = -1,
   groupRatio,
   user_group_ratio,
+  cacheRatio = 1.0,
   image = false,
   imageRatio = 1.0,
   webSearch = false,
@@ -1178,9 +1179,10 @@ export function renderLogContent(
   } else {
     if (image) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
         {
           modelRatio: modelRatio,
+          cacheRatio: cacheRatio,
           completionRatio: completionRatio,
           imageRatio: imageRatio,
           ratioType: ratioLabel,
@@ -1189,9 +1191,10 @@ export function renderLogContent(
       );
     } else if (webSearch) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
         {
           modelRatio: modelRatio,
+          cacheRatio: cacheRatio,
           completionRatio: completionRatio,
           ratioType: ratioLabel,
           ratio,
@@ -1200,9 +1203,10 @@ export function renderLogContent(
       );
     } else {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
         {
           modelRatio: modelRatio,
+          cacheRatio: cacheRatio,
           completionRatio: completionRatio,
           ratioType: ratioLabel,
           ratio,

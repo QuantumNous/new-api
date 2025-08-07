@@ -35,6 +35,7 @@ var claudeModelMap = map[string]string{
 	"claude-3-7-sonnet-20250219": "claude-3-7-sonnet@20250219",
 	"claude-sonnet-4-20250514":   "claude-sonnet-4@20250514",
 	"claude-opus-4-20250514":     "claude-opus-4@20250514",
+	"claude-opus-4-1-20250805":   "claude-opus-4-1@20250805",
 }
 
 const anthropicVersion = "vertex-2023-10-16"
@@ -237,7 +238,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	} else {
 		switch a.RequestMode {
 		case RequestModeClaude:
-			err, usage = claude.ClaudeHandler(c, resp, claude.RequestModeMessage, info)
+			err, usage = claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
 				usage, err = gemini.GeminiTextGenerationHandler(c, info, resp)

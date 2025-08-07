@@ -149,7 +149,7 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 
 	claudeRequest := dto.ClaudeRequest{
 		Model:         textRequest.Model,
-		MaxTokens:     textRequest.MaxTokens,
+		MaxTokens:     textRequest.GetMaxTokens(),
 		StopSequences: nil,
 		Temperature:   textRequest.Temperature,
 		TopP:          textRequest.TopP,
@@ -740,7 +740,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	return nil
 }
 
-func ClaudeHandler(c *gin.Context, resp *http.Response, requestMode int, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*types.NewAPIError, *dto.Usage) {
 	defer common.CloseResponseBodyGracefully(resp)
 
 	claudeInfo := &ClaudeResponseInfo{

@@ -13,6 +13,7 @@ var awsModelIDMap = map[string]string{
 	"claude-3-7-sonnet-20250219": "anthropic.claude-3-7-sonnet-20250219-v1:0",
 	"claude-sonnet-4-20250514":   "anthropic.claude-sonnet-4-20250514-v1:0",
 	"claude-opus-4-20250514":     "anthropic.claude-opus-4-20250514-v1:0",
+	"claude-opus-4-1-20250805":   "anthropic.claude-opus-4-1-20250805-v1:0",
 }
 
 var awsModelCanCrossRegionMap = map[string]map[string]bool{
@@ -52,6 +53,9 @@ var awsModelCanCrossRegionMap = map[string]map[string]bool{
 		"eu": true,
 	},
 	"anthropic.claude-opus-4-20250514-v1:0": {
+		"us": true,
+	},
+	"anthropic.claude-opus-4-1-20250805-v1:0": {
 		"us": true,
 	},
 }

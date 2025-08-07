@@ -283,7 +283,9 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		if chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != "" {
 			// should be done
 			info.FinishReason = *chosenChoice.FinishReason
-			return claudeResponses
+			if !info.Done {
+				return claudeResponses
+			}
 		}
 		if info.Done {
 			claudeResponses = append(claudeResponses, generateStopBlock(info.ClaudeConvertInfo.Index))
@@ -432,6 +434,8 @@ func stopReasonOpenAI2Claude(reason string) string {
 		return "end_turn"
 	case "stop_sequence":
 		return "stop_sequence"
+	case "length":
+		fallthrough
 	case "max_tokens":
 		return "max_tokens"
 	case "tool_calls":
