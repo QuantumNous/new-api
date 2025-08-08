@@ -39,6 +39,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
+		apiRouter.POST("/openwebui/webhook", controller.OpenWebUIWebhook)
 
 		userRoute := apiRouter.Group("/user")
 		{
