@@ -177,6 +177,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	var response *http.Response
 
 	if onecommon.MockResponseEnabled && c.GetHeader("X-Test-Traffic") == "true" {
+		time.Sleep(30 * time.Second)
 
 		var responseBody string
 		if strings.Contains(strings.ToLower(info.UpstreamModelName), "gemini") {
