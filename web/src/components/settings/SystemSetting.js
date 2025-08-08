@@ -66,6 +66,7 @@ const SystemSetting = () => {
     LinuxDOOAuthEnabled: '',
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
+    OpenWebUIUserIntegrationEnabled: '',
     ServerAddress: '',
   });
 
@@ -77,6 +78,7 @@ const SystemSetting = () => {
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
   const [linuxDOOAuthEnabled, setLinuxDOOAuthEnabled] = useState(false);
+  const [openWebUIUserIntegrationEnabled, setOpenWebUIUserIntegrationEnabled] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState('');
 
   const getOptions = async () => {
@@ -107,6 +109,7 @@ const SystemSetting = () => {
           case 'LinuxDOOAuthEnabled':
           case 'oidc.enabled':
           case 'WorkerAllowHttpImageRequestEnabled':
+          case 'OpenWebUIUserIntegrationEnabled':
             item.value = toBoolean(item.value);
             break;
           case 'Price':
@@ -470,6 +473,9 @@ const SystemSetting = () => {
     if (optionKey === 'LinuxDOOAuthEnabled') {
       setLinuxDOOAuthEnabled(value);
     }
+    if (optionKey === 'OpenWebUIUserIntegrationEnabled') {
+      setOpenWebUIUserIntegrationEnabled(value);
+    }
   };
 
   const handlePasswordLoginConfirm = async () => {
@@ -624,6 +630,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许通过 Linux DO 账户登录 & 注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='OpenWebUIUserIntegrationEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('OpenWebUIUserIntegrationEnabled', e)
+                        }
+                      >
+                        {t('启用 OpenWebUI 用户集成')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='WeChatAuthEnabled'
