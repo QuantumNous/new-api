@@ -30,10 +30,19 @@ FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/alpine:latest
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
     && apk update \
     && apk upgrade \
-    && apk add --no-cache ca-certificates tzdata ffmpeg \
+    && apk add --no-cache ca-certificates tzdata ffmpeg logrotate dcron curl\
     && update-ca-certificates
 
+# 复制logrotate配置文件
+COPY logrotate.conf /etc/logrotate.d/one-api
+
+# 创建logrotate状态文件目录
+RUN mkdir -p /var/lib/logrotate
+
 COPY --from=builder2 /build/one-api /
+COPY docker-entrypoint.sh /
+RUN chmod +x /docker-entrypoint.sh
+
 EXPOSE 3000
 WORKDIR /data
-ENTRYPOINT ["/one-api"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

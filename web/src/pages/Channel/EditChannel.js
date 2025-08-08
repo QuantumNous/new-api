@@ -994,7 +994,8 @@ const EditChannel = (props) => {
                   handleInputChange(
                     'setting',
                     JSON.stringify({
-                      force_format: true
+                      force_format: true,
+                      fallback_channel: false
                     }, null, 2)
                   );
                 }}

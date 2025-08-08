@@ -233,6 +233,13 @@ func main() {
 
 	service.InitTokenEncoders()
 
+	// 初始化流量监控
+	trafficConfig := common.TrafficMonitorConfig{
+		Enabled:         os.Getenv("TRAFFIC_MONITOR_ENABLED") == "true",
+		GracefulTimeout: time.Duration(common.GetEnvOrDefault("TRAFFIC_GRACEFUL_TIMEOUT", 30)) * time.Second, // 默认30秒
+	}
+	common.InitTrafficMonitor(trafficConfig)
+
 	// Initialize HTTP server
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
@@ -248,6 +255,8 @@ func main() {
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
 	server.Use(middleware.RequestLogger())
+	// 添加流量监控中间件
+	server.Use(middleware.TrafficMonitorMiddleware())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
@@ -265,8 +274,19 @@ func main() {
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
-	err = server.Run(":" + port)
-	if err != nil {
+
+	// 创建 HTTP 服务器以支持优雅关闭
+	httpServer := &http.Server{
+		Addr:    ":" + port,
+		Handler: server,
+	}
+
+	// 设置 HTTP 服务器实例到流量监控器
+	common.SetHTTPServer(httpServer)
+
+	common.SysLog("HTTP server starting on port " + port)
+	err = httpServer.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
 }

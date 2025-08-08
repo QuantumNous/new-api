@@ -29,6 +29,9 @@ func RegisterMetrics(registry prometheus.Registerer) {
 	registry.MustRegister(outputTokensCounter)
 	registry.MustRegister(cacheHitTokensCounter)
 	registry.MustRegister(inferenceTokensCounter)
+	registry.MustRegister(promptTokensZeroOrNegativeCounter)
+	registry.MustRegister(completionTokensZeroOrNegativeCounter)
+	registry.MustRegister(thinkingTokensZeroOrNegativeCounter)
 	// error log metrics
 	registry.MustRegister(errorLogCounter)
 }
@@ -140,6 +143,28 @@ var (
 			Help:      "Total number of tokens processed during inference",
 		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name"})
 
+	// Zero or negative token counters
+	promptTokensZeroOrNegativeCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "prompt_tokens_zero_or_negative_total",
+			Help:      "Total number of times prompt tokens are zero or negative",
+		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name"})
+
+	completionTokensZeroOrNegativeCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "completion_tokens_zero_or_negative_total",
+			Help:      "Total number of times completion tokens are zero or negative",
+		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name"})
+
+	thinkingTokensZeroOrNegativeCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "thinking_tokens_zero_or_negative_total",
+			Help:      "Total number of times thinking tokens are zero or negative",
+		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name"})
+
 	errorLogCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: Namespace,
@@ -208,6 +233,19 @@ func IncrementCacheHitTokens(channel, channelName, model, group, userId, userNam
 
 func IncrementInferenceTokens(channel, channelName, model, group, userId, userName, tokenName string, add float64) {
 	inferenceTokensCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName).Add(add)
+}
+
+// Zero or negative token metrics functions
+func IncrementPromptTokensZeroOrNegative(channel, channelName, model, group, userId, userName, tokenName string, add float64) {
+	promptTokensZeroOrNegativeCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName).Add(add)
+}
+
+func IncrementCompletionTokensZeroOrNegative(channel, channelName, model, group, userId, userName, tokenName string, add float64) {
+	completionTokensZeroOrNegativeCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName).Add(add)
+}
+
+func IncrementThinkingTokensZeroOrNegative(channel, channelName, model, group, userId, userName, tokenName string, add float64) {
+	thinkingTokensZeroOrNegativeCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName).Add(add)
 }
 
 // Error log metrics function
