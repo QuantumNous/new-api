@@ -1,9 +1,11 @@
 package common
 
 import (
+	"fmt"
 	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
+	"one-api/model"
 	relayconstant "one-api/relay/constant"
 	"strings"
 	"time"
@@ -265,6 +267,28 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		info.RequestURLPath = strings.TrimPrefix(info.RequestURLPath, "/pg")
 		info.RequestURLPath = "/v1" + info.RequestURLPath
 	}
+	
+	// Open WebUI 相当于Playground Mode
+	// 允许根据OpenWebUI User 来获取用户信息
+	if common.OpenWebUIUserIntegrationEnabled && c.Request.Header.Get("X-OpenWebUI-User-Email") != "" {
+		// 查询用户是否已经注册
+		userEmail := c.Request.Header.Get("X-OpenWebUI-User-Email")
+		user := &model.User{
+			Email: userEmail,
+		}
+		err := user.FillUserByEmail()
+		// 如果已经注册，改写用户信息
+		if err != nil {
+			info.IsPlayground = true  // playground 模式不对token计费
+			info.UserId = user.Id
+			info.UserEmail = user.Email
+			info.UserQuota = user.Quota
+			info.UserGroup = user.Group
+		}
+		// 打印到日志
+		common.LogInfo(c, fmt.Sprintf("OpenWebUI 用户重定向 email: %s", userEmail))
+	}
+
 	if info.BaseUrl == "" {
 		info.BaseUrl = constant.ChannelBaseURLs[channelType]
 	}
