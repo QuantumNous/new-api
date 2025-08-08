@@ -278,15 +278,16 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		}
 		err := user.FillUserByEmail()
 		// 如果已经注册，改写用户信息
-		if err != nil {
+		if err == nil {
 			info.IsPlayground = true  // playground 模式不对token计费
 			info.UserId = user.Id
 			info.UserEmail = user.Email
 			info.UserQuota = user.Quota
 			info.UserGroup = user.Group
+			common.LogInfo(c, fmt.Sprintf("OpenWebUI 用户重定向 email: %s", userEmail))
+		} else {
+			common.LogInfo(c, fmt.Sprintf("OpenWebUI 用户未注册 email: %s %v", userEmail, err))
 		}
-		// 打印到日志
-		common.LogInfo(c, fmt.Sprintf("OpenWebUI 用户重定向 email: %s", userEmail))
 	}
 
 	if info.BaseUrl == "" {
