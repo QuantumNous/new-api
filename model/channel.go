@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"one-api/common"
+	"one-api/constant"
 	"strings"
 	"sync"
 
@@ -82,6 +83,20 @@ func (channel *Channel) GetAutoBan() bool {
 		return false
 	}
 	return *channel.AutoBan == 1
+}
+
+func (channel *Channel) GetFallbackChannel() bool {
+	setting := channel.GetSetting()
+	if fallbackChannel, ok := setting[constant.ChannelSettingFallbackChannel].(bool); ok {
+		return fallbackChannel
+	}
+	return false
+}
+
+func (channel *Channel) SetFallbackChannel(isFallback bool) {
+	setting := channel.GetSetting()
+	setting[constant.ChannelSettingFallbackChannel] = isFallback
+	channel.SetSetting(setting)
 }
 
 func (channel *Channel) Save() error {

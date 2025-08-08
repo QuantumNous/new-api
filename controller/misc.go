@@ -9,6 +9,7 @@ import (
 	"one-api/setting"
 	"one-api/setting/operation_setting"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -272,7 +273,7 @@ func ResetPassword(c *gin.Context) {
 }
 
 func Ping(c *gin.Context) {
-	c.Writer.Header().Set("Retry_request_id", "Retry_request_id")
+	time.Sleep(30 * time.Second)
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"message":   "pong",
