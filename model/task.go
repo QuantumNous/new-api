@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"one-api/constant"
-	commonRelay "one-api/relay/common"
 	"time"
 )
 
@@ -77,13 +76,13 @@ type SyncTaskQueryParams struct {
 	UserIDs        []int
 }
 
-func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.TaskRelayInfo) *Task {
+func InitTask(platform constant.TaskPlatform, userId int, channelId int) *Task {
 	t := &Task{
-		UserId:     relayInfo.UserId,
+		UserId:     userId,
 		SubmitTime: time.Now().Unix(),
 		Status:     TaskStatusNotStart,
 		Progress:   "0%",
-		ChannelId:  relayInfo.ChannelId,
+		ChannelId:  channelId,
 		Platform:   platform,
 	}
 	return t

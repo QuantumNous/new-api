@@ -162,7 +162,7 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	}
 	relayInfo.ConsumeQuota = true
 	// insert task
-	task := model.InitTask(platform, relayInfo)
+	task := model.InitTask(platform, relayInfo.UserId, relayInfo.ChannelId)
 	task.TaskID = taskID
 	task.Quota = quota
 	task.Data = taskData
