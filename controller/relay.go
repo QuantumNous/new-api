@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -117,7 +116,7 @@ func Relay(c *gin.Context) {
 	userId := c.GetString("user_id")
 	userName := c.GetString("user_name")
 	var openaiErr *dto.OpenAIErrorWithStatusCode
-	for i := 0; i <= common.RetryTimes; i++ {
+	for i := 0; i <= common.RetryTimes+1; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
 		if err != nil {
 			common.LogError(c, err.Error())
@@ -348,7 +347,7 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 	}
 	channel, err := model.CacheGetRandomSatisfiedChannel(group, originalModel, retryCount)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("获取重试渠道失败: %s", err.Error()))
+		return nil, fmt.Errorf("获取重试渠道失败: %s", err.Error())
 	}
 	middleware.SetupContextForSelectedChannel(c, channel, originalModel)
 	return channel, nil
