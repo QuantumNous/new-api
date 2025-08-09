@@ -116,7 +116,7 @@ func Relay(c *gin.Context) {
 	userId := c.GetString("user_id")
 	userName := c.GetString("user_name")
 	var openaiErr *dto.OpenAIErrorWithStatusCode
-	for i := 0; i <= common.RetryTimes+1; i++ {
+	for i := 0; i <= common.RetryTimes; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
 		if err != nil {
 			common.LogError(c, err.Error())
