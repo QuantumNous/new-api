@@ -91,6 +91,19 @@ func CacheGetRandomSatisfiedChannel(group string, model string, retry int) (*Cha
 		return nil, errors.New("channel not found")
 	}
 
+	if retry == common.RetryTimes {
+		fallbackChannels := []*Channel{}
+		for _, channel := range channels {
+			if channel.GetFallbackChannel() {
+				fallbackChannels = append(fallbackChannels, channel)
+			}
+		}
+		if len(fallbackChannels) == 0 {
+			return nil, errors.New("channel not found, last fallback channel not exists")
+		}
+		channels = fallbackChannels
+	}
+
 	uniquePriorities := make(map[int]bool)
 	for _, channel := range channels {
 		uniquePriorities[int(channel.GetPriority())] = true
