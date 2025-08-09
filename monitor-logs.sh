@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 日志大小监控脚本
-LOG_DIR="/data"
+LOG_DIR="/data/logs/"
 MAX_SIZE_GB=15
 MAX_SIZE_BYTES=$((MAX_SIZE_GB * 1024 * 1024 * 1024))
 
