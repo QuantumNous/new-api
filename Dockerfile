@@ -33,6 +33,11 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
     && apk add --no-cache ca-certificates tzdata ffmpeg logrotate dcron curl\
     && update-ca-certificates
 
+
+    # 复制清理脚本到容器中
+COPY cleanup-logs.sh /usr/local/bin/cleanup-logs.sh
+RUN chmod +x /usr/local/bin/cleanup-logs.sh
+
 # 复制logrotate配置文件
 COPY logrotate.conf /etc/logrotate.d/one-api
 

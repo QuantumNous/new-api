@@ -3,15 +3,13 @@
 # 创建日志目录
 mkdir -p /data/logs
 
-# 复制清理脚本到容器中
-cp cleanup-logs.sh /usr/local/bin/cleanup-logs.sh
-chmod +x /usr/local/bin/cleanup-logs.sh
+
 
 # 启动logrotate cron任务（每天执行一次）
-echo "0 0 * * * /usr/sbin/logrotate /etc/logrotate.d/one-api" | crontab -
+(crontab -l 2>/dev/null; echo "0 0 * * * /usr/sbin/logrotate /etc/logrotate.d/one-api") | crontab -
 
 # 添加日志清理任务（每小时检查一次）
-echo "0 * * * * /usr/local/bin/cleanup-logs.sh" | crontab -
+(crontab -l 2>/dev/null; echo "0 * * * * /usr/local/bin/cleanup-logs.sh") | crontab -
 
 # 启动crond
 crond
