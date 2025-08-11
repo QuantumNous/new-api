@@ -7,13 +7,13 @@ import (
 	"log"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	"one-api/metrics"
 	"one-api/middleware"
 	"one-api/model"
 	"one-api/relay"
 	relaycommon "one-api/relay/common"
-	"one-api/relay/constant"
 	relayconstant "one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
@@ -107,14 +107,14 @@ func relayExecuteHandler(c *gin.Context, relayMode int, relayInfo *relaycommon.R
 
 func Relay(c *gin.Context) {
 	startTime := time.Now()
-	relayMode := constant.Path2RelayMode(c.Request.URL.Path)
+	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 	requestId := c.GetString(common.RequestIdKey)
 	group := c.GetString("group")
 	originalModel := c.GetString("original_model")
 	tokenKey := c.GetString("token_key")
 	tokenName := c.GetString("token_name")
-	userId := c.GetString("user_id")
-	userName := c.GetString("user_name")
+	userId := strconv.Itoa(c.GetInt("id"))
+	userName := c.GetString(constant.ContextKeyUserName)
 	var openaiErr *dto.OpenAIErrorWithStatusCode
 	for i := 0; i <= common.RetryTimes; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
@@ -226,7 +226,7 @@ func WssRelay(c *gin.Context) {
 	}
 
 	startTime := time.Now()
-	relayMode := constant.Path2RelayMode(c.Request.URL.Path)
+	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 	requestId := c.GetString(common.RequestIdKey)
 	group := c.GetString("group")
 	//wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01

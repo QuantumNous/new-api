@@ -15,11 +15,6 @@ import (
 // EnableRequestBodyLogging 控制是否打印请求体
 var EnableRequestBodyLogging bool = false
 
-// 需要过滤的字段
-var encodingFields = map[string]bool{
-	"data": true,
-}
-
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 获取请求头
@@ -82,51 +77,12 @@ func formatValue(v interface{}) string {
 	if v == nil {
 		return "null"
 	}
-	switch val := v.(type) {
-	case string:
-		return val
-	case map[string]interface{}:
-		return formatMapInterface(val)
-	case []interface{}:
-		return formatArray(val)
-	default:
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprintf("%v", v)
-		}
-		// 去掉换行符
-		return strings.ReplaceAll(string(bytes), "\n", "")
-	}
-}
 
-func formatMapInterface(m map[string]interface{}) string {
-	if len(m) == 0 {
-		return "{}"
+	// 使用标准JSON格式输出，并去掉换行符
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
 	}
-	var pairs []string
-	for k, v := range m {
-		// 跳过编解码相关字段
-		if encodingFields[strings.ToLower(k)] {
-			continue
-		}
-		// 处理值中的换行符
-		valueStr := formatValue(v)
-		valueStr = strings.ReplaceAll(valueStr, "\n", "")
-		pairs = append(pairs, fmt.Sprintf("%s: %s", k, valueStr))
-	}
-	return "{" + strings.Join(pairs, ", ") + "}"
-}
-
-func formatArray(arr []interface{}) string {
-	if len(arr) == 0 {
-		return "[]"
-	}
-	var elements []string
-	for _, v := range arr {
-		// 处理值中的换行符
-		valueStr := formatValue(v)
-		valueStr = strings.ReplaceAll(valueStr, "\n", "")
-		elements = append(elements, valueStr)
-	}
-	return "[" + strings.Join(elements, ", ") + "]"
+	// 去掉换行符，让日志输出更紧凑
+	return strings.ReplaceAll(string(bytes), "\n", "")
 }
