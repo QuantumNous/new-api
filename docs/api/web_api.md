@@ -62,6 +62,8 @@
 | GET  | /api/user/groups | 公开 | 列出所有分组（无鉴权版） |
 
 ### 5.2 用户自身操作 (需登录)
+| 方法 | 路径 | 鉴权 | 说明 |
+|------|------|------|------|
 | GET | /api/user/self/groups | 用户 | 获取自己所在分组 |
 | GET | /api/user/self | 用户 | 获取个人资料 |
 | GET | /api/user/models | 用户 | 获取模型可见性 |
