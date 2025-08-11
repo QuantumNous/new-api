@@ -33,26 +33,6 @@ func RequestLogger() gin.HandlerFunc {
 			headers[k] = strings.Join(v, ", ")
 		}
 
-		// 获取请求参数 因为param并且后面request会打印所以不在此处打印
-		// var params interface{}
-		if c.Request.Method == "GET" {
-			// params = c.Request.URL.Query()
-		} else {
-			// 读取请求体
-			body, err := io.ReadAll(c.Request.Body)
-			if err == nil {
-				// 尝试解析为JSON
-				var jsonBody interface{}
-				if err := json.Unmarshal(body, &jsonBody); err == nil {
-					// params = jsonBody
-				} else {
-					// params = string(body)
-				}
-				// 恢复请求体
-				c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-			}
-		}
-
 		// 构建日志信息
 		logInfo := fmt.Sprintf("Request: %s %s\tClient IP: %s\tHeaders: %s\t",
 			c.Request.Method,
@@ -62,20 +42,18 @@ func RequestLogger() gin.HandlerFunc {
 		)
 
 		// 如果启用了请求体日志，则记录请求体
-		if EnableRequestBodyLogging {
-			if c.Request.Method != "GET" {
-				body, err := io.ReadAll(c.Request.Body)
-				if err == nil {
-					// 尝试解析为JSON
-					var jsonBody interface{}
-					if err := json.Unmarshal(body, &jsonBody); err == nil {
-						logInfo += fmt.Sprintf("\tBody: %s", formatValue(jsonBody))
-					} else {
-						logInfo += fmt.Sprintf("\tBody: %s", string(body))
-					}
-					// 恢复请求体
-					c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+		if EnableRequestBodyLogging && c.Request.Method != "GET" {
+			body, err := io.ReadAll(c.Request.Body)
+			if err == nil {
+				// 尝试解析为JSON
+				var jsonBody interface{}
+				if err := json.Unmarshal(body, &jsonBody); err == nil {
+					logInfo += fmt.Sprintf("\tBody: %s", formatValue(jsonBody))
+				} else {
+					logInfo += fmt.Sprintf("\tBody: %s", string(body))
 				}
+				// 恢复请求体
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 			}
 		}
 

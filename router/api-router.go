@@ -81,6 +81,13 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/request_log", controller.ToggleRequestLog)
 		}
 
+		// 添加token鉴权的request_log接口
+		tokenOptionRoute := apiRouter.Group("/token_option")
+		tokenOptionRoute.Use(middleware.TokenAuth())
+		{
+			tokenOptionRoute.POST("/request_log", controller.ToggleRequestLog)
+		}
+
 		// 添加 pprof 控制路由
 		pprofRoute := apiRouter.Group("/pprof")
 		pprofRoute.Use(middleware.RootAuth())
