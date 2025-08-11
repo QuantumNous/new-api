@@ -146,6 +146,13 @@ var (
 	ImageDownloadPermission = RoleGuestUser
 )
 
+// VIP升级功能配置
+var (
+	EnableVipUpgrade = false
+	VipServiceUrl    = "https://tiantianai.pro"
+	VipUpgradePath   = "/console/topup"
+)
+
 // All duration's unit is seconds
 // Shouldn't larger then RateLimitKeyExpirationDuration
 var (

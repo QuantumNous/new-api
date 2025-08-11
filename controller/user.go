@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type LoginRequest struct {
@@ -407,10 +408,37 @@ func GetSelf(c *gin.Context) {
 	// Hide admin remarks: set to empty to trigger omitempty tag, ensuring the remark field is not included in JSON returned to regular users
 	user.Remark = ""
 
+	// 添加VIP状态信息
+	setting := user.GetSetting()
+	userInfo := gin.H{
+		"id":                user.Id,
+		"username":          user.Username,
+		"display_name":      user.DisplayName,
+		"role":              user.Role,
+		"status":            user.Status,
+		"email":             user.Email,
+		"github_id":         user.GitHubId,
+		"oidc_id":           user.OidcId,
+		"wechat_id":         user.WeChatId,
+		"telegram_id":       user.TelegramId,
+		"quota":             user.Quota,
+		"used_quota":        user.UsedQuota,
+		"request_count":     user.RequestCount,
+		"group":             user.Group,
+		"aff_code":          user.AffCode,
+		"aff_count":         user.AffCount,
+		"aff_quota":         user.AffQuota,
+		"aff_history_quota": user.AffHistoryQuota,
+		"inviter_id":        user.InviterId,
+		"linux_do_id":       user.LinuxDOId,
+		"is_vip":            user.IsVipUser(),
+		"vip_expire_time":   setting.VipExpireTime,
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user,
+		"data":    userInfo,
 	})
 	return
 }
@@ -952,5 +980,73 @@ func UpdateUserSetting(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "设置已更新",
+	})
+}
+
+// VipUpgrade VIP升级
+func VipUpgrade(c *gin.Context) {
+	const VIP_PRICE = 30 * 500000 // VIP升级费用30额度 (30美元 * 500000微额度/美元)
+	const VIP_DURATION = 30 * 24 * 60 * 60 // VIP有效期30天（秒）
+
+	userId := c.GetInt("id")
+	user, err := model.GetUserById(userId, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "获取用户信息失败",
+		})
+		return
+	}
+
+	// 检查用户余额是否足够
+	if user.Quota < VIP_PRICE {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "余额不足，需要30额度才能升级VIP",
+		})
+		return
+	}
+
+	// 检查用户是否已经是VIP
+	if user.Group == "vip" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "您已经是VIP用户",
+		})
+		return
+	}
+
+	// 使用事务确保余额扣除和VIP状态更新的原子性
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		// 扣除余额
+		if err := tx.Model(&model.User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota - ?", VIP_PRICE)).Error; err != nil {
+			return err
+		}
+		
+		// 设置VIP状态
+		if err := tx.Model(&model.User{}).Where("id = ?", userId).Update("group", "vip").Error; err != nil {
+			return err
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "升级VIP失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 记录日志
+	model.RecordLog(userId, model.LogTypeTopup, fmt.Sprintf("升级VIP成功，扣除额度: %d", VIP_PRICE))
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "恭喜您！VIP升级成功",
+		"data": gin.H{
+			"group": "vip",
+		},
 	})
 }

@@ -135,6 +135,11 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableKeywords"] = operation_setting.AutomaticDisableKeywordsToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
+	// VIP升级功能配置
+	common.OptionMap["EnableVipUpgrade"] = strconv.FormatBool(common.EnableVipUpgrade)
+	common.OptionMap["VipServiceUrl"] = common.VipServiceUrl
+	common.OptionMap["VipUpgradePath"] = common.VipUpgradePath
+
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
 	for k, v := range modelConfigs {
@@ -276,6 +281,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "EnableVipUpgrade":
+			common.EnableVipUpgrade = boolValue
 		}
 	}
 	switch key {
@@ -412,6 +419,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":
 		err = setting.UpdatePayMethodsByJsonString(value)
+	case "VipServiceUrl":
+		common.VipServiceUrl = value
+	case "VipUpgradePath":
+		common.VipUpgradePath = value
 	}
 	return err
 }

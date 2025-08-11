@@ -92,6 +92,11 @@ func GetStatus(c *gin.Context) {
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
 		"oidc_authorization_endpoint": system_setting.GetOIDCSettings().AuthorizationEndpoint,
 		"setup":                       constant.Setup,
+
+		// VIP升级功能配置
+		"enable_vip_upgrade": common.EnableVipUpgrade,
+		"vip_service_url":    common.VipServiceUrl,
+		"vip_upgrade_path":   common.VipUpgradePath,
 	}
 
 	// 根据启用状态注入可选内容

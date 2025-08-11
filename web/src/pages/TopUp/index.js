@@ -36,6 +36,7 @@ import {
   User,
   Coins,
 } from 'lucide-react';
+import VipUpgrade from '../../components/common/VipUpgrade';
 
 const { Text, Title } = Typography;
 
@@ -105,15 +106,30 @@ const TopUp = () => {
   const getUserRole = () => {
     if (!userState.user) return t('普通用户');
 
+    // 首先显示用户分组（如果存在且不是default）
+    const userGroup = userState.user.group;
+    let groupText = '';
+    if (userGroup && userGroup !== 'default') {
+      groupText = userGroup.toUpperCase();
+    }
+
+    // 然后显示角色
+    let roleText = '';
     switch (userState.user.role) {
       case 100:
-        return t('超级管理员');
+        roleText = t('超级管理员');
+        break;
       case 10:
-        return t('管理员');
-      case 0:
+        roleText = t('管理员');
+        break;
+      case 1:
       default:
-        return t('普通用户');
+        roleText = t('普通用户');
+        break;
     }
+
+    // 如果有特殊分组，显示分组；否则显示角色
+    return groupText || roleText;
   };
 
   const topUp = async () => {
@@ -1068,8 +1084,12 @@ const TopUp = () => {
           </Card>
         </div>
 
-        {/* 右侧邀请信息卡片 */}
-        <div className='lg:col-span-5'>
+        {/* 右侧区域 */}
+        <div className='lg:col-span-5 space-y-6'>
+          {/* VIP升级卡片 */}
+          <VipUpgrade />
+
+          {/* 邀请信息卡片 */}
           <Card
             className='!rounded-2xl'
             shadows='always'
