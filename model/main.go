@@ -369,20 +369,23 @@ func migrateDBFast() error {
 func migrateLOGDB() error {
 	var err error
 	if common.LogSqlType == common.DatabaseTypeClickHouse {
-		// Get log retention days from environment variable, default to 365 days (12 months)
-		retentionDays := common.GetEnvOrDefault("LOG_RETENTION_DAYS", 365)
+		// Get log retention days from environment variable, default to 90 days (3 months)
+		retentionDays := common.GetEnvOrDefault("LOG_RETENTION_DAYS", 90)
 
-		// ClickHouse specific table options for optimal log storage with compression and TTL
-		tableOptions := fmt.Sprintf(`ENGINE=MergeTree() 
-ORDER BY (toYYYYMM(toDateTime(created_at)), user_id, created_at, id)
-PARTITION BY toYYYYMM(toDateTime(created_at))
-TTL toDateTime(created_at) + INTERVAL %d DAY
-SETTINGS index_granularity = 8192, 
-         compress_primary_key = 1,
-         vertical_merge_algorithm_min_rows_to_activate = 16,
-         vertical_merge_algorithm_min_columns_to_activate = 11`, retentionDays)
+		tableOptions := fmt.Sprintf(`
+	ENGINE = MergeTree()
+	PARTITION BY toYYYYMM(toDateTime(created_at))
+	ORDER BY (toDateTime(created_at), user_id)
+	TTL toDateTime(created_at) + INTERVAL %d DAY
+	SETTINGS
+		index_granularity = 8192,
+		compress_primary_key = 1,
+		vertical_merge_algorithm_min_rows_to_activate = 16,
+		vertical_merge_algorithm_min_columns_to_activate = 11
+	`, retentionDays)
 
 		err = LOG_DB.Set("gorm:table_options", tableOptions).AutoMigrate(&Log{})
+
 		if err != nil {
 			return err
 		}
