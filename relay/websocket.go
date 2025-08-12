@@ -24,12 +24,12 @@ func WssHelper(c *gin.Context, ws *websocket.Conn) (newAPIError *types.NewAPIErr
 
 	err := helper.ModelMappedHelper(c, relayInfo, nil)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, 0, 0)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
 	}
 
 	// pre-consume quota 预消耗配额
@@ -46,7 +46,7 @@ func WssHelper(c *gin.Context, ws *websocket.Conn) (newAPIError *types.NewAPIErr
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(relayInfo)
 	//var requestBody io.Reader

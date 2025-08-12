@@ -27,14 +27,6 @@ type ModelRequest struct {
 
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		allowIpsMap := common.GetContextKeyStringMap(c, constant.ContextKeyTokenAllowIps)
-		if len(allowIpsMap) != 0 {
-			clientIp := c.ClientIP()
-			if _, ok := allowIpsMap[clientIp]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中")
-				return
-			}
-		}
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
@@ -42,24 +34,6 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, "Invalid request, "+err.Error())
 			return
 		}
-		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-		tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := setting.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("令牌分组 %s 已被禁用", tokenGroup))
-				return
-			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
-					return
-				}
-			}
-			userGroup = tokenGroup
-		}
-		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -81,44 +55,63 @@ func Distribute() func(c *gin.Context) {
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 			if modelLimitEnable {
 				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-				var tokenModelLimit map[string]bool
-				if ok {
-					tokenModelLimit = s.(map[string]bool)
-				} else {
-					tokenModelLimit = map[string]bool{}
-				}
-				if tokenModelLimit != nil {
-					if _, ok := tokenModelLimit[modelRequest.Model]; !ok {
-						abortWithOpenAiMessage(c, http.StatusForbidden, "该令牌无权访问模型 "+modelRequest.Model)
-						return
-					}
-				} else {
+				if !ok {
 					// token model limit is empty, all models are not allowed
 					abortWithOpenAiMessage(c, http.StatusForbidden, "该令牌无权访问任何模型")
+					return
+				}
+				var tokenModelLimit map[string]bool
+				tokenModelLimit, ok = s.(map[string]bool)
+				if !ok {
+					tokenModelLimit = map[string]bool{}
+				}
+				matchName := ratio_setting.FormatMatchingModelName(modelRequest.Model) // match gpts & thinking-*
+				if _, ok := tokenModelLimit[matchName]; !ok {
+					abortWithOpenAiMessage(c, http.StatusForbidden, "该令牌无权访问模型 "+modelRequest.Model)
 					return
 				}
 			}
 
 			if shouldSelectChannel {
+				if modelRequest.Model == "" {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, "未指定模型名称，模型名称不能为空")
+					return
+				}
 				var selectGroup string
+				userGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				// check path is /pg/chat/completions
+				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+					playgroundRequest := &dto.PlayGroundRequest{}
+					err = common.UnmarshalBodyReusable(c, playgroundRequest)
+					if err != nil {
+						abortWithOpenAiMessage(c, http.StatusBadRequest, "无效的请求, "+err.Error())
+						return
+					}
+					if playgroundRequest.Group != "" {
+						if !setting.GroupInUserUsableGroups(playgroundRequest.Group) && playgroundRequest.Group != userGroup {
+							abortWithOpenAiMessage(c, http.StatusForbidden, "无权访问该分组")
+							return
+						}
+						userGroup = playgroundRequest.Group
+					}
+				}
 				channel, selectGroup, err = model.CacheGetRandomSatisfiedChannel(c, userGroup, modelRequest.Model, 0)
 				if err != nil {
 					showGroup := userGroup
 					if userGroup == "auto" {
 						showGroup = fmt.Sprintf("auto(%s)", selectGroup)
 					}
-					message := fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道", showGroup, modelRequest.Model)
+					message := fmt.Sprintf("获取分组 %s 下模型 %s 的可用渠道失败（数据库一致性已被破坏，distributor）: %s", showGroup, modelRequest.Model, err.Error())
 					// 如果错误，但是渠道不为空，说明是数据库一致性问题
-					if channel != nil {
-						common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-						message = "数据库一致性已被破坏，请联系管理员"
-					}
-					// 如果错误，而且渠道为空，说明是没有可用渠道
+					//if channel != nil {
+					//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
+					//	message = "数据库一致性已被破坏，请联系管理员"
+					//}
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message)
 					return
 				}
 				if channel == nil {
-					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道（数据库一致性已被破坏）", userGroup, modelRequest.Model))
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("分组 %s 下模型 %s 无可用渠道（distributor）", userGroup, modelRequest.Model))
 					return
 				}
 			}
@@ -174,22 +167,13 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
 		err = common.UnmarshalBodyReusable(c, &modelRequest)
-		var platform string
-		var relayMode int
-		if strings.HasPrefix(modelRequest.Model, "jimeng") {
-			platform = string(constant.TaskPlatformJimeng)
-			relayMode = relayconstant.Path2RelayJimeng(c.Request.Method, c.Request.URL.Path)
-			if relayMode == relayconstant.RelayModeJimengFetchByID {
-				shouldSelectChannel = false
-			}
-		} else {
-			platform = string(constant.TaskPlatformKling)
-			relayMode = relayconstant.Path2RelayKling(c.Request.Method, c.Request.URL.Path)
-			if relayMode == relayconstant.RelayModeKlingFetchByID {
-				shouldSelectChannel = false
-			}
+		relayMode := relayconstant.RelayModeUnknown
+		if c.Request.Method == http.MethodPost {
+			relayMode = relayconstant.RelayModeVideoSubmit
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
 		}
-		c.Set("platform", platform)
 		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
@@ -253,13 +237,14 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
-		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed)
+		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, channel.GetParamOverride())
 	if nil != channel.OpenAIOrganization && *channel.OpenAIOrganization != "" {
 		common.SetContextKey(c, constant.ContextKeyChannelOrganization, *channel.OpenAIOrganization)
@@ -275,10 +260,15 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
+	} else {
+		// 必须设置为 false，否则在重试到单个 key 的时候会导致日志显示错误
+		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, false)
 	}
 	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
 	common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
+
+	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, false)
 
 	// TODO: api_version统一
 	switch channel.Type {

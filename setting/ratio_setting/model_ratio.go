@@ -73,6 +73,13 @@ var defaultModelRatio = map[string]float64{
 	"gpt-4-turbo-2024-04-09":                  5, // $0.01 / 1K tokens
 	"gpt-4.5-preview":                         37.5,
 	"gpt-4.5-preview-2025-02-27":              37.5,
+	"gpt-5":                                   0.625,
+	"gpt-5-2025-08-07":                        0.625,
+	"gpt-5-chat-latest":                       0.625,
+	"gpt-5-mini":                              0.125,
+	"gpt-5-mini-2025-08-07":                   0.125,
+	"gpt-5-nano":                              0.025,
+	"gpt-5-nano-2025-08-07":                   0.025,
 	//"gpt-3.5-turbo-0301":           0.75, //deprecated
 	"gpt-3.5-turbo":          0.25,
 	"gpt-3.5-turbo-0613":     0.75,
@@ -118,6 +125,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-sonnet-4-20250514":                  1.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
+	"claude-opus-4-1-20250805":                  7.5,
 	"ERNIE-4.0-8K":                              0.120 * RMB,
 	"ERNIE-3.5-8K":                              0.012 * RMB,
 	"ERNIE-3.5-8K-0205":                         0.024 * RMB,
@@ -149,6 +157,7 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-preview-05-20-nothinking": 0.075,
 	"gemini-2.5-flash-thinking-*":               0.075, // 用于为后续所有2.5 flash thinking budget 模型设置默认倍率
 	"gemini-2.5-pro-thinking-*":                 0.625, // 用于为后续所有2.5 pro thinking budget 模型设置默认倍率
+	"gemini-2.5-flash-lite-preview-thinking-*":  0.05,
 	"gemini-2.5-flash-lite-preview-06-17":       0.05,
 	"gemini-2.5-flash":                          0.15,
 	"text-embedding-004":                        0.001,
@@ -334,12 +343,8 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	modelPriceMapMutex.RLock()
 	defer modelPriceMapMutex.RUnlock()
 
-	if strings.HasPrefix(name, "gpt-4-gizmo") {
-		name = "gpt-4-gizmo-*"
-	}
-	if strings.HasPrefix(name, "gpt-4o-gizmo") {
-		name = "gpt-4o-gizmo-*"
-	}
+	name = FormatMatchingModelName(name)
+
 	price, ok := modelPriceMap[name]
 	if !ok {
 		if printErr {
@@ -373,11 +378,8 @@ func GetModelRatio(name string) (float64, bool, string) {
 	modelRatioMapMutex.RLock()
 	defer modelRatioMapMutex.RUnlock()
 
-	name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*")
-	name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
-	if strings.HasPrefix(name, "gpt-4-gizmo") {
-		name = "gpt-4-gizmo-*"
-	}
+	name = FormatMatchingModelName(name)
+
 	ratio, ok := modelRatioMap[name]
 	if !ok {
 		return 37.5, operation_setting.SelfUseModeEnabled, name
@@ -428,12 +430,9 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 func GetCompletionRatio(name string) float64 {
 	CompletionRatioMutex.RLock()
 	defer CompletionRatioMutex.RUnlock()
-	if strings.HasPrefix(name, "gpt-4-gizmo") {
-		name = "gpt-4-gizmo-*"
-	}
-	if strings.HasPrefix(name, "gpt-4o-gizmo") {
-		name = "gpt-4o-gizmo-*"
-	}
+
+	name = FormatMatchingModelName(name)
+
 	if strings.Contains(name, "/") {
 		if ratio, ok := CompletionRatio[name]; ok {
 			return ratio
@@ -457,6 +456,10 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				return 3, true
 			}
 			return 4, true
+		}
+		// gpt-5 匹配
+		if strings.HasPrefix(name, "gpt-5") {
+			return 8, true
 		}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
@@ -512,9 +515,6 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				return 3.5 / 0.15, false
 			}
 			if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
-				if strings.HasPrefix(name, "gemini-2.5-flash-lite-preview") {
-					return 4, false
-				}
 				return 4, false
 			}
 			return 2.5 / 0.3, true
@@ -662,4 +662,24 @@ func GetCompletionRatioCopy() map[string]float64 {
 		copyMap[k] = v
 	}
 	return copyMap
+}
+
+// 转换模型名，减少渠道必须配置各种带参数模型
+func FormatMatchingModelName(name string) string {
+
+	if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
+		name = handleThinkingBudgetModel(name, "gemini-2.5-flash-lite", "gemini-2.5-flash-lite-thinking-*")
+	} else if strings.HasPrefix(name, "gemini-2.5-flash") {
+		name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*")
+	} else if strings.HasPrefix(name, "gemini-2.5-pro") {
+		name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
+	}
+
+	if strings.HasPrefix(name, "gpt-4-gizmo") {
+		name = "gpt-4-gizmo-*"
+	}
+	if strings.HasPrefix(name, "gpt-4o-gizmo") {
+		name = "gpt-4o-gizmo-*"
+	}
+	return name
 }

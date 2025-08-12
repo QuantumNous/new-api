@@ -153,9 +153,13 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					toolCalls = append(toolCalls, toolCall)
 				case "tool_result":
 					// Add tool result as a separate message
+					toolName := mediaMsg.Name
+					if toolName == "" {
+						toolName = claudeRequest.SearchToolNameByToolCallId(mediaMsg.ToolUseId)
+					}
 					oaiToolMessage := dto.Message{
 						Role:       "tool",
-						Name:       &mediaMsg.Name,
+						Name:       &toolName,
 						ToolCallId: mediaMsg.ToolUseId,
 					}
 					//oaiToolMessage.SetStringContent(*mediaMsg.GetMediaContent().Text)
@@ -188,28 +192,6 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	return &openAIRequest, nil
 }
 
-func OpenAIErrorToClaudeError(openAIError *dto.OpenAIErrorWithStatusCode) *dto.ClaudeErrorWithStatusCode {
-	claudeError := dto.ClaudeError{
-		Type:    "new_api_error",
-		Message: openAIError.Error.Message,
-	}
-	return &dto.ClaudeErrorWithStatusCode{
-		Error:      claudeError,
-		StatusCode: openAIError.StatusCode,
-	}
-}
-
-func ClaudeErrorToOpenAIError(claudeError *dto.ClaudeErrorWithStatusCode) *dto.OpenAIErrorWithStatusCode {
-	openAIError := dto.OpenAIError{
-		Message: claudeError.Error.Message,
-		Type:    "new_api_error",
-	}
-	return &dto.OpenAIErrorWithStatusCode{
-		Error:      openAIError,
-		StatusCode: claudeError.StatusCode,
-	}
-}
-
 func generateStopBlock(index int) *dto.ClaudeResponse {
 	return &dto.ClaudeResponse{
 		Type:  "content_block_stop",
@@ -240,40 +222,76 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		//	Type: "ping",
 		//})
 		if openAIResponse.IsToolCall() {
+			info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeTools
 			resp := &dto.ClaudeResponse{
 				Type: "content_block_start",
 				ContentBlock: &dto.ClaudeMediaMessage{
-					Id:   openAIResponse.GetFirstToolCall().ID,
-					Type: "tool_use",
-					Name: openAIResponse.GetFirstToolCall().Function.Name,
+					Id:    openAIResponse.GetFirstToolCall().ID,
+					Type:  "tool_use",
+					Name:  openAIResponse.GetFirstToolCall().Function.Name,
+					Input: map[string]interface{}{},
 				},
 			}
 			resp.SetIndex(0)
 			claudeResponses = append(claudeResponses, resp)
 		} else {
-			//resp := &dto.ClaudeResponse{
-			//	Type: "content_block_start",
-			//	ContentBlock: &dto.ClaudeMediaMessage{
-			//		Type: "text",
-			//		Text: common.GetPointer[string](""),
-			//	},
-			//}
-			//resp.SetIndex(0)
-			//claudeResponses = append(claudeResponses, resp)
+
+		}
+		// 判断首个响应是否存在内容（非标准的 OpenAI 响应）
+		if len(openAIResponse.Choices) > 0 && len(openAIResponse.Choices[0].Delta.GetContentString()) > 0 {
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Index: &info.ClaudeConvertInfo.Index,
+				Type:  "content_block_start",
+				ContentBlock: &dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: common.GetPointer[string](""),
+				},
+			})
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Type: "content_block_delta",
+				Delta: &dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: common.GetPointer[string](openAIResponse.Choices[0].Delta.GetContentString()),
+				},
+			})
+			info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeText
 		}
 		return claudeResponses
 	}
 
 	if len(openAIResponse.Choices) == 0 {
 		// no choices
-		// TODO: handle this case
+		// 可能为非标准的 OpenAI 响应，判断是否已经完成
+		if info.Done {
+			claudeResponses = append(claudeResponses, generateStopBlock(info.ClaudeConvertInfo.Index))
+			oaiUsage := info.ClaudeConvertInfo.Usage
+			if oaiUsage != nil {
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Type: "message_delta",
+					Usage: &dto.ClaudeUsage{
+						InputTokens:              oaiUsage.PromptTokens,
+						OutputTokens:             oaiUsage.CompletionTokens,
+						CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
+						CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
+					},
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
+					},
+				})
+			}
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Type: "message_stop",
+			})
+		}
 		return claudeResponses
 	} else {
 		chosenChoice := openAIResponse.Choices[0]
 		if chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != "" {
 			// should be done
 			info.FinishReason = *chosenChoice.FinishReason
-			return claudeResponses
+			if !info.Done {
+				return claudeResponses
+			}
 		}
 		if info.Done {
 			claudeResponses = append(claudeResponses, generateStopBlock(info.ClaudeConvertInfo.Index))
@@ -389,22 +407,26 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
-		claudeContent := dto.ClaudeMediaMessage{}
 		if choice.FinishReason == "tool_calls" {
-			claudeContent.Type = "tool_use"
-			claudeContent.Id = choice.Message.ToolCallId
-			claudeContent.Name = choice.Message.ParseToolCalls()[0].Function.Name
-			var mapParams map[string]interface{}
-			if err := json.Unmarshal([]byte(choice.Message.ParseToolCalls()[0].Function.Arguments), &mapParams); err == nil {
-				claudeContent.Input = mapParams
-			} else {
-				claudeContent.Input = choice.Message.ParseToolCalls()[0].Function.Arguments
+			for _, toolUse := range choice.Message.ParseToolCalls() {
+				claudeContent := dto.ClaudeMediaMessage{}
+				claudeContent.Type = "tool_use"
+				claudeContent.Id = toolUse.ID
+				claudeContent.Name = toolUse.Function.Name
+				var mapParams map[string]interface{}
+				if err := common.Unmarshal([]byte(toolUse.Function.Arguments), &mapParams); err == nil {
+					claudeContent.Input = mapParams
+				} else {
+					claudeContent.Input = toolUse.Function.Arguments
+				}
+				contents = append(contents, claudeContent)
 			}
 		} else {
+			claudeContent := dto.ClaudeMediaMessage{}
 			claudeContent.Type = "text"
 			claudeContent.SetText(choice.Message.StringContent())
+			contents = append(contents, claudeContent)
 		}
-		contents = append(contents, claudeContent)
 	}
 	claudeResponse.Content = contents
 	claudeResponse.StopReason = stopReason
@@ -422,6 +444,8 @@ func stopReasonOpenAI2Claude(reason string) string {
 		return "end_turn"
 	case "stop_sequence":
 		return "stop_sequence"
+	case "length":
+		fallthrough
 	case "max_tokens":
 		return "max_tokens"
 	case "tool_calls":
@@ -437,4 +461,354 @@ func toJSONString(v interface{}) string {
 		return "{}"
 	}
 	return string(b)
+}
+
+func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
+	openaiRequest := &dto.GeneralOpenAIRequest{
+		Model:  info.UpstreamModelName,
+		Stream: info.IsStream,
+	}
+
+	// 转换 messages
+	var messages []dto.Message
+	for _, content := range geminiRequest.Contents {
+		message := dto.Message{
+			Role: convertGeminiRoleToOpenAI(content.Role),
+		}
+
+		// 处理 parts
+		var mediaContents []dto.MediaContent
+		var toolCalls []dto.ToolCallRequest
+		for _, part := range content.Parts {
+			if part.Text != "" {
+				mediaContent := dto.MediaContent{
+					Type: "text",
+					Text: part.Text,
+				}
+				mediaContents = append(mediaContents, mediaContent)
+			} else if part.InlineData != nil {
+				mediaContent := dto.MediaContent{
+					Type: "image_url",
+					ImageUrl: &dto.MessageImageUrl{
+						Url:      fmt.Sprintf("data:%s;base64,%s", part.InlineData.MimeType, part.InlineData.Data),
+						Detail:   "auto",
+						MimeType: part.InlineData.MimeType,
+					},
+				}
+				mediaContents = append(mediaContents, mediaContent)
+			} else if part.FileData != nil {
+				mediaContent := dto.MediaContent{
+					Type: "image_url",
+					ImageUrl: &dto.MessageImageUrl{
+						Url:      part.FileData.FileUri,
+						Detail:   "auto",
+						MimeType: part.FileData.MimeType,
+					},
+				}
+				mediaContents = append(mediaContents, mediaContent)
+			} else if part.FunctionCall != nil {
+				// 处理 Gemini 的工具调用
+				toolCall := dto.ToolCallRequest{
+					ID:   fmt.Sprintf("call_%d", len(toolCalls)+1), // 生成唯一ID
+					Type: "function",
+					Function: dto.FunctionRequest{
+						Name:      part.FunctionCall.FunctionName,
+						Arguments: toJSONString(part.FunctionCall.Arguments),
+					},
+				}
+				toolCalls = append(toolCalls, toolCall)
+			} else if part.FunctionResponse != nil {
+				// 处理 Gemini 的工具响应，创建单独的 tool 消息
+				toolMessage := dto.Message{
+					Role:       "tool",
+					ToolCallId: fmt.Sprintf("call_%d", len(toolCalls)), // 使用对应的调用ID
+				}
+				toolMessage.SetStringContent(toJSONString(part.FunctionResponse.Response))
+				messages = append(messages, toolMessage)
+			}
+		}
+
+		// 设置消息内容
+		if len(toolCalls) > 0 {
+			// 如果有工具调用，设置工具调用
+			message.SetToolCalls(toolCalls)
+		} else if len(mediaContents) == 1 && mediaContents[0].Type == "text" {
+			// 如果只有一个文本内容，直接设置字符串
+			message.Content = mediaContents[0].Text
+		} else if len(mediaContents) > 0 {
+			// 如果有多个内容或包含媒体，设置为数组
+			message.SetMediaContent(mediaContents)
+		}
+
+		// 只有当消息有内容或工具调用时才添加
+		if len(message.ParseContent()) > 0 || len(message.ToolCalls) > 0 {
+			messages = append(messages, message)
+		}
+	}
+
+	openaiRequest.Messages = messages
+
+	if geminiRequest.GenerationConfig.Temperature != nil {
+		openaiRequest.Temperature = geminiRequest.GenerationConfig.Temperature
+	}
+	if geminiRequest.GenerationConfig.TopP > 0 {
+		openaiRequest.TopP = geminiRequest.GenerationConfig.TopP
+	}
+	if geminiRequest.GenerationConfig.TopK > 0 {
+		openaiRequest.TopK = int(geminiRequest.GenerationConfig.TopK)
+	}
+	if geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
+		openaiRequest.MaxTokens = geminiRequest.GenerationConfig.MaxOutputTokens
+	}
+	// gemini stop sequences 最多 5 个，openai stop 最多 4 个
+	if len(geminiRequest.GenerationConfig.StopSequences) > 0 {
+		openaiRequest.Stop = geminiRequest.GenerationConfig.StopSequences[:4]
+	}
+	if geminiRequest.GenerationConfig.CandidateCount > 0 {
+		openaiRequest.N = geminiRequest.GenerationConfig.CandidateCount
+	}
+
+	// 转换工具调用
+	if len(geminiRequest.GetTools()) > 0 {
+		var tools []dto.ToolCallRequest
+		for _, tool := range geminiRequest.GetTools() {
+			if tool.FunctionDeclarations != nil {
+				// 将 Gemini 的 FunctionDeclarations 转换为 OpenAI 的 ToolCallRequest
+				functionDeclarations, ok := tool.FunctionDeclarations.([]dto.FunctionRequest)
+				if ok {
+					for _, function := range functionDeclarations {
+						openAITool := dto.ToolCallRequest{
+							Type: "function",
+							Function: dto.FunctionRequest{
+								Name:        function.Name,
+								Description: function.Description,
+								Parameters:  function.Parameters,
+							},
+						}
+						tools = append(tools, openAITool)
+					}
+				}
+			}
+		}
+		if len(tools) > 0 {
+			openaiRequest.Tools = tools
+		}
+	}
+
+	// gemini system instructions
+	if geminiRequest.SystemInstructions != nil {
+		// 将系统指令作为第一条消息插入
+		systemMessage := dto.Message{
+			Role:    "system",
+			Content: extractTextFromGeminiParts(geminiRequest.SystemInstructions.Parts),
+		}
+		openaiRequest.Messages = append([]dto.Message{systemMessage}, openaiRequest.Messages...)
+	}
+
+	return openaiRequest, nil
+}
+
+func convertGeminiRoleToOpenAI(geminiRole string) string {
+	switch geminiRole {
+	case "user":
+		return "user"
+	case "model":
+		return "assistant"
+	case "function":
+		return "function"
+	default:
+		return "user"
+	}
+}
+
+func extractTextFromGeminiParts(parts []dto.GeminiPart) string {
+	var texts []string
+	for _, part := range parts {
+		if part.Text != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
+}
+
+// ResponseOpenAI2Gemini 将 OpenAI 响应转换为 Gemini 格式
+func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+	geminiResponse := &dto.GeminiChatResponse{
+		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
+		PromptFeedback: dto.GeminiChatPromptFeedback{
+			SafetyRatings: []dto.GeminiChatSafetyRating{},
+		},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     openAIResponse.PromptTokens,
+			CandidatesTokenCount: openAIResponse.CompletionTokens,
+			TotalTokenCount:      openAIResponse.PromptTokens + openAIResponse.CompletionTokens,
+		},
+	}
+
+	for _, choice := range openAIResponse.Choices {
+		candidate := dto.GeminiChatCandidate{
+			Index:         int64(choice.Index),
+			SafetyRatings: []dto.GeminiChatSafetyRating{},
+		}
+
+		// 设置结束原因
+		var finishReason string
+		switch choice.FinishReason {
+		case "stop":
+			finishReason = "STOP"
+		case "length":
+			finishReason = "MAX_TOKENS"
+		case "content_filter":
+			finishReason = "SAFETY"
+		case "tool_calls":
+			finishReason = "STOP"
+		default:
+			finishReason = "STOP"
+		}
+		candidate.FinishReason = &finishReason
+
+		// 转换消息内容
+		content := dto.GeminiChatContent{
+			Role:  "model",
+			Parts: make([]dto.GeminiPart, 0),
+		}
+
+		// 处理工具调用
+		toolCalls := choice.Message.ParseToolCalls()
+		if len(toolCalls) > 0 {
+			for _, toolCall := range toolCalls {
+				// 解析参数
+				var args map[string]interface{}
+				if toolCall.Function.Arguments != "" {
+					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
+					}
+				} else {
+					args = make(map[string]interface{})
+				}
+
+				part := dto.GeminiPart{
+					FunctionCall: &dto.FunctionCall{
+						FunctionName: toolCall.Function.Name,
+						Arguments:    args,
+					},
+				}
+				content.Parts = append(content.Parts, part)
+			}
+		} else {
+			// 处理文本内容
+			textContent := choice.Message.StringContent()
+			if textContent != "" {
+				part := dto.GeminiPart{
+					Text: textContent,
+				}
+				content.Parts = append(content.Parts, part)
+			}
+		}
+
+		candidate.Content = content
+		geminiResponse.Candidates = append(geminiResponse.Candidates, candidate)
+	}
+
+	return geminiResponse
+}
+
+// StreamResponseOpenAI2Gemini 将 OpenAI 流式响应转换为 Gemini 格式
+func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+	// 检查是否有实际内容或结束标志
+	hasContent := false
+	hasFinishReason := false
+	for _, choice := range openAIResponse.Choices {
+		if len(choice.Delta.GetContentString()) > 0 || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
+			hasContent = true
+		}
+		if choice.FinishReason != nil {
+			hasFinishReason = true
+		}
+	}
+
+	// 如果没有实际内容且没有结束标志，跳过。主要针对 openai 流响应开头的空数据
+	if !hasContent && !hasFinishReason {
+		return nil
+	}
+
+	geminiResponse := &dto.GeminiChatResponse{
+		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
+		PromptFeedback: dto.GeminiChatPromptFeedback{
+			SafetyRatings: []dto.GeminiChatSafetyRating{},
+		},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     info.PromptTokens,
+			CandidatesTokenCount: 0, // 流式响应中可能没有完整的 usage 信息
+			TotalTokenCount:      info.PromptTokens,
+		},
+	}
+
+	for _, choice := range openAIResponse.Choices {
+		candidate := dto.GeminiChatCandidate{
+			Index:         int64(choice.Index),
+			SafetyRatings: []dto.GeminiChatSafetyRating{},
+		}
+
+		// 设置结束原因
+		if choice.FinishReason != nil {
+			var finishReason string
+			switch *choice.FinishReason {
+			case "stop":
+				finishReason = "STOP"
+			case "length":
+				finishReason = "MAX_TOKENS"
+			case "content_filter":
+				finishReason = "SAFETY"
+			case "tool_calls":
+				finishReason = "STOP"
+			default:
+				finishReason = "STOP"
+			}
+			candidate.FinishReason = &finishReason
+		}
+
+		// 转换消息内容
+		content := dto.GeminiChatContent{
+			Role:  "model",
+			Parts: make([]dto.GeminiPart, 0),
+		}
+
+		// 处理工具调用
+		if choice.Delta.ToolCalls != nil {
+			for _, toolCall := range choice.Delta.ToolCalls {
+				// 解析参数
+				var args map[string]interface{}
+				if toolCall.Function.Arguments != "" {
+					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
+					}
+				} else {
+					args = make(map[string]interface{})
+				}
+
+				part := dto.GeminiPart{
+					FunctionCall: &dto.FunctionCall{
+						FunctionName: toolCall.Function.Name,
+						Arguments:    args,
+					},
+				}
+				content.Parts = append(content.Parts, part)
+			}
+		} else {
+			// 处理文本内容
+			textContent := choice.Delta.GetContentString()
+			if textContent != "" {
+				part := dto.GeminiPart{
+					Text: textContent,
+				}
+				content.Parts = append(content.Parts, part)
+			}
+		}
+
+		candidate.Content = content
+		geminiResponse.Candidates = append(geminiResponse.Candidates, candidate)
+	}
+
+	return geminiResponse
 }

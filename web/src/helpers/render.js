@@ -1,8 +1,28 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import i18next from 'i18next';
-import { Modal, Tag, Typography } from '@douyinfe/semi-ui';
+import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
-import { MOBILE_BREAKPOINT } from '../hooks/useIsMobile.js';
+import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile.js';
 import { visit } from 'unist-util-visit';
+import * as LobeIcons from '@lobehub/icons';
 import {
   OpenAI,
   Claude,
@@ -50,28 +70,15 @@ import {
   User,
   Settings,
   CircleUser,
+  Package,
 } from 'lucide-react';
-
-// 侧边栏图标颜色映射
-export const sidebarIconColors = {
-  dashboard: '#10B981', // 绿色
-  terminal: '#10B981', // 绿色
-  message: '#06B6D4', // 青色
-  key: '#3B82F6', // 蓝色
-  chart: '#F59E0B', // 琥珀色
-  image: '#EC4899', // 粉色
-  check: '#F59E0B', // 琥珀色
-  credit: '#F97316', // 橙色
-  layers: '#EF4444', // 红色
-  gift: '#F43F5E', // 玫红色
-  user: '#10B981', // 绿色
-  settings: '#F97316', // 橙色
-};
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
   const size = 16;
   const strokeWidth = 2;
+  const SELECTED_COLOR = 'var(--semi-color-primary)';
+  const iconColor = selected ? SELECTED_COLOR : 'currentColor';
   const commonProps = {
     size,
     strokeWidth,
@@ -84,70 +91,70 @@ export function getLucideIcon(key, selected = false) {
       return (
         <LayoutDashboard
           {...commonProps}
-          color={selected ? sidebarIconColors.dashboard : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'playground':
       return (
         <TerminalSquare
           {...commonProps}
-          color={selected ? sidebarIconColors.terminal : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'chat':
       return (
         <MessageSquare
           {...commonProps}
-          color={selected ? sidebarIconColors.message : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'token':
       return (
         <Key
           {...commonProps}
-          color={selected ? sidebarIconColors.key : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'log':
       return (
         <BarChart3
           {...commonProps}
-          color={selected ? sidebarIconColors.chart : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'midjourney':
       return (
         <ImageIcon
           {...commonProps}
-          color={selected ? sidebarIconColors.image : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'task':
       return (
         <CheckSquare
           {...commonProps}
-          color={selected ? sidebarIconColors.check : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'topup':
       return (
         <CreditCard
           {...commonProps}
-          color={selected ? sidebarIconColors.credit : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'channel':
       return (
         <Layers
           {...commonProps}
-          color={selected ? sidebarIconColors.layers : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'redemption':
       return (
         <Gift
           {...commonProps}
-          color={selected ? sidebarIconColors.gift : 'currentColor'}
+          color={iconColor}
         />
       );
     case 'user':
@@ -155,21 +162,28 @@ export function getLucideIcon(key, selected = false) {
       return (
         <User
           {...commonProps}
-          color={selected ? sidebarIconColors.user : 'currentColor'}
+          color={iconColor}
+        />
+      );
+    case 'models':
+      return (
+        <Package
+          {...commonProps}
+          color={iconColor}
         />
       );
     case 'setting':
       return (
         <Settings
           {...commonProps}
-          color={selected ? sidebarIconColors.settings : 'currentColor'}
+          color={iconColor}
         />
       );
     default:
       return (
         <CircleUser
           {...commonProps}
-          color={selected ? sidebarIconColors.user : 'currentColor'}
+          color={iconColor}
         />
       );
   }
@@ -401,6 +415,87 @@ export function getChannelIcon(channelType) {
     default:
       return null; // 未知类型或自定义渠道不显示图标
   }
+}
+
+/**
+ * 根据图标名称动态获取 LobeHub 图标组件
+ * 支持：
+ * - 基础："OpenAI"、"OpenAI.Color" 等
+ * - 额外属性（点号链式）："OpenAI.Avatar.type={'platform'}"、"OpenRouter.Avatar.shape={'square'}"
+ * - 继续兼容第二参数 size；若字符串里有 size=，以字符串为准
+ * @param {string} iconName - 图标名称/描述
+ * @param {number} size - 图标大小，默认为 14
+ * @returns {JSX.Element} - 对应的图标组件或 Avatar
+ */
+export function getLobeHubIcon(iconName, size = 14) {
+  if (typeof iconName === 'string') iconName = iconName.trim();
+  // 如果没有图标名称，返回 Avatar
+  if (!iconName) {
+    return <Avatar size="extra-extra-small">?</Avatar>;
+  }
+
+  // 解析组件路径与点号链式属性
+  const segments = String(iconName).split('.');
+  const baseKey = segments[0];
+  const BaseIcon = LobeIcons[baseKey];
+
+  let IconComponent = undefined;
+  let propStartIndex = 1;
+
+  if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
+    IconComponent = BaseIcon[segments[1]];
+    propStartIndex = 2;
+  } else {
+    IconComponent = LobeIcons[baseKey];
+    propStartIndex = 1;
+  }
+
+  // 失败兜底
+  if (!IconComponent || (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')) {
+    const firstLetter = String(iconName).charAt(0).toUpperCase();
+    return <Avatar size="extra-extra-small">{firstLetter}</Avatar>;
+  }
+
+  // 解析点号链式属性，形如：key={...}、key='...'、key="..."、key=123、key、key=true/false
+  const props = {};
+
+  const parseValue = (raw) => {
+    if (raw == null) return true;
+    let v = String(raw).trim();
+    // 去除一层花括号包裹
+    if (v.startsWith('{') && v.endsWith('}')) {
+      v = v.slice(1, -1).trim();
+    }
+    // 去除引号
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      return v.slice(1, -1);
+    }
+    // 布尔
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+    // 数字
+    if (/^-?\d+(?:\.\d+)?$/.test(v)) return Number(v);
+    // 其他原样返回字符串
+    return v;
+  };
+
+  for (let i = propStartIndex; i < segments.length; i++) {
+    const seg = segments[i];
+    if (!seg) continue;
+    const eqIdx = seg.indexOf('=');
+    if (eqIdx === -1) {
+      props[seg.trim()] = true;
+      continue;
+    }
+    const key = seg.slice(0, eqIdx).trim();
+    const valRaw = seg.slice(eqIdx + 1).trim();
+    props[key] = parseValue(valRaw);
+  }
+
+  // 兼容第二参数 size，若字符串中未显式指定 size，则使用函数入参
+  if (props.size == null && size != null) props.size = size;
+
+  return <IconComponent {...props} />;
 }
 
 // 颜色列表
@@ -864,12 +959,22 @@ export function renderQuotaWithAmount(amount) {
 }
 
 export function renderQuota(quota, digits = 2) {
+
   let quotaPerUnit = localStorage.getItem('quota_per_unit');
   let displayInCurrency = localStorage.getItem('display_in_currency');
   quotaPerUnit = parseFloat(quotaPerUnit);
   displayInCurrency = displayInCurrency === 'true';
   if (displayInCurrency) {
-    return '$' + (quota / quotaPerUnit).toFixed(digits);
+    const result = quota / quotaPerUnit;
+    const fixedResult = result.toFixed(digits);
+
+    // 如果 toFixed 后结果为 0 但原始值不为 0，显示最小值
+    if (parseFloat(fixedResult) === 0 && quota > 0 && result > 0) {
+      const minValue = Math.pow(10, -digits);
+      return '$' + minValue.toFixed(digits);
+    }
+
+    return '$' + fixedResult;
   }
   return renderNumber(quota);
 }
@@ -896,6 +1001,71 @@ function getEffectiveRatio(groupRatio, user_group_ratio) {
     label: ratioLabel,
     useUserGroupRatio: useUserGroupRatio
   };
+}
+
+// Shared core for simple price rendering (used by OpenAI-like and Claude-like variants)
+function renderPriceSimpleCore({
+  modelRatio,
+  modelPrice = -1,
+  groupRatio,
+  user_group_ratio,
+  cacheTokens = 0,
+  cacheRatio = 1.0,
+  cacheCreationTokens = 0,
+  cacheCreationRatio = 1.0,
+  image = false,
+  imageRatio = 1.0,
+  isSystemPromptOverride = false
+}) {
+  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
+    groupRatio,
+    user_group_ratio,
+  );
+  const finalGroupRatio = effectiveGroupRatio;
+
+  if (modelPrice !== -1) {
+    return i18next.t('价格：${{price}} * {{ratioType}}：{{ratio}}', {
+      price: modelPrice,
+      ratioType: ratioLabel,
+      ratio: finalGroupRatio,
+    });
+  }
+
+  const parts = [];
+  // base: model ratio
+  parts.push(i18next.t('模型: {{ratio}}'));
+
+  // cache part (label differs when with image)
+  if (cacheTokens !== 0) {
+    parts.push(i18next.t('缓存: {{cacheRatio}}'));
+  }
+
+  // cache creation part (Claude specific if passed)
+  if (cacheCreationTokens !== 0) {
+    parts.push(i18next.t('缓存创建: {{cacheCreationRatio}}'));
+  }
+
+  // image part
+  if (image) {
+    parts.push(i18next.t('图片输入: {{imageRatio}}'));
+  }
+
+  parts.push(`{{ratioType}}: {{groupRatio}}`);
+
+  let result = i18next.t(parts.join(' * '), {
+    ratio: modelRatio,
+    ratioType: ratioLabel,
+    groupRatio: finalGroupRatio,
+    cacheRatio: cacheRatio,
+    cacheCreationRatio: cacheCreationRatio,
+    imageRatio: imageRatio,
+  })
+
+  if (isSystemPromptOverride) {
+    result += '\n\r' + i18next.t('系统提示覆盖');
+  }
+
+  return result;
 }
 
 export function renderModelPrice(
@@ -1127,6 +1297,7 @@ export function renderLogContent(
   modelPrice = -1,
   groupRatio,
   user_group_ratio,
+  cacheRatio = 1.0,
   image = false,
   imageRatio = 1.0,
   webSearch = false,
@@ -1145,9 +1316,10 @@ export function renderLogContent(
   } else {
     if (image) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
         {
           modelRatio: modelRatio,
+          cacheRatio: cacheRatio,
           completionRatio: completionRatio,
           imageRatio: imageRatio,
           ratioType: ratioLabel,
@@ -1156,9 +1328,10 @@ export function renderLogContent(
       );
     } else if (webSearch) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
         {
           modelRatio: modelRatio,
+          cacheRatio: cacheRatio,
           completionRatio: completionRatio,
           ratioType: ratioLabel,
           ratio,
@@ -1167,9 +1340,10 @@ export function renderLogContent(
       );
     } else {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
         {
           modelRatio: modelRatio,
+          cacheRatio: cacheRatio,
           completionRatio: completionRatio,
           ratioType: ratioLabel,
           ratio,
@@ -1186,56 +1360,26 @@ export function renderModelPriceSimple(
   user_group_ratio,
   cacheTokens = 0,
   cacheRatio = 1.0,
+  cacheCreationTokens = 0,
+  cacheCreationRatio = 1.0,
   image = false,
   imageRatio = 1.0,
+  isSystemPromptOverride = false,
+  provider = 'openai',
 ) {
-  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(groupRatio, user_group_ratio);
-  groupRatio = effectiveGroupRatio;
-  if (modelPrice !== -1) {
-    return i18next.t('价格：${{price}} * {{ratioType}}：{{ratio}}', {
-      price: modelPrice,
-      ratioType: ratioLabel,
-      ratio: groupRatio,
-    });
-  } else {
-    if (image && cacheTokens !== 0) {
-      return i18next.t(
-        '模型: {{ratio}} * {{ratioType}}: {{groupRatio}} * 缓存倍率: {{cacheRatio}} * 图片输入倍率: {{imageRatio}}',
-        {
-          ratio: modelRatio,
-          ratioType: ratioLabel,
-          groupRatio: groupRatio,
-          cacheRatio: cacheRatio,
-          imageRatio: imageRatio,
-        },
-      );
-    } else if (image) {
-      return i18next.t(
-        '模型: {{ratio}} * {{ratioType}}: {{groupRatio}} * 图片输入倍率: {{imageRatio}}',
-        {
-          ratio: modelRatio,
-          ratioType: ratioLabel,
-          groupRatio: groupRatio,
-          imageRatio: imageRatio,
-        },
-      );
-    } else if (cacheTokens !== 0) {
-      return i18next.t(
-        '模型: {{ratio}} * 分组: {{groupRatio}} * 缓存: {{cacheRatio}}',
-        {
-          ratio: modelRatio,
-          groupRatio: groupRatio,
-          cacheRatio: cacheRatio,
-        },
-      );
-    } else {
-      return i18next.t('模型: {{ratio}} * {{ratioType}}：{{groupRatio}}', {
-        ratio: modelRatio,
-        ratioType: ratioLabel,
-        groupRatio: groupRatio,
-      });
-    }
-  }
+  return renderPriceSimpleCore({
+    modelRatio,
+    modelPrice,
+    groupRatio,
+    user_group_ratio,
+    cacheTokens,
+    cacheRatio,
+    cacheCreationTokens,
+    cacheCreationRatio,
+    image,
+    imageRatio,
+    isSystemPromptOverride
+  });
 }
 
 export function renderAudioModelPrice(
@@ -1576,46 +1720,7 @@ export function renderClaudeLogContent(
   }
 }
 
-export function renderClaudeModelPriceSimple(
-  modelRatio,
-  modelPrice = -1,
-  groupRatio,
-  user_group_ratio,
-  cacheTokens = 0,
-  cacheRatio = 1.0,
-  cacheCreationTokens = 0,
-  cacheCreationRatio = 1.0,
-) {
-  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(groupRatio, user_group_ratio);
-  groupRatio = effectiveGroupRatio;
-
-  if (modelPrice !== -1) {
-    return i18next.t('价格：${{price}} * {{ratioType}}：{{ratio}}', {
-      price: modelPrice,
-      ratioType: ratioLabel,
-      ratio: groupRatio,
-    });
-  } else {
-    if (cacheTokens !== 0 || cacheCreationTokens !== 0) {
-      return i18next.t(
-        '模型: {{ratio}} * {{ratioType}}: {{groupRatio}} * 缓存: {{cacheRatio}}',
-        {
-          ratio: modelRatio,
-          ratioType: ratioLabel,
-          groupRatio: groupRatio,
-          cacheRatio: cacheRatio,
-          cacheCreationRatio: cacheCreationRatio,
-        },
-      );
-    } else {
-      return i18next.t('模型: {{ratio}} * {{ratioType}}: {{groupRatio}}', {
-        ratio: modelRatio,
-        ratioType: ratioLabel,
-        groupRatio: groupRatio,
-      });
-    }
-  }
-}
+// 已统一至 renderModelPriceSimple，若仍有遗留引用，请改为传入 provider='claude'
 
 /**
  * rehype 插件：将段落等文本节点拆分为逐词 <span>，并添加淡入动画 class。

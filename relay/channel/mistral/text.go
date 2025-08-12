@@ -71,7 +71,7 @@ func requestOpenAI2Mistral(request *dto.GeneralOpenAIRequest) *dto.GeneralOpenAI
 		Messages:    messages,
 		Temperature: request.Temperature,
 		TopP:        request.TopP,
-		MaxTokens:   request.MaxTokens,
+		MaxTokens:   request.GetMaxTokens(),
 		Tools:       request.Tools,
 		ToolChoice:  request.ToolChoice,
 	}

@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Button,
@@ -66,6 +85,7 @@ const SystemSetting = () => {
     LinuxDOOAuthEnabled: '',
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
+    LinuxDOMinimumTrustLevel: '',
     ServerAddress: '',
   });
 
@@ -451,6 +471,12 @@ const SystemSetting = () => {
       options.push({
         key: 'LinuxDOClientSecret',
         value: inputs.LinuxDOClientSecret,
+      });
+    }
+    if (originInputs['LinuxDOMinimumTrustLevel'] !== inputs.LinuxDOMinimumTrustLevel) {
+      options.push({
+        key: 'LinuxDOMinimumTrustLevel',
+        value: inputs.LinuxDOMinimumTrustLevel,
       });
     }
 
@@ -897,19 +923,26 @@ const SystemSetting = () => {
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
-                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                    <Col xs={24} sm={24} md={10} lg={10} xl={10}>
                       <Form.Input
                         field='LinuxDOClientId'
                         label={t('Linux DO Client ID')}
                         placeholder={t('输入你注册的 LinuxDO OAuth APP 的 ID')}
                       />
                     </Col>
-                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                    <Col xs={24} sm={24} md={10} lg={10} xl={10}>
                       <Form.Input
                         field='LinuxDOClientSecret'
                         label={t('Linux DO Client Secret')}
                         type='password'
                         placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={4} lg={4} xl={4}>
+                      <Form.Input
+                        field='LinuxDOMinimumTrustLevel'
+                        label='LinuxDO Minimum Trust Level'
+                        placeholder='允许注册的最低信任等级'
                       />
                     </Col>
                   </Row>

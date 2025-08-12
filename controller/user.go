@@ -62,6 +62,32 @@ func Login(c *gin.Context) {
 		})
 		return
 	}
+
+	// 检查是否启用2FA
+	if model.IsTwoFAEnabled(user.Id) {
+		// 设置pending session，等待2FA验证
+		session := sessions.Default(c)
+		session.Set("pending_username", user.Username)
+		session.Set("pending_user_id", user.Id)
+		err := session.Save()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "无法保存会话信息，请重试",
+				"success": false,
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "请输入两步验证码",
+			"success": true,
+			"data": map[string]interface{}{
+				"require_2fa": true,
+			},
+		})
+		return
+	}
+
 	setupLogin(&user, c)
 }
 

@@ -16,7 +16,7 @@ import (
 func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	common.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
@@ -27,7 +27,7 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		var xinRerankResponse xinference.XinRerankResponse
 		err = common.Unmarshal(responseBody, &xinRerankResponse)
 		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 		jinaRespResults := make([]dto.RerankResponseResult, len(xinRerankResponse.Results))
 		for i, result := range xinRerankResponse.Results {
@@ -62,7 +62,7 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	} else {
 		err = common.Unmarshal(responseBody, &jinaResp)
 		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 		jinaResp.Usage.PromptTokens = jinaResp.Usage.TotalTokens
 	}

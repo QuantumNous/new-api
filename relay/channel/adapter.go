@@ -26,6 +26,7 @@ type Adaptor interface {
 	GetModelList() []string
 	GetChannelName() string
 	ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error)
+	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
 type TaskAdaptor interface {

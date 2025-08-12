@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import HeaderBar from './HeaderBar.js';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar.js';
@@ -5,8 +24,8 @@ import App from '../../App.js';
 import FooterBar from './Footer.js';
 import { ToastContainer } from 'react-toastify';
 import React, { useContext, useEffect, useState } from 'react';
-import { useIsMobile } from '../../hooks/useIsMobile.js';
-import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed.js';
+import { useIsMobile } from '../../hooks/common/useIsMobile.js';
+import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed.js';
 import { useTranslation } from 'react-i18next';
 import { API, getLogo, getSystemName, showError, setStatusData } from '../../helpers/index.js';
 import { UserContext } from '../../context/User/index.js';
@@ -23,7 +42,7 @@ const PageLayout = () => {
   const { i18n } = useTranslation();
   const location = useLocation();
 
-  const shouldHideFooter = location.pathname === '/console/playground' || location.pathname.startsWith('/console/chat');
+  const shouldHideFooter = location.pathname.startsWith('/console') || location.pathname === '/pricing';
 
   const shouldInnerPadding = location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&

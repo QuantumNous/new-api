@@ -7,15 +7,15 @@ import (
 )
 
 type ResponseFormat struct {
-	Type       string            `json:"type,omitempty"`
-	JsonSchema *FormatJsonSchema `json:"json_schema,omitempty"`
+	Type       string          `json:"type,omitempty"`
+	JsonSchema json.RawMessage `json:"json_schema,omitempty"`
 }
 
 type FormatJsonSchema struct {
-	Description string `json:"description,omitempty"`
-	Name        string `json:"name"`
-	Schema      any    `json:"schema,omitempty"`
-	Strict      any    `json:"strict,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Name        string          `json:"name"`
+	Schema      any             `json:"schema,omitempty"`
+	Strict      json.RawMessage `json:"strict,omitempty"`
 }
 
 type GeneralOpenAIRequest struct {
@@ -29,6 +29,7 @@ type GeneralOpenAIRequest struct {
 	MaxTokens           uint              `json:"max_tokens,omitempty"`
 	MaxCompletionTokens uint              `json:"max_completion_tokens,omitempty"`
 	ReasoningEffort     string            `json:"reasoning_effort,omitempty"`
+	Verbosity           json.RawMessage   `json:"verbosity,omitempty"` // gpt-5
 	Temperature         *float64          `json:"temperature,omitempty"`
 	TopP                float64           `json:"top_p,omitempty"`
 	TopK                int               `json:"top_k,omitempty"`
@@ -53,7 +54,7 @@ type GeneralOpenAIRequest struct {
 	Modalities          json.RawMessage   `json:"modalities,omitempty"`
 	Audio               json.RawMessage   `json:"audio,omitempty"`
 	EnableThinking      any               `json:"enable_thinking,omitempty"` // ali
-	THINKING            json.RawMessage   `json:"thinking,omitempty"`        // doubao
+	THINKING            json.RawMessage   `json:"thinking,omitempty"`        // doubao,zhipu_v4
 	ExtraBody           json.RawMessage   `json:"extra_body,omitempty"`
 	SearchParameters    any               `json:"search_parameters,omitempty"` //xai
 	WebSearchOptions    *WebSearchOptions `json:"web_search_options,omitempty"`
@@ -62,6 +63,8 @@ type GeneralOpenAIRequest struct {
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
+	// 用匿名参数接收额外参数，例如ollama的think参数在此接收
+	Extra map[string]json.RawMessage `json:"-"`
 }
 
 func (r *GeneralOpenAIRequest) ToMap() map[string]any {
@@ -69,6 +72,17 @@ func (r *GeneralOpenAIRequest) ToMap() map[string]any {
 	data, _ := common.Marshal(r)
 	_ = common.Unmarshal(data, &result)
 	return result
+}
+
+func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
+	if strings.HasPrefix(r.Model, "o") {
+		if !strings.HasPrefix(r.Model, "o1-mini") && !strings.HasPrefix(r.Model, "o1-preview") {
+			return "developer"
+		}
+	} else if strings.HasPrefix(r.Model, "gpt-5") {
+		return "developer"
+	}
+	return "system"
 }
 
 type ToolCallRequest struct {
@@ -88,8 +102,11 @@ type StreamOptions struct {
 	IncludeUsage bool `json:"include_usage,omitempty"`
 }
 
-func (r *GeneralOpenAIRequest) GetMaxTokens() int {
-	return int(r.MaxTokens)
+func (r *GeneralOpenAIRequest) GetMaxTokens() uint {
+	if r.MaxCompletionTokens != 0 {
+		return r.MaxCompletionTokens
+	}
+	return r.MaxTokens
 }
 
 func (r *GeneralOpenAIRequest) ParseInput() []string {

@@ -1,9 +1,28 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getLucideIcon, sidebarIconColors } from '../../helpers/render.js';
+import { getLucideIcon } from '../../helpers/render.js';
 import { ChevronLeft } from 'lucide-react';
-import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed.js';
+import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed.js';
 import {
   isAdmin,
   isRoot,
@@ -30,6 +49,7 @@ const routerMap = {
   detail: '/console',
   pricing: '/pricing',
   task: '/console/task',
+  models: '/console/models',
   playground: '/console/playground',
   personal: '/console/personal',
 };
@@ -56,7 +76,7 @@ const SiderBar = ({ onNavigate = () => { } }) => {
             : 'tableHiddle',
       },
       {
-        text: t('API令牌'),
+        text: t('令牌管理'),
         itemKey: 'token',
         to: '/token',
       },
@@ -109,13 +129,19 @@ const SiderBar = ({ onNavigate = () => { } }) => {
   const adminItems = useMemo(
     () => [
       {
-        text: t('渠道'),
+        text: t('渠道管理'),
         itemKey: 'channel',
         to: '/channel',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('兑换码'),
+        text: t('模型管理'),
+        itemKey: 'models',
+        to: '/console/models',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
         className: isAdmin() ? '' : 'tableHiddle',
@@ -175,12 +201,20 @@ const SiderBar = ({ onNavigate = () => { } }) => {
         if (Array.isArray(chats)) {
           let chatItems = [];
           for (let i = 0; i < chats.length; i++) {
+            let shouldSkip = false;
             let chat = {};
             for (let key in chats[i]) {
+              let link = chats[i][key];
+              if (typeof link !== 'string') continue; // 确保链接是字符串
+              if (link.startsWith('fluent')) {
+                shouldSkip = true;
+                break; // 跳过 Fluent Read
+              }
               chat.text = key;
               chat.itemKey = 'chat' + i;
               chat.to = '/console/chat/' + i;
             }
+            if (shouldSkip || !chat.text) continue; // 避免推入空项
             chatItems.push(chat);
           }
           setChatItems(chatItems);
@@ -225,28 +259,8 @@ const SiderBar = ({ onNavigate = () => { } }) => {
     }
   }, [collapsed]);
 
-  // 获取菜单项对应的颜色
-  const getItemColor = (itemKey) => {
-    switch (itemKey) {
-      case 'detail': return sidebarIconColors.dashboard;
-      case 'playground': return sidebarIconColors.terminal;
-      case 'chat': return sidebarIconColors.message;
-      case 'token': return sidebarIconColors.key;
-      case 'log': return sidebarIconColors.chart;
-      case 'midjourney': return sidebarIconColors.image;
-      case 'task': return sidebarIconColors.check;
-      case 'topup': return sidebarIconColors.credit;
-      case 'channel': return sidebarIconColors.layers;
-      case 'redemption': return sidebarIconColors.gift;
-      case 'user':
-      case 'personal': return sidebarIconColors.user;
-      case 'setting': return sidebarIconColors.settings;
-      default:
-        // 处理聊天项
-        if (itemKey && itemKey.startsWith('chat')) return sidebarIconColors.message;
-        return 'currentColor';
-    }
-  };
+  // 选中高亮颜色（统一）
+  const SELECTED_COLOR = 'var(--semi-color-primary)';
 
   // 渲染自定义菜单项
   const renderNavItem = (item) => {
@@ -254,7 +268,7 @@ const SiderBar = ({ onNavigate = () => { } }) => {
     if (item.className === 'tableHiddle') return null;
 
     const isSelected = selectedKeys.includes(item.itemKey);
-    const textColor = isSelected ? getItemColor(item.itemKey) : 'inherit';
+    const textColor = isSelected ? SELECTED_COLOR : 'inherit';
 
     return (
       <Nav.Item
@@ -281,7 +295,7 @@ const SiderBar = ({ onNavigate = () => { } }) => {
   const renderSubItem = (item) => {
     if (item.items && item.items.length > 0) {
       const isSelected = selectedKeys.includes(item.itemKey);
-      const textColor = isSelected ? getItemColor(item.itemKey) : 'inherit';
+      const textColor = isSelected ? SELECTED_COLOR : 'inherit';
 
       return (
         <Nav.Sub
@@ -302,7 +316,7 @@ const SiderBar = ({ onNavigate = () => { } }) => {
         >
           {item.items.map((subItem) => {
             const isSubSelected = selectedKeys.includes(subItem.itemKey);
-            const subTextColor = isSubSelected ? getItemColor(subItem.itemKey) : 'inherit';
+            const subTextColor = isSubSelected ? SELECTED_COLOR : 'inherit';
 
             return (
               <Nav.Item
@@ -421,7 +435,7 @@ const SiderBar = ({ onNavigate = () => { } }) => {
             />
           }
           onClick={toggleCollapsed}
-          iconOnly={collapsed}
+          icononly={collapsed}
           style={collapsed ? { padding: '4px', width: '100%' } : { padding: '4px 12px', width: '100%' }}
         >
           {!collapsed ? t('收起侧边栏') : null}

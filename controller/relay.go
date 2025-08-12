@@ -42,12 +42,16 @@ func relayHandler(c *gin.Context, relayMode int) *types.NewAPIError {
 	case relayconstant.RelayModeResponses:
 		err = relay.ResponsesHelper(c)
 	case relayconstant.RelayModeGemini:
-		err = relay.GeminiHelper(c)
+		if strings.Contains(c.Request.URL.Path, "embed") {
+			err = relay.GeminiEmbeddingHandler(c)
+		} else {
+			err = relay.GeminiHelper(c)
+		}
 	default:
 		err = relay.TextHelper(c)
 	}
 
-	if constant2.ErrorLogEnabled && err != nil {
+	if constant2.ErrorLogEnabled && err != nil && types.IsRecordErrorLog(err) {
 		// 保存错误日志到mysql中
 		userId := c.GetInt("id")
 		tokenName := c.GetString("token_name")
@@ -56,14 +60,21 @@ func relayHandler(c *gin.Context, relayMode int) *types.NewAPIError {
 		userGroup := c.GetString("group")
 		channelId := c.GetInt("channel_id")
 		other := make(map[string]interface{})
-		other["error_type"] = err.ErrorType
+		other["error_type"] = err.GetErrorType()
 		other["error_code"] = err.GetErrorCode()
 		other["status_code"] = err.StatusCode
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
-
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.Error(), tokenId, 0, false, userGroup, other)
+		adminInfo := make(map[string]interface{})
+		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
+		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
+		if isMultiKey {
+			adminInfo["is_multi_key"] = true
+			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+		}
+		other["admin_info"] = adminInfo
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveError(), tokenId, 0, false, userGroup, other)
 	}
 
 	return err
@@ -128,7 +139,7 @@ func WssRelay(c *gin.Context) {
 	defer ws.Close()
 
 	if err != nil {
-		helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed).ToOpenAIError())
+		helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError())
 		return
 	}
 
@@ -259,10 +270,10 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 	}
 	channel, selectGroup, err := model.CacheGetRandomSatisfiedChannel(c, group, originalModel, retryCount)
 	if err != nil {
-		if group == "auto" {
-			return nil, types.NewError(errors.New(fmt.Sprintf("获取自动分组下模型 %s 的可用渠道失败: %s", originalModel, err.Error())), types.ErrorCodeGetChannelFailed)
-		}
-		return nil, types.NewError(errors.New(fmt.Sprintf("获取分组 %s 下模型 %s 的可用渠道失败: %s", selectGroup, originalModel, err.Error())), types.ErrorCodeGetChannelFailed)
+		return nil, types.NewError(errors.New(fmt.Sprintf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, originalModel, err.Error())), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if channel == nil {
+		return nil, types.NewError(errors.New(fmt.Sprintf("分组 %s 下模型 %s 的可用渠道不存在（数据库一致性已被破坏，retry）", selectGroup, originalModel)), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, originalModel)
 	if newAPIError != nil {
@@ -278,7 +289,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
-	if types.IsLocalError(openaiErr) {
+	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}
 	if retryTimes <= 0 {
@@ -428,7 +439,7 @@ func RelayTask(c *gin.Context) {
 func taskRelayHandler(c *gin.Context, relayMode int) *dto.TaskError {
 	var err *dto.TaskError
 	switch relayMode {
-	case relayconstant.RelayModeSunoFetch, relayconstant.RelayModeSunoFetchByID, relayconstant.RelayModeKlingFetchByID:
+	case relayconstant.RelayModeSunoFetch, relayconstant.RelayModeSunoFetchByID, relayconstant.RelayModeVideoFetchByID:
 		err = relay.RelayTaskFetch(c, relayMode)
 	default:
 		err = relay.RelayTaskSubmit(c, relayMode)

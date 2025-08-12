@@ -22,14 +22,14 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var responsesResponse dto.OpenAIResponsesResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	err = common.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	if responsesResponse.Error != nil {
-		return nil, types.WithOpenAIError(*responsesResponse.Error, resp.StatusCode)
+	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
 	// 写入新的 response body
@@ -37,9 +37,14 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	// compute usage
 	usage := dto.Usage{}
-	usage.PromptTokens = responsesResponse.Usage.InputTokens
-	usage.CompletionTokens = responsesResponse.Usage.OutputTokens
-	usage.TotalTokens = responsesResponse.Usage.TotalTokens
+	if responsesResponse.Usage != nil {
+		usage.PromptTokens = responsesResponse.Usage.InputTokens
+		usage.CompletionTokens = responsesResponse.Usage.OutputTokens
+		usage.TotalTokens = responsesResponse.Usage.TotalTokens
+		if responsesResponse.Usage.InputTokensDetails != nil {
+			usage.PromptTokensDetails.CachedTokens = responsesResponse.Usage.InputTokensDetails.CachedTokens
+		}
+	}
 	// 解析 Tools 用量
 	for _, tool := range responsesResponse.Tools {
 		info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])].CallCount++
@@ -64,9 +69,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sendResponsesStreamData(c, streamResponse, data)
 			switch streamResponse.Type {
 			case "response.completed":
-				usage.PromptTokens = streamResponse.Response.Usage.InputTokens
-				usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
-				usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
+				if streamResponse.Response.Usage != nil {
+					usage.PromptTokens = streamResponse.Response.Usage.InputTokens
+					usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
+					usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
+					if streamResponse.Response.Usage.InputTokensDetails != nil {
+						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
+					}
+				}
 			case "response.output_text.delta":
 				// 处理输出文本
 				responseTextBuilder.WriteString(streamResponse.Delta)

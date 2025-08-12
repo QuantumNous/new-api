@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,6 +36,7 @@ import {
   renderModelTag,
   getModelCategories
 } from '../../helpers';
+import TwoFASetting from './TwoFASetting';
 import Turnstile from 'react-turnstile';
 import { UserContext } from '../../context/User';
 import { useTheme } from '../../context/Theme';
@@ -379,7 +399,7 @@ const PersonalSetting = () => {
   };
 
   return (
-    <div className="bg-gray-50 mt-[64px]">
+    <div className="bg-gray-50 mt-[60px]">
       <div className="flex justify-center">
         <div className="w-full">
           {/* 主卡片容器 */}
@@ -1021,6 +1041,9 @@ const PersonalSetting = () => {
                             </Button>
                           </div>
                         </Card>
+
+                        {/* 两步验证设置 */}
+                        <TwoFASetting />
 
                         {/* 危险区域 */}
                         <Card

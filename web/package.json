@@ -21,6 +21,7 @@
     "lucide-react": "^0.511.0",
     "marked": "^4.1.1",
     "mermaid": "^11.6.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.2.3",
@@ -46,6 +47,8 @@
     "build": "vite build",
     "lint": "prettier . --check",
     "lint:fix": "prettier . --write",
+    "eslint": "bunx eslint \"**/*.{js,jsx}\" --cache",
+    "eslint:fix": "bunx eslint \"**/*.{js,jsx}\" --fix --cache",
     "preview": "vite preview"
   },
   "eslintConfig": {
@@ -71,6 +74,9 @@
     "@so1ve/prettier-config": "^3.1.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.21",
+    "eslint": "8.57.0",
+    "eslint-plugin-header": "^3.1.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "postcss": "^8.5.3",
     "prettier": "^3.0.0",
     "tailwindcss": "^3",

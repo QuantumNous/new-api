@@ -23,10 +23,14 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	panic("implement me")
-	return nil, nil
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	adaptor := openai.Adaptor{}
+	return adaptor.ConvertClaudeRequest(c, info, req)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -191,6 +195,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/api/v3/embeddings", info.BaseUrl), nil
 	case constant.RelayModeImagesGenerations:
 		return fmt.Sprintf("%s/api/v3/images/generations", info.BaseUrl), nil
+	case constant.RelayModeImagesEdits:
+		return fmt.Sprintf("%s/api/v3/images/edits", info.BaseUrl), nil
+	case constant.RelayModeRerank:
+		return fmt.Sprintf("%s/api/v3/rerank", info.BaseUrl), nil
 	default:
 	}
 	return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
@@ -227,18 +235,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	switch info.RelayMode {
-	case constant.RelayModeChatCompletions:
-		if info.IsStream {
-			usage, err = openai.OaiStreamHandler(c, info, resp)
-		} else {
-			usage, err = openai.OpenaiHandler(c, info, resp)
-		}
-	case constant.RelayModeEmbeddings:
-		usage, err = openai.OpenaiHandler(c, info, resp)
-	case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
-		usage, err = openai.OpenaiHandlerWithUsage(c, info, resp)
-	}
+	adaptor := openai.Adaptor{}
+	usage, err = adaptor.DoResponse(c, resp, info)
 	return
 }
 

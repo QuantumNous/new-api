@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, error) {
+func requestOpenAI2Ollama(request *dto.GeneralOpenAIRequest) (*OllamaRequest, error) {
 	messages := make([]dto.Message, 0, len(request.Messages))
 	for _, message := range request.Messages {
 		if !message.IsStringContent() {
@@ -50,7 +50,7 @@ func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, err
 	} else {
 		Stop, _ = request.Stop.([]string)
 	}
-	return &OllamaRequest{
+	ollamaRequest := &OllamaRequest{
 		Model:            request.Model,
 		Messages:         messages,
 		Stream:           request.Stream,
@@ -60,14 +60,18 @@ func requestOpenAI2Ollama(request dto.GeneralOpenAIRequest) (*OllamaRequest, err
 		TopK:             request.TopK,
 		Stop:             Stop,
 		Tools:            request.Tools,
-		MaxTokens:        request.MaxTokens,
+		MaxTokens:        request.GetMaxTokens(),
 		ResponseFormat:   request.ResponseFormat,
 		FrequencyPenalty: request.FrequencyPenalty,
 		PresencePenalty:  request.PresencePenalty,
 		Prompt:           request.Prompt,
 		StreamOptions:    request.StreamOptions,
 		Suffix:           request.Suffix,
-	}, nil
+	}
+	if think, ok := request.Extra["think"]; ok {
+		ollamaRequest.Think = think
+	}
+	return ollamaRequest, nil
 }
 
 func requestOpenAI2Embeddings(request dto.EmbeddingRequest) *OllamaEmbeddingRequest {
@@ -88,15 +92,15 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	var ollamaEmbeddingResponse OllamaEmbeddingResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	common.CloseResponseBodyGracefully(resp)
 	err = common.Unmarshal(responseBody, &ollamaEmbeddingResponse)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if ollamaEmbeddingResponse.Error != "" {
-		return nil, types.NewError(fmt.Errorf("ollama error: %s", ollamaEmbeddingResponse.Error), types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(fmt.Errorf("ollama error: %s", ollamaEmbeddingResponse.Error), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	flattenedEmbeddings := flattenEmbeddings(ollamaEmbeddingResponse.Embedding)
 	data := make([]dto.OpenAIEmbeddingResponseItem, 0, 1)
@@ -117,7 +121,7 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	doResponseBody, err := common.Marshal(embeddingResponse)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	common.IOCopyBytesGracefully(c, resp, doResponseBody)
 	return usage, nil

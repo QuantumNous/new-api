@@ -24,6 +24,11 @@ type Adaptor struct {
 	RequestMode int
 }
 
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	//TODO implement me
+	return nil, errors.New("not implemented")
+}
+
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
 	return request, nil
 }
@@ -99,7 +104,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.IsStream {
 		err, usage = ClaudeStreamHandler(c, resp, info, a.RequestMode)
 	} else {
-		err, usage = ClaudeHandler(c, resp, a.RequestMode, info)
+		err, usage = ClaudeHandler(c, resp, info, a.RequestMode)
 	}
 	return
 }

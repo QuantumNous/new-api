@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import { getUserIdFromLocalStorage, showError, formatMessageForAPI, isValidMessage } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
@@ -196,14 +215,16 @@ export async function getOAuthState() {
 export async function onOIDCClicked(auth_url, client_id, openInNewTab = false) {
   const state = await getOAuthState();
   if (!state) return;
-  const redirect_uri = `${window.location.origin}/oauth/oidc`;
-  const response_type = 'code';
-  const scope = 'openid profile email';
-  const url = `${auth_url}?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=${response_type}&scope=${scope}&state=${state}`;
+  const url = new URL(auth_url);
+  url.searchParams.set('client_id', client_id);
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'openid profile email');
+  url.searchParams.set('state', state);
   if (openInNewTab) {
-    window.open(url);
+    window.open(url.toString(), '_blank');
   } else {
-    window.location.href = url;
+    window.location.href = url.toString();
   }
 }
 

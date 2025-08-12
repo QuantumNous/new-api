@@ -9,13 +9,13 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
 	"one-api/relay/channel/ai360"
 	"one-api/relay/channel/lingyiwanwu"
 	"one-api/relay/channel/minimax"
-	"one-api/relay/channel/moonshot"
 	"one-api/relay/channel/openrouter"
 	"one-api/relay/channel/xinference"
 	relaycommon "one-api/relay/common"
@@ -34,15 +34,55 @@ type Adaptor struct {
 	ResponseFormat string
 }
 
+// parseReasoningEffortFromModelSuffix 从模型名称中解析推理级别
+// support OAI models: o1-mini/o3-mini/o4-mini/o1/o3 etc...
+// minimal effort only available in gpt-5
+func parseReasoningEffortFromModelSuffix(model string) (string, string) {
+	effortSuffixes := []string{"-high", "-minimal", "-low", "-medium"}
+	for _, suffix := range effortSuffixes {
+		if strings.HasSuffix(model, suffix) {
+			effort := strings.TrimPrefix(suffix, "-")
+			originModel := strings.TrimSuffix(model, suffix)
+			return effort, originModel
+		}
+	}
+	return "", model
+}
+
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	// 使用 service.GeminiToOpenAIRequest 转换请求格式
+	openaiRequest, err := service.GeminiToOpenAIRequest(request, info)
+	if err != nil {
+		return nil, err
+	}
+	return a.ConvertOpenAIRequest(c, info, openaiRequest)
+}
+
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
 	//if !strings.Contains(request.Model, "claude") {
 	//	return nil, fmt.Errorf("you are using openai channel type with path /v1/messages, only claude model supported convert, but got %s", request.Model)
+	//}
+	//if common.DebugEnabled {
+	//	bodyBytes := []byte(common.GetJsonString(request))
+	//	err := os.WriteFile(fmt.Sprintf("claude_request_%s.txt", c.GetString(common.RequestIdKey)), bodyBytes, 0644)
+	//	if err != nil {
+	//		println(fmt.Sprintf("failed to save request body to file: %v", err))
+	//	}
 	//}
 	aiRequest, err := service.ClaudeToOpenAIRequest(*request, info)
 	if err != nil {
 		return nil, err
 	}
-	if info.SupportStreamOptions {
+	//if common.DebugEnabled {
+	//	println(fmt.Sprintf("convert claude to openai request result: %s", common.GetJsonString(aiRequest)))
+	//	// Save request body to file for debugging
+	//	bodyBytes := []byte(common.GetJsonString(aiRequest))
+	//	err = os.WriteFile(fmt.Sprintf("claude_to_openai_request_%s.txt", c.GetString(common.RequestIdKey)), bodyBytes, 0644)
+	//	if err != nil {
+	//		println(fmt.Sprintf("failed to save request body to file: %v", err))
+	//	}
+	//}
+	if info.SupportStreamOptions && info.IsStream {
 		aiRequest.StreamOptions = &dto.StreamOptions{
 			IncludeUsage: true,
 		}
@@ -64,9 +104,6 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayFormat == relaycommon.RelayFormatClaude {
-		return fmt.Sprintf("%s/v1/chat/completions", info.BaseUrl), nil
-	}
 	if info.RelayMode == relayconstant.RelayModeRealtime {
 		if strings.HasPrefix(info.BaseUrl, "https://") {
 			baseUrl := strings.TrimPrefix(info.BaseUrl, "https://")
@@ -89,9 +126,26 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		requestURL = fmt.Sprintf("%s?api-version=%s", requestURL, apiVersion)
 		task := strings.TrimPrefix(requestURL, "/v1/")
 
+		if info.RelayFormat == relaycommon.RelayFormatClaude {
+			task = strings.TrimPrefix(task, "messages")
+			task = "chat/completions" + task
+		}
+
 		// 特殊处理 responses API
 		if info.RelayMode == relayconstant.RelayModeResponses {
-			requestURL = fmt.Sprintf("/openai/v1/responses?api-version=preview")
+			responsesApiVersion := "preview"
+
+			subUrl := "/openai/v1/responses"
+			if strings.Contains(info.BaseUrl, "cognitiveservices.azure.com") {
+				subUrl = "/openai/responses"
+				responsesApiVersion = apiVersion
+			}
+
+			if info.ChannelOtherSettings.AzureResponsesVersion != "" {
+				responsesApiVersion = info.ChannelOtherSettings.AzureResponsesVersion
+			}
+
+			requestURL = fmt.Sprintf("%s?api-version=%s", subUrl, responsesApiVersion)
 			return relaycommon.GetFullRequestURL(info.BaseUrl, requestURL, info.ChannelType), nil
 		}
 
@@ -113,6 +167,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
 		return url, nil
 	default:
+		if info.RelayFormat == relaycommon.RelayFormatClaude || info.RelayFormat == relaycommon.RelayFormatGemini {
+			return fmt.Sprintf("%s/v1/chat/completions", info.BaseUrl), nil
+		}
 		return relaycommon.GetFullRequestURL(info.BaseUrl, info.RequestURLPath, info.ChannelType), nil
 	}
 }
@@ -163,28 +220,70 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		if len(request.Usage) == 0 {
 			request.Usage = json.RawMessage(`{"include":true}`)
 		}
+		// 适配 OpenRouter 的 thinking 后缀
+		if strings.HasSuffix(info.UpstreamModelName, "-thinking") {
+			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
+			request.Model = info.UpstreamModelName
+			if len(request.Reasoning) == 0 {
+				reasoning := map[string]any{
+					"enabled": true,
+				}
+				if request.ReasoningEffort != "" && request.ReasoningEffort != "none" {
+					reasoning["effort"] = request.ReasoningEffort
+				}
+				marshal, err := common.Marshal(reasoning)
+				if err != nil {
+					return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+				}
+				request.Reasoning = marshal
+			}
+		} else {
+			if len(request.Reasoning) == 0 {
+				// 适配 OpenAI 的 ReasoningEffort 格式
+				if request.ReasoningEffort != "" {
+					reasoning := map[string]any{
+						"enabled": true,
+					}
+					if request.ReasoningEffort != "none" {
+						reasoning["effort"] = request.ReasoningEffort
+						marshal, err := common.Marshal(reasoning)
+						if err != nil {
+							return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+						}
+						request.Reasoning = marshal
+					}
+				}
+			}
+		}
 	}
-	if strings.HasPrefix(request.Model, "o") {
+	if strings.HasPrefix(info.UpstreamModelName, "o") || strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
 		if request.MaxCompletionTokens == 0 && request.MaxTokens != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
 			request.MaxTokens = 0
 		}
-		request.Temperature = nil
-		if strings.HasSuffix(request.Model, "-high") {
-			request.ReasoningEffort = "high"
-			request.Model = strings.TrimSuffix(request.Model, "-high")
-		} else if strings.HasSuffix(request.Model, "-low") {
-			request.ReasoningEffort = "low"
-			request.Model = strings.TrimSuffix(request.Model, "-low")
-		} else if strings.HasSuffix(request.Model, "-medium") {
-			request.ReasoningEffort = "medium"
-			request.Model = strings.TrimSuffix(request.Model, "-medium")
+
+		if strings.HasPrefix(info.UpstreamModelName, "o") {
+			request.Temperature = nil
 		}
+
+		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+			if info.UpstreamModelName != "gpt-5-chat-latest" {
+				request.Temperature = nil
+			}
+		}
+
+		// 转换模型推理力度后缀
+		effort, originModel := parseReasoningEffortFromModelSuffix(info.UpstreamModelName)
+		if effort != "" {
+			request.ReasoningEffort = effort
+			info.UpstreamModelName = originModel
+			request.Model = originModel
+		}
+
 		info.ReasoningEffort = request.ReasoningEffort
-		info.UpstreamModelName = request.Model
 
 		// o系列模型developer适配（o1-mini除外）
-		if !strings.HasPrefix(request.Model, "o1-mini") && !strings.HasPrefix(request.Model, "o1-preview") {
+		if !strings.HasPrefix(info.UpstreamModelName, "o1-mini") && !strings.HasPrefix(info.UpstreamModelName, "o1-preview") {
 			//修改第一个Message的内容，将system改为developer
 			if len(request.Messages) > 0 && request.Messages[0].Role == "system" {
 				request.Messages[0].Role = "developer"
@@ -396,16 +495,11 @@ func detectImageMimeType(filename string) string {
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// 模型后缀转换 reasoning effort
-	if strings.HasSuffix(request.Model, "-high") {
-		request.Reasoning.Effort = "high"
-		request.Model = strings.TrimSuffix(request.Model, "-high")
-	} else if strings.HasSuffix(request.Model, "-low") {
-		request.Reasoning.Effort = "low"
-		request.Model = strings.TrimSuffix(request.Model, "-low")
-	} else if strings.HasSuffix(request.Model, "-medium") {
-		request.Reasoning.Effort = "medium"
-		request.Model = strings.TrimSuffix(request.Model, "-medium")
+	//  转换模型推理力度后缀
+	effort, originModel := parseReasoningEffortFromModelSuffix(request.Model)
+	if effort != "" {
+		request.Reasoning.Effort = effort
+		request.Model = originModel
 	}
 	return request, nil
 }
@@ -456,8 +550,6 @@ func (a *Adaptor) GetModelList() []string {
 	switch a.ChannelType {
 	case constant.ChannelType360:
 		return ai360.ModelList
-	case constant.ChannelTypeMoonshot:
-		return moonshot.ModelList
 	case constant.ChannelTypeLingYiWanWu:
 		return lingyiwanwu.ModelList
 	case constant.ChannelTypeMiniMax:
@@ -475,8 +567,6 @@ func (a *Adaptor) GetChannelName() string {
 	switch a.ChannelType {
 	case constant.ChannelType360:
 		return ai360.ChannelName
-	case constant.ChannelTypeMoonshot:
-		return moonshot.ChannelName
 	case constant.ChannelTypeLingYiWanWu:
 		return lingyiwanwu.ChannelName
 	case constant.ChannelTypeMiniMax:

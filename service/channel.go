@@ -45,7 +45,7 @@ func ShouldDisableChannel(channelType int, err *types.NewAPIError) bool {
 	if types.IsChannelError(err) {
 		return true
 	}
-	if types.IsLocalError(err) {
+	if types.IsSkipRetryError(err) {
 		return false
 	}
 	if err.StatusCode == http.StatusUnauthorized {

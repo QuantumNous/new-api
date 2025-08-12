@@ -51,7 +51,7 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	req, err := getAndValidateResponsesRequest(c)
 	if err != nil {
 		common.LogError(c, fmt.Sprintf("getAndValidateResponsesRequest error: %s", err.Error()))
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	relayInfo := relaycommon.GenRelayInfoResponses(c, req)
@@ -60,13 +60,13 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		sensitiveWords, err := checkInputSensitive(req, relayInfo)
 		if err != nil {
 			common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(sensitiveWords, ", ")))
-			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected, types.ErrOptionWithSkipRetry())
 		}
 	}
 
 	err = helper.ModelMappedHelper(c, relayInfo, req)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
 	if value, exists := c.Get("prompt_tokens"); exists {
@@ -79,7 +79,7 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.PromptTokens, int(req.MaxOutputTokens))
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
 	}
 	// pre consume quota
 	preConsumedQuota, userQuota, newAPIError := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
@@ -93,38 +93,38 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	}()
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(relayInfo)
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed)
+			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
 		requestBody = bytes.NewBuffer(body)
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, relayInfo, *req)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		jsonData, err := json.Marshal(convertedRequest)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		// apply param override
 		if len(relayInfo.ParamOverride) > 0 {
 			reqMap := make(map[string]interface{})
 			err = json.Unmarshal(jsonData, &reqMap)
 			if err != nil {
-				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
 			for key, value := range relayInfo.ParamOverride {
 				reqMap[key] = value
 			}
 			jsonData, err = json.Marshal(reqMap)
 			if err != nil {
-				return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 		}
 

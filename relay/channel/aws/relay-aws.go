@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"one-api/common"
@@ -19,20 +18,31 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrockruntimeTypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/aws/smithy-go/auth/bearer"
 )
 
 func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
 	awsSecret := strings.Split(info.ApiKey, "|")
-	if len(awsSecret) != 3 {
+	var client *bedrockruntime.Client
+	switch len(awsSecret) {
+	case 2:
+		apiKey := awsSecret[0]
+		region := awsSecret[1]
+		client = bedrockruntime.New(bedrockruntime.Options{
+			Region:                  region,
+			BearerAuthTokenProvider: bearer.StaticTokenProvider{Token: bearer.Token{Value: apiKey}},
+		})
+	case 3:
+		ak := awsSecret[0]
+		sk := awsSecret[1]
+		region := awsSecret[2]
+		client = bedrockruntime.New(bedrockruntime.Options{
+			Region:      region,
+			Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(ak, sk, "")),
+		})
+	default:
 		return nil, errors.New("invalid aws secret key")
 	}
-	ak := awsSecret[0]
-	sk := awsSecret[1]
-	region := awsSecret[2]
-	client := bedrockruntime.New(bedrockruntime.Options{
-		Region:      region,
-		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(ak, sk, "")),
-	})
 
 	return client, nil
 }
@@ -102,14 +112,14 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, requestMode int) (*
 	}
 	claudeReq := claudeReq_.(*dto.ClaudeRequest)
 	awsClaudeReq := copyRequest(claudeReq)
-	awsReq.Body, err = json.Marshal(awsClaudeReq)
+	awsReq.Body, err = common.Marshal(awsClaudeReq)
 	if err != nil {
 		return types.NewError(errors.Wrap(err, "marshal request"), types.ErrorCodeBadResponseBody), nil
 	}
 
 	awsResp, err := awsCli.InvokeModel(c.Request.Context(), awsReq)
 	if err != nil {
-		return types.NewError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeChannelAwsClientError), nil
+		return types.NewOpenAIError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeAwsInvokeError, http.StatusInternalServerError), nil
 	}
 
 	claudeInfo := &claude.ClaudeResponseInfo{
@@ -154,14 +164,14 @@ func awsStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	claudeReq := claudeReq_.(*dto.ClaudeRequest)
 
 	awsClaudeReq := copyRequest(claudeReq)
-	awsReq.Body, err = json.Marshal(awsClaudeReq)
+	awsReq.Body, err = common.Marshal(awsClaudeReq)
 	if err != nil {
 		return types.NewError(errors.Wrap(err, "marshal request"), types.ErrorCodeBadResponseBody), nil
 	}
 
 	awsResp, err := awsCli.InvokeModelWithResponseStream(c.Request.Context(), awsReq)
 	if err != nil {
-		return types.NewError(errors.Wrap(err, "InvokeModelWithResponseStream"), types.ErrorCodeChannelAwsClientError), nil
+		return types.NewOpenAIError(errors.Wrap(err, "InvokeModelWithResponseStream"), types.ErrorCodeAwsInvokeError, http.StatusInternalServerError), nil
 	}
 	stream := awsResp.GetStream()
 	defer stream.Close()

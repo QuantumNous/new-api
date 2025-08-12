@@ -1,18 +1,37 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { lazy, Suspense } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
-import Loading from './components/common/Loading.js';
+import Loading from './components/common/ui/Loading.js';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute } from './helpers';
+import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
 import RegisterForm from './components/auth/RegisterForm.js';
 import LoginForm from './components/auth/LoginForm.js';
 import NotFound from './pages/NotFound';
+import Forbidden from './pages/Forbidden';
 import Setting from './pages/Setting';
-import EditUser from './pages/User/EditUser';
+
 import PasswordResetForm from './components/auth/PasswordResetForm.js';
 import PasswordResetConfirm from './components/auth/PasswordResetConfirm.js';
 import Channel from './pages/Channel';
 import Token from './pages/Token';
-import EditChannel from './pages/Channel/EditChannel';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
@@ -21,6 +40,7 @@ import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing/index.js';
 import Task from './pages/Task/index.js';
+import ModelPage from './pages/Model/index.js';
 import Playground from './pages/Playground/index.js';
 import OAuth2Callback from './components/auth/OAuth2Callback.js';
 import PersonalSetting from './components/settings/PersonalSetting.js';
@@ -28,7 +48,7 @@ import Setup from './pages/Setup/index.js';
 import SetupCheck from './components/layout/SetupCheck.js';
 
 const Home = lazy(() => import('./pages/Home'));
-const Detail = lazy(() => import('./pages/Detail'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 
 function App() {
@@ -54,27 +74,23 @@ function App() {
           }
         />
         <Route
+          path='/forbidden'
+          element={<Forbidden />}
+        />
+        <Route
+          path='/console/models'
+          element={
+            <AdminRoute>
+              <ModelPage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/console/channel'
           element={
-            <PrivateRoute>
+            <AdminRoute>
               <Channel />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path='/console/channel/edit/:id'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditChannel />
-            </Suspense>
-          }
-        />
-        <Route
-          path='/console/channel/add'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditChannel />
-            </Suspense>
+            </AdminRoute>
           }
         />
         <Route
@@ -96,33 +112,17 @@ function App() {
         <Route
           path='/console/redemption'
           element={
-            <PrivateRoute>
+            <AdminRoute>
               <Redemption />
-            </PrivateRoute>
+            </AdminRoute>
           }
         />
         <Route
           path='/console/user'
           element={
-            <PrivateRoute>
+            <AdminRoute>
               <User />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path='/console/user/edit/:id'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditUser />
-            </Suspense>
-          }
-        />
-        <Route
-          path='/console/user/edit'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <EditUser />
-            </Suspense>
+            </AdminRoute>
           }
         />
         <Route
@@ -188,11 +188,11 @@ function App() {
         <Route
           path='/console/setting'
           element={
-            <PrivateRoute>
+            <AdminRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Setting />
               </Suspense>
-            </PrivateRoute>
+            </AdminRoute>
           }
         />
         <Route
@@ -228,7 +228,7 @@ function App() {
           element={
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Detail />
+                <Dashboard />
               </Suspense>
             </PrivateRoute>
           }

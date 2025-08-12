@@ -18,6 +18,11 @@ import (
 type Adaptor struct {
 }
 
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *common.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	//TODO implement me
+	return nil, errors.New("not implemented")
+}
+
 // ConvertAudioRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *common.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	return nil, errors.New("not implemented")

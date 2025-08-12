@@ -1,11 +1,11 @@
 package router
 
 import (
+	"github.com/gin-gonic/gin"
+	"one-api/constant"
 	"one-api/controller"
 	"one-api/middleware"
 	"one-api/relay"
-
-	"github.com/gin-gonic/gin"
 )
 
 func SetRelayRouter(router *gin.Engine) {
@@ -16,9 +16,43 @@ func SetRelayRouter(router *gin.Engine) {
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.TokenAuth())
 	{
-		modelsRouter.GET("", controller.ListModels)
-		modelsRouter.GET("/:model", controller.RetrieveModel)
+		modelsRouter.GET("", func(c *gin.Context) {
+			switch {
+			case c.GetHeader("x-api-key") != "" && c.GetHeader("anthropic-version") != "":
+				controller.ListModels(c, constant.ChannelTypeAnthropic)
+			case c.GetHeader("x-goog-api-key") != "" || c.Query("key") != "": // 单独的适配
+				controller.RetrieveModel(c, constant.ChannelTypeGemini)
+			default:
+				controller.ListModels(c, constant.ChannelTypeOpenAI)
+			}
+		})
+
+		modelsRouter.GET("/:model", func(c *gin.Context) {
+			switch {
+			case c.GetHeader("x-api-key") != "" && c.GetHeader("anthropic-version") != "":
+				controller.RetrieveModel(c, constant.ChannelTypeAnthropic)
+			default:
+				controller.RetrieveModel(c, constant.ChannelTypeOpenAI)
+			}
+		})
 	}
+
+	geminiRouter := router.Group("/v1beta/models")
+	geminiRouter.Use(middleware.TokenAuth())
+	{
+		geminiRouter.GET("", func(c *gin.Context) {
+			controller.ListModels(c, constant.ChannelTypeGemini)
+		})
+	}
+
+	geminiCompatibleRouter := router.Group("/v1beta/openai/models")
+	geminiCompatibleRouter.Use(middleware.TokenAuth())
+	{
+		geminiCompatibleRouter.GET("", func(c *gin.Context) {
+			controller.ListModels(c, constant.ChannelTypeOpenAI)
+		})
+	}
+
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{

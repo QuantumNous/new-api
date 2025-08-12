@@ -35,6 +35,7 @@ var claudeModelMap = map[string]string{
 	"claude-3-7-sonnet-20250219": "claude-3-7-sonnet@20250219",
 	"claude-sonnet-4-20250514":   "claude-sonnet-4@20250514",
 	"claude-opus-4-20250514":     "claude-opus-4@20250514",
+	"claude-opus-4-1-20250805":   "claude-opus-4-1@20250805",
 }
 
 const anthropicVersion = "vertex-2023-10-16"
@@ -42,6 +43,11 @@ const anthropicVersion = "vertex-2023-10-16"
 type Adaptor struct {
 	RequestMode        int
 	AccountCredentials Credentials
+}
+
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	geminiAdaptor := gemini.Adaptor{}
+	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
@@ -67,10 +73,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	if strings.HasPrefix(info.UpstreamModelName, "claude") {
 		a.RequestMode = RequestModeClaude
-	} else if strings.HasPrefix(info.UpstreamModelName, "gemini") {
-		a.RequestMode = RequestModeGemini
 	} else if strings.Contains(info.UpstreamModelName, "llama") {
 		a.RequestMode = RequestModeLlama
+	} else {
+		a.RequestMode = RequestModeGemini
 	}
 }
 
@@ -83,6 +89,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	a.AccountCredentials = *adc
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
+
 		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 			// 新增逻辑：处理 -thinking-<budget> 格式
 			if strings.Contains(info.UpstreamModelName, "-thinking-") {
@@ -100,6 +107,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		} else {
 			suffix = "generateContent"
 		}
+
+		if strings.HasPrefix(info.UpstreamModelName, "imagen") {
+			suffix = "predict"
+		}
+
 		if region == "global" {
 			return fmt.Sprintf(
 				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
@@ -226,11 +238,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	} else {
 		switch a.RequestMode {
 		case RequestModeClaude:
-			err, usage = claude.ClaudeHandler(c, resp, claude.RequestModeMessage, info)
+			err, usage = claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
 				usage, err = gemini.GeminiTextGenerationHandler(c, info, resp)
 			} else {
+				if strings.HasPrefix(info.UpstreamModelName, "imagen") {
+					return gemini.GeminiImageHandler(c, info, resp)
+				}
 				usage, err = gemini.GeminiChatHandler(c, info, resp)
 			}
 		case RequestModeLlama:

@@ -16,6 +16,7 @@ import (
 	"one-api/relay/channel/moonshot"
 	relaycommon "one-api/relay/common"
 	"one-api/setting"
+	"time"
 )
 
 // https://platform.openai.com/docs/api-reference/models/list
@@ -102,7 +103,7 @@ func init() {
 	})
 }
 
-func ListModels(c *gin.Context) {
+func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
 
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
@@ -171,10 +172,41 @@ func ListModels(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(200, gin.H{
-		"success": true,
-		"data":    userOpenAiModels,
-	})
+	switch modelType {
+	case constant.ChannelTypeAnthropic:
+		useranthropicModels := make([]dto.AnthropicModel, len(userOpenAiModels))
+		for i, model := range userOpenAiModels {
+			useranthropicModels[i] = dto.AnthropicModel{
+				ID:          model.Id,
+				CreatedAt:   time.Unix(int64(model.Created), 0).UTC().Format(time.RFC3339),
+				DisplayName: model.Id,
+				Type:        "model",
+			}
+		}
+		c.JSON(200, gin.H{
+			"data":     useranthropicModels,
+			"first_id": useranthropicModels[0].ID,
+			"has_more": false,
+			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+		})
+	case constant.ChannelTypeGemini:
+		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
+		for i, model := range userOpenAiModels {
+			userGeminiModels[i] = dto.GeminiModel{
+				Name:        model.Id,
+				DisplayName: model.Id,
+			}
+		}
+		c.JSON(200, gin.H{
+			"models":        userGeminiModels,
+			"nextPageToken": nil,
+		})
+	default:
+		c.JSON(200, gin.H{
+			"success": true,
+			"data":    userOpenAiModels,
+		})
+	}
 }
 
 func ChannelListModels(c *gin.Context) {
@@ -198,10 +230,20 @@ func EnabledListModels(c *gin.Context) {
 	})
 }
 
-func RetrieveModel(c *gin.Context) {
+func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
 	if aiModel, ok := openAIModelsMap[modelId]; ok {
-		c.JSON(200, aiModel)
+		switch modelType {
+		case constant.ChannelTypeAnthropic:
+			c.JSON(200, dto.AnthropicModel{
+				ID:          aiModel.Id,
+				CreatedAt:   time.Unix(int64(aiModel.Created), 0).UTC().Format(time.RFC3339),
+				DisplayName: aiModel.Id,
+				Type:        "model",
+			})
+		default:
+			c.JSON(200, aiModel)
+		}
 	} else {
 		openAIError := dto.OpenAIError{
 			Message: fmt.Sprintf("The model '%s' does not exist", modelId),

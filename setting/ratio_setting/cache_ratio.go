@@ -25,6 +25,16 @@ var defaultCacheRatio = map[string]float64{
 	"gpt-4o-mini-realtime-preview":        0.5,
 	"gpt-4.5-preview":                     0.5,
 	"gpt-4.5-preview-2025-02-27":          0.5,
+	"gpt-4.1":                             0.25,
+	"gpt-4.1-mini":                        0.25,
+	"gpt-4.1-nano":                        0.25,
+	"gpt-5":                               0.1,
+	"gpt-5-2025-08-07":                    0.1,
+	"gpt-5-chat-latest":                   0.1,
+	"gpt-5-mini":                          0.1,
+	"gpt-5-mini-2025-08-07":               0.1,
+	"gpt-5-nano":                          0.1,
+	"gpt-5-nano-2025-08-07":               0.1,
 	"deepseek-chat":                       0.25,
 	"deepseek-reasoner":                   0.25,
 	"deepseek-coder":                      0.25,
@@ -40,6 +50,8 @@ var defaultCacheRatio = map[string]float64{
 	"claude-sonnet-4-20250514-thinking":   0.1,
 	"claude-opus-4-20250514":              0.1,
 	"claude-opus-4-20250514-thinking":     0.1,
+	"claude-opus-4-1-20250805":            0.1,
+	"claude-opus-4-1-20250805-thinking":   0.1,
 }
 
 var defaultCreateCacheRatio = map[string]float64{
@@ -55,6 +67,8 @@ var defaultCreateCacheRatio = map[string]float64{
 	"claude-sonnet-4-20250514-thinking":   1.25,
 	"claude-opus-4-20250514":              1.25,
 	"claude-opus-4-20250514-thinking":     1.25,
+	"claude-opus-4-1-20250805":            1.25,
+	"claude-opus-4-1-20250805-thinking":   1.25,
 }
 
 //var defaultCreateCacheRatio = map[string]float64{}

@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { UserContext } from '../../context/User/index.js';
@@ -31,8 +50,9 @@ import {
   Badge,
 } from '@douyinfe/semi-ui';
 import { StatusContext } from '../../context/Status/index.js';
-import { useIsMobile } from '../../hooks/useIsMobile.js';
-import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed.js';
+import { useIsMobile } from '../../hooks/common/useIsMobile.js';
+import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed.js';
+import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime.js';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { t, i18n } = useTranslation();
@@ -40,14 +60,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [statusState, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
-  const [isLoading, setIsLoading] = useState(true);
+  const [logoLoaded, setLogoLoaded] = useState(false);
   let navigate = useNavigate();
   const [currentLang, setCurrentLang] = useState(i18n.language);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const loadingStartRef = useRef(Date.now());
+
+  const loading = statusState?.status === undefined;
+  const isLoading = useMinimumLoadingTime(loading);
 
   const systemName = getSystemName();
   const logo = getLogo();
@@ -108,7 +130,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       to: '/console',
     },
     {
-      text: t('定价'),
+      text: t('模型广场'),
       itemKey: 'pricing',
       to: '/pricing',
     },
@@ -197,15 +219,12 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   }, [i18n]);
 
   useEffect(() => {
-    if (statusState?.status !== undefined) {
-      const elapsed = Date.now() - loadingStartRef.current;
-      const remaining = Math.max(0, 500 - elapsed);
-      const timer = setTimeout(() => {
-        setIsLoading(false);
-      }, remaining);
-      return () => clearTimeout(timer);
-    }
-  }, [statusState?.status]);
+    setLogoLoaded(false);
+    if (!logo) return;
+    const img = new Image();
+    img.src = logo;
+    img.onload = () => setLogoLoaded(true);
+  }, [logo]);
 
   const handleLanguageChange = (lang) => {
     i18n.changeLanguage(lang);
@@ -336,7 +355,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               >
                 <div className="flex items-center gap-2">
                   <IconKey size="small" className="text-gray-500 dark:text-gray-400" />
-                  <span>{t('API令牌')}</span>
+                  <span>{t('令牌管理')}</span>
                 </div>
               </Dropdown.Item>
               <Dropdown.Item
@@ -477,19 +496,20 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               />
             </div>
             <Link to="/" onClick={() => handleNavLinkClick('home')} className="flex items-center gap-2 group ml-2">
-              <Skeleton
-                loading={isLoading}
-                active
-                placeholder={
+              <div className="relative w-8 h-8 md:w-8 md:h-8">
+                {(isLoading || !logoLoaded) && (
                   <Skeleton.Image
                     active
-                    className="h-7 md:h-8 !rounded-full"
-                    style={{ width: 32, height: 32 }}
+                    className="absolute inset-0 !rounded-full"
+                    style={{ width: '100%', height: '100%' }}
                   />
-                }
-              >
-                <img src={logo} alt="logo" className="h-7 md:h-8 transition-transform duration-300 ease-in-out group-hover:scale-105 rounded-full" />
-              </Skeleton>
+                )}
+                <img
+                  src={logo}
+                  alt="logo"
+                  className={`absolute inset-0 w-full h-full transition-opacity duration-200 group-hover:scale-105 rounded-full ${(!isLoading && logoLoaded) ? 'opacity-100' : 'opacity-0'}`}
+                />
+              </div>
               <div className="hidden md:flex items-center gap-2">
                 <div className="flex items-center gap-2">
                   <Skeleton

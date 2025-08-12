@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/model"
+	"one-api/setting"
+	"one-api/setting/ratio_setting"
 	"strconv"
 	"strings"
 
@@ -122,6 +125,7 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("role", role)
 	c.Set("id", id)
 	c.Set("group", session.Get("group"))
+	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
 
 	//userCache, err := model.GetUserCache(id.(int))
@@ -188,16 +192,18 @@ func TokenAuth() func(c *gin.Context) {
 			}
 			c.Request.Header.Set("Authorization", "Bearer "+key)
 		}
+		anthropicKey := c.Request.Header.Get("x-api-key")
 		// 检查path包含/v1/messages
-		if strings.Contains(c.Request.URL.Path, "/v1/messages") {
-			// 从x-api-key中获取key
-			key := c.Request.Header.Get("x-api-key")
-			if key != "" {
-				c.Request.Header.Set("Authorization", "Bearer "+key)
-			}
+		// 或者是否 x-api-key 不为空且存在anthropic-version
+		// 谁知道有多少不符合规范没写anthropic-version的
+		// 所以就这样随它去吧（
+		if strings.Contains(c.Request.URL.Path, "/v1/messages") || (anthropicKey != "" && c.Request.Header.Get("anthropic-version") != "") {
+			c.Request.Header.Set("Authorization", "Bearer "+anthropicKey)
 		}
 		// gemini api 从query中获取key
-		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
+		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models") ||
+			strings.HasPrefix(c.Request.URL.Path, "/v1beta/openai/models") ||
+			strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 			skKey := c.Query("key")
 			if skKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+skKey)
@@ -233,6 +239,16 @@ func TokenAuth() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusUnauthorized, err.Error())
 			return
 		}
+
+		allowIpsMap := token.GetIpLimitsMap()
+		if len(allowIpsMap) != 0 {
+			clientIp := c.ClientIP()
+			if _, ok := allowIpsMap[clientIp]; !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中")
+				return
+			}
+		}
+
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusInternalServerError, err.Error())
@@ -245,6 +261,25 @@ func TokenAuth() func(c *gin.Context) {
 		}
 
 		userCache.WriteContext(c)
+
+		userGroup := userCache.Group
+		tokenGroup := token.Group
+		if tokenGroup != "" {
+			// check common.UserUsableGroups[userGroup]
+			if _, ok := setting.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("令牌分组 %s 已被禁用", tokenGroup))
+				return
+			}
+			// check group in common.GroupRatio
+			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
+				if tokenGroup != "auto" {
+					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+					return
+				}
+			}
+			userGroup = tokenGroup
+		}
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
@@ -272,7 +307,6 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	} else {
 		c.Set("token_model_limit_enabled", false)
 	}
-	c.Set("allow_ips", token.GetIpLimitsMap())
 	c.Set("token_group", token.Group)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {

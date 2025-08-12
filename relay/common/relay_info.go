@@ -60,25 +60,28 @@ type ResponsesUsageInfo struct {
 }
 
 type RelayInfo struct {
-	ChannelType       int
-	ChannelId         int
-	TokenId           int
-	TokenKey          string
-	UserId            int
-	UsingGroup        string // 使用的分组
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
-	isFirstResponse   bool
+	ChannelType          int
+	ChannelId            int
+	ChannelIsMultiKey    bool // 是否多密钥
+	ChannelMultiKeyIndex int  // 多密钥索引
+	TokenId              int
+	TokenKey             string
+	UserId               int
+	UsingGroup           string // 使用的分组
+	UserGroup            string // 用户所在分组
+	TokenUnlimited       bool
+	StartTime            time.Time
+	FirstResponseTime    time.Time
+	isFirstResponse      bool
 	//SendLastReasoningResponse bool
-	ApiType           int
-	IsStream          bool
-	IsPlayground      bool
-	UsePrice          bool
-	RelayMode         int
-	UpstreamModelName string
-	OriginModelName   string
+	ApiType                int
+	IsStream               bool
+	IsGeminiBatchEmbedding bool
+	IsPlayground           bool
+	UsePrice               bool
+	RelayMode              int
+	UpstreamModelName      string
+	OriginModelName        string
 	//RecodeModelName      string
 	RequestURLPath       string
 	ApiVersion           string
@@ -88,6 +91,7 @@ type RelayInfo struct {
 	BaseUrl              string
 	SupportStreamOptions bool
 	ShouldIncludeUsage   bool
+	DisablePing          bool // 是否禁止向下游发送自定义 Ping
 	IsModelMapped        bool
 	ClientWs             *websocket.Conn
 	TargetWs             *websocket.Conn
@@ -98,6 +102,7 @@ type RelayInfo struct {
 	AudioUsage           bool
 	ReasoningEffort      string
 	ChannelSetting       dto.ChannelSettings
+	ChannelOtherSettings dto.ChannelOtherSettings
 	ParamOverride        map[string]interface{}
 	UserSetting          dto.UserSetting
 	UserEmail            string
@@ -222,6 +227,9 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	userId := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 	tokenUnlimited := common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited)
 	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
 	// firstResponseTime = time.Now() - 1 second
 
 	apiType, _ := common.ChannelType2APIType(channelType)
@@ -259,6 +267,9 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,
 		},
+
+		ChannelIsMultiKey:    common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
+		ChannelMultiKeyIndex: common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/pg") {
 		info.IsPlayground = true
@@ -282,6 +293,12 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 	if ok {
 		info.ChannelSetting = channelSetting
 	}
+
+	channelOtherSettings, ok := common.GetContextKeyType[dto.ChannelOtherSettings](c, constant.ContextKeyChannelOtherSetting)
+	if ok {
+		info.ChannelOtherSettings = channelOtherSettings
+	}
+
 	userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
 	if ok {
 		info.UserSetting = userSetting

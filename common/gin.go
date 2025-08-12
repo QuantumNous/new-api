@@ -31,6 +31,9 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	if err != nil {
 		return err
 	}
+	//if DebugEnabled {
+	//	println("UnmarshalBodyReusable request body:", string(requestBody))
+	//}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
 		err = Unmarshal(requestBody, &v)

@@ -17,10 +17,21 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	panic("implement me")
-	return nil, nil
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	openaiAdaptor := openai.Adaptor{}
+	openaiRequest, err := openaiAdaptor.ConvertClaudeRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
+	openaiRequest.(*dto.GeneralOpenAIRequest).StreamOptions = &dto.StreamOptions{
+		IncludeUsage: true,
+	}
+	return requestOpenAI2Ollama(openaiRequest.(*dto.GeneralOpenAIRequest))
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -37,6 +48,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.RelayFormat == relaycommon.RelayFormatClaude {
+		return info.BaseUrl + "/v1/chat/completions", nil
+	}
 	switch info.RelayMode {
 	case relayconstant.RelayModeEmbeddings:
 		return info.BaseUrl + "/api/embed", nil
@@ -55,7 +69,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	return requestOpenAI2Ollama(*request)
+	return requestOpenAI2Ollama(request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -76,11 +90,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.IsStream {
-		usage, err = openai.OaiStreamHandler(c, info, resp)
-	} else {
-		if info.RelayMode == relayconstant.RelayModeEmbeddings {
-			usage, err = ollamaEmbeddingHandler(c, info, resp)
+	switch info.RelayMode {
+	case relayconstant.RelayModeEmbeddings:
+		usage, err = ollamaEmbeddingHandler(c, info, resp)
+	default:
+		if info.IsStream {
+			usage, err = openai.OaiStreamHandler(c, info, resp)
 		} else {
 			usage, err = openai.OpenaiHandler(c, info, resp)
 		}

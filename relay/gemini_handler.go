@@ -2,9 +2,9 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -20,8 +20,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func getAndValidateGeminiRequest(c *gin.Context) (*gemini.GeminiChatRequest, error) {
-	request := &gemini.GeminiChatRequest{}
+func getAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error) {
+	request := &dto.GeminiChatRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func checkGeminiStreamMode(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	// }
 }
 
-func checkGeminiInputSensitive(textRequest *gemini.GeminiChatRequest) ([]string, error) {
+func checkGeminiInputSensitive(textRequest *dto.GeminiChatRequest) ([]string, error) {
 	var inputTexts []string
 	for _, content := range textRequest.Contents {
 		for _, part := range content.Parts {
@@ -61,7 +61,7 @@ func checkGeminiInputSensitive(textRequest *gemini.GeminiChatRequest) ([]string,
 	return sensitiveWords, err
 }
 
-func getGeminiInputTokens(req *gemini.GeminiChatRequest, info *relaycommon.RelayInfo) int {
+func getGeminiInputTokens(req *dto.GeminiChatRequest, info *relaycommon.RelayInfo) int {
 	// 计算输入 token 数量
 	var inputTexts []string
 	for _, content := range req.Contents {
@@ -78,9 +78,13 @@ func getGeminiInputTokens(req *gemini.GeminiChatRequest, info *relaycommon.Relay
 	return inputTokens
 }
 
-func isNoThinkingRequest(req *gemini.GeminiChatRequest) bool {
+func isNoThinkingRequest(req *dto.GeminiChatRequest) bool {
 	if req.GenerationConfig.ThinkingConfig != nil && req.GenerationConfig.ThinkingConfig.ThinkingBudget != nil {
-		return *req.GenerationConfig.ThinkingConfig.ThinkingBudget <= 0
+		configBudget := req.GenerationConfig.ThinkingConfig.ThinkingBudget
+		if configBudget != nil && *configBudget == 0 {
+			// 如果思考预算为 0，则认为是非思考请求
+			return true
+		}
 	}
 	return false
 }
@@ -109,7 +113,7 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	req, err := getAndValidateGeminiRequest(c)
 	if err != nil {
 		common.LogError(c, fmt.Sprintf("getAndValidateGeminiRequest error: %s", err.Error()))
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	relayInfo := relaycommon.GenRelayInfoGemini(c)
@@ -121,14 +125,14 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		sensitiveWords, err := checkGeminiInputSensitive(req)
 		if err != nil {
 			common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(sensitiveWords, ", ")))
-			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected, types.ErrOptionWithSkipRetry())
 		}
 	}
 
 	// model mapped 模型映射
 	err = helper.ModelMappedHelper(c, relayInfo, req)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
 	if value, exists := c.Get("prompt_tokens"); exists {
@@ -159,7 +163,7 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.PromptTokens, int(req.GenerationConfig.MaxOutputTokens))
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
 	}
 
 	// pre consume quota
@@ -175,7 +179,7 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 
 	adaptor.Init(relayInfo)
@@ -194,19 +198,47 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		}
 	}
 
-	requestBody, err := json.Marshal(req)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+	var requestBody io.Reader
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || relayInfo.ChannelSetting.PassThroughBodyEnabled {
+		body, err := common.GetRequestBody(c)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		requestBody = bytes.NewReader(body)
+	} else {
+		// 使用 ConvertGeminiRequest 转换请求格式
+		convertedRequest, err := adaptor.ConvertGeminiRequest(c, relayInfo, req)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+
+		// apply param override
+		if len(relayInfo.ParamOverride) > 0 {
+			reqMap := make(map[string]interface{})
+			_ = common.Unmarshal(jsonData, &reqMap)
+			for key, value := range relayInfo.ParamOverride {
+				reqMap[key] = value
+			}
+			jsonData, err = common.Marshal(reqMap)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+			}
+		}
+
+		if common.DebugEnabled {
+			println("Gemini request body: %s", string(jsonData))
+		}
+		requestBody = bytes.NewReader(jsonData)
 	}
 
-	if common.DebugEnabled {
-		println("Gemini request body: %s", string(requestBody))
-	}
-
-	resp, err := adaptor.DoRequest(c, relayInfo, bytes.NewReader(requestBody))
+	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
 		common.LogError(c, "Do gemini request failed: "+err.Error())
-		return types.NewError(err, types.ErrorCodeDoRequestFailed)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
@@ -218,6 +250,121 @@ func GeminiHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
+		}
+	}
+
+	usage, openaiErr := adaptor.DoResponse(c, resp.(*http.Response), relayInfo)
+	if openaiErr != nil {
+		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+		return openaiErr
+	}
+
+	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	return nil
+}
+
+func GeminiEmbeddingHandler(c *gin.Context) (newAPIError *types.NewAPIError) {
+	relayInfo := relaycommon.GenRelayInfoGemini(c)
+
+	isBatch := strings.HasSuffix(c.Request.URL.Path, "batchEmbedContents")
+	relayInfo.IsGeminiBatchEmbedding = isBatch
+
+	var promptTokens int
+	var req any
+	var err error
+	var inputTexts []string
+
+	if isBatch {
+		batchRequest := &dto.GeminiBatchEmbeddingRequest{}
+		err = common.UnmarshalBodyReusable(c, batchRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		req = batchRequest
+		for _, r := range batchRequest.Requests {
+			for _, part := range r.Content.Parts {
+				if part.Text != "" {
+					inputTexts = append(inputTexts, part.Text)
+				}
+			}
+		}
+	} else {
+		singleRequest := &dto.GeminiEmbeddingRequest{}
+		err = common.UnmarshalBodyReusable(c, singleRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		req = singleRequest
+		for _, part := range singleRequest.Content.Parts {
+			if part.Text != "" {
+				inputTexts = append(inputTexts, part.Text)
+			}
+		}
+	}
+	promptTokens = service.CountTokenInput(strings.Join(inputTexts, "\n"), relayInfo.UpstreamModelName)
+	relayInfo.SetPromptTokens(promptTokens)
+	c.Set("prompt_tokens", promptTokens)
+
+	err = helper.ModelMappedHelper(c, relayInfo, req)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.PromptTokens, 0)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+	}
+
+	preConsumedQuota, userQuota, newAPIError := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
+	if newAPIError != nil {
+		return newAPIError
+	}
+	defer func() {
+		if newAPIError != nil {
+			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
+		}
+	}()
+
+	adaptor := GetAdaptor(relayInfo.ApiType)
+	if adaptor == nil {
+		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+	}
+	adaptor.Init(relayInfo)
+
+	var requestBody io.Reader
+	jsonData, err := common.Marshal(req)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	// apply param override
+	if len(relayInfo.ParamOverride) > 0 {
+		reqMap := make(map[string]interface{})
+		_ = common.Unmarshal(jsonData, &reqMap)
+		for key, value := range relayInfo.ParamOverride {
+			reqMap[key] = value
+		}
+		jsonData, err = common.Marshal(reqMap)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+		}
+	}
+	requestBody = bytes.NewReader(jsonData)
+
+	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
+	if err != nil {
+		common.LogError(c, "Do gemini request failed: "+err.Error())
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+
+	statusCodeMappingStr := c.GetString("status_code_mapping")
+	var httpResp *http.Response
+	if resp != nil {
+		httpResp = resp.(*http.Response)
+		if httpResp.StatusCode != http.StatusOK {
+			newAPIError = service.RelayErrorHandler(httpResp, false)
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError
 		}

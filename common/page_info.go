@@ -41,7 +41,7 @@ func (p *PageInfo) SetItems(items any) {
 func GetPageQuery(c *gin.Context) *PageInfo {
 	pageInfo := &PageInfo{}
 	// 手动获取并处理每个参数
-	if page, err := strconv.Atoi(c.Query("page")); err == nil {
+	if page, err := strconv.Atoi(c.Query("p")); err == nil {
 		pageInfo.Page = page
 	}
 	if pageSize, err := strconv.Atoi(c.Query("page_size")); err == nil {
