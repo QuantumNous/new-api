@@ -222,9 +222,8 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 		if err := common.Unmarshal(textRequest.Reasoning, &reasoning); err != nil {
 			return nil, err
 		}
-		effort := reasoning.Effort
-		if effort != "" {
-			claudeRequest.Thinking = Effort2ClaudeThinking(textRequest.ReasoningEffort)
+		if effort := reasoning.Effort; effort != "" {
+			claudeRequest.Thinking = Effort2ClaudeThinking(effort)
 		}
 		// 优先budgetTokens
 		budgetTokens := reasoning.MaxTokens
