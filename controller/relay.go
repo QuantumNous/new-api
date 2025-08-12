@@ -119,7 +119,7 @@ func Relay(c *gin.Context) {
 		//	newAPIError.SetMessage("当前分组上游负载已饱和，请稍后再试")
 		//}
 		newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
-		c.JSON(newAPIError.StatusCode, gin.H{
+		common.JSONError(c, newAPIError.StatusCode, gin.H{
 			"error": newAPIError.ToOpenAIError(),
 		})
 	}
@@ -220,7 +220,7 @@ func RelayClaude(c *gin.Context) {
 
 	if newAPIError != nil {
 		newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
-		c.JSON(newAPIError.StatusCode, gin.H{
+		common.JSONError(c, newAPIError.StatusCode, gin.H{
 			"type":  "error",
 			"error": newAPIError.ToClaudeError(),
 		})
@@ -356,7 +356,7 @@ func RelayMidjourney(c *gin.Context) {
 			err.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
-		c.JSON(statusCode, gin.H{
+		common.JSONError(c, statusCode, gin.H{
 			"description": fmt.Sprintf("%s %s", err.Description, err.Result),
 			"type":        "upstream_error",
 			"code":        err.Code,
@@ -373,7 +373,7 @@ func RelayNotImplemented(c *gin.Context) {
 		Param:   "",
 		Code:    "api_not_implemented",
 	}
-	c.JSON(http.StatusNotImplemented, gin.H{
+	common.JSONError(c, http.StatusNotImplemented, gin.H{
 		"error": err,
 	})
 }
@@ -385,7 +385,7 @@ func RelayNotFound(c *gin.Context) {
 		Param:   "",
 		Code:    "",
 	}
-	c.JSON(http.StatusNotFound, gin.H{
+	common.JSONError(c, http.StatusNotFound, gin.H{
 		"error": err,
 	})
 }
@@ -428,7 +428,7 @@ func RelayTask(c *gin.Context) {
 		if taskErr.StatusCode == http.StatusTooManyRequests {
 			taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 		}
-		c.JSON(taskErr.StatusCode, taskErr)
+		common.JSONError(c, taskErr.StatusCode, taskErr)
 	}
 }
 
