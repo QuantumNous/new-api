@@ -52,7 +52,7 @@
 ENABLE_VIP_UPGRADE=true
 
 # 可选配置
-VIP_SERVICE_URL=https://your-service.com
+VIP_SERVICE_URL=https://your-domain.com
 VIP_UPGRADE_PATH=/console/topup
 ```
 

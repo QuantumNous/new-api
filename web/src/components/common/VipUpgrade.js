@@ -179,7 +179,8 @@ const VipUpgrade = () => {
         // 尝试直接调用升级脚本（通过简单的GET请求触发）
         try {
           const username = userState?.user?.username;
-          const upgradeResponse = await fetch(`http://151.242.26.120:3000/api/internal/vip_upgrade?username=${username}`, {
+          // 移除硬编码的服务器地址，使用相对路径
+          const upgradeResponse = await fetch(`/api/internal/vip_upgrade?username=${username}`, {
             method: 'GET'
           });
           

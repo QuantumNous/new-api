@@ -90,7 +90,7 @@ func InitEnv() {
 
 	// Initialize VIP upgrade variables
 	EnableVipUpgrade = GetEnvOrDefaultBool("ENABLE_VIP_UPGRADE", false)
-	VipServiceUrl = GetEnvOrDefaultString("VIP_SERVICE_URL", "https://tiantianai.pro")
+	VipServiceUrl = GetEnvOrDefaultString("VIP_SERVICE_URL", "https://your-domain.com")
 	VipUpgradePath = GetEnvOrDefaultString("VIP_UPGRADE_PATH", "/console/topup")
 
 	// Initialize rate limit variables

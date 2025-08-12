@@ -149,7 +149,7 @@ var (
 // VIP升级功能配置
 var (
 	EnableVipUpgrade = false
-	VipServiceUrl    = "https://tiantianai.pro"
+	VipServiceUrl    = "https://your-domain.com"
 	VipUpgradePath   = "/console/topup"
 )
 
