@@ -389,9 +389,8 @@ SETTINGS index_granularity = 8192,
 
 		// Create additional indices for flexible query patterns
 		indices := []string{
-			"CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs (created_at) TYPE minmax",
-			"CREATE INDEX IF NOT EXISTS idx_logs_created_user ON logs (created_at, user_id) TYPE minmax",
-			"CREATE INDEX IF NOT EXISTS idx_logs_created_model ON logs (created_at, model_name) TYPE minmax",
+			"ALTER TABLE logs ADD INDEX IF NOT EXISTS idx_logs_user_bloom user_id TYPE bloom_filter GRANULARITY 1",
+			"ALTER TABLE logs ADD INDEX IF NOT EXISTS idx_logs_model_set model_name TYPE set(1000) GRANULARITY 1",
 		}
 
 		for _, index := range indices {
