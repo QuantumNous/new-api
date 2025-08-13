@@ -1311,6 +1311,35 @@ const EditChannelModal = (props) => {
                     />
                   )}
 
+                  {inputs.type === 53 && (
+                    <>
+                      <Banner
+                        type='info'
+                        description={
+                          <div>
+                            <Text strong>{t('CustomPass 自定义透传渠道说明')}:</Text>
+                            <div className="mt-2">
+                              <Text>{t('• 支持同步直接透传和异步任务两种模式')}</Text><br/>
+                              <Text>{t('• 同步模型：直接透传，立即返回结果')}</Text><br/>
+                              <Text>{t('• 异步模型：模型名称需以 /submit 结尾，如 custom-image-gen/submit')}</Text><br/>
+                              <Text>{t('• 具备完整的预扣费和计费结算机制')}</Text><br/>
+                              <Text>{t('• 支持混合配置：可同时配置同步和异步模型')}</Text>
+                            </div>
+                          </div>
+                        }
+                        className='!rounded-lg mb-4'
+                      />
+                      <Form.Input
+                        field='other'
+                        label={t('自定义Token头名称')}
+                        placeholder={t('可选，默认为 X-Custom-Token')}
+                        onChange={(value) => handleInputChange('other', value)}
+                        showClear
+                        helpText={t('用于向上游API传递用户token的HTTP头名称，环境变量CUSTOM_PASS_HEADER_KEY的优先级更高')}
+                      />
+                    </>
+                  )}
+
                   {inputs.type === 1 && (
                     <Form.Input
                       field='openai_organization'
@@ -1421,7 +1450,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && (
+                    {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && inputs.type !== 53 && (
                       <div>
                         <Form.Input
                           field='base_url'
@@ -1457,6 +1486,20 @@ const EditChannelModal = (props) => {
                         />
                       </div>
                     )}
+
+                    {inputs.type === 53 && (
+                      <div>
+                        <Form.Input
+                          field='base_url'
+                          label={t('上游API地址')}
+                          placeholder={t('请输入上游API的完整地址，例如：https://api.example.com')}
+                          onChange={(value) => handleInputChange('base_url', value)}
+                          showClear
+                          rules={[{ required: true, message: t('请输入上游API地址') }]}
+                          helpText={t('CustomPass渠道需要配置上游API的完整地址')}
+                        />
+                      </div>
+                    )}
                   </Card>
                 )}
 
@@ -1472,6 +1515,23 @@ const EditChannelModal = (props) => {
                       <div className="text-xs text-gray-600">{t('模型选择和映射设置')}</div>
                     </div>
                   </div>
+
+                  {inputs.type === 53 && (
+                    <Banner
+                      type='info'
+                      description={
+                        <div>
+                          <Text strong>{t('CustomPass 模型配置说明')}:</Text>
+                          <div className="mt-2">
+                            <Text>{t('• 同步模型：直接透传，立即返回结果，如：gpt-4, claude-3')}</Text><br/>
+                            <Text>{t('• 异步模型：模型名称必须以 /submit 结尾，如：custom-image-gen/submit')}</Text><br/>
+                            <Text>{t('• 系统会根据模型名称自动识别处理模式')}</Text>
+                          </div>
+                        </div>
+                      }
+                      className='!rounded-lg mb-4'
+                    />
+                  )}
 
                   <Form.Select
                     field='models'
@@ -1550,7 +1610,7 @@ const EditChannelModal = (props) => {
                   <Form.Input
                     field='custom_model'
                     label={t('自定义模型名称')}
-                    placeholder={t('输入自定义模型名称')}
+                    placeholder={inputs.type === 53 ? t('输入模型名称，异步模型需以/submit结尾，多个用逗号分隔') : t('输入自定义模型名称')}
                     onChange={(value) => setCustomModel(value.trim())}
                     value={customModel}
                     suffix={
@@ -1558,6 +1618,7 @@ const EditChannelModal = (props) => {
                         {t('填入')}
                       </Button>
                     }
+                    helpText={inputs.type === 53 ? t('示例：gpt-4,claude-3,custom-image-gen/submit') : undefined}
                   />
 
                   <Form.Input
@@ -1584,6 +1645,25 @@ const EditChannelModal = (props) => {
                     formApi={formApiRef.current}
                     extraText={t('键为请求中的模型名称，值为要替换的模型名称')}
                   />
+
+                  {inputs.type === 53 && (
+                    <>
+                      <Banner
+                        type='info'
+                        description={
+                          <div>
+                            <Text strong>{t('CustomPass 配置优先级说明')}:</Text>
+                            <div className="mt-2">
+                              <Text>{t('1. 环境变量 > 渠道配置 > 默认值')}</Text><br/>
+                              <Text>{t('2. CUSTOM_PASS_HEADER_KEY 环境变量可全局设置Token头名称')}</Text><br/>
+                              <Text>{t('3. 渠道额外设置可覆盖特定配置项')}</Text>
+                            </div>
+                          </div>
+                        }
+                        className='!rounded-lg mt-4'
+                      />
+                    </>
+                  )}
                 </Card>
 
                 {/* Advanced Settings Card */}

@@ -123,6 +123,14 @@ func SetRelayRouter(router *gin.Engine) {
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
 		relayGeminiRouter.POST("/models/*path", controller.Relay)
 	}
+
+	// CustomPass routes
+	relayCustomPassRouter := router.Group("/pass")
+	relayCustomPassRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		// CustomPass API 路径格式: /pass/{model_name}
+		relayCustomPassRouter.POST("/*model", controller.RelayCustomPass)
+	}
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

@@ -86,7 +86,7 @@ function renderDuration(submit_time, finishTime) {
   );
 }
 
-const renderType = (type, t) => {
+const renderType = (type, record, t) => {
   switch (type) {
     case 'MUSIC':
       return (
@@ -113,6 +113,14 @@ const renderType = (type, t) => {
         </Tag>
       );
     default:
+      // For CustomPass, show the full model name
+      if (record.platform === 'custompass' && type) {
+        return (
+          <Tag color='purple' shape='circle' prefixIcon={<Sparkles size={14} />}>
+            {type}
+          </Tag>
+        );
+      }
       return (
         <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
           {t('未知')}
@@ -135,6 +143,12 @@ const renderPlatform = (platform, t) => {
       return (
         <Tag color='green' shape='circle' prefixIcon={<Music size={14} />}>
           Suno
+        </Tag>
+      );
+    case 'custompass':
+      return (
+        <Tag color='purple' shape='circle' prefixIcon={<Sparkles size={14} />}>
+          CustomPass
         </Tag>
       );
     default:
@@ -275,7 +289,7 @@ export const getTaskLogsColumns = ({
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
+        return <div>{renderType(text, record, t)}</div>;
       },
     },
     {

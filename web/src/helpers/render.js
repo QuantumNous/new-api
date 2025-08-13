@@ -56,6 +56,8 @@ import {
   Jimeng,
 } from '@lobehub/icons';
 
+import CustomPassIcon from '../components/common/logo/CustomPassIcon';
+
 import {
   LayoutDashboard,
   TerminalSquare,
@@ -407,6 +409,8 @@ export function getChannelIcon(channelType) {
       return <Kling.Color size={iconSize} />;
     case 51: // 即梦 Jimeng
       return <Jimeng.Color size={iconSize} />;
+    case 53: // 自定义透传渠道 CustomPass
+      return <CustomPassIcon size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;
