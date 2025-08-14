@@ -52,6 +52,7 @@ export default function ModelSettingsVisualEditor(props) {
   const [pricingMode, setPricingMode] = useState('per-token'); // 'per-token' or 'per-request'
   const [pricingSubMode, setPricingSubMode] = useState('ratio'); // 'ratio' or 'token-price'
   const [conflictOnly, setConflictOnly] = useState(false);
+  const [displayMode, setDisplayMode] = useState('ratio'); // 'ratio' or 'price'
   const formRef = useRef(null);
   const pageSize = 10;
   const quotaPerUnit = getQuotaPerUnit();
@@ -177,63 +178,123 @@ export default function ModelSettingsVisualEditor(props) {
     }
   };
 
-  const columns = [
-    {
-      title: t('模型名称'),
-      dataIndex: 'name',
-      key: 'name',
-      render: (text, record) => (
-        <span>
-          {text}
-          {record.hasConflict && (
-            <Tag color='red' shape='circle' className='ml-2'>
-              {t('矛盾')}
-            </Tag>
-          )}
-        </span>
-      ),
-    },
-    {
-      title: t('模型固定价格'),
-      dataIndex: 'price',
-      key: 'price',
-      render: (text, record) => (
-        <Input
-          value={text}
-          placeholder={t('按量计费')}
-          onChange={(value) => updateModel(record.name, 'price', value)}
-        />
-      ),
-    },
-    {
-      title: t('模型倍率'),
-      dataIndex: 'ratio',
-      key: 'ratio',
-      render: (text, record) => (
-        <Input
-          value={text}
-          placeholder={record.price !== '' ? t('模型倍率') : t('默认补全倍率')}
-          disabled={record.price !== ''}
-          onChange={(value) => updateModel(record.name, 'ratio', value)}
-        />
-      ),
-    },
-    {
-      title: t('补全倍率'),
-      dataIndex: 'completionRatio',
-      key: 'completionRatio',
-      render: (text, record) => (
-        <Input
-          value={text}
-          placeholder={record.price !== '' ? t('补全倍率') : t('默认补全倍率')}
-          disabled={record.price !== ''}
-          onChange={(value) =>
-            updateModel(record.name, 'completionRatio', value)
-          }
-        />
-      ),
-    },
-    {
+  const getColumns = () => {
+    const baseColumns = [
+      {
+        title: t('模型名称'),
+        dataIndex: 'name',
+        key: 'name',
+        render: (text, record) => (
+          <span>
+            {text}
+            {record.hasConflict && (
+              <Tag color='red' shape='circle' className='ml-2'>
+                {t('矛盾')}
+              </Tag>
+            )}
+          </span>
+        ),
+      },
+      {
+        title: t('模型固定价格'),
+        dataIndex: 'price',
+        key: 'price',
+        render: (text, record) => (
+          <Input
+            value={text}
+            placeholder={t('按量计费')}
+            onChange={(value) => updateModel(record.name, 'price', value)}
+          />
+        ),
+      }
+    ];
+
+    if (displayMode === 'ratio') {
+      // 默认显示：模型倍率和补全倍率
+      baseColumns.push(
+        {
+          title: t('模型倍率'),
+          dataIndex: 'ratio',
+          key: 'ratio',
+          render: (text, record) => (
+            <Input
+              value={text}
+              placeholder={record.price !== '' ? t('模型倍率') : t('默认补全倍率')}
+              disabled={record.price !== ''}
+              onChange={(value) => updateModel(record.name, 'ratio', value)}
+            />
+          ),
+        },
+        {
+          title: t('补全倍率'),
+          dataIndex: 'completionRatio',
+          key: 'completionRatio',
+          render: (text, record) => (
+            <Input
+              value={text}
+              placeholder={record.price !== '' ? t('补全倍率') : t('默认补全倍率')}
+              disabled={record.price !== ''}
+              onChange={(value) =>
+                updateModel(record.name, 'completionRatio', value)
+              }
+            />
+          ),
+        }
+      );
+    } else {
+      // 切换后显示：输入价格和输出价格
+      baseColumns.push(
+        {
+          title: t('输入价格'),
+          dataIndex: 'inputPrice',
+          key: 'inputPrice',
+          render: (text, record) => {
+            // 计算输入价格：ratio * 2 (基于代码中的 calculateTokenPriceFromRatio 逻辑)
+            const inputPrice = record.ratio ? (parseFloat(record.ratio) * 2).toFixed(6) : '';
+            return (
+              <Input
+                value={inputPrice}
+                placeholder={t('输入价格')}
+                suffix={t('$/1M tokens')}
+                onChange={(value) => {
+                  // 反向计算倍率
+                  const ratio = value ? (parseFloat(value) / 2).toString() : '';
+                  updateModel(record.name, 'ratio', ratio);
+                }}
+              />
+            );
+          },
+        },
+        {
+          title: t('输出价格'),
+          dataIndex: 'outputPrice',
+          key: 'outputPrice',
+          render: (text, record) => {
+            // 计算输出价格：inputPrice * completionRatio
+            const inputPrice = record.ratio ? parseFloat(record.ratio) * 2 : 0;
+            const outputPrice = record.completionRatio && inputPrice ?
+              (inputPrice * parseFloat(record.completionRatio)).toFixed(6) : '';
+            return (
+              <Input
+                value={outputPrice}
+                placeholder={t('输出价格')}
+                suffix={t('$/1M tokens')}
+                onChange={(value) => {
+                  // 反向计算补全倍率
+                  if (record.ratio && parseFloat(record.ratio) > 0) {
+                    const inputPrice = parseFloat(record.ratio) * 2;
+                    const completionRatio = value ? (parseFloat(value) / inputPrice).toString() : '';
+                    updateModel(record.name, 'completionRatio', completionRatio);
+                  }
+                }}
+              />
+            );
+          },
+        }
+      );
+    }
+
+    baseColumns.push({
       title: t('操作'),
       key: 'action',
       render: (_, record) => (
@@ -250,8 +311,10 @@ export default function ModelSettingsVisualEditor(props) {
           />
         </Space>
       ),
-    },
-  ];
+    });
+
+    return baseColumns;
+  };
 
   const updateModel = (name, field, value) => {
     if (isNaN(value)) {
@@ -454,42 +517,52 @@ export default function ModelSettingsVisualEditor(props) {
   return (
     <>
       <Space vertical align='start' style={{ width: '100%' }}>
-        <Space className='mt-2'>
-          <Button
-            icon={<IconPlus />}
-            onClick={() => {
-              resetModalState();
-              setVisible(true);
-            }}
-          >
-            {t('添加模型')}
-          </Button>
-          <Button type='primary' icon={<IconSave />} onClick={SubmitData}>
-            {t('应用更改')}
-          </Button>
-          <Input
-            prefix={<IconSearch />}
-            placeholder={t('搜索模型名称')}
-            value={searchText}
-            onChange={(value) => {
-              setSearchText(value);
-              setCurrentPage(1);
-            }}
-            style={{ width: 200 }}
-            showClear
-          />
-          <Checkbox
-            checked={conflictOnly}
-            onChange={(e) => {
-              setConflictOnly(e.target.checked);
-              setCurrentPage(1);
-            }}
-          >
-            {t('仅显示矛盾倍率')}
-          </Checkbox>
+        <Space className='mt-2' style={{ justifyContent: 'space-between', width: '100%' }}>
+          <Space>
+            <Button
+              icon={<IconPlus />}
+              onClick={() => {
+                resetModalState();
+                setVisible(true);
+              }}
+            >
+              {t('添加模型')}
+            </Button>
+            <Button type='primary' icon={<IconSave />} onClick={SubmitData}>
+              {t('应用更改')}
+            </Button>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t('搜索模型名称')}
+              value={searchText}
+              onChange={(value) => {
+                setSearchText(value);
+                setCurrentPage(1);
+              }}
+              style={{ width: 200 }}
+              showClear
+            />
+            <Checkbox
+              checked={conflictOnly}
+              onChange={(e) => {
+                setConflictOnly(e.target.checked);
+                setCurrentPage(1);
+              }}
+            >
+              {t('仅显示矛盾倍率')}
+            </Checkbox>
+          </Space>
+          <Space>
+            <Button
+              type={displayMode === 'price' ? 'primary' : 'secondary'}
+              onClick={() => setDisplayMode(displayMode === 'ratio' ? 'price' : 'ratio')}
+            >
+              {displayMode === 'ratio' ? t('切换到价格显示') : t('切换到倍率显示')}
+            </Button>
+          </Space>
         </Space>
         <Table
-          columns={columns}
+          columns={getColumns()}
           dataSource={pagedData}
           pagination={{
             currentPage: currentPage,
