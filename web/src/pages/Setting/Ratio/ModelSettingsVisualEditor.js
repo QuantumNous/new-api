@@ -256,6 +256,7 @@ export default function ModelSettingsVisualEditor(props) {
                 value={inputPrice}
                 placeholder={t('输入价格')}
                 suffix={t('$/1M tokens')}
+                disabled={record.price !== ''}
                 onChange={(value) => {
                   // 反向计算倍率
                   const ratio = value ? (parseFloat(value) / 2).toString() : '';
@@ -279,6 +280,7 @@ export default function ModelSettingsVisualEditor(props) {
                 value={outputPrice}
                 placeholder={t('输出价格')}
                 suffix={t('$/1M tokens')}
+                disabled={record.price !== ''}
                 onChange={(value) => {
                   // 反向计算补全倍率
                   if (record.ratio && parseFloat(record.ratio) > 0) {
