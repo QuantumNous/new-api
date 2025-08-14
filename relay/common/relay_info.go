@@ -278,7 +278,7 @@ func GenRelayInfo(c *gin.Context) *RelayInfo {
 		}
 		err := user.FillUserByEmail()
 		// 如果已经注册，改写用户信息
-		if err == nil {
+		if err == nil && user.Id != 0 { // FillUserByEmail静默忽略错误，我们必须再检查一下用户是否存在
 			info.IsPlayground = true  // playground 模式不对token计费
 			info.UserId = user.Id
 			info.UserEmail = user.Email
