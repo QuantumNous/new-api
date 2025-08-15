@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -42,6 +43,9 @@ func initCol() {
 		case common.DatabaseTypePostgreSQL:
 			logGroupCol = `"group"`
 			logKeyCol = `"key"`
+		case common.DatabaseTypeClickHouse:
+			logGroupCol = "`group`"
+			logKeyCol = "`key`"
 		default:
 			logGroupCol = commonGroupCol
 			logKeyCol = commonKeyCol
@@ -151,6 +155,21 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 				PrepareStmt: true, // precompile SQL
 			})
 		}
+		if strings.HasPrefix(dsn, "clickhouse://") {
+			// Use ClickHouse
+			common.SysLog("using ClickHouse as database")
+			if !isLog {
+				// ClickHouse is primarily for log database
+				panic("ClickHouse is not recommended for main database, please use PostgreSQL or MySQL instead")
+			} else {
+				common.LogSqlType = common.DatabaseTypeClickHouse
+				common.UsingClickHouse = true
+			}
+			return gorm.Open(clickhouse.Open(dsn), &gorm.Config{
+				PrepareStmt:                              false, // ClickHouse doesn't support prepared statements well
+				DisableForeignKeyConstraintWhenMigrating: true,  // ClickHouse doesn't support foreign keys
+			})
+		}
 		if strings.HasPrefix(dsn, "local") {
 			common.SysLog("SQL_DSN not set, using SQLite as database")
 			if !isLog {
@@ -179,6 +198,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		}
 		return gorm.Open(mysql.Open(dsn), &gorm.Config{
 			PrepareStmt: true, // precompile SQL
+			// For Gorm NewVersion:	DisableForeignKeyConstraintWhenMigrating: true,  Disable FK constraints during migration
 		})
 	}
 	// Use SQLite
@@ -360,8 +380,45 @@ func migrateDBFast() error {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
-		return err
+	if common.LogSqlType == common.DatabaseTypeClickHouse {
+		// Get log retention days from environment variable, default to 90 days (3 months)
+		retentionDays := common.GetEnvOrDefault("LOG_RETENTION_DAYS", 90)
+
+		tableOptions := fmt.Sprintf(`
+	ENGINE = MergeTree()
+	PARTITION BY toYYYYMM(toDateTime(created_at))
+	ORDER BY (toDateTime(created_at), user_id)
+	TTL toDateTime(created_at) + INTERVAL %d DAY
+	SETTINGS
+		index_granularity = 8192,
+		compress_primary_key = 1,
+		vertical_merge_algorithm_min_rows_to_activate = 16,
+		vertical_merge_algorithm_min_columns_to_activate = 11
+	`, retentionDays)
+
+		err = LOG_DB.Set("gorm:table_options", tableOptions).AutoMigrate(&Log{})
+
+		if err != nil {
+			return err
+		}
+
+		// Create additional indices for flexible query patterns
+		indices := []string{
+			"ALTER TABLE logs ADD INDEX IF NOT EXISTS idx_logs_user_bloom user_id TYPE bloom_filter GRANULARITY 1",
+			"ALTER TABLE logs ADD INDEX IF NOT EXISTS idx_logs_model_set model_name TYPE set(1000) GRANULARITY 1",
+		}
+
+		for _, index := range indices {
+			if err = LOG_DB.Exec(index).Error; err != nil {
+				common.SysLog(fmt.Sprintf("Warning: Failed to create index: %s, error: %v", index, err))
+			}
+		}
+
+		common.SysLog(fmt.Sprintf("ClickHouse log database migrated with optimized MergeTree engine, compression, %d days TTL, and indices", retentionDays))
+	} else {
+		if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
