@@ -10,6 +10,7 @@ import (
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/logger"
+	"one-api/metrics"
 	"one-api/middleware"
 	"one-api/model"
 	"one-api/relay"
@@ -173,14 +174,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError == nil {
 			return
 		} else {
+			modelName := c.GetString("original_model")
+			channelId := c.GetInt("channel_id")
+			userGroup := c.GetString("group")
+			metrics.ReportFailure(modelName, relayInfo.UpstreamModelName, userGroup, channelId, newAPIError.StatusCode)
 			if constant.ErrorLogEnabled && types.IsRecordErrorLog(newAPIError) {
 				// 保存错误日志到mysql中
 				userId := c.GetInt("id")
-				tokenName := c.GetString("token_name")
-				modelName := c.GetString("original_model")
 				tokenId := c.GetInt("token_id")
-				userGroup := c.GetString("group")
-				channelId := c.GetInt("channel_id")
+				tokenName := c.GetString("token_name")
 				other := make(map[string]interface{})
 				other["error_type"] = newAPIError.GetErrorType()
 				other["error_code"] = newAPIError.GetErrorCode()

@@ -9,6 +9,7 @@ import (
 	"one-api/constant"
 	"one-api/controller"
 	"one-api/logger"
+	"one-api/metrics"
 	"one-api/middleware"
 	"one-api/model"
 	"one-api/router"
@@ -22,6 +23,7 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	_ "net/http/pprof"
 )
@@ -115,12 +117,18 @@ func main() {
 		model.InitBatchUpdater()
 	}
 
-	if os.Getenv("ENABLE_PPROF") == "true" {
+	if os.Getenv("ENABLE_PPROF") == "true" || os.Getenv("ENABLE_METRICS") == "true" {
 		gopool.Go(func() {
+			if os.Getenv("ENABLE_METRICS") == "true" {
+				metrics.InitMetrics()
+				http.Handle("/metrics", promhttp.Handler())
+			}
 			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
 		})
-		go common.Monitor()
-		common.SysLog("pprof enabled")
+		if os.Getenv("ENABLE_PPROF") == "true" {
+			go common.Monitor()
+		}
+		common.SysLog("pprof or metrics enabled")
 	}
 
 	// Initialize HTTP server

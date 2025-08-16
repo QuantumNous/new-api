@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"one-api/common"
 	"one-api/logger"
+	"one-api/metrics"
 	"os"
 	"strings"
 	"time"
@@ -151,6 +152,11 @@ type RecordConsumeLogParams struct {
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
+	var upstreamModel string
+	if params.Other != nil && params.Other["upstream_model_name"] != nil {
+		upstreamModel = params.Other["upstream_model_name"].(string)
+	}
+	metrics.ReportSuccess(params.ModelName, upstreamModel, params.Group, params.ChannelId)
 	if !common.LogConsumeEnabled {
 		return
 	}
