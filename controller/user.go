@@ -11,7 +11,6 @@ import (
 	"one-api/setting"
 	"strconv"
 	"strings"
-	"sync"
 
 	"one-api/constant"
 
@@ -817,11 +816,7 @@ type topUpRequest struct {
 	Key string `json:"key"`
 }
 
-var topUpLock = sync.Mutex{}
-
 func TopUp(c *gin.Context) {
-	topUpLock.Lock()
-	defer topUpLock.Unlock()
 	req := topUpRequest{}
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
