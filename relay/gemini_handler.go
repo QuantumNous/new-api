@@ -90,16 +90,16 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	adaptor.Init(info)
 
 	// Clean up empty system instruction
-	if request.SystemInstructions != nil {
+	if request.SystemInstruction != nil {
 		hasContent := false
-		for _, part := range request.SystemInstructions.Parts {
+		for _, part := range request.SystemInstruction.Parts {
 			if part.Text != "" {
 				hasContent = true
 				break
 			}
 		}
 		if !hasContent {
-			request.SystemInstructions = nil
+			request.SystemInstruction = nil
 		}
 	}
 

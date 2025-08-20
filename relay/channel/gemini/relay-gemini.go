@@ -462,7 +462,7 @@ func CovertGemini2OpenAI(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 	}
 
 	if len(system_content) > 0 {
-		geminiRequest.SystemInstructions = &dto.GeminiChatContent{
+		geminiRequest.SystemInstruction = &dto.GeminiChatContent{
 			Parts: []dto.GeminiPart{
 				{
 					Text: strings.Join(system_content, "\n"),

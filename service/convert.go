@@ -596,11 +596,11 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 	}
 
 	// gemini system instructions
-	if geminiRequest.SystemInstructions != nil {
+	if geminiRequest.SystemInstruction != nil {
 		// 将系统指令作为第一条消息插入
 		systemMessage := dto.Message{
 			Role:    "system",
-			Content: extractTextFromGeminiParts(geminiRequest.SystemInstructions.Parts),
+			Content: extractTextFromGeminiParts(geminiRequest.SystemInstruction.Parts),
 		}
 		openaiRequest.Messages = append([]dto.Message{systemMessage}, openaiRequest.Messages...)
 	}

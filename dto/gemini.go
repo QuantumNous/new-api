@@ -13,8 +13,8 @@ type GeminiChatRequest struct {
 	Contents           []GeminiChatContent        `json:"contents"`
 	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
 	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
-	Tools              json.RawMessage            `json:"tools,omitempty"`
-	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
+	Tools             json.RawMessage    `json:"tools,omitempty"`
+	SystemInstruction *GeminiChatContent `json:"system_instruction,omitempty"`
 }
 
 func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
