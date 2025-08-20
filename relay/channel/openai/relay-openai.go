@@ -297,33 +297,35 @@ func OpenaiHandler(c *gin.Context, resp *http.Response, promptTokens int, model 
 			StatusCode: resp.StatusCode,
 		}, nil
 	}
+	if simpleResponse.Usage.CompletionTokens != 0 || model != "gemini-2.5-pro" {
 
-	// Reset response body
-	// resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
-	// We shouldn't set the header before we parse the response body, because the parse part may fail.
-	// And then we will have to send an error response, but in this case, the header has already been set.
-	// So the httpClient will be confused by the response.
-	// For example, Postman will report error, and we cannot check the response at all.
-	// for k, v := range resp.Header {
-	// 	c.Writer.Header().Set(k, v[0])
-	// }
-	for k, v := range resp.Header {
-		if k == "Content-Length" {
-			num, _ := strconv.Atoi(v[0])
-			if num != len(responseBody) {
-				common.LogInfo(c, fmt.Sprintf("Content Length is %s but response body is %d", v[0], len(responseBody)))
-				c.Writer.Header().Set(k, strconv.Itoa(len(responseBody)))
-				continue
+		// Reset response body
+		// resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		// We shouldn't set the header before we parse the response body, because the parse part may fail.
+		// And then we will have to send an error response, but in this case, the header has already been set.
+		// So the httpClient will be confused by the response.
+		// For example, Postman will report error, and we cannot check the response at all.
+		// for k, v := range resp.Header {
+		// 	c.Writer.Header().Set(k, v[0])
+		// }
+		for k, v := range resp.Header {
+			if k == "Content-Length" {
+				num, _ := strconv.Atoi(v[0])
+				if num != len(responseBody) {
+					common.LogInfo(c, fmt.Sprintf("Content Length is %s but response body is %d", v[0], len(responseBody)))
+					c.Writer.Header().Set(k, strconv.Itoa(len(responseBody)))
+					continue
+				}
 			}
+			c.Writer.Header().Set(k, v[0])
 		}
-		c.Writer.Header().Set(k, v[0])
+		c.Writer.WriteHeader(resp.StatusCode)
+		_, err = io.Copy(c.Writer, bytes.NewReader(responseBody))
+		if err != nil {
+			return service.OpenAIErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError), nil
+		}
+		resp.Body.Close()
 	}
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, err = io.Copy(c.Writer, bytes.NewReader(responseBody))
-	if err != nil {
-		return service.OpenAIErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError), nil
-	}
-	resp.Body.Close()
 	if simpleResponse.Usage.TotalTokens == 0 || (simpleResponse.Usage.PromptTokens == 0 && simpleResponse.Usage.CompletionTokens == 0) {
 		completionTokens := 0
 		for _, choice := range simpleResponse.Choices {
