@@ -179,6 +179,7 @@ func triggerGracefulShutdown(timeout time.Duration) {
 	}
 
 	SysLog("All cleanup completed, program will exit naturally")
+	// os.Exit(0)
 }
 
 // SetHTTPServer 设置HTTP服务器实例（用于优雅关闭）

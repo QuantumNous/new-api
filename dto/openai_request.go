@@ -60,6 +60,13 @@ type GeneralOpenAIRequest struct {
 	Thinking            *ThinkingOptions             `json:"thinking,omitempty"`
 	ThinkingConfig      *ThinkingConfigs             `json:"thinking_config,omitempty"`
 	GenerationConfig    *genai.GenerateContentConfig `json:"generationConfig,omitempty"`
+	VideoMetadata       *VideoMetadata               `json:"video_metadata,omitempty"`
+}
+
+type VideoMetadata struct {
+	Fps         float64 `json:"fps"`
+	StartOffset string  `json:"start_offset"`
+	EndOffset   string  `json:"end_offset"`
 }
 
 type ThinkingConfigs struct {
@@ -140,17 +147,21 @@ type MediaContent struct {
 }
 
 type MessageImageUrl struct {
-	Url    string `json:"url"`
-	Detail string `json:"detail"`
-	Format string `json:"format,omitempty"`
-	Data   string `json:"data,omitempty"`
+	Url         string  `json:"url"`
+	Detail      string  `json:"detail"`
+	Format      string  `json:"format,omitempty"`
+	Data        string  `json:"data,omitempty"`
+	StartOffset float64 `json:"start_offset,omitempty"`
+	EndOffset   float64 `json:"end_offset,omitempty"`
 }
 
 type MessageInputAudio struct {
-	Data   string  `json:"data"` //base64
-	Format string  `json:"format"`
-	Fps    float64 `json:"fps,omitempty"`
-	Url    string  `json:"url,omitempty"`
+	Data        string  `json:"data"` //base64
+	Format      string  `json:"format"`
+	Fps         float64 `json:"fps,omitempty"`
+	Url         string  `json:"url,omitempty"`
+	StartOffset float64 `json:"start_offset,omitempty"`
+	EndOffset   float64 `json:"end_offset,omitempty"`
 }
 
 const (
@@ -420,8 +431,10 @@ func (m *Message) ParseContent() []MediaContent {
 						Type: ContentTypeYoutube,
 						Text: mimetype,
 						ImageUrl: MessageImageUrl{
-							Url:    url,
-							Detail: "high",
+							Url:         url,
+							Detail:      "high",
+							StartOffset: 0,
+							EndOffset:   0,
 						},
 					})
 				}

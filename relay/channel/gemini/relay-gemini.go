@@ -233,6 +233,11 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 							MimeType: fileData.MimeType,
 							Data:     fileData.Base64Data,
 						},
+						VideoMetadata: &GeminiVideoMetadata{
+							Fps:         textRequest.VideoMetadata.Fps,
+							StartOffset: textRequest.VideoMetadata.StartOffset,
+							EndOffset:   textRequest.VideoMetadata.EndOffset,
+						},
 					})
 				} else {
 					format, base64String, err := service.DecodeBase64FileData(part.ImageUrl.(dto.MessageImageUrl).Url)
@@ -244,6 +249,11 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 							MimeType: format,
 							Data:     base64String,
 						},
+						VideoMetadata: &GeminiVideoMetadata{
+							Fps:         textRequest.VideoMetadata.Fps,
+							StartOffset: textRequest.VideoMetadata.StartOffset,
+							EndOffset:   textRequest.VideoMetadata.EndOffset,
+						},
 					})
 				}
 			} else if part.Type == dto.ContentTypeInputAudio {
@@ -252,13 +262,19 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 				// 添加调试日志
 				common.SysLog(fmt.Sprintf("Processing audio data: format=%s, data length=%d", audioData.Format, len(audioData.Data)))
 				// 将音频数据转换为Gemini的InlineData格式
+				fps := audioData.Fps
+				if textRequest.VideoMetadata.Fps != 0 {
+					fps = textRequest.VideoMetadata.Fps
+				}
 				parts = append(parts, GeminiPart{
 					InlineData: &GeminiInlineData{
 						MimeType: audioData.Format,
 						Data:     audioData.Data,
 					},
 					VideoMetadata: &GeminiVideoMetadata{
-						Fps: audioData.Fps,
+						Fps:         fps,
+						StartOffset: textRequest.VideoMetadata.StartOffset,
+						EndOffset:   textRequest.VideoMetadata.EndOffset,
 					},
 				})
 			} else if part.Type == dto.ContentTypeYoutube {
@@ -266,6 +282,11 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 					FileData: &GeminiFileData{
 						MimeType: part.Text,
 						FileUri:  part.ImageUrl.(dto.MessageImageUrl).Url,
+					},
+					VideoMetadata: &GeminiVideoMetadata{
+						Fps:         textRequest.VideoMetadata.Fps,
+						StartOffset: textRequest.VideoMetadata.StartOffset,
+						EndOffset:   textRequest.VideoMetadata.EndOffset,
 					},
 				})
 			}

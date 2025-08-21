@@ -46,7 +46,9 @@ type GeminiFileData struct {
 }
 
 type GeminiVideoMetadata struct {
-	Fps float64 `json:"fps"`
+	Fps         float64 `json:"fps"`
+	StartOffset string  `json:"start_offset"`
+	EndOffset   string  `json:"end_offset"`
 }
 
 type GeminiPart struct {
