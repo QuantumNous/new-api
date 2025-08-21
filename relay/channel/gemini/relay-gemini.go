@@ -267,6 +267,11 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 						MimeType: part.Text,
 						FileUri:  part.ImageUrl.(dto.MessageImageUrl).Url,
 					},
+					VideoMetadata: &GeminiVideoMetadata{
+						Fps:         textRequest.VideoMetadata.Fps,
+						StartOffset: textRequest.VideoMetadata.StartOffset,
+						EndOffset:   textRequest.VideoMetadata.EndOffset,
+					},
 				})
 			}
 		}

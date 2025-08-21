@@ -146,10 +146,14 @@ func Relay(c *gin.Context) {
 		}
 		if openaiErr == nil {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
+			common.LogInfo(c, fmt.Sprintf("openaiErr: %+v", openaiErr))
 			if openaiErr == nil {
 				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, 1)
 				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, time.Since(startTime).Seconds())
 				return
+			}
+			if strings.Contains(openaiErr.Error.Message, "No candidates returned") && originalModel == "gemini-2.5-pro" {
+				originalModel = "gemini-2.5-pro-google"
 			}
 		}
 
@@ -357,7 +361,7 @@ func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retry
 	if openaiErr == nil {
 		return false
 	}
-	if openaiErr.Error.Code == "completion_tokens_zero" {
+	if openaiErr.Error.Code == "completion_tokens_zero" || strings.Contains(openaiErr.Error.Message, "No candidates returned") {
 		return true
 	}
 	if openaiErr.LocalError {
