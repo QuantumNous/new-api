@@ -1347,6 +1347,8 @@
   "系统提示词": "System Prompt",
   "输入系统提示词，用户的系统提示词将优先于此设置": "Enter system prompt, user's system prompt will take priority over this setting",
   "用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置": "User priority: If the user specifies a system prompt in the request, the user's setting will be used first",
+  "开头补充<think>": "Add <think> at the beginning",
+  "将<think>\\n拼接到响应的开头（只适用于OpenAI渠道类型）": "Add <think>\\n at the beginning of the response (Only for OpenAI channel types)",
   "参数覆盖": "Parameters override",
   "模型请求速率限制": "Model request rate limit",
   "启用用户模型请求速率限制（可能会影响高并发性能）": "Enable user model request rate limit (may affect high concurrency performance)",

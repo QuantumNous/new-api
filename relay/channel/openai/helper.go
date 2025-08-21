@@ -18,12 +18,12 @@ import (
 )
 
 // 辅助函数
-func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
+func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool, addThink bool) error {
 	info.SendResponseCount++
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
-		return sendStreamData(c, info, data, forceFormat, thinkToContent)
+		return sendStreamData(c, info, data, forceFormat, thinkToContent, addThink)
 	case types.RelayFormatClaude:
 		return handleClaudeFormat(c, data, info)
 	case types.RelayFormatGemini:
