@@ -258,6 +258,13 @@ export const useApiRequest = (
         return;
       }
 
+      // sse.js transforms keep-alive comments like ": PING" into an empty
+      // string, which is not valid JSON. We can safely ignore such messages.
+      if (typeof e.data !== 'string' || !e.data.startsWith('{')) {
+        console.debug('Skipping keep-alive / non-JSON SSE message:', JSON.stringify(e.data, null, 2));
+        return;
+      }
+
       try {
         const payload = JSON.parse(e.data);
         responseData += e.data + '\n';
