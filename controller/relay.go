@@ -160,8 +160,12 @@ func Relay(c *gin.Context) {
 		go processChannelError(c, channel.Id, channel.Type, channel.Name, channel.GetAutoBan(), openaiErr)
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
+			code := strconv.Itoa(openaiErr.StatusCode)
 			// e2e 失败计数
-			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, userId, userName, 1)
+			if strings.Contains(openaiErr.Error.Message, "write: connection timed out") && openaiErr.Error.Code == "copy_response_body_failed" {
+				code = "499"
+			}
+			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, code, tokenKey, tokenName, userId, userName, 1)
 			break
 		}
 	}
