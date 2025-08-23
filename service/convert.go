@@ -248,9 +248,10 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				},
 			})
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type: "content_block_delta",
+				Index: &info.ClaudeConvertInfo.Index,
+				Type:  "content_block_delta",
 				Delta: &dto.ClaudeMediaMessage{
-					Type: "text",
+					Type: "text_delta",
 					Text: common.GetPointer[string](openAIResponse.Choices[0].Delta.GetContentString()),
 				},
 			})
