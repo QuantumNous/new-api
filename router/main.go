@@ -3,14 +3,21 @@ package router
 import (
 	"embed"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
+	"one-api/middleware/jsrt"
 	"os"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	jsrtMid := jsrt.JSRuntimeMiddleware()
+	if jsrtMid != nil {
+		router.Use(*jsrtMid)
+	}
+
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
