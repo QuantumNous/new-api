@@ -1485,27 +1485,29 @@ const EditChannelModal = (props) => {
                     optionList={modelOptions}
                     style={{ width: '100%' }}
                     onChange={(value) => handleInputChange('models', value)}
-                    renderSelectedItem={(optionNode, {  }) => {
-                      const modelName = optionNode.value || optionNode.label;
+                    renderSelectedItem={(optionNode) => {
+                      const modelName = String(optionNode?.value ?? '');
                       return {
                         isRenderInTag: true,
                         content: (
                           <span
-                            style={{ cursor: 'pointer' }}
-                            onClick={(e) => {
+                            className="cursor-pointer select-none"
+                            role="button"
+                            tabIndex={0}
+                            title={t('点击复制模型名称')}
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              try {
-                                copy(modelName);
+                              const ok = await copy(modelName);
+                              if (ok) {
                                 showSuccess(t('已复制') + ': ' + modelName);
-                              } catch (error) {
+                              } else {
                                 showError(t('复制失败'));
                               }
                             }}
-                            title={t('点击复制模型名称')}
                           >
-                            {optionNode.label || optionNode.value}
+                            {optionNode.label || modelName}
                           </span>
-                        )
+                        ),
                       };
                     }}
                     extraText={(
