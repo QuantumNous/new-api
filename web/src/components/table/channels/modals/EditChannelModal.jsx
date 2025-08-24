@@ -1499,7 +1499,7 @@ const EditChannelModal = (props) => {
                               e.stopPropagation();
                               const ok = await copy(modelName);
                               if (ok) {
-                                showSuccess(t('已复制') + ': ' + modelName);
+                                showSuccess(t('已复制：{{name}}', { name: modelName }));
                               } else {
                                 showError(t('复制失败'));
                               }
