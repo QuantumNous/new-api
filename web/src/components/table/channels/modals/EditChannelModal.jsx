@@ -214,6 +214,133 @@ const EditChannelModal = (props) => {
     handleInputChange('settings', settingsJson);
   }
 
+  // 用于追踪模型的原始名称映射关系 { displayName: originalName }
+  const [modelOriginalMapping, setModelOriginalMapping] = useState({});
+
+  // 解析模型映射配置的工具函数
+  const parseModelMapping = (mappingValue) => {
+    if (!mappingValue || typeof mappingValue !== 'string' || mappingValue.trim() === '') {
+      return null;
+    }
+    
+    try {
+      const mapping = JSON.parse(mappingValue);
+      if (typeof mapping !== 'object' || mapping === null) {
+        return null;
+      }
+      return mapping;
+    } catch (error) {
+      console.warn('模型重定向 JSON 解析失败:', error);
+      return null;
+    }
+  };
+
+  // 获取当前模型列表的工具函数
+  const getCurrentModels = () => {
+    return formApiRef.current 
+      ? formApiRef.current.getValue('models') || [] 
+      : inputs.models || [];
+  };
+
+  // 更新模型列表的统一方法
+  const updateModelsList = (newModels, newMapping) => {
+    const uniqueModels = Array.from(new Set(newModels.filter(model => model && model.trim())));
+    
+    setInputs((inputs) => ({ ...inputs, models: uniqueModels }));
+    if (formApiRef.current) {
+      formApiRef.current.setValue('models', uniqueModels);
+    }
+    setModelOriginalMapping(newMapping);
+  };
+
+  // 恢复模型到原始名称
+  const restoreModelsToOriginalNames = () => {
+    const currentModels = getCurrentModels();
+    const restoredModels = currentModels.map(model => modelOriginalMapping[model] || model);
+    
+    // 使用数组比较而不是JSON.stringify提高性能
+    const hasChanges = currentModels.length !== restoredModels.length || 
+      currentModels.some((model, index) => model !== restoredModels[index]);
+    
+    if (hasChanges) {
+      updateModelsList(restoredModels, {});
+    }
+  };
+
+  // 应用模型映射的核心逻辑
+  const applyModelMapping = (mapping, currentModels, currentMapping) => {
+    let updatedModels = [...currentModels];
+    let newMapping = { ...currentMapping };
+    let hasChanges = false;
+
+    // 遍历重定向映射
+    Object.entries(mapping).forEach(([key, mappedValue]) => {
+      if (typeof key === 'string' && typeof mappedValue === 'string') {
+        const keyTrimmed = key.trim();
+        const valueTrimmed = mappedValue.trim();
+
+        if (keyTrimmed && valueTrimmed) {
+          // 查找模型配置中是否存在重定向的"值"（原始模型名）
+          const valueIndex = updatedModels.findIndex(model => {
+            return model === valueTrimmed || newMapping[model] === valueTrimmed;
+          });
+
+          if (valueIndex !== -1) {
+            const currentDisplayName = updatedModels[valueIndex];
+            if (currentDisplayName !== keyTrimmed) {
+              // 记录原始映射关系
+              if (!newMapping[keyTrimmed]) {
+                newMapping[keyTrimmed] = newMapping[currentDisplayName] || currentDisplayName;
+              }
+              // 清理旧的映射关系
+              if (newMapping[currentDisplayName]) {
+                delete newMapping[currentDisplayName];
+              }
+              // 更新显示名称为重定向的键
+              updatedModels[valueIndex] = keyTrimmed;
+              hasChanges = true;
+            }
+          }
+        }
+      }
+    });
+
+    // 处理不在映射中的模型，恢复为原始名称
+    const mappingKeys = new Set(Object.keys(mapping).map(key => key.trim()));
+    updatedModels = updatedModels.map(model => {
+      if (!mappingKeys.has(model) && newMapping[model]) {
+        const originalName = newMapping[model];
+        delete newMapping[model];
+        hasChanges = true;
+        return originalName;
+      }
+      return model;
+    });
+
+    return { updatedModels, newMapping, hasChanges };
+  };
+
+  // 实时同步模型重定向到模型配置的函数
+  const syncModelMappingToModels = (mappingValue) => {
+    const mapping = parseModelMapping(mappingValue);
+    
+    if (!mapping) {
+      restoreModelsToOriginalNames();
+      return;
+    }
+
+    const currentModels = getCurrentModels();
+    const { updatedModels, newMapping, hasChanges } = applyModelMapping(
+      mapping, 
+      currentModels, 
+      modelOriginalMapping
+    );
+
+    if (hasChanges) {
+      updateModelsList(updatedModels, newMapping);
+    }
+  };
+
   const handleInputChange = (name, value) => {
     if (formApiRef.current) {
       formApiRef.current.setValue(name, value);
@@ -233,6 +360,14 @@ const EditChannelModal = (props) => {
       });
       return;
     }
+
+    // 处理模型重定向变更时自动同步模型配置（实时同步）
+    if (name === 'model_mapping') {
+      setInputs((inputs) => ({ ...inputs, [name]: value }));
+      syncModelMappingToModels(value);
+      return;
+    }
+
     setInputs((inputs) => ({ ...inputs, [name]: value }));
     if (name === 'type') {
       let localModels = [];
@@ -375,6 +510,22 @@ const EditChannelModal = (props) => {
         setAutoBan(true);
       }
       setBasicModels(getChannelModels(data.type));
+
+      // 初始化模型原始映射关系
+      const mapping = parseModelMapping(data.model_mapping);
+      if (mapping) {
+        const initialMapping = {};
+        // 根据当前的模型映射和模型列表，建立原始映射关系
+        Object.entries(mapping).forEach(([key, value]) => {
+          if (data.models.includes(key)) {
+            initialMapping[key] = value;
+          }
+        });
+        setModelOriginalMapping(initialMapping);
+      } else {
+        setModelOriginalMapping({});
+      }
+
       // 同步更新channelSettings状态显示
       setChannelSettings({
         force_format: data.force_format,
@@ -592,10 +743,19 @@ const EditChannelModal = (props) => {
       if (formApiRef.current) {
         formApiRef.current.setValue('key_mode', undefined);
       }
+      // 重置模型原始映射关系
+      setModelOriginalMapping({});
       // 重置本地输入，避免下次打开残留上一次的 JSON 字段值
       setInputs(getInitValues());
     }
   }, [props.visible, channelId]);
+
+  // 组件卸载时清理资源
+  useEffect(() => {
+    return () => {
+      setModelOriginalMapping({});
+    };
+  }, []);
 
   const handleVertexUploadChange = ({ fileList }) => {
     vertexErroredNames.current.clear();
@@ -1607,7 +1767,14 @@ const EditChannelModal = (props) => {
                     templateLabel={t('填入模板')}
                     editorType="keyValue"
                     formApi={formApiRef.current}
-                    extraText={t('键为请求中的模型名称，值为要替换的模型名称')}
+                    extraText={
+                      <div>
+                        <div className="text-center">{t('键为请求中的模型名称，值为要替换的模型名称')}</div>
+                        <div className="text-blue-600 text-xs mt-1">
+                          {t('💡 提示：设置重定向后，系统自动将“模型配置”中对应的"值"替换为"键"')}
+                        </div>
+                      </div>
+                    }
                   />
                 </Card>
 
