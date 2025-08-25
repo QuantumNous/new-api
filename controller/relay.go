@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	"github.com/bytedance/gopkg/util/gopool"
 	"io"
 	"log"
 	"net/http"
@@ -21,6 +20,8 @@ import (
 	"one-api/setting"
 	"one-api/types"
 	"strings"
+
+	"github.com/bytedance/gopkg/util/gopool"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -383,11 +384,14 @@ func RelayNotFound(c *gin.Context) {
 func RelayTask(c *gin.Context) {
 	retryTimes := common.RetryTimes
 	channelId := c.GetInt("channel_id")
-	relayMode := c.GetInt("relay_mode")
 	group := c.GetString("group")
 	originalModel := c.GetString("original_model")
 	c.Set("use_channel", []string{fmt.Sprintf("%d", channelId)})
-	taskErr := taskRelayHandler(c, relayMode)
+	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
+	if err != nil {
+		return
+	}
+	taskErr := taskRelayHandler(c, relayInfo)
 	if taskErr == nil {
 		retryTimes = 0
 	}
@@ -407,7 +411,7 @@ func RelayTask(c *gin.Context) {
 
 		requestBody, _ := common.GetRequestBody(c)
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
-		taskErr = taskRelayHandler(c, relayMode)
+		taskErr = taskRelayHandler(c, relayInfo)
 	}
 	useChannel := c.GetStringSlice("use_channel")
 	if len(useChannel) > 1 {
@@ -422,13 +426,13 @@ func RelayTask(c *gin.Context) {
 	}
 }
 
-func taskRelayHandler(c *gin.Context, relayMode int) *dto.TaskError {
+func taskRelayHandler(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dto.TaskError {
 	var err *dto.TaskError
-	switch relayMode {
+	switch relayInfo.RelayMode {
 	case relayconstant.RelayModeSunoFetch, relayconstant.RelayModeSunoFetchByID, relayconstant.RelayModeVideoFetchByID:
-		err = relay.RelayTaskFetch(c, relayMode)
+		err = relay.RelayTaskFetch(c, relayInfo.RelayMode)
 	default:
-		err = relay.RelayTaskSubmit(c, relayMode)
+		err = relay.RelayTaskSubmit(c, relayInfo)
 	}
 	return err
 }

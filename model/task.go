@@ -77,7 +77,7 @@ type SyncTaskQueryParams struct {
 	UserIDs        []int
 }
 
-func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.TaskRelayInfo) *Task {
+func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
 	t := &Task{
 		UserId:     relayInfo.UserId,
 		SubmitTime: time.Now().Unix(),
