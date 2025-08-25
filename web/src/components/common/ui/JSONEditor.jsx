@@ -247,16 +247,9 @@ const JSONEditor = ({
   // 添加键值对
   const addKeyValue = useCallback(() => {
     const newPairs = [...keyValuePairs];
-    const existingKeys = newPairs.map(p => p.key);
-    let counter = 1;
-    let newKey = `field_${counter}`;
-    while (existingKeys.includes(newKey)) {
-      counter += 1;
-      newKey = `field_${counter}`;
-    }
     newPairs.push({
       id: generateUniqueId(),
-      key: newKey,
+      key: '',
       value: ''
     });
     handleVisualChange(newPairs);
@@ -408,7 +401,7 @@ const JSONEditor = ({
 
           return (
             <Row key={pair.id} gutter={8} align="middle">
-              <Col span={6}>
+              <Col span={12}>
                 <div className="relative">
                   <Input
                     placeholder={t('键名')}
@@ -435,7 +428,7 @@ const JSONEditor = ({
                   )}
                 </div>
               </Col>
-              <Col span={16}>
+              <Col span={10}>
                 {renderValueInput(pair.id, pair.value)}
               </Col>
               <Col span={2}>
