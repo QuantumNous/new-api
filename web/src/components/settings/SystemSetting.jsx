@@ -541,7 +541,7 @@ const SystemSetting = () => {
               <Card>
                 <Form.Section text={t('代理设置')}>
                   <Text>
-                    （支持{' '}
+                    （{t('支持')}{' '}
                     <a
                       href='https://github.com/Calcium-Ion/new-api-worker'
                       target='_blank'
@@ -558,14 +558,14 @@ const SystemSetting = () => {
                       <Form.Input
                         field='WorkerUrl'
                         label={t('Worker地址')}
-                        placeholder='例如：https://workername.yourdomain.workers.dev'
+                        placeholder={t('例如：') + 'https://workername.yourdomain.workers.dev'}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='WorkerValidKey'
                         label={t('Worker密钥')}
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                         type='password'
                       />
                     </Col>
@@ -700,7 +700,7 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱域名白名单
+                        {t('启用邮箱域名白名单')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -714,7 +714,7 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱别名限制
+                        {t('启用邮箱别名限制')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
@@ -776,7 +776,7 @@ const SystemSetting = () => {
                         field='SMTPToken'
                         label={t('SMTP 访问凭证')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
