@@ -61,6 +61,7 @@ type GeneralOpenAIRequest struct {
 	ThinkingConfig      *ThinkingConfigs             `json:"thinking_config,omitempty"`
 	GenerationConfig    *genai.GenerateContentConfig `json:"generationConfig,omitempty"`
 	VideoMetadata       *VideoMetadata               `json:"video_metadata,omitempty"`
+	Instructions        string                       `json:"instructions,omitempty"`
 }
 
 type VideoMetadata struct {
@@ -79,11 +80,16 @@ type ThinkingOptions struct {
 }
 
 type ToolCallRequest struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function,omitempty"`
-	Name     string          `json:"name,omitempty"`
-	MaxUses  int             `json:"max_uses,omitempty"`
+	ID        string          `json:"id,omitempty"`
+	Type      string          `json:"type"`
+	Function  FunctionRequest `json:"function,omitempty"`
+	Name      string          `json:"name,omitempty"`
+	MaxUses   int             `json:"max_uses,omitempty"`
+	Container Container       `json:"container,omitempty"`
+}
+
+type Container struct {
+	Type string `json:"type"`
 }
 
 type ClaudeToolCallRequest struct {
