@@ -500,6 +500,28 @@ const EditChannelModal = (props) => {
     }
   };
 
+  // 解析模型映射配置并创建反向映射
+  const parseModelMapping = (mappingStr) => {
+    if (!mappingStr || mappingStr.trim() === '') return {};
+    try {
+      return JSON.parse(mappingStr);
+    } catch (error) {
+      console.warn('Failed to parse model mapping:', error);
+      return {};
+    }
+  };
+
+  // 根据模型映射创建反向映射 (值 -> 键)
+  const createReverseMapping = (mapping) => {
+    const reverseMap = {};
+    for (const [key, value] of Object.entries(mapping)) {
+      if (typeof value === 'string' && value.trim() !== '') {
+        reverseMap[value] = key;
+      }
+    }
+    return reverseMap;
+  };
+
   useEffect(() => {
     const modelMap = new Map();
 
@@ -521,29 +543,39 @@ const EditChannelModal = (props) => {
       }
     });
 
+    // 解析模型映射配置
+    const modelMapping = parseModelMapping(inputs.model_mapping);
+    const reverseMapping = createReverseMapping(modelMapping);
+
     const categories = getModelCategories(t);
     const optionsWithIcon = Array.from(modelMap.values()).map((opt) => {
-      const modelName = opt.value;
+      const originalModelName = opt.value;
+      // 如果存在反向映射，使用映射后的名称作为显示名称
+      const displayModelName = reverseMapping[originalModelName] || originalModelName;
+      
       let icon = null;
       for (const [key, category] of Object.entries(categories)) {
-        if (key !== 'all' && category.filter({ model_name: modelName })) {
+        if (key !== 'all' && category.filter({ model_name: originalModelName })) {
           icon = category.icon;
           break;
         }
       }
+      
       return {
         ...opt,
         label: (
           <span className="flex items-center gap-1">
             {icon}
-            {modelName}
+            <span title={originalModelName !== displayModelName ? `原始名称: ${originalModelName}` : undefined}>
+              {displayModelName}
+            </span>
           </span>
         ),
       };
     });
 
     setModelOptions(optionsWithIcon);
-  }, [originModelOptions, inputs.models, t]);
+  }, [originModelOptions, inputs.models, inputs.model_mapping, t]);
 
   useEffect(() => {
     fetchModels().then();
