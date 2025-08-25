@@ -380,6 +380,85 @@ func GetChannel(c *gin.Context) {
 	return
 }
 
+// GetChannelKey 验证2FA后获取渠道密钥
+func GetChannelKey(c *gin.Context) {
+	type GetChannelKeyRequest struct {
+		Code string `json:"code" binding:"required"`
+	}
+
+	var req GetChannelKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, fmt.Errorf("参数错误: %v", err))
+		return
+	}
+
+	userId := c.GetInt("id")
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("渠道ID格式错误: %v", err))
+		return
+	}
+
+	// 获取2FA记录并验证
+	twoFA, err := model.GetTwoFAByUserId(userId)
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("获取2FA信息失败: %v", err))
+		return
+	}
+
+	if twoFA == nil || !twoFA.IsEnabled {
+		common.ApiError(c, fmt.Errorf("用户未启用2FA，无法查看密钥"))
+		return
+	}
+
+	// 统一的2FA验证逻辑
+	if !validateTwoFactorAuth(twoFA, req.Code) {
+		common.ApiError(c, fmt.Errorf("验证码或备用码错误，请重试"))
+		return
+	}
+
+	// 获取渠道信息（包含密钥）
+	channel, err := model.GetChannelById(channelId, true)
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("获取渠道信息失败: %v", err))
+		return
+	}
+
+	if channel == nil {
+		common.ApiError(c, fmt.Errorf("渠道不存在"))
+		return
+	}
+
+	// 记录操作日志
+	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId))
+
+	// 统一的成功响应格式
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "验证成功",
+		"data": map[string]interface{}{
+			"key": channel.Key,
+		},
+	})
+}
+
+// validateTwoFactorAuth 统一的2FA验证函数
+func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
+	// 尝试验证TOTP
+	if cleanCode, err := common.ValidateNumericCode(code); err == nil {
+		if isValid, _ := twoFA.ValidateTOTPAndUpdateUsage(cleanCode); isValid {
+			return true
+		}
+	}
+
+	// 尝试验证备用码
+	if isValid, err := twoFA.ValidateBackupCodeAndUpdateUsage(code); err == nil && isValid {
+		return true
+	}
+
+	return false
+}
+
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
 	// 校验 channel settings
