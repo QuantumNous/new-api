@@ -26,18 +26,29 @@ import (
 	"github.com/pkg/errors"
 )
 
-func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
+func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool, addThink bool) error {
 	if data == "" {
 		return nil
 	}
 
-	if !forceFormat && !thinkToContent {
+	if !forceFormat && !thinkToContent && !addThink {
 		return helper.StringData(c, data)
 	}
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.UnmarshalJsonStr(data, &lastStreamResponse); err != nil {
 		return err
+	}
+
+	if addThink {
+		for i := range lastStreamResponse.Choices {
+			var content string
+			if lastStreamResponse.Choices[i].Delta.Content != nil {
+				content = *lastStreamResponse.Choices[i].Delta.Content
+			}
+			newContent := "<think>\n" + content
+			lastStreamResponse.Choices[i].Delta.Content = &newContent
+		}
 	}
 
 	if !thinkToContent {
@@ -125,10 +136,19 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var usage = &dto.Usage{}
 	var streamItems []string // store stream items
 	var lastStreamData string
+	var addThinkFirst bool
+
+	if info.ChannelSetting.AddThinkFirst {
+		addThinkFirst = true
+	}
+	var addThink bool
+	var firstChunk = true
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		if lastStreamData != "" {
-			err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+			addThink = firstChunk && addThinkFirst
+			firstChunk = false
+			err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent, addThink)
 			if err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
 			}
@@ -149,7 +169,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		if shouldSendLastResp {
-			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent, false)
 		}
 	}
 
@@ -196,6 +216,10 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if info.ChannelSetting.ForceFormat {
 		forceFormat = true
 	}
+	addThinkFirst := false
+	if info.ChannelSetting.AddThinkFirst {
+		addThinkFirst = true
+	}
 
 	usageModified := false
 	if simpleResponse.Usage.PromptTokens == 0 {
@@ -212,6 +236,17 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			TotalTokens:      info.PromptTokens + completionTokens,
 		}
 		usageModified = true
+	}
+
+	if addThinkFirst {
+		for i := range simpleResponse.Choices {
+			newContent := "<think>\n" + simpleResponse.Choices[i].Message.StringContent()
+			simpleResponse.Choices[i].Message.Content = &newContent
+		}
+		responseBody, err = common.Marshal(simpleResponse)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
 	}
 
 	switch info.RelayFormat {
