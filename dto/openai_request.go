@@ -85,11 +85,11 @@ type ToolCallRequest struct {
 	Function  FunctionRequest `json:"function,omitempty"`
 	Name      string          `json:"name,omitempty"`
 	MaxUses   int             `json:"max_uses,omitempty"`
-	Container Container       `json:"container,omitempty"`
+	Container *Container      `json:"container,omitempty"`
 }
 
 type Container struct {
-	Type string `json:"type"`
+	Type string `json:"type,omitempty"`
 }
 
 type ClaudeToolCallRequest struct {
