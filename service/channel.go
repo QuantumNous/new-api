@@ -75,6 +75,8 @@ func ShouldDisableChannel(channelType int, err *types.NewAPIError) bool {
 		return true
 	case "pre_consume_token_quota_failed":
 		return true
+	case "Arrearage":
+		return true
 	}
 	switch oaiErr.Type {
 	case "insufficient_quota":
