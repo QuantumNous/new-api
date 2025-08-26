@@ -64,14 +64,14 @@
 
 ## 📚 文档
 
-详细文档请访问我们的官方Wiki：[https://docs.newapi.pro/](https://docs.newapi.pro/)
+详细文档请访问我们的官方Wiki：[https://docs.newapi.ai/](https://docs.newapi.ai/)
 
 也可访问AI生成的DeepWiki:
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/QuantumNous/new-api)
 
 ## ✨ 主要特性
 
-New API提供了丰富的功能，详细特性请参考[特性说明](https://docs.newapi.pro/wiki/features-introduction)：
+New API提供了丰富的功能，详细特性请参考[特性说明](https://docs.newapi.ai/wiki/features-introduction)：
 
 1. 🎨 全新的UI界面
 2. 🌍 多语言支持
@@ -83,9 +83,9 @@ New API提供了丰富的功能，详细特性请参考[特性说明](https://do
 8. 📈 数据看板（控制台）
 9. 🔒 令牌分组、模型限制
 10. 🤖 支持更多授权登陆方式（LinuxDO,Telegram、OIDC）
-11. 🔄 支持Rerank模型（Cohere和Jina），[接口文档](https://docs.newapi.pro/api/jinaai-rerank)
-12. ⚡ 支持OpenAI Realtime API（包括Azure渠道），[接口文档](https://docs.newapi.pro/api/openai-realtime)
-13. ⚡ 支持Claude Messages 格式，[接口文档](https://docs.newapi.pro/api/anthropic-chat)
+11. 🔄 支持Rerank模型（Cohere和Jina），[接口文档](https://docs.newapi.ai/api/jinaai-rerank)
+12. ⚡ 支持OpenAI Realtime API（包括Azure渠道），[接口文档](https://docs.newapi.ai/api/openai-realtime)
+13. ⚡ 支持Claude Messages 格式，[接口文档](https://docs.newapi.ai/api/anthropic-chat)
 14. 支持使用路由/chat2link进入聊天界面
 15. 🧠 支持通过模型名称后缀设置 reasoning effort：
     1. OpenAI o系列模型
@@ -107,19 +107,19 @@ New API提供了丰富的功能，详细特性请参考[特性说明](https://do
 
 ## 模型支持
 
-此版本支持多种模型，详情请参考[接口文档-中继接口](https://docs.newapi.pro/api)：
+此版本支持多种模型，详情请参考[接口文档-中继接口](https://docs.newapi.ai/api)：
 
 1. 第三方模型 **gpts** （gpt-4-gizmo-*）
-2. 第三方渠道[Midjourney-Proxy(Plus)](https://github.com/novicezk/midjourney-proxy)接口，[接口文档](https://docs.newapi.pro/api/midjourney-proxy-image)
-3. 第三方渠道[Suno API](https://github.com/Suno-API/Suno-API)接口，[接口文档](https://docs.newapi.pro/api/suno-music)
+2. 第三方渠道[Midjourney-Proxy(Plus)](https://github.com/novicezk/midjourney-proxy)接口，[接口文档](https://docs.newapi.ai/api/midjourney-proxy-image)
+3. 第三方渠道[Suno API](https://github.com/Suno-API/Suno-API)接口，[接口文档](https://docs.newapi.ai/api/suno-music)
 4. 自定义渠道，支持填入完整调用地址
-5. Rerank模型（[Cohere](https://cohere.ai/)和[Jina](https://jina.ai/)），[接口文档](https://docs.newapi.pro/api/jinaai-rerank)
-6. Claude Messages 格式，[接口文档](https://docs.newapi.pro/api/anthropic-chat)
+5. Rerank模型（[Cohere](https://cohere.ai/)和[Jina](https://jina.ai/)），[接口文档](https://docs.newapi.ai/api/jinaai-rerank)
+6. Claude Messages 格式，[接口文档](https://docs.newapi.ai/api/anthropic-chat)
 7. Dify，当前仅支持chatflow
 
 ## 环境变量配置
 
-详细配置说明请参考[安装指南-环境变量配置](https://docs.newapi.pro/installation/environment-variables)：
+详细配置说明请参考[安装指南-环境变量配置](https://docs.newapi.ai/installation/environment-variables)：
 
 - `GENERATE_DEFAULT_TOKEN`：是否为新注册用户生成初始令牌，默认为 `false`
 - `STREAMING_TIMEOUT`：流式回复超时时间，默认300秒
@@ -139,7 +139,7 @@ New API提供了丰富的功能，详细特性请参考[特性说明](https://do
 
 ## 部署
 
-详细部署指南请参考[安装指南-部署方式](https://docs.newapi.pro/installation)：
+详细部署指南请参考[安装指南-部署方式](https://docs.newapi.ai/installation)：
 
 > [!TIP]
 > 最新版Docker镜像：`calciumion/new-api:latest`  
@@ -186,13 +186,13 @@ docker run --name new-api -d --restart always -p 3000:3000 -e SQL_DSN="root:1234
 
 ## 接口文档
 
-详细接口文档请参考[接口文档](https://docs.newapi.pro/api)：
+详细接口文档请参考[接口文档](https://docs.newapi.ai/api)：
 
-- [聊天接口（Chat）](https://docs.newapi.pro/api/openai-chat)
-- [图像接口（Image）](https://docs.newapi.pro/api/openai-image)
-- [重排序接口（Rerank）](https://docs.newapi.pro/api/jinaai-rerank)
-- [实时对话接口（Realtime）](https://docs.newapi.pro/api/openai-realtime)
-- [Claude聊天接口（messages）](https://docs.newapi.pro/api/anthropic-chat)
+- [聊天接口（Chat）](https://docs.newapi.ai/api/openai-chat)
+- [图像接口（Image）](https://docs.newapi.ai/api/openai-image)
+- [重排序接口（Rerank）](https://docs.newapi.ai/api/jinaai-rerank)
+- [实时对话接口（Realtime）](https://docs.newapi.ai/api/openai-realtime)
+- [Claude聊天接口（messages）](https://docs.newapi.ai/api/anthropic-chat)
 
 ## 相关项目
 - [One API](https://github.com/songquanpeng/one-api)：原版项目
@@ -205,10 +205,10 @@ docker run --name new-api -d --restart always -p 3000:3000 -e SQL_DSN="root:1234
 
 ## 帮助支持
 
-如有问题，请参考[帮助支持](https://docs.newapi.pro/support)：
-- [社区交流](https://docs.newapi.pro/support/community-interaction)
-- [反馈问题](https://docs.newapi.pro/support/feedback-issues)
-- [常见问题](https://docs.newapi.pro/support/faq)
+如有问题，请参考[帮助支持](https://docs.newapi.ai/support)：
+- [社区交流](https://docs.newapi.ai/support/community-interaction)
+- [反馈问题](https://docs.newapi.ai/support/feedback-issues)
+- [常见问题](https://docs.newapi.ai/support/faq)
 
 ## 🌟 Star History
 
