@@ -174,6 +174,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		return err
 	}
 	req.Set("Authorization", "Bearer "+accessToken)
+	req.Set("x-goog-user-project", a.AccountCredentials.ProjectID)
 	return nil
 }
 
