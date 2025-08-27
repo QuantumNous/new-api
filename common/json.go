@@ -20,3 +20,25 @@ func DecodeJson(reader *bytes.Reader, v any) error {
 func Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
+
+func GetJsonType(data json.RawMessage) string {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return "unknown"
+	}
+	firstChar := bytes.TrimSpace(data)[0]
+	switch firstChar {
+	case '{':
+		return "object"
+	case '[':
+		return "array"
+	case '"':
+		return "string"
+	case 't', 'f':
+		return "boolean"
+	case 'n':
+		return "null"
+	default:
+		return "number"
+	}
+}

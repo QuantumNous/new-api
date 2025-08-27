@@ -45,10 +45,13 @@ import {
   Row,
   Col,
   Highlight,
+  Input,
 } from '@douyinfe/semi-ui';
 import { getChannelModels, copy, getChannelIcon, getModelCategories, selectFilter } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
+import TwoFactorAuthModal from '../../../common/modals/TwoFactorAuthModal';
+import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
 import {
   IconSave,
   IconClose,
@@ -158,6 +161,44 @@ const EditChannelModal = (props) => {
   const [channelSearchValue, setChannelSearchValue] = useState('');
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
+
+  // 2FA验证查看密钥相关状态
+  const [twoFAState, setTwoFAState] = useState({
+    showModal: false,
+    code: '',
+    loading: false,
+    showKey: false,
+    keyData: ''
+  });
+
+  // 专门的2FA验证状态（用于TwoFactorAuthModal）
+  const [show2FAVerifyModal, setShow2FAVerifyModal] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // 2FA状态更新辅助函数
+  const updateTwoFAState = (updates) => {
+    setTwoFAState(prev => ({ ...prev, ...updates }));
+  };
+
+  // 重置2FA状态
+  const resetTwoFAState = () => {
+    setTwoFAState({
+      showModal: false,
+      code: '',
+      loading: false,
+      showKey: false,
+      keyData: ''
+    });
+  };
+
+  // 重置2FA验证状态
+  const reset2FAVerifyState = () => {
+    setShow2FAVerifyModal(false);
+    setVerifyCode('');
+    setVerifyLoading(false);
+  };
+
   // 渠道额外设置状态
   const [channelSettings, setChannelSettings] = useState({
     force_format: false,
@@ -651,6 +692,42 @@ const EditChannelModal = (props) => {
     }
   };
 
+  // 使用TwoFactorAuthModal的验证函数
+  const handleVerify2FA = async () => {
+    if (!verifyCode) {
+      showError(t('请输入验证码或备用码'));
+      return;
+    }
+
+    setVerifyLoading(true);
+    try {
+      const res = await API.post(`/api/channel/${channelId}/key`, {
+        code: verifyCode
+      });
+      if (res.data.success) {
+        // 验证成功，显示密钥
+        updateTwoFAState({
+          showModal: true,
+          showKey: true,
+          keyData: res.data.data.key
+        });
+        reset2FAVerifyState();
+        showSuccess(t('验证成功'));
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(t('获取密钥失败'));
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // 显示2FA验证模态框 - 使用TwoFactorAuthModal
+  const handleShow2FAModal = () => {
+    setShow2FAVerifyModal(true);
+  };
+
   useEffect(() => {
     const modelMap = new Map();
 
@@ -727,28 +804,38 @@ const EditChannelModal = (props) => {
       // 重置手动输入模式状态
       setUseManualInput(false);
     } else {
-      formApiRef.current?.reset();
-      // 重置渠道设置状态
-      setChannelSettings({
-        force_format: false,
-        thinking_to_content: false,
-        proxy: '',
-        pass_through_body_enabled: false,
-        system_prompt: '',
-        system_prompt_override: false,
-      });
-      // 重置密钥模式状态
-      setKeyMode('append');
-      // 清空表单中的key_mode字段
-      if (formApiRef.current) {
-        formApiRef.current.setValue('key_mode', undefined);
-      }
-      // 重置模型原始映射关系
-      setModelOriginalMapping({});
-      // 重置本地输入，避免下次打开残留上一次的 JSON 字段值
-      setInputs(getInitValues());
+      // 统一的模态框关闭重置逻辑
+      resetModalState();
     }
   }, [props.visible, channelId]);
+
+  // 统一的模态框重置函数
+  const resetModalState = () => {
+    formApiRef.current?.reset();
+    // 重置渠道设置状态
+    setChannelSettings({
+      force_format: false,
+      thinking_to_content: false,
+      proxy: '',
+      pass_through_body_enabled: false,
+      system_prompt: '',
+      system_prompt_override: false,
+    });
+    // 重置密钥模式状态
+    setKeyMode('append');
+    // 清空表单中的key_mode字段
+    if (formApiRef.current) {
+      formApiRef.current.setValue('key_mode', undefined);
+    }
+    // 重置本地输入，避免下次打开残留上一次的 JSON 字段值
+    setInputs(getInitValues());
+    // 重置2FA状态
+    resetTwoFAState();
+    // 重置2FA验证状态
+    reset2FAVerifyState();
+    // 重置模型原始映射关系
+    setModelOriginalMapping({});
+  };
 
   // 组件卸载时清理资源
   useEffect(() => {
@@ -1240,6 +1327,16 @@ const EditChannelModal = (props) => {
                                 {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
                               </Text>
                             )}
+                            {isEdit && (
+                              <Button
+                                size="small"
+                                type="primary"
+                                theme="outline"
+                                onClick={handleShow2FAModal}
+                              >
+                                {t('查看密钥')}
+                              </Button>
+                            )}
                             {batchExtra}
                           </div>
                         }
@@ -1314,6 +1411,16 @@ const EditChannelModal = (props) => {
                                       {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
                                     </Text>
                                   )}
+                                  {isEdit && (
+                                    <Button
+                                      size="small"
+                                      type="primary"
+                                      theme="outline"
+                                      onClick={handleShow2FAModal}
+                                    >
+                                      {t('查看密钥')}
+                                    </Button>
+                                  )}
                                   {batchExtra}
                                 </div>
                               }
@@ -1353,6 +1460,16 @@ const EditChannelModal = (props) => {
                                 <Text type="warning" size="small">
                                   {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
                                 </Text>
+                              )}
+                              {isEdit && (
+                                <Button
+                                  size="small"
+                                  type="primary"
+                                  theme="outline"
+                                  onClick={handleShow2FAModal}
+                                >
+                                  {t('查看密钥')}
+                                </Button>
                               )}
                               {batchExtra}
                             </div>
@@ -2013,6 +2130,53 @@ const EditChannelModal = (props) => {
           onVisibleChange={(visible) => setIsModalOpenurl(visible)}
         />
       </SideSheet>
+      {/* 使用TwoFactorAuthModal组件进行2FA验证 */}
+      <TwoFactorAuthModal
+        visible={show2FAVerifyModal}
+        code={verifyCode}
+        loading={verifyLoading}
+        onCodeChange={setVerifyCode}
+        onVerify={handleVerify2FA}
+        onCancel={reset2FAVerifyState}
+        title={t('查看渠道密钥')}
+        description={t('为了保护账户安全，请验证您的两步验证码。')}
+        placeholder={t('请输入验证码或备用码')}
+      />
+
+      {/* 使用ChannelKeyDisplay组件显示密钥 */}
+      <Modal
+        title={
+          <div className="flex items-center">
+            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-3">
+              <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            {t('渠道密钥信息')}
+          </div>
+        }
+        visible={twoFAState.showModal && twoFAState.showKey}
+        onCancel={resetTwoFAState}
+        footer={
+          <Button
+            type="primary"
+            onClick={resetTwoFAState}
+          >
+            {t('完成')}
+          </Button>
+        }
+        width={700}
+        style={{ maxWidth: '90vw' }}
+      >
+        <ChannelKeyDisplay
+          keyData={twoFAState.keyData}
+          showSuccessIcon={true}
+          successText={t('密钥获取成功')}
+          showWarning={true}
+          warningText={t('请妥善保管密钥信息，不要泄露给他人。如有安全疑虑，请及时更换密钥。')}
+        />
+      </Modal>
+
       <ModelSelectModal
         visible={modelModalVisible}
         models={fetchedModels}
