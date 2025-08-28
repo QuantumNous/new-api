@@ -1014,26 +1014,31 @@ const EditChannelModal = (props) => {
       {batch && (
         <>
           <Checkbox disabled={isEdit} checked={multiToSingle} onChange={() => {
-            setMultiToSingle(prev => !prev);
-            setInputs(prev => {
-              const newInputs = { ...prev };
-              if (!multiToSingle) {
-                newInputs.multi_key_mode = multiKeyMode;
-              } else {
-                delete newInputs.multi_key_mode;
-              }
-              return newInputs;
+            setMultiToSingle(prev => {
+              const nextValue = !prev;
+              setInputs(prevInputs => {
+                const newInputs = { ...prevInputs };
+                if (nextValue) {
+                  newInputs.multi_key_mode = multiKeyMode;
+                } else {
+                  delete newInputs.multi_key_mode;
+                }
+                return newInputs;
+              });
+              return nextValue;
             });
           }}>{t('密钥聚合模式')}</Checkbox>
-          <Button
-            size="small"
-            type="tertiary"
-            theme="outline"
-            onClick={deduplicateKeys}
-            style={{ textDecoration: 'underline' }}
-          >
-            {t('密钥去重')}
-          </Button>
+          {inputs.type !== 41 && (
+            <Button
+              size="small"
+              type="tertiary"
+              theme="outline"
+              onClick={deduplicateKeys}
+              style={{ textDecoration: 'underline' }}
+            >
+              {t('密钥去重')}
+            </Button>
+          )}
         </>
       )}
     </Space>
