@@ -872,6 +872,53 @@ const EditChannelModal = (props) => {
     }
   };
 
+  // 密钥去重函数
+  const deduplicateKeys = () => {
+    const currentKey = formApiRef.current?.getValue('key') || inputs.key || '';
+    
+    if (!currentKey.trim()) {
+      showInfo(t('请先输入密钥'));
+      return;
+    }
+
+    // 按行分割密钥
+    const keyLines = currentKey.split('\n');
+    const beforeCount = keyLines.length;
+    
+    // 使用哈希表去重，保持原有顺序
+    const keySet = new Set();
+    const deduplicatedKeys = [];
+    
+    keyLines.forEach(line => {
+      const trimmedLine = line.trim();
+      if (trimmedLine && !keySet.has(trimmedLine)) {
+        keySet.add(trimmedLine);
+        deduplicatedKeys.push(trimmedLine);
+      }
+    });
+    
+    const afterCount = deduplicatedKeys.length;
+    const deduplicatedKeyText = deduplicatedKeys.join('\n');
+    
+    // 更新表单和状态
+    if (formApiRef.current) {
+      formApiRef.current.setValue('key', deduplicatedKeyText);
+    }
+    handleInputChange('key', deduplicatedKeyText);
+    
+    // 显示去重结果
+    const message = t('去重完成：去重前 {{before}} 个密钥，去重后 {{after}} 个密钥', {
+      before: beforeCount,
+      after: afterCount
+    });
+    
+    if (beforeCount === afterCount) {
+      showInfo(t('未发现重复密钥'));
+    } else {
+      showSuccess(message);
+    }
+  };
+
   const addCustomModels = () => {
     if (customModel.trim() === '') return;
     const modelArray = customModel.split(',').map((model) => model.trim());
@@ -965,18 +1012,29 @@ const EditChannelModal = (props) => {
         </Checkbox>
       )}
       {batch && (
-        <Checkbox disabled={isEdit} checked={multiToSingle} onChange={() => {
-          setMultiToSingle(prev => !prev);
-          setInputs(prev => {
-            const newInputs = { ...prev };
-            if (!multiToSingle) {
-              newInputs.multi_key_mode = multiKeyMode;
-            } else {
-              delete newInputs.multi_key_mode;
-            }
-            return newInputs;
-          });
-        }}>{t('密钥聚合模式')}</Checkbox>
+        <>
+          <Checkbox disabled={isEdit} checked={multiToSingle} onChange={() => {
+            setMultiToSingle(prev => !prev);
+            setInputs(prev => {
+              const newInputs = { ...prev };
+              if (!multiToSingle) {
+                newInputs.multi_key_mode = multiKeyMode;
+              } else {
+                delete newInputs.multi_key_mode;
+              }
+              return newInputs;
+            });
+          }}>{t('密钥聚合模式')}</Checkbox>
+          <Button
+            size="small"
+            type="tertiary"
+            theme="outline"
+            onClick={deduplicateKeys}
+            style={{ textDecoration: 'underline' }}
+          >
+            {t('密钥去重')}
+          </Button>
+        </>
       )}
     </Space>
   ) : null;
@@ -1161,7 +1219,7 @@ const EditChannelModal = (props) => {
                         autoComplete='new-password'
                         onChange={(value) => handleInputChange('key', value)}
                         extraText={
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             {isEdit && isMultiKeyChannel && keyMode === 'append' && (
                               <Text type="warning" size="small">
                                 {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
