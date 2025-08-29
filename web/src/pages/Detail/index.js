@@ -197,10 +197,7 @@ const Detail = (props) => {
 
   // 添加校验函数
   const validateInputs = () => {
-    if (!username && tokenname) {
-      showError('选择令牌时必须指定用户名');
-      return false;
-    }
+    // 移除强制验证逻辑，允许非管理员用户在不指定用户名的情况下选择令牌名称
     return true;
   };
 
@@ -503,27 +500,25 @@ const Detail = (props) => {
                 }
               ></Form.Select>
               {isAdminUser && (
-                <>
-                  <Form.Input
-                    field='username'
-                    label={t('用户名称')}
-                    style={{ width: 176 }}
-                    value={username}
-                    placeholder={t('可选值')}
-                    name='username'
-                    onChange={(value) => handleInputChange(value, 'username')}
-                  />
-                  <Form.Input
-                    field='username'
-                    label={t('令牌名称')}
-                    style={{ width: 200 }}
-                    value={tokenname}
-                    placeholder={t('未填则查询该用户所有令牌')}
-                    name='tokenname'
-                    onChange={(value) => handleInputChange(value, 'tokenname')}
-                  />
-                </>
+                <Form.Input
+                  field='username'
+                  label={t('用户名称')}
+                  style={{ width: 176 }}
+                  value={username}
+                  placeholder={t('可选值')}
+                  name='username'
+                  onChange={(value) => handleInputChange(value, 'username')}
+                />
               )}
+              <Form.Input
+                field='username'
+                label={t('令牌名称')}
+                style={{ width: 200 }}
+                value={tokenname}
+                placeholder={t('未填则查询所有令牌')}
+                name='tokenname'
+                onChange={(value) => handleInputChange(value, 'tokenname')}
+              />
               <Button
                 label={t('查询')}
                 type='primary'
@@ -552,7 +547,7 @@ const Detail = (props) => {
           </Form>
           <Spin spinning={loading}>
             <Row gutter={{ xs: 16, sm: 16, md: 16, lg: 24, xl: 24, xxl: 24 }} style={{marginTop: 20}} type="flex" justify="space-between">
-              <Col span={styleState.isMobile?24:8}>
+              {/* <Col span={styleState.isMobile?24:8}>
                 <Card className='panel-desc-card'>
                   <Descriptions row size="small">
                     <Descriptions.Item itemKey={t('当前余额')}>
@@ -566,8 +561,8 @@ const Detail = (props) => {
                     </Descriptions.Item>
                   </Descriptions>
                 </Card>
-              </Col>
-              <Col span={styleState.isMobile?24:8}>
+              </Col> */}
+              <Col span={styleState.isMobile?24:12}>
                 <Card>
                   <Descriptions row size="small">
                     <Descriptions.Item itemKey={t('统计额度')}>
@@ -582,7 +577,7 @@ const Detail = (props) => {
                   </Descriptions>
                 </Card>
               </Col>
-              <Col span={styleState.isMobile ? 24 : 8}>
+              <Col span={styleState.isMobile ? 24 : 12}>
                 <Card>
                   <Descriptions row size='small'>
                     <Descriptions.Item itemKey={t('平均RPM')}>

@@ -3,25 +3,35 @@ package common
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"io"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 const KeyRequestBody = "key_request_body"
 
 func GetRequestBody(c *gin.Context) ([]byte, error) {
-	requestBody, _ := c.Get(KeyRequestBody)
-	if requestBody != nil {
-		return requestBody.([]byte), nil
+	// 如果已经缓存过，直接返回
+	if v, exists := c.Get(KeyRequestBody); exists {
+		if body, ok := v.([]byte); ok {
+			return body, nil
+		}
 	}
-	requestBody, err := io.ReadAll(c.Request.Body)
+
+	// 第一次读取 body
+	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		return nil, err
 	}
-	_ = c.Request.Body.Close()
-	c.Set(KeyRequestBody, requestBody)
-	return requestBody.([]byte), nil
+
+	// 缓存到 gin.Context
+	c.Set(KeyRequestBody, body)
+
+	// 重新赋值给 c.Request.Body，让后续还能读取
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	return body, nil
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
@@ -33,6 +43,7 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	if strings.HasPrefix(contentType, "application/json") {
 		err = json.Unmarshal(requestBody, &v)
 	} else {
+		return nil
 		// skip for now
 		// TODO: someday non json request have variant model, we will need to implementation this
 	}

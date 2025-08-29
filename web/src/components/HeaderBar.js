@@ -63,6 +63,16 @@ const HeaderBar = () => {
       to: '/pricing',
     },
     {
+      text: t('使用须知'),
+      itemKey: 'usage',
+      to: '/usage',
+    },
+    {
+      text: t('调用示例'),
+      itemKey: 'examples',
+      to: '/examples',
+    },
+    {
       text: t('关于'),
       itemKey: 'about',
       to: '/about',
@@ -141,6 +151,8 @@ const HeaderBar = () => {
                 login: '/login',
                 register: '/register',
                 pricing: '/pricing',
+                usage: '/usage',
+                examples: '/examples',
                 detail: '/detail',
                 home: '/',
                 chat: '/chat',

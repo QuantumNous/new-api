@@ -29,7 +29,6 @@ func GetAllQuotaDates(c *gin.Context) {
 		"message": "",
 		"data":    dates,
 	})
-	return
 }
 
 func GetBilling(c *gin.Context) {
@@ -49,22 +48,25 @@ func GetBilling(c *gin.Context) {
 		"message": "",
 		"data":    dates,
 	})
-	return
 }
 
 func GetUserQuotaDates(c *gin.Context) {
 	userId := c.GetInt("id")
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name") // 支持令牌名称筛选
+
 	// 判断时间跨度是否超过 1 个月
-	if endTimestamp-startTimestamp > 2592000 {
+	if endTimestamp-startTimestamp > 2592000*3 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "时间跨度不能超过 1 个月",
+			"message": "时间跨度不能超过 3 个月",
 		})
 		return
 	}
-	dates, err := model.GetQuotaDataByUserId(userId, startTimestamp, endTimestamp)
+
+	// 使用新的函数支持令牌名称筛选
+	dates, err := model.GetQuotaDataByUserIdAndToken(userId, tokenName, startTimestamp, endTimestamp)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -77,7 +79,6 @@ func GetUserQuotaDates(c *gin.Context) {
 		"message": "",
 		"data":    dates,
 	})
-	return
 }
 
 func ExportBillingExcel(c *gin.Context) {

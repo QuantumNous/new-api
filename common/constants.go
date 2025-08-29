@@ -350,7 +350,20 @@ var ChannelBaseURLs = []string{
 	"https://ark.cn-beijing.volces.com",         //101 - 豆包离线JOB
 }
 
+// Usage文档相关配置
+var (
+	DefaultUsageDocumentURL string // 默认的使用文档URL
+)
+
 func init() {
 	PProfEnabled = false
 	PProfMutex = sync.RWMutex{}
+
+	// 从环境变量读取默认文档URL
+	DefaultUsageDocumentURL = os.Getenv("DEFAULT_USAGE_DOCUMENT_URL")
+	if DefaultUsageDocumentURL == "" {
+		SysLog("DEFAULT_USAGE_DOCUMENT_URL not set, no default document will be loaded")
+	} else {
+		SysLog("DEFAULT_USAGE_DOCUMENT_URL loaded: " + DefaultUsageDocumentURL)
+	}
 }

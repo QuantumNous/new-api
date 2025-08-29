@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	onecommon "one-api/common"
+
 	"one-api/relay/common"
 	"one-api/relay/constant"
 	"regexp"
@@ -172,6 +173,10 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	return targetConn, nil
 }
 
+func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	return doRequest(c, req, info)
+}
+
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	// Check if mock response is enabled and test traffic header is present
 	var response *http.Response
@@ -251,19 +256,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	// 读取并打印请求体
 	if req.Body != nil {
-		bodyBytes, _ := io.ReadAll(req.Body)
-		if len(bodyBytes) > 0 {
-			// 只打印小于64KB的请求体
-			if len(bodyBytes) < 64*1024*1024 {
-				// 使用正则表达式替换base64数据
-				bodyStr := string(bodyBytes)
-				replacedBody := replaceBase64InString(bodyStr)
-				onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", replacedBody))
-			} else {
-				onecommon.LogInfo(ctx, fmt.Sprintf("request body too large (size: %d bytes), skipping print", len(bodyBytes)))
-			}
-			// 重新设置 body
-			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		bodyStr := onecommon.LogHttpRequestBody(req)
+		if bodyStr != "" {
+			onecommon.LogInfo(ctx, fmt.Sprintf("request body: %s", bodyStr))
 		}
 	}
 

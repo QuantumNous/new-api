@@ -3,8 +3,10 @@ package model
 import (
 	"fmt"
 	"one-api/common"
+	"one-api/metrics"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +38,7 @@ type Log struct {
 	ChannelName      string `json:"channel_name" gorm:"->"`
 	TokenId          int    `json:"token_id" gorm:"default:0;index"`
 	Group            string `json:"group" gorm:"index"`
+	Usage            string `json:"usage" gorm:"type:text;"`
 	Other            string `json:"other"`
 }
 
@@ -140,19 +143,29 @@ func GetLogTableName(timestamp int64) string {
 // 修改 RecordConsumeLog 函数中的相关部分
 func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int, thinkingTokens int,
 	modelName string, tokenName string, quota int, content string, tokenId int, userQuota int, useTimeSeconds int,
-	isStream bool, group string, other map[string]interface{}) {
+	isStream bool, group string, other map[string]interface{}, usage string) {
 	// 如果是压测流量，不记录计费日志
 	if c.GetHeader("X-Test-Traffic") == "true" {
 		common.LogInfo(c, "test traffic detected, skipping consume log")
 		return
 	}
+	username := c.GetString("username")
+	// 获取渠道名称用于监控指标
+	var channelName string
+	if channel, channelErr := GetChannelById(channelId, false); channelErr == nil {
+		channelName = channel.Name
+	}
 
+	// 记录消费日志流量总计数监控指标
+	metrics.IncrementConsumeLogTrafficTotal(strconv.Itoa(channelId), channelName, modelName, group,
+		strconv.Itoa(userId), username, tokenName, 1)
 	common.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, 用户调用前余额=%d, channelId=%d, promptTokens=%d, completionTokens=%d, modelName=%s, tokenName=%s, quota=%d, content=%s", userId, userQuota, channelId, promptTokens, completionTokens, modelName, tokenName, quota, content))
 	if !common.LogConsumeEnabled {
 		return
 	}
-	username := c.GetString("username")
+
 	otherStr := common.MapToJsonStr(other)
+	usageStr := usage
 	log := &Log{
 		UserId:           common.GetOriginUserId(c, userId),
 		RequestID:        c.GetString(common.RequestIdKey),
@@ -171,6 +184,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		UseTime:          useTimeSeconds,
 		IsStream:         isStream,
 		Group:            group,
+		Usage:            usageStr,
 		Other:            otherStr,
 	}
 	tableName := GetLogTableName(log.CreatedAt)
@@ -178,8 +192,16 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		tableName = "logs"
 	}
 	err := LOG_DB.Table(tableName).Create(log).Error
+
 	if err != nil {
 		common.LogError(c, "failed to record log: "+err.Error())
+		// 记录消费失败流量监控指标
+		metrics.IncrementConsumeLogTrafficFailed(strconv.Itoa(channelId), channelName, modelName, group,
+			strconv.Itoa(userId), username, tokenName, "database_error", 1)
+	} else {
+		// 记录成功消费日志流量监控指标
+		metrics.IncrementConsumeLogTrafficSuccess(strconv.Itoa(channelId), channelName, modelName, group,
+			strconv.Itoa(userId), username, tokenName, 1)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {

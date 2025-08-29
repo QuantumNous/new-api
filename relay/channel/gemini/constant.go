@@ -7,7 +7,7 @@ var ModelList = []string{
 	// latest version
 	"gemini-1.5-pro-latest", "gemini-1.5-flash-latest",
 	// preview version
-	"gemini-2.0-flash-lite-preview",
+	"gemini-2.0-flash-lite-preview", "gemini-2.5-flash-image-preview",
 	// gemini exp
 	"gemini-exp-1206",
 	// flash exp

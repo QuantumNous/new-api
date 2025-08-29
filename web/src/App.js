@@ -31,6 +31,8 @@ import { StatusContext } from './context/Status';
 import { setStatusData } from './helpers/data.js';
 import { API, showError } from './helpers';
 import PersonalSetting from './components/PersonalSetting.js';
+import Usage from './pages/Usage';
+import Examples from './pages/Examples';
 
 const Home = lazy(() => import('./pages/Home'));
 const Detail = lazy(() => import('./pages/Detail'));
@@ -249,6 +251,22 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>}>
               <About />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/usage'
+          element={
+            <Suspense fallback={<Loading></Loading>}>
+              <Usage />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/examples'
+          element={
+            <Suspense fallback={<Loading></Loading>}>
+              <Examples />
             </Suspense>
           }
         />

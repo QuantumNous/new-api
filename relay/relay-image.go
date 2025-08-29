@@ -215,6 +215,6 @@ func ImageHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, imageRequest 
 	}
 
 	logContent := fmt.Sprintf("大小 %s, 品质 %s", imageRequest.Size, quality)
-	postConsumeQuota(c, relayInfo, usage, 0, userQuota, priceData, logContent)
+	postConsumeQuota(c, relayInfo, usage, 0, userQuota, priceData, logContent, nil)
 	return nil
 }

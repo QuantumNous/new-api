@@ -18,6 +18,7 @@ export function setStatusData(data) {
     data.default_collapse_sidebar,
   );
   localStorage.setItem('mj_notify_enabled', data.mj_notify_enabled);
+  localStorage.setItem('default_usage_document_url', data.default_usage_document_url || '');
   if (data.chat_link) {
     localStorage.setItem('chat_link', data.chat_link);
   } else {

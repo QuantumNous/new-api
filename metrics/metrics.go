@@ -34,6 +34,10 @@ func RegisterMetrics(registry prometheus.Registerer) {
 	registry.MustRegister(thinkingTokensZeroOrNegativeCounter)
 	// error log metrics
 	registry.MustRegister(errorLogCounter)
+	// consume log traffic metrics
+	registry.MustRegister(consumeLogTrafficTotalCounter)
+	registry.MustRegister(consumeLogTrafficFailedCounter)
+	registry.MustRegister(consumeLogTrafficSuccessCounter)
 }
 
 var (
@@ -171,6 +175,28 @@ var (
 			Name:      "error_log_total",
 			Help:      "Total number of error logs",
 		}, []string{"channel", "channel_name", "error_code", "error_type", "model", "group", "token_name", "user_id", "user_name"})
+
+	// Consume log traffic metrics
+	consumeLogTrafficTotalCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "consume_log_traffic_total",
+			Help:      "Total traffic count for consume logs",
+		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name"})
+
+	consumeLogTrafficFailedCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "consume_log_traffic_failed_total",
+			Help:      "Total failed traffic count for consume logs",
+		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name", "error_code"})
+
+	consumeLogTrafficSuccessCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: Namespace,
+			Name:      "consume_log_traffic_success_total",
+			Help:      "Total successful traffic count for consume logs",
+		}, []string{"channel", "channel_name", "model", "group", "user_id", "user_name", "token_name"})
 )
 
 func IncrementRelayRequestTotalCounter(channel, channelName, tag, baseURL, model, group, userId, userName string, add float64) {
@@ -251,4 +277,17 @@ func IncrementThinkingTokensZeroOrNegative(channel, channelName, model, group, u
 // Error log metrics function
 func IncrementErrorLog(channel, channelName, errorCode, errorType, model, group, tokenName, userId, userName string, add float64) {
 	errorLogCounter.WithLabelValues(channel, channelName, errorCode, errorType, model, group, tokenName, userId, userName).Add(add)
+}
+
+// Consume log traffic metrics functions
+func IncrementConsumeLogTrafficTotal(channel, channelName, model, group, userId, userName, tokenName string, add float64) {
+	consumeLogTrafficTotalCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName).Add(add)
+}
+
+func IncrementConsumeLogTrafficFailed(channel, channelName, model, group, userId, userName, tokenName, errorCode string, add float64) {
+	consumeLogTrafficFailedCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName, errorCode).Add(add)
+}
+
+func IncrementConsumeLogTrafficSuccess(channel, channelName, model, group, userId, userName, tokenName string, add float64) {
+	consumeLogTrafficSuccessCounter.WithLabelValues(channel, channelName, model, group, userId, userName, tokenName).Add(add)
 }
