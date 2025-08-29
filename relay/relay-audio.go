@@ -1,8 +1,10 @@
 package relay
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -156,6 +158,11 @@ func AudioHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, audioRequest 
 		}
 	}
 
+	// Use TeeReader to copy response body while streaming to client
+	var responseBodyBuffer bytes.Buffer
+	teeReader := io.TeeReader(httpResp.Body, &responseBodyBuffer)
+	httpResp.Body = io.NopCloser(teeReader)
+
 	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
 	if openaiErr != nil {
 		funcErr = openaiErr
@@ -167,7 +174,10 @@ func AudioHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, audioRequest 
 	// 设置状态码用于指标记录
 	statusCode = resp.(*http.Response).StatusCode
 
-	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	// Asynchronously call postConsumeQuota to avoid blocking the response
+	responseBodyBytes := responseBodyBuffer.Bytes()
+
+	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "", responseBodyBytes)
 
 	return nil
 }

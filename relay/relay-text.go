@@ -33,6 +33,9 @@ func getAndValidateTextRequest(c *gin.Context, relayInfo *relaycommon.RelayInfo)
 	if err != nil {
 		return nil, err
 	}
+	if strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
+		return textRequest, nil
+	}
 	if relayInfo.RelayMode == relayconstant.RelayModeModerations && textRequest.Model == "" {
 		textRequest.Model = "text-moderation-latest"
 	}
@@ -243,7 +246,6 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
-
 	if err != nil {
 		funcErr = service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 		return funcErr
@@ -302,7 +304,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 			funcErr = openaiErr
 			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 			// common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
-			return openaiErr
+			// return openaiErr
 		}
 		common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
 		statusCode = resp.(*http.Response).StatusCode
@@ -312,6 +314,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 		responseBodyBytes, err = io.ReadAll(httpResp.Body)
 		if err != nil {
 			funcErr = service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+			common.LogError(c, fmt.Sprintf("read_response_body_failed: %+v", err))
 			return funcErr
 		}
 		httpResp.Body = io.NopCloser(bytes.NewBuffer(responseBodyBytes))
@@ -320,7 +323,7 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 			funcErr = openaiErr
 			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 			common.LogError(c, fmt.Sprintf("doResponse failed: %+v", openaiErr))
-			return openaiErr
+			// return openaiErr
 		}
 		common.LogInfo(c, fmt.Sprintf("response status code: %d, Usage: %+v", httpResp.StatusCode, usage))
 		statusCode = resp.(*http.Response).StatusCode
@@ -361,9 +364,9 @@ func TextHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, textRequest *d
 	}
 
 	if strings.HasPrefix(relayInfo.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+		service.PostAudioConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "", responseBodyBytes)
 	} else {
-		postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+		postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "", responseBodyBytes)
 	}
 
 	if usage.(*dto.Usage).CompletionTokens == 0 && relayInfo.OriginModelName == "gemini-2.5-pro" {
@@ -468,7 +471,7 @@ func returnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo, us
 }
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
-	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
+	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string, responseBodyBytes []byte) {
 	// 如果是压测流量，不记录计费日志
 	if ctx.GetHeader("X-Test-Traffic") == "true" {
 		common.LogInfo(ctx, "test traffic detected, skipping consume log")
@@ -482,6 +485,13 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		}
 		extraContent += "（可能是请求出错）"
 	}
+	if usage.PromptTokens == 0 {
+		usage.PromptTokens = usage.InputTokens
+	}
+	if usage.CompletionTokens == 0 {
+		usage.CompletionTokens = usage.OutputTokens
+	}
+
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	promptTokens := usage.PromptTokens
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
@@ -528,7 +538,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
-		logContent += fmt.Sprintf("（可能是上游超时）")
+		logContent += fmt.Sprintf("（可能是流式响应或者上游超时）")
 		common.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
 			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, preConsumedQuota))
 	} else {
@@ -579,6 +589,26 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 
 	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(thinkingTokens))
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
+
+	// 使用 ProcessMapValues 处理整个响应体，保留每一层JSON的value前100个字符
+	var usageFromResponse string
+	if len(responseBodyBytes) > 0 {
+		var responseBody interface{}
+		if err := json.Unmarshal(responseBodyBytes, &responseBody); err == nil {
+			// 使用 ProcessMapValues 处理整个响应体
+			processedResponse := common.ProcessMapValues(responseBody)
+			if processedJSON, err := json.Marshal(processedResponse); err == nil {
+				usageFromResponse = string(processedJSON)
+			} else {
+				usageFromResponse = string(responseBodyBytes)
+			}
+		} else {
+			usageFromResponse = string(responseBodyBytes)
+		}
+	} else {
+		usageFromResponse = ""
+	}
+
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other, usageFromResponse)
 }

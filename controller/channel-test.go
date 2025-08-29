@@ -159,8 +159,28 @@ func testChannel(channel *model.Channel, testModel string) (err error, openAIErr
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatio, priceData.CompletionRatio, 0, 0.0, priceData.ModelPrice)
+
+	// 使用 ProcessMapValues 处理整个响应体，保留每一层JSON的value前100个字符
+	var usageFromResponse string
+	if len(respBody) > 0 {
+		var responseBody interface{}
+		if err := json.Unmarshal(respBody, &responseBody); err == nil {
+			// 使用 ProcessMapValues 处理整个响应体
+			processedResponse := common.ProcessMapValues(responseBody)
+			if processedJSON, err := json.Marshal(processedResponse); err == nil {
+				usageFromResponse = string(processedJSON)
+			} else {
+				usageFromResponse = string(respBody)
+			}
+		} else {
+			usageFromResponse = string(respBody)
+		}
+	} else {
+		usageFromResponse = ""
+	}
+
 	model.RecordConsumeLog(c, 1, channel.Id, usage.PromptTokens, usage.CompletionTokens, 0, info.OriginModelName, "模型测试",
-		quota, "模型测试", 0, quota, int(consumedTime), false, info.Group, other)
+		quota, "模型测试", 0, quota, int(consumedTime), false, info.Group, other, usageFromResponse)
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return nil, nil
 }

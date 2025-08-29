@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"one-api/common"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,22 +35,31 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string) {
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "")
 	encoder.Encode(errorResponse)
-	responseStr := strings.TrimSpace(responseBuffer.String())
+
+	// 先解析JSON字符串，再处理数据结构
+	var responseStr string
+	responseJsonStr := responseBuffer.String()
+	var jsonObj interface{}
+	if err := json.Unmarshal([]byte(responseJsonStr), &jsonObj); err == nil {
+		processedData := common.ProcessMapValues(jsonObj)
+		if processedJSON, err := json.Marshal(processedData); err == nil {
+			responseStr = string(processedJSON)
+		} else {
+			responseStr = responseJsonStr
+		}
+	} else {
+		responseStr = responseJsonStr
+	}
 
 	// 将请求体转换为紧凑的JSON格式
-	if len(requestBody) > 0 {
-		var jsonObj interface{}
-		if err := json.Unmarshal(requestBody, &jsonObj); err == nil {
-			if prettyJSON, err := json.Marshal(jsonObj); err == nil {
-				requestStr := strings.ReplaceAll(string(prettyJSON), "\n", "")
-				common.LogError(c.Request.Context(), fmt.Sprintf("user %d | %s | request body: %s | response body: %s",
-					userId,
-					message,
-					requestStr,
-					responseStr))
-			}
-		}
-	}
+	requestStr := common.LogRequestBody(c)
+
+	// 记录日志
+	common.LogError(c.Request.Context(), fmt.Sprintf("user %d | %s | request body: %s | response body: %s",
+		userId,
+		message,
+		requestStr,
+		responseStr))
 
 	c.JSON(statusCode, errorResponse)
 	c.Abort()

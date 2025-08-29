@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"mime/multipart"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -178,6 +180,21 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") {
+		// Handle Google Gemini v1beta API - extract model from URL path
+		modelAndAction := c.Param("modelAndAction")
+		if modelAndAction == "" {
+			return nil, false, fmt.Errorf("无效的请求, 无法从 URL 路径中提取模型信息")
+		}
+		// Remove leading slash if present
+		modelAndAction = strings.TrimPrefix(modelAndAction, "/")
+		// Extract model name from "gemini-2.5-flash-image-preview:generateContent"
+		// Split by colon and take the first part
+		modelName := strings.Split(modelAndAction, ":")[0]
+		if modelName == "" {
+			return nil, false, fmt.Errorf("无效的请求, 无法从 URL 路径中提取模型名称")
+		}
+		modelRequest.Model = modelName
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
 		// 检查请求体是否为空
 		body, err := io.ReadAll(c.Request.Body)
@@ -205,10 +222,20 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 				modelRequest.Model = c.Query("model")
 			}
 		} else {
-			// 请求体不为空，尝试解析 JSON
-			err = json.Unmarshal(body, &modelRequest)
-			if err != nil {
-				return nil, false, fmt.Errorf("无效的请求, JSON 解析失败: %s", err.Error())
+			// 检查是否为 multipart/form-data 格式
+			contentType := c.GetHeader("Content-Type")
+			if strings.HasPrefix(contentType, "multipart/form-data") {
+				// 对于 multipart/form-data 格式，直接使用body解析
+				boundary := extractBoundary(contentType)
+				if boundary != "" {
+					modelRequest.Model = extractModelFromMultipart(body, boundary)
+				}
+			} else {
+				// 请求体不为空且不是 multipart/form-data，尝试解析 JSON
+				err = json.Unmarshal(body, &modelRequest)
+				if err != nil {
+					return nil, false, fmt.Errorf("无效的请求, JSON 解析失败: %s", err.Error())
+				}
 			}
 		}
 	}
@@ -284,4 +311,31 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	case common.ChannelTypeMokaAI:
 		c.Set("api_version", channel.Other)
 	}
+}
+
+// extractBoundary 从Content-Type中提取boundary
+func extractBoundary(contentType string) string {
+	parts := strings.Split(contentType, ";")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "boundary=") {
+			return strings.Trim(part[9:], `"`)
+		}
+	}
+	return ""
+}
+
+// extractModelFromMultipart 从multipart/form-data的body中提取model字段
+func extractModelFromMultipart(body []byte, boundary string) string {
+	// 使用multipart.Reader解析body
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	form, err := reader.ReadForm(0) // 无内存限制
+	if err != nil {
+		return ""
+	}
+
+	if modelValues := form.Value["model"]; len(modelValues) > 0 {
+		return modelValues[0]
+	}
+	return ""
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -55,6 +56,12 @@ func relayInfoHandler(c *gin.Context, relayMode int) (*relaycommon.RelayInfo, in
 			return nil, nil, "", err
 		}
 		return relayInfo, request, request.Model, nil
+	case relayconstant.RelayModeProxy:
+		relayInfo, request, model, err := relay.ProxyInfo(c)
+		if err != nil {
+			return nil, nil, "", err
+		}
+		return relayInfo, request, model, nil
 	default:
 		relayInfo, request, err := relay.TextInfo(c)
 		if err != nil {
@@ -95,6 +102,8 @@ func relayExecuteHandler(c *gin.Context, relayMode int, relayInfo *relaycommon.R
 			return service.OpenAIErrorWrapperLocal(fmt.Errorf("failed assert request: %d", relayMode), "invalid_request_type", http.StatusInternalServerError)
 		}
 		err = relay.EmbeddingHelper(c, relayInfo, embeddingRequest)
+	case relayconstant.RelayModeProxy:
+		err = relay.ProxyHelper(c, relayInfo, request)
 	default:
 		textRequest, ok := request.(*dto.GeneralOpenAIRequest)
 		if !ok {
@@ -106,6 +115,10 @@ func relayExecuteHandler(c *gin.Context, relayMode int, relayInfo *relaycommon.R
 }
 
 func Relay(c *gin.Context) {
+	bodyStr := common.LogRequestBody(c)
+	if bodyStr != "" {
+		common.LogInfo(c, fmt.Sprintf("proxy request body: %s", bodyStr))
+	}
 	startTime := time.Now()
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 	requestId := c.GetString(common.RequestIdKey)
@@ -116,24 +129,64 @@ func Relay(c *gin.Context) {
 	userId := strconv.Itoa(c.GetInt("id"))
 	userName := c.GetString(constant.ContextKeyUserName)
 	var openaiErr *dto.OpenAIErrorWithStatusCode
+	var err error
+	var channel *model.Channel
+	var requestModel string
+	defer func() {
+		if openaiErr == nil || channel == nil {
+			return
+		}
+		code := strconv.Itoa(openaiErr.StatusCode)
+		// e2e 失败计数
+		if strings.Contains(openaiErr.Error.Message, "write: connection timed out") && openaiErr.Error.Code == "copy_response_body_failed" {
+			code = "499"
+		}
+		metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, code, tokenKey, tokenName, userId, userName, 1)
+	}()
+
 	for i := 0; i <= common.RetryTimes; i++ {
-		channel, err := getChannel(c, group, originalModel, i)
+		channel, err = getChannel(c, group, originalModel, i)
 		if err != nil {
 			common.LogError(c, err.Error())
 			openaiErr = service.OpenAIErrorWrapperLocal(err, "get_channel_failed", http.StatusInternalServerError)
 			break
 		}
+		var channelSetting map[string]interface{}
+
+		err = json.Unmarshal([]byte(channel.Setting), &channelSetting)
+		if err != nil {
+			common.LogError(c, fmt.Sprintf("Failed to unmarshal channel setting: %v", err))
+		}
+
 		// 设置 channel 信息到上下文
 		c.Set("channel", strconv.Itoa(channel.Id))
 		c.Set("channel_name", channel.Name)
+		common.LogInfo(c, fmt.Sprintf("channelSetting: %+v", channelSetting))
+		// 检查passthrough_body，支持布尔值和字符串两种形式
+		passthroughBody := false
+		if val, exists := channelSetting["passthrough_body"]; exists {
+			if boolVal, ok := val.(bool); ok {
+				passthroughBody = boolVal
+			} else if strVal, ok := val.(string); ok {
+				passthroughBody = strVal == "true"
+			}
+		}
+		if passthroughBody {
+			common.LogInfo(c, "passthrough_body is true, use proxy")
+			c.Set("proxy", true)
+			relayMode = relayconstant.RelayModeProxy
+
+		}
 		fillRelayRequest(c, channel)
 		var (
-			relayInfo    *relaycommon.RelayInfo
-			request      interface{}
-			requestModel string
+			relayInfo *relaycommon.RelayInfo
+			request   interface{}
 		)
+
 		relayInfo, request, requestModel, openaiErr = relayInfoHandler(c, relayMode)
+
 		if i == 0 {
+			common.LogInfo(c, fmt.Sprintf("channel: %d,name %s, requestModel: %s, group: %s, tokenKey: %s, tokenName: %s, userId: %s, userName: %s", channel.Id, channel.Name, requestModel, group, tokenKey, tokenName, userId, userName))
 			// e2e 用户请求计数
 			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, 1)
 		} else {
@@ -148,6 +201,7 @@ func Relay(c *gin.Context) {
 			openaiErr = executeRelayRequest(c, relayMode, relayInfo, request)
 			common.LogInfo(c, fmt.Sprintf("openaiErr: %+v", openaiErr))
 			if openaiErr == nil {
+				common.LogInfo(c, fmt.Sprintf("channel: %d,name %s, requestModel: %s, group: %s, tokenKey: %s, tokenName: %s, userId: %s, userName: %s", channel.Id, channel.Name, requestModel, group, tokenKey, tokenName, userId, userName))
 				metrics.IncrementRelayRequestE2ESuccessCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, 1)
 				metrics.ObserveRelayRequestE2EDuration(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, time.Since(startTime).Seconds())
 				return
@@ -160,12 +214,7 @@ func Relay(c *gin.Context) {
 		go processChannelError(c, channel.Id, channel.Type, channel.Name, channel.GetAutoBan(), openaiErr)
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
-			code := strconv.Itoa(openaiErr.StatusCode)
-			// e2e 失败计数
-			if strings.Contains(openaiErr.Error.Message, "write: connection timed out") && openaiErr.Error.Code == "copy_response_body_failed" {
-				code = "499"
-			}
-			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, code, tokenKey, tokenName, userId, userName, 1)
+
 			break
 		}
 	}
@@ -270,7 +319,9 @@ func WssRelay(c *gin.Context) {
 
 		if !shouldRetry(c, openaiErr, common.RetryTimes-i) {
 			// e2e 失败计数
-			metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, originalModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, userId, userName, 1)
+			if channel != nil {
+				metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, originalModel, group, strconv.Itoa(openaiErr.StatusCode), tokenKey, tokenName, userId, userName, 1)
+			}
 			break
 		}
 	}
@@ -345,12 +396,22 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 			autoBanInt = 0
 		}
 		channelTag := c.GetString("channel_tag")
+		// 获取channel_setting (map[string]interface{}) 并转换为JSON字符串
+		var settingStr string
+		if settingMap, exists := c.Get("channel_setting"); exists {
+			if setting, ok := settingMap.(map[string]interface{}); ok {
+				if settingBytes, err := json.Marshal(setting); err == nil {
+					settingStr = string(settingBytes)
+				}
+			}
+		}
 		return &model.Channel{
 			Id:      c.GetInt("channel_id"),
 			Type:    c.GetInt("channel_type"),
 			Name:    c.GetString("channel_name"),
 			Tag:     &channelTag,
 			AutoBan: &autoBanInt,
+			Setting: settingStr,
 		}, nil
 	}
 	channel, err := model.CacheGetRandomSatisfiedChannel(group, originalModel, retryCount)

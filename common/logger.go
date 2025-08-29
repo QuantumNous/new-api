@@ -344,6 +344,31 @@ func FormatQuota(quota int) string {
 	}
 }
 
+// processMapValues 递归处理map中的所有值，截断长字符串
+func ProcessMapValues(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			result[key] = ProcessMapValues(value)
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, value := range v {
+			result[i] = ProcessMapValues(value)
+		}
+		return result
+	case string:
+		if len(v) > 100 {
+			return v[:100] + fmt.Sprintf("...[truncated, total: %d chars]", len(v))
+		}
+		return v
+	default:
+		return v
+	}
+}
+
 // LogJson 仅供测试使用 only for test
 func LogJson(ctx context.Context, msg string, obj any) {
 	jsonStr, err := json.Marshal(obj)

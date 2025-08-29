@@ -182,9 +182,30 @@ func TokenAuth() func(c *gin.Context) {
 			}
 			c.Request.Header.Set("Authorization", "Bearer "+key)
 		}
+		// 检查path包含/v1/messages
+		if strings.Contains(c.Request.URL.Path, "/v1/messages") {
+			// 从x-api-key中获取key
+			key := c.Request.Header.Get("x-api-key")
+			if key != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+key)
+			}
+		}
+		// gemini api 从query中获取key
+		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
+			skKey := c.Query("key")
+			if skKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+skKey)
+			}
+			// 从X-Goog-Api-Key header中获取key
+			xGoogKey := c.Request.Header.Get("X-Goog-Api-Key")
+			if xGoogKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+xGoogKey)
+			}
+		}
 		key := c.Request.Header.Get("Authorization")
 		parts := make([]string, 0)
 		key = strings.TrimPrefix(key, "Bearer ")
+
 		if key == "" || key == "midjourney-proxy" {
 			key = c.Request.Header.Get("mj-api-secret")
 			key = strings.TrimPrefix(key, "Bearer ")
@@ -196,6 +217,7 @@ func TokenAuth() func(c *gin.Context) {
 			parts = strings.Split(key, "-")
 			key = parts[0]
 		}
+
 		token, err := model.ValidateUserToken(key)
 		if token != nil {
 			id := c.GetInt("id")

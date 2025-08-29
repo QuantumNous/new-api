@@ -1,11 +1,8 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"one-api/common"
 	"strings"
 
@@ -33,22 +30,14 @@ func RequestLogger() gin.HandlerFunc {
 			c.Request.Method,
 			c.Request.URL.String(),
 			c.ClientIP(),
-			formatMap(headers),
+			common.FormatMap(headers),
 		)
 
 		// 如果启用了请求体日志，则记录请求体
 		if EnableRequestBodyLogging && c.Request.Method != "GET" {
-			body, err := io.ReadAll(c.Request.Body)
-			if err == nil {
-				// 尝试解析为JSON
-				var jsonBody interface{}
-				if err := json.Unmarshal(body, &jsonBody); err == nil {
-					logInfo += fmt.Sprintf("\tBody: %s", formatValue(jsonBody))
-				} else {
-					logInfo += fmt.Sprintf("\tBody: %s", string(body))
-				}
-				// 恢复请求体
-				c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+			bodyInfo := common.LogRequestBody(c)
+			if bodyInfo != "" {
+				logInfo += fmt.Sprintf("\tBody: %s", bodyInfo)
 			}
 		}
 
@@ -58,31 +47,12 @@ func RequestLogger() gin.HandlerFunc {
 		ctx = context.WithValue(ctx, "gin_context", c)
 
 		common.LogInfo(ctx, logInfo)
+
+		bodyStr := common.LogRequestBody(c)
+		if bodyStr != "" {
+			common.LogInfo(ctx, fmt.Sprintf("request body: %s", bodyStr))
+		}
+
 		c.Next()
 	}
-}
-
-func formatMap(m map[string]string) string {
-	if len(m) == 0 {
-		return "{}"
-	}
-	var pairs []string
-	for k, v := range m {
-		pairs = append(pairs, fmt.Sprintf("%s: %s", k, v))
-	}
-	return "{" + strings.Join(pairs, ", ") + "}"
-}
-
-func formatValue(v interface{}) string {
-	if v == nil {
-		return "null"
-	}
-
-	// 使用标准JSON格式输出，并去掉换行符
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
-	}
-	// 去掉换行符，让日志输出更紧凑
-	return strings.ReplaceAll(string(bytes), "\n", "")
 }

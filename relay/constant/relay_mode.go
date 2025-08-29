@@ -40,6 +40,7 @@ const (
 	RelayModeRerank
 
 	RelayModeRealtime
+	RelayModeProxy
 )
 
 func Path2RelayMode(path string) int {
@@ -70,6 +71,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRealtime
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeChatCompletions
+	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
+		relayMode = RelayModeProxy
 	}
 	return relayMode
 }

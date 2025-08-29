@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -171,12 +172,22 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		logContent += ", " + extraContent
 	}
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice)
+
+	// 使用 ProcessMapValues 处理整个响应体，保留每一层JSON的value前100个字符
+	var usageStr string
+	// 使用 ProcessMapValues 处理整个 usage 数据
+	processedUsage := common.ProcessMapValues(usage)
+	if processedJSON, err := json.Marshal(processedUsage); err == nil {
+		usageStr = string(processedJSON)
+	} else {
+		usageStr = ""
+	}
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, usage.InputTokens, usage.OutputTokens, usage.OutputTokenDetails.ReasoningTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other, usageStr)
 }
 
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
-	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
+	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string, responseBodyBytes []byte) {
 	// 如果是压测流量，不记录计费日志
 	if ctx.GetHeader("X-Test-Traffic") == "true" {
 		common.LogInfo(ctx, "test traffic detected, skipping consume log")
@@ -250,8 +261,28 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		logContent += ", " + extraContent
 	}
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice)
+
+	// 使用 ProcessMapValues 处理整个响应体，保留每一层JSON的value前100个字符
+	var usageStr string
+	if len(responseBodyBytes) > 0 {
+		var responseBody interface{}
+		if err := json.Unmarshal(responseBodyBytes, &responseBody); err == nil {
+			// 使用 ProcessMapValues 处理整个响应体
+			processedResponse := common.ProcessMapValues(responseBody)
+			if processedJSON, err := json.Marshal(processedResponse); err == nil {
+				usageStr = string(processedJSON)
+			} else {
+				usageStr = string(responseBodyBytes)
+			}
+		} else {
+			usageStr = string(responseBodyBytes)
+		}
+	} else {
+		usageStr = ""
+	}
+
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, usage.PromptTokens, usage.CompletionTokens, usage.CompletionTokenDetails.ReasoningTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other, usageStr)
 }
 
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {

@@ -53,7 +53,7 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/responses", controller.Relay)
 		httpRouter.POST("/edits", controller.Relay)
 		httpRouter.POST("/images/generations", controller.Relay)
-		httpRouter.POST("/images/edits", controller.RelayNotImplemented)
+		httpRouter.POST("/images/edits", controller.Relay)
 		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
 		httpRouter.POST("/embeddings", controller.Relay)
 		httpRouter.POST("/engines/:model/embeddings", controller.Relay)
@@ -74,6 +74,17 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/moderations", controller.Relay)
 		httpRouter.POST("/rerank", controller.Relay)
 		httpRouter.POST("/messages", controller.Relay)
+	}
+
+	// Google Gemini v1beta API routes
+	relayV1BetaRouter := router.Group("/v1beta")
+	relayV1BetaRouter.Use(middleware.TokenAuth())
+	relayV1BetaRouter.Use(middleware.ModelRequestRateLimit())
+	{
+		v1betaHttpRouter := relayV1BetaRouter.Group("")
+		v1betaHttpRouter.Use(middleware.Distribute())
+
+		v1betaHttpRouter.POST("/models/*modelAndAction", controller.Relay)
 	}
 
 	relayMjRouter := router.Group("/mj")

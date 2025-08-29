@@ -167,6 +167,17 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
+func GetQuotaDataByUserIdAndToken(userId int, tokenName string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	var quotaDatas []*QuotaData
+	// 从quota_data表中查询数据，支持按令牌名称筛选
+	if tokenName != "" {
+		err = DB.Table("quota_data").Where("user_id = ? and token_name = ? and created_at >= ? and created_at <= ?", userId, tokenName, startTime, endTime).Find(&quotaDatas).Error
+	} else {
+		err = DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).Find(&quotaDatas).Error
+	}
+	return quotaDatas, err
+}
+
 func GetAllQuotaDates(startTime int64, endTime int64, username, tokenName string) (quotaData []*QuotaData, err error) {
 	if username != "" {
 		return GetQuotaDataByUsername(username, tokenName, startTime, endTime)
@@ -381,7 +392,8 @@ func GetBillingAndExportExcel(startTime int64, endTime int64, userName string, t
 		cell := fmt.Sprintf("%c1", 'A'+i)
 		f.SetCellValue("Sheet1", cell, header)
 		// 设置列宽为25
-		f.SetColWidth("Sheet1", string('A'+i), string('A'+i), 25)
+		col := string(rune('A' + i))
+		f.SetColWidth("Sheet1", col, col, 25)
 	}
 
 	row := 2

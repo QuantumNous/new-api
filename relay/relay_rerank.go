@@ -139,6 +139,6 @@ func RerankHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, rerankReques
 	// 设置状态码用于指标记录
 	statusCode = resp.(*http.Response).StatusCode
 
-	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "", nil)
 	return nil
 }
