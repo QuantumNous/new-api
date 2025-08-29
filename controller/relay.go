@@ -129,14 +129,21 @@ func Relay(c *gin.Context) {
 	var channel *model.Channel
 	var requestModel string
 	defer func() {
-		if openaiErr == nil || channel == nil {
+		if openaiErr == nil {
 			return
+		}
+		if channel == nil {
+			channel = &model.Channel{
+				Id:   -1,
+				Name: "nofallback",
+			}
 		}
 		code := strconv.Itoa(openaiErr.StatusCode)
 		// e2e 失败计数
 		if strings.Contains(openaiErr.Error.Message, "write: connection timed out") && openaiErr.Error.Code == "copy_response_body_failed" {
 			code = "499"
 		}
+		common.LogInfo(c, fmt.Sprintf("id %s channel: %d,name %s, requestModel: %s, group: %s, tokenKey: %s, tokenName: %s, userId: %s, userName: %s", requestId, channel.Id, channel.Name, requestModel, group, tokenKey, tokenName, userId, userName))
 		metrics.IncrementRelayRequestE2EFailedCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, code, tokenKey, tokenName, userId, userName, 1)
 	}()
 
@@ -179,9 +186,7 @@ func Relay(c *gin.Context) {
 		)
 
 		relayInfo, request, requestModel, openaiErr = relayInfoHandler(c, relayMode)
-
 		if i == 0 {
-			common.LogInfo(c, fmt.Sprintf("channel: %d,name %s, requestModel: %s, group: %s, tokenKey: %s, tokenName: %s, userId: %s, userName: %s", channel.Id, channel.Name, requestModel, group, tokenKey, tokenName, userId, userName))
 			// e2e 用户请求计数
 			metrics.IncrementRelayRequestE2ETotalCounter(strconv.Itoa(channel.Id), channel.Name, requestModel, group, tokenKey, tokenName, userId, userName, 1)
 		} else {
