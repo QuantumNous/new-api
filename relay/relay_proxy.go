@@ -23,22 +23,11 @@ import (
 func ProxyInfo(c *gin.Context) (*relaycommon.RelayInfo, interface{}, string, *dto.OpenAIErrorWithStatusCode) {
 	relayInfo := relaycommon.GenRelayInfo(c)
 
-	bodyStr := common.LogRequestBody(c)
-	if bodyStr != "" {
-		common.LogInfo(c, fmt.Sprintf("proxy request body: %s", bodyStr))
-	}
-
 	// 直接提取 HTTP body 的原始数据
 	bodyBytes, err := common.GetRequestBody(c)
 	if err != nil {
 		return nil, nil, "", service.OpenAIErrorWrapperLocal(err, "get_request_body_failed", http.StatusBadRequest)
 	}
-
-	bodyStr = common.LogRequestBody(c)
-	if bodyStr != "" {
-		common.LogInfo(c, fmt.Sprintf("proxy request body: %s", bodyStr))
-	}
-
 	return relayInfo, bodyBytes, relayInfo.OriginModelName, nil
 }
 

@@ -48,11 +48,6 @@ func RequestLogger() gin.HandlerFunc {
 
 		common.LogInfo(ctx, logInfo)
 
-		bodyStr := common.LogRequestBody(c)
-		if bodyStr != "" {
-			common.LogInfo(ctx, fmt.Sprintf("request body: %s", bodyStr))
-		}
-
 		c.Next()
 	}
 }

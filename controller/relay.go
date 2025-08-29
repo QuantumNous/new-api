@@ -115,10 +115,6 @@ func relayExecuteHandler(c *gin.Context, relayMode int, relayInfo *relaycommon.R
 }
 
 func Relay(c *gin.Context) {
-	bodyStr := common.LogRequestBody(c)
-	if bodyStr != "" {
-		common.LogInfo(c, fmt.Sprintf("proxy request body: %s", bodyStr))
-	}
 	startTime := time.Now()
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 	requestId := c.GetString(common.RequestIdKey)
@@ -175,7 +171,6 @@ func Relay(c *gin.Context) {
 			common.LogInfo(c, "passthrough_body is true, use proxy")
 			c.Set("proxy", true)
 			relayMode = relayconstant.RelayModeProxy
-
 		}
 		fillRelayRequest(c, channel)
 		var (
