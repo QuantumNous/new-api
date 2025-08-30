@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
@@ -72,16 +73,16 @@ func responseTencent2OpenAI(response *TencentChatResponse) *dto.OpenAITextRespon
 	return &fullTextResponse
 }
 
-func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.ChatCompletionsStreamResponse {
+func streamResponseTencent2OpenAI(info *relaycommon.RelayInfo, tencentResponse *TencentChatResponse) *dto.ChatCompletionsStreamResponse {
 	response := dto.ChatCompletionsStreamResponse{
 		Object:  "chat.completion.chunk",
 		Created: common.GetTimestamp(),
-		Model:   "tencent-hunyuan",
+		Model:   info.OriginModelName,
 	}
-	if len(TencentResponse.Choices) > 0 {
+	if len(tencentResponse.Choices) > 0 {
 		var choice dto.ChatCompletionsStreamResponseChoice
-		choice.Delta.SetContentString(TencentResponse.Choices[0].Delta.Content)
-		if TencentResponse.Choices[0].FinishReason == "stop" {
+		choice.Delta.SetContentString(tencentResponse.Choices[0].Delta.Content)
+		if tencentResponse.Choices[0].FinishReason == "stop" {
 			choice.FinishReason = &constant.FinishReasonStop
 		}
 		response.Choices = append(response.Choices, choice)
@@ -110,7 +111,7 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 			continue
 		}
 
-		response := streamResponseTencent2OpenAI(&tencentResponse)
+		response := streamResponseTencent2OpenAI(info, &tencentResponse)
 		if len(response.Choices) != 0 {
 			responseText += response.Choices[0].Delta.GetContentString()
 		}
@@ -143,7 +144,7 @@ func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Resp
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	if tencentSb.Response.Error.Code != 0 {
+	if tencentSb.Response.Error != nil {
 		return nil, types.WithOpenAIError(types.OpenAIError{
 			Message: tencentSb.Response.Error.Message,
 			Code:    tencentSb.Response.Error.Code,
@@ -183,9 +184,16 @@ func hmacSha256(s, key string) string {
 	return string(hashed.Sum(nil))
 }
 
-func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey string) string {
+func getTencentSign(req TencentChatRequest, adaptor *Adaptor, info *relaycommon.RelayInfo, secId, secKey string) (string, error) {
+	host := ""
 	// build canonical request string
-	host := "hunyuan.tencentcloudapi.com"
+	if pu, err := url.Parse(info.BaseUrl); err != nil {
+		return "", err
+	} else {
+		host = pu.Host
+	}
+
+	serviceName := strings.SplitN(host, ".", 2)[0]
 	httpRequestMethod := "POST"
 	canonicalURI := "/"
 	canonicalQueryString := ""
@@ -208,7 +216,7 @@ func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey stri
 	t := time.Unix(timestamp, 0).UTC()
 	// must be the format 2006-01-02, ref to package time for more info
 	date := t.Format("2006-01-02")
-	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, "hunyuan")
+	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, serviceName)
 	hashedCanonicalRequest := sha256hex(canonicalRequest)
 	string2sign := fmt.Sprintf("%s\n%s\n%s\n%s",
 		algorithm,
@@ -218,7 +226,7 @@ func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey stri
 
 	// sign string
 	secretDate := hmacSha256(date, "TC3"+secKey)
-	secretService := hmacSha256("hunyuan", secretDate)
+	secretService := hmacSha256(serviceName, secretDate)
 	secretKey := hmacSha256("tc3_request", secretService)
 	signature := hex.EncodeToString([]byte(hmacSha256(string2sign, secretKey)))
 
@@ -229,5 +237,5 @@ func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey stri
 		credentialScope,
 		signedHeaders,
 		signature)
-	return authorization
+	return authorization, nil
 }
