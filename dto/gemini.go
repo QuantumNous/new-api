@@ -2,11 +2,12 @@ package dto
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"one-api/logger"
 	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GeminiChatRequest struct {
@@ -268,14 +269,15 @@ type GeminiChatResponse struct {
 }
 
 type GeminiUsageMetadata struct {
-	PromptTokenCount     int                         `json:"promptTokenCount"`
-	CandidatesTokenCount int                         `json:"candidatesTokenCount"`
-	TotalTokenCount      int                         `json:"totalTokenCount"`
-	ThoughtsTokenCount   int                         `json:"thoughtsTokenCount"`
-	PromptTokensDetails  []GeminiPromptTokensDetails `json:"promptTokensDetails"`
+	PromptTokenCount        int                        `json:"promptTokenCount"`
+	CandidatesTokenCount    int                        `json:"candidatesTokenCount"`
+	TotalTokenCount         int                        `json:"totalTokenCount"`
+	ThoughtsTokenCount      int                        `json:"thoughtsTokenCount"`
+	PromptTokensDetails     []GeminiModalityTokenCount `json:"promptTokensDetails"`
+	CandidatesTokensDetails []GeminiModalityTokenCount `json:"candidatesTokensDetails"`
 }
 
-type GeminiPromptTokensDetails struct {
+type GeminiModalityTokenCount struct {
 	Modality   string `json:"modality"`
 	TokenCount int    `json:"tokenCount"`
 }

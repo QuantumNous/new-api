@@ -24,6 +24,10 @@ const (
 	ClaudeWebSearchPrice = 10.00
 )
 
+const (
+	Gemini25FlashImagePreviewImageOutputPrice = 30.00
+)
+
 func GetClaudeWebSearchPricePerThousand() float64 {
 	return ClaudeWebSearchPrice
 }
@@ -62,6 +66,13 @@ func GetGeminiInputAudioPricePerMillionTokens(modelName string) float64 {
 		return Gemini25FlashProductionInputAudioPrice
 	} else if strings.HasPrefix(modelName, "gemini-2.0-flash") {
 		return Gemini20FlashInputAudioPrice
+	}
+	return 0
+}
+
+func GetGeminiImageOutputPricePerMillionTokens(modelName string) float64 {
+	if strings.HasPrefix(modelName, "gemini-2.5-flash-image-preview") {
+		return Gemini25FlashImagePreviewImageOutputPrice
 	}
 	return 0
 }
