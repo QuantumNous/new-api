@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import GroupRatioSettings from '../../pages/Setting/Ratio/GroupRatioSettings.js';
 import ModelRatioSettings from '../../pages/Setting/Ratio/ModelRatioSettings.js';
 import ModelSettingsVisualEditor from '../../pages/Setting/Ratio/ModelSettingsVisualEditor.js';
-import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor.js';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync.js';
 
 import { API, showError, toBoolean } from '../../helpers';
@@ -24,6 +23,7 @@ const RatioSetting = () => {
     DefaultUseAutoGroup: false,
     ExposeRatioEnabled: false,
     UserUsableGroups: '',
+    USDExchangeRate: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -102,8 +102,9 @@ const RatioSetting = () => {
             />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('未设置倍率模型')} itemKey='unset_models'>
-            <ModelRatioNotSetEditor
+            <ModelSettingsVisualEditor
               options={inputs}
+              mode={"unset_models"}
               refresh={onRefresh}
             />
           </Tabs.TabPane>
