@@ -99,7 +99,7 @@ export default function ModelSettingsVisualEditor(props) {
   // 在 return 语句之前，先处理过滤和分页逻辑
   const filteredModels = models.filter((model) => {
     const keywordMatch = searchText
-      ? model.name.toLowerCase().includes(searchText.toLowerCase())
+      ? model.name.includes(searchText)
       : true;
     const conflictMatch = conflictOnly ? model.hasConflict : true;
     return keywordMatch && conflictMatch;
