@@ -2017,5 +2017,15 @@
   "查看密钥": "View key",
   "查看渠道密钥": "View channel key",
   "渠道密钥信息": "Channel key information",
-  "密钥获取成功": "Key acquisition successful"
+  "密钥获取成功": "Key acquisition successful",
+  "模型补全倍率（仅对自定义模型有效）": "Model completion ratio (only effective for custom models)",
+  "图片倍率": "Image ratio",
+  "音频倍率": "Audio ratio",
+  "音频补全倍率": "Audio completion ratio",
+  "图片输入相关的倍率设置，键为模型名称，值为倍率": "Image input related ratio settings, key is model name, value is ratio",
+  "音频输入相关的倍率设置，键为模型名称，值为倍率": "Audio input related ratio settings, key is model name, value is ratio",
+  "音频输出补全相关的倍率设置，键为模型名称，值为倍率": "Audio output completion related ratio settings, key is model name, value is ratio",
+  "为一个 JSON 文本，键为模型名称，值为倍率，例如：{\"gpt-image-1\": 2}": "A JSON text with model name as key and ratio as value, e.g.: {\"gpt-image-1\": 2}",
+  "为一个 JSON 文本，键为模型名称，值为倍率，例如：{\"gpt-4o-audio-preview\": 16}": "A JSON text with model name as key and ratio as value, e.g.: {\"gpt-4o-audio-preview\": 16}",
+  "为一个 JSON 文本，键为模型名称，值为倍率，例如：{\"gpt-4o-realtime\": 2}": "A JSON text with model name as key and ratio as value, e.g.: {\"gpt-4o-realtime\": 2}"
 }

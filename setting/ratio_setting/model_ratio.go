@@ -278,6 +278,18 @@ var defaultModelPrice = map[string]float64{
 	"mj_upload":               0.05,
 }
 
+var defaultAudioRatio = map[string]float64{
+	"gpt-4o-audio-preview":         16,
+	"gpt-4o-mini-audio-preview":    66.67,
+	"gpt-4o-realtime-preview":      8,
+	"gpt-4o-mini-realtime-preview": 16.67,
+}
+
+var defaultAudioCompletionRatio = map[string]float64{
+	"gpt-4o-realtime":      2,
+	"gpt-4o-mini-realtime": 2,
+}
+
 var (
 	modelPriceMap      map[string]float64 = nil
 	modelPriceMapMutex                    = sync.RWMutex{}
@@ -326,6 +338,15 @@ func InitRatioSettings() {
 	imageRatioMap = defaultImageRatio
 	imageRatioMapMutex.Unlock()
 
+	// initialize audioRatioMap
+	audioRatioMapMutex.Lock()
+	audioRatioMap = defaultAudioRatio
+	audioRatioMapMutex.Unlock()
+
+	// initialize audioCompletionRatioMap
+	audioCompletionRatioMapMutex.Lock()
+	audioCompletionRatioMap = defaultAudioCompletionRatio
+	audioCompletionRatioMapMutex.Unlock()
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -415,6 +436,18 @@ func DefaultModelRatio2JSONString() string {
 
 func GetDefaultModelRatioMap() map[string]float64 {
 	return defaultModelRatio
+}
+
+func GetDefaultImageRatioMap() map[string]float64 {
+	return defaultImageRatio
+}
+
+func GetDefaultAudioRatioMap() map[string]float64 {
+	return defaultAudioRatio
+}
+
+func GetDefaultAudioCompletionRatioMap() map[string]float64 {
+	return defaultAudioCompletionRatio
 }
 
 func GetCompletionRatioMap() map[string]float64 {
@@ -584,32 +617,22 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 }
 
 func GetAudioRatio(name string) float64 {
-	if strings.Contains(name, "-realtime") {
-		if strings.HasSuffix(name, "gpt-4o-realtime-preview") {
-			return 8
-		} else if strings.Contains(name, "gpt-4o-mini-realtime-preview") {
-			return 10 / 0.6
-		} else {
-			return 20
-		}
-	}
-	if strings.Contains(name, "-audio") {
-		if strings.HasPrefix(name, "gpt-4o-audio-preview") {
-			return 40 / 2.5
-		} else if strings.HasPrefix(name, "gpt-4o-mini-audio-preview") {
-			return 10 / 0.15
-		} else {
-			return 40
-		}
+	audioRatioMapMutex.RLock()
+	defer audioRatioMapMutex.RUnlock()
+	name = FormatMatchingModelName(name)
+	if ratio, ok := audioRatioMap[name]; ok {
+		return ratio
 	}
 	return 20
 }
 
 func GetAudioCompletionRatio(name string) float64 {
-	if strings.HasPrefix(name, "gpt-4o-realtime") {
-		return 2
-	} else if strings.HasPrefix(name, "gpt-4o-mini-realtime") {
-		return 2
+	audioCompletionRatioMapMutex.RLock()
+	defer audioCompletionRatioMapMutex.RUnlock()
+	name = FormatMatchingModelName(name)
+	if ratio, ok := audioCompletionRatioMap[name]; ok {
+
+		return ratio
 	}
 	return 2
 }
@@ -630,6 +653,14 @@ var defaultImageRatio = map[string]float64{
 }
 var imageRatioMap map[string]float64
 var imageRatioMapMutex sync.RWMutex
+var (
+	audioRatioMap      map[string]float64 = nil
+	audioRatioMapMutex                    = sync.RWMutex{}
+)
+var (
+	audioCompletionRatioMap      map[string]float64 = nil
+	audioCompletionRatioMapMutex                    = sync.RWMutex{}
+)
 
 func ImageRatio2JSONString() string {
 	imageRatioMapMutex.RLock()
@@ -656,6 +687,71 @@ func GetImageRatio(name string) (float64, bool) {
 		return 1, false // Default to 1 if not found
 	}
 	return ratio, true
+}
+
+func AudioRatio2JSONString() string {
+	audioRatioMapMutex.RLock()
+	defer audioRatioMapMutex.RUnlock()
+	jsonBytes, err := common.Marshal(audioRatioMap)
+	if err != nil {
+		common.SysError("error marshalling audio ratio: " + err.Error())
+	}
+	return string(jsonBytes)
+}
+
+func UpdateAudioRatioByJSONString(jsonStr string) error {
+
+	tmp := make(map[string]float64)
+	if err := common.Unmarshal([]byte(jsonStr), &tmp); err != nil {
+		return err
+	}
+	audioRatioMapMutex.Lock()
+	audioRatioMap = tmp
+	audioRatioMapMutex.Unlock()
+	InvalidateExposedDataCache()
+	return nil
+}
+
+func GetAudioRatioCopy() map[string]float64 {
+	audioRatioMapMutex.RLock()
+	defer audioRatioMapMutex.RUnlock()
+	copyMap := make(map[string]float64, len(audioRatioMap))
+	for k, v := range audioRatioMap {
+		copyMap[k] = v
+	}
+	return copyMap
+}
+
+func AudioCompletionRatio2JSONString() string {
+	audioCompletionRatioMapMutex.RLock()
+	defer audioCompletionRatioMapMutex.RUnlock()
+	jsonBytes, err := common.Marshal(audioCompletionRatioMap)
+	if err != nil {
+		common.SysError("error marshalling audio completion ratio: " + err.Error())
+	}
+	return string(jsonBytes)
+}
+
+func UpdateAudioCompletionRatioByJSONString(jsonStr string) error {
+	tmp := make(map[string]float64)
+	if err := common.Unmarshal([]byte(jsonStr), &tmp); err != nil {
+		return err
+	}
+	audioCompletionRatioMapMutex.Lock()
+	audioCompletionRatioMap = tmp
+	audioCompletionRatioMapMutex.Unlock()
+	InvalidateExposedDataCache()
+	return nil
+}
+
+func GetAudioCompletionRatioCopy() map[string]float64 {
+	audioCompletionRatioMapMutex.RLock()
+	defer audioCompletionRatioMapMutex.RUnlock()
+	copyMap := make(map[string]float64, len(audioCompletionRatioMap))
+	for k, v := range audioCompletionRatioMap {
+		copyMap[k] = v
+	}
+	return copyMap
 }
 
 func GetModelRatioCopy() map[string]float64 {
