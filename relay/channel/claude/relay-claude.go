@@ -274,19 +274,28 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 	claudeMessages := make([]dto.ClaudeMessage, 0)
 	isFirstMessage := true
+	// 初始化system消息数组，用于累积多个system消息
+	var systemMessages []dto.ClaudeMediaMessage
+	
 	for _, message := range formatMessages {
 		if message.Role == "system" {
+			// 根据Claude API规范，system字段使用数组格式更有通用性
 			if message.IsStringContent() {
-				claudeRequest.System = message.StringContent()
+				systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: common.GetPointer[string](message.StringContent()),
+				})
 			} else {
-				contents := message.ParseContent()
-				content := ""
-				for _, ctx := range contents {
+				// 支持复合内容的system消息（虽然不常见，但需要考虑完整性）
+				for _, ctx := range message.ParseContent() {
 					if ctx.Type == "text" {
-						content += ctx.Text
+						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+							Type: "text",
+							Text: common.GetPointer[string](ctx.Text),
+						})
 					}
+					// 未来可以在这里扩展对图片等其他类型的支持
 				}
-				claudeRequest.System = content
 			}
 		} else {
 			if isFirstMessage {
@@ -392,6 +401,12 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 			claudeMessages = append(claudeMessages, claudeMessage)
 		}
 	}
+	
+	// 设置累积的system消息
+	if len(systemMessages) > 0 {
+		claudeRequest.System = systemMessages
+	}
+	
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil
