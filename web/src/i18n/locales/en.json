@@ -1998,6 +1998,7 @@
   "浅色": "Light",
   "点击复制模型名称": "Click to copy model name",
   "已复制：{{name}}": "Copied: {{name}}",
+  "💡 提示：设置重定向后，系统自动将“模型配置”中对应的“值”替换为“键”": "💡 Tip: After setting the redirect, the system automatically replaces the corresponding \"value\" in \"Model Configuration\" with \"key\"",
   "所有密钥已复制到剪贴板": "All keys have been copied to the clipboard",
   "密钥已复制到剪贴板": "Key copied to clipboard",
   "验证成功": "Verification successful",
