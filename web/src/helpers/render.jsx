@@ -629,6 +629,14 @@ export function renderGroup(group) {
     premium: 'red',
   };
 
+  // 获取分组显示名称
+  const getGroupDisplayName = (groupName) => {
+    if (groupName === 'default') {
+      return i18next.t('默认');
+    }
+    return groupName;
+  };
+
   const groups = group.split(',').sort();
 
   return (
@@ -650,7 +658,7 @@ export function renderGroup(group) {
             }
           }}
         >
-          {group}
+          {getGroupDisplayName(group)}
         </Tag>
       ))}
     </span>

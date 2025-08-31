@@ -159,7 +159,7 @@ const UserInfoHeader = ({ t, userState }) => {
                   {t('用户分组')}
                 </Typography.Text>
                 <Typography.Text size='small' type='tertiary' strong>
-                  {userState?.user?.group || t('默认')}
+                  {userState?.user?.group === 'default' ? t('默认') : (userState?.user?.group || t('默认'))}
                 </Typography.Text>
               </div>
             </div>
@@ -207,7 +207,7 @@ const UserInfoHeader = ({ t, userState }) => {
                 </Typography.Text>
               </div>
               <Typography.Text size='small' type='tertiary' strong>
-                {userState?.user?.group || t('默认')}
+                {userState?.user?.group === 'default' ? t('默认') : (userState?.user?.group || t('默认'))}
               </Typography.Text>
             </div>
           </div>
