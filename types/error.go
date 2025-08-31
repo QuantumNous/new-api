@@ -38,6 +38,7 @@ const (
 
 	// new api error
 	ErrorCodeCountTokenFailed  ErrorCode = "count_token_failed"
+	ErrorCodePromptTokensTooLarge ErrorCode = "prompt_tokens_too_large"
 	ErrorCodeModelPriceError   ErrorCode = "model_price_error"
 	ErrorCodeInvalidApiType    ErrorCode = "invalid_api_type"
 	ErrorCodeJsonMarshalFailed ErrorCode = "json_marshal_failed"
