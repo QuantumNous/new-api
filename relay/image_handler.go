@@ -191,8 +191,8 @@ func ImageHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 	}
-	if relayInfo.RelayMode == relayconstant.RelayModeImagesEdits {
-		requestBody = convertedRequest.(io.Reader)
+	if ior, ok := convertedRequest.(io.Reader); ok && relayInfo.RelayMode == relayconstant.RelayModeImagesEdits {
+		requestBody = ior
 	} else {
 		jsonData, err := json.Marshal(convertedRequest)
 		if err != nil {
