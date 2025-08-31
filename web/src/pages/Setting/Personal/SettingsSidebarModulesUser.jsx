@@ -141,8 +141,8 @@ export default function SettingsSidebarModulesUser() {
         ...sidebarModulesUser,
         [sectionKey]: {
           ...sidebarModulesUser[sectionKey],
-          [moduleKey]: checked,
-        },
+          [moduleKey]: checked
+        }
       };
       setSidebarModulesUser(newModules);
       console.log(

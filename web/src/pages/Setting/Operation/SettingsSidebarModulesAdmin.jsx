@@ -63,9 +63,12 @@ export default function SettingsSidebarModulesAdmin(props) {
       channel: true,
       models: true,
       redemption: true,
-      user: true,
-      setting: true,
-    },
+      user: {
+        enabled: true,
+        groupManagement: false // 默认关闭分组管理
+      },
+      setting: true
+    }
   });
 
   // 处理区域级别开关变更
@@ -89,11 +92,26 @@ export default function SettingsSidebarModulesAdmin(props) {
         ...sidebarModulesAdmin,
         [sectionKey]: {
           ...sidebarModulesAdmin[sectionKey],
-          [moduleKey]: checked,
-        },
+          [moduleKey]: checked
+        }
       };
       setSidebarModulesAdmin(newModules);
     };
+  }
+
+  // 处理用户管理分组管理子开关变更
+  function handleUserGroupManagementChange(checked) {
+    const newModules = {
+      ...sidebarModulesAdmin,
+      admin: {
+        ...sidebarModulesAdmin.admin,
+        user: {
+          ...sidebarModulesAdmin.admin.user,
+          groupManagement: checked
+        }
+      }
+    };
+    setSidebarModulesAdmin(newModules);
   }
 
   // 重置为默认配置
@@ -122,9 +140,12 @@ export default function SettingsSidebarModulesAdmin(props) {
         channel: true,
         models: true,
         redemption: true,
-        user: true,
-        setting: true,
-      },
+        user: {
+          enabled: true,
+          groupManagement: false // 默认关闭分组管理
+        },
+        setting: true
+      }
     };
     setSidebarModulesAdmin(defaultModules);
     showSuccess(t('已重置为默认配置'));
@@ -189,9 +210,12 @@ export default function SettingsSidebarModulesAdmin(props) {
             channel: true,
             models: true,
             redemption: true,
-            user: true,
-            setting: true,
-          },
+            user: {
+              enabled: true,
+              groupManagement: false // 默认关闭分组管理
+            },
+            setting: true
+          }
         };
         setSidebarModulesAdmin(defaultModules);
       }
@@ -366,14 +390,86 @@ export default function SettingsSidebarModulesAdmin(props) {
                       <div style={{ marginLeft: '16px' }}>
                         <Switch
                           checked={
-                            sidebarModulesAdmin[section.key]?.[module.key]
+                            module.key === 'user'
+                              ? sidebarModulesAdmin[section.key]?.user?.enabled
+                              : sidebarModulesAdmin[section.key]?.[module.key]
                           }
-                          onChange={handleModuleChange(section.key, module.key)}
-                          size='default'
+                          onChange={
+                            module.key === 'user'
+                              ? (checked) => {
+                                  const newModules = {
+                                    ...sidebarModulesAdmin,
+                                    [section.key]: {
+                                      ...sidebarModulesAdmin[section.key],
+                                      user: {
+                                        ...sidebarModulesAdmin[section.key].user,
+                                        enabled: checked
+                                      }
+                                    }
+                                  };
+                                  setSidebarModulesAdmin(newModules);
+                                }
+                              : handleModuleChange(section.key, module.key)
+                          }
+                          size="default"
                           disabled={!sidebarModulesAdmin[section.key]?.enabled}
                         />
                       </div>
                     </div>
+
+                    {/* 为用户管理添加分组管理子开关 */}
+                    {module.key === 'user' && (
+                      module.key === 'user'
+                        ? sidebarModulesAdmin[section.key]?.user?.enabled
+                        : sidebarModulesAdmin[section.key]?.[module.key]
+                    ) && (
+                      <div style={{
+                        borderTop: '1px solid var(--semi-color-border)',
+                        marginTop: '12px',
+                        paddingTop: '12px'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <div style={{ flex: 1, textAlign: 'left' }}>
+                            <div style={{
+                              fontWeight: '500',
+                              fontSize: '12px',
+                              color: 'var(--semi-color-text-1)',
+                              marginBottom: '2px'
+                            }}>
+                              {t('分组管理')}
+                            </div>
+                            <Text
+                              type="secondary"
+                              size="small"
+                              style={{
+                                fontSize: '11px',
+                                color: 'var(--semi-color-text-2)',
+                                lineHeight: '1.4',
+                                display: 'block'
+                              }}
+                            >
+                              {t('控制管理员是否可以访问分组管理功能')}
+                            </Text>
+                          </div>
+                          <div style={{ marginLeft: '16px' }}>
+                            <Switch
+                              checked={sidebarModulesAdmin[section.key]?.user?.groupManagement || false}
+                              onChange={handleUserGroupManagementChange}
+                              size="small"
+                              disabled={!sidebarModulesAdmin[section.key]?.enabled || !(
+                                module.key === 'user'
+                                  ? sidebarModulesAdmin[section.key]?.user?.enabled
+                                  : sidebarModulesAdmin[section.key]?.[module.key]
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 </Col>
               ))}

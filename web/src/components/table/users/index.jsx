@@ -88,7 +88,11 @@ const UsersPage = () => {
         }
         actionsArea={
           <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <UsersActions setShowAddUser={setShowAddUser} t={t} />
+            <UsersActions
+              setShowAddUser={setShowAddUser}
+              onRefreshUsers={refresh}
+              t={t}
+            />
 
             <UsersFilters
               formInitValues={formInitValues}
