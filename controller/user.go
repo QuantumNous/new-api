@@ -10,6 +10,7 @@ import (
 	"one-api/logger"
 	"one-api/model"
 	"one-api/setting"
+	"one-api/setting/operation_setting"
 	"strconv"
 	"strings"
 	"sync"
@@ -375,6 +376,16 @@ type TransferAffQuotaRequest struct {
 }
 
 func TransferAffQuota(c *gin.Context) {
+	// 检查邀请功能是否启用
+	generalSetting := operation_setting.GetGeneralSetting()
+	if !generalSetting.InvitationEnabled {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "邀请功能已被管理员禁用",
+		})
+		return
+	}
+
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
@@ -401,6 +412,16 @@ func TransferAffQuota(c *gin.Context) {
 }
 
 func GetAffCode(c *gin.Context) {
+	// 检查邀请功能是否启用
+	generalSetting := operation_setting.GetGeneralSetting()
+	if !generalSetting.InvitationEnabled {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "邀请功能已被管理员禁用",
+		})
+		return
+	}
+
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
@@ -444,26 +465,26 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                user.Id,
-		"username":          user.Username,
-		"display_name":      user.DisplayName,
-		"role":              user.Role,
-		"status":            user.Status,
-		"email":             user.Email,
-		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
-		"request_count":     user.RequestCount,
-		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
+		"id":               user.Id,
+		"username":         user.Username,
+		"display_name":     user.DisplayName,
+		"role":             user.Role,
+		"status":           user.Status,
+		"email":            user.Email,
+		"group":            user.Group,
+		"quota":            user.Quota,
+		"used_quota":       user.UsedQuota,
+		"request_count":    user.RequestCount,
+		"aff_code":         user.AffCode,
+		"aff_count":        user.AffCount,
+		"aff_quota":        user.AffQuota,
 		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":        user.InviterId,
-		"linux_do_id":       user.LinuxDOId,
-		"setting":           user.Setting,
-		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"inviter_id":       user.InviterId,
+		"linux_do_id":      user.LinuxDOId,
+		"setting":          user.Setting,
+		"stripe_customer":  user.StripeCustomer,
+		"sidebar_modules":  userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":      permissions,                 // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -563,6 +584,8 @@ func generateDefaultSidebarConfig(userRole int) string {
 
 	return string(configBytes)
 }
+
+
 
 func GetUserModels(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
@@ -949,6 +972,15 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		user.Role = common.RoleAdminUser
+
+		// 同步更新用户的sidebar_modules配置
+		currentSetting := user.GetSetting()
+		newSidebarConfig := model.GenerateDefaultSidebarConfigForRole(user.Role)
+		if newSidebarConfig != "" {
+			currentSetting.SidebarModules = newSidebarConfig
+			user.SetSetting(currentSetting)
+			common.SysLog(fmt.Sprintf("用户 %s 提升为管理员，已同步更新边栏配置", user.Username))
+		}
 	case "demote":
 		if user.Role == common.RoleRootUser {
 			c.JSON(http.StatusOK, gin.H{
@@ -965,6 +997,15 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		user.Role = common.RoleCommonUser
+
+		// 同步更新用户的sidebar_modules配置
+		currentSetting := user.GetSetting()
+		newSidebarConfig := model.GenerateDefaultSidebarConfigForRole(user.Role)
+		if newSidebarConfig != "" {
+			currentSetting.SidebarModules = newSidebarConfig
+			user.SetSetting(currentSetting)
+			common.SysLog(fmt.Sprintf("用户 %s 降级为普通用户，已同步更新边栏配置", user.Username))
+		}
 	}
 
 	if err := user.Update(false); err != nil {
