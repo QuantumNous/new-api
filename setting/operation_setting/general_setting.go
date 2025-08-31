@@ -6,6 +6,7 @@ type GeneralSetting struct {
 	DocsLink            string `json:"docs_link"`
 	PingIntervalEnabled bool   `json:"ping_interval_enabled"`
 	PingIntervalSeconds int    `json:"ping_interval_seconds"`
+	InvitationEnabled   bool   `json:"invitation_enabled"`
 }
 
 // 默认配置
@@ -13,6 +14,7 @@ var generalSetting = GeneralSetting{
 	DocsLink:            "https://docs.newapi.pro",
 	PingIntervalEnabled: false,
 	PingIntervalSeconds: 60,
+	InvitationEnabled:   true,
 }
 
 func init() {
