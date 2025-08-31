@@ -842,6 +842,10 @@ func CreateUser(c *gin.Context) {
 	if user.DisplayName == "" {
 		user.DisplayName = user.Username
 	}
+	// 如果没有指定分组，设置为默认分组
+	if user.Group == "" {
+		user.Group = "default"
+	}
 	myRole := c.GetInt("role")
 	if user.Role >= myRole {
 		c.JSON(http.StatusOK, gin.H{
@@ -856,6 +860,7 @@ func CreateUser(c *gin.Context) {
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
+		Group:       user.Group, // 保持管理员设置的分组
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)

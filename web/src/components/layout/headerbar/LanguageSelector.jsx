@@ -32,8 +32,8 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
             onClick={() => onLanguageChange('zh')}
             className={`!flex !items-center !gap-2 !px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
           >
-            <CN title='中文' className='!w-5 !h-auto' />
-            <span>中文</span>
+            <CN title='简体中文' className='!w-5 !h-auto' />
+            <span>简体中文</span>
           </Dropdown.Item>
           <Dropdown.Item
             onClick={() => onLanguageChange('en')}

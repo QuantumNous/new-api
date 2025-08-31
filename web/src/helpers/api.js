@@ -25,6 +25,7 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import i18next from 'i18next';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -185,15 +186,34 @@ export const processModelsData = (data, currentModel) => {
   return { modelOptions, selectedModel };
 };
 
+// 获取分组描述的翻译
+const getGroupDescription = (groupName, originalDescription) => {
+  // 对于系统默认分组，使用翻译
+  if (groupName === 'default' && originalDescription === '默认分组') {
+    return i18next.t('默认分组');
+  }
+  if (groupName === 'vip' && originalDescription === 'VIP分组') {
+    return i18next.t('VIP分组');
+  }
+  if (groupName === 'svip' && originalDescription === 'SVIP分组') {
+    return i18next.t('SVIP分组');
+  }
+  // 对于用户自定义分组，使用原始描述
+  return originalDescription;
+};
+
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
-  let groupOptions = Object.entries(data).map(([group, info]) => ({
-    label:
-      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
-    value: group,
-    ratio: info.ratio,
-    fullLabel: info.desc,
-  }));
+  let groupOptions = Object.entries(data).map(([group, info]) => {
+    const translatedDesc = getGroupDescription(group, info.desc);
+    return {
+      label:
+        translatedDesc.length > 20 ? translatedDesc.substring(0, 20) + '...' : translatedDesc,
+      value: group,
+      ratio: info.ratio,
+      fullLabel: translatedDesc,
+    };
+  });
 
   if (groupOptions.length === 0) {
     groupOptions = [
