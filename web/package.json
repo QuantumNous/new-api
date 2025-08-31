@@ -18,6 +18,7 @@
     "i18next": "^23.16.8",
     "i18next-browser-languagedetector": "^7.2.0",
     "katex": "^0.16.22",
+    "lodash": "^4.17.21",
     "lucide-react": "^0.511.0",
     "marked": "^4.1.1",
     "mermaid": "^11.6.0",

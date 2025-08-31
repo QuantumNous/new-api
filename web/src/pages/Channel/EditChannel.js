@@ -1,43 +1,46 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import {
+  IconBolt,
+  IconClose,
+  IconCode,
+  IconGlobe,
+  IconSave,
+  IconServer,
+  IconSetting,
+} from '@douyinfe/semi-icons';
+import {
+  Avatar,
+  Banner,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Form,
+  Highlight,
+  ImagePreview,
+  Modal,
+  Row,
+  SideSheet,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+} from '@douyinfe/semi-ui';
+import _ from 'lodash';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { CHANNEL_OPTIONS } from '../../constants';
 import {
   API,
+  copy, getChannelIcon,
+  getChannelModels,
+  getModelCategories,
   showError,
   showInfo,
   showSuccess,
   verifyJSON,
 } from '../../helpers';
 import { useIsMobile } from '../../hooks/useIsMobile.js';
-import { CHANNEL_OPTIONS } from '../../constants';
-import {
-  SideSheet,
-  Space,
-  Spin,
-  Button,
-  Typography,
-  Checkbox,
-  Banner,
-  Modal,
-  ImagePreview,
-  Card,
-  Tag,
-  Avatar,
-  Form,
-  Row,
-  Col,
-  Highlight,
-} from '@douyinfe/semi-ui';
-import { getChannelModels, copy, getChannelIcon, getModelCategories } from '../../helpers';
-import {
-  IconSave,
-  IconClose,
-  IconServer,
-  IconSetting,
-  IconCode,
-  IconGlobe,
-  IconBolt,
-} from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
 
@@ -544,12 +547,27 @@ const EditChannel = (props) => {
       showInfo(t('请填写渠道名称和渠道密钥！'));
       return;
     }
+    let model_mapping = {};
+    if (localInputs.model_mapping && localInputs.model_mapping !== '') {
+      try {
+        model_mapping = _(JSON.parse(localInputs.model_mapping))
+          .toPairs()
+          .orderBy([0], ['asc'])
+          .fromPairs()
+          .value();
+      } catch (error) {
+        showInfo(t('模型映射必须是合法的 JSON 格式！'));
+        return;
+      }
+    }
+    localInputs.model_mapping = _.isEmpty(model_mapping) ? '' : JSON.stringify(model_mapping);
+    localInputs.models = _(localInputs.models)
+      .concat(_.keys(model_mapping))
+      .sort()
+      .sortedUniq()
+      .value();
     if (!Array.isArray(localInputs.models) || localInputs.models.length === 0) {
       showInfo(t('请至少选择一个模型！'));
-      return;
-    }
-    if (localInputs.model_mapping && localInputs.model_mapping !== '' && !verifyJSON(localInputs.model_mapping)) {
-      showInfo(t('模型映射必须是合法的 JSON 格式！'));
       return;
     }
     if (localInputs.base_url && localInputs.base_url.endsWith('/')) {
@@ -1232,7 +1250,6 @@ const EditChannel = (props) => {
                     field='models'
                     label={t('模型')}
                     placeholder={t('请选择该渠道所支持的模型')}
-                    rules={[{ required: true, message: t('请选择模型') }]}
                     multiple
                     filter
                     searchPosition='dropdown'
