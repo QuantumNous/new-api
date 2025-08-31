@@ -7,6 +7,7 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	"one-api/logger"
+	"one-api/setting/operation_setting"
 	"strconv"
 	"strings"
 
@@ -92,7 +93,7 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 }
 
 // 根据用户角色生成默认的边栏配置
-func generateDefaultSidebarConfigForRole(userRole int) string {
+func GenerateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig := map[string]interface{}{}
 
 	// 聊天区域 - 所有用户都可以访问
@@ -400,7 +401,7 @@ func (user *User) Insert(inviterId int) error {
 	var createdUser User
 	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
 		// 生成基于角色的默认边栏配置
-		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
+		defaultSidebarConfig := GenerateDefaultSidebarConfigForRole(createdUser.Role)
 		if defaultSidebarConfig != "" {
 			currentSetting := createdUser.GetSetting()
 			currentSetting.SidebarModules = defaultSidebarConfig
@@ -414,14 +415,18 @@ func (user *User) Insert(inviterId int) error {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
 	if inviterId != 0 {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+		// 检查邀请功能是否启用
+		generalSetting := operation_setting.GetGeneralSetting()
+		if generalSetting.InvitationEnabled {
+			if common.QuotaForInvitee > 0 {
+				_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			}
+			if common.QuotaForInviter > 0 {
+				//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
+				RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+				_ = inviteUser(inviterId)
+			}
 		}
 	}
 	return nil

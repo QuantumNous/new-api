@@ -294,16 +294,17 @@ export function setPromptShown(id) {
 export function compareObjects(oldObject, newObject) {
   const changedProperties = [];
 
-  // 比较两个对象的属性
-  for (const key in oldObject) {
-    if (oldObject.hasOwnProperty(key) && newObject.hasOwnProperty(key)) {
-      if (oldObject[key] !== newObject[key]) {
-        changedProperties.push({
-          key: key,
-          oldValue: oldObject[key],
-          newValue: newObject[key],
-        });
-      }
+  // 获取两个对象的所有键
+  const allKeys = new Set([...Object.keys(oldObject), ...Object.keys(newObject)]);
+
+  // 比较所有键的值
+  for (const key of allKeys) {
+    if (oldObject[key] !== newObject[key]) {
+      changedProperties.push({
+        key: key,
+        oldValue: oldObject[key],
+        newValue: newObject[key],
+      });
     }
   }
 

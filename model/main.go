@@ -114,6 +114,8 @@ func CheckSetup() {
 	}
 }
 
+
+
 func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	defer func() {
 		initCol()

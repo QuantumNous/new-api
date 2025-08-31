@@ -43,6 +43,7 @@ export default function GeneralSettings(props) {
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
     SelfUseModeEnabled: false,
+    'general_setting.invitation_enabled': true,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -89,12 +90,27 @@ export default function GeneralSettings(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
+    // 从初始 inputs 开始，确保保留所有默认值
+    const currentInputs = { ...inputs };
+
+    // 用 props.options 中的值覆盖对应的键
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        let value = props.options[key];
+        // 对于布尔类型的字段，需要进行字符串到布尔值的转换
+        if (typeof inputs[key] === 'boolean') {
+          if (typeof value === 'string') {
+            value = value === 'true';
+          } else if (typeof value === 'boolean') {
+            value = value;
+          } else {
+            value = inputs[key]; // 保持默认值
+          }
+        }
+        currentInputs[key] = value;
       }
     }
+
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
@@ -216,6 +232,17 @@ export default function GeneralSettings(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={handleFieldChange('SelfUseModeEnabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'general_setting.invitation_enabled'}
+                  label={t('邀请功能')}
+                  extraText={t('关闭后：不在启用邀请奖励功能')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('general_setting.invitation_enabled')}
                 />
               </Col>
             </Row>
