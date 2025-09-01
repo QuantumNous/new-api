@@ -1,6 +1,7 @@
 package ali
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func oaiImage2Ali(request dto.ImageRequest) (*AliImageRequest, error) {
+func selectImageProcessMode(info *relaycommon.RelayInfo) *ImageProcessMode {
+	switch info.UpstreamModelName {
+	case "qwen-image", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo", "wanx-v1":
+		return text2ImageMode()
+	case "qwen-image-edit":
+		return multimoalGenerationMode()
+	case "wanx2.1-imageedit", "wanx-sketch-to-image-lite":
+		return image2ImageMode()
+	default:
+		return nil
+	}
+}
+
+func oaiImage2Ali(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if mode := a.imageProcessMode; mode != nil && mode.ProcessRequest != nil {
+		return mode.ProcessRequest(c, info, request)
+	}
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
 	imageRequest.ResponseFormat = request.ResponseFormat
@@ -157,7 +174,11 @@ func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, info *relayc
 	return &imageResponse
 }
 
-func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+	if mode := a.imageProcessMode; mode != nil && mode.ProcessResponse != nil {
+		return mode.ProcessResponse(c, resp, info)
+	}
+
 	responseFormat := c.GetString("response_format")
 
 	var aliTaskResponse AliResponse
@@ -191,7 +212,7 @@ func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rela
 	}
 
 	fullTextResponse := responseAli2OpenAIImage(c, aliResponse, info, responseFormat)
-	jsonResponse, err := common.Marshal(fullTextResponse)
+	jsonResponse, err := marshalWithoutHTMLEscape(fullTextResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
@@ -199,4 +220,22 @@ func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rela
 	c.Writer.WriteHeader(resp.StatusCode)
 	c.Writer.Write(jsonResponse)
 	return nil, &dto.Usage{}
+}
+
+// 9-1.png?Expires=1007170000&OSSAccessKeyId=
+// 9-1.png?Expires=1007170000\\u0026OSSAccessKeyId=
+func marshalWithoutHTMLEscape(v interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false) // 关闭HTML转义
+	err := encoder.Encode(v)
+	if err != nil {
+		return nil, err
+	}
+	// 移除末尾的换行符
+	result := buffer.Bytes()
+	if len(result) > 0 && result[len(result)-1] == '\n' {
+		result = result[:len(result)-1]
+	}
+	return result, nil
 }

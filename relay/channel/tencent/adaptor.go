@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"one-api/common"
 	"one-api/constant"
@@ -46,9 +47,20 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return nil, errors.New("not implemented")
 }
 
+func isDeepseekModel(modelName string) bool {
+	return strings.Contains(modelName, "deepseek")
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.Action = "ChatCompletions"
-	a.Version = "2023-09-01"
+	if isDeepseekModel(info.UpstreamModelName) {
+		a.Version = "2024-05-22"
+		if info.BaseUrl == constant.ChannelBaseURLs[info.ChannelType] {
+			info.BaseUrl = "https://lkeap.tencentcloudapi.com"
+		}
+	} else {
+		a.Version = "2023-09-01"
+	}
 	a.Timestamp = common.GetTimestamp()
 }
 
@@ -62,6 +74,19 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	req.Set("X-TC-Action", a.Action)
 	req.Set("X-TC-Version", a.Version)
 	req.Set("X-TC-Timestamp", strconv.FormatInt(a.Timestamp, 10))
+	regions := info.ChannelSetting.Regions
+	if len(regions) == 0 && isDeepseekModel(info.UpstreamModelName) {
+		regions = []string{"ap-guangzhou", "ap-shanghai"}
+	} else if len(regions) == 0 {
+		regions = []string{"ap-guangzhou"}
+	}
+	if len(regions) == 1 {
+		req.Set("X-TC-Region", regions[0])
+	} else if len(regions) > 1 {
+		selectReg := rand.Intn(len(regions))
+		req.Set("X-TC-Region", regions[selectReg])
+	}
+
 	return nil
 }
 
@@ -78,7 +103,10 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	tencentRequest := requestOpenAI2Tencent(a, *request)
 	// we have to calculate the sign here
-	a.Sign = getTencentSign(*tencentRequest, a, secretId, secretKey)
+	a.Sign, err = getTencentSign(*tencentRequest, a, info, secretId, secretKey)
+	if err != nil {
+		return nil, err
+	}
 	return tencentRequest, nil
 }
 

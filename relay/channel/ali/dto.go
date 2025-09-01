@@ -1,9 +1,25 @@
 package ali
 
-import "one-api/dto"
+import (
+	"one-api/dto"
+)
+
+type AliSimpleTextMessage string
+type AliImageMessageItem struct {
+	Image string `json:"image"`
+}
+type AliTextMessageItem struct {
+	Text string `json:"text"`
+}
+type AliMultiImageMockVideoMessageItem struct {
+	Video []string `json:"video"`
+}
+type AliVideoMessageItem struct {
+	Video string `json:"video"`
+}
 
 type AliMessage struct {
-	Content string `json:"content"`
+	Content any    `json:"content"`
 	Role    string `json:"role"`
 }
 
@@ -128,4 +144,46 @@ type AliRerankResponse struct {
 	Usage     AliUsage `json:"usage"`
 	RequestId string   `json:"request_id"`
 	AliError
+}
+
+type AliMultimodelGenerationRequest AliChatRequest
+
+type AliMultimodelGenerationResponse struct {
+	StatusCode int    `json:"status_code"`
+	Code       string `json:"code,omitemtpy"`
+	Message    string `json:"message,omitemtpy"`
+	Output     struct {
+		Choices []struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
+				Role    string `json:"role"`
+				Content []struct {
+					Image string `json:"image"`
+				}
+			} `json:"message"`
+		}
+	} `json:"output"`
+	Usage struct {
+		Width        int `json:"width"`
+		ImageCount   int `json:"image_count"`
+		Height       int `json:"height"`
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+	RequestId string `json:"request_id"`
+}
+
+type AliImage2ImageImageSynthesisRequest struct {
+	Model string `json:"model"`
+	Input struct {
+		Prompt         string `json:"prompt,omitempty"`
+		Function       string `json:"function,omitempty"`
+		BaseImageUrl   string `json:"base_image_url,omitempty"`
+		MaskImageUrl   string `json:"mask_image_url,omitempty"`
+		SketchImageUrl string `json:"sketch_image_url,omitempty"`
+	} `json:"input"`
+	Parameters struct {
+		N    int    `json:"n,omitempty"`
+		Size string `json:"size,omitempty"`
+	} `json:"parameters,omitempty"`
 }
