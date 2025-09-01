@@ -38,35 +38,35 @@ const HeaderLogo = ({
   }
 
   return (
-    <Link to="/" className="group flex items-center gap-2">
-      <div className="relative w-8 h-8 md:w-8 md:h-8">
-        <SkeletonWrapper
-          loading={isLoading || !logoLoaded}
-          type="image"
-        />
+    <Link to='/' className='group flex items-center gap-2'>
+      <div className='relative w-8 h-8 md:w-8 md:h-8'>
+        <SkeletonWrapper loading={isLoading || !logoLoaded} type='image' />
         <img
           src={logo}
-          alt="logo"
-          className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${(!isLoading && logoLoaded) ? 'opacity-100' : 'opacity-0'}`}
+          alt='logo'
+          className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
       </div>
-      <div className="hidden md:flex items-center gap-2">
-        <div className="flex items-center gap-2">
+      <div className='hidden md:flex items-center gap-2'>
+        <div className='flex items-center gap-2'>
           <SkeletonWrapper
             loading={isLoading}
-            type="title"
+            type='title'
             width={120}
             height={24}
           >
-            <Typography.Title heading={4} className="!text-lg !font-semibold !mb-0">
+            <Typography.Title
+              heading={4}
+              className='!text-lg !font-semibold !mb-0'
+            >
               {systemName}
             </Typography.Title>
           </SkeletonWrapper>
           {(isSelfUseMode || isDemoSiteMode) && !isLoading && (
             <Tag
               color={isSelfUseMode ? 'purple' : 'blue'}
-              className="text-xs px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm"
-              size="small"
+              className='text-xs px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm'
+              size='small'
               shape='circle'
             >
               {isSelfUseMode ? t('自用模式') : t('演示站点')}

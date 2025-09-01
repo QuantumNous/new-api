@@ -28,7 +28,7 @@ const UserInfoModal = ({
   t,
 }) => {
   const infoItemStyle = {
-    marginBottom: '16px'
+    marginBottom: '16px',
   };
 
   const labelStyle = {
@@ -37,7 +37,7 @@ const UserInfoModal = ({
     marginBottom: '2px',
     fontSize: '12px',
     color: 'var(--semi-color-text-2)',
-    gap: '6px'
+    gap: '6px',
   };
 
   const renderLabel = (text, type = 'tertiary') => (
@@ -50,19 +50,19 @@ const UserInfoModal = ({
   const valueStyle = {
     fontSize: '14px',
     fontWeight: '600',
-    color: 'var(--semi-color-text-0)'
+    color: 'var(--semi-color-text-0)',
   };
 
   const rowStyle = {
     display: 'flex',
     justifyContent: 'space-between',
     marginBottom: '16px',
-    gap: '20px'
+    gap: '20px',
   };
 
   const colStyle = {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
   };
 
   return (
@@ -100,7 +100,9 @@ const UserInfoModal = ({
             </div>
             <div style={colStyle}>
               {renderLabel(t('已用额度'), 'warning')}
-              <div style={valueStyle}>{renderQuota(userInfoData.used_quota)}</div>
+              <div style={valueStyle}>
+                {renderQuota(userInfoData.used_quota)}
+              </div>
             </div>
           </div>
 
@@ -108,7 +110,9 @@ const UserInfoModal = ({
           <div style={rowStyle}>
             <div style={colStyle}>
               {renderLabel(t('请求次数'), 'warning')}
-              <div style={valueStyle}>{renderNumber(userInfoData.request_count)}</div>
+              <div style={valueStyle}>
+                {renderNumber(userInfoData.request_count)}
+              </div>
             </div>
             {userInfoData.group && (
               <div style={colStyle}>
@@ -130,25 +134,38 @@ const UserInfoModal = ({
               {userInfoData.aff_count !== undefined && (
                 <div style={colStyle}>
                   {renderLabel(t('邀请人数'), 'tertiary')}
-                  <div style={valueStyle}>{renderNumber(userInfoData.aff_count)}</div>
+                  <div style={valueStyle}>
+                    {renderNumber(userInfoData.aff_count)}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
           {/* 邀请获得额度 */}
-          {userInfoData.aff_quota !== undefined && userInfoData.aff_quota > 0 && (
-            <div style={infoItemStyle}>
-              {renderLabel(t('邀请获得额度'), 'success')}
-              <div style={valueStyle}>{renderQuota(userInfoData.aff_quota)}</div>
-            </div>
-          )}
+          {userInfoData.aff_quota !== undefined &&
+            userInfoData.aff_quota > 0 && (
+              <div style={infoItemStyle}>
+                {renderLabel(t('邀请获得额度'), 'success')}
+                <div style={valueStyle}>
+                  {renderQuota(userInfoData.aff_quota)}
+                </div>
+              </div>
+            )}
 
           {/* 备注 */}
           {userInfoData.remark && (
             <div style={{ marginBottom: 0 }}>
               {renderLabel(t('备注'), 'tertiary')}
-              <div style={{ ...valueStyle, wordBreak: 'break-all', lineHeight: '1.4' }}>{userInfoData.remark}</div>
+              <div
+                style={{
+                  ...valueStyle,
+                  wordBreak: 'break-all',
+                  lineHeight: '1.4',
+                }}
+              >
+                {userInfoData.remark}
+              </div>
             </div>
           )}
         </div>
@@ -157,4 +174,4 @@ const UserInfoModal = ({
   );
 };
 
-export default UserInfoModal; 
+export default UserInfoModal;

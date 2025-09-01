@@ -68,9 +68,7 @@ func requestOpenAI2Ollama(c *gin.Context, request *dto.GeneralOpenAIRequest) (*O
 		StreamOptions:    request.StreamOptions,
 		Suffix:           request.Suffix,
 	}
-	if think, ok := request.Extra["think"]; ok {
-		ollamaRequest.Think = think
-	}
+	ollamaRequest.Think = request.Think
 	return ollamaRequest, nil
 }
 

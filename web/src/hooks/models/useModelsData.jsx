@@ -98,7 +98,7 @@ export const useModelsData = () => {
 
   const vendorMap = useMemo(() => {
     const map = {};
-    vendors.forEach(v => {
+    vendors.forEach((v) => {
       map[v.id] = v;
     });
     return map;
@@ -118,7 +118,11 @@ export const useModelsData = () => {
   };
 
   // Load models data
-  const loadModels = async (page = 1, size = pageSize, vendorKey = activeVendorKey) => {
+  const loadModels = async (
+    page = 1,
+    size = pageSize,
+    vendorKey = activeVendorKey,
+  ) => {
     setLoading(true);
     try {
       let url = `/api/models/?p=${page}&page_size=${size}`;
@@ -136,7 +140,10 @@ export const useModelsData = () => {
         setModelFormat(newPageData);
 
         if (data.vendor_counts) {
-          const sumAll = Object.values(data.vendor_counts).reduce((acc, v) => acc + v, 0);
+          const sumAll = Object.values(data.vendor_counts).reduce(
+            (acc, v) => acc + v,
+            0,
+          );
           setVendorCounts({ ...data.vendor_counts, all: sumAll });
         }
       } else {
@@ -178,7 +185,10 @@ export const useModelsData = () => {
         setModelCount(data.total || newPageData.length);
         setModelFormat(newPageData);
         if (data.vendor_counts) {
-          const sumAll = Object.values(data.vendor_counts).reduce((acc, v) => acc + v, 0);
+          const sumAll = Object.values(data.vendor_counts).reduce(
+            (acc, v) => acc + v,
+            0,
+          );
           setVendorCounts({ ...data.vendor_counts, all: sumAll });
         }
       } else {
@@ -217,17 +227,18 @@ export const useModelsData = () => {
         await refresh();
       } else {
         // Update local state for enable/disable
-        setModels(prevModels =>
-          prevModels.map(model =>
-            model.id === id ? { ...model, status: action === 'enable' ? 1 : 0 } : model
-          )
+        setModels((prevModels) =>
+          prevModels.map((model) =>
+            model.id === id
+              ? { ...model, status: action === 'enable' ? 1 : 0 }
+              : model,
+          ),
         );
       }
     } else {
       showError(message);
     }
   };
-
 
   // Handle page change
   const handlePageChange = (page) => {
@@ -249,11 +260,14 @@ export const useModelsData = () => {
 
   // Handle row click and styling
   const handleRow = (record, index) => {
-    const rowStyle = record.status !== 1 ? {
-      style: {
-        background: 'var(--semi-color-disabled-border)',
-      },
-    } : {};
+    const rowStyle =
+      record.status !== 1
+        ? {
+            style: {
+              background: 'var(--semi-color-disabled-border)',
+            },
+          }
+        : {};
 
     return {
       ...rowStyle,
@@ -262,8 +276,10 @@ export const useModelsData = () => {
         if (event.target.closest('button, .semi-button')) {
           return;
         }
-        const newSelectedKeys = selectedKeys.some(item => item.id === record.id)
-          ? selectedKeys.filter(item => item.id !== record.id)
+        const newSelectedKeys = selectedKeys.some(
+          (item) => item.id === record.id,
+        )
+          ? selectedKeys.filter((item) => item.id !== record.id)
           : [...selectedKeys, record];
         setSelectedKeys(newSelectedKeys);
       },
@@ -278,8 +294,8 @@ export const useModelsData = () => {
     }
 
     try {
-      const deletePromises = selectedKeys.map(model =>
-        API.delete(`/api/models/${model.id}`)
+      const deletePromises = selectedKeys.map((model) =>
+        API.delete(`/api/models/${model.id}`),
       );
 
       const results = await Promise.all(deletePromises);
@@ -289,7 +305,9 @@ export const useModelsData = () => {
         if (res.data.success) {
           successCount++;
         } else {
-          showError(`删除模型 ${selectedKeys[index].model_name} 失败: ${res.data.message}`);
+          showError(
+            `删除模型 ${selectedKeys[index].model_name} 失败: ${res.data.message}`,
+          );
         }
       });
 

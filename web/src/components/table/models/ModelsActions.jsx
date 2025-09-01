@@ -61,7 +61,7 @@ const ModelsActions = ({
 
   // Handle add selected models to prefill group
   const handleCopyNames = async () => {
-    const text = selectedKeys.map(m => m.model_name).join(',');
+    const text = selectedKeys.map((m) => m.model_name).join(',');
     if (!text) return;
     const ok = await copy(text);
     if (ok) {
@@ -80,34 +80,34 @@ const ModelsActions = ({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1">
+      <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
-          type="primary"
-          className="flex-1 md:flex-initial"
+          type='primary'
+          className='flex-1 md:flex-initial'
           onClick={() => {
             setEditingModel({
               id: undefined,
             });
             setShowEdit(true);
           }}
-          size="small"
+          size='small'
         >
           {t('添加模型')}
         </Button>
 
         <Button
-          type="secondary"
-          className="flex-1 md:flex-initial"
-          size="small"
+          type='secondary'
+          className='flex-1 md:flex-initial'
+          size='small'
           onClick={() => setShowMissingModal(true)}
         >
           {t('未配置模型')}
         </Button>
 
         <Button
-          type="secondary"
-          className="flex-1 md:flex-initial"
-          size="small"
+          type='secondary'
+          className='flex-1 md:flex-initial'
+          size='small'
           onClick={() => setShowGroupManagement(true)}
         >
           {t('预填组管理')}
@@ -134,10 +134,12 @@ const ModelsActions = ({
         visible={showDeleteModal}
         onCancel={() => setShowDeleteModal(false)}
         onOk={handleConfirmDelete}
-        type="warning"
+        type='warning'
       >
         <div>
-          {t('确定要删除所选的 {{count}} 个模型吗？', { count: selectedKeys.length })}
+          {t('确定要删除所选的 {{count}} 个模型吗？', {
+            count: selectedKeys.length,
+          })}
         </div>
       </Modal>
 

@@ -28,7 +28,7 @@ const UsageModeStep = ({
   formData,
   handleUsageModeChange,
   renderNavigationButtons,
-  t
+  t,
 }) => {
   return (
     <>
@@ -37,9 +37,9 @@ const UsageModeStep = ({
         onChange={handleUsageModeChange}
         type='card'
         direction='horizontal'
-        className="mt-4"
-        aria-label="使用模式选择"
-        name="usage-mode-selection"
+        className='mt-4'
+        aria-label='使用模式选择'
+        name='usage-mode-selection'
       >
         <Radio
           value='external'

@@ -26,4 +26,4 @@ export const toBoolean = (value) => {
     return v === 'true' || v === '1';
   }
   return false;
-}; 
+};

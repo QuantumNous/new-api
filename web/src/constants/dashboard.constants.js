@@ -23,16 +23,16 @@ export const CHART_CONFIG = { mode: 'desktop-browser' };
 export const CARD_PROPS = {
   shadows: '',
   bordered: true,
-  headerLine: true
+  headerLine: true,
 };
 
 export const FORM_FIELD_PROPS = {
-  className: "w-full mb-2 !rounded-lg",
-  size: 'large'
+  className: 'w-full mb-2 !rounded-lg',
+  size: 'large',
 };
 
-export const ICON_BUTTON_CLASS = "text-white hover:bg-opacity-80 !rounded-full";
-export const FLEX_CENTER_GAP2 = "flex items-center gap-2";
+export const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
+export const FLEX_CENTER_GAP2 = 'flex items-center gap-2';
 
 export const ILLUSTRATION_SIZE = { width: 96, height: 96 };
 
@@ -46,14 +46,14 @@ export const TIME_OPTIONS = [
 export const DEFAULT_TIME_INTERVALS = {
   hour: { seconds: 3600, minutes: 60 },
   day: { seconds: 86400, minutes: 1440 },
-  week: { seconds: 604800, minutes: 10080 }
+  week: { seconds: 604800, minutes: 10080 },
 };
 
 // ========== 默认时间设置 ==========
 export const DEFAULT_TIME_RANGE = {
   HOUR: 'hour',
   DAY: 'day',
-  WEEK: 'week'
+  WEEK: 'week',
 };
 
 // ========== 图表默认配置 ==========
@@ -114,7 +114,7 @@ export const DEFAULT_CHART_SPECS = {
       visible: true,
       selectMode: 'single',
     },
-  }
+  },
 };
 
 // ========== 公告图例数据 ==========
@@ -123,21 +123,21 @@ export const ANNOUNCEMENT_LEGEND_DATA = [
   { color: 'blue', label: '进行中', type: 'ongoing' },
   { color: 'green', label: '成功', type: 'success' },
   { color: 'orange', label: '警告', type: 'warning' },
-  { color: 'red', label: '异常', type: 'error' }
+  { color: 'red', label: '异常', type: 'error' },
 ];
 
 // ========== Uptime 状态映射 ==========
 export const UPTIME_STATUS_MAP = {
-  1: { color: '#10b981', label: '正常', text: '可用率' },   // UP
-  0: { color: '#ef4444', label: '异常', text: '有异常' },   // DOWN
+  1: { color: '#10b981', label: '正常', text: '可用率' }, // UP
+  0: { color: '#ef4444', label: '异常', text: '有异常' }, // DOWN
   2: { color: '#f59e0b', label: '高延迟', text: '高延迟' }, // PENDING
-  3: { color: '#3b82f6', label: '维护中', text: '维护中' }   // MAINTENANCE
+  3: { color: '#3b82f6', label: '维护中', text: '维护中' }, // MAINTENANCE
 };
 
 // ========== 本地存储键名 ==========
 export const STORAGE_KEYS = {
   DATA_EXPORT_DEFAULT_TIME: 'data_export_default_time',
-  MJ_NOTIFY_ENABLED: 'mj_notify_enabled'
+  MJ_NOTIFY_ENABLED: 'mj_notify_enabled',
 };
 
 // ========== 默认值 ==========
@@ -145,5 +145,5 @@ export const DEFAULTS = {
   PAGE_SIZE: 20,
   CHART_HEIGHT: 96,
   MODEL_TABLE_PAGE_SIZE: 10,
-  MAX_TREND_POINTS: 7
-}; 
+  MAX_TREND_POINTS: 7,
+};

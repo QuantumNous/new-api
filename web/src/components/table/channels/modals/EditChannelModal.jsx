@@ -45,10 +45,19 @@ import {
   Row,
   Col,
   Highlight,
+  Input,
 } from '@douyinfe/semi-ui';
-import { getChannelModels, copy, getChannelIcon, getModelCategories, selectFilter } from '../../../../helpers';
+import {
+  getChannelModels,
+  copy,
+  getChannelIcon,
+  getModelCategories,
+  selectFilter,
+} from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
+import TwoFactorAuthModal from '../../../common/modals/TwoFactorAuthModal';
+import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
 import {
   IconSave,
   IconClose,
@@ -70,9 +79,9 @@ const STATUS_CODE_MAPPING_EXAMPLE = {
 };
 
 const REGION_EXAMPLE = {
-  "default": 'global',
-  "gemini-1.5-pro-002": "europe-west2",
-  "gemini-1.5-flash-002": "europe-west2",
+  default: 'global',
+  'gemini-1.5-pro-002': 'europe-west2',
+  'gemini-1.5-flash-002': 'europe-west2',
   'claude-3-5-sonnet-20240620': 'europe-west1',
 };
 
@@ -158,6 +167,44 @@ const EditChannelModal = (props) => {
   const [channelSearchValue, setChannelSearchValue] = useState('');
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
+
+  // 2FA验证查看密钥相关状态
+  const [twoFAState, setTwoFAState] = useState({
+    showModal: false,
+    code: '',
+    loading: false,
+    showKey: false,
+    keyData: '',
+  });
+
+  // 专门的2FA验证状态（用于TwoFactorAuthModal）
+  const [show2FAVerifyModal, setShow2FAVerifyModal] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // 2FA状态更新辅助函数
+  const updateTwoFAState = (updates) => {
+    setTwoFAState((prev) => ({ ...prev, ...updates }));
+  };
+
+  // 重置2FA状态
+  const resetTwoFAState = () => {
+    setTwoFAState({
+      showModal: false,
+      code: '',
+      loading: false,
+      showKey: false,
+      keyData: '',
+    });
+  };
+
+  // 重置2FA验证状态
+  const reset2FAVerifyState = () => {
+    setShow2FAVerifyModal(false);
+    setVerifyCode('');
+    setVerifyLoading(false);
+  };
+
   // 渠道额外设置状态
   const [channelSettings, setChannelSettings] = useState({
     force_format: false,
@@ -166,13 +213,13 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     system_prompt: '',
   });
-  const showApiConfigCard = inputs.type !== 45;  // 控制是否显示 API 配置卡片（仅当渠道类型不是 豆包 时显示）
+  const showApiConfigCard = inputs.type !== 45; // 控制是否显示 API 配置卡片（仅当渠道类型不是 豆包 时显示）
   const getInitValues = () => ({ ...originInputs });
 
   // 处理渠道额外设置的更新
   const handleChannelSettingsChange = (key, value) => {
     // 更新内部状态
-    setChannelSettings(prev => ({ ...prev, [key]: value }));
+    setChannelSettings((prev) => ({ ...prev, [key]: value }));
 
     // 同步更新到表单字段
     if (formApiRef.current) {
@@ -180,7 +227,7 @@ const EditChannelModal = (props) => {
     }
 
     // 同步更新inputs状态
-    setInputs(prev => ({ ...prev, [key]: value }));
+    setInputs((prev) => ({ ...prev, [key]: value }));
 
     // 生成setting JSON并更新
     const newSettings = { ...channelSettings, [key]: value };
@@ -190,7 +237,7 @@ const EditChannelModal = (props) => {
 
   const handleChannelOtherSettingsChange = (key, value) => {
     // 更新内部状态
-    setChannelSettings(prev => ({ ...prev, [key]: value }));
+    setChannelSettings((prev) => ({ ...prev, [key]: value }));
 
     // 同步更新到表单字段
     if (formApiRef.current) {
@@ -198,7 +245,7 @@ const EditChannelModal = (props) => {
     }
 
     // 同步更新inputs状态
-    setInputs(prev => ({ ...prev, [key]: value }));
+    setInputs((prev) => ({ ...prev, [key]: value }));
 
     // 需要更新settings，是一个json，例如{"azure_responses_version": "preview"}
     let settings = {};
@@ -212,7 +259,7 @@ const EditChannelModal = (props) => {
     settings[key] = value;
     const settingsJson = JSON.stringify(settings);
     handleInputChange('settings', settingsJson);
-  }
+  };
 
   const handleInputChange = (name, value) => {
     if (formApiRef.current) {
@@ -331,11 +378,14 @@ const EditChannelModal = (props) => {
         try {
           const parsedSettings = JSON.parse(data.setting);
           data.force_format = parsedSettings.force_format || false;
-          data.thinking_to_content = parsedSettings.thinking_to_content || false;
+          data.thinking_to_content =
+            parsedSettings.thinking_to_content || false;
           data.proxy = parsedSettings.proxy || '';
-          data.pass_through_body_enabled = parsedSettings.pass_through_body_enabled || false;
+          data.pass_through_body_enabled =
+            parsedSettings.pass_through_body_enabled || false;
           data.system_prompt = parsedSettings.system_prompt || '';
-          data.system_prompt_override = parsedSettings.system_prompt_override || false;
+          data.system_prompt_override =
+            parsedSettings.system_prompt_override || false;
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -357,7 +407,8 @@ const EditChannelModal = (props) => {
       if (data.settings) {
         try {
           const parsedSettings = JSON.parse(data.settings);
-          data.azure_responses_version = parsedSettings.azure_responses_version || '';
+          data.azure_responses_version =
+            parsedSettings.azure_responses_version || '';
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -402,7 +453,9 @@ const EditChannelModal = (props) => {
 
     if (isEdit) {
       // 如果是编辑模式，使用已有的 channelId 获取模型列表
-      const res = await API.get('/api/channel/fetch_models/' + channelId, { skipErrorHandler: true });
+      const res = await API.get('/api/channel/fetch_models/' + channelId, {
+        skipErrorHandler: true,
+      });
       if (res && res.data && res.data.success) {
         models.push(...res.data.data);
       } else {
@@ -500,6 +553,42 @@ const EditChannelModal = (props) => {
     }
   };
 
+  // 使用TwoFactorAuthModal的验证函数
+  const handleVerify2FA = async () => {
+    if (!verifyCode) {
+      showError(t('请输入验证码或备用码'));
+      return;
+    }
+
+    setVerifyLoading(true);
+    try {
+      const res = await API.post(`/api/channel/${channelId}/key`, {
+        code: verifyCode,
+      });
+      if (res.data.success) {
+        // 验证成功，显示密钥
+        updateTwoFAState({
+          showModal: true,
+          showKey: true,
+          keyData: res.data.data.key,
+        });
+        reset2FAVerifyState();
+        showSuccess(t('验证成功'));
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(t('获取密钥失败'));
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // 显示2FA验证模态框 - 使用TwoFactorAuthModal
+  const handleShow2FAModal = () => {
+    setShow2FAVerifyModal(true);
+  };
+
   useEffect(() => {
     const modelMap = new Map();
 
@@ -534,7 +623,7 @@ const EditChannelModal = (props) => {
       return {
         ...opt,
         label: (
-          <span className="flex items-center gap-1">
+          <span className='flex items-center gap-1'>
             {icon}
             {modelName}
           </span>
@@ -576,26 +665,36 @@ const EditChannelModal = (props) => {
       // 重置手动输入模式状态
       setUseManualInput(false);
     } else {
-      formApiRef.current?.reset();
-      // 重置渠道设置状态
-      setChannelSettings({
-        force_format: false,
-        thinking_to_content: false,
-        proxy: '',
-        pass_through_body_enabled: false,
-        system_prompt: '',
-        system_prompt_override: false,
-      });
-      // 重置密钥模式状态
-      setKeyMode('append');
-      // 清空表单中的key_mode字段
-      if (formApiRef.current) {
-        formApiRef.current.setValue('key_mode', undefined);
-      }
-      // 重置本地输入，避免下次打开残留上一次的 JSON 字段值
-      setInputs(getInitValues());
+      // 统一的模态框关闭重置逻辑
+      resetModalState();
     }
   }, [props.visible, channelId]);
+
+  // 统一的模态框重置函数
+  const resetModalState = () => {
+    formApiRef.current?.reset();
+    // 重置渠道设置状态
+    setChannelSettings({
+      force_format: false,
+      thinking_to_content: false,
+      proxy: '',
+      pass_through_body_enabled: false,
+      system_prompt: '',
+      system_prompt_override: false,
+    });
+    // 重置密钥模式状态
+    setKeyMode('append');
+    // 清空表单中的key_mode字段
+    if (formApiRef.current) {
+      formApiRef.current.setValue('key_mode', undefined);
+    }
+    // 重置本地输入，避免下次打开残留上一次的 JSON 字段值
+    setInputs(getInitValues());
+    // 重置2FA状态
+    resetTwoFAState();
+    // 重置2FA验证状态
+    reset2FAVerifyState();
+  };
 
   const handleVertexUploadChange = ({ fileList }) => {
     vertexErroredNames.current.clear();
@@ -632,7 +731,11 @@ const EditChannelModal = (props) => {
       setInputs((prev) => ({ ...prev, vertex_files: validFiles }));
 
       if (errorNames.length > 0) {
-        showError(t('以下文件解析失败，已忽略：{{list}}', { list: errorNames.join(', ') }));
+        showError(
+          t('以下文件解析失败，已忽略：{{list}}', {
+            list: errorNames.join(', '),
+          }),
+        );
       }
     })();
   };
@@ -671,7 +774,7 @@ const EditChannelModal = (props) => {
                 if (!fileObj) return null;
                 const txt = await fileObj.text();
                 return JSON.parse(txt);
-              })
+              }),
             );
             keys = parsed.filter(Boolean);
           } catch (err) {
@@ -714,7 +817,11 @@ const EditChannelModal = (props) => {
       showInfo(t('请至少选择一个模型！'));
       return;
     }
-    if (localInputs.model_mapping && localInputs.model_mapping !== '' && !verifyJSON(localInputs.model_mapping)) {
+    if (
+      localInputs.model_mapping &&
+      localInputs.model_mapping !== '' &&
+      !verifyJSON(localInputs.model_mapping)
+    ) {
       showInfo(t('模型映射必须是合法的 JSON 格式！'));
       return;
     }
@@ -814,7 +921,7 @@ const EditChannelModal = (props) => {
         t('已新增 {{count}} 个模型：{{list}}', {
           count: addedModels.length,
           list: addedModels.join(', '),
-        })
+        }),
       );
     } else {
       showInfo(t('未发现新增模型'));
@@ -834,7 +941,9 @@ const EditChannelModal = (props) => {
             if (!checked && vertexFileList.length > 1) {
               Modal.confirm({
                 title: t('切换为单密钥模式'),
-                content: t('将仅保留第一个密钥文件，其余文件将被移除，是否继续？'),
+                content: t(
+                  '将仅保留第一个密钥文件，其余文件将被移除，是否继续？',
+                ),
                 onOk: () => {
                   const firstFile = vertexFileList[0];
                   const firstKey = vertexKeys[0] ? [vertexKeys[0]] : [];
@@ -878,18 +987,24 @@ const EditChannelModal = (props) => {
         </Checkbox>
       )}
       {batch && (
-        <Checkbox disabled={isEdit} checked={multiToSingle} onChange={() => {
-          setMultiToSingle(prev => !prev);
-          setInputs(prev => {
-            const newInputs = { ...prev };
-            if (!multiToSingle) {
-              newInputs.multi_key_mode = multiKeyMode;
-            } else {
-              delete newInputs.multi_key_mode;
-            }
-            return newInputs;
-          });
-        }}>{t('密钥聚合模式')}</Checkbox>
+        <Checkbox
+          disabled={isEdit}
+          checked={multiToSingle}
+          onChange={() => {
+            setMultiToSingle((prev) => !prev);
+            setInputs((prev) => {
+              const newInputs = { ...prev };
+              if (!multiToSingle) {
+                newInputs.multi_key_mode = multiKeyMode;
+              } else {
+                delete newInputs.multi_key_mode;
+              }
+              return newInputs;
+            });
+          }}
+        >
+          {t('密钥聚合模式')}
+        </Checkbox>
       )}
     </Space>
   ) : null;
@@ -924,34 +1039,42 @@ const EditChannelModal = (props) => {
     const optionClassName = [
       'flex items-center gap-3 px-3 py-2 transition-all duration-200 rounded-lg mx-2 my-1',
       focused && 'bg-blue-50 shadow-sm',
-      selected && 'bg-blue-100 text-blue-700 shadow-lg ring-2 ring-blue-200 ring-opacity-50',
+      selected &&
+        'bg-blue-100 text-blue-700 shadow-lg ring-2 ring-blue-200 ring-opacity-50',
       disabled && 'opacity-50 cursor-not-allowed',
       !disabled && 'hover:bg-gray-50 hover:shadow-md cursor-pointer',
-      className
-    ].filter(Boolean).join(' ');
+      className,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     return (
       <div
         style={style}
         className={optionClassName}
         onClick={() => !disabled && onClick()}
-        onMouseEnter={e => onMouseEnter()}
+        onMouseEnter={(e) => onMouseEnter()}
       >
-        <div className="flex items-center gap-3 w-full">
-          <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+        <div className='flex items-center gap-3 w-full'>
+          <div className='flex-shrink-0 w-5 h-5 flex items-center justify-center'>
             {getChannelIcon(value)}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className='flex-1 min-w-0'>
             <Highlight
               sourceString={label}
               searchWords={searchWords}
-              className="text-sm font-medium truncate"
+              className='text-sm font-medium truncate'
             />
           </div>
           {selected && (
-            <div className="flex-shrink-0 text-blue-600">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
+            <div className='flex-shrink-0 text-blue-600'>
+              <svg
+                width='16'
+                height='16'
+                viewBox='0 0 16 16'
+                fill='currentColor'
+              >
+                <path d='M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z' />
               </svg>
             </div>
           )}
@@ -966,8 +1089,10 @@ const EditChannelModal = (props) => {
         placement={isEdit ? 'right' : 'left'}
         title={
           <Space>
-            <Tag color="blue" shape="circle">{isEdit ? t('编辑') : t('新建')}</Tag>
-            <Title heading={4} className="m-0">
+            <Tag color='blue' shape='circle'>
+              {isEdit ? t('编辑') : t('新建')}
+            </Tag>
+            <Title heading={4} className='m-0'>
               {isEdit ? t('更新渠道信息') : t('创建新的渠道')}
             </Title>
           </Space>
@@ -976,18 +1101,18 @@ const EditChannelModal = (props) => {
         visible={props.visible}
         width={isMobile ? '100%' : 600}
         footer={
-          <div className="flex justify-end bg-white">
+          <div className='flex justify-end bg-white'>
             <Space>
               <Button
-                theme="solid"
+                theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
               >
                 {t('提交')}
               </Button>
               <Button
-                theme="light"
-                type="primary"
+                theme='light'
+                type='primary'
                 onClick={handleCancel}
                 icon={<IconClose />}
               >
@@ -1007,16 +1132,24 @@ const EditChannelModal = (props) => {
         >
           {() => (
             <Spin spinning={loading}>
-              <div className="p-2">
-                <Card className="!rounded-2xl shadow-sm border-0 mb-6">
+              <div className='p-2'>
+                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                   {/* Header: Basic Info */}
-                  <div className="flex items-center mb-2">
-                    <Avatar size="small" color="blue" className="mr-2 shadow-md">
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='blue'
+                      className='mr-2 shadow-md'
+                    >
                       <IconServer size={16} />
                     </Avatar>
                     <div>
-                      <Text className="text-lg font-medium">{t('基本信息')}</Text>
-                      <div className="text-xs text-gray-600">{t('渠道的基本配置信息')}</div>
+                      <Text className='text-lg font-medium'>
+                        {t('基本信息')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('渠道的基本配置信息')}
+                      </div>
                     </div>
                   </div>
 
@@ -1061,7 +1194,11 @@ const EditChannelModal = (props) => {
                         beforeUpload={() => false}
                         onChange={handleVertexUploadChange}
                         fileList={vertexFileList}
-                        rules={isEdit ? [] : [{ required: true, message: t('请上传密钥文件') }]}
+                        rules={
+                          isEdit
+                            ? []
+                            : [{ required: true, message: t('请上传密钥文件') }]
+                        }
                         extraText={batchExtra}
                       />
                     ) : (
@@ -1069,16 +1206,34 @@ const EditChannelModal = (props) => {
                         field='key'
                         label={t('密钥')}
                         placeholder={t('请输入密钥，一行一个')}
-                        rules={isEdit ? [] : [{ required: true, message: t('请输入密钥') }]}
+                        rules={
+                          isEdit
+                            ? []
+                            : [{ required: true, message: t('请输入密钥') }]
+                        }
                         autosize
                         autoComplete='new-password'
                         onChange={(value) => handleInputChange('key', value)}
                         extraText={
-                          <div className="flex items-center gap-2">
-                            {isEdit && isMultiKeyChannel && keyMode === 'append' && (
-                              <Text type="warning" size="small">
-                                {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
-                              </Text>
+                          <div className='flex items-center gap-2'>
+                            {isEdit &&
+                              isMultiKeyChannel &&
+                              keyMode === 'append' && (
+                                <Text type='warning' size='small'>
+                                  {t(
+                                    '追加模式：新密钥将添加到现有密钥列表的末尾',
+                                  )}
+                                </Text>
+                              )}
+                            {isEdit && (
+                              <Button
+                                size='small'
+                                type='primary'
+                                theme='outline'
+                                onClick={handleShow2FAModal}
+                              >
+                                {t('查看密钥')}
+                              </Button>
                             )}
                             {batchExtra}
                           </div>
@@ -1091,12 +1246,16 @@ const EditChannelModal = (props) => {
                       {inputs.type === 41 ? (
                         <>
                           {!batch && (
-                            <div className="flex items-center justify-between mb-3">
-                              <Text className="text-sm font-medium">{t('密钥输入方式')}</Text>
+                            <div className='flex items-center justify-between mb-3'>
+                              <Text className='text-sm font-medium'>
+                                {t('密钥输入方式')}
+                              </Text>
                               <Space>
                                 <Button
-                                  size="small"
-                                  type={!useManualInput ? 'primary' : 'tertiary'}
+                                  size='small'
+                                  type={
+                                    !useManualInput ? 'primary' : 'tertiary'
+                                  }
                                   onClick={() => {
                                     setUseManualInput(false);
                                     // 切换到文件上传模式时清空手动输入的密钥
@@ -1109,7 +1268,7 @@ const EditChannelModal = (props) => {
                                   {t('文件上传')}
                                 </Button>
                                 <Button
-                                  size="small"
+                                  size='small'
                                   type={useManualInput ? 'primary' : 'tertiary'}
                                   onClick={() => {
                                     setUseManualInput(true);
@@ -1117,9 +1276,15 @@ const EditChannelModal = (props) => {
                                     setVertexKeys([]);
                                     setVertexFileList([]);
                                     if (formApiRef.current) {
-                                      formApiRef.current.setValue('vertex_files', []);
+                                      formApiRef.current.setValue(
+                                        'vertex_files',
+                                        [],
+                                      );
                                     }
-                                    setInputs((prev) => ({ ...prev, vertex_files: [] }));
+                                    setInputs((prev) => ({
+                                      ...prev,
+                                      vertex_files: [],
+                                    }));
                                   }}
                                 >
                                   {t('手动输入')}
@@ -1131,7 +1296,9 @@ const EditChannelModal = (props) => {
                           {batch && (
                             <Banner
                               type='info'
-                              description={t('批量创建模式下仅支持文件上传，不支持手动输入')}
+                              description={t(
+                                '批量创建模式下仅支持文件上传，不支持手动输入',
+                              )}
                               className='!rounded-lg mb-3'
                             />
                           )}
@@ -1139,20 +1306,51 @@ const EditChannelModal = (props) => {
                           {useManualInput && !batch ? (
                             <Form.TextArea
                               field='key'
-                              label={isEdit ? t('密钥（编辑模式下，保存的密钥不会显示）') : t('密钥')}
-                              placeholder={t('请输入 JSON 格式的密钥内容，例如：\n{\n  "type": "service_account",\n  "project_id": "your-project-id",\n  "private_key_id": "...",\n  "private_key": "...",\n  "client_email": "...",\n  "client_id": "...",\n  "auth_uri": "...",\n  "token_uri": "...",\n  "auth_provider_x509_cert_url": "...",\n  "client_x509_cert_url": "..."\n}')}
-                              rules={isEdit ? [] : [{ required: true, message: t('请输入密钥') }]}
+                              label={
+                                isEdit
+                                  ? t('密钥（编辑模式下，保存的密钥不会显示）')
+                                  : t('密钥')
+                              }
+                              placeholder={t(
+                                '请输入 JSON 格式的密钥内容，例如：\n{\n  "type": "service_account",\n  "project_id": "your-project-id",\n  "private_key_id": "...",\n  "private_key": "...",\n  "client_email": "...",\n  "client_id": "...",\n  "auth_uri": "...",\n  "token_uri": "...",\n  "auth_provider_x509_cert_url": "...",\n  "client_x509_cert_url": "..."\n}',
+                              )}
+                              rules={
+                                isEdit
+                                  ? []
+                                  : [
+                                      {
+                                        required: true,
+                                        message: t('请输入密钥'),
+                                      },
+                                    ]
+                              }
                               autoComplete='new-password'
-                              onChange={(value) => handleInputChange('key', value)}
+                              onChange={(value) =>
+                                handleInputChange('key', value)
+                              }
                               extraText={
-                                <div className="flex items-center gap-2">
-                                  <Text type="tertiary" size="small">
+                                <div className='flex items-center gap-2'>
+                                  <Text type='tertiary' size='small'>
                                     {t('请输入完整的 JSON 格式密钥内容')}
                                   </Text>
-                                  {isEdit && isMultiKeyChannel && keyMode === 'append' && (
-                                    <Text type="warning" size="small">
-                                      {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
-                                    </Text>
+                                  {isEdit &&
+                                    isMultiKeyChannel &&
+                                    keyMode === 'append' && (
+                                      <Text type='warning' size='small'>
+                                        {t(
+                                          '追加模式：新密钥将添加到现有密钥列表的末尾',
+                                        )}
+                                      </Text>
+                                    )}
+                                  {isEdit && (
+                                    <Button
+                                      size='small'
+                                      type='primary'
+                                      theme='outline'
+                                      onClick={handleShow2FAModal}
+                                    >
+                                      {t('查看密钥')}
+                                    </Button>
                                   )}
                                   {batchExtra}
                                 </div>
@@ -1174,7 +1372,16 @@ const EditChannelModal = (props) => {
                               beforeUpload={() => false}
                               onChange={handleVertexUploadChange}
                               fileList={vertexFileList}
-                              rules={isEdit ? [] : [{ required: true, message: t('请上传密钥文件') }]}
+                              rules={
+                                isEdit
+                                  ? []
+                                  : [
+                                      {
+                                        required: true,
+                                        message: t('请上传密钥文件'),
+                                      },
+                                    ]
+                              }
                               extraText={batchExtra}
                             />
                           )}
@@ -1182,17 +1389,39 @@ const EditChannelModal = (props) => {
                       ) : (
                         <Form.Input
                           field='key'
-                          label={isEdit ? t('密钥（编辑模式下，保存的密钥不会显示）') : t('密钥')}
+                          label={
+                            isEdit
+                              ? t('密钥（编辑模式下，保存的密钥不会显示）')
+                              : t('密钥')
+                          }
                           placeholder={t(type2secretPrompt(inputs.type))}
-                          rules={isEdit ? [] : [{ required: true, message: t('请输入密钥') }]}
+                          rules={
+                            isEdit
+                              ? []
+                              : [{ required: true, message: t('请输入密钥') }]
+                          }
                           autoComplete='new-password'
                           onChange={(value) => handleInputChange('key', value)}
                           extraText={
-                            <div className="flex items-center gap-2">
-                              {isEdit && isMultiKeyChannel && keyMode === 'append' && (
-                                <Text type="warning" size="small">
-                                  {t('追加模式：新密钥将添加到现有密钥列表的末尾')}
-                                </Text>
+                            <div className='flex items-center gap-2'>
+                              {isEdit &&
+                                isMultiKeyChannel &&
+                                keyMode === 'append' && (
+                                  <Text type='warning' size='small'>
+                                    {t(
+                                      '追加模式：新密钥将添加到现有密钥列表的末尾',
+                                    )}
+                                  </Text>
+                                )}
+                              {isEdit && (
+                                <Button
+                                  size='small'
+                                  type='primary'
+                                  theme='outline'
+                                  onClick={handleShow2FAModal}
+                                >
+                                  {t('查看密钥')}
+                                </Button>
                               )}
                               {batchExtra}
                             </div>
@@ -1216,11 +1445,10 @@ const EditChannelModal = (props) => {
                       value={keyMode}
                       onChange={(value) => setKeyMode(value)}
                       extraText={
-                        <Text type="tertiary" size="small">
+                        <Text type='tertiary' size='small'>
                           {keyMode === 'replace'
                             ? t('覆盖模式：将完全替换现有的所有密钥')
-                            : t('追加模式：将新密钥添加到现有密钥列表末尾')
-                          }
+                            : t('追加模式：将新密钥添加到现有密钥列表末尾')}
                         </Text>
                       }
                     />
@@ -1245,7 +1473,9 @@ const EditChannelModal = (props) => {
                       {inputs.multi_key_mode === 'polling' && (
                         <Banner
                           type='warning'
-                          description={t('轮询模式必须搭配Redis和内存缓存功能使用，否则性能将大幅降低，并且无法实现轮询功能')}
+                          description={t(
+                            '轮询模式必须搭配Redis和内存缓存功能使用，否则性能将大幅降低，并且无法实现轮询功能',
+                          )}
                           className='!rounded-lg mt-2'
                         />
                       )}
@@ -1256,7 +1486,9 @@ const EditChannelModal = (props) => {
                     <Form.Input
                       field='other'
                       label={t('模型版本')}
-                      placeholder={'请输入星火大模型版本，注意是接口地址中的版本号，例如：v2.1'}
+                      placeholder={
+                        '请输入星火大模型版本，注意是接口地址中的版本号，例如：v2.1'
+                      }
                       onChange={(value) => handleInputChange('other', value)}
                       showClear
                     />
@@ -1268,14 +1500,14 @@ const EditChannelModal = (props) => {
                       field='other'
                       label={t('部署地区')}
                       placeholder={t(
-                        '请输入部署地区，例如：us-central1\n支持使用模型映射格式\n{\n    "default": "us-central1",\n    "claude-3-5-sonnet-20240620": "europe-west1"\n}'
+                        '请输入部署地区，例如：us-central1\n支持使用模型映射格式\n{\n    "default": "us-central1",\n    "claude-3-5-sonnet-20240620": "europe-west1"\n}',
                       )}
                       value={inputs.other || ''}
                       onChange={(value) => handleInputChange('other', value)}
                       rules={[{ required: true, message: t('请填写部署地区') }]}
                       template={REGION_EXAMPLE}
                       templateLabel={t('填入模板')}
-                      editorType="region"
+                      editorType='region'
                       formApi={formApiRef.current}
                       extraText={t('设置默认地区和特定模型的专用地区')}
                     />
@@ -1295,7 +1527,9 @@ const EditChannelModal = (props) => {
                     <Form.Input
                       field='other'
                       label='Account ID'
-                      placeholder={'请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh'}
+                      placeholder={
+                        '请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh'
+                      }
                       onChange={(value) => handleInputChange('other', value)}
                       showClear
                     />
@@ -1318,22 +1552,32 @@ const EditChannelModal = (props) => {
                       placeholder={t('请输入组织org-xxx')}
                       showClear
                       helpText={t('组织，不填则为默认组织')}
-                      onChange={(value) => handleInputChange('openai_organization', value)}
+                      onChange={(value) =>
+                        handleInputChange('openai_organization', value)
+                      }
                     />
                   )}
                 </Card>
 
                 {/* API Configuration Card */}
                 {showApiConfigCard && (
-                  <Card className="!rounded-2xl shadow-sm border-0 mb-6">
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: API Config */}
-                    <div className="flex items-center mb-2">
-                      <Avatar size="small" color="green" className="mr-2 shadow-md">
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='green'
+                        className='mr-2 shadow-md'
+                      >
                         <IconGlobe size={16} />
                       </Avatar>
                       <div>
-                        <Text className="text-lg font-medium">{t('API 配置')}</Text>
-                        <div className="text-xs text-gray-600">{t('API 地址和相关配置')}</div>
+                        <Text className='text-lg font-medium'>
+                          {t('API 配置')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('API 地址和相关配置')}
+                        </div>
                       </div>
                     </div>
 
@@ -1346,8 +1590,12 @@ const EditChannelModal = (props) => {
                             <Text
                               link
                               underline
-                              className="ml-2 cursor-pointer"
-                              onClick={() => window.open('https://cloud.siliconflow.cn/i/hij0YNTZ')}
+                              className='ml-2 cursor-pointer'
+                              onClick={() =>
+                                window.open(
+                                  'https://cloud.siliconflow.cn/i/hij0YNTZ',
+                                )
+                              }
                             >
                               https://cloud.siliconflow.cn/i/hij0YNTZ
                             </Text>
@@ -1361,15 +1609,21 @@ const EditChannelModal = (props) => {
                       <>
                         <Banner
                           type='warning'
-                          description={t('2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."')}
+                          description={t(
+                            '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
+                          )}
                           className='!rounded-lg'
                         />
                         <div>
                           <Form.Input
                             field='base_url'
                             label='AZURE_OPENAI_ENDPOINT'
-                            placeholder={t('请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com')}
-                            onChange={(value) => handleInputChange('base_url', value)}
+                            placeholder={t(
+                              '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
+                            )}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
                             showClear
                           />
                         </div>
@@ -1377,17 +1631,28 @@ const EditChannelModal = (props) => {
                           <Form.Input
                             field='other'
                             label={t('默认 API 版本')}
-                            placeholder={t('请输入默认 API 版本，例如：2025-04-01-preview')}
-                            onChange={(value) => handleInputChange('other', value)}
+                            placeholder={t(
+                              '请输入默认 API 版本，例如：2025-04-01-preview',
+                            )}
+                            onChange={(value) =>
+                              handleInputChange('other', value)
+                            }
                             showClear
                           />
                         </div>
                         <div>
                           <Form.Input
                             field='azure_responses_version'
-                            label={t('默认 Responses API 版本，为空则使用上方版本')}
+                            label={t(
+                              '默认 Responses API 版本，为空则使用上方版本',
+                            )}
                             placeholder={t('例如：preview')}
-                            onChange={(value) => handleChannelOtherSettingsChange('azure_responses_version', value)}
+                            onChange={(value) =>
+                              handleChannelOtherSettingsChange(
+                                'azure_responses_version',
+                                value,
+                              )
+                            }
                             showClear
                           />
                         </div>
@@ -1398,15 +1663,21 @@ const EditChannelModal = (props) => {
                       <>
                         <Banner
                           type='warning'
-                          description={t('如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。')}
+                          description={t(
+                            '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
+                          )}
                           className='!rounded-lg'
                         />
                         <div>
                           <Form.Input
                             field='base_url'
                             label={t('完整的 Base URL，支持变量{model}')}
-                            placeholder={t('请输入完整的URL，例如：https://api.openai.com/v1/chat/completions')}
-                            onChange={(value) => handleInputChange('base_url', value)}
+                            placeholder={t(
+                              '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
+                            )}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
                             showClear
                           />
                         </div>
@@ -1416,31 +1687,47 @@ const EditChannelModal = (props) => {
                     {inputs.type === 37 && (
                       <Banner
                         type='warning'
-                        description={t('Dify渠道只适配chatflow和agent，并且agent不支持图片！')}
+                        description={t(
+                          'Dify渠道只适配chatflow和agent，并且agent不支持图片！',
+                        )}
                         className='!rounded-lg'
                       />
                     )}
 
-                    {inputs.type !== 3 && inputs.type !== 8 && inputs.type !== 22 && inputs.type !== 36 && inputs.type !== 45 && (
-                      <div>
-                        <Form.Input
-                          field='base_url'
-                          label={t('API地址')}
-                          placeholder={t('此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/')}
-                          onChange={(value) => handleInputChange('base_url', value)}
-                          showClear
-                          extraText={t('对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写')}
-                        />
-                      </div>
-                    )}
+                    {inputs.type !== 3 &&
+                      inputs.type !== 8 &&
+                      inputs.type !== 22 &&
+                      inputs.type !== 36 &&
+                      inputs.type !== 45 && (
+                        <div>
+                          <Form.Input
+                            field='base_url'
+                            label={t('API地址')}
+                            placeholder={t(
+                              '此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/',
+                            )}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            showClear
+                            extraText={t(
+                              '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
+                            )}
+                          />
+                        </div>
+                      )}
 
                     {inputs.type === 22 && (
                       <div>
                         <Form.Input
                           field='base_url'
                           label={t('私有部署地址')}
-                          placeholder={t('请输入私有部署地址，格式为：https://fastgpt.run/api/openapi')}
-                          onChange={(value) => handleInputChange('base_url', value)}
+                          placeholder={t(
+                            '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
+                          )}
+                          onChange={(value) =>
+                            handleInputChange('base_url', value)
+                          }
                           showClear
                         />
                       </div>
@@ -1450,9 +1737,15 @@ const EditChannelModal = (props) => {
                       <div>
                         <Form.Input
                           field='base_url'
-                          label={t('注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用')}
-                          placeholder={t('请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com')}
-                          onChange={(value) => handleInputChange('base_url', value)}
+                          label={t(
+                            '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
+                          )}
+                          placeholder={t(
+                            '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
+                          )}
+                          onChange={(value) =>
+                            handleInputChange('base_url', value)
+                          }
                           showClear
                         />
                       </div>
@@ -1461,15 +1754,23 @@ const EditChannelModal = (props) => {
                 )}
 
                 {/* Model Configuration Card */}
-                <Card className="!rounded-2xl shadow-sm border-0 mb-6">
+                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                   {/* Header: Model Config */}
-                  <div className="flex items-center mb-2">
-                    <Avatar size="small" color="purple" className="mr-2 shadow-md">
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='purple'
+                      className='mr-2 shadow-md'
+                    >
                       <IconCode size={16} />
                     </Avatar>
                     <div>
-                      <Text className="text-lg font-medium">{t('模型配置')}</Text>
-                      <div className="text-xs text-gray-600">{t('模型选择和映射设置')}</div>
+                      <Text className='text-lg font-medium'>
+                        {t('模型配置')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('模型选择和映射设置')}
+                      </div>
                     </div>
                   </div>
 
@@ -1485,18 +1786,65 @@ const EditChannelModal = (props) => {
                     optionList={modelOptions}
                     style={{ width: '100%' }}
                     onChange={(value) => handleInputChange('models', value)}
-                    extraText={(
+                    renderSelectedItem={(optionNode) => {
+                      const modelName = String(optionNode?.value ?? '');
+                      return {
+                        isRenderInTag: true,
+                        content: (
+                          <span
+                            className='cursor-pointer select-none'
+                            role='button'
+                            tabIndex={0}
+                            title={t('点击复制模型名称')}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const ok = await copy(modelName);
+                              if (ok) {
+                                showSuccess(
+                                  t('已复制：{{name}}', { name: modelName }),
+                                );
+                              } else {
+                                showError(t('复制失败'));
+                              }
+                            }}
+                          >
+                            {optionNode.label || modelName}
+                          </span>
+                        ),
+                      };
+                    }}
+                    extraText={
                       <Space wrap>
-                        <Button size='small' type='primary' onClick={() => handleInputChange('models', basicModels)}>
+                        <Button
+                          size='small'
+                          type='primary'
+                          onClick={() =>
+                            handleInputChange('models', basicModels)
+                          }
+                        >
                           {t('填入相关模型')}
                         </Button>
-                        <Button size='small' type='secondary' onClick={() => handleInputChange('models', fullModels)}>
+                        <Button
+                          size='small'
+                          type='secondary'
+                          onClick={() =>
+                            handleInputChange('models', fullModels)
+                          }
+                        >
                           {t('填入所有模型')}
                         </Button>
-                        <Button size='small' type='tertiary' onClick={() => fetchUpstreamModelList('models')}>
+                        <Button
+                          size='small'
+                          type='tertiary'
+                          onClick={() => fetchUpstreamModelList('models')}
+                        >
                           {t('获取模型列表')}
                         </Button>
-                        <Button size='small' type='warning' onClick={() => handleInputChange('models', [])}>
+                        <Button
+                          size='small'
+                          type='warning'
+                          onClick={() => handleInputChange('models', [])}
+                        >
                           {t('清除所有模型')}
                         </Button>
                         <Button
@@ -1517,34 +1865,44 @@ const EditChannelModal = (props) => {
                         >
                           {t('复制所有模型')}
                         </Button>
-                        {modelGroups && modelGroups.length > 0 && modelGroups.map(group => (
-                          <Button
-                            key={group.id}
-                            size='small'
-                            type='primary'
-                            onClick={() => {
-                              let items = [];
-                              try {
-                                if (Array.isArray(group.items)) {
-                                  items = group.items;
-                                } else if (typeof group.items === 'string') {
-                                  const parsed = JSON.parse(group.items || '[]');
-                                  if (Array.isArray(parsed)) items = parsed;
-                                }
-                              } catch { }
-                              const current = formApiRef.current?.getValue('models') || inputs.models || [];
-                              const merged = Array.from(new Set([...
-                                current,
-                              ...items
-                              ].map(m => (m || '').trim()).filter(Boolean)));
-                              handleInputChange('models', merged);
-                            }}
-                          >
-                            {group.name}
-                          </Button>
-                        ))}
+                        {modelGroups &&
+                          modelGroups.length > 0 &&
+                          modelGroups.map((group) => (
+                            <Button
+                              key={group.id}
+                              size='small'
+                              type='primary'
+                              onClick={() => {
+                                let items = [];
+                                try {
+                                  if (Array.isArray(group.items)) {
+                                    items = group.items;
+                                  } else if (typeof group.items === 'string') {
+                                    const parsed = JSON.parse(
+                                      group.items || '[]',
+                                    );
+                                    if (Array.isArray(parsed)) items = parsed;
+                                  }
+                                } catch {}
+                                const current =
+                                  formApiRef.current?.getValue('models') ||
+                                  inputs.models ||
+                                  [];
+                                const merged = Array.from(
+                                  new Set(
+                                    [...current, ...items]
+                                      .map((m) => (m || '').trim())
+                                      .filter(Boolean),
+                                  ),
+                                );
+                                handleInputChange('models', merged);
+                              }}
+                            >
+                              {group.name}
+                            </Button>
+                          ))}
                       </Space>
-                    )}
+                    }
                   />
 
                   <Form.Input
@@ -1554,7 +1912,11 @@ const EditChannelModal = (props) => {
                     onChange={(value) => setCustomModel(value.trim())}
                     value={customModel}
                     suffix={
-                      <Button size='small' type='primary' onClick={addCustomModels}>
+                      <Button
+                        size='small'
+                        type='primary'
+                        onClick={addCustomModels}
+                      >
                         {t('填入')}
                       </Button>
                     }
@@ -1573,29 +1935,40 @@ const EditChannelModal = (props) => {
                     field='model_mapping'
                     label={t('模型重定向')}
                     placeholder={
-                      t('此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，例如：') +
-                      `\n${JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2)}`
+                      t(
+                        '此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，例如：',
+                      ) + `\n${JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2)}`
                     }
                     value={inputs.model_mapping || ''}
-                    onChange={(value) => handleInputChange('model_mapping', value)}
+                    onChange={(value) =>
+                      handleInputChange('model_mapping', value)
+                    }
                     template={MODEL_MAPPING_EXAMPLE}
                     templateLabel={t('填入模板')}
-                    editorType="keyValue"
+                    editorType='keyValue'
                     formApi={formApiRef.current}
                     extraText={t('键为请求中的模型名称，值为要替换的模型名称')}
                   />
                 </Card>
 
                 {/* Advanced Settings Card */}
-                <Card className="!rounded-2xl shadow-sm border-0 mb-6">
+                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                   {/* Header: Advanced Settings */}
-                  <div className="flex items-center mb-2">
-                    <Avatar size="small" color="orange" className="mr-2 shadow-md">
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='orange'
+                      className='mr-2 shadow-md'
+                    >
                       <IconSetting size={16} />
                     </Avatar>
                     <div>
-                      <Text className="text-lg font-medium">{t('高级设置')}</Text>
-                      <div className="text-xs text-gray-600">{t('渠道的高级配置选项')}</div>
+                      <Text className='text-lg font-medium'>
+                        {t('高级设置')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('渠道的高级配置选项')}
+                      </div>
                     </div>
                   </div>
 
@@ -1605,7 +1978,9 @@ const EditChannelModal = (props) => {
                     placeholder={t('请选择可以使用该渠道的分组')}
                     multiple
                     allowAdditions
-                    additionLabel={t('请在系统设置页面编辑分组倍率以添加新的分组：')}
+                    additionLabel={t(
+                      '请在系统设置页面编辑分组倍率以添加新的分组：',
+                    )}
                     optionList={groupOptions}
                     style={{ width: '100%' }}
                     onChange={(value) => handleInputChange('groups', value)}
@@ -1618,6 +1993,14 @@ const EditChannelModal = (props) => {
                     showClear
                     onChange={(value) => handleInputChange('tag', value)}
                   />
+                  <Form.TextArea
+                    field='remark'
+                    label={t('备注')}
+                    placeholder={t('请输入备注（仅管理员可见）')}
+                    maxLength={255}
+                    showClear
+                    onChange={(value) => handleInputChange('remark', value)}
+                  />
 
                   <Row gutter={12}>
                     <Col span={12}>
@@ -1626,7 +2009,9 @@ const EditChannelModal = (props) => {
                         label={t('渠道优先级')}
                         placeholder={t('渠道优先级')}
                         min={0}
-                        onNumberChange={(value) => handleInputChange('priority', value)}
+                        onNumberChange={(value) =>
+                          handleInputChange('priority', value)
+                        }
                         style={{ width: '100%' }}
                       />
                     </Col>
@@ -1636,7 +2021,9 @@ const EditChannelModal = (props) => {
                         label={t('渠道权重')}
                         placeholder={t('渠道权重')}
                         min={0}
-                        onNumberChange={(value) => handleInputChange('weight', value)}
+                        onNumberChange={(value) =>
+                          handleInputChange('weight', value)
+                        }
                         style={{ width: '100%' }}
                       />
                     </Col>
@@ -1648,7 +2035,9 @@ const EditChannelModal = (props) => {
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) => setAutoBan(value)}
-                    extraText={t('仅当自动禁用开启时有效，关闭后不会自动禁用该渠道')}
+                    extraText={t(
+                      '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
+                    )}
                     initValue={autoBan}
                   />
 
@@ -1657,40 +2046,58 @@ const EditChannelModal = (props) => {
                     label={t('参数覆盖')}
                     placeholder={
                       t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
-                      '\n' + t('旧格式（直接覆盖）：') +
+                      '\n' +
+                      t('旧格式（直接覆盖）：') +
                       '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
-                      '\n\n' + t('新格式（支持条件判断与json自定义）：') +
+                      '\n\n' +
+                      t('新格式（支持条件判断与json自定义）：') +
                       '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
                     }
                     autosize
-                    onChange={(value) => handleInputChange('param_override', value)}
+                    onChange={(value) =>
+                      handleInputChange('param_override', value)
+                    }
                     extraText={
-                      <div className="flex gap-2 flex-wrap">
+                      <div className='flex gap-2 flex-wrap'>
                         <Text
-                          className="!text-semi-color-primary cursor-pointer"
-                          onClick={() => handleInputChange('param_override', JSON.stringify({ temperature: 0 }, null, 2))}
+                          className='!text-semi-color-primary cursor-pointer'
+                          onClick={() =>
+                            handleInputChange(
+                              'param_override',
+                              JSON.stringify({ temperature: 0 }, null, 2),
+                            )
+                          }
                         >
                           {t('旧格式模板')}
                         </Text>
                         <Text
-                          className="!text-semi-color-primary cursor-pointer"
-                          onClick={() => handleInputChange('param_override', JSON.stringify({
-                            operations: [
-                              {
-                                path: "temperature",
-                                mode: "set",
-                                value: 0.7,
-                                conditions: [
-                                  {
-                                    path: "model",
-                                    mode: "prefix",
-                                    value: "gpt"
-                                  }
-                                ],
-                                logic: "AND"
-                              }
-                            ]
-                          }, null, 2))}
+                          className='!text-semi-color-primary cursor-pointer'
+                          onClick={() =>
+                            handleInputChange(
+                              'param_override',
+                              JSON.stringify(
+                                {
+                                  operations: [
+                                    {
+                                      path: 'temperature',
+                                      mode: 'set',
+                                      value: 0.7,
+                                      conditions: [
+                                        {
+                                          path: 'model',
+                                          mode: 'prefix',
+                                          value: 'gpt',
+                                        },
+                                      ],
+                                      logic: 'AND',
+                                    },
+                                  ],
+                                },
+                                null,
+                                2,
+                              ),
+                            )
+                          }
                         >
                           {t('新格式模板')}
                         </Text>
@@ -1700,59 +2107,83 @@ const EditChannelModal = (props) => {
                   />
 
                   <Form.TextArea
-                      field='header_override'
-                      label={t('请求头覆盖')}
-                      placeholder={
-                          t('此项可选，用于覆盖请求头参数') +
-                          '\n' + t('格式示例：') +
-                          '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"\n}'
-                      }
-                      autosize
-                      onChange={(value) => handleInputChange('header_override', value)}
-                      extraText={
-                        <div className="flex gap-2 flex-wrap">
-                          <Text
-                              className="!text-semi-color-primary cursor-pointer"
-                              onClick={() => handleInputChange('header_override', JSON.stringify({
-                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
-                              }, null, 2))}
-                          >
-                            {t('格式模板')}
-                          </Text>
-                        </div>
-                      }
-                      showClear
+                    field='header_override'
+                    label={t('请求头覆盖')}
+                    placeholder={
+                      t('此项可选，用于覆盖请求头参数') +
+                      '\n' +
+                      t('格式示例：') +
+                      '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"\n}'
+                    }
+                    autosize
+                    onChange={(value) =>
+                      handleInputChange('header_override', value)
+                    }
+                    extraText={
+                      <div className='flex gap-2 flex-wrap'>
+                        <Text
+                          className='!text-semi-color-primary cursor-pointer'
+                          onClick={() =>
+                            handleInputChange(
+                              'header_override',
+                              JSON.stringify(
+                                {
+                                  'User-Agent':
+                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
+                                },
+                                null,
+                                2,
+                              ),
+                            )
+                          }
+                        >
+                          {t('格式模板')}
+                        </Text>
+                      </div>
+                    }
+                    showClear
                   />
-
 
                   <JSONEditor
                     key={`status_code_mapping-${isEdit ? channelId : 'new'}`}
                     field='status_code_mapping'
                     label={t('状态码复写')}
                     placeholder={
-                      t('此项可选，用于复写返回的状态码，仅影响本地判断，不修改返回到上游的状态码，比如将claude渠道的400错误复写为500（用于重试），请勿滥用该功能，例如：') +
+                      t(
+                        '此项可选，用于复写返回的状态码，仅影响本地判断，不修改返回到上游的状态码，比如将claude渠道的400错误复写为500（用于重试），请勿滥用该功能，例如：',
+                      ) +
                       '\n' +
                       JSON.stringify(STATUS_CODE_MAPPING_EXAMPLE, null, 2)
                     }
                     value={inputs.status_code_mapping || ''}
-                    onChange={(value) => handleInputChange('status_code_mapping', value)}
+                    onChange={(value) =>
+                      handleInputChange('status_code_mapping', value)
+                    }
                     template={STATUS_CODE_MAPPING_EXAMPLE}
                     templateLabel={t('填入模板')}
-                    editorType="keyValue"
+                    editorType='keyValue'
                     formApi={formApiRef.current}
-                    extraText={t('键为原状态码，值为要复写的状态码，仅影响本地判断')}
+                    extraText={t(
+                      '键为原状态码，值为要复写的状态码，仅影响本地判断',
+                    )}
                   />
                 </Card>
 
                 {/* Channel Extra Settings Card */}
-                <Card className="!rounded-2xl shadow-sm border-0 mb-6">
+                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                   {/* Header: Channel Extra Settings */}
-                  <div className="flex items-center mb-2">
-                    <Avatar size="small" color="violet" className="mr-2 shadow-md">
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='violet'
+                      className='mr-2 shadow-md'
+                    >
                       <IconBolt size={16} />
                     </Avatar>
                     <div>
-                      <Text className="text-lg font-medium">{t('渠道额外设置')}</Text>
+                      <Text className='text-lg font-medium'>
+                        {t('渠道额外设置')}
+                      </Text>
                     </div>
                   </div>
 
@@ -1762,8 +2193,12 @@ const EditChannelModal = (props) => {
                       label={t('强制格式化')}
                       checkedText={t('开')}
                       uncheckedText={t('关')}
-                      onChange={(value) => handleChannelSettingsChange('force_format', value)}
-                      extraText={t('强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('force_format', value)
+                      }
+                      extraText={t(
+                        '强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）',
+                      )}
                     />
                   )}
 
@@ -1772,8 +2207,12 @@ const EditChannelModal = (props) => {
                     label={t('思考内容转换')}
                     checkedText={t('开')}
                     uncheckedText={t('关')}
-                    onChange={(value) => handleChannelSettingsChange('thinking_to_content', value)}
-                    extraText={t('将 reasoning_content 转换为 <think> 标签拼接到内容中')}
+                    onChange={(value) =>
+                      handleChannelSettingsChange('thinking_to_content', value)
+                    }
+                    extraText={t(
+                      '将 reasoning_content 转换为 <think> 标签拼接到内容中',
+                    )}
                   />
 
                   <Form.Switch
@@ -1781,7 +2220,12 @@ const EditChannelModal = (props) => {
                     label={t('透传请求体')}
                     checkedText={t('开')}
                     uncheckedText={t('关')}
-                    onChange={(value) => handleChannelSettingsChange('pass_through_body_enabled', value)}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'pass_through_body_enabled',
+                        value,
+                      )
+                    }
                     extraText={t('启用请求体透传功能')}
                   />
 
@@ -1789,7 +2233,9 @@ const EditChannelModal = (props) => {
                     field='proxy'
                     label={t('代理地址')}
                     placeholder={t('例如: socks5://user:pass@host:port')}
-                    onChange={(value) => handleChannelSettingsChange('proxy', value)}
+                    onChange={(value) =>
+                      handleChannelSettingsChange('proxy', value)
+                    }
                     showClear
                     extraText={t('用于配置网络代理，支持 socks5 协议')}
                   />
@@ -1797,19 +2243,32 @@ const EditChannelModal = (props) => {
                   <Form.TextArea
                     field='system_prompt'
                     label={t('系统提示词')}
-                    placeholder={t('输入系统提示词，用户的系统提示词将优先于此设置')}
-                    onChange={(value) => handleChannelSettingsChange('system_prompt', value)}
+                    placeholder={t(
+                      '输入系统提示词，用户的系统提示词将优先于此设置',
+                    )}
+                    onChange={(value) =>
+                      handleChannelSettingsChange('system_prompt', value)
+                    }
                     autosize
                     showClear
-                    extraText={t('用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置')}
+                    extraText={t(
+                      '用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置',
+                    )}
                   />
                   <Form.Switch
                     field='system_prompt_override'
                     label={t('系统提示词拼接')}
                     checkedText={t('开')}
                     uncheckedText={t('关')}
-                    onChange={(value) => handleChannelSettingsChange('system_prompt_override', value)}
-                    extraText={t('如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面')}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'system_prompt_override',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
+                    )}
                   />
                 </Card>
               </div>
@@ -1822,6 +2281,60 @@ const EditChannelModal = (props) => {
           onVisibleChange={(visible) => setIsModalOpenurl(visible)}
         />
       </SideSheet>
+      {/* 使用TwoFactorAuthModal组件进行2FA验证 */}
+      <TwoFactorAuthModal
+        visible={show2FAVerifyModal}
+        code={verifyCode}
+        loading={verifyLoading}
+        onCodeChange={setVerifyCode}
+        onVerify={handleVerify2FA}
+        onCancel={reset2FAVerifyState}
+        title={t('查看渠道密钥')}
+        description={t('为了保护账户安全，请验证您的两步验证码。')}
+        placeholder={t('请输入验证码或备用码')}
+      />
+
+      {/* 使用ChannelKeyDisplay组件显示密钥 */}
+      <Modal
+        title={
+          <div className='flex items-center'>
+            <div className='w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-3'>
+              <svg
+                className='w-4 h-4 text-green-600 dark:text-green-400'
+                fill='currentColor'
+                viewBox='0 0 20 20'
+              >
+                <path
+                  fillRule='evenodd'
+                  d='M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z'
+                  clipRule='evenodd'
+                />
+              </svg>
+            </div>
+            {t('渠道密钥信息')}
+          </div>
+        }
+        visible={twoFAState.showModal && twoFAState.showKey}
+        onCancel={resetTwoFAState}
+        footer={
+          <Button type='primary' onClick={resetTwoFAState}>
+            {t('完成')}
+          </Button>
+        }
+        width={700}
+        style={{ maxWidth: '90vw' }}
+      >
+        <ChannelKeyDisplay
+          keyData={twoFAState.keyData}
+          showSuccessIcon={true}
+          successText={t('密钥获取成功')}
+          showWarning={true}
+          warningText={t(
+            '请妥善保管密钥信息，不要泄露给他人。如有安全疑虑，请及时更换密钥。',
+          )}
+        />
+      </Modal>
+
       <ModelSelectModal
         visible={modelModalVisible}
         models={fetchedModels}
@@ -1837,4 +2350,4 @@ const EditChannelModal = (props) => {
   );
 };
 
-export default EditChannelModal; 
+export default EditChannelModal;

@@ -33,7 +33,7 @@ const ChannelsTabs = ({
   pageSize,
   idSort,
   setActivePage,
-  t
+  t,
 }) => {
   if (enableTagMode) return null;
 
@@ -46,24 +46,29 @@ const ChannelsTabs = ({
   return (
     <Tabs
       activeKey={activeTypeKey}
-      type="card"
+      type='card'
       collapsible
       onChange={handleTabChange}
-      className="mb-2"
+      className='mb-2'
     >
       <TabPane
-        itemKey="all"
+        itemKey='all'
         tab={
-          <span className="flex items-center gap-2">
+          <span className='flex items-center gap-2'>
             {t('全部')}
-            <Tag color={activeTypeKey === 'all' ? 'red' : 'grey'} shape='circle'>
+            <Tag
+              color={activeTypeKey === 'all' ? 'red' : 'grey'}
+              shape='circle'
+            >
               {channelTypeCounts['all'] || 0}
             </Tag>
           </span>
         }
       />
 
-      {CHANNEL_OPTIONS.filter((opt) => availableTypeKeys.includes(String(opt.value))).map((option) => {
+      {CHANNEL_OPTIONS.filter((opt) =>
+        availableTypeKeys.includes(String(opt.value)),
+      ).map((option) => {
         const key = String(option.value);
         const count = channelTypeCounts[option.value] || 0;
         return (
@@ -71,10 +76,13 @@ const ChannelsTabs = ({
             key={key}
             itemKey={key}
             tab={
-              <span className="flex items-center gap-2">
+              <span className='flex items-center gap-2'>
                 {getChannelIcon(option.value)}
                 {option.label}
-                <Tag color={activeTypeKey === key ? 'red' : 'grey'} shape='circle'>
+                <Tag
+                  color={activeTypeKey === key ? 'red' : 'grey'}
+                  shape='circle'
+                >
                   {count}
                 </Tag>
               </span>
@@ -86,4 +94,4 @@ const ChannelsTabs = ({
   );
 };
 
-export default ChannelsTabs; 
+export default ChannelsTabs;

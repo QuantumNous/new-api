@@ -64,7 +64,7 @@ const ChannelsPage = () => {
 
       {/* Main Content */}
       <CardPro
-        type="type3"
+        type='type3'
         tabsArea={<ChannelsTabs {...channelsData} />}
         actionsArea={<ChannelsActions {...channelsData} />}
         searchArea={<ChannelsFilters {...channelsData} />}
@@ -85,4 +85,4 @@ const ChannelsPage = () => {
   );
 };
 
-export default ChannelsPage; 
+export default ChannelsPage;

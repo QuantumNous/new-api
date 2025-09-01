@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
@@ -27,6 +27,7 @@ import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Setting from './pages/Setting';
+import { StatusContext } from './context/Status';
 
 import PasswordResetForm from './components/auth/PasswordResetForm';
 import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
@@ -53,6 +54,29 @@ const About = lazy(() => import('./pages/About'));
 
 function App() {
   const location = useLocation();
+  const [statusState] = useContext(StatusContext);
+
+  // 获取模型广场权限配置
+  const pricingRequireAuth = useMemo(() => {
+    const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+    if (headerNavModulesConfig) {
+      try {
+        const modules = JSON.parse(headerNavModulesConfig);
+
+        // 处理向后兼容性：如果pricing是boolean，默认不需要登录
+        if (typeof modules.pricing === 'boolean') {
+          return false; // 默认不需要登录鉴权
+        }
+
+        // 如果是对象格式，使用requireAuth配置
+        return modules.pricing?.requireAuth === true;
+      } catch (error) {
+        console.error('解析顶栏模块配置失败:', error);
+        return false; // 默认不需要登录
+      }
+    }
+    return false; // 默认不需要登录
+  }, [statusState?.status?.HeaderNavModules]);
 
   return (
     <SetupCheck>
@@ -73,10 +97,7 @@ function App() {
             </Suspense>
           }
         />
-        <Route
-          path='/forbidden'
-          element={<Forbidden />}
-        />
+        <Route path='/forbidden' element={<Forbidden />} />
         <Route
           path='/console/models'
           element={
@@ -256,9 +277,17 @@ function App() {
         <Route
           path='/pricing'
           element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <Pricing />
-            </Suspense>
+            pricingRequireAuth ? (
+              <PrivateRoute>
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Pricing />
+                </Suspense>
+              </PrivateRoute>
+            ) : (
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Pricing />
+              </Suspense>
+            )
           }
         />
         <Route

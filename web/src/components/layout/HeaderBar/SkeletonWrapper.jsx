@@ -62,13 +62,17 @@ const SkeletonWrapper = ({
   // 用户区域骨架屏 (头像 + 文本)
   const renderUserAreaSkeleton = () => {
     return (
-      <div className={`flex items-center p-1 rounded-full bg-semi-color-fill-0 dark:bg-semi-color-fill-1 ${className}`}>
+      <div
+        className={`flex items-center p-1 rounded-full bg-semi-color-fill-0 dark:bg-semi-color-fill-1 ${className}`}
+      >
         <Skeleton
           loading={true}
           active
-          placeholder={<Skeleton.Avatar active size="extra-small" className="shadow-sm" />}
+          placeholder={
+            <Skeleton.Avatar active size='extra-small' className='shadow-sm' />
+          }
         />
-        <div className="ml-1.5 mr-1">
+        <div className='ml-1.5 mr-1'>
           <Skeleton
             loading={true}
             active
@@ -107,12 +111,7 @@ const SkeletonWrapper = ({
       <Skeleton
         loading={true}
         active
-        placeholder={
-          <Skeleton.Title
-            active
-            style={{ width, height: 24 }}
-          />
-        }
+        placeholder={<Skeleton.Title active style={{ width, height: 24 }} />}
       />
     );
   };
@@ -124,12 +123,7 @@ const SkeletonWrapper = ({
         <Skeleton
           loading={true}
           active
-          placeholder={
-            <Skeleton.Title
-              active
-              style={{ width, height }}
-            />
-          }
+          placeholder={<Skeleton.Title active style={{ width, height }} />}
         />
       </div>
     );

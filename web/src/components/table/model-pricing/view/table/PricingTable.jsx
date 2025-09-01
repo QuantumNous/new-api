@@ -21,7 +21,7 @@ import React, { useMemo } from 'react';
 import { Card, Table, Empty } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
-  IllustrationNoResultDark
+  IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getPricingTableColumns } from './PricingTableColumns';
 
@@ -38,15 +38,13 @@ const PricingTable = ({
   setIsModalOpenurl,
   currency,
   tokenUnit,
-  setTokenUnit,
   displayPrice,
   searchValue,
   showRatio,
   compactMode = false,
   openModelDetail,
-  t
+  t,
 }) => {
-
   const columns = useMemo(() => {
     return getPricingTableColumns({
       t,
@@ -75,11 +73,11 @@ const PricingTable = ({
 
   // 更新列定义中的 searchValue
   const processedColumns = useMemo(() => {
-    const cols = columns.map(column => {
+    const cols = columns.map((column) => {
       if (column.dataIndex === 'model_name') {
         return {
           ...column,
-          filteredValue: searchValue ? [searchValue] : []
+          filteredValue: searchValue ? [searchValue] : [],
         };
       }
       return column;
@@ -92,39 +90,55 @@ const PricingTable = ({
     return cols;
   }, [columns, searchValue, compactMode]);
 
-  const ModelTable = useMemo(() => (
-    <Card className="!rounded-xl overflow-hidden" bordered={false}>
-      <Table
-        columns={processedColumns}
-        dataSource={filteredModels}
-        loading={loading}
-        rowSelection={rowSelection}
-        className="custom-table"
-        scroll={compactMode ? undefined : { x: 'max-content' }}
-        onRow={(record) => ({
-          onClick: () => openModelDetail && openModelDetail(record),
-          style: { cursor: 'pointer' }
-        })}
-        empty={
-          <Empty
-            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
-            description={t('搜索无结果')}
-            style={{ padding: 30 }}
-          />
-        }
-        pagination={{
-          defaultPageSize: 10,
-          pageSize: pageSize,
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
-          onPageSizeChange: (size) => setPageSize(size),
-        }}
-      />
-    </Card>
-  ), [filteredModels, loading, processedColumns, rowSelection, pageSize, setPageSize, openModelDetail, t, compactMode]);
+  const ModelTable = useMemo(
+    () => (
+      <Card className='!rounded-xl overflow-hidden' bordered={false}>
+        <Table
+          columns={processedColumns}
+          dataSource={filteredModels}
+          loading={loading}
+          rowSelection={rowSelection}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
+          onRow={(record) => ({
+            onClick: () => openModelDetail && openModelDetail(record),
+            style: { cursor: 'pointer' },
+          })}
+          empty={
+            <Empty
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
+              description={t('搜索无结果')}
+              style={{ padding: 30 }}
+            />
+          }
+          pagination={{
+            defaultPageSize: 20,
+            pageSize: pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onPageSizeChange: (size) => setPageSize(size),
+          }}
+        />
+      </Card>
+    ),
+    [
+      filteredModels,
+      loading,
+      processedColumns,
+      rowSelection,
+      pageSize,
+      setPageSize,
+      openModelDetail,
+      t,
+      compactMode,
+    ],
+  );
 
   return ModelTable;
 };
 
-export default PricingTable; 
+export default PricingTable;

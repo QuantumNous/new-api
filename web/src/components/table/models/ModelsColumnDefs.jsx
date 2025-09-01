@@ -18,13 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Space, Tag, Typography, Modal, Tooltip } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Space,
+  Tag,
+  Typography,
+  Modal,
+  Tooltip,
+} from '@douyinfe/semi-ui';
 import {
   timestamp2string,
   getLobeHubIcon,
-  stringToColor
+  stringToColor,
 } from '../../../helpers';
-import { renderLimitedItems, renderDescription } from '../../common/ui/RenderUtils';
+import {
+  renderLimitedItems,
+  renderDescription,
+} from '../../common/ui/RenderUtils';
 
 const { Text } = Typography;
 
@@ -38,7 +48,7 @@ const renderModelIconCol = (record, vendorMap) => {
   const iconKey = record?.icon || vendorMap[record?.vendor_id]?.icon;
   if (!iconKey) return '-';
   return (
-    <div className="flex items-center justify-center">
+    <div className='flex items-center justify-center'>
       {getLobeHubIcon(iconKey, 20)}
     </div>
   );
@@ -65,7 +75,7 @@ const renderGroups = (groups) => {
   return renderLimitedItems({
     items: groups,
     renderItem: (g, idx) => (
-      <Tag key={idx} size="small" shape='circle' color={stringToColor(g)}>
+      <Tag key={idx} size='small' shape='circle' color={stringToColor(g)}>
         {g}
       </Tag>
     ),
@@ -79,7 +89,7 @@ const renderTags = (text) => {
   return renderLimitedItems({
     items: tagsArr,
     renderItem: (tag, idx) => (
-      <Tag key={idx} size="small" shape='circle' color={stringToColor(tag)}>
+      <Tag key={idx} size='small' shape='circle' color={stringToColor(tag)}>
         {tag}
       </Tag>
     ),
@@ -96,7 +106,7 @@ const renderEndpoints = (value) => {
       return renderLimitedItems({
         items: keys,
         renderItem: (key, idx) => (
-          <Tag key={idx} size="small" shape='circle' color={stringToColor(key)}>
+          <Tag key={idx} size='small' shape='circle' color={stringToColor(key)}>
             {key}
           </Tag>
         ),
@@ -108,7 +118,7 @@ const renderEndpoints = (value) => {
       return renderLimitedItems({
         items: parsed,
         renderItem: (ep, idx) => (
-          <Tag key={idx} color="white" size="small" shape='circle'>
+          <Tag key={idx} color='white' size='small' shape='circle'>
             {ep}
           </Tag>
         ),
@@ -157,7 +167,7 @@ const renderBoundChannels = (channels) => {
   return renderLimitedItems({
     items: channels,
     renderItem: (c, idx) => (
-      <Tag key={idx} color="white" size="small" shape='circle'>
+      <Tag key={idx} color='white' size='small' shape='circle'>
         {c.name}({c.type})
       </Tag>
     ),
@@ -165,20 +175,28 @@ const renderBoundChannels = (channels) => {
 };
 
 // Render operations column
-const renderOperations = (text, record, setEditingModel, setShowEdit, manageModel, refresh, t) => {
+const renderOperations = (
+  text,
+  record,
+  setEditingModel,
+  setShowEdit,
+  manageModel,
+  refresh,
+  t,
+) => {
   return (
     <Space wrap>
       {record.status === 1 ? (
         <Button
           type='danger'
-          size="small"
+          size='small'
           onClick={() => manageModel(record.id, 'disable', record)}
         >
           {t('禁用')}
         </Button>
       ) : (
         <Button
-          size="small"
+          size='small'
           onClick={() => manageModel(record.id, 'enable', record)}
         >
           {t('启用')}
@@ -187,7 +205,7 @@ const renderOperations = (text, record, setEditingModel, setShowEdit, manageMode
 
       <Button
         type='tertiary'
-        size="small"
+        size='small'
         onClick={() => {
           setEditingModel(record);
           setShowEdit(true);
@@ -198,7 +216,7 @@ const renderOperations = (text, record, setEditingModel, setShowEdit, manageMode
 
       <Button
         type='danger'
-        size="small"
+        size='small'
         onClick={() => {
           Modal.confirm({
             title: t('确定是否要删除此模型？'),
@@ -235,12 +253,16 @@ const renderNameRule = (rule, record, t) => {
   }
 
   const tagElement = (
-    <Tag color={cfg.color} size="small" shape='circle'>
+    <Tag color={cfg.color} size='small' shape='circle'>
       {label}
     </Tag>
   );
 
-  if (rule === 0 || !record.matched_models || record.matched_models.length === 0) {
+  if (
+    rule === 0 ||
+    !record.matched_models ||
+    record.matched_models.length === 0
+  ) {
     return tagElement;
   }
 
@@ -334,15 +356,16 @@ export const getModelsColumns = ({
       title: '',
       dataIndex: 'operate',
       fixed: 'right',
-      render: (text, record, index) => renderOperations(
-        text,
-        record,
-        setEditingModel,
-        setShowEdit,
-        manageModel,
-        refresh,
-        t
-      ),
+      render: (text, record, index) =>
+        renderOperations(
+          text,
+          record,
+          setEditingModel,
+          setShowEdit,
+          manageModel,
+          refresh,
+          t,
+        ),
     },
   ];
 };

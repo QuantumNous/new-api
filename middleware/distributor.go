@@ -185,7 +185,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
-	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
+	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		err = common.UnmarshalBodyReusable(c, &modelRequest)
 	}
 	if err != nil {
@@ -208,7 +208,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
-		modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			modelRequest.Model = c.PostForm("model")
+		}
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/audio") {
 		relayMode := relayconstant.RelayModeAudioSpeech

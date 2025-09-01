@@ -37,7 +37,7 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 // Constants and utils
 import {
   MESSAGE_ROLES,
-  ERROR_MESSAGES
+  ERROR_MESSAGES,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -46,7 +46,7 @@ import {
   createMessage,
   createLoadingAssistantMessage,
   getTextContent,
-  buildApiPayload
+  buildApiPayload,
 } from '../../helpers';
 
 // Components
@@ -54,7 +54,7 @@ import {
   OptimizedSettingsPanel,
   OptimizedDebugPanel,
   OptimizedMessageContent,
-  OptimizedMessageActions
+  OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
@@ -124,7 +124,7 @@ const Playground = () => {
     setDebugData,
     setActiveDebugTab,
     sseSourceRef,
-    saveMessagesImmediately
+    saveMessagesImmediately,
   );
 
   // 数据加载
@@ -137,19 +137,26 @@ const Playground = () => {
     setEditValue,
     handleMessageEdit,
     handleEditSave,
-    handleEditCancel
-  } = useMessageEdit(setMessage, inputs, parameterEnabled, sendRequest, saveMessagesImmediately);
+    handleEditCancel,
+  } = useMessageEdit(
+    setMessage,
+    inputs,
+    parameterEnabled,
+    sendRequest,
+    saveMessagesImmediately,
+  );
 
   // 消息和自定义请求体同步
-  const { syncMessageToCustomBody, syncCustomBodyToMessage } = useSyncMessageAndCustomBody(
-    customRequestMode,
-    customRequestBody,
-    message,
-    inputs,
-    setCustomRequestBody,
-    setMessage,
-    debouncedSaveConfig
-  );
+  const { syncMessageToCustomBody, syncCustomBodyToMessage } =
+    useSyncMessageAndCustomBody(
+      customRequestMode,
+      customRequestBody,
+      message,
+      inputs,
+      setCustomRequestBody,
+      setMessage,
+      debouncedSaveConfig,
+    );
 
   // 角色信息
   const roleInfo = {
@@ -168,7 +175,12 @@ const Playground = () => {
   };
 
   // 消息操作
-  const messageActions = useMessageActions(message, setMessage, onMessageSend, saveMessagesImmediately);
+  const messageActions = useMessageActions(
+    message,
+    setMessage,
+    onMessageSend,
+    saveMessagesImmediately,
+  );
 
   // 构建预览请求体
   const constructPreviewPayload = useCallback(() => {
@@ -186,15 +198,26 @@ const Playground = () => {
       let messages = [...message];
 
       // 如果存在用户消息
-      if (!(messages.length === 0 || messages.every(msg => msg.role !== MESSAGE_ROLES.USER))) {
+      if (
+        !(
+          messages.length === 0 ||
+          messages.every((msg) => msg.role !== MESSAGE_ROLES.USER)
+        )
+      ) {
         // 处理最后一个用户消息的图片
         for (let i = messages.length - 1; i >= 0; i--) {
           if (messages[i].role === MESSAGE_ROLES.USER) {
             if (inputs.imageEnabled && inputs.imageUrls) {
-              const validImageUrls = inputs.imageUrls.filter(url => url.trim() !== '');
+              const validImageUrls = inputs.imageUrls.filter(
+                (url) => url.trim() !== '',
+              );
               if (validImageUrls.length > 0) {
                 const textContent = getTextContent(messages[i]) || '示例消息';
-                const content = buildMessageContent(textContent, validImageUrls, true);
+                const content = buildMessageContent(
+                  textContent,
+                  validImageUrls,
+                  true,
+                );
                 messages[i] = { ...messages[i], content };
               }
             }
@@ -223,7 +246,7 @@ const Playground = () => {
       try {
         const customPayload = JSON.parse(customRequestBody);
 
-        setMessage(prevMessage => {
+        setMessage((prevMessage) => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
 
           // 发送自定义请求体
@@ -243,14 +266,26 @@ const Playground = () => {
     }
 
     // 默认模式
-    const validImageUrls = inputs.imageUrls.filter(url => url.trim() !== '');
-    const messageContent = buildMessageContent(content, validImageUrls, inputs.imageEnabled);
-    const userMessageWithImages = createMessage(MESSAGE_ROLES.USER, messageContent);
+    const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
+    const messageContent = buildMessageContent(
+      content,
+      validImageUrls,
+      inputs.imageEnabled,
+    );
+    const userMessageWithImages = createMessage(
+      MESSAGE_ROLES.USER,
+      messageContent,
+    );
 
-    setMessage(prevMessage => {
+    setMessage((prevMessage) => {
       const newMessages = [...prevMessage, userMessageWithImages];
 
-      const payload = buildApiPayload(newMessages, null, inputs, parameterEnabled);
+      const payload = buildApiPayload(
+        newMessages,
+        null,
+        inputs,
+        parameterEnabled,
+      );
       sendRequest(payload, inputs.stream);
 
       // 禁用图片模式
@@ -269,15 +304,18 @@ const Playground = () => {
   }
 
   // 切换推理展开状态
-  const toggleReasoningExpansion = useCallback((messageId) => {
-    setMessage(prevMessages =>
-      prevMessages.map(msg =>
-        msg.id === messageId && msg.role === MESSAGE_ROLES.ASSISTANT
-          ? { ...msg, isReasoningExpanded: !msg.isReasoningExpanded }
-          : msg
-      )
-    );
-  }, [setMessage]);
+  const toggleReasoningExpansion = useCallback(
+    (messageId) => {
+      setMessage((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === messageId && msg.role === MESSAGE_ROLES.ASSISTANT
+            ? { ...msg, isReasoningExpanded: !msg.isReasoningExpanded }
+            : msg,
+        ),
+      );
+    },
+    [setMessage],
+  );
 
   // 渲染函数
   const renderCustomChatContent = useCallback(
@@ -298,30 +336,41 @@ const Playground = () => {
         />
       );
     },
-    [styleState, editingMessageId, editValue, handleEditSave, handleEditCancel, setEditValue, toggleReasoningExpansion],
+    [
+      styleState,
+      editingMessageId,
+      editValue,
+      handleEditSave,
+      handleEditCancel,
+      setEditValue,
+      toggleReasoningExpansion,
+    ],
   );
 
-  const renderChatBoxAction = useCallback((props) => {
-    const { message: currentMessage } = props;
-    const isAnyMessageGenerating = message.some(msg =>
-      msg.status === 'loading' || msg.status === 'incomplete'
-    );
-    const isCurrentlyEditing = editingMessageId === currentMessage.id;
+  const renderChatBoxAction = useCallback(
+    (props) => {
+      const { message: currentMessage } = props;
+      const isAnyMessageGenerating = message.some(
+        (msg) => msg.status === 'loading' || msg.status === 'incomplete',
+      );
+      const isCurrentlyEditing = editingMessageId === currentMessage.id;
 
-    return (
-      <OptimizedMessageActions
-        message={currentMessage}
-        styleState={styleState}
-        onMessageReset={messageActions.handleMessageReset}
-        onMessageCopy={messageActions.handleMessageCopy}
-        onMessageDelete={messageActions.handleMessageDelete}
-        onRoleToggle={messageActions.handleRoleToggle}
-        onMessageEdit={handleMessageEdit}
-        isAnyMessageGenerating={isAnyMessageGenerating}
-        isEditing={isCurrentlyEditing}
-      />
-    );
-  }, [messageActions, styleState, message, editingMessageId, handleMessageEdit]);
+      return (
+        <OptimizedMessageActions
+          message={currentMessage}
+          styleState={styleState}
+          onMessageReset={messageActions.handleMessageReset}
+          onMessageCopy={messageActions.handleMessageCopy}
+          onMessageDelete={messageActions.handleMessageDelete}
+          onRoleToggle={messageActions.handleRoleToggle}
+          onMessageEdit={handleMessageEdit}
+          isAnyMessageGenerating={isAnyMessageGenerating}
+          isEditing={isCurrentlyEditing}
+        />
+      );
+    },
+    [messageActions, styleState, message, editingMessageId, handleMessageEdit],
+  );
 
   // Effects
 
@@ -348,20 +397,36 @@ const Playground = () => {
     const timer = setTimeout(() => {
       const preview = constructPreviewPayload();
       setPreviewPayload(preview);
-      setDebugData(prev => ({
+      setDebugData((prev) => ({
         ...prev,
         previewRequest: preview ? JSON.stringify(preview, null, 2) : null,
-        previewTimestamp: preview ? new Date().toISOString() : null
+        previewTimestamp: preview ? new Date().toISOString() : null,
       }));
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [message, inputs, parameterEnabled, customRequestMode, customRequestBody, constructPreviewPayload, setPreviewPayload, setDebugData]);
+  }, [
+    message,
+    inputs,
+    parameterEnabled,
+    customRequestMode,
+    customRequestBody,
+    constructPreviewPayload,
+    setPreviewPayload,
+    setDebugData,
+  ]);
 
   // 自动保存配置
   useEffect(() => {
     debouncedSaveConfig();
-  }, [inputs, parameterEnabled, showDebugPanel, customRequestMode, customRequestBody, debouncedSaveConfig]);
+  }, [
+    inputs,
+    parameterEnabled,
+    showDebugPanel,
+    customRequestMode,
+    customRequestBody,
+    debouncedSaveConfig,
+  ]);
 
   // 清空对话的处理函数
   const handleClearMessages = useCallback(() => {
@@ -371,15 +436,16 @@ const Playground = () => {
   }, [setMessage, saveMessagesImmediately]);
 
   return (
-    <div className="h-full">
-      <Layout className="h-full bg-transparent flex flex-col md:flex-row">
+    <div className='h-full'>
+      <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
         {(showSettings || !isMobile) && (
           <Layout.Sider
             className={`
               bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${isMobile
-                ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+              ${
+                isMobile
+                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
+                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
               }
             `}
             width={isMobile ? '100%' : 320}
@@ -407,9 +473,9 @@ const Playground = () => {
           </Layout.Sider>
         )}
 
-        <Layout.Content className="relative flex-1 overflow-hidden">
-          <div className="overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]">
-            <div className="flex-1 flex flex-col">
+        <Layout.Content className='relative flex-1 overflow-hidden'>
+          <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
+            <div className='flex-1 flex flex-col'>
               <ChatArea
                 chatRef={chatRef}
                 message={message}
@@ -431,7 +497,7 @@ const Playground = () => {
 
             {/* 调试面板 - 桌面端 */}
             {showDebugPanel && !isMobile && (
-              <div className="w-96 flex-shrink-0 h-full">
+              <div className='w-96 flex-shrink-0 h-full'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}
@@ -445,7 +511,7 @@ const Playground = () => {
 
           {/* 调试面板 - 移动端覆盖层 */}
           {showDebugPanel && isMobile && (
-            <div className="fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg">
+            <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
               <OptimizedDebugPanel
                 debugData={debugData}
                 activeDebugTab={activeDebugTab}

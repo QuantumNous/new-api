@@ -36,7 +36,7 @@ export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
 
   if (user) {
-    return <Navigate to="/console" replace />;
+    return <Navigate to='/console' replace />;
   }
 
   return children;

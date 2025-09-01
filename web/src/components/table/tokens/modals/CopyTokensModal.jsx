@@ -49,17 +49,10 @@ const CopyTokensModal = ({ visible, onCancel, selectedKeys, copyText, t }) => {
       onCancel={onCancel}
       footer={
         <Space>
-          <Button
-            type='tertiary'
-            onClick={handleCopyWithName}
-          >
+          <Button type='tertiary' onClick={handleCopyWithName}>
             {t('名称+密钥')}
           </Button>
-          <Button
-            onClick={handleCopyKeyOnly}
-          >
-            {t('仅密钥')}
-          </Button>
+          <Button onClick={handleCopyKeyOnly}>{t('仅密钥')}</Button>
         </Space>
       }
     >
@@ -68,4 +61,4 @@ const CopyTokensModal = ({ visible, onCancel, selectedKeys, copyText, t }) => {
   );
 };
 
-export default CopyTokensModal; 
+export default CopyTokensModal;

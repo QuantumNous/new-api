@@ -132,30 +132,34 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 
 	switch relayMode {
 	case relayconstant.RelayModeImagesEdits:
-		_, err := c.MultipartForm()
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse image edit form request: %w", err)
-		}
-		formData := c.Request.PostForm
-		imageRequest.Prompt = formData.Get("prompt")
-		imageRequest.Model = formData.Get("model")
-		imageRequest.N = uint(common.String2Int(formData.Get("n")))
-		imageRequest.Quality = formData.Get("quality")
-		imageRequest.Size = formData.Get("size")
-
-		if imageRequest.Model == "gpt-image-1" {
-			if imageRequest.Quality == "" {
-				imageRequest.Quality = "standard"
+		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			_, err := c.MultipartForm()
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse image edit form request: %w", err)
 			}
-		}
-		if imageRequest.N == 0 {
-			imageRequest.N = 1
-		}
+			formData := c.Request.PostForm
+			imageRequest.Prompt = formData.Get("prompt")
+			imageRequest.Model = formData.Get("model")
+			imageRequest.N = uint(common.String2Int(formData.Get("n")))
+			imageRequest.Quality = formData.Get("quality")
+			imageRequest.Size = formData.Get("size")
 
-		watermark := formData.Has("watermark")
-		if watermark {
-			imageRequest.Watermark = &watermark
+			if imageRequest.Model == "gpt-image-1" {
+				if imageRequest.Quality == "" {
+					imageRequest.Quality = "standard"
+				}
+			}
+			if imageRequest.N == 0 {
+				imageRequest.N = 1
+			}
+
+			watermark := formData.Has("watermark")
+			if watermark {
+				imageRequest.Watermark = &watermark
+			}
+			break
 		}
+		fallthrough
 	default:
 		err := common.UnmarshalBodyReusable(c, imageRequest)
 		if err != nil {
@@ -163,7 +167,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 
 		if imageRequest.Model == "" {
-			imageRequest.Model = "dall-e-3"
+			//imageRequest.Model = "dall-e-3"
+			return nil, errors.New("model is required")
 		}
 
 		if strings.Contains(imageRequest.Size, "×") {
@@ -194,9 +199,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			}
 		}
 
-		if imageRequest.Prompt == "" {
-			return nil, errors.New("prompt is required")
-		}
+		//if imageRequest.Prompt == "" {
+		//	return nil, errors.New("prompt is required")
+		//}
 
 		if imageRequest.N == 0 {
 			imageRequest.N = 1

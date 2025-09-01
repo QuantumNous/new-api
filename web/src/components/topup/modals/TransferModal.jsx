@@ -18,12 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Modal,
-  Typography,
-  Input,
-  InputNumber,
-} from '@douyinfe/semi-ui';
+import { Modal, Typography, Input, InputNumber } from '@douyinfe/semi-ui';
 import { CreditCard } from 'lucide-react';
 
 const TransferModal = ({

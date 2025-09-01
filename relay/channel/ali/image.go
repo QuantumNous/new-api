@@ -2,10 +2,13 @@ package ali
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
@@ -39,7 +42,7 @@ func oaiImage2Ali(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, reque
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
 	imageRequest.ResponseFormat = request.ResponseFormat
-
+	logger.LogJson(context.Background(), "oaiImage2Ali request extra", request.Extra)
 	if request.Extra != nil {
 		if val, ok := request.Extra["parameters"]; ok {
 			err := common.Unmarshal(val, &imageRequest.Parameters)
@@ -69,6 +72,100 @@ func oaiImage2Ali(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, reque
 		}
 	}
 
+	return &imageRequest, nil
+}
+
+func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (*AliImageRequest, error) {
+	var imageRequest AliImageRequest
+	imageRequest.Model = request.Model
+	imageRequest.ResponseFormat = request.ResponseFormat
+
+	mf := c.Request.MultipartForm
+	if mf == nil {
+		if _, err := c.MultipartForm(); err != nil {
+			return nil, fmt.Errorf("failed to parse image edit form request: %w", err)
+		}
+		mf = c.Request.MultipartForm
+	}
+
+	var imageFiles []*multipart.FileHeader
+	var exists bool
+
+	// First check for standard "image" field
+	if imageFiles, exists = mf.File["image"]; !exists || len(imageFiles) == 0 {
+		// If not found, check for "image[]" field
+		if imageFiles, exists = mf.File["image[]"]; !exists || len(imageFiles) == 0 {
+			// If still not found, iterate through all fields to find any that start with "image["
+			foundArrayImages := false
+			for fieldName, files := range mf.File {
+				if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
+					foundArrayImages = true
+					imageFiles = append(imageFiles, files...)
+				}
+			}
+
+			// If no image fields found at all
+			if !foundArrayImages && (len(imageFiles) == 0) {
+				return nil, errors.New("image is required")
+			}
+		}
+	}
+
+	if len(imageFiles) == 0 {
+		return nil, errors.New("image is required")
+	}
+
+	if len(imageFiles) > 1 {
+		return nil, errors.New("only one image is supported for qwen edit")
+	}
+
+	// 获取base64编码的图片
+	var imageBase64s []string
+	for _, file := range imageFiles {
+		image, err := file.Open()
+		if err != nil {
+			return nil, errors.New("failed to open image file")
+		}
+
+		// 读取文件内容
+		imageData, err := io.ReadAll(image)
+		if err != nil {
+			return nil, errors.New("failed to read image file")
+		}
+
+		// 获取MIME类型
+		mimeType := http.DetectContentType(imageData)
+
+		// 编码为base64
+		base64Data := base64.StdEncoding.EncodeToString(imageData)
+
+		// 构造data URL格式
+		dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+		imageBase64s = append(imageBase64s, dataURL)
+		image.Close()
+	}
+
+	//dto.MediaContent{}
+	mediaContents := make([]AliMediaContent, len(imageBase64s))
+	for i, b64 := range imageBase64s {
+		mediaContents[i] = AliMediaContent{
+			Image: b64,
+		}
+	}
+	mediaContents = append(mediaContents, AliMediaContent{
+		Text: request.Prompt,
+	})
+	imageRequest.Input = AliImageInput{
+		Messages: []AliMessage{
+			{
+				Role:    "user",
+				Content: mediaContents,
+			},
+		},
+	}
+	imageRequest.Parameters = AliImageParameters{
+		Watermark: request.Watermark,
+	}
 	return &imageRequest, nil
 }
 
@@ -105,7 +202,7 @@ func updateTask(info *relaycommon.RelayInfo, taskID string) (*AliResponse, error
 }
 
 func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (*AliResponse, []byte, error) {
-	waitSeconds := 5
+	waitSeconds := 10
 	step := 0
 	maxStep := 20
 
@@ -146,7 +243,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 	return nil, nil, fmt.Errorf("aliAsyncTaskWait timeout")
 }
 
-func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, info *relaycommon.RelayInfo, responseFormat string) *dto.ImageResponse {
+func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, originBody []byte, info *relaycommon.RelayInfo, responseFormat string) *dto.ImageResponse {
 	imageResponse := dto.ImageResponse{
 		Created: info.StartTime.Unix(),
 	}
@@ -170,7 +267,9 @@ func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, info *relayc
 			RevisedPrompt: "",
 		})
 	}
-	imageResponse.Extra = response
+	var mapResponse map[string]any
+	_ = common.Unmarshal(originBody, &mapResponse)
+	imageResponse.Extra = mapResponse
 	return &imageResponse
 }
 
@@ -187,7 +286,7 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError), nil
 	}
 	service.CloseResponseBodyGracefully(resp)
-	err = json.Unmarshal(responseBody, &aliTaskResponse)
+	err = common.Unmarshal(responseBody, &aliTaskResponse)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError), nil
 	}
@@ -197,7 +296,7 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 		return types.NewError(errors.New(aliTaskResponse.Message), types.ErrorCodeBadResponse), nil
 	}
 
-	aliResponse, _, err := asyncTaskWait(c, info, aliTaskResponse.Output.TaskId)
+	aliResponse, originRespBody, err := asyncTaskWait(c, info, aliTaskResponse.Output.TaskId)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponse), nil
 	}
@@ -216,9 +315,7 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
-	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
-	c.Writer.Write(jsonResponse)
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
 	return nil, &dto.Usage{}
 }
 

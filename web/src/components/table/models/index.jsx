@@ -95,10 +95,10 @@ const ModelsPage = () => {
       />
 
       <CardPro
-        type="type3"
+        type='type3'
         tabsArea={<ModelsTabs {...modelsData} />}
         actionsArea={
-          <div className="flex flex-col md:flex-row justify-between items-center gap-2 w-full">
+          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
             <ModelsActions
               selectedKeys={selectedKeys}
               setSelectedKeys={setSelectedKeys}
@@ -110,7 +110,7 @@ const ModelsPage = () => {
               t={t}
             />
 
-            <div className="w-full md:w-full lg:w-auto order-1 md:order-2">
+            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
               <ModelsFilters
                 formInitValues={formInitValues}
                 setFormApi={setFormApi}

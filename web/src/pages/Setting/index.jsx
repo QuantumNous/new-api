@@ -31,7 +31,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Palette,
-  CreditCard
+  CreditCard,
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
@@ -169,7 +169,7 @@ const Setting = () => {
     }
   }, [location.search]);
   return (
-    <div className="mt-[60px] px-2">
+    <div className='mt-[60px] px-2'>
       <Layout>
         <Layout.Content>
           <Tabs

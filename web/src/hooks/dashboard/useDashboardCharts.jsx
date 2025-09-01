@@ -24,7 +24,7 @@ import {
   renderNumber,
   renderQuota,
   modelToColor,
-  getQuotaWithUnit
+  getQuotaWithUnit,
 } from '../../helpers';
 import {
   processRawData,
@@ -33,7 +33,7 @@ import {
   generateChartTimePoints,
   updateChartSpec,
   updateMapValue,
-  initializeMaps
+  initializeMaps,
 } from '../../helpers/dashboard';
 
 export const useDashboardCharts = (
@@ -45,7 +45,7 @@ export const useDashboardCharts = (
   setPieData,
   setLineData,
   setModelColors,
-  t
+  t,
 ) => {
   // ========== 图表规格状态 ==========
   const [spec_pie, setSpecPie] = useState({
@@ -271,150 +271,160 @@ export const useDashboardCharts = (
     return newModelColors;
   }, []);
 
-  const updateChartData = useCallback((data) => {
-    const processedData = processRawData(
-      data,
+  const updateChartData = useCallback(
+    (data) => {
+      const processedData = processRawData(
+        data,
+        dataExportDefaultTime,
+        initializeMaps,
+        updateMapValue,
+      );
+
+      const {
+        totalQuota,
+        totalTimes,
+        totalTokens,
+        uniqueModels,
+        timePoints,
+        timeQuotaMap,
+        timeTokensMap,
+        timeCountMap,
+      } = processedData;
+
+      const trendDataResult = calculateTrendData(
+        timePoints,
+        timeQuotaMap,
+        timeTokensMap,
+        timeCountMap,
+        dataExportDefaultTime,
+      );
+      setTrendData(trendDataResult);
+
+      const newModelColors = generateModelColors(uniqueModels, {});
+      setModelColors(newModelColors);
+
+      const aggregatedData = aggregateDataByTimeAndModel(
+        data,
+        dataExportDefaultTime,
+      );
+
+      const modelTotals = new Map();
+      for (let [_, value] of aggregatedData) {
+        updateMapValue(modelTotals, value.model, value.count);
+      }
+
+      const newPieData = Array.from(modelTotals)
+        .map(([model, count]) => ({
+          type: model,
+          value: count,
+        }))
+        .sort((a, b) => b.value - a.value);
+
+      const chartTimePoints = generateChartTimePoints(
+        aggregatedData,
+        data,
+        dataExportDefaultTime,
+      );
+
+      let newLineData = [];
+
+      chartTimePoints.forEach((time) => {
+        let timeData = Array.from(uniqueModels).map((model) => {
+          const key = `${time}-${model}`;
+          const aggregated = aggregatedData.get(key);
+          return {
+            Time: time,
+            Model: model,
+            rawQuota: aggregated?.quota || 0,
+            Usage: aggregated?.quota
+              ? getQuotaWithUnit(aggregated.quota, 4)
+              : 0,
+          };
+        });
+
+        const timeSum = timeData.reduce((sum, item) => sum + item.rawQuota, 0);
+        timeData.sort((a, b) => b.rawQuota - a.rawQuota);
+        timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }));
+        newLineData.push(...timeData);
+      });
+
+      newLineData.sort((a, b) => a.Time.localeCompare(b.Time));
+
+      updateChartSpec(
+        setSpecPie,
+        newPieData,
+        `${t('总计')}：${renderNumber(totalTimes)}`,
+        newModelColors,
+        'id0',
+      );
+
+      updateChartSpec(
+        setSpecLine,
+        newLineData,
+        `${t('总计')}：${renderQuota(totalQuota, 2)}`,
+        newModelColors,
+        'barData',
+      );
+
+      // ===== 模型调用次数折线图 =====
+      let modelLineData = [];
+      chartTimePoints.forEach((time) => {
+        const timeData = Array.from(uniqueModels).map((model) => {
+          const key = `${time}-${model}`;
+          const aggregated = aggregatedData.get(key);
+          return {
+            Time: time,
+            Model: model,
+            Count: aggregated?.count || 0,
+          };
+        });
+        modelLineData.push(...timeData);
+      });
+      modelLineData.sort((a, b) => a.Time.localeCompare(b.Time));
+
+      // ===== 模型调用次数排行柱状图 =====
+      const rankData = Array.from(modelTotals)
+        .map(([model, count]) => ({
+          Model: model,
+          Count: count,
+        }))
+        .sort((a, b) => b.Count - a.Count);
+
+      updateChartSpec(
+        setSpecModelLine,
+        modelLineData,
+        `${t('总计')}：${renderNumber(totalTimes)}`,
+        newModelColors,
+        'lineData',
+      );
+
+      updateChartSpec(
+        setSpecRankBar,
+        rankData,
+        `${t('总计')}：${renderNumber(totalTimes)}`,
+        newModelColors,
+        'rankData',
+      );
+
+      setPieData(newPieData);
+      setLineData(newLineData);
+      setConsumeQuota(totalQuota);
+      setTimes(totalTimes);
+      setConsumeTokens(totalTokens);
+    },
+    [
       dataExportDefaultTime,
-      initializeMaps,
-      updateMapValue
-    );
-
-    const {
-      totalQuota,
-      totalTimes,
-      totalTokens,
-      uniqueModels,
-      timePoints,
-      timeQuotaMap,
-      timeTokensMap,
-      timeCountMap
-    } = processedData;
-
-    const trendDataResult = calculateTrendData(
-      timePoints,
-      timeQuotaMap,
-      timeTokensMap,
-      timeCountMap,
-      dataExportDefaultTime
-    );
-    setTrendData(trendDataResult);
-
-    const newModelColors = generateModelColors(uniqueModels, {});
-    setModelColors(newModelColors);
-
-    const aggregatedData = aggregateDataByTimeAndModel(data, dataExportDefaultTime);
-
-    const modelTotals = new Map();
-    for (let [_, value] of aggregatedData) {
-      updateMapValue(modelTotals, value.model, value.count);
-    }
-
-    const newPieData = Array.from(modelTotals).map(([model, count]) => ({
-      type: model,
-      value: count,
-    })).sort((a, b) => b.value - a.value);
-
-    const chartTimePoints = generateChartTimePoints(
-      aggregatedData,
-      data,
-      dataExportDefaultTime
-    );
-
-    let newLineData = [];
-
-    chartTimePoints.forEach((time) => {
-      let timeData = Array.from(uniqueModels).map((model) => {
-        const key = `${time}-${model}`;
-        const aggregated = aggregatedData.get(key);
-        return {
-          Time: time,
-          Model: model,
-          rawQuota: aggregated?.quota || 0,
-          Usage: aggregated?.quota ? getQuotaWithUnit(aggregated.quota, 4) : 0,
-        };
-      });
-
-      const timeSum = timeData.reduce((sum, item) => sum + item.rawQuota, 0);
-      timeData.sort((a, b) => b.rawQuota - a.rawQuota);
-      timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }));
-      newLineData.push(...timeData);
-    });
-
-    newLineData.sort((a, b) => a.Time.localeCompare(b.Time));
-
-    updateChartSpec(
-      setSpecPie,
-      newPieData,
-      `${t('总计')}：${renderNumber(totalTimes)}`,
-      newModelColors,
-      'id0'
-    );
-
-    updateChartSpec(
-      setSpecLine,
-      newLineData,
-      `${t('总计')}：${renderQuota(totalQuota, 2)}`,
-      newModelColors,
-      'barData'
-    );
-
-    // ===== 模型调用次数折线图 =====
-    let modelLineData = [];
-    chartTimePoints.forEach((time) => {
-      const timeData = Array.from(uniqueModels).map((model) => {
-        const key = `${time}-${model}`;
-        const aggregated = aggregatedData.get(key);
-        return {
-          Time: time,
-          Model: model,
-          Count: aggregated?.count || 0,
-        };
-      });
-      modelLineData.push(...timeData);
-    });
-    modelLineData.sort((a, b) => a.Time.localeCompare(b.Time));
-
-    // ===== 模型调用次数排行柱状图 =====
-    const rankData = Array.from(modelTotals)
-      .map(([model, count]) => ({
-        Model: model,
-        Count: count,
-      }))
-      .sort((a, b) => b.Count - a.Count);
-
-    updateChartSpec(
-      setSpecModelLine,
-      modelLineData,
-      `${t('总计')}：${renderNumber(totalTimes)}`,
-      newModelColors,
-      'lineData'
-    );
-
-    updateChartSpec(
-      setSpecRankBar,
-      rankData,
-      `${t('总计')}：${renderNumber(totalTimes)}`,
-      newModelColors,
-      'rankData'
-    );
-
-    setPieData(newPieData);
-    setLineData(newLineData);
-    setConsumeQuota(totalQuota);
-    setTimes(totalTimes);
-    setConsumeTokens(totalTokens);
-  }, [
-    dataExportDefaultTime,
-    setTrendData,
-    generateModelColors,
-    setModelColors,
-    setPieData,
-    setLineData,
-    setConsumeQuota,
-    setTimes,
-    setConsumeTokens,
-    t
-  ]);
+      setTrendData,
+      generateModelColors,
+      setModelColors,
+      setPieData,
+      setLineData,
+      setConsumeQuota,
+      setTimes,
+      setConsumeTokens,
+      t,
+    ],
+  );
 
   // ========== 初始化图表主题 ==========
   useEffect(() => {
@@ -432,6 +442,6 @@ export const useDashboardCharts = (
 
     // 函数
     updateChartData,
-    generateModelColors
+    generateModelColors,
   };
-}; 
+};

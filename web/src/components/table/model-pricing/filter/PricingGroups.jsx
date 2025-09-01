@@ -30,13 +30,26 @@ import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
  * @param {boolean} loading 是否加载中
  * @param {Function} t i18n
  */
-const PricingGroups = ({ filterGroup, setFilterGroup, usableGroup = {}, groupRatio = {}, models = [], loading = false, t }) => {
-  const groups = ['all', ...Object.keys(usableGroup).filter(key => key !== '')];
+const PricingGroups = ({
+  filterGroup,
+  setFilterGroup,
+  usableGroup = {},
+  groupRatio = {},
+  models = [],
+  loading = false,
+  t,
+}) => {
+  const groups = [
+    'all',
+    ...Object.keys(usableGroup).filter((key) => key !== ''),
+  ];
 
   const items = groups.map((g) => {
-    const modelCount = g === 'all'
-      ? models.length
-      : models.filter(m => m.enable_groups && m.enable_groups.includes(g)).length;
+    const modelCount =
+      g === 'all'
+        ? models.length
+        : models.filter((m) => m.enable_groups && m.enable_groups.includes(g))
+            .length;
     let ratioDisplay = '';
     if (g === 'all') {
       ratioDisplay = t('全部');
@@ -52,7 +65,7 @@ const PricingGroups = ({ filterGroup, setFilterGroup, usableGroup = {}, groupRat
       value: g,
       label: g === 'all' ? t('全部分组') : g,
       tagCount: ratioDisplay,
-      disabled: modelCount === 0
+      disabled: modelCount === 0,
     };
   });
 
@@ -68,4 +81,4 @@ const PricingGroups = ({ filterGroup, setFilterGroup, usableGroup = {}, groupRat
   );
 };
 
-export default PricingGroups; 
+export default PricingGroups;

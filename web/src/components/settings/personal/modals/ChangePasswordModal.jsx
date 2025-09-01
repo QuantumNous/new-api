@@ -31,13 +31,13 @@ const ChangePasswordModal = ({
   changePassword,
   turnstileEnabled,
   turnstileSiteKey,
-  setTurnstileToken
+  setTurnstileToken,
 }) => {
   return (
     <Modal
       title={
-        <div className="flex items-center">
-          <IconLock className="mr-2 text-orange-500" />
+        <div className='flex items-center'>
+          <IconLock className='mr-2 text-orange-500' />
           {t('修改密码')}
         </div>
       }
@@ -46,43 +46,45 @@ const ChangePasswordModal = ({
       onOk={changePassword}
       size={'small'}
       centered={true}
-      className="modern-modal"
+      className='modern-modal'
     >
-      <div className="space-y-4 py-4">
+      <div className='space-y-4 py-4'>
         <div>
-          <Typography.Text strong className="block mb-2">{t('原密码')}</Typography.Text>
+          <Typography.Text strong className='block mb-2'>
+            {t('原密码')}
+          </Typography.Text>
           <Input
             name='original_password'
             placeholder={t('请输入原密码')}
             type='password'
             value={inputs.original_password}
-            onChange={(value) =>
-              handleInputChange('original_password', value)
-            }
-            size="large"
-            className="!rounded-lg"
+            onChange={(value) => handleInputChange('original_password', value)}
+            size='large'
+            className='!rounded-lg'
             prefix={<IconLock />}
           />
         </div>
 
         <div>
-          <Typography.Text strong className="block mb-2">{t('新密码')}</Typography.Text>
+          <Typography.Text strong className='block mb-2'>
+            {t('新密码')}
+          </Typography.Text>
           <Input
             name='set_new_password'
             placeholder={t('请输入新密码')}
             type='password'
             value={inputs.set_new_password}
-            onChange={(value) =>
-              handleInputChange('set_new_password', value)
-            }
-            size="large"
-            className="!rounded-lg"
+            onChange={(value) => handleInputChange('set_new_password', value)}
+            size='large'
+            className='!rounded-lg'
             prefix={<IconLock />}
           />
         </div>
 
         <div>
-          <Typography.Text strong className="block mb-2">{t('确认新密码')}</Typography.Text>
+          <Typography.Text strong className='block mb-2'>
+            {t('确认新密码')}
+          </Typography.Text>
           <Input
             name='set_new_password_confirmation'
             placeholder={t('请再次输入新密码')}
@@ -91,14 +93,14 @@ const ChangePasswordModal = ({
             onChange={(value) =>
               handleInputChange('set_new_password_confirmation', value)
             }
-            size="large"
-            className="!rounded-lg"
+            size='large'
+            className='!rounded-lg'
             prefix={<IconLock />}
           />
         </div>
 
         {turnstileEnabled && (
-          <div className="flex justify-center">
+          <div className='flex justify-center'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {

@@ -62,35 +62,35 @@ const TokensActions = ({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1">
+      <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
-          type="primary"
-          className="flex-1 md:flex-initial"
+          type='primary'
+          className='flex-1 md:flex-initial'
           onClick={() => {
             setEditingToken({
               id: undefined,
             });
             setShowEdit(true);
           }}
-          size="small"
+          size='small'
         >
           {t('添加令牌')}
         </Button>
 
         <Button
           type='tertiary'
-          className="flex-1 md:flex-initial"
+          className='flex-1 md:flex-initial'
           onClick={handleCopySelectedTokens}
-          size="small"
+          size='small'
         >
           {t('复制所选令牌')}
         </Button>
 
         <Button
           type='danger'
-          className="w-full md:w-auto"
+          className='w-full md:w-auto'
           onClick={handleDeleteSelectedTokens}
-          size="small"
+          size='small'
         >
           {t('删除所选令牌')}
         </Button>
@@ -115,4 +115,4 @@ const TokensActions = ({
   );
 };
 
-export default TokensActions; 
+export default TokensActions;

@@ -32,11 +32,12 @@ func GetWebSearchPricePerThousand(modelName string, contextSize string) float64 
 	// 确定模型类型
 	// https://platform.openai.com/docs/pricing Web search 价格按模型类型收费
 	// 新版计费规则不再关联 search context size，故在const区域将各size的价格设为一致。
-	// gpt-4o and gpt-4.1 models (including mini models) 等模型更贵，o3, o4-mini, o3-pro, and deep research models 等模型更便宜
+	// gpt-5, gpt-5-mini, gpt-5-nano 和 o 系列模型价格为 10.00 美元/千次调用，产生额外 token 计入 input_tokens
+	// gpt-4o, gpt-4.1, gpt-4o-mini 和 gpt-4.1-mini 价格为 25.00 美元/千次调用，不产生额外 token
 	isNormalPriceModel :=
 		strings.HasPrefix(modelName, "o3") ||
 			strings.HasPrefix(modelName, "o4") ||
-			strings.Contains(modelName, "deep-research")
+			strings.HasPrefix(modelName, "gpt-5")
 	var priceWebSearchPerThousandCalls float64
 	if isNormalPriceModel {
 		priceWebSearchPerThousandCalls = WebSearchPrice

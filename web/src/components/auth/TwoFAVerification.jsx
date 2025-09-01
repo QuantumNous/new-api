@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { API, showError, showSuccess } from '../../helpers';
-import { Button, Card, Divider, Form, Input, Typography } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Card,
+  Divider,
+  Form,
+  Input,
+  Typography,
+} from '@douyinfe/semi-ui';
 import React, { useState } from 'react';
 
 const { Title, Text, Paragraph } = Typography;
@@ -44,7 +51,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
     setLoading(true);
     try {
       const res = await API.post('/api/user/login/2fa', {
-        code: verificationCode
+        code: verificationCode,
       });
 
       if (res.data.success) {
@@ -72,30 +79,30 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
   if (isModal) {
     return (
-      <div className="space-y-4">
-        <Paragraph className="text-gray-600 dark:text-gray-300">
+      <div className='space-y-4'>
+        <Paragraph className='text-gray-600 dark:text-gray-300'>
           请输入认证器应用显示的验证码完成登录
         </Paragraph>
 
         <Form onSubmit={handleSubmit}>
           <Form.Input
-            field="code"
-            label={useBackupCode ? "备用码" : "验证码"}
-            placeholder={useBackupCode ? "请输入8位备用码" : "请输入6位验证码"}
+            field='code'
+            label={useBackupCode ? '备用码' : '验证码'}
+            placeholder={useBackupCode ? '请输入8位备用码' : '请输入6位验证码'}
             value={verificationCode}
             onChange={setVerificationCode}
             onKeyPress={handleKeyPress}
-            size="large"
+            size='large'
             style={{ marginBottom: 16 }}
             autoFocus
           />
 
           <Button
-            htmlType="submit"
-            type="primary"
+            htmlType='submit'
+            type='primary'
             loading={loading}
             block
-            size="large"
+            size='large'
             style={{ marginBottom: 16 }}
           >
             验证并登录
@@ -106,8 +113,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
         <div style={{ textAlign: 'center' }}>
           <Button
-            theme="borderless"
-            type="tertiary"
+            theme='borderless'
+            type='tertiary'
             onClick={() => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
@@ -119,8 +126,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
           {onBack && (
             <Button
-              theme="borderless"
-              type="tertiary"
+              theme='borderless'
+              type='tertiary'
               onClick={onBack}
               style={{ color: '#1890ff', padding: 0 }}
             >
@@ -129,15 +136,14 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           )}
         </div>
 
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-          <Text size="small" type="secondary">
+        <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
+          <Text size='small' type='secondary'>
             <strong>提示：</strong>
             <br />
             • 验证码每30秒更新一次
             <br />
             • 如果无法获取验证码，请使用备用码
-            <br />
-            • 每个备用码只能使用一次
+            <br />• 每个备用码只能使用一次
           </Text>
         </div>
       </div>
@@ -145,39 +151,41 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '60vh'
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '60vh',
+      }}
+    >
       <Card style={{ width: 400, padding: 24 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title heading={3}>两步验证</Title>
-          <Paragraph type="secondary">
+          <Paragraph type='secondary'>
             请输入认证器应用显示的验证码完成登录
           </Paragraph>
         </div>
 
         <Form onSubmit={handleSubmit}>
           <Form.Input
-            field="code"
-            label={useBackupCode ? "备用码" : "验证码"}
-            placeholder={useBackupCode ? "请输入8位备用码" : "请输入6位验证码"}
+            field='code'
+            label={useBackupCode ? '备用码' : '验证码'}
+            placeholder={useBackupCode ? '请输入8位备用码' : '请输入6位验证码'}
             value={verificationCode}
             onChange={setVerificationCode}
             onKeyPress={handleKeyPress}
-            size="large"
+            size='large'
             style={{ marginBottom: 16 }}
             autoFocus
           />
 
           <Button
-            htmlType="submit"
-            type="primary"
+            htmlType='submit'
+            type='primary'
             loading={loading}
             block
-            size="large"
+            size='large'
             style={{ marginBottom: 16 }}
           >
             验证并登录
@@ -188,8 +196,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
         <div style={{ textAlign: 'center' }}>
           <Button
-            theme="borderless"
-            type="tertiary"
+            theme='borderless'
+            type='tertiary'
             onClick={() => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
@@ -201,8 +209,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
           {onBack && (
             <Button
-              theme="borderless"
-              type="tertiary"
+              theme='borderless'
+              type='tertiary'
               onClick={onBack}
               style={{ color: '#1890ff', padding: 0 }}
             >
@@ -211,15 +219,21 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           )}
         </div>
 
-        <div style={{ marginTop: 24, padding: 16, background: '#f6f8fa', borderRadius: 6 }}>
-          <Text size="small" type="secondary">
+        <div
+          style={{
+            marginTop: 24,
+            padding: 16,
+            background: '#f6f8fa',
+            borderRadius: 6,
+          }}
+        >
+          <Text size='small' type='secondary'>
             <strong>提示：</strong>
             <br />
             • 验证码每30秒更新一次
             <br />
             • 如果无法获取验证码，请使用备用码
-            <br />
-            • 每个备用码只能使用一次
+            <br />• 每个备用码只能使用一次
           </Text>
         </div>
       </Card>

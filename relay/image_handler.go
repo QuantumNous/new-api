@@ -2,14 +2,13 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"one-api/common"
 	"one-api/dto"
+	"one-api/logger"
 	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting/model_setting"
@@ -56,10 +55,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
-		if info.RelayMode == relayconstant.RelayModeImagesEdits {
+
+		switch convertedRequest.(type) {
+		case *bytes.Buffer:
 			requestBody = convertedRequest.(io.Reader)
-		} else {
-			jsonData, err := json.Marshal(convertedRequest)
+		default:
+			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
@@ -73,7 +74,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			}
 
 			if common.DebugEnabled {
-				println(fmt.Sprintf("image request body: %s", string(jsonData)))
+				logger.LogDebug(c, fmt.Sprintf("image request body: %s", string(jsonData)))
 			}
 			requestBody = bytes.NewBuffer(jsonData)
 		}

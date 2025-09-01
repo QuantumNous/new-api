@@ -26,7 +26,7 @@ import {
   isAdmin,
   showError,
   showSuccess,
-  timestamp2string
+  timestamp2string,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -59,7 +59,9 @@ export const useTaskLogsData = () => {
   // User and admin
   const isAdminUser = isAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
-  const STORAGE_KEY = isAdminUser ? 'task-logs-table-columns-admin' : 'task-logs-table-columns-user';
+  const STORAGE_KEY = isAdminUser
+    ? 'task-logs-table-columns-admin'
+    : 'task-logs-table-columns-user';
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,7 +81,7 @@ export const useTaskLogsData = () => {
     task_id: '',
     dateRange: [
       timestamp2string(zeroNow.getTime() / 1000),
-      timestamp2string(now.getTime() / 1000 + 3600)
+      timestamp2string(now.getTime() / 1000 + 3600),
     ],
   };
 
@@ -174,7 +176,11 @@ export const useTaskLogsData = () => {
     let start_timestamp = timestamp2string(zeroNow.getTime() / 1000);
     let end_timestamp = timestamp2string(now.getTime() / 1000 + 3600);
 
-    if (formValues.dateRange && Array.isArray(formValues.dateRange) && formValues.dateRange.length === 2) {
+    if (
+      formValues.dateRange &&
+      Array.isArray(formValues.dateRange) &&
+      formValues.dateRange.length === 2
+    ) {
       start_timestamp = formValues.dateRange[0];
       end_timestamp = formValues.dateRange[1];
     }
@@ -208,7 +214,8 @@ export const useTaskLogsData = () => {
   // Load logs function
   const loadLogs = async (page = 1, size = pageSize) => {
     setLoading(true);
-    const { channel_id, task_id, start_timestamp, end_timestamp } = getFormValues();
+    const { channel_id, task_id, start_timestamp, end_timestamp } =
+      getFormValues();
     let localStartTimestamp = parseInt(Date.parse(start_timestamp) / 1000);
     let localEndTimestamp = parseInt(Date.parse(end_timestamp) / 1000);
     let url = isAdminUser
@@ -262,7 +269,8 @@ export const useTaskLogsData = () => {
 
   // Initialize data
   useEffect(() => {
-    const localPageSize = parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
+    const localPageSize =
+      parseInt(localStorage.getItem('task-page-size')) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
     loadLogs(1, localPageSize).then();
   }, []);
@@ -319,4 +327,4 @@ export const useTaskLogsData = () => {
     // Translation
     t,
   };
-}; 
+};

@@ -2,7 +2,9 @@ package dto
 
 import (
 	"encoding/json"
+	"one-api/common"
 	"one-api/types"
+	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -27,6 +29,68 @@ type ImageRequest struct {
 	Watermark *bool `json:"watermark,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
+}
+
+func (i *ImageRequest) UnmarshalJSON(data []byte) error {
+	// 先解析成 map[string]interface{}
+	var rawMap map[string]json.RawMessage
+	if err := common.Unmarshal(data, &rawMap); err != nil {
+		return err
+	}
+
+	// 用 struct tag 获取所有已定义字段名
+	knownFields := GetJSONFieldNames(reflect.TypeOf(*i))
+
+	// 再正常解析已定义字段
+	type Alias ImageRequest
+	var known Alias
+	if err := common.Unmarshal(data, &known); err != nil {
+		return err
+	}
+	*i = ImageRequest(known)
+
+	// 提取多余字段
+	i.Extra = make(map[string]json.RawMessage)
+	for k, v := range rawMap {
+		if _, ok := knownFields[k]; !ok {
+			i.Extra[k] = v
+		}
+	}
+	return nil
+}
+
+func GetJSONFieldNames(t reflect.Type) map[string]struct{} {
+	fields := make(map[string]struct{})
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+
+		// 跳过匿名字段（例如 ExtraFields）
+		if field.Anonymous {
+			continue
+		}
+
+		tag := field.Tag.Get("json")
+		if tag == "-" || tag == "" {
+			continue
+		}
+
+		// 取逗号前字段名（排除 omitempty 等）
+		name := tag
+		if commaIdx := indexComma(tag); commaIdx != -1 {
+			name = tag[:commaIdx]
+		}
+		fields[name] = struct{}{}
+	}
+	return fields
+}
+
+func indexComma(s string) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' {
+			return i
+		}
+	}
+	return -1
 }
 
 func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {

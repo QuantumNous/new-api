@@ -24,8 +24,9 @@ import { getLobeHubIcon } from '../../../../../helpers';
 const { Paragraph } = Typography;
 
 const CARD_STYLES = {
-  container: "w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md",
-  icon: "w-8 h-8 flex items-center justify-center",
+  container:
+    'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
+  icon: 'w-8 h-8 flex items-center justify-center',
 };
 
 const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
@@ -57,13 +58,13 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
     return (
       <div className={CARD_STYLES.container}>
         <Avatar
-          size="large"
+          size='large'
           style={{
             width: 48,
             height: 48,
             borderRadius: 16,
             fontSize: 16,
-            fontWeight: 'bold'
+            fontWeight: 'bold',
           }}
         >
           {avatarText}
@@ -73,21 +74,23 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
   };
 
   return (
-    <div className="flex items-center">
+    <div className='flex items-center'>
       {getModelIcon()}
-      <div className="ml-3 font-normal">
+      <div className='ml-3 font-normal'>
         <Paragraph
-          className="!mb-0 !text-lg !font-medium"
+          className='!mb-0 !text-lg !font-medium'
           copyable={{
             content: modelData?.model_name || '',
-            onCopy: () => Toast.success({ content: t('已复制模型名称') })
+            onCopy: () => Toast.success({ content: t('已复制模型名称') }),
           }}
         >
-          <span className="truncate max-w-60 font-bold">{modelData?.model_name || t('未知模型')}</span>
+          <span className='truncate max-w-60 font-bold'>
+            {modelData?.model_name || t('未知模型')}
+          </span>
         </Paragraph>
       </div>
     </div>
   );
 };
 
-export default ModelHeader; 
+export default ModelHeader;

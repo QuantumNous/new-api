@@ -130,7 +130,11 @@ const SetupWizard = () => {
           return true; // 如果已经初始化，可以继续
         }
         // 检查必填字段
-        if (!formData.username || !formData.password || !formData.confirmPassword) {
+        if (
+          !formData.username ||
+          !formData.password ||
+          !formData.confirmPassword
+        ) {
           showError(t('请填写完整的管理员账号信息'));
           return false;
         }
@@ -226,12 +230,7 @@ const SetupWizard = () => {
   const getStepContent = (step) => {
     switch (step) {
       case 0:
-        return (
-          <DatabaseStep
-            setupStatus={setupStatus}
-            t={t}
-          />
-        );
+        return <DatabaseStep setupStatus={setupStatus} t={t} />;
       case 1:
         return (
           <AdminStep
@@ -252,11 +251,7 @@ const SetupWizard = () => {
         );
       case 3:
         return (
-          <CompleteStep
-            setupStatus={setupStatus}
-            formData={formData}
-            t={t}
-          />
+          <CompleteStep setupStatus={setupStatus} formData={formData} t={t} />
         );
       default:
         return null;
@@ -275,21 +270,25 @@ const SetupWizard = () => {
 
   return (
     <div className='min-h-screen flex items-center justify-center px-4'>
-      <div className="w-full max-w-4xl">
-        <Card className="!rounded-2xl shadow-sm border-0">
-          <div className="mb-4">
-            <div className="text-xl font-semibold">{t('系统初始化')}</div>
-            <div className="text-xs text-gray-600">
+      <div className='w-full max-w-4xl'>
+        <Card className='!rounded-2xl shadow-sm border-0'>
+          <div className='mb-4'>
+            <div className='text-xl font-semibold'>{t('系统初始化')}</div>
+            <div className='text-xs text-gray-600'>
               {t('欢迎使用，请完成以下设置以开始使用系统')}
             </div>
           </div>
 
-          <div className="px-2 py-2">
-            <Steps type="basic" current={currentStep}>
+          <div className='px-2 py-2'>
+            <Steps type='basic' current={currentStep}>
               {steps.map((item, index) => (
                 <Steps.Step
                   key={item.title}
-                  title={<span className={currentStep === index ? 'shine-text' : ''}>{item.title}</span>}
+                  title={
+                    <span className={currentStep === index ? 'shine-text' : ''}>
+                      {item.title}
+                    </span>
+                  }
                   description={item.description}
                 />
               ))}
@@ -306,9 +305,12 @@ const SetupWizard = () => {
             initValues={formData}
           >
             {/* 步骤内容：保持所有字段挂载，仅隐藏非当前步骤 */}
-            <div className="steps-content">
+            <div className='steps-content'>
               {[0, 1, 2, 3].map((idx) => (
-                <div key={idx} style={{ display: currentStep === idx ? 'block' : 'none' }}>
+                <div
+                  key={idx}
+                  style={{ display: currentStep === idx ? 'block' : 'none' }}
+                >
                   {React.cloneElement(getStepContent(idx), {
                     ...stepNavigationProps,
                     renderNavigationButtons: () => (

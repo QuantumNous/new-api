@@ -39,6 +39,8 @@ func TestStatus(c *gin.Context) {
 func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -88,6 +90,10 @@ func GetStatus(c *gin.Context) {
 		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
 		"announcements_enabled": cs.AnnouncementsEnabled,
 		"faq_enabled":           cs.FAQEnabled,
+
+		// 模块管理配置
+		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
+		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
 
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,

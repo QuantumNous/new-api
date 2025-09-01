@@ -290,7 +290,9 @@ const EditModelModal = (props) => {
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-                    <div className='text-xs text-gray-600'>{t('设置模型的基本信息')}</div>
+                    <div className='text-xs text-gray-600'>
+                      {t('设置模型的基本信息')}
+                    </div>
                   </div>
                 </div>
                 <Row gutter={12}>
@@ -309,9 +311,16 @@ const EditModelModal = (props) => {
                       field='name_rule'
                       label={t('名称匹配类型')}
                       placeholder={t('请选择名称匹配类型')}
-                      optionList={nameRuleOptions.map(o => ({ label: t(o.label), value: o.value }))}
-                      rules={[{ required: true, message: t('请选择名称匹配类型') }]}
-                      extraText={t('根据模型名称和匹配规则查找模型元数据，优先级：精确 > 前缀 > 后缀 > 包含')}
+                      optionList={nameRuleOptions.map((o) => ({
+                        label: t(o.label),
+                        value: o.value,
+                      }))}
+                      rules={[
+                        { required: true, message: t('请选择名称匹配类型') },
+                      ]}
+                      extraText={t(
+                        '根据模型名称和匹配规则查找模型元数据，优先级：精确 > 前缀 > 后缀 > 包含',
+                      )}
                       style={{ width: '100%' }}
                     />
                   </Col>
@@ -323,9 +332,14 @@ const EditModelModal = (props) => {
                       placeholder={t('请输入图标名称')}
                       extraText={
                         <span>
-                          {t('图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={\'platform\'}、OpenRouter.Avatar.shape={\'square\'}，查询所有可用图标请 ')}
+                          {t(
+                            "图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={'platform'}、OpenRouter.Avatar.shape={'square'}，查询所有可用图标请 ",
+                          )}
                           <Typography.Text
-                            link={{ href: 'https://icons.lobehub.com/components/lobe-hub', target: '_blank' }}
+                            link={{
+                              href: 'https://icons.lobehub.com/components/lobe-hub',
+                              target: '_blank',
+                            }}
                             icon={<IconLink />}
                             underline
                           >
@@ -357,7 +371,16 @@ const EditModelModal = (props) => {
                         if (!formApiRef.current) return;
                         const normalize = (tags) => {
                           if (!Array.isArray(tags)) return [];
-                          return [...new Set(tags.flatMap(tag => tag.split(',').map(t => t.trim()).filter(Boolean)))];
+                          return [
+                            ...new Set(
+                              tags.flatMap((tag) =>
+                                tag
+                                  .split(',')
+                                  .map((t) => t.trim())
+                                  .filter(Boolean),
+                              ),
+                            ),
+                          ];
                         };
                         const normalized = normalize(newTags);
                         formApiRef.current.setValue('tags', normalized);
@@ -366,17 +389,24 @@ const EditModelModal = (props) => {
                       {...(tagGroups.length > 0 && {
                         extraText: (
                           <Space wrap>
-                            {tagGroups.map(group => (
+                            {tagGroups.map((group) => (
                               <Button
                                 key={group.id}
                                 size='small'
                                 type='primary'
                                 onClick={() => {
                                   if (formApiRef.current) {
-                                    const currentTags = formApiRef.current.getValue('tags') || [];
-                                    const newTags = [...currentTags, ...(group.items || [])];
+                                    const currentTags =
+                                      formApiRef.current.getValue('tags') || [];
+                                    const newTags = [
+                                      ...currentTags,
+                                      ...(group.items || []),
+                                    ];
                                     const uniqueTags = [...new Set(newTags)];
-                                    formApiRef.current.setValue('tags', uniqueTags);
+                                    formApiRef.current.setValue(
+                                      'tags',
+                                      uniqueTags,
+                                    );
                                   }
                                 }}
                               >
@@ -384,7 +414,7 @@ const EditModelModal = (props) => {
                               </Button>
                             ))}
                           </Space>
-                        )
+                        ),
                       })}
                     />
                   </Col>
@@ -393,13 +423,19 @@ const EditModelModal = (props) => {
                       field='vendor_id'
                       label={t('供应商')}
                       placeholder={t('选择模型供应商')}
-                      optionList={vendors.map(v => ({ label: v.name, value: v.id }))}
+                      optionList={vendors.map((v) => ({
+                        label: v.name,
+                        value: v.id,
+                      }))}
                       filter
                       showClear
                       onChange={(value) => {
-                        const vendorInfo = vendors.find(v => v.id === value);
+                        const vendorInfo = vendors.find((v) => v.id === value);
                         if (vendorInfo && formApiRef.current) {
-                          formApiRef.current.setValue('vendor', vendorInfo.name);
+                          formApiRef.current.setValue(
+                            'vendor',
+                            vendorInfo.name,
+                          );
                         }
                       }}
                       style={{ width: '100%' }}
@@ -409,49 +445,71 @@ const EditModelModal = (props) => {
                     <JSONEditor
                       field='endpoints'
                       label={t('端点映射')}
-                      placeholder={'{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'}
+                      placeholder={
+                        '{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'
+                      }
                       value={values.endpoints}
-                      onChange={(val) => formApiRef.current?.setValue('endpoints', val)}
+                      onChange={(val) =>
+                        formApiRef.current?.setValue('endpoints', val)
+                      }
                       formApi={formApiRef.current}
                       editorType='object'
                       template={ENDPOINT_TEMPLATE}
                       templateLabel={t('填入模板')}
                       extraText={t('留空则使用默认端点；支持 {path, method}')}
-                      extraFooter={endpointGroups.length > 0 && (
-                        <Space wrap>
-                          {endpointGroups.map(group => (
-                            <Button
-                              key={group.id}
-                              size='small'
-                              type='primary'
-                              onClick={() => {
-                                try {
-                                  const current = formApiRef.current?.getValue('endpoints') || '';
-                                  let base = {};
-                                  if (current && current.trim()) base = JSON.parse(current);
-                                  const groupObj = typeof group.items === 'string' ? JSON.parse(group.items || '{}') : (group.items || {});
-                                  const merged = { ...base, ...groupObj };
-                                  formApiRef.current?.setValue('endpoints', JSON.stringify(merged, null, 2));
-                                } catch (e) {
+                      extraFooter={
+                        endpointGroups.length > 0 && (
+                          <Space wrap>
+                            {endpointGroups.map((group) => (
+                              <Button
+                                key={group.id}
+                                size='small'
+                                type='primary'
+                                onClick={() => {
                                   try {
-                                    const groupObj = typeof group.items === 'string' ? JSON.parse(group.items || '{}') : (group.items || {});
-                                    formApiRef.current?.setValue('endpoints', JSON.stringify(groupObj, null, 2));
-                                  } catch { }
-                                }
-                              }}
-                            >
-                              {group.name}
-                            </Button>
-                          ))}
-                        </Space>
-                      )}
+                                    const current =
+                                      formApiRef.current?.getValue(
+                                        'endpoints',
+                                      ) || '';
+                                    let base = {};
+                                    if (current && current.trim())
+                                      base = JSON.parse(current);
+                                    const groupObj =
+                                      typeof group.items === 'string'
+                                        ? JSON.parse(group.items || '{}')
+                                        : group.items || {};
+                                    const merged = { ...base, ...groupObj };
+                                    formApiRef.current?.setValue(
+                                      'endpoints',
+                                      JSON.stringify(merged, null, 2),
+                                    );
+                                  } catch (e) {
+                                    try {
+                                      const groupObj =
+                                        typeof group.items === 'string'
+                                          ? JSON.parse(group.items || '{}')
+                                          : group.items || {};
+                                      formApiRef.current?.setValue(
+                                        'endpoints',
+                                        JSON.stringify(groupObj, null, 2),
+                                      );
+                                    } catch {}
+                                  }
+                                }}
+                              >
+                                {group.name}
+                              </Button>
+                            ))}
+                          </Space>
+                        )
+                      }
                     />
                   </Col>
                   <Col span={24}>
                     <Form.Switch
                       field='status'
                       label={t('状态')}
-                      size="large"
+                      size='large'
                     />
                   </Col>
                 </Row>

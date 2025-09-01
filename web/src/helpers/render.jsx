@@ -88,104 +88,34 @@ export function getLucideIcon(key, selected = false) {
   // 根据不同的key返回不同的图标
   switch (key) {
     case 'detail':
-      return (
-        <LayoutDashboard
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <LayoutDashboard {...commonProps} color={iconColor} />;
     case 'playground':
-      return (
-        <TerminalSquare
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <TerminalSquare {...commonProps} color={iconColor} />;
     case 'chat':
-      return (
-        <MessageSquare
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <MessageSquare {...commonProps} color={iconColor} />;
     case 'token':
-      return (
-        <Key
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <Key {...commonProps} color={iconColor} />;
     case 'log':
-      return (
-        <BarChart3
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <BarChart3 {...commonProps} color={iconColor} />;
     case 'midjourney':
-      return (
-        <ImageIcon
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
-      return (
-        <CheckSquare
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <CheckSquare {...commonProps} color={iconColor} />;
     case 'topup':
-      return (
-        <CreditCard
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <CreditCard {...commonProps} color={iconColor} />;
     case 'channel':
-      return (
-        <Layers
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <Layers {...commonProps} color={iconColor} />;
     case 'redemption':
-      return (
-        <Gift
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <Gift {...commonProps} color={iconColor} />;
     case 'user':
     case 'personal':
-      return (
-        <User
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <User {...commonProps} color={iconColor} />;
     case 'models':
-      return (
-        <Package
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <Package {...commonProps} color={iconColor} />;
     case 'setting':
-      return (
-        <Settings
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <Settings {...commonProps} color={iconColor} />;
     default:
-      return (
-        <CircleUser
-          {...commonProps}
-          color={iconColor}
-        />
-      );
+      return <CircleUser {...commonProps} color={iconColor} />;
   }
 }
 
@@ -431,7 +361,7 @@ export function getLobeHubIcon(iconName, size = 14) {
   if (typeof iconName === 'string') iconName = iconName.trim();
   // 如果没有图标名称，返回 Avatar
   if (!iconName) {
-    return <Avatar size="extra-extra-small">?</Avatar>;
+    return <Avatar size='extra-extra-small'>?</Avatar>;
   }
 
   // 解析组件路径与点号链式属性
@@ -451,9 +381,12 @@ export function getLobeHubIcon(iconName, size = 14) {
   }
 
   // 失败兜底
-  if (!IconComponent || (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')) {
+  if (
+    !IconComponent ||
+    (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
+  ) {
     const firstLetter = String(iconName).charAt(0).toUpperCase();
-    return <Avatar size="extra-extra-small">{firstLetter}</Avatar>;
+    return <Avatar size='extra-extra-small'>{firstLetter}</Avatar>;
   }
 
   // 解析点号链式属性，形如：key={...}、key='...'、key="..."、key=123、key、key=true/false
@@ -467,7 +400,10 @@ export function getLobeHubIcon(iconName, size = 14) {
       v = v.slice(1, -1).trim();
     }
     // 去除引号
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    if (
+      (v.startsWith('"') && v.endsWith('"')) ||
+      (v.startsWith("'") && v.endsWith("'"))
+    ) {
       return v.slice(1, -1);
     }
     // 布尔
@@ -765,7 +701,9 @@ const measureTextWidth = (
 };
 
 export function truncateText(text, maxWidth = 200) {
-  const isMobileScreen = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches;
+  const isMobileScreen = window.matchMedia(
+    `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
+  ).matches;
   if (!isMobileScreen) {
     return text;
   }
@@ -959,7 +897,6 @@ export function renderQuotaWithAmount(amount) {
 }
 
 export function renderQuota(quota, digits = 2) {
-
   let quotaPerUnit = localStorage.getItem('quota_per_unit');
   let displayInCurrency = localStorage.getItem('display_in_currency');
   quotaPerUnit = parseFloat(quotaPerUnit);
@@ -986,7 +923,7 @@ function isValidGroupRatio(ratio) {
 /**
  * Helper function to get effective ratio and label
  * @param {number} groupRatio - The default group ratio
- * @param {number} user_group_ratio - The user-specific group ratio  
+ * @param {number} user_group_ratio - The user-specific group ratio
  * @returns {Object} - Object containing { ratio, label, useUserGroupRatio }
  */
 function getEffectiveRatio(groupRatio, user_group_ratio) {
@@ -999,7 +936,7 @@ function getEffectiveRatio(groupRatio, user_group_ratio) {
   return {
     ratio: effectiveRatio,
     label: ratioLabel,
-    useUserGroupRatio: useUserGroupRatio
+    useUserGroupRatio: useUserGroupRatio,
   };
 }
 
@@ -1015,7 +952,7 @@ function renderPriceSimpleCore({
   cacheCreationRatio = 1.0,
   image = false,
   imageRatio = 1.0,
-  isSystemPromptOverride = false
+  isSystemPromptOverride = false,
 }) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1059,7 +996,7 @@ function renderPriceSimpleCore({
     cacheRatio: cacheRatio,
     cacheCreationRatio: cacheCreationRatio,
     imageRatio: imageRatio,
-  })
+  });
 
   if (isSystemPromptOverride) {
     result += '\n\r' + i18next.t('系统提示覆盖');
@@ -1091,7 +1028,10 @@ export function renderModelPrice(
   audioInputTokens = 0,
   audioInputPrice = 0,
 ) {
-  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(groupRatio, user_group_ratio);
+  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
+    groupRatio,
+    user_group_ratio,
+  );
   groupRatio = effectiveGroupRatio;
 
   if (modelPrice !== -1) {
@@ -1251,25 +1191,25 @@ export function renderModelPrice(
               const extraServices = [
                 webSearch && webSearchCallCount > 0
                   ? i18next.t(
-                    ' + Web搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
-                    {
-                      count: webSearchCallCount,
-                      price: webSearchPrice,
-                      ratio: groupRatio,
-                      ratioType: ratioLabel,
-                    },
-                  )
+                      ' + Web搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
+                      {
+                        count: webSearchCallCount,
+                        price: webSearchPrice,
+                        ratio: groupRatio,
+                        ratioType: ratioLabel,
+                      },
+                    )
                   : '',
                 fileSearch && fileSearchCallCount > 0
                   ? i18next.t(
-                    ' + 文件搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
-                    {
-                      count: fileSearchCallCount,
-                      price: fileSearchPrice,
-                      ratio: groupRatio,
-                      ratioType: ratioLabel,
-                    },
-                  )
+                      ' + 文件搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
+                      {
+                        count: fileSearchCallCount,
+                        price: fileSearchPrice,
+                        ratio: groupRatio,
+                        ratioType: ratioLabel,
+                      },
+                    )
                   : '',
               ].join('');
 
@@ -1305,7 +1245,11 @@ export function renderLogContent(
   fileSearch = false,
   fileSearchCallCount = 0,
 ) {
-  const { ratio, label: ratioLabel, useUserGroupRatio: useUserGroupRatio } = getEffectiveRatio(groupRatio, user_group_ratio);
+  const {
+    ratio,
+    label: ratioLabel,
+    useUserGroupRatio: useUserGroupRatio,
+  } = getEffectiveRatio(groupRatio, user_group_ratio);
 
   if (modelPrice !== -1) {
     return i18next.t('模型价格 ${{price}}，{{ratioType}} {{ratio}}', {
@@ -1378,7 +1322,7 @@ export function renderModelPriceSimple(
     cacheCreationRatio,
     image,
     imageRatio,
-    isSystemPromptOverride
+    isSystemPromptOverride,
   });
 }
 
@@ -1397,7 +1341,10 @@ export function renderAudioModelPrice(
   cacheTokens = 0,
   cacheRatio = 1.0,
 ) {
-  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(groupRatio, user_group_ratio);
+  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
+    groupRatio,
+    user_group_ratio,
+  );
   groupRatio = effectiveGroupRatio;
   // 1 ratio = $0.002 / 1K tokens
   if (modelPrice !== -1) {
@@ -1432,10 +1379,10 @@ export function renderAudioModelPrice(
     let audioPrice =
       (audioInputTokens / 1000000) * inputRatioPrice * audioRatio * groupRatio +
       (audioCompletionTokens / 1000000) *
-      inputRatioPrice *
-      audioRatio *
-      audioCompletionRatio *
-      groupRatio;
+        inputRatioPrice *
+        audioRatio *
+        audioCompletionRatio *
+        groupRatio;
     let price = textPrice + audioPrice;
     return (
       <>
@@ -1491,27 +1438,27 @@ export function renderAudioModelPrice(
           <p>
             {cacheTokens > 0
               ? i18next.t(
-                '文字提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
-                {
-                  nonCacheInput: inputTokens - cacheTokens,
-                  cacheInput: cacheTokens,
-                  cachePrice: inputRatioPrice * cacheRatio,
-                  price: inputRatioPrice,
-                  completion: completionTokens,
-                  compPrice: completionRatioPrice,
-                  total: textPrice.toFixed(6),
-                },
-              )
+                  '文字提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
+                  {
+                    nonCacheInput: inputTokens - cacheTokens,
+                    cacheInput: cacheTokens,
+                    cachePrice: inputRatioPrice * cacheRatio,
+                    price: inputRatioPrice,
+                    completion: completionTokens,
+                    compPrice: completionRatioPrice,
+                    total: textPrice.toFixed(6),
+                  },
+                )
               : i18next.t(
-                '文字提示 {{input}} tokens / 1M tokens * ${{price}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
-                {
-                  input: inputTokens,
-                  price: inputRatioPrice,
-                  completion: completionTokens,
-                  compPrice: completionRatioPrice,
-                  total: textPrice.toFixed(6),
-                },
-              )}
+                  '文字提示 {{input}} tokens / 1M tokens * ${{price}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
+                  {
+                    input: inputTokens,
+                    price: inputRatioPrice,
+                    completion: completionTokens,
+                    compPrice: completionRatioPrice,
+                    total: textPrice.toFixed(6),
+                  },
+                )}
           </p>
           <p>
             {i18next.t(
@@ -1547,9 +1494,7 @@ export function renderQuotaWithPrompt(quota, digits) {
   let displayInCurrency = localStorage.getItem('display_in_currency');
   displayInCurrency = displayInCurrency === 'true';
   if (displayInCurrency) {
-    return (
-      i18next.t('等价金额：') + renderQuota(quota, digits)
-    );
+    return i18next.t('等价金额：') + renderQuota(quota, digits);
   }
   return '';
 }
@@ -1567,7 +1512,10 @@ export function renderClaudeModelPrice(
   cacheCreationTokens = 0,
   cacheCreationRatio = 1.0,
 ) {
-  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(groupRatio, user_group_ratio);
+  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
+    groupRatio,
+    user_group_ratio,
+  );
   groupRatio = effectiveGroupRatio;
 
   if (modelPrice !== -1) {
@@ -1650,35 +1598,35 @@ export function renderClaudeModelPrice(
           <p>
             {cacheTokens > 0 || cacheCreationTokens > 0
               ? i18next.t(
-                '提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 缓存创建 {{cacheCreationInput}} tokens / 1M tokens * ${{cacheCreationPrice}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
-                {
-                  nonCacheInput: nonCachedTokens,
-                  cacheInput: cacheTokens,
-                  cacheRatio: cacheRatio,
-                  cacheCreationInput: cacheCreationTokens,
-                  cacheCreationRatio: cacheCreationRatio,
-                  cachePrice: cacheRatioPrice,
-                  cacheCreationPrice: cacheCreationRatioPrice,
-                  price: inputRatioPrice,
-                  completion: completionTokens,
-                  compPrice: completionRatioPrice,
-                  ratio: groupRatio,
-                  ratioType: ratioLabel,
-                  total: price.toFixed(6),
-                },
-              )
+                  '提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 缓存创建 {{cacheCreationInput}} tokens / 1M tokens * ${{cacheCreationPrice}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
+                  {
+                    nonCacheInput: nonCachedTokens,
+                    cacheInput: cacheTokens,
+                    cacheRatio: cacheRatio,
+                    cacheCreationInput: cacheCreationTokens,
+                    cacheCreationRatio: cacheCreationRatio,
+                    cachePrice: cacheRatioPrice,
+                    cacheCreationPrice: cacheCreationRatioPrice,
+                    price: inputRatioPrice,
+                    completion: completionTokens,
+                    compPrice: completionRatioPrice,
+                    ratio: groupRatio,
+                    ratioType: ratioLabel,
+                    total: price.toFixed(6),
+                  },
+                )
               : i18next.t(
-                '提示 {{input}} tokens / 1M tokens * ${{price}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
-                {
-                  input: inputTokens,
-                  price: inputRatioPrice,
-                  completion: completionTokens,
-                  compPrice: completionRatioPrice,
-                  ratio: groupRatio,
-                  ratioType: ratioLabel,
-                  total: price.toFixed(6),
-                },
-              )}
+                  '提示 {{input}} tokens / 1M tokens * ${{price}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
+                  {
+                    input: inputTokens,
+                    price: inputRatioPrice,
+                    completion: completionTokens,
+                    compPrice: completionRatioPrice,
+                    ratio: groupRatio,
+                    ratioType: ratioLabel,
+                    total: price.toFixed(6),
+                  },
+                )}
           </p>
           <p>{i18next.t('仅供参考，以实际扣费为准')}</p>
         </article>
@@ -1696,7 +1644,10 @@ export function renderClaudeLogContent(
   cacheRatio = 1.0,
   cacheCreationRatio = 1.0,
 ) {
-  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(groupRatio, user_group_ratio);
+  const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
+    groupRatio,
+    user_group_ratio,
+  );
   groupRatio = effectiveGroupRatio;
 
   if (modelPrice !== -1) {

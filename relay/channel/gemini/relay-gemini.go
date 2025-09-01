@@ -749,7 +749,16 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 			var texts []string
 			var toolCalls []dto.ToolCallResponse
 			for _, part := range candidate.Content.Parts {
-				if part.FunctionCall != nil {
+				if part.InlineData != nil {
+					// 媒体内容
+					if strings.HasPrefix(part.InlineData.MimeType, "image") {
+						imgText := "![image](data:" + part.InlineData.MimeType + ";base64," + part.InlineData.Data + ")"
+						texts = append(texts, imgText)
+					} else {
+						// 其他媒体类型，直接显示链接
+						texts = append(texts, fmt.Sprintf("[media](data:%s;base64,%s)", part.InlineData.MimeType, part.InlineData.Data))
+					}
+				} else if part.FunctionCall != nil {
 					choice.FinishReason = constant.FinishReasonToolCalls
 					if call := getResponseToolCall(&part); call != nil {
 						toolCalls = append(toolCalls, *call)

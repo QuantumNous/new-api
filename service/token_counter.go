@@ -250,12 +250,17 @@ func getImageToken(fileMeta *types.FileMeta, model string, stream bool) (int, er
 }
 
 func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
-	if meta == nil {
-		return 0, errors.New("token count meta is nil")
+	if !constant.GetMediaToken {
+		return 0, nil
 	}
-
+	if !constant.GetMediaTokenNotStream && !info.IsStream {
+		return 0, nil
+	}
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime {
 		return 0, nil
+	}
+	if meta == nil {
+		return 0, errors.New("token count meta is nil")
 	}
 
 	model := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
@@ -276,7 +281,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 
 	shouldFetchFiles := true
 
-	if info.RelayFormat == types.RelayFormatOpenAIRealtime || info.RelayFormat == types.RelayFormatGemini {
+	if info.RelayFormat == types.RelayFormatGemini {
 		shouldFetchFiles = false
 	}
 
@@ -297,11 +302,35 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 					file.FileType = types.FileTypeFile
 				}
 				file.MimeType = mineType
+			} else if strings.HasPrefix(file.OriginData, "data:") {
+				// get mime type from base64 header
+				parts := strings.SplitN(file.OriginData, ",", 2)
+				if len(parts) >= 1 {
+					header := parts[0]
+					// Extract mime type from "data:mime/type;base64" format
+					if strings.Contains(header, ":") && strings.Contains(header, ";") {
+						mimeStart := strings.Index(header, ":") + 1
+						mimeEnd := strings.Index(header, ";")
+						if mimeStart < mimeEnd {
+							mineType := header[mimeStart:mimeEnd]
+							if strings.HasPrefix(mineType, "image/") {
+								file.FileType = types.FileTypeImage
+							} else if strings.HasPrefix(mineType, "video/") {
+								file.FileType = types.FileTypeVideo
+							} else if strings.HasPrefix(mineType, "audio/") {
+								file.FileType = types.FileTypeAudio
+							} else {
+								file.FileType = types.FileTypeFile
+							}
+							file.MimeType = mineType
+						}
+					}
+				}
 			}
 		}
 	}
 
-	for _, file := range meta.Files {
+	for i, file := range meta.Files {
 		switch file.FileType {
 		case types.FileTypeImage:
 			if info.RelayFormat == types.RelayFormatGemini {
@@ -309,7 +338,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 			} else {
 				token, err := getImageToken(file, model, info.IsStream)
 				if err != nil {
-					return 0, fmt.Errorf("error counting image token: %v", err)
+					return 0, fmt.Errorf("error counting image token, media index[%d], original data[%s], err: %v", i, file.OriginData, err)
 				}
 				tkm += token
 			}

@@ -27,15 +27,15 @@ const { Text } = Typography;
 
 /**
  * CardPro 高级卡片组件
- * 
+ *
  * 布局分为6个区域：
  * 1. 统计信息区域 (statsArea)
- * 2. 描述信息区域 (descriptionArea) 
+ * 2. 描述信息区域 (descriptionArea)
  * 3. 类型切换/标签区域 (tabsArea)
  * 4. 操作按钮区域 (actionsArea)
  * 5. 搜索表单区域 (searchArea)
  * 6. 分页区域 (paginationArea) - 固定在卡片底部
- * 
+ *
  * 支持三种布局类型：
  * - type1: 操作型 (如TokensTable) - 描述信息 + 操作按钮 + 搜索表单
  * - type2: 查询型 (如LogsTable) - 统计信息 + 搜索表单
@@ -71,47 +71,38 @@ const CardPro = ({
   const hasMobileHideableContent = actionsArea || searchArea;
 
   const renderHeader = () => {
-    const hasContent = statsArea || descriptionArea || tabsArea || actionsArea || searchArea;
+    const hasContent =
+      statsArea || descriptionArea || tabsArea || actionsArea || searchArea;
     if (!hasContent) return null;
 
     return (
-      <div className="flex flex-col w-full">
+      <div className='flex flex-col w-full'>
         {/* 统计信息区域 - 用于type2 */}
-        {type === 'type2' && statsArea && (
-          <>
-            {statsArea}
-          </>
-        )}
+        {type === 'type2' && statsArea && <>{statsArea}</>}
 
         {/* 描述信息区域 - 用于type1和type3 */}
         {(type === 'type1' || type === 'type3') && descriptionArea && (
-          <>
-            {descriptionArea}
-          </>
+          <>{descriptionArea}</>
         )}
 
         {/* 第一个分隔线 - 在描述信息或统计信息后面 */}
         {((type === 'type1' || type === 'type3') && descriptionArea) ||
-          (type === 'type2' && statsArea) ? (
-          <Divider margin="12px" />
+        (type === 'type2' && statsArea) ? (
+          <Divider margin='12px' />
         ) : null}
 
         {/* 类型切换/标签区域 - 主要用于type3 */}
-        {type === 'type3' && tabsArea && (
-          <>
-            {tabsArea}
-          </>
-        )}
+        {type === 'type3' && tabsArea && <>{tabsArea}</>}
 
         {/* 移动端操作切换按钮 */}
         {isMobile && hasMobileHideableContent && (
           <>
-            <div className="w-full mb-2">
+            <div className='w-full mb-2'>
               <Button
                 onClick={toggleMobileActions}
                 icon={showMobileActions ? <IconEyeClosed /> : <IconEyeOpened />}
-                type="tertiary"
-                size="small"
+                type='tertiary'
+                size='small'
                 theme='outline'
                 block
               >
@@ -126,32 +117,24 @@ const CardPro = ({
           className={`flex flex-col gap-2 ${isMobile && !showMobileActions ? 'hidden' : ''}`}
         >
           {/* 操作按钮区域 - 用于type1和type3 */}
-          {(type === 'type1' || type === 'type3') && actionsArea && (
-            Array.isArray(actionsArea) ? (
+          {(type === 'type1' || type === 'type3') &&
+            actionsArea &&
+            (Array.isArray(actionsArea) ? (
               actionsArea.map((area, idx) => (
                 <React.Fragment key={idx}>
                   {idx !== 0 && <Divider />}
-                  <div className="w-full">
-                    {area}
-                  </div>
+                  <div className='w-full'>{area}</div>
                 </React.Fragment>
               ))
             ) : (
-              <div className="w-full">
-                {actionsArea}
-              </div>
-            )
-          )}
+              <div className='w-full'>{actionsArea}</div>
+            ))}
 
           {/* 当同时存在操作区和搜索区时，插入分隔线 */}
-          {(actionsArea && searchArea) && <Divider />}
+          {actionsArea && searchArea && <Divider />}
 
           {/* 搜索表单区域 - 所有类型都可能有 */}
-          {searchArea && (
-            <div className="w-full">
-              {searchArea}
-            </div>
-          )}
+          {searchArea && <div className='w-full'>{searchArea}</div>}
         </div>
       </div>
     );
@@ -214,4 +197,4 @@ CardPro.propTypes = {
   t: PropTypes.func,
 };
 
-export default CardPro; 
+export default CardPro;

@@ -26,7 +26,10 @@ const SetupCheck = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
-    if (statusState?.status?.setup === false && location.pathname !== '/setup') {
+    if (
+      statusState?.status?.setup === false &&
+      location.pathname !== '/setup'
+    ) {
       window.location.href = '/setup';
     }
   }, [statusState?.status?.setup, location.pathname]);
@@ -34,4 +37,4 @@ const SetupCheck = ({ children }) => {
   return children;
 };
 
-export default SetupCheck; 
+export default SetupCheck;

@@ -55,8 +55,14 @@ export default function SettingsPaymentGateway(props) {
         StripeApiSecret: props.options.StripeApiSecret || '',
         StripeWebhookSecret: props.options.StripeWebhookSecret || '',
         StripePriceId: props.options.StripePriceId || '',
-        StripeUnitPrice: props.options.StripeUnitPrice !== undefined ? parseFloat(props.options.StripeUnitPrice) : 8.0,
-        StripeMinTopUp: props.options.StripeMinTopUp !== undefined ? parseFloat(props.options.StripeMinTopUp) : 1,
+        StripeUnitPrice:
+          props.options.StripeUnitPrice !== undefined
+            ? parseFloat(props.options.StripeUnitPrice)
+            : 8.0,
+        StripeMinTopUp:
+          props.options.StripeMinTopUp !== undefined
+            ? parseFloat(props.options.StripeMinTopUp)
+            : 1,
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -76,38 +82,53 @@ export default function SettingsPaymentGateway(props) {
 
     setLoading(true);
     try {
-      const options = []
+      const options = [];
 
       if (inputs.StripeApiSecret && inputs.StripeApiSecret !== '') {
         options.push({ key: 'StripeApiSecret', value: inputs.StripeApiSecret });
       }
       if (inputs.StripeWebhookSecret && inputs.StripeWebhookSecret !== '') {
-        options.push({ key: 'StripeWebhookSecret', value: inputs.StripeWebhookSecret });
+        options.push({
+          key: 'StripeWebhookSecret',
+          value: inputs.StripeWebhookSecret,
+        });
       }
       if (inputs.StripePriceId !== '') {
-        options.push({key: 'StripePriceId', value: inputs.StripePriceId,});
+        options.push({ key: 'StripePriceId', value: inputs.StripePriceId });
       }
-      if (inputs.StripeUnitPrice !== undefined && inputs.StripeUnitPrice !== null) {
-        options.push({ key: 'StripeUnitPrice', value: inputs.StripeUnitPrice.toString() });
+      if (
+        inputs.StripeUnitPrice !== undefined &&
+        inputs.StripeUnitPrice !== null
+      ) {
+        options.push({
+          key: 'StripeUnitPrice',
+          value: inputs.StripeUnitPrice.toString(),
+        });
       }
-      if (inputs.StripeMinTopUp !== undefined && inputs.StripeMinTopUp !== null) {
-        options.push({ key: 'StripeMinTopUp', value: inputs.StripeMinTopUp.toString() });
+      if (
+        inputs.StripeMinTopUp !== undefined &&
+        inputs.StripeMinTopUp !== null
+      ) {
+        options.push({
+          key: 'StripeMinTopUp',
+          value: inputs.StripeMinTopUp.toString(),
+        });
       }
 
       // 发送请求
-      const requestQueue = options.map(opt =>
+      const requestQueue = options.map((opt) =>
         API.put('/api/option/', {
           key: opt.key,
           value: opt.value,
-        })
+        }),
       );
 
       const results = await Promise.all(requestQueue);
 
       // 检查所有请求是否成功
-      const errorResults = results.filter(res => !res.data.success);
+      const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
-        errorResults.forEach(res => {
+        errorResults.forEach((res) => {
           showError(res.data.message);
         });
       } else {
@@ -133,40 +154,39 @@ export default function SettingsPaymentGateway(props) {
           <Text>
             Stripe 密钥、Webhook 等设置请
             <a
-                href='https://dashboard.stripe.com/developers'
-                target='_blank'
-                rel='noreferrer'
+              href='https://dashboard.stripe.com/developers'
+              target='_blank'
+              rel='noreferrer'
             >
               点击此处
             </a>
             进行设置，最好先在
             <a
-                href='https://dashboard.stripe.com/test/developers'
-                target='_blank'
-                rel='noreferrer'
+              href='https://dashboard.stripe.com/test/developers'
+              target='_blank'
+              rel='noreferrer'
             >
               测试环境
             </a>
             进行测试。
-
             <br />
           </Text>
           <Banner
-              type='info'
-              description={`Webhook 填：${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/stripe/webhook`}
+            type='info'
+            description={`Webhook 填：${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/stripe/webhook`}
           />
           <Banner
-              type='warning'
-              description={`需要包含事件：checkout.session.completed 和 checkout.session.expired`}
+            type='warning'
+            description={`需要包含事件：checkout.session.completed 和 checkout.session.expired`}
           />
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-          >
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='StripeApiSecret'
                 label={t('API 密钥')}
-                placeholder={t('sk_xxx 或 rk_xxx 的 Stripe 密钥，敏感信息不显示')}
+                placeholder={t(
+                  'sk_xxx 或 rk_xxx 的 Stripe 密钥，敏感信息不显示',
+                )}
                 type='password'
               />
             </Col>
@@ -211,4 +231,4 @@ export default function SettingsPaymentGateway(props) {
       </Form>
     </Spin>
   );
-} 
+}

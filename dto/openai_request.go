@@ -57,18 +57,24 @@ type GeneralOpenAIRequest struct {
 	Dimensions          int               `json:"dimensions,omitempty"`
 	Modalities          json.RawMessage   `json:"modalities,omitempty"`
 	Audio               json.RawMessage   `json:"audio,omitempty"`
-	EnableThinking      any               `json:"enable_thinking,omitempty"` // ali
-	THINKING            json.RawMessage   `json:"thinking,omitempty"`        // doubao,zhipu_v4
-	ExtraBody           json.RawMessage   `json:"extra_body,omitempty"`
-	SearchParameters    any               `json:"search_parameters,omitempty"` //xai
-	WebSearchOptions    *WebSearchOptions `json:"web_search_options,omitempty"`
+	// gemini
+	ExtraBody json.RawMessage `json:"extra_body,omitempty"`
+	//xai
+	SearchParameters json.RawMessage `json:"search_parameters,omitempty"`
+	// claude
+	WebSearchOptions *WebSearchOptions `json:"web_search_options,omitempty"`
 	// OpenRouter Params
 	Usage     json.RawMessage `json:"usage,omitempty"`
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
-	// 用匿名参数接收额外参数，例如ollama的think参数在此接收
-	Extra map[string]json.RawMessage `json:"-"`
+	EnableThinking         any             `json:"enable_thinking,omitempty"`
+	// ollama Params
+	Think json.RawMessage `json:"think,omitempty"`
+	// baidu v2
+	WebSearch json.RawMessage `json:"web_search,omitempty"`
+	// doubao,zhipu_v4
+	THINKING json.RawMessage `json:"thinking,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -760,27 +766,27 @@ type WebSearchOptions struct {
 
 // https://platform.openai.com/docs/api-reference/responses/create
 type OpenAIResponsesRequest struct {
-	Model              string           `json:"model"`
-	Input              any              `json:"input,omitempty"`
-	Include            json.RawMessage  `json:"include,omitempty"`
-	Instructions       json.RawMessage  `json:"instructions,omitempty"`
-	MaxOutputTokens    uint             `json:"max_output_tokens,omitempty"`
-	Metadata           json.RawMessage  `json:"metadata,omitempty"`
-	ParallelToolCalls  bool             `json:"parallel_tool_calls,omitempty"`
-	PreviousResponseID string           `json:"previous_response_id,omitempty"`
-	Reasoning          *Reasoning       `json:"reasoning,omitempty"`
-	ServiceTier        string           `json:"service_tier,omitempty"`
-	Store              bool             `json:"store,omitempty"`
-	Stream             bool             `json:"stream,omitempty"`
-	Temperature        float64          `json:"temperature,omitempty"`
-	Text               json.RawMessage  `json:"text,omitempty"`
-	ToolChoice         json.RawMessage  `json:"tool_choice,omitempty"`
-	Tools              []map[string]any `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
-	TopP               float64          `json:"top_p,omitempty"`
-	Truncation         string           `json:"truncation,omitempty"`
-	User               string           `json:"user,omitempty"`
-	MaxToolCalls       uint             `json:"max_tool_calls,omitempty"`
-	Prompt             json.RawMessage  `json:"prompt,omitempty"`
+	Model              string          `json:"model"`
+	Input              json.RawMessage `json:"input,omitempty"`
+	Include            json.RawMessage `json:"include,omitempty"`
+	Instructions       json.RawMessage `json:"instructions,omitempty"`
+	MaxOutputTokens    uint            `json:"max_output_tokens,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	ParallelToolCalls  bool            `json:"parallel_tool_calls,omitempty"`
+	PreviousResponseID string          `json:"previous_response_id,omitempty"`
+	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
+	ServiceTier        string          `json:"service_tier,omitempty"`
+	Store              bool            `json:"store,omitempty"`
+	Stream             bool            `json:"stream,omitempty"`
+	Temperature        float64         `json:"temperature,omitempty"`
+	Text               json.RawMessage `json:"text,omitempty"`
+	ToolChoice         json.RawMessage `json:"tool_choice,omitempty"`
+	Tools              json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
+	TopP               float64         `json:"top_p,omitempty"`
+	Truncation         string          `json:"truncation,omitempty"`
+	User               string          `json:"user,omitempty"`
+	MaxToolCalls       uint            `json:"max_tool_calls,omitempty"`
+	Prompt             json.RawMessage `json:"prompt,omitempty"`
 }
 
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -832,8 +838,7 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 
 	if len(r.Tools) > 0 {
-		toolStr, _ := common.Marshal(r.Tools)
-		texts = append(texts, string(toolStr))
+		texts = append(texts, string(r.Tools))
 	}
 
 	return &types.TokenCountMeta{
@@ -851,6 +856,14 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		r.Model = modelName
 	}
+}
+
+func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
+	var toolsMap []map[string]any
+	if len(r.Tools) > 0 {
+		_ = common.Unmarshal(r.Tools, &toolsMap)
+	}
+	return toolsMap
 }
 
 type Reasoning struct {
@@ -879,13 +892,21 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 	var inputs []MediaInput
 
 	// Try string first
-	if str, ok := r.Input.(string); ok {
+	// if str, ok := common.GetJsonType(r.Input); ok {
+	// 	inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
+	// 	return inputs
+	// }
+	if common.GetJsonType(r.Input) == "string" {
+		var str string
+		_ = common.Unmarshal(r.Input, &str)
 		inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
 		return inputs
 	}
 
 	// Try array of parts
-	if array, ok := r.Input.([]any); ok {
+	if common.GetJsonType(r.Input) == "array" {
+		var array []any
+		_ = common.Unmarshal(r.Input, &array)
 		for _, itemAny := range array {
 			// Already parsed MediaInput
 			if media, ok := itemAny.(MediaInput); ok {

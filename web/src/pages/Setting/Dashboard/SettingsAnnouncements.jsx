@@ -30,21 +30,20 @@ import {
   Tag,
   Switch,
   TextArea,
-  Tooltip
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
-  IllustrationNoResultDark
+  IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
+import { Plus, Edit, Trash2, Save, Bell, Maximize2 } from 'lucide-react';
 import {
-  Plus,
-  Edit,
-  Trash2,
-  Save,
-  Bell,
-  Maximize2
-} from 'lucide-react';
-import { API, showError, showSuccess, getRelativeTime, formatDateTimeString } from '../../../helpers';
+  API,
+  showError,
+  showSuccess,
+  getRelativeTime,
+  formatDateTimeString,
+} from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -65,7 +64,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     content: '',
     publishDate: new Date(),
     type: 'default',
-    extra: ''
+    extra: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -81,7 +80,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     { value: 'ongoing', label: t('进行中') },
     { value: 'success', label: t('成功') },
     { value: 'warning', label: t('警告') },
-    { value: 'error', label: t('错误') }
+    { value: 'error', label: t('错误') },
   ];
 
   const getTypeColor = (type) => {
@@ -90,7 +89,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       ongoing: 'blue',
       success: 'green',
       warning: 'orange',
-      error: 'red'
+      error: 'red',
     };
     return colorMap[type] || 'grey';
   };
@@ -102,16 +101,18 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       key: 'content',
       render: (text) => (
         <Tooltip content={text} position='topLeft' showArrow>
-          <div style={{
-            maxWidth: '300px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}>
+          <div
+            style={{
+              maxWidth: '300px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {text}
           </div>
         </Tooltip>
-      )
+      ),
     },
     {
       title: t('发布时间'),
@@ -123,15 +124,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           <div style={{ fontWeight: 'bold' }}>
             {getRelativeTime(publishDate)}
           </div>
-          <div style={{
-            fontSize: '12px',
-            color: 'var(--semi-color-text-2)',
-            marginTop: '2px'
-          }}>
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--semi-color-text-2)',
+              marginTop: '2px',
+            }}
+          >
             {publishDate ? formatDateTimeString(new Date(publishDate)) : '-'}
           </div>
         </div>
-      )
+      ),
     },
     {
       title: t('类型'),
@@ -140,9 +143,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       width: 100,
       render: (type) => (
         <Tag color={getTypeColor(type)} shape='circle'>
-          {typeOptions.find(opt => opt.value === type)?.label || type}
+          {typeOptions.find((opt) => opt.value === type)?.label || type}
         </Tag>
-      )
+      ),
     },
     {
       title: t('说明'),
@@ -150,17 +153,19 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       key: 'extra',
       render: (text) => (
         <Tooltip content={text || '-'} showArrow>
-          <div style={{
-            maxWidth: '200px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            color: 'var(--semi-color-text-2)'
-          }}>
+          <div
+            style={{
+              maxWidth: '200px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--semi-color-text-2)',
+            }}
+          >
             {text || '-'}
           </div>
         </Tooltip>
-      )
+      ),
     },
     {
       title: t('操作'),
@@ -188,8 +193,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             {t('删除')}
           </Button>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
   const updateOption = async (key, value) => {
@@ -226,7 +231,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       content: '',
       publishDate: new Date(),
       type: 'default',
-      extra: ''
+      extra: '',
     });
     setShowAnnouncementModal(true);
   };
@@ -235,9 +240,11 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     setEditingAnnouncement(announcement);
     setAnnouncementForm({
       content: announcement.content,
-      publishDate: announcement.publishDate ? new Date(announcement.publishDate) : new Date(),
+      publishDate: announcement.publishDate
+        ? new Date(announcement.publishDate)
+        : new Date(),
       type: announcement.type || 'default',
-      extra: announcement.extra || ''
+      extra: announcement.extra || '',
     });
     setShowAnnouncementModal(true);
   };
@@ -249,7 +256,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   const confirmDeleteAnnouncement = () => {
     if (deletingAnnouncement) {
-      const newList = announcementsList.filter(item => item.id !== deletingAnnouncement.id);
+      const newList = announcementsList.filter(
+        (item) => item.id !== deletingAnnouncement.id,
+      );
       setAnnouncementsList(newList);
       setHasChanges(true);
       showSuccess('公告已删除，请及时点击“保存设置”进行保存');
@@ -270,21 +279,20 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       // 将publishDate转换为ISO字符串保存
       const formData = {
         ...announcementForm,
-        publishDate: announcementForm.publishDate.toISOString()
+        publishDate: announcementForm.publishDate.toISOString(),
       };
 
       let newList;
       if (editingAnnouncement) {
-        newList = announcementsList.map(item =>
-          item.id === editingAnnouncement.id
-            ? { ...item, ...formData }
-            : item
+        newList = announcementsList.map((item) =>
+          item.id === editingAnnouncement.id ? { ...item, ...formData } : item,
         );
       } else {
-        const newId = Math.max(...announcementsList.map(item => item.id), 0) + 1;
+        const newId =
+          Math.max(...announcementsList.map((item) => item.id), 0) + 1;
         const newAnnouncement = {
           id: newId,
-          ...formData
+          ...formData,
         };
         newList = [...announcementsList, newAnnouncement];
       }
@@ -292,7 +300,11 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       setAnnouncementsList(newList);
       setHasChanges(true);
       setShowAnnouncementModal(false);
-      showSuccess(editingAnnouncement ? '公告已更新，请及时点击“保存设置”进行保存' : '公告已添加，请及时点击“保存设置”进行保存');
+      showSuccess(
+        editingAnnouncement
+          ? '公告已更新，请及时点击“保存设置”进行保存'
+          : '公告已添加，请及时点击“保存设置”进行保存',
+      );
     } catch (error) {
       showError('操作失败: ' + error.message);
     } finally {
@@ -312,7 +324,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       // 确保每个项目都有id
       const listWithIds = list.map((item, index) => ({
         ...item,
-        id: item.id || index + 1
+        id: item.id || index + 1,
       }));
       setAnnouncementsList(listWithIds);
     } catch (error) {
@@ -322,7 +334,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   };
 
   useEffect(() => {
-    const annStr = options['console_setting.announcements'] ?? options.Announcements;
+    const annStr =
+      options['console_setting.announcements'] ?? options.Announcements;
     if (annStr !== undefined) {
       parseAnnouncements(annStr);
     }
@@ -330,7 +343,11 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   useEffect(() => {
     const enabledStr = options['console_setting.announcements_enabled'];
-    setPanelEnabled(enabledStr === undefined ? true : enabledStr === 'true' || enabledStr === true);
+    setPanelEnabled(
+      enabledStr === undefined
+        ? true
+        : enabledStr === 'true' || enabledStr === true,
+    );
   }, [options['console_setting.announcements_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
@@ -358,31 +375,39 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       return;
     }
 
-    const newList = announcementsList.filter(item => !selectedRowKeys.includes(item.id));
+    const newList = announcementsList.filter(
+      (item) => !selectedRowKeys.includes(item.id),
+    );
     setAnnouncementsList(newList);
     setSelectedRowKeys([]);
     setHasChanges(true);
-    showSuccess(`已删除 ${selectedRowKeys.length} 个系统公告，请及时点击“保存设置”进行保存`);
+    showSuccess(
+      `已删除 ${selectedRowKeys.length} 个系统公告，请及时点击“保存设置”进行保存`,
+    );
   };
 
   const renderHeader = () => (
-    <div className="flex flex-col w-full">
-      <div className="mb-2">
-        <div className="flex items-center text-blue-500">
-          <Bell size={16} className="mr-2" />
-          <Text>{t('系统公告管理，可以发布系统通知和重要消息（最多100个，前端显示最新20条）')}</Text>
+    <div className='flex flex-col w-full'>
+      <div className='mb-2'>
+        <div className='flex items-center text-blue-500'>
+          <Bell size={16} className='mr-2' />
+          <Text>
+            {t(
+              '系统公告管理，可以发布系统通知和重要消息（最多100个，前端显示最新20条）',
+            )}
+          </Text>
         </div>
       </div>
 
-      <Divider margin="12px" />
+      <Divider margin='12px' />
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
-        <div className="flex gap-2 w-full md:w-auto order-2 md:order-1">
+      <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
+        <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
           <Button
             theme='light'
             type='primary'
             icon={<Plus size={14} />}
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
             onClick={handleAddAnnouncement}
           >
             {t('添加公告')}
@@ -393,9 +418,10 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             theme='light'
             onClick={handleBatchDelete}
             disabled={selectedRowKeys.length === 0}
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
           >
-            {t('批量删除')} {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            {t('批量删除')}{' '}
+            {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
           </Button>
           <Button
             icon={<Save size={14} />}
@@ -403,14 +429,14 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             loading={loading}
             disabled={!hasChanges}
             type='secondary'
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
           >
             {t('保存设置')}
           </Button>
         </div>
 
         {/* 启用开关 */}
-        <div className="order-1 md:order-2 flex items-center gap-2">
+        <div className='order-1 md:order-2 flex items-center gap-2'>
           <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
           <Text>{panelEnabled ? t('已启用') : t('已禁用')}</Text>
         </div>
@@ -455,7 +481,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           columns={columns}
           dataSource={getCurrentPageData()}
           rowSelection={rowSelection}
-          rowKey="id"
+          rowKey='id'
           scroll={{ x: 'max-content' }}
           pagination={{
             currentPage: currentPage,
@@ -471,19 +497,23 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-            }
+            },
           }}
           size='middle'
           loading={loading}
           empty={
             <Empty
-              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-              darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
               description={t('暂无系统公告')}
               style={{ padding: 30 }}
             />
           }
-          className="overflow-hidden"
+          className='overflow-hidden'
         />
       </Form.Section>
 
@@ -509,7 +539,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             maxCount={500}
             rows={3}
             rules={[{ required: true, message: t('请输入公告内容') }]}
-            onChange={(value) => setAnnouncementForm({ ...announcementForm, content: value })}
+            onChange={(value) =>
+              setAnnouncementForm({ ...announcementForm, content: value })
+            }
           />
           <Button
             theme='light'
@@ -526,19 +558,25 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             label={t('发布日期')}
             type='dateTime'
             rules={[{ required: true, message: t('请选择发布日期') }]}
-            onChange={(value) => setAnnouncementForm({ ...announcementForm, publishDate: value })}
+            onChange={(value) =>
+              setAnnouncementForm({ ...announcementForm, publishDate: value })
+            }
           />
           <Form.Select
             field='type'
             label={t('公告类型')}
             optionList={typeOptions}
-            onChange={(value) => setAnnouncementForm({ ...announcementForm, type: value })}
+            onChange={(value) =>
+              setAnnouncementForm({ ...announcementForm, type: value })
+            }
           />
           <Form.Input
             field='extra'
             label={t('说明信息')}
             placeholder={t('可选，公告的补充说明')}
-            onChange={(value) => setAnnouncementForm({ ...announcementForm, extra: value })}
+            onChange={(value) =>
+              setAnnouncementForm({ ...announcementForm, extra: value })
+            }
           />
         </Form>
       </Modal>
@@ -553,10 +591,10 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         }}
         okText={t('确认删除')}
         cancelText={t('取消')}
-        type="warning"
+        type='warning'
         okButtonProps={{
           type: 'danger',
-          theme: 'solid'
+          theme: 'solid',
         }}
       >
         <Text>{t('确定要删除此公告吗？')}</Text>
@@ -584,11 +622,13 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           maxCount={500}
           rows={15}
           style={{ width: '100%' }}
-          onChange={(value) => setAnnouncementForm({ ...announcementForm, content: value })}
+          onChange={(value) =>
+            setAnnouncementForm({ ...announcementForm, content: value })
+          }
         />
       </Modal>
     </>
   );
 };
 
-export default SettingsAnnouncements; 
+export default SettingsAnnouncements;

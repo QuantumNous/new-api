@@ -2,6 +2,7 @@ package volcengine
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -213,6 +214,12 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	// 适配 方舟deepseek混合模型 的 thinking 后缀
+	if strings.HasSuffix(info.UpstreamModelName, "-thinking") && strings.HasPrefix(info.UpstreamModelName, "deepseek") {
+		info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
+		request.Model = info.UpstreamModelName
+		request.THINKING = json.RawMessage(`{"type": "enabled"}`)
 	}
 	return request, nil
 }

@@ -2,7 +2,8 @@ package common
 
 import (
 	"fmt"
-	"github.com/antlabs/pcopy"
+
+	"github.com/jinzhu/copier"
 )
 
 func DeepCopy[T any](src *T) (*T, error) {
@@ -10,12 +11,9 @@ func DeepCopy[T any](src *T) (*T, error) {
 		return nil, fmt.Errorf("copy source cannot be nil")
 	}
 	var dst T
-	err := pcopy.Copy(&dst, src)
+	err := copier.CopyWithOption(&dst, src, copier.Option{DeepCopy: true, IgnoreEmpty: true})
 	if err != nil {
 		return nil, err
-	}
-	if &dst == nil {
-		return nil, fmt.Errorf("copy result cannot be nil")
 	}
 	return &dst, nil
 }

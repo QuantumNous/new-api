@@ -30,20 +30,25 @@ import {
   Spin,
   Empty,
 } from '@douyinfe/semi-ui';
-import {
-  IconPlus,
-  IconLayers,
-} from '@douyinfe/semi-icons';
+import { IconPlus, IconLayers } from '@douyinfe/semi-icons';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { API, showError, showSuccess, stringToColor } from '../../../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  stringToColor,
+} from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 import EditPrefillGroupModal from './EditPrefillGroupModal';
-import { renderLimitedItems, renderDescription } from '../../../common/ui/RenderUtils';
+import {
+  renderLimitedItems,
+  renderDescription,
+} from '../../../common/ui/RenderUtils';
 
 const { Text, Title } = Typography;
 
@@ -121,8 +126,9 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       render: (text, record) => (
         <Space>
           <Text strong>{text}</Text>
-          <Tag color="white" shape="circle" size="small">
-            {typeOptions.find(opt => opt.value === record.type)?.label || record.type}
+          <Tag color='white' shape='circle' size='small'>
+            {typeOptions.find((opt) => opt.value === record.type)?.label ||
+              record.type}
           </Tag>
         </Space>
       ),
@@ -140,34 +146,49 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       render: (items, record) => {
         try {
           if (record.type === 'endpoint') {
-            const obj = typeof items === 'string' ? JSON.parse(items || '{}') : (items || {});
+            const obj =
+              typeof items === 'string'
+                ? JSON.parse(items || '{}')
+                : items || {};
             const keys = Object.keys(obj);
-            if (keys.length === 0) return <Text type="tertiary">{t('暂无项目')}</Text>;
+            if (keys.length === 0)
+              return <Text type='tertiary'>{t('暂无项目')}</Text>;
             return renderLimitedItems({
               items: keys,
               renderItem: (key, idx) => (
-                <Tag key={idx} size="small" shape='circle' color={stringToColor(key)}>
+                <Tag
+                  key={idx}
+                  size='small'
+                  shape='circle'
+                  color={stringToColor(key)}
+                >
                   {key}
                 </Tag>
               ),
               maxDisplay: 3,
             });
           }
-          const itemsArray = typeof items === 'string' ? JSON.parse(items) : items;
+          const itemsArray =
+            typeof items === 'string' ? JSON.parse(items) : items;
           if (!Array.isArray(itemsArray) || itemsArray.length === 0) {
-            return <Text type="tertiary">{t('暂无项目')}</Text>;
+            return <Text type='tertiary'>{t('暂无项目')}</Text>;
           }
           return renderLimitedItems({
             items: itemsArray,
             renderItem: (item, idx) => (
-              <Tag key={idx} size="small" shape='circle' color={stringToColor(item)}>
+              <Tag
+                key={idx}
+                size='small'
+                shape='circle'
+                color={stringToColor(item)}
+              >
                 {item}
               </Tag>
             ),
             maxDisplay: 3,
           });
         } catch {
-          return <Text type="tertiary">{t('数据格式错误')}</Text>;
+          return <Text type='tertiary'>{t('数据格式错误')}</Text>;
         }
       },
     },
@@ -178,20 +199,14 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       width: 140,
       render: (_, record) => (
         <Space>
-          <Button
-            size="small"
-            onClick={() => handleEdit(record)}
-          >
+          <Button size='small' onClick={() => handleEdit(record)}>
             {t('编辑')}
           </Button>
           <Popconfirm
             title={t('确定删除此组？')}
             onConfirm={() => deleteGroup(record.id)}
           >
-            <Button
-              size="small"
-              type="danger"
-            >
+            <Button size='small' type='danger'>
               {t('删除')}
             </Button>
           </Popconfirm>
@@ -209,7 +224,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
   return (
     <>
       <SideSheet
-        placement="left"
+        placement='left'
         title={
           <Space>
             <Tag color='blue' shape='circle'>
@@ -235,14 +250,16 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
                 </Avatar>
                 <div>
                   <Text className='text-lg font-medium'>{t('组列表')}</Text>
-                  <div className='text-xs text-gray-600'>{t('管理模型、标签、端点等预填组')}</div>
+                  <div className='text-xs text-gray-600'>
+                    {t('管理模型、标签、端点等预填组')}
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end mb-4">
+              <div className='flex justify-end mb-4'>
                 <Button
-                  type="primary"
+                  type='primary'
                   theme='solid'
-                  size="small"
+                  size='small'
                   icon={<IconPlus />}
                   onClick={() => handleEdit()}
                 >
@@ -253,15 +270,21 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
                 <CardTable
                   columns={columns}
                   dataSource={groups}
-                  rowKey="id"
+                  rowKey='id'
                   hidePagination={true}
-                  size="small"
+                  size='small'
                   scroll={{ x: 'max-content' }}
                 />
               ) : (
                 <Empty
-                  image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-                  darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+                  image={
+                    <IllustrationNoResult style={{ width: 150, height: 150 }} />
+                  }
+                  darkModeImage={
+                    <IllustrationNoResultDark
+                      style={{ width: 150, height: 150 }}
+                    />
+                  }
                   description={t('暂无预填组')}
                   style={{ padding: 30 }}
                 />

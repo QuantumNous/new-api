@@ -30,12 +30,12 @@ const SearchModal = ({
   dataExportDefaultTime,
   timeOptions,
   handleInputChange,
-  t
+  t,
 }) => {
   const formRef = useRef();
 
   const FORM_FIELD_PROPS = {
-    className: "w-full mb-2 !rounded-lg",
+    className: 'w-full mb-2 !rounded-lg',
   };
 
   const createFormField = (Component, props) => (
@@ -54,7 +54,7 @@ const SearchModal = ({
       size={isMobile ? 'full-width' : 'small'}
       centered
     >
-      <Form ref={formRef} layout='vertical' className="w-full">
+      <Form ref={formRef} layout='vertical' className='w-full'>
         {createFormField(Form.DatePicker, {
           field: 'start_timestamp',
           label: t('起始时间'),
@@ -62,7 +62,7 @@ const SearchModal = ({
           value: start_timestamp,
           type: 'dateTime',
           name: 'start_timestamp',
-          onChange: (value) => handleInputChange(value, 'start_timestamp')
+          onChange: (value) => handleInputChange(value, 'start_timestamp'),
         })}
 
         {createFormField(Form.DatePicker, {
@@ -72,7 +72,7 @@ const SearchModal = ({
           value: end_timestamp,
           type: 'dateTime',
           name: 'end_timestamp',
-          onChange: (value) => handleInputChange(value, 'end_timestamp')
+          onChange: (value) => handleInputChange(value, 'end_timestamp'),
         })}
 
         {createFormField(Form.Select, {
@@ -82,20 +82,22 @@ const SearchModal = ({
           placeholder: t('时间粒度'),
           name: 'data_export_default_time',
           optionList: timeOptions,
-          onChange: (value) => handleInputChange(value, 'data_export_default_time')
+          onChange: (value) =>
+            handleInputChange(value, 'data_export_default_time'),
         })}
 
-        {isAdminUser && createFormField(Form.Input, {
-          field: 'username',
-          label: t('用户名称'),
-          value: username,
-          placeholder: t('可选值'),
-          name: 'username',
-          onChange: (value) => handleInputChange(value, 'username')
-        })}
+        {isAdminUser &&
+          createFormField(Form.Input, {
+            field: 'username',
+            label: t('用户名称'),
+            value: username,
+            placeholder: t('可选值'),
+            name: 'username',
+            onChange: (value) => handleInputChange(value, 'username'),
+          })}
       </Form>
     </Modal>
   );
 };
 
-export default SearchModal; 
+export default SearchModal;

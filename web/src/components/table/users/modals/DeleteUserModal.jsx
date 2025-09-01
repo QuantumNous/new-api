@@ -29,7 +29,7 @@ const DeleteUserModal = ({
   activePage,
   refresh,
   manageUser,
-  t
+  t,
 }) => {
   const handleConfirm = async () => {
     await manageUser(user.id, 'delete', user);
@@ -48,11 +48,11 @@ const DeleteUserModal = ({
       visible={visible}
       onCancel={onCancel}
       onOk={handleConfirm}
-      type="danger"
+      type='danger'
     >
       {t('相当于删除用户，此修改将不可逆')}
     </Modal>
   );
 };
 
-export default DeleteUserModal; 
+export default DeleteUserModal;

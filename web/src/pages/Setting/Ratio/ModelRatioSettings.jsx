@@ -155,9 +155,7 @@ export default function ModelRatioSettings(props) {
                   message: '不是合法的 JSON 字符串',
                 },
               ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, ModelPrice: value })
-              }
+              onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
             />
           </Col>
         </Row>
@@ -176,9 +174,7 @@ export default function ModelRatioSettings(props) {
                   message: '不是合法的 JSON 字符串',
                 },
               ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, ModelRatio: value })
-              }
+              onChange={(value) => setInputs({ ...inputs, ModelRatio: value })}
             />
           </Col>
         </Row>
@@ -197,9 +193,7 @@ export default function ModelRatioSettings(props) {
                   message: '不是合法的 JSON 字符串',
                 },
               ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, CacheRatio: value })
-              }
+              onChange={(value) => setInputs({ ...inputs, CacheRatio: value })}
             />
           </Col>
         </Row>

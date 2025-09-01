@@ -473,7 +473,10 @@ const SystemSetting = () => {
         value: inputs.LinuxDOClientSecret,
       });
     }
-    if (originInputs['LinuxDOMinimumTrustLevel'] !== inputs.LinuxDOMinimumTrustLevel) {
+    if (
+      originInputs['LinuxDOMinimumTrustLevel'] !==
+      inputs.LinuxDOMinimumTrustLevel
+    ) {
       options.push({
         key: 'LinuxDOMinimumTrustLevel',
         value: inputs.LinuxDOMinimumTrustLevel,
@@ -530,11 +533,15 @@ const SystemSetting = () => {
                         field='ServerAddress'
                         label={t('服务器地址')}
                         placeholder='https://yourdomain.com'
-                        extraText={t('该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置')}
+                        extraText={t(
+                          '该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置',
+                        )}
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitServerAddress}>{t('更新服务器地址')}</Button>
+                  <Button onClick={submitServerAddress}>
+                    {t('更新服务器地址')}
+                  </Button>
                 </Form.Section>
               </Card>
 
@@ -755,7 +762,10 @@ const SystemSetting = () => {
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPServer' label={t('SMTP 服务器地址')} />
+                      <Form.Input
+                        field='SMTPServer'
+                        label={t('SMTP 服务器地址')}
+                      />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input field='SMTPPort' label={t('SMTP 端口')} />
@@ -769,7 +779,10 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPFrom' label={t('SMTP 发送者邮箱')} />
+                      <Form.Input
+                        field='SMTPFrom'
+                        label={t('SMTP 发送者邮箱')}
+                      />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input
@@ -797,7 +810,9 @@ const SystemSetting = () => {
               <Card>
                 <Form.Section text={t('配置 OIDC')}>
                   <Text>
-                    {t('用以支持通过 OIDC 登录，例如 Okta、Auth0 等兼容 OIDC 协议的 IdP')}
+                    {t(
+                      '用以支持通过 OIDC 登录，例如 Okta、Auth0 等兼容 OIDC 协议的 IdP',
+                    )}
                   </Text>
                   <Banner
                     type='info'
@@ -805,7 +820,9 @@ const SystemSetting = () => {
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
                   <Text>
-                    {t('若你的 OIDC Provider 支持 Discovery Endpoint，你可以仅填写 OIDC Well-Known URL，系统会自动获取 OIDC 配置')}
+                    {t(
+                      '若你的 OIDC Provider 支持 Discovery Endpoint，你可以仅填写 OIDC Well-Known URL，系统会自动获取 OIDC 配置',
+                    )}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -862,7 +879,9 @@ const SystemSetting = () => {
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitOIDCSettings}>{t('保存 OIDC 设置')}</Button>
+                  <Button onClick={submitOIDCSettings}>
+                    {t('保存 OIDC 设置')}
+                  </Button>
                 </Form.Section>
               </Card>
 
@@ -1033,7 +1052,9 @@ const SystemSetting = () => {
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitTurnstile}>{t('保存 Turnstile 设置')}</Button>
+                  <Button onClick={submitTurnstile}>
+                    {t('保存 Turnstile 设置')}
+                  </Button>
                 </Form.Section>
               </Card>
 
@@ -1048,7 +1069,11 @@ const SystemSetting = () => {
                 okText={t('确认')}
                 cancelText={t('取消')}
               >
-                <p>{t('您确定要取消密码登录功能吗？这可能会影响用户的登录方式。')}</p>
+                <p>
+                  {t(
+                    '您确定要取消密码登录功能吗？这可能会影响用户的登录方式。',
+                  )}
+                </p>
               </Modal>
             </div>
           )}

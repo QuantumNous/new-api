@@ -26,7 +26,8 @@ export const useNotifications = (statusState) => {
   const announcements = statusState?.status?.announcements || [];
 
   // Helper functions
-  const getAnnouncementKey = (a) => `${a?.publishDate || ''}-${(a?.content || '').slice(0, 30)}`;
+  const getAnnouncementKey = (a) =>
+    `${a?.publishDate || ''}-${(a?.content || '').slice(0, 30)}`;
 
   const calculateUnreadCount = () => {
     if (!announcements.length) return 0;
@@ -37,7 +38,8 @@ export const useNotifications = (statusState) => {
       readKeys = [];
     }
     const readSet = new Set(readKeys);
-    return announcements.filter((a) => !readSet.has(getAnnouncementKey(a))).length;
+    return announcements.filter((a) => !readSet.has(getAnnouncementKey(a)))
+      .length;
   };
 
   const getUnreadKeys = () => {
@@ -49,7 +51,9 @@ export const useNotifications = (statusState) => {
       readKeys = [];
     }
     const readSet = new Set(readKeys);
-    return announcements.filter((a) => !readSet.has(getAnnouncementKey(a))).map(getAnnouncementKey);
+    return announcements
+      .filter((a) => !readSet.has(getAnnouncementKey(a)))
+      .map(getAnnouncementKey);
   };
 
   // Effects
@@ -71,7 +75,9 @@ export const useNotifications = (statusState) => {
       } catch (_) {
         readKeys = [];
       }
-      const mergedKeys = Array.from(new Set([...readKeys, ...announcements.map(getAnnouncementKey)]));
+      const mergedKeys = Array.from(
+        new Set([...readKeys, ...announcements.map(getAnnouncementKey)]),
+      );
       localStorage.setItem('notice_read_keys', JSON.stringify(mergedKeys));
     }
     setUnreadCount(0);

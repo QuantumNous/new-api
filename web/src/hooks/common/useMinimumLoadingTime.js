@@ -47,4 +47,4 @@ export const useMinimumLoadingTime = (loading, minimumTime = 1000) => {
   }, [loading, minimumTime]);
 
   return showSkeleton;
-}; 
+};
