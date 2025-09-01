@@ -128,8 +128,9 @@ export const useSidebar = () => {
 
   // 刷新用户配置的方法（供外部调用）
   const refreshUserConfig = async () => {
-    // 移除adminConfig的条件限制，直接刷新用户配置
-    await loadUserConfig();
+     if (Object.keys(adminConfig).length > 0) {
+      await loadUserConfig();
+    }
 
     // 触发全局刷新事件，通知所有useSidebar实例更新
     sidebarEventTarget.dispatchEvent(new CustomEvent(SIDEBAR_REFRESH_EVENT));
