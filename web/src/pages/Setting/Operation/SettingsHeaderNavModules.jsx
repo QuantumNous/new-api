@@ -193,8 +193,8 @@ export default function SettingsHeaderNavModules(props) {
   return (
     <Card>
       <Form.Section
-        text={t('顶栏管理')}
-        extraText={t('控制顶栏模块显示状态，全局生效')}
+        text={t('导航栏管理')}
+        extraText={t('控制导航栏模块显示状态，全局生效')}
       >
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           {moduleConfigs.map((module) => (
