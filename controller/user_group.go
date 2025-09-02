@@ -152,10 +152,16 @@ func UpdateUserGroup(c *gin.Context) {
 
 	// 如果名称发生变化，需要在同一事务中更新用户数据
 	if oldGroup.Name != g.Name {
+		if isReservedGroup(strings.ToLower(g.Name)) {
+			tx.Rollback()
+			common.ApiErrorMsg(c, "不能将分组名称修改为系统保留分组名")
+			return
+		}
 		common.SysLog(fmt.Sprintf("检测到分组名称变化: '%s' -> '%s'", oldGroup.Name, g.Name))
 
 		// 禁止修改系统保留分组名
 		if isReservedGroup(strings.ToLower(oldGroup.Name)) {
+			tx.Rollback()
 			common.ApiErrorMsg(c, "不能修改系统保留分组名称")
 			return
 		}

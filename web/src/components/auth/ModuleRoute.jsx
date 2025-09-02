@@ -56,12 +56,8 @@ const ModuleRoute = ({ children, modulePath, fallback = <Navigate to="/forbidden
         return false;
       }
 
+      // 不再基于本地角色直接授予 ROOT 权限，统一依赖服务端下发的最终配置
       const userRole = userObj.role;
-
-      // 使用精确角色匹配，避免范围检查导致的漂移
-      if (userRole === USER_ROLES.ROOT) {
-        return true; // 超级管理员始终有权限
-      }
 
       // 如果 sidebar 配置还在加载中，返回 null 表示需要等待
       if (sidebarLoading || !finalConfig) {
@@ -90,7 +86,7 @@ const ModuleRoute = ({ children, modulePath, fallback = <Navigate to="/forbidden
       return false;
     }
 
-    // 使用精确角色匹配进行权限检查
+    // 所有用户角色统一依赖服务端下发的最终配置进行权限检查
     if (userRole === USER_ROLES.COMMON) {
       // 普通用户：使用最终计算的配置进行权限检查
       return checkModuleInSidebarConfig(finalConfig, modulePath);
@@ -101,8 +97,8 @@ const ModuleRoute = ({ children, modulePath, fallback = <Navigate to="/forbidden
       }
       return checkModuleInSidebarConfig(finalConfig, modulePath);
     } else if (userRole === USER_ROLES.ROOT) {
-      // 超级管理员：始终有权限
-      return true;
+      // 超级管理员：也依赖服务端配置，不再客户端直接授权
+      return checkModuleInSidebarConfig(finalConfig, modulePath);
     }
 
     // 未知角色，拒绝访问

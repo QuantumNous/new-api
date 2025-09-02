@@ -65,9 +65,9 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
 
   // 检查是否有分组管理权限
   const hasGroupManagementPermission = () => {
-    // 如果侧边栏配置还在加载中，暂时拒绝访问
+    // 如果侧边栏配置还在加载中，返回null表示未判定
     if (sidebarLoading) {
-      return false;
+      return null;
     }
 
     // 超级管理员始终有权限
@@ -96,7 +96,11 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
   // 加载分组列表
   const loadGroups = async () => {
     // 检查权限
-    if (!hasGroupManagementPermission()) {
+    const perm = hasGroupManagementPermission();
+    if (perm === null) {
+      return; // 等待权限加载完成后再拉取
+    }
+    if (perm === false) {
       showError(t('无权访问分组管理功能'));
       onClose();
       return;
@@ -283,10 +287,10 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
   ];
 
   useEffect(() => {
-    if (visible) {
+    if (visible && !sidebarLoading) {
       loadGroups();
     }
-  }, [visible]);
+  }, [visible, sidebarLoading]);
 
   return (
     <>

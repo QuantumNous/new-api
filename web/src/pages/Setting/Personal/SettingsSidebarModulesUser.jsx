@@ -317,7 +317,7 @@ export default function SettingsSidebarModulesUser() {
             }
           } catch (error) {
             console.error('解析用户设置失败:', error);
-            const defaultConfig = generateDefaultConfig(systemConfig);
+            const defaultConfig = generateDefaultConfig();
             setSidebarModulesUser(defaultConfig);
           }
         } else {
@@ -404,17 +404,19 @@ export default function SettingsSidebarModulesUser() {
       ]
     }
   ].filter(section => {
-    // 基于系统权限过滤区域：只要系统中存在这个区域就显示（不管用户是否启用）
-    const systemAllowed = adminConfig && adminConfig[section.key];
+    // 仅显示系统启用的区域
+    const sec = adminConfig?.[section.key];
+    const systemAllowed = !!sec && sec.enabled === true;
     console.log(`区域 ${section.key} 系统是否允许:`, systemAllowed, 'adminConfig:', adminConfig);
     return systemAllowed;
   }).map(section => ({
     ...section,
     modules: section.modules.filter(module => {
-      // 基于系统权限过滤模块：只要系统配置中存在这个模块就显示
-      const systemAllowed = adminConfig && adminConfig[section.key] && adminConfig[section.key].hasOwnProperty(module.key);
-      console.log(`模块 ${section.key}.${module.key} 系统是否允许:`, systemAllowed);
-      return systemAllowed;
+      // 仅显示系统启用的模块（布尔true或对象enabled为true）
+      const sysVal = adminConfig?.[section.key]?.[module.key];
+      const allowed = typeof sysVal === 'boolean' ? sysVal === true : sysVal?.enabled === true;
+      console.log(`模块 ${section.key}.${module.key} 系统是否允许:`, allowed);
+      return allowed;
     })
   })).filter(section => {
     // 过滤掉没有可用模块的区域

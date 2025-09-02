@@ -384,6 +384,7 @@
   "普通用户": "Normal User",
   "管理员": "Admin",
   "超级管理员": "Super Admin",
+  "访客": "Guest",
   "未知身份": "Unknown Identity",
   "已激活": "Activated",
   "已封禁": "Banned",
