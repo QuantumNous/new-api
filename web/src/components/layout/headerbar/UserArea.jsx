@@ -120,10 +120,11 @@ const UserArea = ({
         >
           <Avatar
             size='extra-small'
-            color={stringToColor(userState.user.username)}
+            src={userState.user?.avatar || undefined}
+            color={userState.user?.avatar ? undefined : stringToColor(userState.user.username)}
             className='mr-1'
           >
-            {userState.user.username[0].toUpperCase()}
+            {!userState.user?.avatar && userState.user.username[0].toUpperCase()}
           </Avatar>
           <span className='hidden md:inline'>
             <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
