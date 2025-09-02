@@ -1317,6 +1317,48 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
+	// 检查是否是纯头像更新请求
+	if len(requestData) == 1 {
+		if avatarData, exists := requestData["avatar"]; exists {
+			userId := c.GetInt("id")
+
+			// 验证头像数据
+			avatarStr, ok := avatarData.(string)
+			if !ok {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "头像数据格式无效",
+				})
+				return
+			}
+
+			if err := validateAvatar(avatarStr); err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+
+			// 直接更新头像字段
+			user := model.User{
+				Id:     userId,
+				Avatar: avatarStr,
+			}
+
+			if err := user.UpdateAvatar(); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+			})
+			return
+		}
+	}
+
 	// 原有的用户信息更新逻辑
 	var user model.User
 	requestDataBytes, err := json.Marshal(requestData)

@@ -72,15 +72,13 @@ export const getUserData = async () => {
 /**
  * 更新用户头像
  * @param {string} avatarData - 头像数据（base64）
- * @param {Object} userInfo - 用户基本信息
+ * @param {Object} userInfo - 用户基本信息（仅用于缓存）
  * @returns {Promise<Object>} 更新结果
  */
 export const updateUserAvatar = async (avatarData, userInfo = {}) => {
   try {
     const payload = {
       avatar: avatarData,
-      username: userInfo.username || '',
-      display_name: userInfo.display_name || '',
     };
 
     const res = await API.put('/api/user/self', payload);
