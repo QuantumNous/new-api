@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"one-api/dto"
 	"one-api/relay/channel"
+	"one-api/relay/channel/claude"
 	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/constant"
@@ -73,6 +74,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if c.GetString("plugin") != "" {
 		req.Set("X-DashScope-Plugin", c.GetString("plugin"))
 	}
+	if a.imageProcessMode != nil && a.imageProcessMode.Async {
+		req.Set("X-DashScope-Async", "enable")
+	}
 	return nil
 }
 
@@ -100,7 +104,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	aliRequest := oaiImage2Ali(request)
+	aliRequest, err := oaiImage2Ali(a, c, info, request)
+	if err != nil {
+		return nil, fmt.Errorf("convert image request failed: %w", err)
+	}
+
 	return aliRequest, nil
 }
 
@@ -127,18 +135,22 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	switch info.RelayMode {
-	case constant.RelayModeImagesGenerations:
-		err, usage = aliImageHandler(c, resp, info)
-	case constant.RelayModeEmbeddings:
-		err, usage = aliEmbeddingHandler(c, resp)
-	case constant.RelayModeRerank:
-		err, usage = RerankHandler(c, resp, info)
-	default:
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
 		if info.IsStream {
-			usage, err = openai.OaiStreamHandler(c, info, resp)
+			return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
 		} else {
-			usage, err = openai.OpenaiHandler(c, info, resp)
+			return claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
+		}
+	default:
+		switch info.RelayMode {
+		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
+			err, usage = aliImageHandler(a, c, resp, info)
+		case constant.RelayModeRerank:
+			err, usage = RerankHandler(c, resp, info)
+		default:
+			adaptor := openai.Adaptor{}
+			usage, err = adaptor.DoResponse(c, resp, info)
 		}
 		return usage, err
 	}

@@ -157,8 +157,8 @@ type AliMultimodelGenerationRequest AliChatRequest
 
 type AliMultimodelGenerationResponse struct {
 	StatusCode int    `json:"status_code"`
-	Code       string `json:"code,omitemtpy"`
-	Message    string `json:"message,omitemtpy"`
+	Code       string `json:"code,omitempty"`
+	Message    string `json:"message,omitempty"`
 	Output     struct {
 		Choices []struct {
 			FinishReason string `json:"finish_reason"`
@@ -190,7 +190,7 @@ type AliImage2ImageImageSynthesisRequest struct {
 		SketchImageUrl string `json:"sketch_image_url,omitempty"`
 	} `json:"input"`
 	Parameters struct {
-		N    int    `json:"n,omitempty"`
+		N    uint   `json:"n,omitempty"`
 		Size string `json:"size,omitempty"`
 	} `json:"parameters,omitempty"`
 }

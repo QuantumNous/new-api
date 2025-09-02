@@ -55,8 +55,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.Action = "ChatCompletions"
 	if isDeepseekModel(info.UpstreamModelName) {
 		a.Version = "2024-05-22"
-		if info.BaseUrl == constant.ChannelBaseURLs[info.ChannelType] {
-			info.BaseUrl = "https://lkeap.tencentcloudapi.com"
+		if info.ChannelBaseUrl == constant.ChannelBaseURLs[info.ChannelType] {
+			info.ChannelBaseUrl = "https://lkeap.tencentcloudapi.com"
 		}
 	} else {
 		a.Version = "2023-09-01"

@@ -11,6 +11,7 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
+	"one-api/service"
 	"one-api/types"
 	"path/filepath"
 	"strings"
@@ -201,7 +202,7 @@ func multimoalGenerationMode() *ImageProcessMode {
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeReadResponseBodyFailed), nil
 			}
-			common.CloseResponseBodyGracefully(resp)
+			service.CloseResponseBodyGracefully(resp)
 			var multimoalGenerationResp AliMultimodelGenerationResponse
 			if err := json.Unmarshal(respsonseBody, &multimoalGenerationResp); err != nil {
 				return types.NewError(err, types.ErrorCodeBadResponseBody), nil
@@ -244,7 +245,7 @@ func multimoalGenerationMode() *ImageProcessMode {
 					OutputTokens: usage.OutputTokens,
 					TotalTokens:  usage.InputTokens + usage.OutputTokens,
 				},
-			}, info, responseFormat)
+			}, respsonseBody, info, responseFormat)
 
 			jsonResponse, err := marshalWithoutHTMLEscape(fullTextResponse)
 			if err != nil {
@@ -286,7 +287,7 @@ func image2ImageMode() *ImageProcessMode {
 						SketchImageUrl: imageContents[0],
 					},
 					Parameters: struct {
-						N    int    `json:"n,omitempty"`
+						N    uint   `json:"n,omitempty"`
 						Size string `json:"size,omitempty"`
 					}{
 						N:    request.N,
@@ -309,7 +310,7 @@ func image2ImageMode() *ImageProcessMode {
 						MaskImageUrl: maskImageContent,
 					},
 					Parameters: struct {
-						N    int    `json:"n,omitempty"`
+						N    uint   `json:"n,omitempty"`
 						Size string `json:"size,omitempty"`
 					}{
 						N: request.N,
@@ -331,7 +332,7 @@ func image2ImageMode() *ImageProcessMode {
 						BaseImageUrl: imageContents[0],
 					},
 					Parameters: struct {
-						N    int    `json:"n,omitempty"`
+						N    uint   `json:"n,omitempty"`
 						Size string `json:"size,omitempty"`
 					}{
 						N: request.N,

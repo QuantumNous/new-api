@@ -310,7 +310,7 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 		}, resp.StatusCode), nil
 	}
 
-	fullTextResponse := responseAli2OpenAIImage(c, aliResponse, info, responseFormat)
+	fullTextResponse := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)
 	jsonResponse, err := marshalWithoutHTMLEscape(fullTextResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil

@@ -187,7 +187,7 @@ func hmacSha256(s, key string) string {
 func getTencentSign(req TencentChatRequest, adaptor *Adaptor, info *relaycommon.RelayInfo, secId, secKey string) (string, error) {
 	host := ""
 	// build canonical request string
-	if pu, err := url.Parse(info.BaseUrl); err != nil {
+	if pu, err := url.Parse(info.ChannelBaseUrl); err != nil {
 		return "", err
 	} else {
 		host = pu.Host
