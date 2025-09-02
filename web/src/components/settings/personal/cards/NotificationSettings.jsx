@@ -34,7 +34,12 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconMail, IconKey, IconBell, IconLink } from '@douyinfe/semi-icons';
 import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
-import { renderQuotaWithPrompt, API, showSuccess, showError } from '../../../../helpers';
+import {
+  renderQuotaWithPrompt,
+  API,
+  showSuccess,
+  showError,
+} from '../../../../helpers';
 import CodeViewer from '../../../playground/CodeViewer';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
@@ -57,7 +62,7 @@ const NotificationSettings = ({
     chat: {
       enabled: true,
       playground: true,
-      chat: true
+      chat: true,
     },
     console: {
       enabled: true,
@@ -65,12 +70,12 @@ const NotificationSettings = ({
       token: true,
       log: true,
       midjourney: true,
-      task: true
+      task: true,
     },
     personal: {
       enabled: true,
       topup: true,
-      personal: true
+      personal: true,
     },
     admin: {
       enabled: true,
@@ -78,8 +83,8 @@ const NotificationSettings = ({
       models: true,
       redemption: true,
       user: true,
-      setting: true
-    }
+      setting: true,
+    },
   });
   const [adminConfig, setAdminConfig] = useState(null);
 
@@ -99,8 +104,8 @@ const NotificationSettings = ({
         ...sidebarModulesUser,
         [sectionKey]: {
           ...sidebarModulesUser[sectionKey],
-          enabled: checked
-        }
+          enabled: checked,
+        },
       };
       setSidebarModulesUser(newModules);
     };
@@ -112,8 +117,8 @@ const NotificationSettings = ({
         ...sidebarModulesUser,
         [sectionKey]: {
           ...sidebarModulesUser[sectionKey],
-          [moduleKey]: checked
-        }
+          [moduleKey]: checked,
+        },
       };
       setSidebarModulesUser(newModules);
     };
@@ -123,7 +128,7 @@ const NotificationSettings = ({
     setSidebarLoading(true);
     try {
       const res = await API.put('/api/user/self', {
-        sidebar_modules: JSON.stringify(sidebarModulesUser)
+        sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
       if (res.data.success) {
         showSuccess(t('侧边栏设置保存成功'));
@@ -139,9 +144,23 @@ const NotificationSettings = ({
   const resetSidebarModules = () => {
     const defaultConfig = {
       chat: { enabled: true, playground: true, chat: true },
-      console: { enabled: true, detail: true, token: true, log: true, midjourney: true, task: true },
+      console: {
+        enabled: true,
+        detail: true,
+        token: true,
+        log: true,
+        midjourney: true,
+        task: true,
+      },
       personal: { enabled: true, topup: true, personal: true },
-      admin: { enabled: true, channel: true, models: true, redemption: true, user: true, setting: true }
+      admin: {
+        enabled: true,
+        channel: true,
+        models: true,
+        redemption: true,
+        user: true,
+        setting: true,
+      },
     };
     setSidebarModulesUser(defaultConfig);
   };
@@ -187,7 +206,9 @@ const NotificationSettings = ({
     if (!adminConfig) return true;
 
     if (moduleKey) {
-      return adminConfig[sectionKey]?.enabled && adminConfig[sectionKey]?.[moduleKey];
+      return (
+        adminConfig[sectionKey]?.enabled && adminConfig[sectionKey]?.[moduleKey]
+      );
     } else {
       return adminConfig[sectionKey]?.enabled;
     }
@@ -200,9 +221,13 @@ const NotificationSettings = ({
       title: t('聊天区域'),
       description: t('操练场和聊天功能'),
       modules: [
-        { key: 'playground', title: t('操练场'), description: t('AI模型测试环境') },
-        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') }
-      ]
+        {
+          key: 'playground',
+          title: t('操练场'),
+          description: t('AI模型测试环境'),
+        },
+        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
+      ],
     },
     {
       key: 'console',
@@ -212,9 +237,13 @@ const NotificationSettings = ({
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        { key: 'midjourney', title: t('绘图日志'), description: t('绘图任务记录') },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') }
-      ]
+        {
+          key: 'midjourney',
+          title: t('绘图日志'),
+          description: t('绘图任务记录'),
+        },
+        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+      ],
     },
     {
       key: 'personal',
@@ -222,8 +251,12 @@ const NotificationSettings = ({
       description: t('用户个人功能'),
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
-        { key: 'personal', title: t('个人设置'), description: t('个人信息设置') }
-      ]
+        {
+          key: 'personal',
+          title: t('个人设置'),
+          description: t('个人信息设置'),
+        },
+      ],
     },
     // 管理员区域：根据后端权限控制显示
     {
@@ -233,23 +266,35 @@ const NotificationSettings = ({
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
-        { key: 'redemption', title: t('兑换码管理'), description: t('兑换码生成管理') },
+        {
+          key: 'redemption',
+          title: t('兑换码管理'),
+          description: t('兑换码生成管理'),
+        },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
-        { key: 'setting', title: t('系统设置'), description: t('系统参数配置') }
-      ]
-    }
-  ].filter(section => {
-    // 使用后端权限验证替代前端角色判断
-    return isSidebarSectionAllowed(section.key);
-  }).map(section => ({
-    ...section,
-    modules: section.modules.filter(module =>
-      isSidebarModuleAllowed(section.key, module.key)
-    )
-  })).filter(section =>
-    // 过滤掉没有可用模块的区域
-    section.modules.length > 0 && isAllowedByAdmin(section.key)
-  );
+        {
+          key: 'setting',
+          title: t('系统设置'),
+          description: t('系统参数配置'),
+        },
+      ],
+    },
+  ]
+    .filter((section) => {
+      // 使用后端权限验证替代前端角色判断
+      return isSidebarSectionAllowed(section.key);
+    })
+    .map((section) => ({
+      ...section,
+      modules: section.modules.filter((module) =>
+        isSidebarModuleAllowed(section.key, module.key),
+      ),
+    }))
+    .filter(
+      (section) =>
+        // 过滤掉没有可用模块的区域
+        section.modules.length > 0 && isAllowedByAdmin(section.key),
+    );
 
   // 表单提交
   const handleSubmit = () => {
@@ -491,7 +536,9 @@ const NotificationSettings = ({
                     <Form.Input
                       field='barkUrl'
                       label={t('Bark推送URL')}
-                      placeholder={t('请输入Bark推送URL，例如: https://api.day.app/yourkey/{{title}}/{{content}}')}
+                      placeholder={t(
+                        '请输入Bark推送URL，例如: https://api.day.app/yourkey/{{title}}/{{content}}',
+                      )}
                       onChange={(val) => handleFormChange('barkUrl', val)}
                       prefix={<IconLink />}
                       extraText={t(
@@ -500,8 +547,7 @@ const NotificationSettings = ({
                       showClear
                       rules={[
                         {
-                          required:
-                            notificationSettings.warningType === 'bark',
+                          required: notificationSettings.warningType === 'bark',
                           message: t('请输入Bark推送URL'),
                         },
                         {
@@ -516,16 +562,23 @@ const NotificationSettings = ({
                         <strong>{t('模板示例')}</strong>
                       </div>
                       <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-sm mb-4'>
-                        https://api.day.app/yourkey/{'{{title}}'}/{'{{content}}'}?sound=alarm&group=quota
+                        https://api.day.app/yourkey/{'{{title}}'}/
+                        {'{{content}}'}?sound=alarm&group=quota
                       </div>
                       <div className='text-xs text-gray-500 space-y-2'>
-                        <div>• <strong>{'title'}:</strong> {t('通知标题')}</div>
-                        <div>• <strong>{'content'}:</strong> {t('通知内容')}</div>
+                        <div>
+                          • <strong>{'title'}:</strong> {t('通知标题')}
+                        </div>
+                        <div>
+                          • <strong>{'content'}:</strong> {t('通知内容')}
+                        </div>
                         <div className='mt-3 pt-3 border-t border-gray-200'>
-                          <span className='text-gray-400'>{t('更多参数请参考')}</span>{' '}
-                          <a 
-                            href='https://github.com/Finb/Bark' 
-                            target='_blank' 
+                          <span className='text-gray-400'>
+                            {t('更多参数请参考')}
+                          </span>{' '}
+                          <a
+                            href='https://github.com/Finb/Bark'
+                            target='_blank'
                             rel='noopener noreferrer'
                             className='text-blue-500 hover:text-blue-600 font-medium'
                           >
@@ -603,27 +656,25 @@ const NotificationSettings = ({
                 <div className='py-4'>
                   <div className='mb-4'>
                     <Typography.Text
-                      type="secondary"
-                      size="small"
+                      type='secondary'
+                      size='small'
                       style={{
                         fontSize: '12px',
                         lineHeight: '1.5',
-                        color: 'var(--semi-color-text-2)'
+                        color: 'var(--semi-color-text-2)',
                       }}
                     >
                       {t('您可以个性化设置侧边栏的要显示功能')}
                     </Typography.Text>
                   </div>
-
                   {/* 边栏设置功能区域容器 */}
                   <div
                     className='border rounded-xl p-4'
                     style={{
                       borderColor: 'var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-bg-1)'
+                      backgroundColor: 'var(--semi-color-bg-1)',
                     }}
                   >
-
                     {sectionConfigs.map((section) => (
                       <div key={section.key} className='mb-6'>
                         {/* 区域标题和总开关 */}
@@ -632,80 +683,102 @@ const NotificationSettings = ({
                           style={{
                             backgroundColor: 'var(--semi-color-fill-0)',
                             border: '1px solid var(--semi-color-border-light)',
-                            borderColor: 'var(--semi-color-fill-1)'
+                            borderColor: 'var(--semi-color-fill-1)',
                           }}
                         >
-                        <div>
-                          <div className='font-semibold text-base text-gray-900 mb-1'>
-                            {section.title}
-                          </div>
-                          <Typography.Text
-                            type="secondary"
-                            size="small"
-                            style={{
-                              fontSize: '12px',
-                              lineHeight: '1.5',
-                              color: 'var(--semi-color-text-2)'
-                            }}
-                          >
-                            {section.description}
-                          </Typography.Text>
-                        </div>
-                        <Switch
-                          checked={sidebarModulesUser[section.key]?.enabled}
-                          onChange={handleSectionChange(section.key)}
-                          size="default"
-                        />
-                      </div>
-
-                      {/* 功能模块网格 */}
-                      <Row gutter={[12, 12]}>
-                        {section.modules
-                          .filter(module => isAllowedByAdmin(section.key, module.key))
-                          .map((module) => (
-                          <Col key={module.key} xs={24} sm={24} md={12} lg={8} xl={8}>
-                            <Card
-                              className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
-                                sidebarModulesUser[section.key]?.enabled ? '' : 'opacity-50'
-                              }`}
-                              bodyStyle={{ padding: '16px' }}
-                              hoverable
+                          <div>
+                            <div className='font-semibold text-base text-gray-900 mb-1'>
+                              {section.title}
+                            </div>
+                            <Typography.Text
+                              type='secondary'
+                              size='small'
+                              style={{
+                                fontSize: '12px',
+                                lineHeight: '1.5',
+                                color: 'var(--semi-color-text-2)',
+                              }}
                             >
-                              <div className='flex justify-between items-center h-full'>
-                                <div className='flex-1 text-left'>
-                                  <div className='font-semibold text-sm text-gray-900 mb-1'>
-                                    {module.title}
+                              {section.description}
+                            </Typography.Text>
+                          </div>
+                          <Switch
+                            checked={sidebarModulesUser[section.key]?.enabled}
+                            onChange={handleSectionChange(section.key)}
+                            size='default'
+                          />
+                        </div>
+
+                        {/* 功能模块网格 */}
+                        <Row gutter={[12, 12]}>
+                          {section.modules
+                            .filter((module) =>
+                              isAllowedByAdmin(section.key, module.key),
+                            )
+                            .map((module) => (
+                              <Col
+                                key={module.key}
+                                xs={24}
+                                sm={24}
+                                md={12}
+                                lg={8}
+                                xl={8}
+                              >
+                                <Card
+                                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                                    sidebarModulesUser[section.key]?.enabled
+                                      ? ''
+                                      : 'opacity-50'
+                                  }`}
+                                  bodyStyle={{ padding: '16px' }}
+                                  hoverable
+                                >
+                                  <div className='flex justify-between items-center h-full'>
+                                    <div className='flex-1 text-left'>
+                                      <div className='font-semibold text-sm text-gray-900 mb-1'>
+                                        {module.title}
+                                      </div>
+                                      <Typography.Text
+                                        type='secondary'
+                                        size='small'
+                                        className='block'
+                                        style={{
+                                          fontSize: '12px',
+                                          lineHeight: '1.5',
+                                          color: 'var(--semi-color-text-2)',
+                                          marginTop: '4px',
+                                        }}
+                                      >
+                                        {module.description}
+                                      </Typography.Text>
+                                    </div>
+                                    <div className='ml-4'>
+                                      <Switch
+                                        checked={
+                                          sidebarModulesUser[section.key]?.[
+                                            module.key
+                                          ]
+                                        }
+                                        onChange={handleModuleChange(
+                                          section.key,
+                                          module.key,
+                                        )}
+                                        size='default'
+                                        disabled={
+                                          !sidebarModulesUser[section.key]
+                                            ?.enabled
+                                        }
+                                      />
+                                    </div>
                                   </div>
-                                  <Typography.Text
-                                    type="secondary"
-                                    size="small"
-                                    className='block'
-                                    style={{
-                                      fontSize: '12px',
-                                      lineHeight: '1.5',
-                                      color: 'var(--semi-color-text-2)',
-                                      marginTop: '4px'
-                                    }}
-                                  >
-                                    {module.description}
-                                  </Typography.Text>
-                                </div>
-                                <div className='ml-4'>
-                                  <Switch
-                                    checked={sidebarModulesUser[section.key]?.[module.key]}
-                                    onChange={handleModuleChange(section.key, module.key)}
-                                    size="default"
-                                    disabled={!sidebarModulesUser[section.key]?.enabled}
-                                  />
-                                </div>
-                              </div>
-                            </Card>
-                          </Col>
-                        ))}
-                      </Row>
+                                </Card>
+                              </Col>
+                            ))}
+                        </Row>
                       </div>
                     ))}
-                  </div> {/* 关闭边栏设置功能区域容器 */}
+                  </div>{' '}
+                  {/* 关闭边栏设置功能区域容器 */}
                 </div>
               </TabPane>
             )}

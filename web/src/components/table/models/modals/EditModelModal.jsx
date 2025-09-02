@@ -121,6 +121,7 @@ const EditModelModal = (props) => {
     endpoints: '',
     name_rule: props.editingModel?.model_name ? 0 : undefined, // 通过未配置模型过来的固定为精确匹配
     status: true,
+    sync_official: true,
   });
 
   const handleCancel = () => {
@@ -145,8 +146,9 @@ const EditModelModal = (props) => {
         if (!data.endpoints) {
           data.endpoints = '';
         }
-        // 处理status，将数字转为布尔值
+        // 处理status/sync_official，将数字转为布尔值
         data.status = data.status === 1;
+        data.sync_official = (data.sync_official ?? 1) === 1;
         if (formApiRef.current) {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
@@ -193,6 +195,7 @@ const EditModelModal = (props) => {
         tags: Array.isArray(values.tags) ? values.tags.join(',') : values.tags,
         endpoints: values.endpoints || '',
         status: values.status ? 1 : 0,
+        sync_official: values.sync_official ? 1 : 0,
       };
 
       if (isEdit) {
@@ -503,6 +506,16 @@ const EditModelModal = (props) => {
                           </Space>
                         )
                       }
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.Switch
+                      field='sync_official'
+                      label={t('参与官方同步')}
+                      extraText={t(
+                        '关闭后，此模型将不会被“同步官方”自动覆盖或创建',
+                      )}
+                      size='large'
                     />
                   </Col>
                   <Col span={24}>

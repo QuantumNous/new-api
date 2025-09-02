@@ -207,6 +207,7 @@ func ListModels(c *gin.Context, modelType int) {
 		c.JSON(200, gin.H{
 			"success": true,
 			"data":    userOpenAiModels,
+			"object":  "list",
 		})
 	}
 }

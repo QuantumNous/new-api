@@ -19,7 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Form, Button, Switch, Row, Col, Typography } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Form,
+  Button,
+  Switch,
+  Row,
+  Col,
+  Typography,
+} from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 
@@ -29,13 +37,13 @@ export default function SettingsSidebarModulesAdmin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
-  
+
   // 左侧边栏模块管理状态（管理员全局控制）
   const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
     chat: {
       enabled: true,
       playground: true,
-      chat: true
+      chat: true,
     },
     console: {
       enabled: true,
@@ -43,12 +51,12 @@ export default function SettingsSidebarModulesAdmin(props) {
       token: true,
       log: true,
       midjourney: true,
-      task: true
+      task: true,
     },
     personal: {
       enabled: true,
       topup: true,
-      personal: true
+      personal: true,
     },
     admin: {
       enabled: true,
@@ -56,19 +64,19 @@ export default function SettingsSidebarModulesAdmin(props) {
       models: true,
       redemption: true,
       user: true,
-      setting: true
-    }
+      setting: true,
+    },
   });
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
     return (checked) => {
-      const newModules = { 
-        ...sidebarModulesAdmin, 
-        [sectionKey]: { 
-          ...sidebarModulesAdmin[sectionKey], 
-          enabled: checked 
-        } 
+      const newModules = {
+        ...sidebarModulesAdmin,
+        [sectionKey]: {
+          ...sidebarModulesAdmin[sectionKey],
+          enabled: checked,
+        },
       };
       setSidebarModulesAdmin(newModules);
     };
@@ -77,12 +85,12 @@ export default function SettingsSidebarModulesAdmin(props) {
   // 处理功能级别开关变更
   function handleModuleChange(sectionKey, moduleKey) {
     return (checked) => {
-      const newModules = { 
-        ...sidebarModulesAdmin, 
-        [sectionKey]: { 
-          ...sidebarModulesAdmin[sectionKey], 
-          [moduleKey]: checked 
-        } 
+      const newModules = {
+        ...sidebarModulesAdmin,
+        [sectionKey]: {
+          ...sidebarModulesAdmin[sectionKey],
+          [moduleKey]: checked,
+        },
       };
       setSidebarModulesAdmin(newModules);
     };
@@ -94,7 +102,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       chat: {
         enabled: true,
         playground: true,
-        chat: true
+        chat: true,
       },
       console: {
         enabled: true,
@@ -102,12 +110,12 @@ export default function SettingsSidebarModulesAdmin(props) {
         token: true,
         log: true,
         midjourney: true,
-        task: true
+        task: true,
       },
       personal: {
         enabled: true,
         topup: true,
-        personal: true
+        personal: true,
       },
       admin: {
         enabled: true,
@@ -115,8 +123,8 @@ export default function SettingsSidebarModulesAdmin(props) {
         models: true,
         redemption: true,
         user: true,
-        setting: true
-      }
+        setting: true,
+      },
     };
     setSidebarModulesAdmin(defaultModules);
     showSuccess(t('已重置为默认配置'));
@@ -139,8 +147,8 @@ export default function SettingsSidebarModulesAdmin(props) {
           type: 'set',
           payload: {
             ...statusState.status,
-            SidebarModulesAdmin: JSON.stringify(sidebarModulesAdmin)
-          }
+            SidebarModulesAdmin: JSON.stringify(sidebarModulesAdmin),
+          },
         });
 
         // 刷新父组件状态
@@ -167,9 +175,23 @@ export default function SettingsSidebarModulesAdmin(props) {
         // 使用默认配置
         const defaultModules = {
           chat: { enabled: true, playground: true, chat: true },
-          console: { enabled: true, detail: true, token: true, log: true, midjourney: true, task: true },
+          console: {
+            enabled: true,
+            detail: true,
+            token: true,
+            log: true,
+            midjourney: true,
+            task: true,
+          },
           personal: { enabled: true, topup: true, personal: true },
-          admin: { enabled: true, channel: true, models: true, redemption: true, user: true, setting: true }
+          admin: {
+            enabled: true,
+            channel: true,
+            models: true,
+            redemption: true,
+            user: true,
+            setting: true,
+          },
         };
         setSidebarModulesAdmin(defaultModules);
       }
@@ -183,9 +205,13 @@ export default function SettingsSidebarModulesAdmin(props) {
       title: t('聊天区域'),
       description: t('操练场和聊天功能'),
       modules: [
-        { key: 'playground', title: t('操练场'), description: t('AI模型测试环境') },
-        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') }
-      ]
+        {
+          key: 'playground',
+          title: t('操练场'),
+          description: t('AI模型测试环境'),
+        },
+        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
+      ],
     },
     {
       key: 'console',
@@ -195,9 +221,13 @@ export default function SettingsSidebarModulesAdmin(props) {
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        { key: 'midjourney', title: t('绘图日志'), description: t('绘图任务记录') },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') }
-      ]
+        {
+          key: 'midjourney',
+          title: t('绘图日志'),
+          description: t('绘图任务记录'),
+        },
+        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+      ],
     },
     {
       key: 'personal',
@@ -205,8 +235,12 @@ export default function SettingsSidebarModulesAdmin(props) {
       description: t('用户个人功能'),
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
-        { key: 'personal', title: t('个人设置'), description: t('个人信息设置') }
-      ]
+        {
+          key: 'personal',
+          title: t('个人设置'),
+          description: t('个人信息设置'),
+        },
+      ],
     },
     {
       key: 'admin',
@@ -215,46 +249,62 @@ export default function SettingsSidebarModulesAdmin(props) {
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
-        { key: 'redemption', title: t('兑换码管理'), description: t('兑换码生成管理') },
+        {
+          key: 'redemption',
+          title: t('兑换码管理'),
+          description: t('兑换码生成管理'),
+        },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
-        { key: 'setting', title: t('系统设置'), description: t('系统参数配置') }
-      ]
-    }
+        {
+          key: 'setting',
+          title: t('系统设置'),
+          description: t('系统参数配置'),
+        },
+      ],
+    },
   ];
 
   return (
     <Card>
-      <Form.Section text={t('侧边栏管理（全局控制）')} extraText={t('全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用')}>
-
+      <Form.Section
+        text={t('侧边栏管理（全局控制）')}
+        extraText={t(
+          '全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用',
+        )}
+      >
         {sectionConfigs.map((section) => (
           <div key={section.key} style={{ marginBottom: '32px' }}>
             {/* 区域标题和总开关 */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px',
-              padding: '12px 16px',
-              backgroundColor: 'var(--semi-color-fill-0)',
-              borderRadius: '8px',
-              border: '1px solid var(--semi-color-border)'
-            }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                padding: '12px 16px',
+                backgroundColor: 'var(--semi-color-fill-0)',
+                borderRadius: '8px',
+                border: '1px solid var(--semi-color-border)',
+              }}
+            >
               <div>
-                <div style={{
-                  fontWeight: '600',
-                  fontSize: '16px',
-                  color: 'var(--semi-color-text-0)',
-                  marginBottom: '4px'
-                }}>
+                <div
+                  style={{
+                    fontWeight: '600',
+                    fontSize: '16px',
+                    color: 'var(--semi-color-text-0)',
+                    marginBottom: '4px',
+                  }}
+                >
                   {section.title}
                 </div>
                 <Text
-                  type="secondary"
-                  size="small"
+                  type='secondary'
+                  size='small'
                   style={{
                     fontSize: '12px',
                     color: 'var(--semi-color-text-2)',
-                    lineHeight: '1.4'
+                    lineHeight: '1.4',
                   }}
                 >
                   {section.description}
@@ -263,7 +313,7 @@ export default function SettingsSidebarModulesAdmin(props) {
               <Switch
                 checked={sidebarModulesAdmin[section.key]?.enabled}
                 onChange={handleSectionChange(section.key)}
-                size="default"
+                size='default'
               />
             </div>
 
@@ -275,33 +325,39 @@ export default function SettingsSidebarModulesAdmin(props) {
                     bodyStyle={{ padding: '16px' }}
                     hoverable
                     style={{
-                      opacity: sidebarModulesAdmin[section.key]?.enabled ? 1 : 0.5,
-                      transition: 'opacity 0.2s'
+                      opacity: sidebarModulesAdmin[section.key]?.enabled
+                        ? 1
+                        : 0.5,
+                      transition: 'opacity 0.2s',
                     }}
                   >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      height: '100%'
-                    }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        height: '100%',
+                      }}
+                    >
                       <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{
-                          fontWeight: '600',
-                          fontSize: '14px',
-                          color: 'var(--semi-color-text-0)',
-                          marginBottom: '4px'
-                        }}>
+                        <div
+                          style={{
+                            fontWeight: '600',
+                            fontSize: '14px',
+                            color: 'var(--semi-color-text-0)',
+                            marginBottom: '4px',
+                          }}
+                        >
                           {module.title}
                         </div>
                         <Text
-                          type="secondary"
-                          size="small"
+                          type='secondary'
+                          size='small'
                           style={{
                             fontSize: '12px',
                             color: 'var(--semi-color-text-2)',
                             lineHeight: '1.4',
-                            display: 'block'
+                            display: 'block',
                           }}
                         >
                           {module.description}
@@ -309,9 +365,11 @@ export default function SettingsSidebarModulesAdmin(props) {
                       </div>
                       <div style={{ marginLeft: '16px' }}>
                         <Switch
-                          checked={sidebarModulesAdmin[section.key]?.[module.key]}
+                          checked={
+                            sidebarModulesAdmin[section.key]?.[module.key]
+                          }
                           onChange={handleModuleChange(section.key, module.key)}
-                          size="default"
+                          size='default'
                           disabled={!sidebarModulesAdmin[section.key]?.enabled}
                         />
                       </div>
@@ -323,21 +381,23 @@ export default function SettingsSidebarModulesAdmin(props) {
           </div>
         ))}
 
-        <div style={{
-          display: 'flex',
-          gap: '12px',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          paddingTop: '8px',
-          borderTop: '1px solid var(--semi-color-border)'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--semi-color-border)',
+          }}
+        >
           <Button
             size='default'
             type='tertiary'
             onClick={resetSidebarModules}
             style={{
               borderRadius: '6px',
-              fontWeight: '500'
+              fontWeight: '500',
             }}
           >
             {t('重置为默认')}
@@ -350,7 +410,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             style={{
               borderRadius: '6px',
               fontWeight: '500',
-              minWidth: '100px'
+              minWidth: '100px',
             }}
           >
             {t('保存设置')}

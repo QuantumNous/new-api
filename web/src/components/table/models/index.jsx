@@ -105,6 +105,11 @@ const ModelsPage = () => {
               setEditingModel={setEditingModel}
               setShowEdit={setShowEdit}
               batchDeleteModels={batchDeleteModels}
+              syncing={modelsData.syncing}
+              syncUpstream={modelsData.syncUpstream}
+              previewing={modelsData.previewing}
+              previewUpstreamDiff={modelsData.previewUpstreamDiff}
+              applyUpstreamOverwrite={modelsData.applyUpstreamOverwrite}
               compactMode={compactMode}
               setCompactMode={setCompactMode}
               t={t}

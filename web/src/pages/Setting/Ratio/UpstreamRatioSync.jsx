@@ -151,8 +151,17 @@ export default function UpstreamRatioSync(props) {
         setChannelEndpoints((prev) => {
           const merged = { ...prev };
           transferData.forEach((channel) => {
-            if (!merged[channel.key]) {
-              merged[channel.key] = DEFAULT_ENDPOINT;
+            const id = channel.key;
+            const base = channel._originalData?.base_url || '';
+            const name = channel.label || '';
+            const isOfficial =
+              id === -100 ||
+              base === 'https://basellm.github.io' ||
+              name === '官方倍率预设';
+            if (!merged[id]) {
+              merged[id] = isOfficial
+                ? '/llm-metadata/api/newapi/ratio_config-v1-base.json'
+                : DEFAULT_ENDPOINT;
             }
           });
           return merged;

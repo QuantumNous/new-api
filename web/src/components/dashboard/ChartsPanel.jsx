@@ -20,11 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { PieChart } from 'lucide-react';
-import {
-  IconHistogram,
-  IconPulse,
-  IconPieChart2Stroked,
-} from '@douyinfe/semi-icons';
 import { VChart } from '@visactor/react-vchart';
 
 const ChartsPanel = ({
@@ -51,46 +46,14 @@ const ChartsPanel = ({
             {t('模型数据分析')}
           </div>
           <Tabs
-            type='button'
+            type='slash'
             activeKey={activeChartTab}
             onChange={setActiveChartTab}
           >
-            <TabPane
-              tab={
-                <span>
-                  <IconHistogram />
-                  {t('消耗分布')}
-                </span>
-              }
-              itemKey='1'
-            />
-            <TabPane
-              tab={
-                <span>
-                  <IconPulse />
-                  {t('消耗趋势')}
-                </span>
-              }
-              itemKey='2'
-            />
-            <TabPane
-              tab={
-                <span>
-                  <IconPieChart2Stroked />
-                  {t('调用次数分布')}
-                </span>
-              }
-              itemKey='3'
-            />
-            <TabPane
-              tab={
-                <span>
-                  <IconHistogram />
-                  {t('调用次数排行')}
-                </span>
-              }
-              itemKey='4'
-            />
+            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
+            <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
+            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
+            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
           </Tabs>
         </div>
       }

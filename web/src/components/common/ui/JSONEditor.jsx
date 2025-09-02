@@ -443,7 +443,7 @@ const JSONEditor = ({
 
           return (
             <Row key={pair.id} gutter={8} align='middle'>
-              <Col span={6}>
+              <Col span={10}>
                 <div className='relative'>
                   <Input
                     placeholder={t('键名')}
@@ -470,7 +470,7 @@ const JSONEditor = ({
                   )}
                 </div>
               </Col>
-              <Col span={16}>{renderValueInput(pair.id, pair.value)}</Col>
+              <Col span={12}>{renderValueInput(pair.id, pair.value)}</Col>
               <Col span={2}>
                 <Button
                   icon={<IconDelete />}

@@ -34,7 +34,6 @@ import {
   Tag,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { CheckCircle, XCircle, AlertCircle, HelpCircle } from 'lucide-react';
 
 const ChannelSelectorModal = forwardRef(
   (
@@ -65,6 +64,18 @@ const ChannelSelectorModal = forwardRef(
       },
     }));
 
+    // 官方渠道识别
+    const isOfficialChannel = (record) => {
+      const id = record?.key ?? record?.value ?? record?._originalData?.id;
+      const base = record?._originalData?.base_url || '';
+      const name = record?.label || '';
+      return (
+        id === -100 ||
+        base === 'https://basellm.github.io' ||
+        name === '官方倍率预设'
+      );
+    };
+
     useEffect(() => {
       if (!allChannels) return;
 
@@ -77,7 +88,13 @@ const ChannelSelectorModal = forwardRef(
           })
         : allChannels;
 
-      setFilteredData(matched);
+      const sorted = [...matched].sort((a, b) => {
+        const wa = isOfficialChannel(a) ? 0 : 1;
+        const wb = isOfficialChannel(b) ? 0 : 1;
+        return wa - wb;
+      });
+
+      setFilteredData(sorted);
     }, [allChannels, searchText]);
 
     const total = filteredData.length;
@@ -143,45 +160,49 @@ const ChannelSelectorModal = forwardRef(
       );
     };
 
-    const renderStatusCell = (status) => {
+    const renderStatusCell = (record) => {
+      const status = record?._originalData?.status || 0;
+      const official = isOfficialChannel(record);
+      let statusTag = null;
       switch (status) {
         case 1:
-          return (
-            <Tag
-              color='green'
-              shape='circle'
-              prefixIcon={<CheckCircle size={14} />}
-            >
+          statusTag = (
+            <Tag color='green' shape='circle'>
               {t('已启用')}
             </Tag>
           );
+          break;
         case 2:
-          return (
-            <Tag color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
+          statusTag = (
+            <Tag color='red' shape='circle'>
               {t('已禁用')}
             </Tag>
           );
+          break;
         case 3:
-          return (
-            <Tag
-              color='yellow'
-              shape='circle'
-              prefixIcon={<AlertCircle size={14} />}
-            >
+          statusTag = (
+            <Tag color='yellow' shape='circle'>
               {t('自动禁用')}
             </Tag>
           );
+          break;
         default:
-          return (
-            <Tag
-              color='grey'
-              shape='circle'
-              prefixIcon={<HelpCircle size={14} />}
-            >
+          statusTag = (
+            <Tag color='grey' shape='circle'>
               {t('未知状态')}
             </Tag>
           );
       }
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {statusTag}
+          {official && (
+            <Tag color='green' shape='circle' type='light'>
+              {t('官方')}
+            </Tag>
+          )}
+        </div>
+      );
     };
 
     const renderNameCell = (text) => (
@@ -207,8 +228,7 @@ const ChannelSelectorModal = forwardRef(
       {
         title: t('状态'),
         dataIndex: '_originalData.status',
-        render: (_, record) =>
-          renderStatusCell(record._originalData?.status || 0),
+        render: (_, record) => renderStatusCell(record),
       },
       {
         title: t('同步接口'),

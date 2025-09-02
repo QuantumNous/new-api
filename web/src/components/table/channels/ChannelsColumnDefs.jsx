@@ -231,11 +231,14 @@ export const getChannelsColumns = ({
                     theme='outline'
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigator.clipboard.writeText(record.remark).then(() => {
-                        showSuccess(t('复制成功'));
-                      }).catch(() => {
-                        showError(t('复制失败'));
-                      });
+                      navigator.clipboard
+                        .writeText(record.remark)
+                        .then(() => {
+                          showSuccess(t('复制成功'));
+                        })
+                        .catch(() => {
+                          showError(t('复制失败'));
+                        });
                     }}
                   >
                     {t('复制')}

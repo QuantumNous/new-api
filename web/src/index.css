@@ -71,6 +71,11 @@ code {
   margin-right: 0;
 }
 
+.sidebar-nav .semi-navigation-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .semi-navigation-item,
 .semi-navigation-sub-title {
   height: 100% !important;
@@ -184,6 +189,7 @@ code {
   justify-content: center;
   align-items: center;
   padding: 12px;
+  margin-top: auto;
   cursor: pointer;
   background-color: var(--semi-color-bg-0);
   position: sticky;

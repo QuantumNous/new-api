@@ -64,7 +64,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         if (typeof modules.pricing === 'boolean') {
           modules.pricing = {
             enabled: modules.pricing,
-            requireAuth: false  // 默认不需要登录鉴权
+            requireAuth: false, // 默认不需要登录鉴权
           };
         }
 

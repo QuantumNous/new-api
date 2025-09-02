@@ -31,7 +31,7 @@ export const useSidebar = () => {
     chat: {
       enabled: true,
       playground: true,
-      chat: true
+      chat: true,
     },
     console: {
       enabled: true,
@@ -39,12 +39,12 @@ export const useSidebar = () => {
       token: true,
       log: true,
       midjourney: true,
-      task: true
+      task: true,
     },
     personal: {
       enabled: true,
       topup: true,
-      personal: true
+      personal: true,
     },
     admin: {
       enabled: true,
@@ -52,8 +52,8 @@ export const useSidebar = () => {
       models: true,
       redemption: true,
       user: true,
-      setting: true
-    }
+      setting: true,
+    },
   };
 
   // 获取管理员配置
@@ -87,12 +87,15 @@ export const useSidebar = () => {
         // 当用户没有配置时，生成一个基于管理员配置的默认用户配置
         // 这样可以确保权限控制正确生效
         const defaultUserConfig = {};
-        Object.keys(adminConfig).forEach(sectionKey => {
+        Object.keys(adminConfig).forEach((sectionKey) => {
           if (adminConfig[sectionKey]?.enabled) {
             defaultUserConfig[sectionKey] = { enabled: true };
             // 为每个管理员允许的模块设置默认值为true
-            Object.keys(adminConfig[sectionKey]).forEach(moduleKey => {
-              if (moduleKey !== 'enabled' && adminConfig[sectionKey][moduleKey]) {
+            Object.keys(adminConfig[sectionKey]).forEach((moduleKey) => {
+              if (
+                moduleKey !== 'enabled' &&
+                adminConfig[sectionKey][moduleKey]
+              ) {
                 defaultUserConfig[sectionKey][moduleKey] = true;
               }
             });
@@ -103,10 +106,10 @@ export const useSidebar = () => {
     } catch (error) {
       // 出错时也生成默认配置，而不是设置为空对象
       const defaultUserConfig = {};
-      Object.keys(adminConfig).forEach(sectionKey => {
+      Object.keys(adminConfig).forEach((sectionKey) => {
         if (adminConfig[sectionKey]?.enabled) {
           defaultUserConfig[sectionKey] = { enabled: true };
-          Object.keys(adminConfig[sectionKey]).forEach(moduleKey => {
+          Object.keys(adminConfig[sectionKey]).forEach((moduleKey) => {
             if (moduleKey !== 'enabled' && adminConfig[sectionKey][moduleKey]) {
               defaultUserConfig[sectionKey][moduleKey] = true;
             }
@@ -149,7 +152,7 @@ export const useSidebar = () => {
     }
 
     // 遍历所有区域
-    Object.keys(adminConfig).forEach(sectionKey => {
+    Object.keys(adminConfig).forEach((sectionKey) => {
       const adminSection = adminConfig[sectionKey];
       const userSection = userConfig[sectionKey];
 
@@ -161,18 +164,21 @@ export const useSidebar = () => {
 
       // 区域级别：用户可以选择隐藏管理员允许的区域
       // 当userSection存在时检查enabled状态，否则默认为true
-      const sectionEnabled = userSection ? (userSection.enabled !== false) : true;
+      const sectionEnabled = userSection ? userSection.enabled !== false : true;
       result[sectionKey] = { enabled: sectionEnabled };
 
       // 功能级别：只有管理员和用户都允许的功能才显示
-      Object.keys(adminSection).forEach(moduleKey => {
+      Object.keys(adminSection).forEach((moduleKey) => {
         if (moduleKey === 'enabled') return;
 
         const adminAllowed = adminSection[moduleKey];
         // 当userSection存在时检查模块状态，否则默认为true
-        const userAllowed = userSection ? (userSection[moduleKey] !== false) : true;
+        const userAllowed = userSection
+          ? userSection[moduleKey] !== false
+          : true;
 
-        result[sectionKey][moduleKey] = adminAllowed && userAllowed && sectionEnabled;
+        result[sectionKey][moduleKey] =
+          adminAllowed && userAllowed && sectionEnabled;
       });
     });
 
@@ -192,9 +198,9 @@ export const useSidebar = () => {
   const hasSectionVisibleModules = (sectionKey) => {
     const section = finalConfig[sectionKey];
     if (!section?.enabled) return false;
-    
-    return Object.keys(section).some(key => 
-      key !== 'enabled' && section[key] === true
+
+    return Object.keys(section).some(
+      (key) => key !== 'enabled' && section[key] === true,
     );
   };
 
@@ -202,9 +208,10 @@ export const useSidebar = () => {
   const getVisibleModules = (sectionKey) => {
     const section = finalConfig[sectionKey];
     if (!section?.enabled) return [];
-    
-    return Object.keys(section)
-      .filter(key => key !== 'enabled' && section[key] === true);
+
+    return Object.keys(section).filter(
+      (key) => key !== 'enabled' && section[key] === true,
+    );
   };
 
   return {
@@ -215,6 +222,6 @@ export const useSidebar = () => {
     isModuleVisible,
     hasSectionVisibleModules,
     getVisibleModules,
-    refreshUserConfig
+    refreshUserConfig,
   };
 };

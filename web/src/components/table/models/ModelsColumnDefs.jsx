@@ -304,6 +304,15 @@ export const getModelsColumns = ({
       render: (val, record) => renderNameRule(val, record, t),
     },
     {
+      title: t('参与官方同步'),
+      dataIndex: 'sync_official',
+      render: (val) => (
+        <Tag size='small' shape='circle' color={val === 1 ? 'green' : 'orange'}>
+          {val === 1 ? t('是') : t('否')}
+        </Tag>
+      ),
+    },
+    {
       title: t('描述'),
       dataIndex: 'description',
       render: (text) => renderDescription(text, 200),

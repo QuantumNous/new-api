@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useEffect } from 'react';
 import { API } from '../../helpers';
 
@@ -52,22 +70,22 @@ export const useUserPermissions = () => {
   const isSidebarModuleAllowed = (sectionKey, moduleKey) => {
     if (!permissions?.sidebar_modules) return true;
     const sectionPerms = permissions.sidebar_modules[sectionKey];
-    
+
     // 如果整个区域被禁用
     if (sectionPerms === false) return false;
-    
+
     // 如果区域存在但模块被禁用
     if (sectionPerms && sectionPerms[moduleKey] === false) return false;
-    
+
     return true;
   };
 
   // 获取允许的边栏区域列表
   const getAllowedSidebarSections = () => {
     if (!permissions?.sidebar_modules) return [];
-    
-    return Object.keys(permissions.sidebar_modules).filter(sectionKey => 
-      isSidebarSectionAllowed(sectionKey)
+
+    return Object.keys(permissions.sidebar_modules).filter((sectionKey) =>
+      isSidebarSectionAllowed(sectionKey),
     );
   };
 
@@ -75,12 +93,13 @@ export const useUserPermissions = () => {
   const getAllowedSidebarModules = (sectionKey) => {
     if (!permissions?.sidebar_modules) return [];
     const sectionPerms = permissions.sidebar_modules[sectionKey];
-    
+
     if (sectionPerms === false) return [];
     if (!sectionPerms || typeof sectionPerms !== 'object') return [];
-    
-    return Object.keys(sectionPerms).filter(moduleKey => 
-      moduleKey !== 'enabled' && sectionPerms[moduleKey] === true
+
+    return Object.keys(sectionPerms).filter(
+      (moduleKey) =>
+        moduleKey !== 'enabled' && sectionPerms[moduleKey] === true,
     );
   };
 

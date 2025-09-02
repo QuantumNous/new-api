@@ -279,7 +279,10 @@ function App() {
           element={
             pricingRequireAuth ? (
               <PrivateRoute>
-                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Suspense
+                  fallback={<Loading></Loading>}
+                  key={location.pathname}
+                >
                   <Pricing />
                 </Suspense>
               </PrivateRoute>

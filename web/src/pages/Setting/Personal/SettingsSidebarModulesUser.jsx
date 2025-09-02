@@ -19,7 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Button, Switch, Typography, Row, Col, Avatar } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Button,
+  Switch,
+  Typography,
+  Row,
+  Col,
+  Avatar,
+} from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 import { UserContext } from '../../../context/User';
@@ -55,7 +63,7 @@ export default function SettingsSidebarModulesUser() {
   if (permissionsLoading) {
     return null;
   }
-  
+
   // 根据用户权限生成默认配置
   const generateDefaultConfig = () => {
     const defaultConfig = {};
@@ -65,7 +73,7 @@ export default function SettingsSidebarModulesUser() {
       defaultConfig.chat = {
         enabled: true,
         playground: isSidebarModuleAllowed('chat', 'playground'),
-        chat: isSidebarModuleAllowed('chat', 'chat')
+        chat: isSidebarModuleAllowed('chat', 'chat'),
       };
     }
 
@@ -77,7 +85,7 @@ export default function SettingsSidebarModulesUser() {
         token: isSidebarModuleAllowed('console', 'token'),
         log: isSidebarModuleAllowed('console', 'log'),
         midjourney: isSidebarModuleAllowed('console', 'midjourney'),
-        task: isSidebarModuleAllowed('console', 'task')
+        task: isSidebarModuleAllowed('console', 'task'),
       };
     }
 
@@ -86,7 +94,7 @@ export default function SettingsSidebarModulesUser() {
       defaultConfig.personal = {
         enabled: true,
         topup: isSidebarModuleAllowed('personal', 'topup'),
-        personal: isSidebarModuleAllowed('personal', 'personal')
+        personal: isSidebarModuleAllowed('personal', 'personal'),
       };
     }
 
@@ -98,7 +106,7 @@ export default function SettingsSidebarModulesUser() {
         models: isSidebarModuleAllowed('admin', 'models'),
         redemption: isSidebarModuleAllowed('admin', 'redemption'),
         user: isSidebarModuleAllowed('admin', 'user'),
-        setting: isSidebarModuleAllowed('admin', 'setting')
+        setting: isSidebarModuleAllowed('admin', 'setting'),
       };
     }
 
@@ -114,12 +122,12 @@ export default function SettingsSidebarModulesUser() {
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
     return (checked) => {
-      const newModules = { 
-        ...sidebarModulesUser, 
-        [sectionKey]: { 
-          ...sidebarModulesUser[sectionKey], 
-          enabled: checked 
-        } 
+      const newModules = {
+        ...sidebarModulesUser,
+        [sectionKey]: {
+          ...sidebarModulesUser[sectionKey],
+          enabled: checked,
+        },
       };
       setSidebarModulesUser(newModules);
       console.log('用户边栏区域配置变更:', sectionKey, checked, newModules);
@@ -129,15 +137,21 @@ export default function SettingsSidebarModulesUser() {
   // 处理功能级别开关变更
   function handleModuleChange(sectionKey, moduleKey) {
     return (checked) => {
-      const newModules = { 
-        ...sidebarModulesUser, 
-        [sectionKey]: { 
-          ...sidebarModulesUser[sectionKey], 
-          [moduleKey]: checked 
-        } 
+      const newModules = {
+        ...sidebarModulesUser,
+        [sectionKey]: {
+          ...sidebarModulesUser[sectionKey],
+          [moduleKey]: checked,
+        },
       };
       setSidebarModulesUser(newModules);
-      console.log('用户边栏功能配置变更:', sectionKey, moduleKey, checked, newModules);
+      console.log(
+        '用户边栏功能配置变更:',
+        sectionKey,
+        moduleKey,
+        checked,
+        newModules,
+      );
     };
   }
 
@@ -202,12 +216,15 @@ export default function SettingsSidebarModulesUser() {
 
           // 确保用户配置也经过权限过滤
           const filteredUserConf = {};
-          Object.keys(userConf).forEach(sectionKey => {
+          Object.keys(userConf).forEach((sectionKey) => {
             if (isSidebarSectionAllowed(sectionKey)) {
               filteredUserConf[sectionKey] = { ...userConf[sectionKey] };
               // 过滤不允许的模块
-              Object.keys(userConf[sectionKey]).forEach(moduleKey => {
-                if (moduleKey !== 'enabled' && !isSidebarModuleAllowed(sectionKey, moduleKey)) {
+              Object.keys(userConf[sectionKey]).forEach((moduleKey) => {
+                if (
+                  moduleKey !== 'enabled' &&
+                  !isSidebarModuleAllowed(sectionKey, moduleKey)
+                ) {
                   delete filteredUserConf[sectionKey][moduleKey];
                 }
               });
@@ -233,14 +250,22 @@ export default function SettingsSidebarModulesUser() {
     if (!permissionsLoading && hasSidebarSettingsPermission()) {
       loadConfigs();
     }
-  }, [statusState, permissionsLoading, hasSidebarSettingsPermission, isSidebarSectionAllowed, isSidebarModuleAllowed]);
+  }, [
+    statusState,
+    permissionsLoading,
+    hasSidebarSettingsPermission,
+    isSidebarSectionAllowed,
+    isSidebarModuleAllowed,
+  ]);
 
   // 检查功能是否被管理员允许
   const isAllowedByAdmin = (sectionKey, moduleKey = null) => {
     if (!adminConfig) return true;
-    
+
     if (moduleKey) {
-      return adminConfig[sectionKey]?.enabled && adminConfig[sectionKey]?.[moduleKey];
+      return (
+        adminConfig[sectionKey]?.enabled && adminConfig[sectionKey]?.[moduleKey]
+      );
     } else {
       return adminConfig[sectionKey]?.enabled;
     }
@@ -253,9 +278,13 @@ export default function SettingsSidebarModulesUser() {
       title: t('聊天区域'),
       description: t('操练场和聊天功能'),
       modules: [
-        { key: 'playground', title: t('操练场'), description: t('AI模型测试环境') },
-        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') }
-      ]
+        {
+          key: 'playground',
+          title: t('操练场'),
+          description: t('AI模型测试环境'),
+        },
+        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
+      ],
     },
     {
       key: 'console',
@@ -265,9 +294,13 @@ export default function SettingsSidebarModulesUser() {
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        { key: 'midjourney', title: t('绘图日志'), description: t('绘图任务记录') },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') }
-      ]
+        {
+          key: 'midjourney',
+          title: t('绘图日志'),
+          description: t('绘图任务记录'),
+        },
+        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+      ],
     },
     {
       key: 'personal',
@@ -275,8 +308,12 @@ export default function SettingsSidebarModulesUser() {
       description: t('用户个人功能'),
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
-        { key: 'personal', title: t('个人设置'), description: t('个人信息设置') }
-      ]
+        {
+          key: 'personal',
+          title: t('个人设置'),
+          description: t('个人信息设置'),
+        },
+      ],
     },
     {
       key: 'admin',
@@ -285,23 +322,35 @@ export default function SettingsSidebarModulesUser() {
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
-        { key: 'redemption', title: t('兑换码管理'), description: t('兑换码生成管理') },
+        {
+          key: 'redemption',
+          title: t('兑换码管理'),
+          description: t('兑换码生成管理'),
+        },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
-        { key: 'setting', title: t('系统设置'), description: t('系统参数配置') }
-      ]
-    }
-  ].filter(section => {
-    // 使用后端权限验证替代前端角色判断
-    return isSidebarSectionAllowed(section.key);
-  }).map(section => ({
-    ...section,
-    modules: section.modules.filter(module =>
-      isSidebarModuleAllowed(section.key, module.key)
-    )
-  })).filter(section =>
-    // 过滤掉没有可用模块的区域
-    section.modules.length > 0 && isAllowedByAdmin(section.key)
-  );
+        {
+          key: 'setting',
+          title: t('系统设置'),
+          description: t('系统参数配置'),
+        },
+      ],
+    },
+  ]
+    .filter((section) => {
+      // 使用后端权限验证替代前端角色判断
+      return isSidebarSectionAllowed(section.key);
+    })
+    .map((section) => ({
+      ...section,
+      modules: section.modules.filter((module) =>
+        isSidebarModuleAllowed(section.key, module.key),
+      ),
+    }))
+    .filter(
+      (section) =>
+        // 过滤掉没有可用模块的区域
+        section.modules.length > 0 && isAllowedByAdmin(section.key),
+    );
 
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
@@ -321,65 +370,65 @@ export default function SettingsSidebarModulesUser() {
       </div>
 
       <div className='mb-4'>
-        <Text type="secondary" className='text-sm text-gray-600'>
+        <Text type='secondary' className='text-sm text-gray-600'>
           {t('您可以个性化设置侧边栏的要显示功能')}
         </Text>
       </div>
 
-        {sectionConfigs.map((section) => (
-          <div key={section.key} className='mb-6'>
-            {/* 区域标题和总开关 */}
-            <div className='flex justify-between items-center mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200'>
-              <div>
-                <div className='font-semibold text-base text-gray-900 mb-1'>
-                  {section.title}
-                </div>
-                <Text className='text-xs text-gray-600'>
-                  {section.description}
-                </Text>
+      {sectionConfigs.map((section) => (
+        <div key={section.key} className='mb-6'>
+          {/* 区域标题和总开关 */}
+          <div className='flex justify-between items-center mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200'>
+            <div>
+              <div className='font-semibold text-base text-gray-900 mb-1'>
+                {section.title}
               </div>
-              <Switch
-                checked={sidebarModulesUser[section.key]?.enabled}
-                onChange={handleSectionChange(section.key)}
-                size="default"
-              />
+              <Text className='text-xs text-gray-600'>
+                {section.description}
+              </Text>
             </div>
-
-            {/* 功能模块网格 */}
-            <Row gutter={[12, 12]}>
-              {section.modules.map((module) => (
-                <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
-                  <Card
-                    className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
-                      sidebarModulesUser[section.key]?.enabled ? '' : 'opacity-50'
-                    }`}
-                    bodyStyle={{ padding: '16px' }}
-                    hoverable
-                  >
-                    <div className='flex justify-between items-center h-full'>
-                      <div className='flex-1 text-left'>
-                        <div className='font-semibold text-sm text-gray-900 mb-1'>
-                          {module.title}
-                        </div>
-                        <Text className='text-xs text-gray-600 leading-relaxed block'>
-                          {module.description}
-                        </Text>
-                      </div>
-                      <div className='ml-4'>
-                        <Switch
-                          checked={sidebarModulesUser[section.key]?.[module.key]}
-                          onChange={handleModuleChange(section.key, module.key)}
-                          size="default"
-                          disabled={!sidebarModulesUser[section.key]?.enabled}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+            <Switch
+              checked={sidebarModulesUser[section.key]?.enabled}
+              onChange={handleSectionChange(section.key)}
+              size='default'
+            />
           </div>
-        ))}
+
+          {/* 功能模块网格 */}
+          <Row gutter={[12, 12]}>
+            {section.modules.map((module) => (
+              <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
+                <Card
+                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                    sidebarModulesUser[section.key]?.enabled ? '' : 'opacity-50'
+                  }`}
+                  bodyStyle={{ padding: '16px' }}
+                  hoverable
+                >
+                  <div className='flex justify-between items-center h-full'>
+                    <div className='flex-1 text-left'>
+                      <div className='font-semibold text-sm text-gray-900 mb-1'>
+                        {module.title}
+                      </div>
+                      <Text className='text-xs text-gray-600 leading-relaxed block'>
+                        {module.description}
+                      </Text>
+                    </div>
+                    <div className='ml-4'>
+                      <Switch
+                        checked={sidebarModulesUser[section.key]?.[module.key]}
+                        onChange={handleModuleChange(section.key, module.key)}
+                        size='default'
+                        disabled={!sidebarModulesUser[section.key]?.enabled}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </div>
+      ))}
 
       {/* 底部按钮 */}
       <div className='flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200'>

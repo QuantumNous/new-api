@@ -96,7 +96,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
       title: '',
       dataIndex: 'operate',
       fixed: 'right',
-      width: 100,
+      width: 120,
       render: (text, record) => (
         <Button
           type='primary'

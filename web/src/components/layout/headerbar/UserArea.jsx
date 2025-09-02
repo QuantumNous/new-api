@@ -28,7 +28,7 @@ import {
   IconKey,
 } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../helpers';
-import SkeletonWrapper from './SkeletonWrapper';
+import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const UserArea = ({
   userState,

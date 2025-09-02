@@ -100,7 +100,7 @@ const ApiInfoPanel = ({
             </React.Fragment>
           ))
         ) : (
-          <div className='flex justify-center items-center py-8'>
+          <div className='flex justify-center items-center min-h-[20rem] w-full'>
             <Empty
               image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
               darkModeImage={
