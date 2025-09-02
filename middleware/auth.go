@@ -179,12 +179,21 @@ func WssAuth(c *gin.Context) {
 // ModuleAuth 检查用户是否有权限访问特定功能模块
 func ModuleAuth(modulePath string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session := sessions.Default(c)
-		role := session.Get("role")
-		id := session.Get("id")
-
+		// 优先从上游鉴权放入的上下文读取
+		userRole := c.GetInt("role")
+		userId := c.GetInt("id")
+		if userRole == 0 || userId == 0 {
+			// 兼容旧流程：再从 session 兜底
+			sess := sessions.Default(c)
+			if v, ok := sess.Get("role").(int); ok {
+				userRole = v
+			}
+			if v, ok := sess.Get("id").(int); ok {
+				userId = v
+			}
+		}
 		// 如果用户未登录，先进行基础认证
-		if role == nil || id == nil {
+		if userRole == 0 || userId == 0 {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": "未登录，无权访问",
@@ -192,9 +201,6 @@ func ModuleAuth(modulePath string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
-		userRole := role.(int)
-		userId := id.(int)
 
 		// 超级管理员始终允许访问所有功能
 		if userRole >= common.RoleRootUser {

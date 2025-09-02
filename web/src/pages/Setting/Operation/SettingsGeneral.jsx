@@ -238,7 +238,7 @@ export default function GeneralSettings(props) {
                 <Form.Switch
                   field={'general_setting.invitation_enabled'}
                   label={t('邀请功能')}
-                  extraText={t('关闭后：不在启用邀请奖励功能')}
+                  extraText={t('关闭后：不再启用邀请奖励功能')}
                   size='default'
                   checkedText='｜'
                   uncheckedText='〇'

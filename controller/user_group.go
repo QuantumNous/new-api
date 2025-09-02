@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"one-api/common"
 	"one-api/model"
@@ -23,6 +24,16 @@ func GetAllUserGroups(c *gin.Context) {
 	common.ApiSuccess(c, groups)
 }
 
+// isReservedGroup reports whether the name is one of the system reserved groups.
+func isReservedGroup(name string) bool {
+	switch strings.ToLower(name) {
+	case "default", "vip", "svip":
+		return true
+	default:
+		return false
+	}
+}
+
 // CreateUserGroup 创建新的用户分组
 func CreateUserGroup(c *gin.Context) {
 	var g model.UserGroup
@@ -30,17 +41,23 @@ func CreateUserGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	g.Name = strings.TrimSpace(g.Name)
 	if g.Name == "" {
-		common.ApiErrorMsg(c, "分组名称不能为空")
-		return
-	}
-	if g.Ratio < 0 {
-		common.ApiErrorMsg(c, "分组倍率不能小于0")
-		return
-	}
-	if g.Ratio == 0 {
-		g.Ratio = 1.0 // 默认倍率为1.0
-	}
+ 		common.ApiErrorMsg(c, "分组名称不能为空")
+ 		return
+ 	}
+ 	// 禁止使用系统保留分组名
+ 	if isReservedGroup(strings.ToLower(g.Name)) {
+ 		common.ApiErrorMsg(c, "不能使用系统保留分组名：default、vip、svip")
+ 		return
+ 	}
+ 	if g.Ratio < 0 {
+ 		common.ApiErrorMsg(c, "分组倍率不能小于0")
+ 		return
+ 	}
+ 	if g.Ratio == 0 {
+ 		g.Ratio = 1.0 // 默认倍率为1.0
+ 	}
 
 	// 创建前检查名称
 	if dup, err := model.IsUserGroupNameDuplicated(0, g.Name); err != nil {
@@ -85,11 +102,18 @@ func UpdateUserGroup(c *gin.Context) {
 		common.ApiErrorMsg(c, "缺少分组 ID")
 		return
 	}
+	g.Name = strings.TrimSpace(g.Name)
+	if g.Name == "" {
+		common.ApiErrorMsg(c, "分组名称不能为空")
+		return
+	}
 	if g.Ratio < 0 {
 		common.ApiErrorMsg(c, "分组倍率不能小于0")
 		return
 	}
-
+	if g.Ratio == 0 {
+		g.Ratio = 1.0
+	}
 	// 获取原分组信息
 	oldGroup, err := model.GetUserGroupById(g.Id)
 	if err != nil {
@@ -106,22 +130,56 @@ func UpdateUserGroup(c *gin.Context) {
 		return
 	}
 
-	if err := g.Update(); err != nil {
+	// 使用事务确保分组更新和用户更新的数据一致性
+	tx := model.DB.Begin()
+	if tx.Error != nil {
+		common.ApiError(c, tx.Error)
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 在事务中更新分组
+	if err := g.UpdateTx(tx); err != nil {
+		tx.Rollback()
 		common.ApiError(c, err)
 		return
 	}
 
-	// 如果名称发生变化，需要更新相关设置和用户数据
+	// 如果名称发生变化，需要在同一事务中更新用户数据
 	if oldGroup.Name != g.Name {
 		common.SysLog(fmt.Sprintf("检测到分组名称变化: '%s' -> '%s'", oldGroup.Name, g.Name))
 
-		// 更新所有使用旧分组名的用户
-		if err := model.UpdateUsersGroupName(oldGroup.Name, g.Name); err != nil {
-			common.SysLog("更新用户分组名称失败: " + err.Error())
-			common.ApiErrorMsg(c, "更新用户分组名称失败: "+err.Error())
+		// 禁止修改系统保留分组名
+		if isReservedGroup(strings.ToLower(oldGroup.Name)) {
+			common.ApiErrorMsg(c, "不能修改系统保留分组名称")
 			return
 		}
 
+		// 在同一事务中更新所有使用旧分组名的用户
+		result := tx.Model(&model.User{}).Where("group = ?", oldGroup.Name).Update("group", g.Name)
+		if result.Error != nil {
+			tx.Rollback()
+			common.SysLog("更新用户分组名称失败: " + result.Error.Error())
+			common.ApiErrorMsg(c, "更新用户分组名称失败: "+result.Error.Error())
+			return
+		}
+		common.SysLog(fmt.Sprintf("在事务中成功更新 %d 个用户的分组名称", result.RowsAffected))
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		common.SysLog("提交分组更新事务失败: " + err.Error())
+		common.ApiError(c, err)
+		return
+	}
+
+	// 事务提交成功后，同步设置（这些操作失败不影响核心数据一致性）
+	if oldGroup.Name != g.Name {
 		// 从旧设置中移除
 		if err := syncGroupToRatioSetting(oldGroup.Name, 0, false); err != nil {
 			common.SysLog("从倍率设置中移除旧分组失败: " + err.Error())
@@ -257,12 +315,8 @@ func syncGroupToUserUsableGroups(groupName, description string, add bool) error 
 
 // syncGroupToTopupRatio 同步分组到充值倍率设置
 func syncGroupToTopupRatio(groupName string, ratio float64, add bool) error {
-	// 获取当前充值分组倍率的副本
-	topupGroupRatio := make(map[string]float64)
-	for k, v := range common.TopupGroupRatio {
-		topupGroupRatio[k] = v
-	}
-
+	// 获取当前充值分组倍率的副本（线程安全）
+	topupGroupRatio := common.GetTopupGroupRatioCopy()
 	if add {
 		topupGroupRatio[groupName] = ratio
 	} else {
