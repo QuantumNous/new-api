@@ -169,7 +169,7 @@ func UpdateUserGroup(c *gin.Context) {
 		// 在同一事务中更新所有使用旧分组名的用户
 		result := tx.Model(&model.User{}).
 			Where("`group` = ?", oldGroup.Name).
-			Update(clause.Column{Name: "group"}, g.Name)
+			Update("group", g.Name)
 		if result.Error != nil {
 			tx.Rollback()
 			common.SysLog("更新用户分组名称失败: " + result.Error.Error())
