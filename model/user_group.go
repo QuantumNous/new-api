@@ -24,9 +24,22 @@ func (g *UserGroup) Insert() error {
 }
 
 // Update 更新用户分组
-func (g *UserGroup) Update() error {
+ func (g *UserGroup) Update() error {
 	g.UpdatedTime = common.GetTimestamp()
-	return DB.Model(g).Updates(g).Error
+	return DB.Model(&UserGroup{}).
+		Where("id = ?", g.Id).
+		Updates(map[string]any{
+			"name":         g.Name,
+			"description":  g.Description,
+			"ratio":        g.Ratio,
+			"updated_time": g.UpdatedTime,
+		}).Error
+ }
+
+// UpdateTx 在事务中更新用户分组
+func (g *UserGroup) UpdateTx(tx *gorm.DB) error {
+	g.UpdatedTime = common.GetTimestamp()
+	return tx.Model(g).Updates(g).Error
 }
 
 // Delete 硬删除用户分组

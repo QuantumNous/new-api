@@ -431,8 +431,9 @@ func (user *User) Insert(inviterId int) error {
 			if common.QuotaForInviter > 0 {
 				//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
 				RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-				_ = inviteUser(inviterId)
 			}
+			// 无论是否有奖励额度，都要更新邀请者的邀请统计
+			_ = inviteUser(inviterId)
 		}
 	}
 	return nil
@@ -967,6 +968,20 @@ func UpdateUsersGroupName(oldGroupName, newGroupName string) error {
 	if err := tx.Commit().Error; err != nil {
 		common.SysLog(fmt.Sprintf("提交事务失败: %s", err.Error()))
 		return err
+	}
+
+	// 刷新缓存（异步），避免旧分组缓存导致读取不一致
+	if common.RedisEnabled {
+	  gopool.Go(func() {
+	    var ids []int
+	    if err := DB.Model(&User{}).
+	       Where(commonGroupCol+" = ?", newGroupName).
+	        Pluck("id", &ids).Error; err == nil {
+		    for _, id := range ids {
+	        _ = invalidateUserCache(id)
+	       }
+	    }
+	  })
 	}
 
 	common.SysLog(fmt.Sprintf("成功更新 %d 个用户的分组名称从 '%s' 到 '%s'", result.RowsAffected, oldGroupName, newGroupName))

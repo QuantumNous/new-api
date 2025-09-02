@@ -39,6 +39,11 @@ const { Text } = Typography;
 export default function SettingsSidebarModulesUser() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  // 用户个人左侧边栏模块设置
+   const [sidebarModulesUser, setSidebarModulesUser] = useState({});
+   // 管理员全局配置
+   const [adminConfig, setAdminConfig] = useState(null);
+   const [configLoading, setConfigLoading] = useState(true);
 
   // 使用后端权限验证替代前端角色判断
   const {
@@ -65,10 +70,10 @@ export default function SettingsSidebarModulesUser() {
     );
   }
 
-  // 权限加载中，显示加载状态
-  if (permissionsLoading) {
-    return null;
-  }
+  // // 权限加载中，显示加载状态
+  // if (permissionsLoading) {
+  //   return null;
+  // }
 
   // 获取默认系统配置
   const getDefaultSystemConfig = () => {
@@ -186,12 +191,12 @@ export default function SettingsSidebarModulesUser() {
     return defaultConfig;
   };
 
-  // 用户个人左侧边栏模块设置
-  const [sidebarModulesUser, setSidebarModulesUser] = useState({});
+  // // 用户个人左侧边栏模块设置
+  // const [sidebarModulesUser, setSidebarModulesUser] = useState({});
 
-  // 管理员全局配置
-  const [adminConfig, setAdminConfig] = useState(null);
-  const [configLoading, setConfigLoading] = useState(true);
+  // // 管理员全局配置
+  // const [adminConfig, setAdminConfig] = useState(null);
+  // const [configLoading, setConfigLoading] = useState(true);
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {

@@ -11,26 +11,27 @@
     />
     <title>New API</title>
     <script>
-      // 立即设置title，避免刷新时闪现默认title
-      (function() {
-        const systemName = localStorage.getItem('system_name');
-        if (systemName) {
-          document.title = systemName;
-        }
+       // 立即设置title，避免刷新时闪现默认title
+       (function() {
+         const defaultTitle = document.title;
+         let systemName = null;
+         try {
+           systemName = localStorage.getItem('system_name');
+         } catch (_) {}
+         document.title = systemName || defaultTitle;
 
         // 监听localStorage变化，实时更新title
-        window.addEventListener('storage', function(e) {
-          if (e.key === 'system_name' && e.newValue) {
-            document.title = e.newValue;
-          }
-        });
+         window.addEventListener('storage', function(e) {
+           if (e.key === 'system_name') {
+             document.title = e.newValue || defaultTitle;
+           }
+         });
 
         // 监听自定义事件，用于同页面内的title更新
-        window.addEventListener('systemNameUpdated', function(e) {
-          if (e.detail && e.detail.systemName) {
-            document.title = e.detail.systemName;
-          }
-        });
+         window.addEventListener('systemNameUpdated', function(e) {
+           const name = e?.detail?.systemName || '';
+           document.title = name || defaultTitle;
+         });
       })();
     </script>
   </head>
