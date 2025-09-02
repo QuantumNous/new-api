@@ -17,14 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useContext } from 'react';
+import { useState } from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import UserGroupManagement from './modals/UserGroupManagement';
-import { StatusContext } from '../../../context/Status';
+import { useSidebar } from '../../../hooks/common/useSidebar';
 
 const UsersActions = ({ setShowAddUser, onRefreshUsers, t }) => {
   const [showGroupManagement, setShowGroupManagement] = useState(false);
-  const [statusState] = useContext(StatusContext);
+  const { finalConfig, loading: sidebarLoading } = useSidebar();
 
   // 检查用户权限
   const getUserRole = () => {
@@ -37,6 +37,11 @@ const UsersActions = ({ setShowAddUser, onRefreshUsers, t }) => {
 
   // 检查分组管理功能是否可见
   const canShowGroupManagement = () => {
+    // 如果侧边栏配置还在加载中，暂时不显示按钮
+    if (sidebarLoading) {
+      return false;
+    }
+
     // 超级管理员始终可以看到分组管理按钮
     if (isRoot()) {
       return true;
@@ -44,25 +49,16 @@ const UsersActions = ({ setShowAddUser, onRefreshUsers, t }) => {
 
     // 管理员需要检查系统设置中的分组管理开关
     if (isAdmin()) {
-      // 从StatusContext中获取侧边栏管理员配置
-      if (statusState?.status?.SidebarModulesAdmin) {
-        try {
-          const config = JSON.parse(statusState.status.SidebarModulesAdmin);
-          const userModuleConfig = config?.admin?.user;
+      // 从useSidebar钩子获取最终的权限配置
+      const userSection = finalConfig?.admin?.user;
 
-          // 检查用户管理模块是否启用
-          if (!userModuleConfig || !userModuleConfig.enabled) {
-            return false;
-          }
-
-          // 检查分组管理子功能是否启用
-          return userModuleConfig.groupManagement === true;
-        } catch (error) {
-          console.error('解析侧边栏配置失败:', error);
-          return true; // 解析失败时默认允许访问
-        }
+      // 检查用户管理模块是否启用
+      if (!userSection || userSection.enabled === false) {
+        return false;
       }
-      return true; // 没有配置时默认允许访问
+
+      // 检查分组管理子功能是否启用
+      return userSection.groupManagement === true;
     }
 
     // 普通用户无权访问

@@ -463,28 +463,57 @@ func GetSelf(c *gin.Context) {
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
 
-	// 构建响应数据，包含用户信息和权限
+	// 计算系统允许的最大权限范围
+	systemSidebarConfig := calculateFinalSidebarConfig(userRole, userSetting)
+
+	// 提取并过滤用户的侧边栏偏好设置，确保与系统权限一致
+	var userSidebarModules interface{}
+	if userSetting.SidebarModules != "" {
+		var userSidebarModulesMap map[string]interface{}
+		if err := json.Unmarshal([]byte(userSetting.SidebarModules), &userSidebarModulesMap); err == nil {
+			// 基于系统权限过滤用户偏好
+			filteredUserModules := filterUserModulesBySystemConfig(userSidebarModulesMap, systemSidebarConfig)
+			userSidebarModules = filteredUserModules
+		} else {
+			userSidebarModules = userSetting.SidebarModules
+		}
+	} else {
+		userSidebarModules = map[string]interface{}{}
+	}
+
+	// 清理用户设置中的sidebar_modules，确保与最终配置一致
+	cleanedSetting := cleanUserSettingForResponse(user.Setting, systemSidebarConfig)
+
+	// 计算最终的显示配置（系统权限 ∩ 用户偏好）
+	finalSidebarConfig := calculateFinalDisplayConfig(systemSidebarConfig, userSidebarModules)
+
+	// 精简权限信息，只保留必要的权限标识
+	simplifiedPermissions := map[string]interface{}{
+		"sidebar_settings": permissions["sidebar_settings"], // 是否有侧边栏设置权限
+	}
+
+	// 构建响应数据，包含用户信息和精简的配置
 	responseData := map[string]interface{}{
-		"id":               user.Id,
-		"username":         user.Username,
-		"display_name":     user.DisplayName,
-		"role":             user.Role,
-		"status":           user.Status,
-		"email":            user.Email,
-		"group":            user.Group,
-		"quota":            user.Quota,
-		"used_quota":       user.UsedQuota,
-		"request_count":    user.RequestCount,
-		"aff_code":         user.AffCode,
-		"aff_count":        user.AffCount,
-		"aff_quota":        user.AffQuota,
+		"id":                user.Id,
+		"username":          user.Username,
+		"display_name":      user.DisplayName,
+		"role":              user.Role,
+		"status":            user.Status,
+		"email":             user.Email,
+		"group":             user.Group,
+		"quota":             user.Quota,
+		"used_quota":        user.UsedQuota,
+		"request_count":     user.RequestCount,
+		"aff_code":          user.AffCode,
+		"aff_count":         user.AffCount,
+		"aff_quota":         user.AffQuota,
 		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":       user.InviterId,
-		"linux_do_id":      user.LinuxDOId,
-		"setting":          user.Setting,
-		"stripe_customer":  user.StripeCustomer,
-		"sidebar_modules":  userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":      permissions,                 // 新增权限字段
+		"inviter_id":        user.InviterId,
+		"linux_do_id":       user.LinuxDOId,
+		"setting":           cleanedSetting,        // 完整用户设置（保持兼容性）
+		"stripe_customer":   user.StripeCustomer,
+		"sidebar_config":    finalSidebarConfig,   // 最终的侧边栏配置
+		"permissions":       simplifiedPermissions, // 精简的权限信息
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -523,6 +552,531 @@ func calculateUserPermissions(userRole int) map[string]interface{} {
 	return permissions
 }
 
+// 计算最终的侧边栏配置（系统配置 + 权限过滤，不包含用户偏好）
+func calculateFinalSidebarConfig(userRole int, userSetting dto.UserSetting) map[string]interface{} {
+	// 1. 获取系统的侧边栏管理配置
+	common.OptionMapRWMutex.RLock()
+	sidebarAdminConfigRaw := common.OptionMap["SidebarModulesAdmin"]
+	common.OptionMapRWMutex.RUnlock()
+
+	// 2. 解析系统配置
+	var systemConfig map[string]interface{}
+	if sidebarAdminConfigRaw != "" {
+		if err := json.Unmarshal([]byte(sidebarAdminConfigRaw), &systemConfig); err != nil {
+			// 解析失败时使用默认配置
+			systemConfig = getDefaultSystemConfig()
+		}
+	} else {
+		systemConfig = getDefaultSystemConfig()
+	}
+
+	// 3. 不再考虑用户个人偏好，sidebar_config只反映系统允许的最大权限范围
+
+	// 4. 计算最终配置
+	finalConfig := map[string]interface{}{}
+
+	// 遍历系统配置的所有区域
+	for sectionKey, sectionValue := range systemConfig {
+		sectionObj, ok := sectionValue.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// 检查用户是否有权限访问这个区域
+		if !hasUserPermissionForSection(userRole, sectionKey) {
+			continue
+		}
+
+		// 检查系统是否启用了这个区域
+		sectionEnabled := true
+		if enabled, hasEnabled := sectionObj["enabled"]; hasEnabled {
+			if enabledBool, ok := enabled.(bool); ok {
+				sectionEnabled = enabledBool
+			}
+		}
+
+		if !sectionEnabled {
+			continue
+		}
+
+		// 计算区域的最终配置（只考虑系统配置和用户权限，不考虑用户偏好）
+		sectionConfig := map[string]interface{}{}
+
+		// 区域级别的enabled状态：只要系统启用就为true
+		sectionConfig["enabled"] = sectionEnabled
+
+		// 处理区域内的各个模块
+		for moduleKey, moduleValue := range sectionObj {
+			if moduleKey == "enabled" {
+				continue
+			}
+
+			// 检查用户是否有权限访问这个模块
+			modulePath := sectionKey + "." + moduleKey
+			if !hasUserPermissionForModule(userRole, modulePath) {
+				sectionConfig[moduleKey] = false
+				continue
+			}
+
+			// 处理嵌套的模块配置（如 admin.user）
+			switch v := moduleValue.(type) {
+			case bool:
+				// 简单的布尔值模块
+				systemModuleEnabled := v
+				finalModuleEnabled := systemModuleEnabled && sectionConfig["enabled"].(bool)
+				sectionConfig[moduleKey] = finalModuleEnabled
+			case map[string]interface{}:
+				// 嵌套的对象模块（如 admin.user 包含 enabled 和 groupManagement）
+				nestedModuleConfig := map[string]interface{}{}
+
+				// 检查嵌套模块的enabled状态
+				nestedEnabled := true
+				if enabled, hasEnabled := v["enabled"]; hasEnabled {
+					if enabledBool, ok := enabled.(bool); ok {
+						nestedEnabled = enabledBool
+					}
+				}
+
+				// 最终的enabled状态
+				finalNestedEnabled := nestedEnabled && sectionConfig["enabled"].(bool)
+				nestedModuleConfig["enabled"] = finalNestedEnabled
+
+				// 处理嵌套模块的子功能
+				for subModuleKey, subModuleValue := range v {
+					if subModuleKey == "enabled" {
+						continue
+					}
+
+					// 检查用户是否有权限访问这个子功能
+					subModulePath := sectionKey + "." + moduleKey + "." + subModuleKey
+					if !hasUserPermissionForModule(userRole, subModulePath) {
+						nestedModuleConfig[subModuleKey] = false
+						continue
+					}
+
+					// 检查系统是否启用了这个子功能
+					subModuleEnabled := true
+					if subModuleBool, ok := subModuleValue.(bool); ok {
+						subModuleEnabled = subModuleBool
+					}
+
+					// 最终状态：系统启用 && 用户权限允许 && 父模块启用
+					finalSubModuleEnabled := subModuleEnabled && finalNestedEnabled
+					nestedModuleConfig[subModuleKey] = finalSubModuleEnabled
+				}
+
+				sectionConfig[moduleKey] = nestedModuleConfig
+			default:
+				// 其他类型，直接设置为false
+				sectionConfig[moduleKey] = false
+			}
+		}
+
+		finalConfig[sectionKey] = sectionConfig
+	}
+
+	return finalConfig
+}
+
+// 获取默认的系统配置
+func getDefaultSystemConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"chat": map[string]interface{}{
+			"enabled":    true,
+			"playground": true,
+			"chat":       true,
+		},
+		"console": map[string]interface{}{
+			"enabled":    true,
+			"detail":     true,
+			"token":      true,
+			"log":        true,
+			"midjourney": true,
+			"task":       true,
+		},
+		"personal": map[string]interface{}{
+			"enabled":  true,
+			"topup":    true,
+			"personal": true,
+		},
+		"admin": map[string]interface{}{
+			"enabled":    true,
+			"channel":    true,
+			"models":     true,
+			"redemption": true,
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 默认启用分组管理
+			},
+			"setting": true,
+		},
+	}
+}
+
+// 检查用户是否有权限访问指定区域
+func hasUserPermissionForSection(userRole int, sectionKey string) bool {
+	// 普通用户不能访问管理员区域
+	if userRole < common.RoleAdminUser && sectionKey == "admin" {
+		return false
+	}
+	return true
+}
+
+// 检查用户是否有权限访问指定模块
+func hasUserPermissionForModule(userRole int, modulePath string) bool {
+	// 数据看板始终允许访问
+	if modulePath == "console.detail" {
+		return true
+	}
+
+	// 管理员不能访问系统设置
+	if userRole == common.RoleAdminUser && modulePath == "admin.setting" {
+		return false
+	}
+
+	// 处理嵌套的模块路径（如 admin.user.groupManagement）
+	pathParts := strings.Split(modulePath, ".")
+	if len(pathParts) >= 2 {
+		sectionKey := pathParts[0]
+
+		// 普通用户不能访问管理员区域的任何模块
+		if userRole < common.RoleAdminUser && sectionKey == "admin" {
+			return false
+		}
+
+		// 对于三层路径（如 admin.user.groupManagement），检查特殊权限
+		if len(pathParts) == 3 && sectionKey == "admin" && pathParts[1] == "user" && pathParts[2] == "groupManagement" {
+			// 分组管理功能：管理员和超级管理员都可以访问
+			return userRole >= common.RoleAdminUser
+		}
+	}
+
+	return true
+}
+
+// 清理用户设置，添加系统权限信息供个人设置页面使用
+func cleanUserSettingForResponse(originalSetting string, systemSidebarConfig map[string]interface{}) string {
+	if originalSetting == "" {
+		return ""
+	}
+
+	// 解析原始设置
+	var userSetting dto.UserSetting
+	if err := json.Unmarshal([]byte(originalSetting), &userSetting); err != nil {
+		// 解析失败，返回原始设置
+		return originalSetting
+	}
+
+	// 如果没有sidebar_modules配置，直接返回
+	if userSetting.SidebarModules == "" {
+		return originalSetting
+	}
+
+	// 解析用户的sidebar_modules配置
+	var userSidebarModules map[string]interface{}
+	if err := json.Unmarshal([]byte(userSetting.SidebarModules), &userSidebarModules); err != nil {
+		// 解析失败，返回原始设置
+		return originalSetting
+	}
+
+	// 基于系统配置过滤用户的sidebar_modules，同时保留系统权限信息
+	filteredSidebarModules := map[string]interface{}{}
+	for sectionKey, sectionValue := range systemSidebarConfig {
+		sectionObj, ok := sectionValue.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// 检查系统是否允许这个区域
+		systemSectionEnabled, hasEnabled := sectionObj["enabled"]
+		if !hasEnabled || systemSectionEnabled != true {
+			continue
+		}
+
+		// 获取用户对这个区域的配置
+		userSection := map[string]interface{}{}
+		if userSidebarModules[sectionKey] != nil {
+			if userSectionObj, ok := userSidebarModules[sectionKey].(map[string]interface{}); ok {
+				userSection = userSectionObj
+			}
+		}
+
+		// 构建过滤后的区域配置
+		filteredSection := map[string]interface{}{
+			"enabled": userSection["enabled"], // 保持用户的enabled偏好
+		}
+
+		// 只保留最终配置中存在的模块（支持布尔与嵌套对象）
+		for moduleKey, moduleValue := range sectionObj {
+			if moduleKey == "enabled" {
+				continue
+			}
+
+			// 判断系统是否允许该模块
+			systemAllows := false
+			switch v := moduleValue.(type) {
+			case bool:
+				systemAllows = v
+			case map[string]interface{}:
+				// 嵌套对象，检查其enabled状态，缺省视为true
+				if enabled, hasEnabled := v["enabled"]; hasEnabled {
+					if enabledBool, ok := enabled.(bool); ok {
+						systemAllows = enabledBool
+					} else {
+						systemAllows = true
+					}
+				} else {
+					systemAllows = true
+				}
+			default:
+				systemAllows = false
+			}
+
+			if systemAllows {
+				// 保持用户对这个模块的偏好（布尔或对象），若未设置则默认启用
+				if userModuleValue, exists := userSection[moduleKey]; exists {
+					filteredSection[moduleKey] = userModuleValue
+				} else {
+					filteredSection[moduleKey] = true // 默认启用
+				}
+			}
+		}
+
+		filteredSidebarModules[sectionKey] = filteredSection
+	}
+
+	// 更新用户设置中的sidebar_modules
+	filteredSidebarModulesJSON, err := json.Marshal(filteredSidebarModules)
+	if err != nil {
+		// 序列化失败，返回原始设置
+		return originalSetting
+	}
+
+	userSetting.SidebarModules = string(filteredSidebarModulesJSON)
+
+	// 添加系统权限信息供个人设置页面使用
+	systemConfigJSON, err := json.Marshal(systemSidebarConfig)
+	if err == nil {
+		// 创建一个扩展的用户设置结构
+		extendedSetting := map[string]interface{}{
+			"sidebar_modules":        userSetting.SidebarModules,
+			"sidebar_system_config": string(systemConfigJSON), // 系统权限信息
+		}
+
+		// 添加其他用户设置字段（如果有的话）
+		var originalSettingMap map[string]interface{}
+		if err := json.Unmarshal([]byte(originalSetting), &originalSettingMap); err == nil {
+			for key, value := range originalSettingMap {
+				if key != "sidebar_modules" && key != "sidebar_system_config" {
+					extendedSetting[key] = value
+				}
+			}
+		}
+
+		// 序列化扩展的设置
+		if extendedSettingJSON, err := json.Marshal(extendedSetting); err == nil {
+			return string(extendedSettingJSON)
+		}
+	}
+
+	// 如果添加系统配置失败，使用原有逻辑
+	cleanedSettingJSON, err := json.Marshal(userSetting)
+	if err != nil {
+		return originalSetting
+	}
+
+	return string(cleanedSettingJSON)
+}
+
+// 基于系统权限过滤用户偏好设置
+func filterUserModulesBySystemConfig(userModules map[string]interface{}, systemConfig map[string]interface{}) map[string]interface{} {
+	filteredModules := map[string]interface{}{}
+
+	// 只保留系统允许的区域和模块
+	for sectionKey, sectionValue := range systemConfig {
+		systemSection, ok := sectionValue.(map[string]interface{})
+		if !ok || systemSection["enabled"] != true {
+			continue
+		}
+
+		// 获取用户对这个区域的偏好
+		userSection := map[string]interface{}{}
+		if userModules[sectionKey] != nil {
+			if userSectionObj, ok := userModules[sectionKey].(map[string]interface{}); ok {
+				userSection = userSectionObj
+			}
+		}
+
+		// 构建过滤后的区域配置
+		filteredSection := map[string]interface{}{
+			"enabled": userSection["enabled"], // 保持用户的enabled偏好
+		}
+
+		// 只保留系统允许的模块（同时支持布尔模块与嵌套对象模块）
+		for moduleKey, moduleValue := range systemSection {
+			if moduleKey == "enabled" {
+				continue
+			}
+
+			// 判断系统是否允许该模块
+			systemAllows := false
+			switch v := moduleValue.(type) {
+			case bool:
+				systemAllows = v
+			case map[string]interface{}:
+				// 嵌套对象，检查其enabled状态，缺省视为true
+				if enabled, hasEnabled := v["enabled"]; hasEnabled {
+					if enabledBool, ok := enabled.(bool); ok {
+						systemAllows = enabledBool
+					} else {
+						systemAllows = true
+					}
+				} else {
+					systemAllows = true
+				}
+			default:
+				systemAllows = false
+			}
+
+			if systemAllows {
+				// 保持用户对这个模块的偏好（支持布尔或对象），若未设置则默认启用
+				if userModuleValue, exists := userSection[moduleKey]; exists {
+					filteredSection[moduleKey] = userModuleValue
+				} else {
+					filteredSection[moduleKey] = true // 默认启用
+				}
+			}
+		}
+
+		filteredModules[sectionKey] = filteredSection
+	}
+
+	return filteredModules
+}
+
+// 计算最终的显示配置（系统权限 ∩ 用户偏好）
+func calculateFinalDisplayConfig(systemConfig map[string]interface{}, userModules interface{}) map[string]interface{} {
+	finalConfig := map[string]interface{}{}
+
+	// 解析用户偏好设置
+	var userPreferences map[string]interface{}
+	switch v := userModules.(type) {
+	case map[string]interface{}:
+		userPreferences = v
+	case string:
+		if err := json.Unmarshal([]byte(v), &userPreferences); err != nil {
+			userPreferences = map[string]interface{}{}
+		}
+	default:
+		userPreferences = map[string]interface{}{}
+	}
+
+	// 遍历系统允许的所有区域
+	for sectionKey, sectionValue := range systemConfig {
+		systemSection, ok := sectionValue.(map[string]interface{})
+		if !ok || systemSection["enabled"] != true {
+			continue
+		}
+
+		// 获取用户对这个区域的偏好
+		userSection := map[string]interface{}{}
+		if userPreferences[sectionKey] != nil {
+			if userSectionObj, ok := userPreferences[sectionKey].(map[string]interface{}); ok {
+				userSection = userSectionObj
+			}
+		}
+
+		// 计算区域的最终配置
+		sectionConfig := map[string]interface{}{}
+
+		// 区域级别：用户可以关闭系统允许的区域
+		userSectionEnabled := userSection["enabled"] != false
+		sectionConfig["enabled"] = userSectionEnabled
+
+		// 处理区域内的模块
+		for moduleKey, moduleValue := range systemSection {
+			if moduleKey == "enabled" {
+				continue
+			}
+
+			// 检查系统是否允许这个模块
+			var systemModuleEnabled bool
+			switch v := moduleValue.(type) {
+			case bool:
+				systemModuleEnabled = v
+			case map[string]interface{}:
+				// 对于嵌套对象，检查其enabled状态
+				if enabled, hasEnabled := v["enabled"]; hasEnabled {
+					if enabledBool, ok := enabled.(bool); ok {
+						systemModuleEnabled = enabledBool
+					} else {
+						systemModuleEnabled = true // 默认启用
+					}
+				} else {
+					systemModuleEnabled = true // 没有enabled字段时默认启用
+				}
+			default:
+				systemModuleEnabled = false
+			}
+
+			if !systemModuleEnabled {
+				sectionConfig[moduleKey] = false
+				continue
+			}
+
+			// 对于嵌套对象，需要合并系统配置和用户偏好
+			if nestedObj, isNested := moduleValue.(map[string]interface{}); isNested {
+				// 获取用户对这个嵌套对象的偏好
+				userNestedObj := map[string]interface{}{}
+				if userSection[moduleKey] != nil {
+					if userNestedMap, ok := userSection[moduleKey].(map[string]interface{}); ok {
+						userNestedObj = userNestedMap
+					}
+				}
+
+				// 计算有效的enabled：支持用户以布尔值直接覆盖嵌套对象（个人设置场景）
+				var effectiveEnabled interface{}
+				if userBool, ok := userSection[moduleKey].(bool); ok {
+					effectiveEnabled = userBool
+				} else if ue, exists := userNestedObj["enabled"]; exists {
+					effectiveEnabled = ue
+				} else if sysEnabled, has := nestedObj["enabled"]; has {
+					effectiveEnabled = sysEnabled
+				} else {
+					effectiveEnabled = true
+				}
+
+				// 合并系统配置和用户偏好
+				finalNestedObj := make(map[string]interface{})
+				for k, v := range nestedObj {
+					if k == "enabled" {
+						finalNestedObj[k] = effectiveEnabled
+					} else {
+						// 其他字段保持系统配置
+						finalNestedObj[k] = v
+					}
+				}
+
+				// 如果区域被禁用，强制将嵌套对象的enabled设置为false
+				if !userSectionEnabled {
+					finalNestedObj["enabled"] = false
+				}
+
+				sectionConfig[moduleKey] = finalNestedObj
+			} else {
+				// 简单布尔值模块，用户可以关闭系统允许的模块
+				userModuleEnabled := userSection[moduleKey] != false
+				// 最终状态：系统允许 && 用户偏好 && 区域启用
+				sectionConfig[moduleKey] = systemModuleEnabled && userModuleEnabled && userSectionEnabled
+			}
+		}
+
+		finalConfig[sectionKey] = sectionConfig
+	}
+
+	return finalConfig
+}
+
 // 根据用户角色生成默认的边栏配置
 func generateDefaultSidebarConfig(userRole int) string {
 	defaultConfig := map[string]interface{}{}
@@ -559,8 +1113,11 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 管理员默认可以访问分组管理
+			},
+			"setting": false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
@@ -569,8 +1126,11 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"user":       true,
-			"setting":    true,
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 超级管理员默认可以访问分组管理
+			},
+			"setting": true,
 		}
 	}
 	// 普通用户不包含admin区域

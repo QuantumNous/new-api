@@ -79,6 +79,7 @@ func SetApiRouter(router *gin.Engine) {
 
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())
+			adminRoute.Use(middleware.ModuleAuth("admin.user"))
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
 				adminRoute.GET("/search", controller.SearchUsers)
@@ -109,6 +110,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
+		channelRoute.Use(middleware.ModuleAuth("admin.channel"))
 		{
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)
@@ -138,6 +140,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
+		tokenRoute.Use(middleware.ModuleAuth("console.token"))
 		{
 			tokenRoute.GET("/", controller.GetAllTokens)
 			tokenRoute.GET("/search", controller.SearchTokens)
@@ -160,6 +163,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
+		redemptionRoute.Use(middleware.ModuleAuth("admin.redemption"))
 		{
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
@@ -170,17 +174,17 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		logRoute := apiRouter.Group("/log")
-		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
-		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
-		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
-		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
-		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
-		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
-		logRoute.GET("/self/search", middleware.UserAuth(), controller.SearchUserLogs)
+		logRoute.GET("/", middleware.AdminAuth(), middleware.ModuleAuth("console.log"), controller.GetAllLogs)
+		logRoute.DELETE("/", middleware.AdminAuth(), middleware.ModuleAuth("console.log"), controller.DeleteHistoryLogs)
+		logRoute.GET("/stat", middleware.AdminAuth(), middleware.ModuleAuth("console.log"), controller.GetLogsStat)
+		logRoute.GET("/self/stat", middleware.UserAuth(), middleware.ModuleAuth("console.log"), controller.GetLogsSelfStat)
+		logRoute.GET("/search", middleware.AdminAuth(), middleware.ModuleAuth("console.log"), controller.SearchAllLogs)
+		logRoute.GET("/self", middleware.UserAuth(), middleware.ModuleAuth("console.log"), controller.GetUserLogs)
+		logRoute.GET("/self/search", middleware.UserAuth(), middleware.ModuleAuth("console.log"), controller.SearchUserLogs)
 
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
-		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+		dataRoute.GET("/", middleware.AdminAuth(), middleware.ModuleAuth("console.detail"), controller.GetAllQuotaDates)
+		dataRoute.GET("/self", middleware.UserAuth(), middleware.ModuleAuth("console.detail"), controller.GetUserQuotaDates)
 
 		logRoute.Use(middleware.CORS())
 		{
@@ -203,6 +207,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		userGroupRoute := apiRouter.Group("/user_group")
 		userGroupRoute.Use(middleware.AdminAuth())
+		userGroupRoute.Use(middleware.ModuleAuth("admin.user.groupManagement"))
 		{
 			userGroupRoute.GET("/", controller.GetAllUserGroups)
 			userGroupRoute.POST("/", controller.CreateUserGroup)
@@ -211,13 +216,13 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		mjRoute := apiRouter.Group("/mj")
-		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
-		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
+		mjRoute.GET("/self", middleware.UserAuth(), middleware.ModuleAuth("console.midjourney"), controller.GetUserMidjourney)
+		mjRoute.GET("/", middleware.AdminAuth(), middleware.ModuleAuth("console.midjourney"), controller.GetAllMidjourney)
 
 		taskRoute := apiRouter.Group("/task")
 		{
-			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
-			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("/self", middleware.UserAuth(), middleware.ModuleAuth("console.task"), controller.GetUserTask)
+			taskRoute.GET("/", middleware.AdminAuth(), middleware.ModuleAuth("console.task"), controller.GetAllTask)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")
@@ -233,6 +238,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		modelsRoute := apiRouter.Group("/models")
 		modelsRoute.Use(middleware.AdminAuth())
+		modelsRoute.Use(middleware.ModuleAuth("admin.models"))
 		{
 			modelsRoute.GET("/sync_upstream/preview", controller.SyncUpstreamPreview)
 			modelsRoute.POST("/sync_upstream", controller.SyncUpstreamModels)

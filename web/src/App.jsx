@@ -22,6 +22,7 @@ import { Route, Routes, useLocation } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
 import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
+import ModuleRoute from './components/auth/ModuleRoute';
 import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
@@ -58,7 +59,7 @@ function App() {
 
   // 获取模型广场权限配置
   const pricingRequireAuth = useMemo(() => {
-    const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+    const headerNavModulesConfig = statusState?.status?.header_nav_modules;
     if (headerNavModulesConfig) {
       try {
         const modules = JSON.parse(headerNavModulesConfig);
@@ -76,7 +77,7 @@ function App() {
       }
     }
     return false; // 默认不需要登录
-  }, [statusState?.status?.HeaderNavModules]);
+  }, [statusState?.status?.header_nav_modules]);
 
   return (
     <SetupCheck>
@@ -102,7 +103,9 @@ function App() {
           path='/console/models'
           element={
             <AdminRoute>
-              <ModelPage />
+              <ModuleRoute modulePath="admin.models">
+                <ModelPage />
+              </ModuleRoute>
             </AdminRoute>
           }
         />
@@ -110,7 +113,9 @@ function App() {
           path='/console/channel'
           element={
             <AdminRoute>
-              <Channel />
+              <ModuleRoute modulePath="admin.channel">
+                <Channel />
+              </ModuleRoute>
             </AdminRoute>
           }
         />
@@ -118,7 +123,9 @@ function App() {
           path='/console/token'
           element={
             <PrivateRoute>
-              <Token />
+              <ModuleRoute modulePath="console.token">
+                <Token />
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -126,7 +133,9 @@ function App() {
           path='/console/playground'
           element={
             <PrivateRoute>
-              <Playground />
+              <ModuleRoute modulePath="chat.playground">
+                <Playground />
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -134,7 +143,9 @@ function App() {
           path='/console/redemption'
           element={
             <AdminRoute>
-              <Redemption />
+              <ModuleRoute modulePath="admin.redemption">
+                <Redemption />
+              </ModuleRoute>
             </AdminRoute>
           }
         />
@@ -142,7 +153,9 @@ function App() {
           path='/console/user'
           element={
             <AdminRoute>
-              <User />
+              <ModuleRoute modulePath="admin.user">
+                <User />
+              </ModuleRoute>
             </AdminRoute>
           }
         />
@@ -210,9 +223,11 @@ function App() {
           path='/console/setting'
           element={
             <AdminRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Setting />
-              </Suspense>
+              <ModuleRoute modulePath="admin.setting">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Setting />
+                </Suspense>
+              </ModuleRoute>
             </AdminRoute>
           }
         />
@@ -220,9 +235,11 @@ function App() {
           path='/console/personal'
           element={
             <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <PersonalSetting />
-              </Suspense>
+              <ModuleRoute modulePath="personal.personal">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <PersonalSetting />
+                </Suspense>
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -230,9 +247,11 @@ function App() {
           path='/console/topup'
           element={
             <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <TopUp />
-              </Suspense>
+              <ModuleRoute modulePath="personal.topup">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <TopUp />
+                </Suspense>
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -240,7 +259,9 @@ function App() {
           path='/console/log'
           element={
             <PrivateRoute>
-              <Log />
+              <ModuleRoute modulePath="console.log">
+                <Log />
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -248,9 +269,11 @@ function App() {
           path='/console'
           element={
             <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Dashboard />
-              </Suspense>
+              <ModuleRoute modulePath="console.detail">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Dashboard />
+                </Suspense>
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -258,9 +281,11 @@ function App() {
           path='/console/midjourney'
           element={
             <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Midjourney />
-              </Suspense>
+              <ModuleRoute modulePath="console.midjourney">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Midjourney />
+                </Suspense>
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -268,9 +293,11 @@ function App() {
           path='/console/task'
           element={
             <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Task />
-              </Suspense>
+              <ModuleRoute modulePath="console.task">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Task />
+                </Suspense>
+              </ModuleRoute>
             </PrivateRoute>
           }
         />
@@ -304,9 +331,11 @@ function App() {
         <Route
           path='/console/chat/:id?'
           element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <Chat />
-            </Suspense>
+            <ModuleRoute modulePath="chat.chat">
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Chat />
+              </Suspense>
+            </ModuleRoute>
           }
         />
         {/* 方便使用chat2link直接跳转聊天... */}
@@ -314,9 +343,11 @@ function App() {
           path='/chat2link'
           element={
             <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Chat2Link />
-              </Suspense>
+              <ModuleRoute modulePath="chat.chat">
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Chat2Link />
+                </Suspense>
+              </ModuleRoute>
             </PrivateRoute>
           }
         />

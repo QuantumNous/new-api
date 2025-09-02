@@ -34,11 +34,52 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../../../helpers';
+import { useSidebar } from '../../../../hooks/common/useSidebar';
 
 const EditUserGroupModal = ({ visible, onClose, editingGroup, onSuccess }) => {
   const { t } = useTranslation();
   const formApiRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const { finalConfig, loading: sidebarLoading } = useSidebar();
+
+  // 检查用户权限
+  const getUserRole = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user?.role || 0;
+  };
+
+  const isRoot = () => getUserRole() >= 100;
+  const isAdmin = () => getUserRole() >= 10;
+
+  // 检查是否有分组管理权限
+  const hasGroupManagementPermission = () => {
+    // 如果侧边栏配置还在加载中，暂时拒绝访问
+    if (sidebarLoading) {
+      return false;
+    }
+
+    // 超级管理员始终有权限
+    if (isRoot()) {
+      return true;
+    }
+
+    // 管理员需要检查权限配置
+    if (isAdmin()) {
+      // 从useSidebar钩子获取最终的权限配置
+      const userSection = finalConfig?.admin?.user;
+
+      // 检查用户管理模块是否启用
+      if (!userSection || userSection.enabled === false) {
+        return false;
+      }
+
+      // 检查分组管理子功能是否启用
+      return userSection.groupManagement === true;
+    }
+
+    // 普通用户无权访问
+    return false;
+  };
 
   const isEdit = editingGroup && editingGroup.id;
   const isSystemGroup = editingGroup && (
@@ -62,6 +103,13 @@ const EditUserGroupModal = ({ visible, onClose, editingGroup, onSuccess }) => {
   });
 
   const submit = async (values) => {
+    // 检查权限
+    if (!hasGroupManagementPermission()) {
+      showError(t('无权访问分组管理功能'));
+      onClose();
+      return;
+    }
+
     setLoading(true);
     try {
       const data = {
@@ -75,10 +123,10 @@ const EditUserGroupModal = ({ visible, onClose, editingGroup, onSuccess }) => {
 
       const url = isEdit ? '/api/user_group' : '/api/user_group';
       const method = isEdit ? 'PUT' : 'POST';
-      
+
       const res = await API[method.toLowerCase()](url, data);
       const { success, message } = res.data;
-      
+
       if (success) {
         showSuccess(isEdit ? t('分组更新成功！') : t('分组创建成功！'));
         onSuccess();
@@ -86,7 +134,12 @@ const EditUserGroupModal = ({ visible, onClose, editingGroup, onSuccess }) => {
         showError(message);
       }
     } catch (error) {
-      showError(isEdit ? t('分组更新失败') : t('分组创建失败'));
+      if (error.response?.status === 403) {
+        showError(t('无权访问分组管理功能'));
+        onClose();
+      } else {
+        showError(isEdit ? t('分组更新失败') : t('分组创建失败'));
+      }
     }
     setLoading(false);
   };

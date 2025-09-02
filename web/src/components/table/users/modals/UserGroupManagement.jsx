@@ -42,6 +42,7 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { API, showError, showSuccess } from '../../../../helpers';
 import CardTable from '../../../common/ui/CardTable';
 import EditUserGroupModal from './EditUserGroupModal';
+import { useSidebar } from '../../../../hooks/common/useSidebar';
 
 const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
   const { t } = useTranslation();
@@ -50,9 +51,56 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
   const [groups, setGroups] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
   const [editingGroup, setEditingGroup] = useState({ id: undefined });
+  const { finalConfig, loading: sidebarLoading } = useSidebar();
+
+  // 检查用户权限
+  const getUserRole = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user?.role || 0;
+  };
+
+  const isRoot = () => getUserRole() >= 100;
+  const isAdmin = () => getUserRole() >= 10;
+
+  // 检查是否有分组管理权限
+  const hasGroupManagementPermission = () => {
+    // 如果侧边栏配置还在加载中，暂时拒绝访问
+    if (sidebarLoading) {
+      return false;
+    }
+
+    // 超级管理员始终有权限
+    if (isRoot()) {
+      return true;
+    }
+
+    // 管理员需要检查权限配置
+    if (isAdmin()) {
+      // 从useSidebar钩子获取最终的权限配置
+      const userSection = finalConfig?.admin?.user;
+
+      // 检查用户管理模块是否启用
+      if (!userSection || userSection.enabled === false) {
+        return false;
+      }
+
+      // 检查分组管理子功能是否启用
+      return userSection.groupManagement === true;
+    }
+
+    // 普通用户无权访问
+    return false;
+  };
 
   // 加载分组列表
   const loadGroups = async () => {
+    // 检查权限
+    if (!hasGroupManagementPermission()) {
+      showError(t('无权访问分组管理功能'));
+      onClose();
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await API.get('/api/user_group');
@@ -60,15 +108,29 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
         setGroups(res.data.data || []);
       } else {
         showError(res.data.message || t('获取分组列表失败'));
+        // 如果是权限错误，关闭模态框
+        if (res.status === 403) {
+          onClose();
+        }
       }
     } catch (error) {
       showError(t('获取分组列表失败'));
+      // 如果是权限错误，关闭模态框
+      if (error.response?.status === 403) {
+        onClose();
+      }
     }
     setLoading(false);
   };
 
   // 删除分组
   const deleteGroup = async (id) => {
+    // 检查权限
+    if (!hasGroupManagementPermission()) {
+      showError(t('无权访问分组管理功能'));
+      return;
+    }
+
     try {
       const res = await API.delete(`/api/user_group/${id}`);
       if (res.data.success) {
@@ -78,12 +140,23 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
         showError(res.data.message || t('删除失败'));
       }
     } catch (error) {
-      showError(t('删除失败'));
+      if (error.response?.status === 403) {
+        showError(t('无权访问分组管理功能'));
+        onClose();
+      } else {
+        showError(t('删除失败'));
+      }
     }
   };
 
   // 编辑分组
   const handleEdit = (group = {}) => {
+    // 检查权限
+    if (!hasGroupManagementPermission()) {
+      showError(t('无权访问分组管理功能'));
+      return;
+    }
+
     setEditingGroup(group);
     setShowEdit(true);
   };
