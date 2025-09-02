@@ -63,7 +63,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       redemption: true,
       user: {
         enabled: true,
-        groupManagement: false // 默认关闭分组管理
+        groupManagement: true // 默认启用分组管理
       },
       setting: true
     }
@@ -140,7 +140,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         redemption: true,
         user: {
           enabled: true,
-          groupManagement: false // 默认关闭分组管理
+          groupManagement: true // 默认启用分组管理
         },
         setting: true
       }
@@ -207,7 +207,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             redemption: true,
             user: {
               enabled: true,
-              groupManagement: false // 默认关闭分组管理
+              groupManagement: true // 默认启用分组管理
             },
             setting: true
           }

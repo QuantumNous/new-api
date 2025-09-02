@@ -13,14 +13,14 @@ import (
 
 func GetPricing(c *gin.Context) {
 	// 检查模型广场访问权限
-	if !checkPricingAccess(c) {
-		c.JSON(http.StatusForbidden, gin.H{
+	allowed, code, msg := checkPricingAccess(c)
+	if !allowed {
+		c.JSON(code, gin.H{
 			"success": false,
-			"message": "需要登录才能访问模型广场",
+			"message": msg,
 		})
 		return
 	}
-
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
@@ -62,7 +62,8 @@ func GetPricing(c *gin.Context) {
 }
 
 // checkPricingAccess 检查用户是否有权限访问模型广场
-func checkPricingAccess(c *gin.Context) bool {
+// 返回值：(是否允许访问, HTTP状态码, 错误消息)
+func checkPricingAccess(c *gin.Context) (bool, int, string) {
 	// 获取顶栏模块配置
 	common.OptionMapRWMutex.RLock()
 	headerNavModulesRaw, exists := common.OptionMap["HeaderNavModules"]
@@ -70,26 +71,26 @@ func checkPricingAccess(c *gin.Context) bool {
 
 	if !exists || headerNavModulesRaw == "" {
 		// 如果没有配置，默认允许访问
-		return true
+		return true, 0, ""
 	}
 
 	// 解析配置
 	var config map[string]interface{}
 	if err := json.Unmarshal([]byte(headerNavModulesRaw), &config); err != nil {
-		// 解析失败时采用安全优先策略，拒绝访问
-		return false
+		// 解析失败时返回500错误
+		return false, http.StatusInternalServerError, "配置解析失败"
 	}
 
 	// 检查pricing模块配置
 	pricingConfig, hasPricing := config["pricing"]
 	if !hasPricing {
 		// 如果没有pricing配置，默认允许访问
-		return true
+		return true, 0, ""
 	}
 
 	// 检查模块是否启用
 	if !isPricingModuleEnabled(pricingConfig) {
-		return false
+		return false, http.StatusForbidden, "模型广场功能已被禁用"
 	}
 
 	// 检查是否需要登录
@@ -97,20 +98,22 @@ func checkPricingAccess(c *gin.Context) bool {
 		// 需要登录，检查用户是否已登录
 		userId, exists := c.Get("id")
 		if !exists || userId == nil {
-			return false // 用户未登录
+			return false, http.StatusUnauthorized, "需要登录才能访问模型广场"
 		}
 
 		// 从数据库获取用户信息验证角色
 		user, err := model.GetUserById(userId.(int), false)
 		if err != nil {
-			return false // 获取用户信息失败
+			return false, http.StatusInternalServerError, "获取用户信息失败"
 		}
 
-		return user.Role >= common.RoleCommonUser
+		if user.Role < common.RoleCommonUser {
+			return false, http.StatusForbidden, "权限不足"
+		}
 	}
 
-	// 不需要登录，允许访问
-	return true
+	// 允许访问
+	return true, 0, ""
 }
 
 // isPricingModuleEnabled 检查pricing模块是否启用
