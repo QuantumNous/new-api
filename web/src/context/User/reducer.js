@@ -20,11 +20,18 @@ For commercial licensing, please contact support@quantumnous.com
 export const reducer = (state, action) => {
   switch (action.type) {
     case 'login':
+      // 用户登录时，头像数据通过独立端点获取和缓存
       return {
         ...state,
         user: action.payload,
       };
     case 'logout':
+      // 当用户登出时，清理头像缓存和会话标记
+      if (state.user?.id) {
+        import('../../helpers/userDataManager').then(({ cleanupOnLogout }) => {
+          cleanupOnLogout(state.user.id);
+        });
+      }
       return {
         ...state,
         user: undefined,

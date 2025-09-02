@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"one-api/model"
 	"one-api/setting"
 	"strconv"
+	"time"
 	"strings"
 	"sync"
 
@@ -23,6 +25,61 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+// validateAvatar 验证头像数据
+func validateAvatar(avatarData string) error {
+	if avatarData == "" {
+		return nil // 允许空头像
+	}
+
+	// 检查是否是有效的base64数据
+	if !strings.HasPrefix(avatarData, "data:image/") {
+		return fmt.Errorf("头像必须是有效的图片格式")
+	}
+
+	// 提取base64数据部分
+	parts := strings.Split(avatarData, ",")
+	if len(parts) != 2 {
+		return fmt.Errorf("头像数据格式无效")
+	}
+
+	// 检查MIME类型
+	mimeType := parts[0]
+	allowedTypes := []string{
+		"data:image/jpeg;base64",
+		"data:image/jpg;base64",
+		"data:image/png;base64",
+		"data:image/gif;base64",
+		"data:image/webp;base64",
+	}
+
+	isValidType := false
+	for _, allowedType := range allowedTypes {
+		if mimeType == allowedType {
+			isValidType = true
+			break
+		}
+	}
+
+	if !isValidType {
+		return fmt.Errorf("不支持的图片格式，仅支持 JPEG、PNG、GIF、WebP")
+	}
+
+	// 解码base64数据检查大小
+	base64Data := parts[1]
+	decodedData, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return fmt.Errorf("头像数据解码失败")
+	}
+
+	// 检查文件大小（2MB限制）
+	const maxSize = 2 * 1024 * 1024 // 2MB
+	if len(decodedData) > maxSize {
+		return fmt.Errorf("头像文件大小不能超过2MB")
+	}
+
+	return nil
 }
 
 func Login(c *gin.Context) {
@@ -115,6 +172,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 		Role:        user.Role,
 		Status:      user.Status,
 		Group:       user.Group,
+		Avatar:      user.Avatar,
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
@@ -436,6 +494,9 @@ func GetSelf(c *gin.Context) {
 	// Hide admin remarks: set to empty to trigger omitempty tag, ensuring the remark field is not included in JSON returned to regular users
 	user.Remark = ""
 
+	// 完全移除头像数据，头像通过专用端点获取
+	user.Avatar = ""
+
 	// 计算用户权限信息
 	permissions := calculateUserPermissions(userRole)
 
@@ -462,8 +523,9 @@ func GetSelf(c *gin.Context) {
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"avatar":            user.Avatar,
+		"sidebar_config":    finalSidebarConfig,   // 最终的侧边栏配置
+		"permissions":       simplifiedPermissions, // 精简的权限信息
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -649,6 +711,54 @@ func UpdateUser(c *gin.Context) {
 	return
 }
 
+func GetUserAvatar(c *gin.Context) {
+	id := c.GetInt("id")
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 检查是否强制获取头像（用于上传后刷新）
+	forceRefresh := c.Query("force_refresh") == "true"
+
+	// 检查会话中是否已获取过头像
+	sessionId := c.GetHeader("X-Session-ID")
+	if sessionId == "" {
+		// 如果没有会话ID，生成一个
+		sessionId = fmt.Sprintf("session_%d_%d", id, time.Now().Unix())
+	}
+
+	// sessionKey := fmt.Sprintf("avatar_session_%s", sessionId) // 保留用于未来扩展
+
+	// 如果不是强制刷新且会话中已获取过，返回空响应
+	if !forceRefresh {
+		if sessionValue := c.GetHeader("X-Avatar-Fetched"); sessionValue == "true" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "avatar_cached",
+				"data": gin.H{
+					"avatar": "",
+					"cached": true,
+				},
+			})
+			return
+		}
+	}
+
+	// 返回头像数据
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"avatar": user.Avatar,
+			"cached": false,
+			"session_id": sessionId,
+		},
+	})
+	return
+}
+
 func UpdateSelf(c *gin.Context) {
 	var requestData map[string]interface{}
 	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
@@ -724,20 +834,35 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
+	// 验证头像数据
+	if err := validateAvatar(user.Avatar); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	cleanUser := model.User{
 		Id:          c.GetInt("id"),
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
+		Avatar:      user.Avatar,
 	}
 	if user.Password == "$I_LOVE_U" {
 		user.Password = "" // rollback to what it should be
 		cleanUser.Password = ""
 	}
-	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
-	if err != nil {
-		common.ApiError(c, err)
-		return
+
+	// 只有当明确提供了 original_password 或者要更新密码时才进行密码验证
+	var updatePassword bool
+	if _, hasOriginalPassword := requestData["original_password"]; hasOriginalPassword || user.Password != "" {
+		updatePassword, err = checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	if err := cleanUser.Update(updatePassword); err != nil {
 		common.ApiError(c, err)

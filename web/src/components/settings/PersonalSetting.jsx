@@ -23,6 +23,7 @@ import { API, copy, showError, showInfo, showSuccess } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import { getUserData as fetchUserData } from '../../helpers/userDataManager';
 
 // 导入子组件
 import UserInfoHeader from './personal/components/UserInfoHeader';
@@ -80,8 +81,9 @@ const PersonalSetting = () => {
         setTurnstileSiteKey(status.turnstile_site_key);
       }
     }
-    getUserData().then((res) => {
-      console.log(userState);
+
+    getUserData().then(() => {
+      console.log('用户数据已加载');
     });
   }, []);
 
@@ -132,12 +134,17 @@ const PersonalSetting = () => {
   };
 
   const getUserData = async () => {
-    let res = await API.get(`/api/user/self`);
-    const { success, message, data } = res.data;
-    if (success) {
-      userDispatch({ type: 'login', payload: data });
-    } else {
-      showError(message);
+    try {
+      // 使用用户数据获取（包括头像）
+      const result = await fetchUserData();
+      if (result.success) {
+        userDispatch({ type: 'login', payload: result.data });
+      } else {
+        showError(result.message);
+      }
+    } catch (error) {
+      console.error('获取用户数据失败:', error);
+      showError('获取用户数据失败');
     }
   };
 
@@ -302,12 +309,14 @@ const PersonalSetting = () => {
     }
   };
 
+
+
   return (
     <div className='mt-[60px]'>
       <div className='flex justify-center'>
         <div className='w-full max-w-7xl mx-auto px-2'>
           {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} />
+          <UserInfoHeader t={t} userState={userState} onUserDataUpdate={getUserData} />
 
           {/* 账户管理和其他设置 */}
           <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
