@@ -446,6 +446,16 @@ func (user *User) Update(updatePassword bool) error {
 	return updateUserCache(*user)
 }
 
+func (user *User) UpdateAvatar() error {
+	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update("avatar", user.Avatar).Error; err != nil {
+		return err
+	}
+
+	// Update cache
+	DB.First(&user, user.Id)
+	return updateUserCache(*user)
+}
+
 func (user *User) Edit(updatePassword bool) error {
 	var err error
 	if updatePassword {
