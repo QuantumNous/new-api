@@ -240,7 +240,7 @@ func DeleteUserGroup(c *gin.Context) {
 	}
 
 	// 不允许删除默认分组
-	if group.Name == "default" || group.Name == "vip" || group.Name == "svip" {
+	if isReservedGroup(group.Name) {
 		common.ApiErrorMsg(c, "不能删除系统默认分组")
 		return
 	}
