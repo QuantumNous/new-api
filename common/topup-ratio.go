@@ -2,12 +2,25 @@ package common
 
 import (
 	"encoding/json"
+	"sync"
 )
 
 var TopupGroupRatio = map[string]float64{
 	"default": 1,
 	"vip":     1,
 	"svip":    1,
+}
+
+var topupGroupRatioMutex sync.RWMutex
+
+func GetTopupGroupRatioCopy() map[string]float64 {
+	topupGroupRatioMutex.RLock()
+	defer topupGroupRatioMutex.RUnlock()
+	cp := make(map[string]float64, len(TopupGroupRatio))
+	for k, v := range TopupGroupRatio {
+		cp[k] = v
+	}
+	return cp
 }
 
 func TopupGroupRatio2JSONString() string {

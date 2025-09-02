@@ -316,11 +316,6 @@ func filterHeaderNavModulesForUser(headerNavModulesRaw interface{}, userRole int
 		return headerNavModulesRaw
 	}
 
-	// 如果用户未登录，返回原配置（顶栏模块对所有用户都是公开的）
-	if userRole == -1 {
-		return headerNavModulesRaw
-	}
-
 	headerNavModulesStr, ok := headerNavModulesRaw.(string)
 	if !ok || headerNavModulesStr == "" {
 		return headerNavModulesRaw
@@ -333,16 +328,22 @@ func filterHeaderNavModulesForUser(headerNavModulesRaw interface{}, userRole int
 		return "{}"
 	}
 
-	// 对于所有用户，移除被禁用的模块
+	// 对于所有用户（包括未登录用户），都需要移除被禁用的模块
 	filteredConfig := make(map[string]interface{})
 	for key, value := range config {
 		// 首先检查模块是否启用
 		if isHeaderNavModuleEnabled(key, value) {
+			// 未登录用户：仅移除被禁用的模块，保留启用模块（包括 pricing，以便前端根据 requireAuth 决定跳转到 /login）
+			if userRole == -1 {
+				filteredConfig[key] = value
+				continue
+			}
+
 			// 超级管理员可以看到所有启用的模块
 			if userRole >= common.RoleRootUser {
 				filteredConfig[key] = value
 			} else {
-				// 对于管理员和普通用户，进行额外的权限检查
+				// 管理员和普通用户：进行权限检查
 				if hasHeaderNavModulePermission(key, value, userRole) {
 					filteredConfig[key] = value
 				}
@@ -501,16 +502,55 @@ func isHeaderNavModuleEnabled(moduleKey string, moduleValue interface{}) bool {
 
 // hasHeaderNavModulePermission 检查用户是否有权限访问顶栏模块
 func hasHeaderNavModulePermission(moduleKey string, moduleValue interface{}, userRole int) bool {
-	// 普通用户只能访问基础模块
+	// 对于模型广场，需要检查requireAuth配置
+	if moduleKey == "pricing" {
+		return checkPricingModulePermission(moduleValue, userRole)
+	}
+
+	// 未登录用户和普通用户只能访问基础模块
 	if userRole < common.RoleAdminUser {
 		allowedModules := map[string]bool{
 			"home":    true,
 			"console": true,
+			"docs":    true, // 文档允许未登录用户访问
+			"about":   true, // 关于页面允许未登录用户访问
 		}
 		return allowedModules[moduleKey]
 	}
 
 	// 管理员可以访问更多模块
+	return true
+}
+
+// checkPricingModulePermission 检查模型广场模块的权限
+func checkPricingModulePermission(moduleValue interface{}, userRole int) bool {
+	// 如果是布尔值配置，默认不需要登录
+	if boolValue, ok := moduleValue.(bool); ok {
+		return boolValue // 简单的启用/禁用
+	}
+
+	// 如果是对象配置，检查requireAuth设置
+	if objValue, ok := moduleValue.(map[string]interface{}); ok {
+		// 检查模块是否启用
+		if enabled, hasEnabled := objValue["enabled"]; hasEnabled {
+			if enabledBool, ok := enabled.(bool); ok && !enabledBool {
+				return false // 模块被禁用
+			}
+		}
+
+		// 检查是否需要登录
+		if requireAuth, hasRequireAuth := objValue["requireAuth"]; hasRequireAuth {
+			if requireAuthBool, ok := requireAuth.(bool); ok && requireAuthBool {
+				// 需要登录才能访问，未登录用户不能访问
+				return userRole >= common.RoleCommonUser
+			}
+		}
+
+		// 默认不需要登录
+		return true
+	}
+
+	// 其他情况默认允许
 	return true
 }
 

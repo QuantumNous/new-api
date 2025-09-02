@@ -19,15 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 
 export function setStatusData(data) {
   localStorage.setItem('status', JSON.stringify(data));
-  localStorage.setItem('system_name', data.system_name);
   localStorage.setItem('logo', data.logo);
 
-  // 触发自定义事件来立即更新title
-  if (data.system_name) {
-    window.dispatchEvent(new CustomEvent('systemNameUpdated', {
-      detail: { systemName: data.system_name }
-    }));
-  }
+  // 同步系统名称并触发事件（支持清空还原默认标题）
+  const name = (data.system_name ?? '').toString().trim();
+  if (name) {
+     localStorage.setItem('system_name', name);
+   } else {
+     localStorage.removeItem('system_name');
+   }
+   window.dispatchEvent(new CustomEvent('systemNameUpdated', {
+     detail: { systemName: name }
+   }));
   localStorage.setItem('footer_html', data.footer_html);
   localStorage.setItem('quota_per_unit', data.quota_per_unit);
   localStorage.setItem('display_in_currency', data.display_in_currency);

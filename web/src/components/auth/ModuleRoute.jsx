@@ -2,11 +2,12 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import { StatusContext } from '../../context/Status';
 import Loading from '../common/ui/Loading';
-import { API } from '../../helpers';
+import { useSidebar } from '../../hooks/common/useSidebar';
+import { USER_ROLES } from '../../constants/user.constants';
 
 /**
  * ModuleRoute - 基于功能模块权限的路由保护组件
- * 
+ *
  * @param {Object} props
  * @param {React.ReactNode} props.children - 要保护的子组件
  * @param {string} props.modulePath - 模块权限路径，如 "admin.channel", "console.token"
@@ -17,128 +18,99 @@ const ModuleRoute = ({ children, modulePath, fallback = <Navigate to="/forbidden
   const [hasPermission, setHasPermission] = useState(null);
   const [statusState] = useContext(StatusContext);
 
-  useEffect(() => {
-    checkModulePermission();
-  }, [modulePath, statusState?.status]); // 只在status数据变化时重新检查
+  // 复用 useSidebar 钩子的配置数据，避免重复 API 调用
+  const { loading: sidebarLoading, finalConfig } = useSidebar();
 
-  const checkModulePermission = async () => {
+  // 获取用户信息的辅助函数
+  const getUserFromStorage = () => {
     try {
-      // 检查用户是否已登录
-      const user = localStorage.getItem('user');
-      if (!user) {
-        setHasPermission(false);
-        return;
-      }
-
-      const userData = JSON.parse(user);
-      const userRole = userData.role;
-
-      // 超级管理员始终有权限
-      if (userRole >= 100) {
-        setHasPermission(true);
-        return;
-      }
-
-      // 检查模块权限
-      const permission = await checkModulePermissionAPI(modulePath);
-
-      // 如果返回null，表示status数据还未加载完成，保持loading状态
-      if (permission === null) {
-        setHasPermission(null);
-        return;
-      }
-
-      setHasPermission(permission);
-    } catch (error) {
-      console.error('检查模块权限失败:', error);
-      // 出错时采用安全优先策略，拒绝访问
-      setHasPermission(false);
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
     }
   };
 
-  const checkModulePermissionAPI = async (modulePath) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkPermission = async () => {
+      const userObj = getUserFromStorage();
+      const permission = await checkModulePermission(userObj);
+
+      if (!cancelled) {
+        setHasPermission(permission);
+      }
+    };
+
+    checkPermission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modulePath, statusState?.status, sidebarLoading, finalConfig]); // 依赖 sidebar 配置变化
+
+  const checkModulePermission = async (userObj) => {
     try {
-      // 数据看板始终允许访问，不受控制台区域开关影响
-      if (modulePath === 'console.detail') {
-        return true;
-      }
-
-      // 从StatusContext中获取配置信息
-      // 如果status数据还未加载完成，返回null表示需要等待
-      if (!statusState?.status) {
-        return null;
-      }
-
-      const user = JSON.parse(localStorage.getItem('user'));
-      const userRole = user.role;
-
-      // 解析模块路径
-      const pathParts = modulePath.split('.');
-      if (pathParts.length < 2) {
+      // 检查用户是否已登录
+      if (!userObj) {
         return false;
       }
 
-      // 普通用户权限检查
-      if (userRole < 10) {
-        return await isUserModuleAllowed(modulePath);
+      const userRole = userObj.role;
+
+      // 使用精确角色匹配，避免范围检查导致的漂移
+      if (userRole === USER_ROLES.ROOT) {
+        return true; // 超级管理员始终有权限
       }
 
-      // 超级管理员权限检查 - 不受系统配置限制
-      if (userRole >= 100) {
-        return true;
+      // 如果 sidebar 配置还在加载中，返回 null 表示需要等待
+      if (sidebarLoading || !finalConfig) {
+        return null;
       }
 
-      // 管理员权限检查 - 受系统配置限制
-      if (userRole >= 10 && userRole < 100) {
-        // 从/api/user/self获取系统权限配置
-        try {
-          const userRes = await API.get('/api/user/self');
-          if (userRes.data.success && userRes.data.data.sidebar_config) {
-            const sidebarConfigData = userRes.data.data.sidebar_config;
-            // 管理员权限检查基于系统配置，不受用户偏好影响
-            const systemConfig = sidebarConfigData.system || sidebarConfigData;
-            return checkModulePermissionInConfig(systemConfig, modulePath);
-          } else {
-            // 没有配置时，除了系统设置外都允许访问
-            return modulePath !== 'admin.setting';
-          }
-        } catch (error) {
-          console.error('获取侧边栏配置失败:', error);
-          return false;
-        }
-      }
-
-      return false;
+      // 检查模块权限
+      return checkModulePermissionInConfig(userRole, modulePath);
     } catch (error) {
-      console.error('API权限检查失败:', error);
+      console.error('检查模块权限失败:', error);
+      // 出错时采用安全优先策略，拒绝访问
       return false;
     }
   };
 
-  const isUserModuleAllowed = async (modulePath) => {
+  const checkModulePermissionInConfig = (userRole, modulePath) => {
     // 数据看板始终允许访问，不受控制台区域开关影响
     if (modulePath === 'console.detail') {
       return true;
     }
 
-    // 普通用户的权限基于最终计算的配置
-    try {
-      const userRes = await API.get('/api/user/self');
-      if (userRes.data.success && userRes.data.data.sidebar_config) {
-        const sidebarConfigData = userRes.data.data.sidebar_config;
-        // 使用最终计算的配置进行权限检查
-        const finalConfig = sidebarConfigData.final || sidebarConfigData;
-        return checkModulePermissionInConfig(finalConfig, modulePath);
-      }
-      return false;
-    } catch (error) {
-      console.error('获取用户权限配置失败:', error);
+    // 解析模块路径
+    const pathParts = modulePath.split('.');
+    if (pathParts.length < 2) {
+      console.warn(`无效的模块路径: ${modulePath}`);
       return false;
     }
+
+    // 使用精确角色匹配进行权限检查
+    if (userRole === USER_ROLES.COMMON) {
+      // 普通用户：使用最终计算的配置进行权限检查
+      return checkModuleInSidebarConfig(finalConfig, modulePath);
+    } else if (userRole === USER_ROLES.ADMIN) {
+      // 管理员：不能访问系统设置，其他基于配置检查
+      if (modulePath === 'admin.setting') {
+        return false;
+      }
+      return checkModuleInSidebarConfig(finalConfig, modulePath);
+    } else if (userRole === USER_ROLES.ROOT) {
+      // 超级管理员：始终有权限
+      return true;
+    }
+
+    // 未知角色，拒绝访问
+    return false;
   };
 
-  // 检查新的sidebar_config结构中的模块权限
-  const checkModulePermissionInConfig = (sidebarConfig, modulePath) => {
+  // 检查sidebar_config结构中的模块权限
+  const checkModuleInSidebarConfig = (sidebarConfig, modulePath) => {
     const parts = modulePath.split('.');
     if (parts.length !== 2) {
       return false;

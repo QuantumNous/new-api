@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { API, copy, showError, showInfo, showSuccess } from '../../helpers';
 import { Modal } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
@@ -26,6 +27,7 @@ import { StatusContext } from '../../context/Status';
 
 export const useModelPricingData = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState('');
   const compositionRef = useRef({ isComposition: false });
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -195,35 +197,50 @@ export const useModelPricingData = () => {
 
   const loadPricing = async () => {
     setLoading(true);
-    let url = '/api/pricing';
-    const res = await API.get(url);
-    const {
-      success,
-      message,
-      data,
-      vendors,
-      group_ratio,
-      usable_group,
-      supported_endpoint,
-      auto_groups,
-    } = res.data;
-    if (success) {
-      setGroupRatio(group_ratio);
-      setUsableGroup(usable_group);
-      setSelectedGroup('all');
-      // 构建供应商 Map 方便查找
-      const vendorMap = {};
-      if (Array.isArray(vendors)) {
-        vendors.forEach((v) => {
-          vendorMap[v.id] = v;
-        });
+    try {
+      let url = '/api/pricing';
+      const res = await API.get(url);
+      const {
+        success,
+        message,
+        data,
+        vendors,
+        group_ratio,
+        usable_group,
+        supported_endpoint,
+        auto_groups,
+      } = res.data;
+      if (success) {
+        setGroupRatio(group_ratio);
+        setUsableGroup(usable_group);
+        setSelectedGroup('all');
+        // 构建供应商 Map 方便查找
+        const vendorMap = {};
+        if (Array.isArray(vendors)) {
+          vendors.forEach((v) => {
+            vendorMap[v.id] = v;
+          });
+        }
+        setVendorsMap(vendorMap);
+        setEndpointMap(supported_endpoint || {});
+        setAutoGroups(auto_groups || []);
+        setModelsFormat(data, group_ratio, vendorMap);
+      } else {
+        showError(message);
       }
-      setVendorsMap(vendorMap);
-      setEndpointMap(supported_endpoint || {});
-      setAutoGroups(auto_groups || []);
-      setModelsFormat(data, group_ratio, vendorMap);
-    } else {
-      showError(message);
+    } catch (error) {
+      // 检查是否是403权限错误
+      if (error.response && error.response.status === 403) {
+        // 未登录用户跳转登录页；已登录但无权限（理论上极少见）跳转禁止访问
+        if (!userState?.user) {
+          navigate('/login');
+        } else {
+          navigate('/forbidden');
+        }
+        return;
+      }
+      // 其他错误正常处理
+      showError(error.message || t('加载模型广场数据失败'));
     }
     setLoading(false);
   };
