@@ -106,6 +106,11 @@ const OtherSetting = () => {
         SystemName: true,
       }));
       await updateOption('SystemName', inputs.SystemName);
+      // 更新localStorage并触发title更新事件
+      localStorage.setItem('system_name', inputs.SystemName);
+      window.dispatchEvent(new CustomEvent('systemNameUpdated', {
+        detail: { systemName: inputs.SystemName }
+      }));
       showSuccess(t('系统名称已更新'));
     } catch (error) {
       console.error(t('系统名称更新失败'), error);

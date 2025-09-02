@@ -52,7 +52,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
 
   // 获取顶栏模块配置
-  const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+  const headerNavModulesConfig = statusState?.status?.header_nav_modules;
 
   // 使用useMemo确保headerNavModules正确响应statusState变化
   const headerNavModules = useMemo(() => {

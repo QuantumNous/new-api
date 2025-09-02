@@ -29,9 +29,9 @@ func (g *UserGroup) Update() error {
 	return DB.Model(g).Updates(g).Error
 }
 
-// Delete 软删除用户分组
+// Delete 硬删除用户分组
 func (g *UserGroup) Delete() error {
-	return DB.Delete(g).Error
+	return DB.Unscoped().Delete(g).Error
 }
 
 // GetAllUserGroups 获取所有用户分组

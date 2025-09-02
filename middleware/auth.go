@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"one-api/common"
@@ -173,6 +174,166 @@ func RootAuth() func(c *gin.Context) {
 
 func WssAuth(c *gin.Context) {
 
+}
+
+// ModuleAuth 检查用户是否有权限访问特定功能模块
+func ModuleAuth(modulePath string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		role := session.Get("role")
+		id := session.Get("id")
+
+		// 如果用户未登录，先进行基础认证
+		if role == nil || id == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "未登录，无权访问",
+			})
+			c.Abort()
+			return
+		}
+
+		userRole := role.(int)
+		userId := id.(int)
+
+		// 超级管理员始终允许访问所有功能
+		if userRole >= common.RoleRootUser {
+			c.Next()
+			return
+		}
+
+		// 检查用户是否有权限访问指定模块
+		if !hasModulePermission(userRole, userId, modulePath) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "无权访问此功能模块",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// hasModulePermission 检查用户是否有权限访问指定模块
+func hasModulePermission(userRole int, userId int, modulePath string) bool {
+	// 普通用户只能访问基础功能
+	if userRole < common.RoleAdminUser {
+		return isUserModuleAllowed(modulePath)
+	}
+
+	// 管理员需要检查侧边栏管理配置
+	if userRole >= common.RoleAdminUser && userRole < common.RoleRootUser {
+		return isAdminModuleAllowed(modulePath)
+	}
+
+	return true
+}
+
+// isUserModuleAllowed 检查普通用户是否允许访问指定模块
+func isUserModuleAllowed(modulePath string) bool {
+	// 数据看板始终允许访问，不受控制台区域开关影响
+	if modulePath == "console.detail" {
+		return true
+	}
+
+	// 普通用户允许访问的模块列表
+	allowedModules := map[string]bool{
+		"console.detail":     true,
+		"console.token":      true,
+		"console.log":        true,
+		"console.midjourney": true,
+		"console.task":       true,
+		"personal.topup":     true,
+		"personal.personal":  true,
+		"chat.playground":    true,
+		"chat.chat":          true,
+	}
+
+	return allowedModules[modulePath]
+}
+
+// isAdminModuleAllowed 检查管理员是否允许访问指定模块
+func isAdminModuleAllowed(modulePath string) bool {
+	// 数据看板始终允许访问，不受控制台区域开关影响
+	if modulePath == "console.detail" {
+		return true
+	}
+
+	// 获取侧边栏管理配置
+	common.OptionMapRWMutex.RLock()
+	sidebarConfig, exists := common.OptionMap["SidebarModulesAdmin"]
+	common.OptionMapRWMutex.RUnlock()
+
+	if !exists || sidebarConfig == "" {
+		// 如果没有配置，默认允许管理员访问所有功能（除了系统设置）
+		if modulePath == "admin.setting" {
+			return false
+		}
+		return true
+	}
+
+	// 解析配置
+	var config map[string]interface{}
+	if err := json.Unmarshal([]byte(sidebarConfig), &config); err != nil {
+		// 解析失败时采用安全优先策略，拒绝访问
+		common.SysLog("解析侧边栏配置失败: " + err.Error())
+		return false
+	}
+
+	// 检查嵌套权限
+	return checkNestedPermission(config, modulePath)
+}
+
+// checkNestedPermission 检查嵌套权限路径
+func checkNestedPermission(config map[string]interface{}, modulePath string) bool {
+	parts := strings.Split(modulePath, ".")
+	current := config
+
+	for i, part := range parts {
+		if current == nil {
+			return false
+		}
+
+		value, exists := current[part]
+		if !exists {
+			return false
+		}
+
+		// 如果是最后一个部分，检查布尔值
+		if i == len(parts)-1 {
+			if boolVal, ok := value.(bool); ok {
+				return boolVal
+			}
+			// 如果是对象且有enabled字段，检查enabled
+			if objVal, ok := value.(map[string]interface{}); ok {
+				if enabled, hasEnabled := objVal["enabled"]; hasEnabled {
+					if enabledBool, ok := enabled.(bool); ok {
+						return enabledBool
+					}
+				}
+				// 如果没有enabled字段，默认为true
+				return true
+			}
+			return false
+		}
+
+		// 中间路径必须是对象
+		if objVal, ok := value.(map[string]interface{}); ok {
+			// 检查区域是否启用
+			if enabled, hasEnabled := objVal["enabled"]; hasEnabled {
+				if enabledBool, ok := enabled.(bool); ok && !enabledBool {
+					return false
+				}
+			}
+			current = objVal
+		} else {
+			return false
+		}
+	}
+
+	return false
 }
 
 func TokenAuth() func(c *gin.Context) {

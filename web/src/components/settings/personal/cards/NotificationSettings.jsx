@@ -53,8 +53,6 @@ const NotificationSettings = ({
   saveNotificationSettings,
 }) => {
   const formApiRef = useRef(null);
-  const [statusState] = useContext(StatusContext);
-  const [userState] = useContext(UserContext);
 
   // 左侧边栏设置相关状态
   const [sidebarLoading, setSidebarLoading] = useState(false);
@@ -172,29 +170,85 @@ const NotificationSettings = ({
     setSidebarModulesUser(defaultConfig);
   };
 
+  // 获取默认系统配置
+  const getDefaultSystemConfig = () => {
+    return {
+      chat: {
+        enabled: true,
+        playground: true,
+        chat: true
+      },
+      console: {
+        enabled: true,
+        detail: true,
+        token: true,
+        log: true,
+        midjourney: true,
+        task: true
+      },
+      personal: {
+        enabled: true,
+        topup: true,
+        personal: true
+      },
+      admin: {
+        enabled: true,
+        channel: true,
+        models: true,
+        redemption: true,
+        user: true,
+        setting: true
+      }
+    };
+  };
+
   // 加载左侧边栏配置
   useEffect(() => {
     const loadSidebarConfigs = async () => {
       try {
-        // 获取管理员全局配置
-        if (statusState?.status?.SidebarModulesAdmin) {
-          const adminConf = JSON.parse(statusState.status.SidebarModulesAdmin);
-          setAdminConfig(adminConf);
-        }
-
-        // 获取用户个人配置
+        // 获取侧边栏配置
         const userRes = await API.get('/api/user/self');
-        if (userRes.data.success && userRes.data.data.sidebar_modules) {
-          const userConf = JSON.parse(userRes.data.data.sidebar_modules);
-          setSidebarModulesUser(userConf);
+        if (userRes.data.success) {
+          // 从setting字段中获取系统配置和用户偏好设置
+          if (userRes.data.data.setting) {
+            try {
+              const setting = JSON.parse(userRes.data.data.setting);
+
+              // 获取系统配置（用于权限检查）
+              const systemConfig = setting.sidebar_system_config ?
+                JSON.parse(setting.sidebar_system_config) :
+                getDefaultSystemConfig();
+              setAdminConfig(systemConfig);
+
+              // 获取用户偏好设置（用于显示当前状态）
+              if (setting.sidebar_modules) {
+                let userConf;
+                if (typeof setting.sidebar_modules === 'string') {
+                  userConf = JSON.parse(setting.sidebar_modules);
+                } else {
+                  userConf = setting.sidebar_modules;
+                }
+                setSidebarModulesUser(userConf);
+              }
+            } catch (error) {
+              console.error('解析用户设置失败:', error);
+              // 出错时使用默认配置
+              setAdminConfig(getDefaultSystemConfig());
+            }
+          } else {
+            // 没有setting时使用默认配置
+            setAdminConfig(getDefaultSystemConfig());
+          }
         }
       } catch (error) {
         console.error('加载边栏配置失败:', error);
+        // 出错时使用默认配置
+        setAdminConfig(getDefaultSystemConfig());
       }
     };
 
     loadSidebarConfigs();
-  }, [statusState]);
+  }, []);
 
   // 初始化表单值
   useEffect(() => {

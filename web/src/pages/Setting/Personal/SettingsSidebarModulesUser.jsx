@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -29,8 +29,7 @@ import {
   Avatar,
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
-import { StatusContext } from '../../../context/Status';
-import { UserContext } from '../../../context/User';
+
 import { useUserPermissions } from '../../../hooks/common/useUserPermissions';
 import { useSidebar } from '../../../hooks/common/useSidebar';
 import { Settings } from 'lucide-react';
@@ -40,15 +39,11 @@ const { Text } = Typography;
 export default function SettingsSidebarModulesUser() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [statusState] = useContext(StatusContext);
 
   // 使用后端权限验证替代前端角色判断
   const {
-    permissions,
     loading: permissionsLoading,
     hasSidebarSettingsPermission,
-    isSidebarSectionAllowed,
-    isSidebarModuleAllowed,
   } = useUserPermissions();
 
   // 使用useSidebar钩子获取刷新方法
@@ -59,55 +54,133 @@ export default function SettingsSidebarModulesUser() {
     return null;
   }
 
+  // 如果配置还在加载中，显示加载状态
+  if (configLoading || permissionsLoading) {
+    return (
+      <Card className='!rounded-2xl shadow-sm border-0'>
+        <div className='flex items-center justify-center py-8'>
+          <div className='text-gray-500'>{t('加载中...')}</div>
+        </div>
+      </Card>
+    );
+  }
+
   // 权限加载中，显示加载状态
   if (permissionsLoading) {
     return null;
   }
 
-  // 根据用户权限生成默认配置
-  const generateDefaultConfig = () => {
+  // 获取默认系统配置
+  const getDefaultSystemConfig = () => {
+    return {
+      chat: {
+        enabled: true,
+        playground: true,
+        chat: true
+      },
+      console: {
+        enabled: true,
+        detail: true,
+        token: true,
+        log: true,
+        midjourney: true,
+        task: true
+      },
+      personal: {
+        enabled: true,
+        topup: true,
+        personal: true
+      },
+      admin: {
+        enabled: true,
+        channel: true,
+        models: true,
+        redemption: true,
+        user: {
+          enabled: true,
+          groupManagement: true
+        },
+        setting: true
+      }
+    };
+  };
+
+  // 合并用户配置与系统配置，确保显示所有系统允许的区域
+  const mergeUserConfigWithSystemConfig = (userConfig, systemConfig) => {
+    const mergedConfig = {};
+
+    // 遍历系统配置的所有区域
+    Object.keys(systemConfig).forEach(sectionKey => {
+      const systemSection = systemConfig[sectionKey];
+      if (systemSection && systemSection.enabled) {
+        // 获取用户对这个区域的配置，如果没有则使用默认值
+        const userSection = userConfig[sectionKey] || {};
+
+        mergedConfig[sectionKey] = {
+          enabled: userSection.enabled !== undefined ? userSection.enabled : true
+        };
+
+        // 遍历区域内的模块
+        Object.keys(systemSection).forEach(moduleKey => {
+          if (moduleKey !== 'enabled') {
+            const systemModuleValue = systemSection[moduleKey];
+
+            // 处理布尔值和嵌套对象两种情况
+            if (typeof systemModuleValue === 'boolean' && systemModuleValue === true) {
+              mergedConfig[sectionKey][moduleKey] = userSection[moduleKey] !== undefined ? userSection[moduleKey] : true;
+            } else if (typeof systemModuleValue === 'object' && systemModuleValue !== null && systemModuleValue.enabled === true) {
+              // 对于嵌套对象，在个人设置中只关心enabled状态，不处理子功能
+              let userEnabled = systemModuleValue.enabled; // 使用系统默认值
+
+              if (userSection[moduleKey] !== undefined) {
+                if (typeof userSection[moduleKey] === 'boolean') {
+                  // 如果用户配置是布尔值，直接使用
+                  userEnabled = userSection[moduleKey];
+                } else if (typeof userSection[moduleKey] === 'object' && userSection[moduleKey] !== null) {
+                  // 如果用户配置是对象，提取enabled状态
+                  userEnabled = userSection[moduleKey].enabled !== false;
+                }
+              }
+
+              // 在个人设置中，只保存enabled状态，不保存子功能配置
+              mergedConfig[sectionKey][moduleKey] = userEnabled;
+            }
+          }
+        });
+      }
+    });
+
+    return mergedConfig;
+  };
+
+  // 根据系统允许的权限范围生成默认配置
+  const generateDefaultConfig = (systemConfig = null) => {
     const defaultConfig = {};
+    const configToUse = systemConfig || adminConfig;
 
-    // 聊天区域 - 所有用户都可以访问
-    if (isSidebarSectionAllowed('chat')) {
-      defaultConfig.chat = {
-        enabled: true,
-        playground: isSidebarModuleAllowed('chat', 'playground'),
-        chat: isSidebarModuleAllowed('chat', 'chat'),
-      };
-    }
+    // 基于系统配置生成默认配置
+    if (configToUse) {
+      Object.keys(configToUse).forEach(sectionKey => {
+        const section = configToUse[sectionKey];
+        if (section && section.enabled) {
+          defaultConfig[sectionKey] = { enabled: true };
 
-    // 控制台区域 - 所有用户都可以访问
-    if (isSidebarSectionAllowed('console')) {
-      defaultConfig.console = {
-        enabled: true,
-        detail: isSidebarModuleAllowed('console', 'detail'),
-        token: isSidebarModuleAllowed('console', 'token'),
-        log: isSidebarModuleAllowed('console', 'log'),
-        midjourney: isSidebarModuleAllowed('console', 'midjourney'),
-        task: isSidebarModuleAllowed('console', 'task'),
-      };
-    }
+          // 为每个系统允许的模块设置默认值为true
+          Object.keys(section).forEach(moduleKey => {
+            if (moduleKey !== 'enabled') {
+              const moduleValue = section[moduleKey];
 
-    // 个人中心区域 - 所有用户都可以访问
-    if (isSidebarSectionAllowed('personal')) {
-      defaultConfig.personal = {
-        enabled: true,
-        topup: isSidebarModuleAllowed('personal', 'topup'),
-        personal: isSidebarModuleAllowed('personal', 'personal'),
-      };
-    }
-
-    // 管理员区域 - 只有管理员可以访问
-    if (isSidebarSectionAllowed('admin')) {
-      defaultConfig.admin = {
-        enabled: true,
-        channel: isSidebarModuleAllowed('admin', 'channel'),
-        models: isSidebarModuleAllowed('admin', 'models'),
-        redemption: isSidebarModuleAllowed('admin', 'redemption'),
-        user: isSidebarModuleAllowed('admin', 'user'),
-        setting: isSidebarModuleAllowed('admin', 'setting'),
-      };
+              // 处理布尔值和嵌套对象两种情况
+              if (typeof moduleValue === 'boolean' && moduleValue === true) {
+                defaultConfig[sectionKey][moduleKey] = true;
+              } else if (typeof moduleValue === 'object' && moduleValue !== null && moduleValue.enabled === true) {
+                // 对于嵌套对象，在个人设置中只关心enabled状态，默认为true
+                defaultConfig[sectionKey][moduleKey] = true;
+              }
+            }
+          });
+        }
+      });
     }
 
     return defaultConfig;
@@ -118,6 +191,7 @@ export default function SettingsSidebarModulesUser() {
 
   // 管理员全局配置
   const [adminConfig, setAdminConfig] = useState(null);
+  const [configLoading, setConfigLoading] = useState(true);
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
@@ -137,6 +211,7 @@ export default function SettingsSidebarModulesUser() {
   // 处理功能级别开关变更
   function handleModuleChange(sectionKey, moduleKey) {
     return (checked) => {
+      // 在个人设置中，所有模块都使用简单布尔值，不处理嵌套对象的子功能
       const newModules = {
         ...sidebarModulesUser,
         [sectionKey]: {
@@ -195,54 +270,65 @@ export default function SettingsSidebarModulesUser() {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        // 获取管理员全局配置
-        if (statusState?.status?.SidebarModulesAdmin) {
-          const adminConf = JSON.parse(statusState.status.SidebarModulesAdmin);
-          setAdminConfig(adminConf);
-          console.log('加载管理员边栏配置:', adminConf);
-        }
-
-        // 获取用户个人配置
+        setConfigLoading(true);
+        // 获取用户信息和设置
         const userRes = await API.get('/api/user/self');
-        if (userRes.data.success && userRes.data.data.sidebar_modules) {
-          let userConf;
-          // 检查sidebar_modules是字符串还是对象
-          if (typeof userRes.data.data.sidebar_modules === 'string') {
-            userConf = JSON.parse(userRes.data.data.sidebar_modules);
-          } else {
-            userConf = userRes.data.data.sidebar_modules;
-          }
-          console.log('从API加载的用户配置:', userConf);
-
-          // 确保用户配置也经过权限过滤
-          const filteredUserConf = {};
-          Object.keys(userConf).forEach((sectionKey) => {
-            if (isSidebarSectionAllowed(sectionKey)) {
-              filteredUserConf[sectionKey] = { ...userConf[sectionKey] };
-              // 过滤不允许的模块
-              Object.keys(userConf[sectionKey]).forEach((moduleKey) => {
-                if (
-                  moduleKey !== 'enabled' &&
-                  !isSidebarModuleAllowed(sectionKey, moduleKey)
-                ) {
-                  delete filteredUserConf[sectionKey][moduleKey];
-                }
-              });
+        if (userRes.data.success && userRes.data.data.setting) {
+          // 从setting字段中获取系统权限信息
+          try {
+            const setting = JSON.parse(userRes.data.data.setting);
+            if (setting.sidebar_system_config) {
+              const systemConfig = JSON.parse(setting.sidebar_system_config);
+              setAdminConfig(systemConfig);
+            } else {
+              // 如果没有系统配置，使用默认配置
+              setAdminConfig(getDefaultSystemConfig());
+              console.log('使用默认系统配置');
             }
-          });
-          setSidebarModulesUser(filteredUserConf);
-          console.log('权限过滤后的用户配置:', filteredUserConf);
+          } catch (error) {
+            console.error('解析系统配置失败:', error);
+            setAdminConfig(getDefaultSystemConfig());
+          }
+
+          // 从同一个setting字段中获取用户的原始偏好设置
+          try {
+            const setting = JSON.parse(userRes.data.data.setting);
+            const systemConfig = setting.sidebar_system_config ? JSON.parse(setting.sidebar_system_config) : getDefaultSystemConfig();
+
+            if (setting.sidebar_modules) {
+              let userConf;
+              if (typeof setting.sidebar_modules === 'string') {
+                userConf = JSON.parse(setting.sidebar_modules);
+              } else {
+                userConf = setting.sidebar_modules;
+              }
+
+              // 确保用户配置包含所有系统允许的区域，即使用户关闭了它们
+              const mergedConfig = mergeUserConfigWithSystemConfig(userConf, systemConfig);
+              setSidebarModulesUser(mergedConfig);
+            } else {
+              const defaultConfig = generateDefaultConfig(systemConfig);
+              setSidebarModulesUser(defaultConfig);
+            }
+          } catch (error) {
+            console.error('解析用户设置失败:', error);
+            const defaultConfig = generateDefaultConfig(systemConfig);
+            setSidebarModulesUser(defaultConfig);
+          }
         } else {
-          // 如果用户没有配置，使用权限过滤后的默认配置
-          const defaultConfig = generateDefaultConfig();
+          // 如果没有setting数据，使用默认配置
+          const defaultSystemConfig = getDefaultSystemConfig();
+          setAdminConfig(defaultSystemConfig);
+          const defaultConfig = generateDefaultConfig(defaultSystemConfig);
           setSidebarModulesUser(defaultConfig);
-          console.log('用户无配置，使用默认配置:', defaultConfig);
         }
       } catch (error) {
         console.error('加载边栏配置失败:', error);
-        // 出错时也使用默认配置
-        const defaultConfig = generateDefaultConfig();
-        setSidebarModulesUser(defaultConfig);
+        // 出错时设置空配置
+        setAdminConfig({});
+        setSidebarModulesUser({});
+      } finally {
+        setConfigLoading(false);
       }
     };
 
@@ -250,26 +336,7 @@ export default function SettingsSidebarModulesUser() {
     if (!permissionsLoading && hasSidebarSettingsPermission()) {
       loadConfigs();
     }
-  }, [
-    statusState,
-    permissionsLoading,
-    hasSidebarSettingsPermission,
-    isSidebarSectionAllowed,
-    isSidebarModuleAllowed,
-  ]);
-
-  // 检查功能是否被管理员允许
-  const isAllowedByAdmin = (sectionKey, moduleKey = null) => {
-    if (!adminConfig) return true;
-
-    if (moduleKey) {
-      return (
-        adminConfig[sectionKey]?.enabled && adminConfig[sectionKey]?.[moduleKey]
-      );
-    } else {
-      return adminConfig[sectionKey]?.enabled;
-    }
-  };
+  }, [permissionsLoading, hasSidebarSettingsPermission]);
 
   // 区域配置数据（根据后端权限过滤）
   const sectionConfigs = [
@@ -328,29 +395,28 @@ export default function SettingsSidebarModulesUser() {
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
-        {
-          key: 'setting',
-          title: t('系统设置'),
-          description: t('系统参数配置'),
-        },
-      ],
-    },
-  ]
-    .filter((section) => {
-      // 使用后端权限验证替代前端角色判断
-      return isSidebarSectionAllowed(section.key);
+        { key: 'setting', title: t('系统设置'), description: t('系统参数配置') }
+      ]
+    }
+  ].filter(section => {
+    // 基于系统权限过滤区域：只要系统中存在这个区域就显示（不管用户是否启用）
+    const systemAllowed = adminConfig && adminConfig[section.key];
+    console.log(`区域 ${section.key} 系统是否允许:`, systemAllowed, 'adminConfig:', adminConfig);
+    return systemAllowed;
+  }).map(section => ({
+    ...section,
+    modules: section.modules.filter(module => {
+      // 基于系统权限过滤模块：只要系统配置中存在这个模块就显示
+      const systemAllowed = adminConfig && adminConfig[section.key] && adminConfig[section.key].hasOwnProperty(module.key);
+      console.log(`模块 ${section.key}.${module.key} 系统是否允许:`, systemAllowed);
+      return systemAllowed;
     })
-    .map((section) => ({
-      ...section,
-      modules: section.modules.filter((module) =>
-        isSidebarModuleAllowed(section.key, module.key),
-      ),
-    }))
-    .filter(
-      (section) =>
-        // 过滤掉没有可用模块的区域
-        section.modules.length > 0 && isAllowedByAdmin(section.key),
-    );
+  })).filter(section => {
+    // 过滤掉没有可用模块的区域
+    const hasModules = section.modules.length > 0;
+    console.log(`区域 ${section.key} 是否有可用模块:`, hasModules, '模块数量:', section.modules.length);
+    return hasModules;
+  });
 
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
@@ -394,41 +460,41 @@ export default function SettingsSidebarModulesUser() {
             />
           </div>
 
-          {/* 功能模块网格 */}
-          <Row gutter={[12, 12]}>
-            {section.modules.map((module) => (
-              <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
-                <Card
-                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
-                    sidebarModulesUser[section.key]?.enabled ? '' : 'opacity-50'
-                  }`}
-                  bodyStyle={{ padding: '16px' }}
-                  hoverable
-                >
-                  <div className='flex justify-between items-center h-full'>
-                    <div className='flex-1 text-left'>
-                      <div className='font-semibold text-sm text-gray-900 mb-1'>
-                        {module.title}
+            {/* 功能模块网格 */}
+            <Row gutter={[12, 12]}>
+              {section.modules.map((module) => (
+                <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
+                  <Card
+                    className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                      sidebarModulesUser[section.key]?.enabled ? '' : 'opacity-50'
+                    }`}
+                    bodyStyle={{ padding: '16px' }}
+                    hoverable
+                  >
+                    <div className='flex justify-between items-center h-full'>
+                      <div className='flex-1 text-left'>
+                        <div className='font-semibold text-sm text-gray-900 mb-1'>
+                          {module.title}
+                        </div>
+                        <Text className='text-xs text-gray-600 leading-relaxed block'>
+                          {module.description}
+                        </Text>
                       </div>
-                      <Text className='text-xs text-gray-600 leading-relaxed block'>
-                        {module.description}
-                      </Text>
+                      <div className='ml-4'>
+                        <Switch
+                          checked={sidebarModulesUser[section.key]?.[module.key] === true}
+                          onChange={handleModuleChange(section.key, module.key)}
+                          size="default"
+                          disabled={!sidebarModulesUser[section.key]?.enabled}
+                        />
+                      </div>
                     </div>
-                    <div className='ml-4'>
-                      <Switch
-                        checked={sidebarModulesUser[section.key]?.[module.key]}
-                        onChange={handleModuleChange(section.key, module.key)}
-                        size='default'
-                        disabled={!sidebarModulesUser[section.key]?.enabled}
-                      />
-                    </div>
-                  </div>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      ))}
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          </div>
+        ))}
 
       {/* 底部按钮 */}
       <div className='flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200'>

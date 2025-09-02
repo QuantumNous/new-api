@@ -10,6 +10,29 @@
       content="OpenAI 接口聚合管理，支持多种渠道包括 Azure，可用于二次分发管理 key，仅单可执行文件，已打包好 Docker 镜像，一键部署，开箱即用"
     />
     <title>New API</title>
+    <script>
+      // 立即设置title，避免刷新时闪现默认title
+      (function() {
+        const systemName = localStorage.getItem('system_name');
+        if (systemName) {
+          document.title = systemName;
+        }
+
+        // 监听localStorage变化，实时更新title
+        window.addEventListener('storage', function(e) {
+          if (e.key === 'system_name' && e.newValue) {
+            document.title = e.newValue;
+          }
+        });
+
+        // 监听自定义事件，用于同页面内的title更新
+        window.addEventListener('systemNameUpdated', function(e) {
+          if (e.detail && e.detail.systemName) {
+            document.title = e.detail.systemName;
+          }
+        });
+      })();
+    </script>
   </head>
 
   <body>
