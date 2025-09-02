@@ -134,7 +134,7 @@ export default function ModelSettingsVisualEditor(props) {
     } catch (error) {
       console.error('JSON解析错误:', error);
     }
-  }, [props.options,props.mode]);
+  }, [props.options,props.mode,enabledModelNames]);
 
   // 首先声明分页相关的工具函数
   const getPagedData = (data, currentPage, pageSize) => {
