@@ -61,9 +61,12 @@ export default function SettingsSidebarModulesAdmin(props) {
       channel: true,
       models: true,
       redemption: true,
-      user: true,
-      setting: true,
-    },
+      user: {
+        enabled: true,
+        groupManagement: true // 默认启用分组管理
+      },
+      setting: true
+    }
   });
 
   // 处理区域级别开关变更
@@ -120,9 +123,12 @@ export default function SettingsSidebarModulesAdmin(props) {
         channel: true,
         models: true,
         redemption: true,
-        user: true,
-        setting: true,
-      },
+        user: {
+          enabled: true,
+          groupManagement: true // 默认启用分组管理
+        },
+        setting: true
+      }
     };
     setSidebarModulesAdmin(defaultModules);
     showSuccess(t('已重置为默认配置'));
@@ -184,9 +190,12 @@ export default function SettingsSidebarModulesAdmin(props) {
             channel: true,
             models: true,
             redemption: true,
-            user: true,
-            setting: true,
-          },
+            user: {
+              enabled: true,
+              groupManagement: true // 默认启用分组管理
+            },
+            setting: true
+          }
         };
         setSidebarModulesAdmin(defaultModules);
       }

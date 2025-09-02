@@ -24,6 +24,8 @@ func GetTopupGroupRatioCopy() map[string]float64 {
 }
 
 func TopupGroupRatio2JSONString() string {
+	topupGroupRatioMutex.RLock()
+	defer topupGroupRatioMutex.RUnlock()
 	jsonBytes, err := json.Marshal(TopupGroupRatio)
 	if err != nil {
 		SysError("error marshalling model ratio: " + err.Error())
@@ -32,12 +34,20 @@ func TopupGroupRatio2JSONString() string {
 }
 
 func UpdateTopupGroupRatioByJSONString(jsonStr string) error {
-	TopupGroupRatio = make(map[string]float64)
-	return json.Unmarshal([]byte(jsonStr), &TopupGroupRatio)
+	var tmp map[string]float64
+	if err := json.Unmarshal([]byte(jsonStr), &tmp); err != nil {
+		return err
+	}
+	topupGroupRatioMutex.Lock()
+	TopupGroupRatio = tmp
+	topupGroupRatioMutex.Unlock()
+	return nil
 }
 
 func GetTopupGroupRatio(name string) float64 {
+	topupGroupRatioMutex.RLock()
 	ratio, ok := TopupGroupRatio[name]
+	topupGroupRatioMutex.RUnlock()
 	if !ok {
 		SysError("topup group ratio not found: " + name)
 		return 1
