@@ -127,8 +127,11 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 管理员默认可以访问分组管理
+			},
+			"setting": false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
@@ -137,8 +140,11 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"user":       true,
-			"setting":    true,
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 超级管理员默认可以访问分组管理
+			},
+			"setting": true,
 		}
 	}
 	// 普通用户不包含admin区域

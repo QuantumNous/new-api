@@ -149,20 +149,20 @@ const Home = () => {
   }, [endpointItems.length]);
 
   return (
-    <div className='w-full overflow-x-hidden'>
+    <div className='w-full overflow-x-hidden min-h-full flex flex-col'>
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
-        <div className='w-full overflow-x-hidden'>
+        <div className='w-full overflow-x-hidden flex-1 flex flex-col'>
           {/* Banner 部分 */}
           <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
             {/* 背景模糊晕染球 */}
             <div className='blur-ball blur-ball-indigo' />
             <div className='blur-ball blur-ball-teal' />
-            <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-32 mt-10'>
+            <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-20 mt-10'>
               {/* 居中内容区 */}
               <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
                 <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
@@ -343,15 +343,15 @@ const Home = () => {
           </div>
         </div>
       ) : (
-        <div className='overflow-x-hidden w-full'>
+        <div className='overflow-x-hidden w-full flex-1 flex flex-col'>
           {homePageContent.startsWith('https://') ? (
             <iframe
               src={homePageContent}
-              className='w-full h-screen border-none'
+              className='w-full flex-1 border-none'
             />
           ) : (
             <div
-              className='mt-[60px]'
+              className='mt-[60px] flex-1'
               dangerouslySetInnerHTML={{ __html: homePageContent }}
             />
           )}

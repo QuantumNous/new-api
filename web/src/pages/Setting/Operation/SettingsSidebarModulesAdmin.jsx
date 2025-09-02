@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -29,15 +29,13 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
-import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
 
 export default function SettingsSidebarModulesAdmin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [statusState, statusDispatch] = useContext(StatusContext);
-
+  
   // 左侧边栏模块管理状态（管理员全局控制）
   const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
     chat: {
@@ -142,18 +140,15 @@ export default function SettingsSidebarModulesAdmin(props) {
       if (success) {
         showSuccess(t('保存成功'));
 
-        // 立即更新StatusContext中的状态
-        statusDispatch({
-          type: 'set',
-          payload: {
-            ...statusState.status,
-            SidebarModulesAdmin: JSON.stringify(sidebarModulesAdmin),
-          },
-        });
-
         // 刷新父组件状态
         if (props.refresh) {
           await props.refresh();
+        }
+
+        // 触发全局侧边栏刷新事件，通知所有useSidebar实例更新
+        // 使用全局事件目标（与useSidebar钩子中的一致）
+        if (window.sidebarEventTarget) {
+          window.sidebarEventTarget.dispatchEvent(new CustomEvent('sidebar-refresh'));
         }
       } else {
         showError(message);
