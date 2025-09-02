@@ -157,9 +157,11 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
   // 编辑分组
   const handleEdit = (group = {}) => {
     // 检查权限
-    if (!hasGroupManagementPermission()) {
-      showError(t('无权访问分组管理功能'));
-      return;
+     const perm = hasGroupManagementPermission();
+    if (perm === null) return; // 等待权限加载
+    if (perm === false) {
+        showError(t('无权访问分组管理功能'));
+        return;
     }
 
     setEditingGroup(group);
