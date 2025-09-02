@@ -59,8 +59,29 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
-func Relay(c *gin.Context, relayFormat types.RelayFormat) {
+func relayToChannel(c *gin.Context, relayInfo *relaycommon.RelayInfo, channel *model.Channel) *types.NewAPIError {
+	requestBody, _ := common.GetRequestBody(c)
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 
+	var newAPIError *types.NewAPIError
+	switch relayInfo.RelayFormat {
+	case types.RelayFormatOpenAIRealtime:
+		newAPIError = relay.WssHelper(c, relayInfo)
+	case types.RelayFormatClaude:
+		newAPIError = relay.ClaudeHelper(c, relayInfo)
+	case types.RelayFormatGemini:
+		newAPIError = geminiRelayHandler(c, relayInfo)
+	default:
+		newAPIError = relayHandler(c, relayInfo)
+	}
+
+	if newAPIError != nil {
+		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+	}
+	return newAPIError
+}
+
+func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	requestId := c.GetString(common.RequestIdKey)
 	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
@@ -136,20 +157,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
 	preConsumedQuota, newAPIError := service.PreConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
 	if newAPIError != nil {
 		return
 	}
 
 	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
 		if newAPIError != nil && preConsumedQuota != 0 {
 			service.ReturnPreConsumedQuota(c, relayInfo, preConsumedQuota)
 		}
 	}()
 
+	// Main retry loop for selecting channels
 	for i := 0; i <= common.RetryTimes; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
 		if err != nil {
@@ -159,28 +178,59 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		addUsedChannel(c, channel.Id)
-		requestBody, _ := common.GetRequestBody(c)
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
+		// Inner loop for retrying keys within a multi-key channel
+		if channel.ChannelInfo.IsMultiKey {
+			key, keyIdx, keyErr := channel.GetNextEnabledKey()
+			if keyErr != nil {
+				newAPIError = keyErr
+				break // No keys available, break to outer loop to switch channel
+			}
+			
+			triedKeys := make(map[int]bool) // Track tried keys for this channel
+			for j := 0; j < channel.ChannelInfo.MultiKeySize; j++ {
+				if _, ok := triedKeys[keyIdx]; ok {
+					// This key has been tried, get another one
+					key, keyIdx, keyErr = channel.GetNextEnabledKey()
+					if keyErr != nil {
+						newAPIError = keyErr
+						break
+					}
+					continue
+				}
+
+				// Setup context with the new key
+				middleware.SetupContextForSelectedChannelWithKey(c, channel, originalModel, key, keyIdx)
+				triedKeys[keyIdx] = true
+
+				newAPIError = relayToChannel(c, relayInfo, channel)
+				if newAPIError == nil {
+					return // Success
+				}
+
+				// If the error is not retryable for a key, break the inner loop
+				if !shouldRetry(c, newAPIError, common.RetryTimes-i) {
+					goto next_channel // Break inner loop and go to the next channel
+				}
+				
+				// Get next key for retry
+				key, keyIdx, keyErr = channel.GetNextEnabledKey()
+				if keyErr != nil {
+					newAPIError = keyErr
+					break // No more keys to try
+				}
+			}
+		} else {
+			// Single key channel logic
+			newAPIError = relayToChannel(c, relayInfo, channel)
+			if newAPIError == nil {
+				return // Success
+			}
 		}
 
-		if newAPIError == nil {
-			return
-		}
-
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
-
+	next_channel:
 		if !shouldRetry(c, newAPIError, common.RetryTimes-i) {
-			break
+			break // Break outer loop if error is not retryable for the channel
 		}
 	}
 
@@ -236,6 +286,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if openaiErr == nil {
 		return false
 	}
+	if strings.Contains(openaiErr.Error(), "no response received") {
+		return false
+	}
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
@@ -281,7 +334,11 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 		// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 		if service.ShouldDisableChannel(channelError.ChannelId, err) && channelError.AutoBan {
-			service.DisableChannel(channelError, err.Error())
+			reason := err.Error()
+			if err.GetErrorType() == "insufficient_quota" {
+				reason = "insufficient_quota: " + reason
+			}
+			service.DisableChannel(channelError, reason)
 		}
 	})
 

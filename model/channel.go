@@ -963,3 +963,16 @@ func CountChannelsGroupByType() (map[int64]int64, error) {
 	}
 	return counts, nil
 }
+
+func GetAutoDisabledChannels() ([]*Channel, error) {
+	var channels []*Channel
+	err := DB.Where("status = ?", common.ChannelStatusAutoDisabled).Find(&channels).Error
+	return channels, err
+}
+
+func GetChannelsWithDisabledKeys() ([]*Channel, error) {
+	var channels []*Channel
+	// Find channels that are not manually disabled and have disabled keys
+	err := DB.Where("status != ? AND JSON_LENGTH(channel_info -> '$.multi_key_status_list') > 0", common.ChannelStatusManuallyDisabled).Find(&channels).Error
+	return channels, err
+}

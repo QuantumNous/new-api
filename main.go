@@ -115,6 +115,16 @@ func main() {
 		model.InitBatchUpdater()
 	}
 
+	common.EnableAutodisabledChannelOrKeyAfterMinute = common.GetEnvOrDefault("ENABLE_AUTODISABLED_CHANNEL_OR_KEY_AFTER_MINUTE", 0)
+	common.EnableAutodisabledChannelOrKeyAt = common.GetEnvOrDefault("ENABLE_AUTODISABLED_CHANNEL_OR_KEY_AT", -1)
+	if common.EnableAutodisabledChannelOrKeyAt != -1 {
+		common.SysLog(fmt.Sprintf("auto-disabled channels/keys will be re-enabled at %d:00 UTC daily", common.EnableAutodisabledChannelOrKeyAt))
+		go service.CheckAndReEnableChannels()
+	} else if common.EnableAutodisabledChannelOrKeyAfterMinute > 0 {
+		common.SysLog(fmt.Sprintf("auto-disabled channels/keys will be re-enabled after %d minutes", common.EnableAutodisabledChannelOrKeyAfterMinute))
+		go service.CheckAndReEnableChannels()
+	}
+
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
 			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))

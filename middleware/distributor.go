@@ -259,6 +259,10 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	if newAPIError != nil {
 		return newAPIError
 	}
+	return SetupContextForSelectedChannelWithKey(c, channel, modelName, key, index)
+}
+
+func SetupContextForSelectedChannelWithKey(c *gin.Context, channel *model.Channel, modelName string, key string, index int) *types.NewAPIError {
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)

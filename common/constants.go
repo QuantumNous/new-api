@@ -106,6 +106,9 @@ var PreConsumedQuota = 500
 
 var RetryTimes = 0
 
+var EnableAutodisabledChannelOrKeyAfterMinute = 0
+var EnableAutodisabledChannelOrKeyAt = -1 // UTC hour
+
 //var RootUserEmail = ""
 
 var IsMasterNode bool
