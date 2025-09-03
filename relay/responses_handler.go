@@ -2,8 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +10,6 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
-	"one-api/setting"
 	"one-api/setting/model_setting"
 	"one-api/types"
 	"strings"
@@ -20,111 +17,50 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func getAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest, error) {
-	request := &dto.OpenAIResponsesRequest{}
-	err := common.UnmarshalBodyReusable(c, request)
+func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	info.InitChannelMeta(c)
+
+	responsesReq, ok := info.Request.(*dto.OpenAIResponsesRequest)
+	if !ok {
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	request, err := common.DeepCopy(responsesReq)
 	if err != nil {
-		return nil, err
+		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
-	if request.Model == "" {
-		return nil, errors.New("model is required")
-	}
-	if len(request.Input) == 0 {
-		return nil, errors.New("input is required")
-	}
-	return request, nil
 
-}
-
-func checkInputSensitive(textRequest *dto.OpenAIResponsesRequest, info *relaycommon.RelayInfo) ([]string, error) {
-	sensitiveWords, err := service.CheckSensitiveInput(textRequest.Input)
-	return sensitiveWords, err
-}
-
-func getInputTokens(req *dto.OpenAIResponsesRequest, info *relaycommon.RelayInfo) int {
-	inputTokens := service.CountTokenInput(req.Input, req.Model)
-	info.PromptTokens = inputTokens
-	return inputTokens
-}
-
-func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
-	req, err := getAndValidateResponsesRequest(c)
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
-		common.LogError(c, fmt.Sprintf("getAndValidateResponsesRequest error: %s", err.Error()))
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	relayInfo := relaycommon.GenRelayInfoResponses(c, req)
-
-	if setting.ShouldCheckPromptSensitive() {
-		sensitiveWords, err := checkInputSensitive(req, relayInfo)
-		if err != nil {
-			common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(sensitiveWords, ", ")))
-			return types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
-		}
-	}
-
-	err = helper.ModelMappedHelper(c, relayInfo, req)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
-	}
-
-	if value, exists := c.Get("prompt_tokens"); exists {
-		promptTokens := value.(int)
-		relayInfo.SetPromptTokens(promptTokens)
-	} else {
-		promptTokens := getInputTokens(req, relayInfo)
-		c.Set("prompt_tokens", promptTokens)
-	}
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.PromptTokens, int(req.MaxOutputTokens))
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
-	}
-	// pre consume quota
-	preConsumedQuota, userQuota, newAPIError := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
-	if newAPIError != nil {
-		return newAPIError
-	}
-	defer func() {
-		if newAPIError != nil {
-			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
-		}
-	}()
-	adaptor := GetAdaptor(relayInfo.ApiType)
+	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
-	adaptor.Init(relayInfo)
+	adaptor.Init(info)
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed)
+			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
 		requestBody = bytes.NewBuffer(body)
 	} else {
-		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, relayInfo, *req)
+		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
-		jsonData, err := json.Marshal(convertedRequest)
+		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		// apply param override
-		if len(relayInfo.ParamOverride) > 0 {
-			reqMap := make(map[string]interface{})
-			err = json.Unmarshal(jsonData, &reqMap)
+		if len(info.ParamOverride) > 0 {
+			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride)
 			if err != nil {
-				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)
-			}
-			for key, value := range relayInfo.ParamOverride {
-				reqMap[key] = value
-			}
-			jsonData, err = json.Marshal(reqMap)
-			if err != nil {
-				return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
 		}
 
@@ -135,7 +71,7 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 	}
 
 	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
+	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
@@ -153,17 +89,17 @@ func ResponsesHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		}
 	}
 
-	usage, newAPIError := adaptor.DoResponse(c, httpResp, relayInfo)
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
 
-	if strings.HasPrefix(relayInfo.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
+		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
 	} else {
-		postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+		postConsumeQuota(c, info, usage.(*dto.Usage), "")
 	}
 	return nil
 }

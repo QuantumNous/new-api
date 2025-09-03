@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/samber/lo"
 	"io"
 	"net/http"
 	"one-api/model"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
@@ -37,19 +38,52 @@ type SubmitReq struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
+type TrajectoryPoint struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+type DynamicMask struct {
+	Mask         string            `json:"mask,omitempty"`
+	Trajectories []TrajectoryPoint `json:"trajectories,omitempty"`
+}
+
+type CameraConfig struct {
+	Horizontal float64 `json:"horizontal,omitempty"`
+	Vertical   float64 `json:"vertical,omitempty"`
+	Pan        float64 `json:"pan,omitempty"`
+	Tilt       float64 `json:"tilt,omitempty"`
+	Roll       float64 `json:"roll,omitempty"`
+	Zoom       float64 `json:"zoom,omitempty"`
+}
+
+type CameraControl struct {
+	Type   string        `json:"type,omitempty"`
+	Config *CameraConfig `json:"config,omitempty"`
+}
+
 type requestPayload struct {
-	Prompt      string  `json:"prompt,omitempty"`
-	Image       string  `json:"image,omitempty"`
-	Mode        string  `json:"mode,omitempty"`
-	Duration    string  `json:"duration,omitempty"`
-	AspectRatio string  `json:"aspect_ratio,omitempty"`
-	ModelName   string  `json:"model_name,omitempty"`
-	CfgScale    float64 `json:"cfg_scale,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	Image          string         `json:"image,omitempty"`
+	ImageTail      string         `json:"image_tail,omitempty"`
+	NegativePrompt string         `json:"negative_prompt,omitempty"`
+	Mode           string         `json:"mode,omitempty"`
+	Duration       string         `json:"duration,omitempty"`
+	AspectRatio    string         `json:"aspect_ratio,omitempty"`
+	ModelName      string         `json:"model_name,omitempty"`
+	Model          string         `json:"model,omitempty"` // Compatible with upstreams that only recognize "model"
+	CfgScale       float64        `json:"cfg_scale,omitempty"`
+	StaticMask     string         `json:"static_mask,omitempty"`
+	DynamicMasks   []DynamicMask  `json:"dynamic_masks,omitempty"`
+	CameraControl  *CameraControl `json:"camera_control,omitempty"`
+	CallbackUrl    string         `json:"callback_url,omitempty"`
+	ExternalTaskId string         `json:"external_task_id,omitempty"`
 }
 
 type responsePayload struct {
 	Code      int    `json:"code"`
 	Message   string `json:"message"`
+	TaskId    string `json:"task_id"`
 	RequestId string `json:"request_id"`
 	Data      struct {
 		TaskId        string `json:"task_id"`
@@ -73,25 +107,20 @@ type responsePayload struct {
 
 type TaskAdaptor struct {
 	ChannelType int
-	accessKey   string
-	secretKey   string
+	apiKey      string
 	baseURL     string
 }
 
-func (a *TaskAdaptor) Init(info *relaycommon.TaskRelayInfo) {
+func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
-	a.baseURL = info.BaseUrl
+	a.baseURL = info.ChannelBaseUrl
+	a.apiKey = info.ApiKey
 
 	// apiKey format: "access_key|secret_key"
-	keyParts := strings.Split(info.ApiKey, "|")
-	if len(keyParts) == 2 {
-		a.accessKey = strings.TrimSpace(keyParts[0])
-		a.secretKey = strings.TrimSpace(keyParts[1])
-	}
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
-func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.TaskRelayInfo) (taskErr *dto.TaskError) {
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
 	action := constant.TaskActionGenerate
 	info.Action = action
@@ -112,13 +141,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 // BuildRequestURL constructs the upstream URL.
-func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.TaskRelayInfo) (string, error) {
+func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	path := lo.Ternary(info.Action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
 	return fmt.Sprintf("%s%s", a.baseURL, path), nil
 }
 
 // BuildRequestHeader sets required headers.
-func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.TaskRelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	token, err := a.createJWTToken()
 	if err != nil {
 		return fmt.Errorf("failed to create JWT token: %w", err)
@@ -132,7 +161,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 // BuildRequestBody converts request into Kling specific format.
-func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.TaskRelayInfo) (io.Reader, error) {
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, exists := c.Get("task_request")
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
@@ -143,6 +172,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.TaskRel
 	if err != nil {
 		return nil, err
 	}
+	if body.Image == "" && body.ImageTail == "" {
+		c.Set("action", constant.TaskActionTextGenerate)
+	}
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -151,7 +183,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.TaskRel
 }
 
 // DoRequest delegates to common helper.
-func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.TaskRelayInfo, requestBody io.Reader) (*http.Response, error) {
+func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	if action := c.GetString("action"); action != "" {
 		info.Action = action
 	}
@@ -159,34 +191,26 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.TaskRelayInfo,
 }
 
 // DoResponse handles upstream response, returns taskID etc.
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.TaskRelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 		return
 	}
 
-	// Attempt Kling response parse first.
 	var kResp responsePayload
-	if err := json.Unmarshal(responseBody, &kResp); err == nil && kResp.Code == 0 {
-		c.JSON(http.StatusOK, gin.H{"task_id": kResp.Data.TaskId})
-		return kResp.Data.TaskId, responseBody, nil
-	}
-
-	// Fallback generic task response.
-	var generic dto.TaskResponse[string]
-	if err := json.Unmarshal(responseBody, &generic); err != nil {
-		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
+	err = json.Unmarshal(responseBody, &kResp)
+	if err != nil {
+		taskErr = service.TaskErrorWrapper(err, "unmarshal_response_failed", http.StatusInternalServerError)
 		return
 	}
-
-	if !generic.IsSuccess() {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf(generic.Message), generic.Code, http.StatusInternalServerError)
+	if kResp.Code != 0 {
+		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf(kResp.Message), "task_failed", http.StatusBadRequest)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"task_id": generic.Data})
-	return generic.Data, responseBody, nil
+	kResp.TaskId = kResp.Data.TaskId
+	c.JSON(http.StatusOK, kResp)
+	return kResp.Data.TaskId, responseBody, nil
 }
 
 // FetchTask fetch task status
@@ -233,13 +257,19 @@ func (a *TaskAdaptor) GetChannelName() string {
 
 func (a *TaskAdaptor) convertToRequestPayload(req *SubmitReq) (*requestPayload, error) {
 	r := requestPayload{
-		Prompt:      req.Prompt,
-		Image:       req.Image,
-		Mode:        defaultString(req.Mode, "std"),
-		Duration:    fmt.Sprintf("%d", defaultInt(req.Duration, 5)),
-		AspectRatio: a.getAspectRatio(req.Size),
-		ModelName:   req.Model,
-		CfgScale:    0.5,
+		Prompt:         req.Prompt,
+		Image:          req.Image,
+		Mode:           defaultString(req.Mode, "std"),
+		Duration:       fmt.Sprintf("%d", defaultInt(req.Duration, 5)),
+		AspectRatio:    a.getAspectRatio(req.Size),
+		ModelName:      req.Model,
+		Model:          req.Model, // Keep consistent with model_name, double writing improves compatibility
+		CfgScale:       0.5,
+		StaticMask:     "",
+		DynamicMasks:   []DynamicMask{},
+		CameraControl:  nil,
+		CallbackUrl:    "",
+		ExternalTaskId: "",
 	}
 	if r.ModelName == "" {
 		r.ModelName = "kling-v1"
@@ -288,21 +318,25 @@ func defaultInt(v int, def int) int {
 // ============================
 
 func (a *TaskAdaptor) createJWTToken() (string, error) {
-	return a.createJWTTokenWithKeys(a.accessKey, a.secretKey)
+	return a.createJWTTokenWithKey(a.apiKey)
 }
+
+//func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
+//	parts := strings.Split(apiKey, "|")
+//	if len(parts) != 2 {
+//		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
+//	}
+//	return a.createJWTTokenWithKey(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+//}
 
 func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
-	parts := strings.Split(apiKey, "|")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
-	}
-	return a.createJWTTokenWithKeys(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-}
 
-func (a *TaskAdaptor) createJWTTokenWithKeys(accessKey, secretKey string) (string, error) {
-	if accessKey == "" || secretKey == "" {
-		return "", fmt.Errorf("access key and secret key are required")
+	keyParts := strings.Split(apiKey, "|")
+	accessKey := strings.TrimSpace(keyParts[0])
+	if len(keyParts) == 1 {
+		return accessKey, nil
 	}
+	secretKey := strings.TrimSpace(keyParts[1])
 	now := time.Now().Unix()
 	claims := jwt.MapClaims{
 		"iss": accessKey,
@@ -315,12 +349,12 @@ func (a *TaskAdaptor) createJWTTokenWithKeys(accessKey, secretKey string) (strin
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	taskInfo := &relaycommon.TaskInfo{}
 	resPayload := responsePayload{}
 	err := json.Unmarshal(respBody, &resPayload)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal response body")
 	}
-	taskInfo := &relaycommon.TaskInfo{}
 	taskInfo.Code = resPayload.Code
 	taskInfo.TaskID = resPayload.Data.TaskId
 	taskInfo.Reason = resPayload.Message

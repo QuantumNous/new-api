@@ -1,4 +1,28 @@
-import { getUserIdFromLocalStorage, showError, formatMessageForAPI, isValidMessage } from './utils';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import {
+  getUserIdFromLocalStorage,
+  showError,
+  formatMessageForAPI,
+  isValidMessage,
+} from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
@@ -71,7 +95,12 @@ API.interceptors.response.use(
 // playground
 
 // 构建API请求负载
-export const buildApiPayload = (messages, systemPrompt, inputs, parameterEnabled) => {
+export const buildApiPayload = (
+  messages,
+  systemPrompt,
+  inputs,
+  parameterEnabled,
+) => {
   const processedMessages = messages
     .filter(isValidMessage)
     .map(formatMessageForAPI)
@@ -81,7 +110,7 @@ export const buildApiPayload = (messages, systemPrompt, inputs, parameterEnabled
   if (systemPrompt && systemPrompt.trim()) {
     processedMessages.unshift({
       role: MESSAGE_ROLES.SYSTEM,
-      content: systemPrompt.trim()
+      content: systemPrompt.trim(),
     });
   }
 
@@ -100,11 +129,15 @@ export const buildApiPayload = (messages, systemPrompt, inputs, parameterEnabled
     max_tokens: 'max_tokens',
     frequency_penalty: 'frequency_penalty',
     presence_penalty: 'presence_penalty',
-    seed: 'seed'
+    seed: 'seed',
   };
 
   Object.entries(parameterMappings).forEach(([key, param]) => {
-    if (parameterEnabled[key] && inputs[param] !== undefined && inputs[param] !== null) {
+    if (
+      parameterEnabled[key] &&
+      inputs[param] !== undefined &&
+      inputs[param] !== null
+    ) {
       payload[param] = inputs[param];
     }
   });
@@ -117,7 +150,7 @@ export const handleApiError = (error, response = null) => {
   const errorInfo = {
     error: error.message || '未知错误',
     timestamp: new Date().toISOString(),
-    stack: error.stack
+    stack: error.stack,
   };
 
   if (response) {
@@ -136,15 +169,18 @@ export const handleApiError = (error, response = null) => {
 
 // 处理模型数据
 export const processModelsData = (data, currentModel) => {
-  const modelOptions = data.map(model => ({
+  const modelOptions = data.map((model) => ({
     label: model,
     value: model,
   }));
 
-  const hasCurrentModel = modelOptions.some(option => option.value === currentModel);
-  const selectedModel = hasCurrentModel && modelOptions.length > 0
-    ? currentModel
-    : modelOptions[0]?.value;
+  const hasCurrentModel = modelOptions.some(
+    (option) => option.value === currentModel,
+  );
+  const selectedModel =
+    hasCurrentModel && modelOptions.length > 0
+      ? currentModel
+      : modelOptions[0]?.value;
 
   return { modelOptions, selectedModel };
 };
@@ -152,20 +188,23 @@ export const processModelsData = (data, currentModel) => {
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
   let groupOptions = Object.entries(data).map(([group, info]) => ({
-    label: info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
+    label:
+      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
     value: group,
     ratio: info.ratio,
     fullLabel: info.desc,
   }));
 
   if (groupOptions.length === 0) {
-    groupOptions = [{
-      label: '用户分组',
-      value: '',
-      ratio: 1,
-    }];
+    groupOptions = [
+      {
+        label: '用户分组',
+        value: '',
+        ratio: 1,
+      },
+    ];
   } else if (userGroup) {
-    const userGroupIndex = groupOptions.findIndex(g => g.value === userGroup);
+    const userGroupIndex = groupOptions.findIndex((g) => g.value === userGroup);
     if (userGroupIndex > -1) {
       const userGroupOption = groupOptions.splice(userGroupIndex, 1)[0];
       groupOptions.unshift(userGroupOption);
@@ -196,14 +235,16 @@ export async function getOAuthState() {
 export async function onOIDCClicked(auth_url, client_id, openInNewTab = false) {
   const state = await getOAuthState();
   if (!state) return;
-  const redirect_uri = `${window.location.origin}/oauth/oidc`;
-  const response_type = 'code';
-  const scope = 'openid profile email';
-  const url = `${auth_url}?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=${response_type}&scope=${scope}&state=${state}`;
+  const url = new URL(auth_url);
+  url.searchParams.set('client_id', client_id);
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'openid profile email');
+  url.searchParams.set('state', state);
   if (openInNewTab) {
-    window.open(url);
+    window.open(url.toString(), '_blank');
   } else {
-    window.location.href = url;
+    window.location.href = url.toString();
   }
 }
 

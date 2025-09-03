@@ -8,7 +8,6 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/types"
@@ -16,80 +15,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func getEmbeddingPromptToken(embeddingRequest dto.EmbeddingRequest) int {
-	token := service.CountTokenInput(embeddingRequest.Input, embeddingRequest.Model)
-	return token
-}
+func EmbeddingHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	info.InitChannelMeta(c)
 
-func validateEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, embeddingRequest dto.EmbeddingRequest) error {
-	if embeddingRequest.Input == nil {
-		return fmt.Errorf("input is empty")
+	embeddingReq, ok := info.Request.(*dto.EmbeddingRequest)
+	if !ok {
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.EmbeddingRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	if info.RelayMode == relayconstant.RelayModeModerations && embeddingRequest.Model == "" {
-		embeddingRequest.Model = "omni-moderation-latest"
-	}
-	if info.RelayMode == relayconstant.RelayModeEmbeddings && embeddingRequest.Model == "" {
-		embeddingRequest.Model = c.Param("model")
-	}
-	return nil
-}
 
-func EmbeddingHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
-	relayInfo := relaycommon.GenRelayInfoEmbedding(c)
-
-	var embeddingRequest *dto.EmbeddingRequest
-	err := common.UnmarshalBodyReusable(c, &embeddingRequest)
+	request, err := common.DeepCopy(embeddingReq)
 	if err != nil {
-		common.LogError(c, fmt.Sprintf("getAndValidateTextRequest failed: %s", err.Error()))
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(fmt.Errorf("failed to copy request to EmbeddingRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	err = validateEmbeddingRequest(c, relayInfo, *embeddingRequest)
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	err = helper.ModelMappedHelper(c, relayInfo, embeddingRequest)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
-	}
-
-	promptToken := getEmbeddingPromptToken(*embeddingRequest)
-	relayInfo.PromptTokens = promptToken
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, promptToken, 0)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
-	}
-	// pre-consume quota 预消耗配额
-	preConsumedQuota, userQuota, newAPIError := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
-	if newAPIError != nil {
-		return newAPIError
-	}
-	defer func() {
-		if newAPIError != nil {
-			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
-		}
-	}()
-
-	adaptor := GetAdaptor(relayInfo.ApiType)
+	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
-	adaptor.Init(relayInfo)
+	adaptor.Init(info)
 
-	convertedRequest, err := adaptor.ConvertEmbeddingRequest(c, relayInfo, *embeddingRequest)
-
+	convertedRequest, err := adaptor.ConvertEmbeddingRequest(c, info, *request)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	jsonData, err := json.Marshal(convertedRequest)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	requestBody := bytes.NewBuffer(jsonData)
 	statusCodeMappingStr := c.GetString("status_code_mapping")
-	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
+	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
@@ -105,12 +65,12 @@ func EmbeddingHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		}
 	}
 
-	usage, newAPIError := adaptor.DoResponse(c, httpResp, relayInfo)
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
-	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	postConsumeQuota(c, info, usage.(*dto.Usage), "")
 	return nil
 }

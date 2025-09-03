@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"one-api/dto"
 	"one-api/setting"
 	"strings"
@@ -32,25 +31,8 @@ func CheckSensitiveMessages(messages []dto.Message) ([]string, error) {
 	return nil, nil
 }
 
-func CheckSensitiveText(text string) ([]string, error) {
-	if ok, words := SensitiveWordContains(text); ok {
-		return words, errors.New("sensitive words detected")
-	}
-	return nil, nil
-}
-
-func CheckSensitiveInput(input any) ([]string, error) {
-	switch v := input.(type) {
-	case string:
-		return CheckSensitiveText(v)
-	case []string:
-		var builder strings.Builder
-		for _, s := range v {
-			builder.WriteString(s)
-		}
-		return CheckSensitiveText(builder.String())
-	}
-	return CheckSensitiveText(fmt.Sprintf("%v", input))
+func CheckSensitiveText(text string) (bool, []string) {
+	return SensitiveWordContains(text)
 }
 
 // SensitiveWordContains 是否包含敏感词，返回是否包含敏感词和敏感词列表
@@ -71,7 +53,7 @@ func SensitiveWordReplace(text string, returnImmediately bool) (bool, []string, 
 		return false, nil, text
 	}
 	checkText := strings.ToLower(text)
-	m := InitAc(setting.SensitiveWords)
+	m := getOrBuildAC(setting.SensitiveWords)
 	hits := m.MultiPatternSearch([]rune(checkText), returnImmediately)
 	if len(hits) > 0 {
 		words := make([]string, 0, len(hits))

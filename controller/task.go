@@ -10,6 +10,7 @@ import (
 	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
+	"one-api/logger"
 	"one-api/model"
 	"one-api/relay"
 	"sort"
@@ -54,9 +55,9 @@ func UpdateTaskBulk() {
 					"progress": "100%",
 				})
 				if err != nil {
-					common.LogError(ctx, fmt.Sprintf("Fix null task_id task error: %v", err))
+					logger.LogError(ctx, fmt.Sprintf("Fix null task_id task error: %v", err))
 				} else {
-					common.LogInfo(ctx, fmt.Sprintf("Fix null task_id task success: %v", nullTaskIds))
+					logger.LogInfo(ctx, fmt.Sprintf("Fix null task_id task success: %v", nullTaskIds))
 				}
 			}
 			if len(taskChannelM) == 0 {
@@ -75,10 +76,10 @@ func UpdateTaskByPlatform(platform constant.TaskPlatform, taskChannelM map[int][
 		//_ = UpdateMidjourneyTaskAll(context.Background(), tasks)
 	case constant.TaskPlatformSuno:
 		_ = UpdateSunoTaskAll(context.Background(), taskChannelM, taskM)
-	case constant.TaskPlatformKling, constant.TaskPlatformJimeng:
-		_ = UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM)
 	default:
-		common.SysLog("未知平台")
+		if err := UpdateVideoTaskAll(context.Background(), platform, taskChannelM, taskM); err != nil {
+			common.SysLog(fmt.Sprintf("UpdateVideoTaskAll fail: %s", err))
+		}
 	}
 }
 
@@ -86,14 +87,14 @@ func UpdateSunoTaskAll(ctx context.Context, taskChannelM map[int][]string, taskM
 	for channelId, taskIds := range taskChannelM {
 		err := updateSunoTaskAll(ctx, channelId, taskIds, taskM)
 		if err != nil {
-			common.LogError(ctx, fmt.Sprintf("渠道 #%d 更新异步任务失败: %d", channelId, err.Error()))
+			logger.LogError(ctx, fmt.Sprintf("渠道 #%d 更新异步任务失败: %d", channelId, err.Error()))
 		}
 	}
 	return nil
 }
 
 func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, taskM map[string]*model.Task) error {
-	common.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的任务有: %d", channelId, len(taskIds)))
+	logger.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的任务有: %d", channelId, len(taskIds)))
 	if len(taskIds) == 0 {
 		return nil
 	}
@@ -106,7 +107,7 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 			"progress":    "100%",
 		})
 		if err != nil {
-			common.SysError(fmt.Sprintf("UpdateMidjourneyTask error2: %v", err))
+			common.SysLog(fmt.Sprintf("UpdateMidjourneyTask error2: %v", err))
 		}
 		return err
 	}
@@ -118,23 +119,23 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 		"ids": taskIds,
 	})
 	if err != nil {
-		common.SysError(fmt.Sprintf("Get Task Do req error: %v", err))
+		common.SysLog(fmt.Sprintf("Get Task Do req error: %v", err))
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		common.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
+		logger.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
 		return errors.New(fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		common.SysError(fmt.Sprintf("Get Task parse body error: %v", err))
+		common.SysLog(fmt.Sprintf("Get Task parse body error: %v", err))
 		return err
 	}
 	var responseItems dto.TaskResponse[[]dto.SunoDataResponse]
 	err = json.Unmarshal(responseBody, &responseItems)
 	if err != nil {
-		common.LogError(ctx, fmt.Sprintf("Get Task parse body error2: %v, body: %s", err, string(responseBody)))
+		logger.LogError(ctx, fmt.Sprintf("Get Task parse body error2: %v, body: %s", err, string(responseBody)))
 		return err
 	}
 	if !responseItems.IsSuccess() {
@@ -154,19 +155,19 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 		task.StartTime = lo.If(responseItem.StartTime != 0, responseItem.StartTime).Else(task.StartTime)
 		task.FinishTime = lo.If(responseItem.FinishTime != 0, responseItem.FinishTime).Else(task.FinishTime)
 		if responseItem.FailReason != "" || task.Status == model.TaskStatusFailure {
-			common.LogInfo(ctx, task.TaskID+" 构建失败，"+task.FailReason)
+			logger.LogInfo(ctx, task.TaskID+" 构建失败，"+task.FailReason)
 			task.Progress = "100%"
 			//err = model.CacheUpdateUserQuota(task.UserId) ?
 			if err != nil {
-				common.LogError(ctx, "error update user quota cache: "+err.Error())
+				logger.LogError(ctx, "error update user quota cache: "+err.Error())
 			} else {
 				quota := task.Quota
 				if quota != 0 {
 					err = model.IncreaseUserQuota(task.UserId, quota, false)
 					if err != nil {
-						common.LogError(ctx, "fail to increase user quota: "+err.Error())
+						logger.LogError(ctx, "fail to increase user quota: "+err.Error())
 					}
-					logContent := fmt.Sprintf("异步任务执行失败 %s，补偿 %s", task.TaskID, common.LogQuota(quota))
+					logContent := fmt.Sprintf("异步任务执行失败 %s，补偿 %s", task.TaskID, logger.LogQuota(quota))
 					model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
 				}
 			}
@@ -178,7 +179,7 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 
 		err = task.Update()
 		if err != nil {
-			common.SysError("UpdateMidjourneyTask task error: " + err.Error())
+			common.SysLog("UpdateMidjourneyTask task error: " + err.Error())
 		}
 	}
 	return nil

@@ -1,55 +1,55 @@
 package ratio_setting
 
 import (
-    "sync"
-    "sync/atomic"
-    "time"
+	"sync"
+	"sync/atomic"
+	"time"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 const exposedDataTTL = 30 * time.Second
 
 type exposedCache struct {
-    data      gin.H
-    expiresAt time.Time
+	data      gin.H
+	expiresAt time.Time
 }
 
 var (
-    exposedData atomic.Value
-    rebuildMu   sync.Mutex
+	exposedData atomic.Value
+	rebuildMu   sync.Mutex
 )
 
 func InvalidateExposedDataCache() {
-    exposedData.Store((*exposedCache)(nil))
+	exposedData.Store((*exposedCache)(nil))
 }
 
 func cloneGinH(src gin.H) gin.H {
-    dst := make(gin.H, len(src))
-    for k, v := range src {
-        dst[k] = v
-    }
-    return dst
+	dst := make(gin.H, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }
 
 func GetExposedData() gin.H {
-    if c, ok := exposedData.Load().(*exposedCache); ok && c != nil && time.Now().Before(c.expiresAt) {
-        return cloneGinH(c.data)
-    }
-    rebuildMu.Lock()
-    defer rebuildMu.Unlock()
-    if c, ok := exposedData.Load().(*exposedCache); ok && c != nil && time.Now().Before(c.expiresAt) {
-        return cloneGinH(c.data)
-    }
-    newData := gin.H{
-        "model_ratio":      GetModelRatioCopy(),
-        "completion_ratio": GetCompletionRatioCopy(),
-        "cache_ratio":      GetCacheRatioCopy(),
-        "model_price":      GetModelPriceCopy(),
-    }
-    exposedData.Store(&exposedCache{
-        data:      newData,
-        expiresAt: time.Now().Add(exposedDataTTL),
-    })
-    return cloneGinH(newData)
-} 
+	if c, ok := exposedData.Load().(*exposedCache); ok && c != nil && time.Now().Before(c.expiresAt) {
+		return cloneGinH(c.data)
+	}
+	rebuildMu.Lock()
+	defer rebuildMu.Unlock()
+	if c, ok := exposedData.Load().(*exposedCache); ok && c != nil && time.Now().Before(c.expiresAt) {
+		return cloneGinH(c.data)
+	}
+	newData := gin.H{
+		"model_ratio":      GetModelRatioCopy(),
+		"completion_ratio": GetCompletionRatioCopy(),
+		"cache_ratio":      GetCacheRatioCopy(),
+		"model_price":      GetModelPriceCopy(),
+	}
+	exposedData.Store(&exposedCache{
+		data:      newData,
+		expiresAt: time.Now().Add(exposedDataTTL),
+	})
+	return cloneGinH(newData)
+}

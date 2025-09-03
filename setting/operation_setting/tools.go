@@ -4,12 +4,8 @@ import "strings"
 
 const (
 	// Web search
-	WebSearchHighTierModelPriceLow    = 30.00
-	WebSearchHighTierModelPriceMedium = 35.00
-	WebSearchHighTierModelPriceHigh   = 50.00
-	WebSearchPriceLow                 = 25.00
-	WebSearchPriceMedium              = 27.50
-	WebSearchPriceHigh                = 30.00
+	WebSearchPriceHigh = 25.00
+	WebSearchPrice     = 10.00
 	// File search
 	FileSearchPrice = 2.5
 )
@@ -34,38 +30,19 @@ func GetClaudeWebSearchPricePerThousand() float64 {
 
 func GetWebSearchPricePerThousand(modelName string, contextSize string) float64 {
 	// 确定模型类型
-	// https://platform.openai.com/docs/pricing Web search 价格按模型类型和 search context size 收费
-	// gpt-4.1, gpt-4o, or gpt-4o-search-preview 更贵，gpt-4.1-mini, gpt-4o-mini, gpt-4o-mini-search-preview 更便宜
-	isHighTierModel := (strings.HasPrefix(modelName, "gpt-4.1") || strings.HasPrefix(modelName, "gpt-4o")) &&
-		!strings.Contains(modelName, "mini")
-	// 确定 search context size 对应的价格
+	// https://platform.openai.com/docs/pricing Web search 价格按模型类型收费
+	// 新版计费规则不再关联 search context size，故在const区域将各size的价格设为一致。
+	// gpt-5, gpt-5-mini, gpt-5-nano 和 o 系列模型价格为 10.00 美元/千次调用，产生额外 token 计入 input_tokens
+	// gpt-4o, gpt-4.1, gpt-4o-mini 和 gpt-4.1-mini 价格为 25.00 美元/千次调用，不产生额外 token
+	isNormalPriceModel :=
+		strings.HasPrefix(modelName, "o3") ||
+			strings.HasPrefix(modelName, "o4") ||
+			strings.HasPrefix(modelName, "gpt-5")
 	var priceWebSearchPerThousandCalls float64
-	switch contextSize {
-	case "low":
-		if isHighTierModel {
-			priceWebSearchPerThousandCalls = WebSearchHighTierModelPriceLow
-		} else {
-			priceWebSearchPerThousandCalls = WebSearchPriceLow
-		}
-	case "medium":
-		if isHighTierModel {
-			priceWebSearchPerThousandCalls = WebSearchHighTierModelPriceMedium
-		} else {
-			priceWebSearchPerThousandCalls = WebSearchPriceMedium
-		}
-	case "high":
-		if isHighTierModel {
-			priceWebSearchPerThousandCalls = WebSearchHighTierModelPriceHigh
-		} else {
-			priceWebSearchPerThousandCalls = WebSearchPriceHigh
-		}
-	default:
-		// search context size 默认为 medium
-		if isHighTierModel {
-			priceWebSearchPerThousandCalls = WebSearchHighTierModelPriceMedium
-		} else {
-			priceWebSearchPerThousandCalls = WebSearchPriceMedium
-		}
+	if isNormalPriceModel {
+		priceWebSearchPerThousandCalls = WebSearchPrice
+	} else {
+		priceWebSearchPerThousandCalls = WebSearchPriceHigh
 	}
 	return priceWebSearchPerThousandCalls
 }

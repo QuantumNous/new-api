@@ -42,16 +42,16 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 	return http.Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
 }
 
-func DoDownloadRequest(originUrl string) (resp *http.Response, err error) {
+func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {
 	if setting.EnableWorker() {
-		common.SysLog(fmt.Sprintf("downloading file from worker: %s", originUrl))
+		common.SysLog(fmt.Sprintf("downloading file from worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
 		req := &WorkerRequest{
 			URL: originUrl,
 			Key: setting.WorkerValidKey,
 		}
 		return DoWorkerRequest(req)
 	} else {
-		common.SysLog(fmt.Sprintf("downloading from origin: %s", originUrl))
+		common.SysLog(fmt.Sprintf("downloading from origin with worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
 		return http.Get(originUrl)
 	}
 }

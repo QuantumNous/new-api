@@ -19,10 +19,14 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	panic("implement me")
-	return nil, nil
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	adaptor := openai.Adaptor{}
+	return adaptor.ConvertClaudeRequest(c, info, req)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -39,15 +43,15 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	fimBaseUrl := info.BaseUrl
-	if !strings.HasSuffix(info.BaseUrl, "/beta") {
+	fimBaseUrl := info.ChannelBaseUrl
+	if !strings.HasSuffix(info.ChannelBaseUrl, "/beta") {
 		fimBaseUrl += "/beta"
 	}
 	switch info.RelayMode {
 	case constant.RelayModeCompletions:
 		return fmt.Sprintf("%s/completions", fimBaseUrl), nil
 	default:
-		return fmt.Sprintf("%s/v1/chat/completions", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 	}
 }
 

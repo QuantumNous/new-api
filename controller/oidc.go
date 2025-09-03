@@ -69,7 +69,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	}
 
 	if oidcResponse.AccessToken == "" {
-		common.SysError("OIDC 获取 Token 失败，请检查设置！")
+		common.SysLog("OIDC 获取 Token 失败，请检查设置！")
 		return nil, errors.New("OIDC 获取 Token 失败，请检查设置！")
 	}
 
@@ -85,7 +85,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	}
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
-		common.SysError("OIDC 获取用户信息失败！请检查设置！")
+		common.SysLog("OIDC 获取用户信息失败！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息失败！请检查设置！")
 	}
 
@@ -95,7 +95,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 		return nil, err
 	}
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
-		common.SysError("OIDC 获取用户信息为空！请检查设置！")
+		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息为空！请检查设置！")
 	}
 	return &oidcUser, nil

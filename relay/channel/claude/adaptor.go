@@ -24,6 +24,11 @@ type Adaptor struct {
 	RequestMode int
 }
 
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	//TODO implement me
+	return nil, errors.New("not implemented")
+}
+
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
 	return request, nil
 }
@@ -48,9 +53,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if a.RequestMode == RequestModeMessage {
-		return fmt.Sprintf("%s/v1/messages", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl), nil
 	} else {
-		return fmt.Sprintf("%s/v1/complete", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/complete", info.ChannelBaseUrl), nil
 	}
 }
 
@@ -73,7 +78,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if a.RequestMode == RequestModeCompletion {
 		return RequestOpenAI2ClaudeComplete(*request), nil
 	} else {
-		return RequestOpenAI2ClaudeMessage(*request)
+		return RequestOpenAI2ClaudeMessage(c, *request)
 	}
 }
 
@@ -97,9 +102,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.IsStream {
-		err, usage = ClaudeStreamHandler(c, resp, info, a.RequestMode)
+		return ClaudeStreamHandler(c, resp, info, a.RequestMode)
 	} else {
-		err, usage = ClaudeHandler(c, resp, a.RequestMode, info)
+		return ClaudeHandler(c, resp, info, a.RequestMode)
 	}
 	return
 }

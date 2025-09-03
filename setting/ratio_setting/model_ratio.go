@@ -52,27 +52,52 @@ var defaultModelRatio = map[string]float64{
 	"gpt-4o-realtime-preview-2024-12-17":      2.5,
 	"gpt-4o-mini-realtime-preview":            0.3,
 	"gpt-4o-mini-realtime-preview-2024-12-17": 0.3,
-	"gpt-image-1":                             2.5,
-	"o1":                                      7.5,
-	"o1-2024-12-17":                           7.5,
-	"o1-preview":                              7.5,
-	"o1-preview-2024-09-12":                   7.5,
-	"o1-mini":                                 0.55,
-	"o1-mini-2024-09-12":                      0.55,
-	"o3-mini":                                 0.55,
-	"o3-mini-2025-01-31":                      0.55,
-	"o3-mini-high":                            0.55,
-	"o3-mini-2025-01-31-high":                 0.55,
-	"o3-mini-low":                             0.55,
-	"o3-mini-2025-01-31-low":                  0.55,
-	"o3-mini-medium":                          0.55,
-	"o3-mini-2025-01-31-medium":               0.55,
-	"gpt-4o-mini":                             0.075,
-	"gpt-4o-mini-2024-07-18":                  0.075,
-	"gpt-4-turbo":                             5, // $0.01 / 1K tokens
-	"gpt-4-turbo-2024-04-09":                  5, // $0.01 / 1K tokens
-	"gpt-4.5-preview":                         37.5,
-	"gpt-4.5-preview-2025-02-27":              37.5,
+	"gpt-4.1":                          1.0,  // $2 / 1M tokens
+	"gpt-4.1-2025-04-14":               1.0,  // $2 / 1M tokens
+	"gpt-4.1-mini":                     0.2,  // $0.4 / 1M tokens
+	"gpt-4.1-mini-2025-04-14":          0.2,  // $0.4 / 1M tokens
+	"gpt-4.1-nano":                     0.05, // $0.1 / 1M tokens
+	"gpt-4.1-nano-2025-04-14":          0.05, // $0.1 / 1M tokens
+	"gpt-image-1":                      2.5,  // $5 / 1M tokens
+	"o1":                               7.5,  // $15 / 1M tokens
+	"o1-2024-12-17":                    7.5,  // $15 / 1M tokens
+	"o1-preview":                       7.5,  // $15 / 1M tokens
+	"o1-preview-2024-09-12":            7.5,  // $15 / 1M tokens
+	"o1-mini":                          0.55, // $1.1 / 1M tokens
+	"o1-mini-2024-09-12":               0.55, // $1.1 / 1M tokens
+	"o1-pro":                           75.0, // $150 / 1M tokens
+	"o1-pro-2025-03-19":                75.0, // $150 / 1M tokens
+	"o3-mini":                          0.55,
+	"o3-mini-2025-01-31":               0.55,
+	"o3-mini-high":                     0.55,
+	"o3-mini-2025-01-31-high":          0.55,
+	"o3-mini-low":                      0.55,
+	"o3-mini-2025-01-31-low":           0.55,
+	"o3-mini-medium":                   0.55,
+	"o3-mini-2025-01-31-medium":        0.55,
+	"o3":                               1.0,  // $2 / 1M tokens
+	"o3-2025-04-16":                    1.0,  // $2 / 1M tokens
+	"o3-pro":                           10.0, // $20 / 1M tokens
+	"o3-pro-2025-06-10":                10.0, // $20 / 1M tokens
+	"o3-deep-research":                 5.0,  // $10 / 1M tokens
+	"o3-deep-research-2025-06-26":      5.0,  // $10 / 1M tokens
+	"o4-mini":                          0.55, // $1.1 / 1M tokens
+	"o4-mini-2025-04-16":               0.55, // $1.1 / 1M tokens
+	"o4-mini-deep-research":            1.0,  // $2 / 1M tokens
+	"o4-mini-deep-research-2025-06-26": 1.0,  // $2 / 1M tokens
+	"gpt-4o-mini":                      0.075,
+	"gpt-4o-mini-2024-07-18":           0.075,
+	"gpt-4-turbo":                      5, // $0.01 / 1K tokens
+	"gpt-4-turbo-2024-04-09":           5, // $0.01 / 1K tokens
+	"gpt-4.5-preview":                  37.5,
+	"gpt-4.5-preview-2025-02-27":       37.5,
+	"gpt-5":                            0.625,
+	"gpt-5-2025-08-07":                 0.625,
+	"gpt-5-chat-latest":                0.625,
+	"gpt-5-mini":                       0.125,
+	"gpt-5-mini-2025-08-07":            0.125,
+	"gpt-5-nano":                       0.025,
+	"gpt-5-nano-2025-08-07":            0.025,
 	//"gpt-3.5-turbo-0301":           0.75, //deprecated
 	"gpt-3.5-turbo":          0.25,
 	"gpt-3.5-turbo-0613":     0.75,
@@ -118,6 +143,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-sonnet-4-20250514":                  1.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
+	"claude-opus-4-1-20250805":                  7.5,
 	"ERNIE-4.0-8K":                              0.120 * RMB,
 	"ERNIE-3.5-8K":                              0.012 * RMB,
 	"ERNIE-3.5-8K-0205":                         0.024 * RMB,
@@ -149,6 +175,7 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-preview-05-20-nothinking": 0.075,
 	"gemini-2.5-flash-thinking-*":               0.075, // 用于为后续所有2.5 flash thinking budget 模型设置默认倍率
 	"gemini-2.5-pro-thinking-*":                 0.625, // 用于为后续所有2.5 pro thinking budget 模型设置默认倍率
+	"gemini-2.5-flash-lite-preview-thinking-*":  0.05,
 	"gemini-2.5-flash-lite-preview-06-17":       0.05,
 	"gemini-2.5-flash":                          0.15,
 	"text-embedding-004":                        0.001,
@@ -311,7 +338,7 @@ func ModelPrice2JSONString() string {
 	modelPriceMapMutex.RLock()
 	defer modelPriceMapMutex.RUnlock()
 
-	jsonBytes, err := json.Marshal(modelPriceMap)
+	jsonBytes, err := common.Marshal(modelPriceMap)
 	if err != nil {
 		common.SysError("error marshalling model price: " + err.Error())
 	}
@@ -334,12 +361,8 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	modelPriceMapMutex.RLock()
 	defer modelPriceMapMutex.RUnlock()
 
-	if strings.HasPrefix(name, "gpt-4-gizmo") {
-		name = "gpt-4-gizmo-*"
-	}
-	if strings.HasPrefix(name, "gpt-4o-gizmo") {
-		name = "gpt-4o-gizmo-*"
-	}
+	name = FormatMatchingModelName(name)
+
 	price, ok := modelPriceMap[name]
 	if !ok {
 		if printErr {
@@ -354,7 +377,7 @@ func UpdateModelRatioByJSONString(jsonStr string) error {
 	modelRatioMapMutex.Lock()
 	defer modelRatioMapMutex.Unlock()
 	modelRatioMap = make(map[string]float64)
-	err := json.Unmarshal([]byte(jsonStr), &modelRatioMap)
+	err := common.Unmarshal([]byte(jsonStr), &modelRatioMap)
 	if err == nil {
 		InvalidateExposedDataCache()
 	}
@@ -373,11 +396,8 @@ func GetModelRatio(name string) (float64, bool, string) {
 	modelRatioMapMutex.RLock()
 	defer modelRatioMapMutex.RUnlock()
 
-	name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*")
-	name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
-	if strings.HasPrefix(name, "gpt-4-gizmo") {
-		name = "gpt-4-gizmo-*"
-	}
+	name = FormatMatchingModelName(name)
+
 	ratio, ok := modelRatioMap[name]
 	if !ok {
 		return 37.5, operation_setting.SelfUseModeEnabled, name
@@ -386,7 +406,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 }
 
 func DefaultModelRatio2JSONString() string {
-	jsonBytes, err := json.Marshal(defaultModelRatio)
+	jsonBytes, err := common.Marshal(defaultModelRatio)
 	if err != nil {
 		common.SysError("error marshalling model ratio: " + err.Error())
 	}
@@ -418,7 +438,7 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 	CompletionRatioMutex.Lock()
 	defer CompletionRatioMutex.Unlock()
 	CompletionRatio = make(map[string]float64)
-	err := json.Unmarshal([]byte(jsonStr), &CompletionRatio)
+	err := common.Unmarshal([]byte(jsonStr), &CompletionRatio)
 	if err == nil {
 		InvalidateExposedDataCache()
 	}
@@ -428,12 +448,9 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 func GetCompletionRatio(name string) float64 {
 	CompletionRatioMutex.RLock()
 	defer CompletionRatioMutex.RUnlock()
-	if strings.HasPrefix(name, "gpt-4-gizmo") {
-		name = "gpt-4-gizmo-*"
-	}
-	if strings.HasPrefix(name, "gpt-4o-gizmo") {
-		name = "gpt-4o-gizmo-*"
-	}
+
+	name = FormatMatchingModelName(name)
+
 	if strings.Contains(name, "/") {
 		if ratio, ok := CompletionRatio[name]; ok {
 			return ratio
@@ -451,12 +468,22 @@ func GetCompletionRatio(name string) float64 {
 
 func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 	lowercaseName := strings.ToLower(name)
-	if strings.HasPrefix(name, "gpt-4") && !strings.HasSuffix(name, "-all") && !strings.HasSuffix(name, "-gizmo-*") {
+
+	isReservedModel := strings.HasSuffix(name, "-all") || strings.HasSuffix(name, "-gizmo-*")
+	if isReservedModel {
+		return 2, false
+	}
+
+	if strings.HasPrefix(name, "gpt-") {
 		if strings.HasPrefix(name, "gpt-4o") {
 			if name == "gpt-4o-2024-05-13" {
 				return 3, true
 			}
 			return 4, true
+		}
+		// gpt-5 匹配
+		if strings.HasPrefix(name, "gpt-5") {
+			return 8, true
 		}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
@@ -512,12 +539,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				return 3.5 / 0.15, false
 			}
 			if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
-				if strings.HasPrefix(name, "gemini-2.5-flash-lite-preview") {
-					return 4, false
-				}
 				return 4, false
 			}
-			return 2.5 / 0.3, true
+			return 2.5 / 0.3, false
 		}
 		return 4, false
 	}
@@ -594,7 +618,7 @@ func ModelRatio2JSONString() string {
 	modelRatioMapMutex.RLock()
 	defer modelRatioMapMutex.RUnlock()
 
-	jsonBytes, err := json.Marshal(modelRatioMap)
+	jsonBytes, err := common.Marshal(modelRatioMap)
 	if err != nil {
 		common.SysError("error marshalling model ratio: " + err.Error())
 	}
@@ -610,7 +634,7 @@ var imageRatioMapMutex sync.RWMutex
 func ImageRatio2JSONString() string {
 	imageRatioMapMutex.RLock()
 	defer imageRatioMapMutex.RUnlock()
-	jsonBytes, err := json.Marshal(imageRatioMap)
+	jsonBytes, err := common.Marshal(imageRatioMap)
 	if err != nil {
 		common.SysError("error marshalling cache ratio: " + err.Error())
 	}
@@ -621,7 +645,7 @@ func UpdateImageRatioByJSONString(jsonStr string) error {
 	imageRatioMapMutex.Lock()
 	defer imageRatioMapMutex.Unlock()
 	imageRatioMap = make(map[string]float64)
-	return json.Unmarshal([]byte(jsonStr), &imageRatioMap)
+	return common.Unmarshal([]byte(jsonStr), &imageRatioMap)
 }
 
 func GetImageRatio(name string) (float64, bool) {
@@ -662,4 +686,24 @@ func GetCompletionRatioCopy() map[string]float64 {
 		copyMap[k] = v
 	}
 	return copyMap
+}
+
+// 转换模型名，减少渠道必须配置各种带参数模型
+func FormatMatchingModelName(name string) string {
+
+	if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
+		name = handleThinkingBudgetModel(name, "gemini-2.5-flash-lite", "gemini-2.5-flash-lite-thinking-*")
+	} else if strings.HasPrefix(name, "gemini-2.5-flash") {
+		name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*")
+	} else if strings.HasPrefix(name, "gemini-2.5-pro") {
+		name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
+	}
+
+	if strings.HasPrefix(name, "gpt-4-gizmo") {
+		name = "gpt-4-gizmo-*"
+	}
+	if strings.HasPrefix(name, "gpt-4o-gizmo") {
+		name = "gpt-4o-gizmo-*"
+	}
+	return name
 }

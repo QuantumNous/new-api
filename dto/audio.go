@@ -1,11 +1,35 @@
 package dto
 
+import (
+	"one-api/types"
+
+	"github.com/gin-gonic/gin"
+)
+
 type AudioRequest struct {
 	Model          string  `json:"model"`
 	Input          string  `json:"input"`
 	Voice          string  `json:"voice"`
 	Speed          float64 `json:"speed,omitempty"`
 	ResponseFormat string  `json:"response_format,omitempty"`
+}
+
+func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	meta := &types.TokenCountMeta{
+		CombineText: r.Input,
+		TokenType:   types.TokenTypeTextNumber,
+	}
+	return meta
+}
+
+func (r *AudioRequest) IsStream(c *gin.Context) bool {
+	return false
+}
+
+func (r *AudioRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
 }
 
 type AudioResponse struct {

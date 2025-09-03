@@ -7,104 +7,43 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
-	"one-api/setting"
 	"one-api/types"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func getAndValidAudioRequest(c *gin.Context, info *relaycommon.RelayInfo) (*dto.AudioRequest, error) {
-	audioRequest := &dto.AudioRequest{}
-	err := common.UnmarshalBodyReusable(c, audioRequest)
+func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	info.InitChannelMeta(c)
+
+	audioReq, ok := info.Request.(*dto.AudioRequest)
+	if !ok {
+		return types.NewError(errors.New("invalid request type"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	request, err := common.DeepCopy(audioReq)
 	if err != nil {
-		return nil, err
+		return types.NewError(fmt.Errorf("failed to copy request to AudioRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
-	switch info.RelayMode {
-	case relayconstant.RelayModeAudioSpeech:
-		if audioRequest.Model == "" {
-			return nil, errors.New("model is required")
-		}
-		if setting.ShouldCheckPromptSensitive() {
-			words, err := service.CheckSensitiveInput(audioRequest.Input)
-			if err != nil {
-				common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ",")))
-				return nil, err
-			}
-		}
-	default:
-		err = c.Request.ParseForm()
-		if err != nil {
-			return nil, err
-		}
-		formData := c.Request.PostForm
-		if audioRequest.Model == "" {
-			audioRequest.Model = formData.Get("model")
-		}
 
-		if audioRequest.Model == "" {
-			return nil, errors.New("model is required")
-		}
-		audioRequest.ResponseFormat = formData.Get("response_format")
-		if audioRequest.ResponseFormat == "" {
-			audioRequest.ResponseFormat = "json"
-		}
-	}
-	return audioRequest, nil
-}
-
-func AudioHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
-	relayInfo := relaycommon.GenRelayInfoOpenAIAudio(c)
-	audioRequest, err := getAndValidAudioRequest(c, relayInfo)
-
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
-		common.LogError(c, fmt.Sprintf("getAndValidAudioRequest failed: %s", err.Error()))
-		return types.NewError(err, types.ErrorCodeInvalidRequest)
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	promptTokens := 0
-	preConsumedTokens := common.PreConsumedQuota
-	if relayInfo.RelayMode == relayconstant.RelayModeAudioSpeech {
-		promptTokens = service.CountTTSToken(audioRequest.Input, audioRequest.Model)
-		preConsumedTokens = promptTokens
-		relayInfo.PromptTokens = promptTokens
-	}
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, preConsumedTokens, 0)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeModelPriceError)
-	}
-
-	preConsumedQuota, userQuota, openaiErr := preConsumeQuota(c, priceData.ShouldPreConsumedQuota, relayInfo)
-	if openaiErr != nil {
-		return openaiErr
-	}
-	defer func() {
-		if openaiErr != nil {
-			returnPreConsumedQuota(c, relayInfo, userQuota, preConsumedQuota)
-		}
-	}()
-
-	err = helper.ModelMappedHelper(c, relayInfo, audioRequest)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError)
-	}
-
-	adaptor := GetAdaptor(relayInfo.ApiType)
+	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), types.ErrorCodeInvalidApiType)
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
-	adaptor.Init(relayInfo)
+	adaptor.Init(info)
 
-	ioReader, err := adaptor.ConvertAudioRequest(c, relayInfo, *audioRequest)
+	ioReader, err := adaptor.ConvertAudioRequest(c, info, *request)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
-	resp, err := adaptor.DoRequest(c, relayInfo, ioReader)
+	resp, err := adaptor.DoRequest(c, info, ioReader)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
@@ -121,14 +60,14 @@ func AudioHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 		}
 	}
 
-	usage, newAPIError := adaptor.DoResponse(c, httpResp, relayInfo)
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
 
-	postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	postConsumeQuota(c, info, usage.(*dto.Usage), "")
 
 	return nil
 }

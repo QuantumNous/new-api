@@ -3,6 +3,7 @@ package setting
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"one-api/common"
 	"sync"
 )
@@ -20,7 +21,7 @@ func ModelRequestRateLimitGroup2JSONString() string {
 
 	jsonBytes, err := json.Marshal(ModelRequestRateLimitGroup)
 	if err != nil {
-		common.SysError("error marshalling model ratio: " + err.Error())
+		common.SysLog("error marshalling model ratio: " + err.Error())
 	}
 	return string(jsonBytes)
 }
@@ -57,6 +58,9 @@ func CheckModelRequestRateLimitGroup(jsonStr string) error {
 	for group, limits := range checkModelRequestRateLimitGroup {
 		if limits[0] < 0 || limits[1] < 1 {
 			return fmt.Errorf("group %s has negative rate limit values: [%d, %d]", group, limits[0], limits[1])
+		}
+		if limits[0] > math.MaxInt32 || limits[1] > math.MaxInt32 {
+			return fmt.Errorf("group %s [%d, %d] has max rate limits value 2147483647", group, limits[0], limits[1])
 		}
 	}
 

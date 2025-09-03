@@ -7,11 +7,13 @@ import (
 	"io"
 	"net/http"
 	common2 "one-api/common"
+	"one-api/logger"
 	"one-api/relay/common"
 	"one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
 	"one-api/setting/operation_setting"
+	"one-api/types"
 	"sync"
 	"time"
 
@@ -46,7 +48,19 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
-	err = a.SetupRequestHeader(c, &req.Header, info)
+	headers := req.Header
+	headerOverride := make(map[string]string)
+	for k, v := range info.HeadersOverride {
+		if str, ok := v.(string); ok {
+			headerOverride[k] = str
+		} else {
+			return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
+		}
+	}
+	for key, value := range headerOverride {
+		headers.Set(key, value)
+	}
+	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
@@ -71,8 +85,19 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	}
 	// set form data
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-
-	err = a.SetupRequestHeader(c, &req.Header, info)
+	headers := req.Header
+	headerOverride := make(map[string]string)
+	for k, v := range info.HeadersOverride {
+		if str, ok := v.(string); ok {
+			headerOverride[k] = str
+		} else {
+			return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
+		}
+	}
+	for key, value := range headerOverride {
+		headers.Set(key, value)
+	}
+	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
@@ -181,7 +206,7 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 
 		err := helper.PingData(c)
 		if err != nil {
-			common2.LogError(c, "SSE ping error: "+err.Error())
+			logger.LogError(c, "SSE ping error: "+err.Error())
 			done <- err
 			return
 		}
@@ -223,7 +248,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled {
+		if generalSettings.PingIntervalEnabled && !info.DisablePing {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 			stopPinger = startPingKeepAlive(c, pingInterval)
 			// 使用defer确保在任何情况下都能停止ping goroutine
@@ -252,7 +277,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return resp, nil
 }
 
-func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.TaskRelayInfo, requestBody io.Reader) (*http.Response, error) {
+func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.BuildRequestURL(info)
 	if err != nil {
 		return nil, err
@@ -269,7 +294,7 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.TaskRelayInfo,
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
-	resp, err := doRequest(c, req, info.RelayInfo)
+	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}

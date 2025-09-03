@@ -8,6 +8,7 @@ import (
 	"one-api/common"
 	"one-api/constant"
 	"one-api/controller"
+	"one-api/logger"
 	"one-api/middleware"
 	"one-api/model"
 	"one-api/router"
@@ -60,13 +61,13 @@ func main() {
 	}
 	if common.MemoryCacheEnabled {
 		common.SysLog("memory cache enabled")
-		common.SysError(fmt.Sprintf("sync frequency: %d seconds", common.SyncFrequency))
+		common.SysLog(fmt.Sprintf("sync frequency: %d seconds", common.SyncFrequency))
 
 		// Add panic recovery and retry for InitChannelCache
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					common.SysError(fmt.Sprintf("InitChannelCache panic: %v, retrying once", r))
+					common.SysLog(fmt.Sprintf("InitChannelCache panic: %v, retrying once", r))
 					// Retry once
 					_, _, fixErr := model.FixAbility()
 					if fixErr != nil {
@@ -125,7 +126,7 @@ func main() {
 	// Initialize HTTP server
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
-		common.SysError(fmt.Sprintf("panic detected: %v", err))
+		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
@@ -171,7 +172,7 @@ func InitResources() error {
 	// 加载环境变量
 	common.InitEnv()
 
-	common.SetupLogger()
+	logger.SetupLogger()
 
 	// Initialize model settings
 	ratio_setting.InitRatioSettings()
