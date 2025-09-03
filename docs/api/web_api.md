@@ -1,6 +1,6 @@
-# One API – Web 界面后端接口文档
+# New API – Web 界面后端接口文档
 
-> 本文档汇总了 **One API** 后端提供给前端 Web 界面的全部 REST 接口（不含 *Relay* 相关接口）。
+> 本文档汇总了 **New API** 后端提供给前端 Web 界面的全部 REST 接口（不含 *Relay* 相关接口）。
 >
 > 接口前缀统一为 `https://<your-domain>`，以下仅列出 **路径**、**HTTP 方法**、**鉴权要求** 与 **功能简介**。
 >
@@ -62,6 +62,8 @@
 | GET  | /api/user/groups | 公开 | 列出所有分组（无鉴权版） |
 
 ### 5.2 用户自身操作 (需登录)
+| 方法 | 路径 | 鉴权 | 说明 |
+|------|------|------|------|
 | GET | /api/user/self/groups | 用户 | 获取自己所在分组 |
 | GET | /api/user/self | 用户 | 获取个人资料 |
 | GET | /api/user/models | 用户 | 获取模型可见性 |
