@@ -187,6 +187,29 @@ func TextHelper(c *gin.Context) (newAPIError *types.NewAPIError) {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 
+		body, err := common.GetRequestBody(c)
+		if err == nil {
+			var topLevel map[string]interface{}
+			if err := json.Unmarshal(body, &topLevel); err == nil {
+				fieldsToCollect := []string{
+					"guided_choice", "guided_json", "guided_regex", "guided_grammar",
+					"guided_decoding_backend", "structural_tag", "enable_thinking",
+				}
+				convertedMap := make(map[string]interface{})
+				json.Unmarshal(jsonData, &convertedMap)
+
+				for _, field := range fieldsToCollect {
+					if val, ok := topLevel[field]; ok {
+						convertedMap[field] = val
+					}
+				}
+				jsonData, err = json.Marshal(convertedMap)
+				if err != nil {
+					return service.OpenAIErrorWrapperLocal(err, "merge_sdk_fields_failed", http.StatusInternalServerError)
+				}
+			}
+		}
+
 		// apply param override
 		if len(relayInfo.ParamOverride) > 0 {
 			reqMap := make(map[string]interface{})
