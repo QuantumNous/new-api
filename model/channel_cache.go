@@ -67,6 +67,14 @@ func InitChannelCache() {
 	}
 
 	channelSyncLock.Lock()
+	// 如果 group2model2channels 和 channelsIDM 中记录的channel的 ChannelInfo 中的 MultiKeyPollingIndex 需要继承
+	// 否则会导致轮询索引重置，影响多key轮询的正确性
+	for id, channel := range channelsIDM {
+		if newChannel, ok := newChannelId2channel[id]; ok {
+			newChannel.ChannelInfo.MultiKeyPollingIndex = channel.ChannelInfo.MultiKeyPollingIndex
+		}
+	}
+
 	group2model2channels = newGroup2model2channels
 	//channelsIDM = newChannelId2channel
 	for i, channel := range newChannelId2channel {
