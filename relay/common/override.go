@@ -146,6 +146,10 @@ func applyOperations(jsonStr string, operations []ParamOperation, promptTokens i
 		if !ok {
 			continue // 条件不满足，跳过当前操作
 		}
+		// 处理路径中的负数索引
+		opPath := processNegativeIndex(result, op.Path)
+		opFrom := processNegativeIndex(result, op.From)
+		opTo := processNegativeIndex(result, op.To)
 
 		// 处理block和pass操作
 		if op.Mode == "block" {
