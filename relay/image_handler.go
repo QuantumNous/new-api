@@ -67,8 +67,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 			// apply param override
 			if len(info.ParamOverride) > 0 {
-				jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride)
+				var isBlock bool
+				jsonData, isBlock, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, info.PromptTokens)
 				if err != nil {
+					if isBlock {
+						return types.NewError(err, types.ErrorCodeContidionTriggerBlock, types.ErrOptionWithSkipRetry())
+					}
 					return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 				}
 			}
