@@ -17,31 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-export const reducer = (state, action) => {
-  switch (action.type) {
-    case 'login':
-      // 用户登录时，头像数据通过独立端点获取和缓存
-      return {
-        ...state,
-        user: action.payload,
-      };
-    case 'logout':
-      // 当用户登出时，清理头像缓存和会话标记
-      if (state.user?.id) {
-        import('../../helpers/userDataManager').then(({ cleanupOnLogout }) => {
-          cleanupOnLogout(state.user.id);
-        });
-      }
-      return {
-        ...state,
-        user: undefined,
-      };
+import React from 'react';
 
-    default:
-      return state;
-  }
+const AuthPageLayout = ({ children }) => {
+  return (
+    <div className='relative overflow-hidden bg-gray-100 min-h-full flex items-center justify-center pt-16 pb-8'>
+      {/* 背景模糊晕染球 */}
+      <div
+        className='blur-ball blur-ball-indigo'
+        style={{ top: '-80px', right: '-80px', transform: 'none' }}
+      />
+      <div
+        className='blur-ball blur-ball-teal'
+        style={{ top: '50%', left: '-120px' }}
+      />
+      {children}
+    </div>
+  );
 };
 
-export const initialState = {
-  user: undefined,
-};
+export default AuthPageLayout;

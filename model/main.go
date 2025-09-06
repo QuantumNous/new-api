@@ -114,6 +114,8 @@ func CheckSetup() {
 	}
 }
 
+
+
 func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	defer func() {
 		initCol()
@@ -262,6 +264,7 @@ func migrateDB() error {
 		&Model{},
 		&Vendor{},
 		&PrefillGroup{},
+		&UserGroup{},
 		&Setup{},
 		&TwoFA{},
 		&TwoFABackupCode{},
@@ -269,6 +272,12 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+
+	// 初始化默认用户分组
+	if err := InitDefaultUserGroups(); err != nil {
+		common.SysLog("初始化默认用户分组失败: " + err.Error())
+	}
+
 	return nil
 }
 
@@ -294,6 +303,7 @@ func migrateDBFast() error {
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
+		{&UserGroup{}, "UserGroup"},
 		{&Setup{}, "Setup"},
 		{&TwoFA{}, "TwoFA"},
 		{&TwoFABackupCode{}, "TwoFABackupCode"},

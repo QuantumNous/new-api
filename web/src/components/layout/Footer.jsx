@@ -221,7 +221,7 @@ const FooterBar = () => {
   }, []);
 
   return (
-    <div className='w-full'>
+    <div className='w-full' style={{ borderTop: '1px solid var(--semi-color-border)' }}>
       {footer ? (
         <div
           className='custom-footer'
