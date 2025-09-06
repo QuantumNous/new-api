@@ -42,3 +42,21 @@ func GetJsonType(data json.RawMessage) string {
 		return "number"
 	}
 }
+
+// 8-1.png?Expires=1007170000&OSSAccessKeyId=
+// 9-1.png?Expires=1007170000\\u0026OSSAccessKeyId=
+func MarshalWithoutHTMLEscape(v interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false) // 关闭HTML转义
+	err := encoder.Encode(v)
+	if err != nil {
+		return nil, err
+	}
+	// 移除末尾的换行符
+	result := buffer.Bytes()
+	if len(result) > 0 && result[len(result)-1] == '\n' {
+		result = result[:len(result)-1]
+	}
+	return result, nil
+}

@@ -247,7 +247,7 @@ func multimoalGenerationMode() *ImageProcessMode {
 				},
 			}, respsonseBody, info, responseFormat)
 
-			jsonResponse, err := marshalWithoutHTMLEscape(fullTextResponse)
+			jsonResponse, err := common.MarshalWithoutHTMLEscape(fullTextResponse)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 			}

@@ -1,10 +1,8 @@
 package ali
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -311,28 +309,10 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 	}
 
 	fullTextResponse := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)
-	jsonResponse, err := marshalWithoutHTMLEscape(fullTextResponse)
+	jsonResponse, err := common.MarshalWithoutHTMLEscape(fullTextResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 	service.IOCopyBytesGracefully(c, resp, jsonResponse)
 	return nil, &dto.Usage{}
-}
-
-// 9-1.png?Expires=1007170000&OSSAccessKeyId=
-// 9-1.png?Expires=1007170000\\u0026OSSAccessKeyId=
-func marshalWithoutHTMLEscape(v interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false) // 关闭HTML转义
-	err := encoder.Encode(v)
-	if err != nil {
-		return nil, err
-	}
-	// 移除末尾的换行符
-	result := buffer.Bytes()
-	if len(result) > 0 && result[len(result)-1] == '\n' {
-		result = result[:len(result)-1]
-	}
-	return result, nil
 }
