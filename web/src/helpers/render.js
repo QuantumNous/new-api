@@ -793,6 +793,18 @@ export function renderNumber(num) {
   }
 }
 
+export function renderNumberWithCommas(num) {
+  if (isNaN(num) || num === null || num === undefined) {
+    return '0';
+  }
+  
+  // Convert to number if it's a string
+  const number = typeof num === 'string' ? parseFloat(num) : num;
+  
+  // Format with commas
+  return number.toLocaleString();
+}
+
 export function renderQuotaNumberWithDigit(num, digits = 2) {
   if (typeof num !== 'number' || isNaN(num)) {
     return 0;
