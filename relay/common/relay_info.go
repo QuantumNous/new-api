@@ -477,13 +477,19 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt   string                 `json:"prompt"`
-	Model    string                 `json:"model,omitempty"`
-	Mode     string                 `json:"mode,omitempty"`
-	Image    string                 `json:"image,omitempty"`
-	Size     string                 `json:"size,omitempty"`
-	Duration int                    `json:"duration,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Prompt         string                 `json:"prompt"`
+	Model          string                 `json:"model,omitempty"`
+	Mode           string                 `json:"mode,omitempty"`
+	Image          string                 `json:"image,omitempty"`
+	Size           string                 `json:"size,omitempty"`
+	Duration       int                    `json:"duration,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	NegativePrompt string                 `json:"negative_prompt,omitempty"`
+	ImageTail      string                 `json:"image_tail,omitempty"`
+	ImageList      []struct {
+		Image string `json:"image"`
+	} `json:"image_list,omitempty"`
+	VideoUrl string `json:"video_url,omitempty"`
 }
 
 type TaskInfo struct {
