@@ -49,6 +49,7 @@ import {
   getQuotaWithUnit,
   modelColorMap,
   renderNumber,
+  renderNumberWithCommas,
   renderQuota,
   modelToColor,
   copy,
@@ -574,7 +575,7 @@ const Detail = (props) => {
         },
         {
           title: t('统计Tokens'),
-          value: isNaN(consumeTokens) ? 0 : consumeTokens,
+          value: renderNumberWithCommas(isNaN(consumeTokens) ? 0 : consumeTokens),
           icon: <IconTextStroked />,
           avatarColor: 'pink',
           trendData: trendData.tokens,
