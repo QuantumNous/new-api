@@ -123,8 +123,16 @@ func Interface2String(inter interface{}) string {
 		return fmt.Sprintf("%d", inter.(int))
 	case float64:
 		return fmt.Sprintf("%f", inter.(float64))
+	case bool:
+		if inter.(bool) {
+			return "true"
+		} else {
+			return "false"
+		}
+	case nil:
+		return ""
 	}
-	return "Not Implemented"
+	return fmt.Sprintf("%v", inter)
 }
 
 func UnescapeHTML(x string) interface{} {

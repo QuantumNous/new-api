@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"math"
 	"one-api/common"
@@ -357,33 +360,6 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 	return tkm, nil
 }
 
-//func CountTokenChatRequest(info *relaycommon.RelayInfo, request dto.GeneralOpenAIRequest) (int, error) {
-//	tkm := 0
-//	msgTokens, err := CountTokenMessages(info, request.Messages, request.Model, request.Stream)
-//	if err != nil {
-//		return 0, err
-//	}
-//	tkm += msgTokens
-//	if request.Tools != nil {
-//		openaiTools := request.Tools
-//		countStr := ""
-//		for _, tool := range openaiTools {
-//			countStr = tool.Function.Name
-//			if tool.Function.Description != "" {
-//				countStr += tool.Function.Description
-//			}
-//			if tool.Function.Parameters != nil {
-//				countStr += fmt.Sprintf("%v", tool.Function.Parameters)
-//			}
-//		}
-//		toolTokens := CountTokenInput(countStr, request.Model)
-//		tkm += 8
-//		tkm += toolTokens
-//	}
-//
-//	return tkm, nil
-//}
-
 func CountTokenClaudeRequest(request dto.ClaudeRequest, model string) (int, error) {
 	tkm := 0
 
@@ -542,56 +518,6 @@ func CountTokenRealtime(info *relaycommon.RelayInfo, request dto.RealtimeEvent, 
 	}
 	return textToken, audioToken, nil
 }
-
-//func CountTokenMessages(info *relaycommon.RelayInfo, messages []dto.Message, model string, stream bool) (int, error) {
-//	//recover when panic
-//	tokenEncoder := getTokenEncoder(model)
-//	// Reference:
-//	// https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
-//	// https://github.com/pkoukk/tiktoken-go/issues/6
-//	//
-//	// Every message follows <|start|>{role/name}\n{content}<|end|>\n
-//	var tokensPerMessage int
-//	var tokensPerName int
-//
-//	tokensPerMessage = 3
-//	tokensPerName = 1
-//
-//	tokenNum := 0
-//	for _, message := range messages {
-//		tokenNum += tokensPerMessage
-//		tokenNum += getTokenNum(tokenEncoder, message.Role)
-//		if message.Content != nil {
-//			if message.Name != nil {
-//				tokenNum += tokensPerName
-//				tokenNum += getTokenNum(tokenEncoder, *message.Name)
-//			}
-//			arrayContent := message.ParseContent()
-//			for _, m := range arrayContent {
-//				if m.Type == dto.ContentTypeImageURL {
-//					imageUrl := m.GetImageMedia()
-//					imageTokenNum, err := getImageToken(info, imageUrl, model, stream)
-//					if err != nil {
-//						return 0, err
-//					}
-//					tokenNum += imageTokenNum
-//					log.Printf("image token num: %d", imageTokenNum)
-//				} else if m.Type == dto.ContentTypeInputAudio {
-//					// TODO: 音频token数量计算
-//					tokenNum += 100
-//				} else if m.Type == dto.ContentTypeFile {
-//					tokenNum += 5000
-//				} else if m.Type == dto.ContentTypeVideoUrl {
-//					tokenNum += 5000
-//				} else {
-//					tokenNum += getTokenNum(tokenEncoder, m.Text)
-//				}
-//			}
-//		}
-//	}
-//	tokenNum += 3 // Every reply is primed with <|start|>assistant<|message|>
-//	return tokenNum, nil
-//}
 
 func CountTokenInput(input any, model string) int {
 	switch v := input.(type) {

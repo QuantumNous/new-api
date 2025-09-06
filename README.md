@@ -96,7 +96,11 @@ New API提供了丰富的功能，详细特性请参考[特性说明](https://do
         - 添加后缀 `-thinking` 启用思考模式 (例如: `claude-3-7-sonnet-20250219-thinking`)
 16. 🔄 思考转内容功能
 17. 🔄 针对用户的模型限流功能
-18. 💰 缓存计费支持，开启后可以在缓存命中时按照设定的比例计费：
+18. 🔄 请求格式转换功能，支持以下三种格式转换：
+    1. OpenAI Chat Completions => Claude Messages
+    2. Clade Messages => OpenAI Chat Completions (可用于Claude Code调用第三方模型)
+    3. OpenAI Chat Completions => Gemini Chat
+19. 💰 缓存计费支持，开启后可以在缓存命中时按照设定的比例计费：
     1. 在 `系统设置-运营设置` 中设置 `提示缓存倍率` 选项
     2. 在渠道中设置 `提示缓存倍率`，范围 0-1，例如设置为 0.5 表示缓存命中时按照 50% 计费
     3. 支持的渠道：

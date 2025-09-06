@@ -258,10 +258,6 @@ const UpstreamConflictModal = ({
       }))
       .filter((x) => x.fields.length > 0);
 
-    if (payload.length === 0) {
-      onClose?.();
-      return;
-    }
     const ok = await onSubmit?.(payload);
     if (ok) onClose?.();
   };

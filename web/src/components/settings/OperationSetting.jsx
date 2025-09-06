@@ -68,6 +68,8 @@ const OperationSetting = () => {
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
     AutomaticDisableKeywords: '',
+    'monitor_setting.auto_test_channel_enabled': false,
+    'monitor_setting.auto_test_channel_minutes': 10,
   });
 
   let [loading, setLoading] = useState(false);
@@ -78,10 +80,7 @@ const OperationSetting = () => {
     if (success) {
       let newInputs = {};
       data.forEach((item) => {
-        if (
-          item.key.endsWith('Enabled') ||
-          ['DefaultCollapseSidebar'].includes(item.key)
-        ) {
+        if (typeof inputs[item.key] === 'boolean') {
           newInputs[item.key] = toBoolean(item.value);
         } else {
           newInputs[item.key] = item.value;

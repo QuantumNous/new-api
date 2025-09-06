@@ -20,6 +20,7 @@ import (
 	relayconstant "one-api/relay/constant"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/setting/operation_setting"
 	"one-api/types"
 	"strconv"
 	"strings"
@@ -477,15 +478,26 @@ func TestAllChannels(c *gin.Context) {
 	return
 }
 
-func AutomaticallyTestChannels(frequency int) {
-	if frequency <= 0 {
-		common.SysLog("CHANNEL_TEST_FREQUENCY is not set or invalid, skipping automatic channel test")
-		return
-	}
-	for {
-		time.Sleep(time.Duration(frequency) * time.Minute)
-		common.SysLog("testing all channels")
-		_ = testAllChannels(false)
-		common.SysLog("channel test finished")
-	}
+var autoTestChannelsOnce sync.Once
+
+func AutomaticallyTestChannels() {
+	autoTestChannelsOnce.Do(func() {
+		for {
+			if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
+				time.Sleep(10 * time.Minute)
+				continue
+			}
+			frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
+			common.SysLog(fmt.Sprintf("automatically test channels with interval %d minutes", frequency))
+			for {
+				time.Sleep(time.Duration(frequency) * time.Minute)
+				common.SysLog("automatically testing all channels")
+				_ = testAllChannels(false)
+				common.SysLog("automatically channel test finished")
+				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
+					break
+				}
+			}
+		}
+	})
 }

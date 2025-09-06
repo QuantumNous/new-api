@@ -607,8 +607,12 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			return false
 		}
 		if channelCache.ChannelInfo.IsMultiKey {
+			// Use per-channel lock to prevent concurrent map read/write with GetNextEnabledKey
+			pollingLock := GetChannelPollingLock(channelId)
+			pollingLock.Lock()
 			// 如果是多Key模式，更新缓存中的状态
 			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
+			pollingLock.Unlock()
 			//CacheUpdateChannel(channelCache)
 			//return true
 		} else {
@@ -639,7 +643,11 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 
 		if channel.ChannelInfo.IsMultiKey {
 			beforeStatus := channel.Status
+			// Protect map writes with the same per-channel lock used by readers
+			pollingLock := GetChannelPollingLock(channelId)
+			pollingLock.Lock()
 			handlerMultiKeyUpdate(channel, usingKey, status, reason)
+			pollingLock.Unlock()
 			if beforeStatus != channel.Status {
 				shouldUpdateAbilities = true
 			}
