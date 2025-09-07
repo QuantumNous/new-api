@@ -7,7 +7,11 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-const InternalPromptTokensKey = "NewAPIInternalPromptTokens"
+const InternalPromptTokensKey = "NewAPIInternal"
+
+type NewAPIInternal struct {
+	PromptTokens int `json:"PromptTokens"`
+}
 
 type ParamOperation struct {
 	Path       string               `json:"path"`
@@ -20,20 +24,21 @@ type ParamOperation struct {
 	Logic      string               `json:"logic,omitempty"`      // AND, OR (默认OR)
 }
 
-func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, PromptTokens int) ([]byte, bool, error) {
-	if len(paramOverride) == 0 {
+func ApplyParamOverride(jsonData []byte, Relayinfo *RelayInfo) ([]byte, bool, error) {
+	if len(Relayinfo.ParamOverride) == 0 {
 		return jsonData, false, nil
 	}
 
 	// 尝试断言为操作格式
-	if operations, ok := tryParseOperations(paramOverride); ok {
+	if operations, ok := tryParseOperations(Relayinfo.ParamOverride); ok {
+		info := &NewAPIInternal{PromptTokens: Relayinfo.PromptTokens}
 		// 使用新方法
-		result, isBlock, err := applyOperations(string(jsonData), operations, PromptTokens)
+		result, isBlock, err := applyOperations(string(jsonData), operations, info)
 		return []byte(result), isBlock, err
 	}
 
 	// 直接使用旧方法
-	result, err := applyOperationsLegacy(jsonData, paramOverride)
+	result, err := applyOperationsLegacy(jsonData, Relayinfo.ParamOverride)
 	return result, false, err
 }
 
@@ -129,13 +134,11 @@ func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}
 	return json.Marshal(reqMap)
 }
 
-func applyOperations(jsonStr string, operations []ParamOperation, promptTokens int) (string, bool, error) {
-	// 添加PromptTokens到JSON中以便条件判断，强制覆盖
-	jsonStrWithTokens, err := sjson.Set(jsonStr, InternalPromptTokensKey, promptTokens)
+func applyOperations(jsonStr string, operations []ParamOperation, info *NewAPIInternal) (string, bool, error) {
+	jsonStrWithTokens, err := sjson.Set(jsonStr, InternalPromptTokensKey, info)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to add %s: %v", InternalPromptTokensKey, err)
 	}
-
 	result := jsonStrWithTokens
 	for _, op := range operations {
 		// 检查条件是否满足
@@ -146,10 +149,9 @@ func applyOperations(jsonStr string, operations []ParamOperation, promptTokens i
 		if !ok {
 			continue // 条件不满足，跳过当前操作
 		}
-
 		// 处理block和pass操作
 		if op.Mode == "block" {
-			blockMessage := fmt.Sprintf("request blocked by conditions: %+v", op.Conditions)
+			blockMessage := "request blocked by param override conditions"
 			return result, true, fmt.Errorf(blockMessage)
 		}
 		if op.Mode == "pass" {
@@ -157,12 +159,10 @@ func applyOperations(jsonStr string, operations []ParamOperation, promptTokens i
 			result, _ = sjson.Delete(result, InternalPromptTokensKey)
 			return result, false, nil // 直接通过
 		}
-
 		// 处理路径中的负数索引
 		opPath := processNegativeIndex(result, op.Path)
 		opFrom := processNegativeIndex(result, op.From)
 		opTo := processNegativeIndex(result, op.To)
-
 		switch op.Mode {
 		case "delete":
 			result, err = sjson.Delete(result, opPath)
@@ -184,7 +184,6 @@ func applyOperations(jsonStr string, operations []ParamOperation, promptTokens i
 			return "", false, fmt.Errorf("operation %s failed: %v", op.Mode, err)
 		}
 	}
-
 	// 移除添加的内部字段
 	result, _ = sjson.Delete(result, InternalPromptTokensKey)
 	return result, false, nil

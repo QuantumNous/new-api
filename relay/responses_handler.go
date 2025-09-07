@@ -60,7 +60,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		// apply param override
 		if len(info.ParamOverride) > 0 {
 			var isBlock bool
-			jsonData, isBlock, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, info.PromptTokens)
+			jsonData, isBlock, err = relaycommon.ApplyParamOverride(jsonData, info)
 			if err != nil {
 				if isBlock {
 					return types.NewError(err, types.ErrorCodeContidionTriggerBlock, types.ErrOptionWithSkipRetry())
