@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 自动登录 Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .hidden { display: none; }
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover { background: #0056b3; }
+        .button.secondary { background: #6c757d; }
+        .button.danger { background: #dc3545; }
+        .code {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .config-form {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 150px 1fr;
+            align-items: center;
+        }
+        .config-form input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>OAuth2 服务器自动登录 Demo</h1>
+    <p>这个演示展示了如何使用OAuth2实现自动登录功能。</p>
+
+    <!-- 配置区域 -->
+    <div class="section">
+        <h2>配置</h2>
+        <div class="config-form">
+            <label>服务器地址:</label>
+            <input type="text" id="serverUrl" value="https://your-domain.com" placeholder="https://your-domain.com">
+            
+            <label>Client ID:</label>
+            <input type="text" id="clientId" placeholder="your_client_id">
+            
+            <label>Client Secret:</label>
+            <input type="password" id="clientSecret" placeholder="your_client_secret">
+            
+            <label>重定向URI:</label>
+            <input type="text" id="redirectUri" placeholder="当前页面会自动设置">
+            
+            <label>权限范围:</label>
+            <input type="text" id="scopes" value="api:read api:write">
+        </div>
+        <div style="margin-top: 15px;">
+            <button class="button" onclick="saveConfig()">保存配置</button>
+            <button class="button secondary" onclick="loadConfig()">加载配置</button>
+            <button class="button secondary" onclick="testServerInfo()">测试服务器</button>
+        </div>
+    </div>
+
+    <!-- 登录状态区域 -->
+    <div class="section">
+        <h2>登录状态</h2>
+        <div id="loginStatus" class="status info">未登录</div>
+        
+        <!-- 未登录显示 -->
+        <div id="loginSection">
+            <h3>选择登录方式:</h3>
+            <button class="button" onclick="clientCredentialsLogin()">Client Credentials 登录</button>
+            <button class="button" onclick="authorizationCodeLogin()">授权码登录 (用户交互)</button>
+            <button class="button secondary" onclick="checkExistingToken()">检查已有令牌</button>
+        </div>
+
+        <!-- 已登录显示 -->
+        <div id="loggedInSection" class="hidden">
+            <h3>已登录</h3>
+            <div id="userInfo"></div>
+            <div style="margin-top: 15px;">
+                <button class="button" onclick="getUserInfo()">获取用户信息</button>
+                <button class="button" onclick="refreshAccessToken()">刷新令牌</button>
+                <button class="button secondary" onclick="testApiCall()">测试API调用</button>
+                <button class="button danger" onclick="logout()">登出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 令牌信息区域 -->
+    <div class="section">
+        <h2>令牌信息</h2>
+        <div style="margin-bottom: 10px;">
+            <button class="button secondary" onclick="showTokenDetails()">显示令牌详情</button>
+            <button class="button secondary" onclick="decodeJWT()">解析JWT</button>
+        </div>
+        <div id="tokenInfo" class="code"></div>
+    </div>
+
+    <!-- 日志区域 -->
+    <div class="section">
+        <h2>操作日志</h2>
+        <button class="button secondary" onclick="clearLog()">清空日志</button>
+        <div id="logArea" class="log"></div>
+    </div>
+
+    <script>
+        // 配置对象
+        let config = {
+            serverUrl: '',
+            clientId: '',
+            clientSecret: '',
+            redirectUri: '',
+            scopes: 'api:read api:write'
+        };
+
+        // OAuth2 客户端类
+        class OAuth2Client {
+            constructor(config) {
+                this.config = config;
+            }
+
+            // 生成随机字符串
+            generateRandomString(length = 32) {
+                const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+                let result = '';
+                for (let i = 0; i < length; i++) {
+                    result += charset.charAt(Math.floor(Math.random() * charset.length));
+                }
+                return result;
+            }
+
+            // 生成PKCE参数
+            async generatePKCE() {
+                const codeVerifier = this.generateRandomString(128);
+                const encoder = new TextEncoder();
+                const data = encoder.encode(codeVerifier);
+                const digest = await crypto.subtle.digest('SHA-256', data);
+                const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                
+                return { codeVerifier, codeChallenge };
+            }
+
+            // Client Credentials 流程
+            async clientCredentialsFlow() {
+                const params = new URLSearchParams({
+                    grant_type: 'client_credentials',
+                    client_id: this.config.clientId,
+                    client_secret: this.config.clientSecret,
+                    scope: this.config.scopes
+                });
+
+                const response = await fetch(`${this.config.serverUrl}/api/oauth/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: params
+                });
+
+                return response.json();
+            }
+
+            // 授权码流程 - 步骤1：重定向到授权页面
+            async startAuthorizationCodeFlow() {
+                const { codeVerifier, codeChallenge } = await this.generatePKCE();
+                const state = this.generateRandomString();
+                
+                // 保存参数
+                localStorage.setItem('oauth_code_verifier', codeVerifier);
+                localStorage.setItem('oauth_state', state);
+                
+                // 构建授权URL
+                const authUrl = new URL(`${this.config.serverUrl}/api/oauth/authorize`);
+                authUrl.searchParams.set('response_type', 'code');
+                authUrl.searchParams.set('client_id', this.config.clientId);
+                authUrl.searchParams.set('redirect_uri', this.config.redirectUri);
+                authUrl.searchParams.set('scope', this.config.scopes);
+                authUrl.searchParams.set('state', state);
+                authUrl.searchParams.set('code_challenge', codeChallenge);
+                authUrl.searchParams.set('code_challenge_method', 'S256');
+
+                // 重定向
+                window.location.href = authUrl.toString();
+            }
+
+            // 授权码流程 - 步骤2：处理回调
+            async handleAuthorizationCallback() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                const error = urlParams.get('error');
+
+                if (error) {
+                    throw new Error(`Authorization error: ${error}`);
+                }
+
+                const savedState = localStorage.getItem('oauth_state');
+                if (state !== savedState) {
+                    throw new Error('State mismatch - possible CSRF attack');
+                }
+
+                const codeVerifier = localStorage.getItem('oauth_code_verifier');
+                if (!code || !codeVerifier) {
+                    throw new Error('Missing authorization code or code verifier');
+                }
+
+                // 交换访问令牌
+                const params = new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    client_id: this.config.clientId,
+                    client_secret: this.config.clientSecret,
+                    code: code,
+                    redirect_uri: this.config.redirectUri,
+                    code_verifier: codeVerifier
+                });
+
+                const response = await fetch(`${this.config.serverUrl}/api/oauth/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: params
+                });
+
+                const tokens = await response.json();
+                
+                // 清理临时数据
+                localStorage.removeItem('oauth_code_verifier');
+                localStorage.removeItem('oauth_state');
+                
+                // 清理URL参数
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+                return tokens;
+            }
+
+            // 刷新令牌
+            async refreshToken(refreshToken) {
+                const params = new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    client_id: this.config.clientId,
+                    client_secret: this.config.clientSecret,
+                    refresh_token: refreshToken
+                });
+
+                const response = await fetch(`${this.config.serverUrl}/api/oauth/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: params
+                });
+
+                return response.json();
+            }
+
+            // 调用API
+            async callAPI(endpoint, options = {}) {
+                const accessToken = localStorage.getItem('access_token');
+                if (!accessToken) {
+                    throw new Error('No access token available');
+                }
+
+                const response = await fetch(`${this.config.serverUrl}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+
+                if (response.status === 401) {
+                    // 尝试刷新令牌
+                    const refreshToken = localStorage.getItem('refresh_token');
+                    if (refreshToken) {
+                        const tokens = await this.refreshToken(refreshToken);
+                        if (tokens.access_token) {
+                            localStorage.setItem('access_token', tokens.access_token);
+                            if (tokens.refresh_token) {
+                                localStorage.setItem('refresh_token', tokens.refresh_token);
+                            }
+                            // 重试请求
+                            return this.callAPI(endpoint, options);
+                        }
+                    }
+                    throw new Error('Authentication failed');
+                }
+
+                return response.json();
+            }
+
+            // 获取服务器信息
+            async getServerInfo() {
+                const response = await fetch(`${this.config.serverUrl}/api/oauth/server-info`);
+                return response.json();
+            }
+
+            // 获取JWKS
+            async getJWKS() {
+                const response = await fetch(`${this.config.serverUrl}/api/oauth/jwks`);
+                return response.json();
+            }
+
+            // 解析JWT令牌
+            parseJWTToken(token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length !== 3) {
+                        throw new Error('Invalid JWT token format');
+                    }
+
+                    const payload = JSON.parse(atob(parts[1]));
+                    
+                    return {
+                        userId: payload.sub,
+                        username: payload.preferred_username || payload.sub,
+                        email: payload.email,
+                        name: payload.name,
+                        roles: payload.scope?.split(' ') || [],
+                        groups: payload.groups || [],
+                        exp: payload.exp,
+                        iat: payload.iat,
+                        iss: payload.iss,
+                        aud: payload.aud,
+                        jti: payload.jti
+                    };
+                } catch (error) {
+                    console.error('Failed to parse JWT token:', error);
+                    return null;
+                }
+            }
+
+            // 验证JWT令牌
+            validateJWTToken(token) {
+                const userInfo = this.parseJWTToken(token);
+                if (!userInfo) return false;
+                
+                const now = Math.floor(Date.now() / 1000);
+                if (userInfo.exp && now >= userInfo.exp) {
+                    console.log('JWT token has expired');
+                    return false;
+                }
+                
+                return true;
+            }
+
+            // 获取当前用户信息（从JWT令牌）
+            getCurrentUser() {
+                const token = localStorage.getItem('access_token');
+                if (!token || !this.validateJWTToken(token)) {
+                    return null;
+                }
+                
+                return this.parseJWTToken(token);
+            }
+
+            // 检查令牌是否即将过期
+            isTokenExpiringSoon(token) {
+                if (!token) return true;
+                
+                try {
+                    const parts = token.split('.');
+                    if (parts.length !== 3) return true;
+                    
+                    const payload = JSON.parse(atob(parts[1]));
+                    const exp = payload.exp * 1000; // 转换为毫秒
+                    const now = Date.now();
+                    return exp - now < 5 * 60 * 1000; // 5分钟内过期
+                } catch (error) {
+                    console.error('Token validation failed:', error);
+                    return true;
+                }
+            }
+        }
+
+        let oauth2Client;
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logArea = document.getElementById('logArea');
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logArea.textContent += logEntry;
+            logArea.scrollTop = logArea.scrollHeight;
+            
+            console.log(message);
+        }
+
+        // 保存配置
+        function saveConfig() {
+            config.serverUrl = document.getElementById('serverUrl').value;
+            config.clientId = document.getElementById('clientId').value;
+            config.clientSecret = document.getElementById('clientSecret').value;
+            config.redirectUri = document.getElementById('redirectUri').value || window.location.origin + window.location.pathname;
+            config.scopes = document.getElementById('scopes').value;
+            
+            localStorage.setItem('oauth_config', JSON.stringify(config));
+            oauth2Client = new OAuth2Client(config);
+            
+            log('配置已保存');
+        }
+
+        // 加载配置
+        function loadConfig() {
+            const saved = localStorage.getItem('oauth_config');
+            if (saved) {
+                config = JSON.parse(saved);
+                document.getElementById('serverUrl').value = config.serverUrl;
+                document.getElementById('clientId').value = config.clientId;
+                document.getElementById('clientSecret').value = config.clientSecret;
+                document.getElementById('redirectUri').value = config.redirectUri;
+                document.getElementById('scopes').value = config.scopes;
+                
+                oauth2Client = new OAuth2Client(config);
+                log('配置已加载');
+            }
+        }
+
+        // 测试服务器信息
+        async function testServerInfo() {
+            try {
+                saveConfig();
+                const info = await oauth2Client.getServerInfo();
+                log('服务器信息: ' + JSON.stringify(info, null, 2));
+                updateStatus('服务器连接正常', 'success');
+            } catch (error) {
+                log('测试服务器失败: ' + error.message);
+                updateStatus('服务器连接失败: ' + error.message, 'error');
+            }
+        }
+
+        // 客户端凭证登录
+        async function clientCredentialsLogin() {
+            try {
+                saveConfig();
+                log('开始 Client Credentials 登录...');
+                
+                const tokens = await oauth2Client.clientCredentialsFlow();
+                
+                if (tokens.access_token) {
+                    localStorage.setItem('access_token', tokens.access_token);
+                    if (tokens.refresh_token) {
+                        localStorage.setItem('refresh_token', tokens.refresh_token);
+                    }
+                    
+                    log('Client Credentials 登录成功');
+                    updateLoginState(true);
+                } else {
+                    throw new Error('未收到访问令牌: ' + JSON.stringify(tokens));
+                }
+            } catch (error) {
+                log('Client Credentials 登录失败: ' + error.message);
+                updateStatus('登录失败: ' + error.message, 'error');
+            }
+        }
+
+        // 授权码登录
+        async function authorizationCodeLogin() {
+            try {
+                saveConfig();
+                log('开始授权码登录...');
+                await oauth2Client.startAuthorizationCodeFlow();
+            } catch (error) {
+                log('授权码登录失败: ' + error.message);
+                updateStatus('登录失败: ' + error.message, 'error');
+            }
+        }
+
+        // 检查现有令牌
+        function checkExistingToken() {
+            const accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                log('发现现有访问令牌');
+                updateLoginState(true);
+            } else {
+                log('未找到访问令牌');
+                updateLoginState(false);
+            }
+        }
+
+        // 获取用户信息
+        async function getUserInfo() {
+            try {
+                // 从JWT令牌获取用户信息
+                const tokenUser = oauth2Client.getCurrentUser();
+                
+                // 从API获取用户信息
+                const apiUser = await oauth2Client.callAPI('/api/user/self');
+                
+                document.getElementById('userInfo').innerHTML = `
+                    <h4>JWT令牌中的用户信息:</h4>
+                    <pre>${JSON.stringify(tokenUser, null, 2)}</pre>
+                    <h4>API返回的用户信息:</h4>
+                    <pre>${JSON.stringify(apiUser, null, 2)}</pre>
+                `;
+                log('获取用户信息成功');
+            } catch (error) {
+                log('获取用户信息失败: ' + error.message);
+            }
+        }
+
+        // 刷新访问令牌
+        async function refreshAccessToken() {
+            try {
+                const refreshToken = localStorage.getItem('refresh_token');
+                if (!refreshToken) {
+                    throw new Error('没有刷新令牌');
+                }
+                
+                const tokens = await oauth2Client.refreshToken(refreshToken);
+                
+                if (tokens.access_token) {
+                    localStorage.setItem('access_token', tokens.access_token);
+                    if (tokens.refresh_token) {
+                        localStorage.setItem('refresh_token', tokens.refresh_token);
+                    }
+                    log('令牌刷新成功');
+                    showTokenDetails();
+                } else {
+                    throw new Error('刷新令牌失败: ' + JSON.stringify(tokens));
+                }
+            } catch (error) {
+                log('刷新令牌失败: ' + error.message);
+            }
+        }
+
+        // 测试API调用
+        async function testApiCall() {
+            try {
+                const result = await oauth2Client.callAPI('/api/user/self');
+                log('API调用成功: ' + JSON.stringify(result, null, 2));
+            } catch (error) {
+                log('API调用失败: ' + error.message);
+            }
+        }
+
+        // 登出
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            document.getElementById('userInfo').innerHTML = '';
+            updateLoginState(false);
+            log('已登出');
+        }
+
+        // 显示令牌详情
+        function showTokenDetails() {
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+            
+            let details = '';
+            if (accessToken) {
+                details += `访问令牌: ${accessToken.substring(0, 50)}...\n\n`;
+            }
+            if (refreshToken) {
+                details += `刷新令牌: ${refreshToken.substring(0, 50)}...\n\n`;
+            }
+            
+            document.getElementById('tokenInfo').textContent = details || '无令牌';
+        }
+
+        // 解析JWT
+        function decodeJWT() {
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                document.getElementById('tokenInfo').textContent = '无访问令牌';
+                return;
+            }
+
+            try {
+                const parts = accessToken.split('.');
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                
+                const decoded = {
+                    header,
+                    payload: {
+                        ...payload,
+                        exp: new Date(payload.exp * 1000).toISOString(),
+                        iat: new Date(payload.iat * 1000).toISOString()
+                    }
+                };
+                
+                document.getElementById('tokenInfo').textContent = JSON.stringify(decoded, null, 2);
+            } catch (error) {
+                document.getElementById('tokenInfo').textContent = '解析JWT失败: ' + error.message;
+            }
+        }
+
+        // 清空日志
+        function clearLog() {
+            document.getElementById('logArea').textContent = '';
+        }
+
+        // 更新登录状态
+        function updateLoginState(isLoggedIn) {
+            if (isLoggedIn) {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('loggedInSection').classList.remove('hidden');
+                updateStatus('已登录', 'success');
+            } else {
+                document.getElementById('loginSection').classList.remove('hidden');
+                document.getElementById('loggedInSection').classList.add('hidden');
+                updateStatus('未登录', 'info');
+            }
+        }
+
+        // 更新状态显示
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('loginStatus');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // 自动创建用户相关功能
+        function showUserInfoForm(jwtUserInfo) {
+            const formHTML = `
+                <div style="max-width: 500px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="text-align: center; color: #333;">完善用户信息</h3>
+                    <p style="text-align: center; color: #666;">系统将为您自动创建账户，请填写或确认以下信息：</p>
+                    
+                    <form id="userRegistrationForm">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;"><strong>用户名</strong> <span style="color: red;">*</span></label>
+                            <input type="text" id="username" value="${jwtUserInfo.username || ''}" required 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                            <small style="color: #666;">用于登录的用户名</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;"><strong>显示名称</strong></label>
+                            <input type="text" id="displayName" value="${jwtUserInfo.name || jwtUserInfo.username || ''}"
+                                   style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                            <small style="color: #666;">在界面上显示的名称</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;"><strong>邮箱地址</strong></label>
+                            <input type="email" id="email" value="${jwtUserInfo.email || ''}"
+                                   style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                            <small style="color: #666;">用于接收通知和找回密码</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;"><strong>所属组织</strong></label>
+                            <input type="text" id="group" value="oauth2" readonly
+                                   style="width: 100%; padding: 8px; background: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                            <small style="color: #666;">OAuth2自动创建的用户组</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px;">从JWT令牌获取的信息：</h4>
+                            <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px; max-height: 200px; overflow: auto; border: 1px solid #e9ecef;">
+${JSON.stringify(jwtUserInfo, null, 2)}
+                            </pre>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <button type="submit" style="background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; font-size: 14px;">
+                                创建账户并登录
+                            </button>
+                            <button type="button" onclick="cancelRegistration()" style="background: #6c757d; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                                取消
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.body.innerHTML = formHTML;
+            
+            // 绑定表单提交事件
+            document.getElementById('userRegistrationForm').addEventListener('submit', handleUserRegistration);
+        }
+
+        // 处理用户注册
+        async function handleUserRegistration(event) {
+            event.preventDefault();
+            
+            const formData = {
+                username: document.getElementById('username').value.trim(),
+                displayName: document.getElementById('displayName').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                group: document.getElementById('group').value,
+                oauth2Provider: 'oauth2',
+                oauth2UserId: oauth2Client.getCurrentUser().userId
+            };
+            
+            try {
+                console.log('创建用户:', formData);
+                
+                // 调用自动创建用户API（这里是演示，实际需要服务器支持）
+                const response = await fetch(oauth2Client.config.serverUrl + '/api/oauth/auto_create_user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                // 模拟成功响应（实际项目中需要服务器实现）
+                if (!response.ok) {
+                    // 如果API不存在，显示模拟成功
+                    console.log('模拟用户创建成功');
+                    localStorage.setItem('user_created', 'true');
+                    localStorage.setItem('user_info', JSON.stringify(formData));
+                    alert('用户创建成功！（这是演示模式，实际需要服务器端实现）');
+                    location.reload();
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('用户创建成功，用户ID:', result.user_id);
+                    localStorage.setItem('user_created', 'true');
+                    localStorage.setItem('user_info', JSON.stringify(formData));
+                    location.reload();
+                } else {
+                    alert('创建用户失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('用户创建失败:', error);
+                // 演示模式：模拟成功
+                localStorage.setItem('user_created', 'true');
+                localStorage.setItem('user_info', JSON.stringify(formData));
+                alert('用户创建成功！（演示模式）');
+                location.reload();
+            }
+        }
+
+        // 取消注册
+        function cancelRegistration() {
+            console.log('用户取消注册');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user_created');
+            localStorage.removeItem('user_info');
+            location.reload();
+        }
+
+        // 检查用户是否存在（演示版本）
+        async function checkUserExists(userId) {
+            try {
+                // 演示模式：检查localStorage中是否有user_created标记
+                const userCreated = localStorage.getItem('user_created');
+                if (userCreated) {
+                    console.log('用户已创建（从本地存储检测到）');
+                    return true;
+                }
+                
+                // 实际项目中会调用服务器API
+                const response = await fetch(`${oauth2Client.config.serverUrl}/api/oauth/user_exists/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    // API不存在时返回false，触发用户创建流程
+                    return false;
+                }
+                
+                const result = await response.json();
+                return result.exists;
+            } catch (error) {
+                console.error('检查用户存在性失败:', error);
+                return false;
+            }
+        }
+
+        // 改进的初始化函数，包含自动创建用户逻辑
+        async function initAutoLogin() {
+            try {
+                console.log('开始自动登录初始化...');
+                
+                // 1. 检查是否有有效的访问令牌
+                const accessToken = localStorage.getItem('access_token');
+                if (!accessToken || !oauth2Client.validateJWTToken(accessToken)) {
+                    console.log('没有有效令牌');
+                    return false;
+                }
+                
+                // 2. 解析JWT令牌获取用户信息
+                const jwtUserInfo = oauth2Client.getCurrentUser();
+                console.log('JWT用户信息:', jwtUserInfo);
+                
+                // 3. 检查用户是否已存在于系统中
+                const userExists = await checkUserExists(jwtUserInfo.userId);
+                console.log('用户存在检查结果:', userExists);
+                
+                if (!userExists) {
+                    console.log('用户不存在，显示用户信息收集表单');
+                    showUserInfoForm(jwtUserInfo);
+                    return true;
+                }
+                
+                // 4. 用户已存在，显示登录成功界面
+                console.log('用户已存在，显示登录成功信息');
+                return true;
+                
+            } catch (error) {
+                console.error('自动登录失败:', error);
+                return false;
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置默认重定向URI
+            document.getElementById('redirectUri').value = window.location.origin + window.location.pathname;
+            
+            // 加载保存的配置
+            loadConfig();
+            
+            // 检查是否有授权回调
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('code')) {
+                log('检测到授权回调，处理中...');
+                if (oauth2Client) {
+                    oauth2Client.handleAuthorizationCallback()
+                        .then(async tokens => {
+                            if (tokens.access_token) {
+                                localStorage.setItem('access_token', tokens.access_token);
+                                if (tokens.refresh_token) {
+                                    localStorage.setItem('refresh_token', tokens.refresh_token);
+                                }
+                                log('授权回调处理成功，开始自动登录流程...');
+                                
+                                // 清除URL中的授权回调参数
+                                const cleanUrl = window.location.origin + window.location.pathname;
+                                window.history.replaceState({}, document.title, cleanUrl);
+                                
+                                // 启动自动登录流程
+                                const autoLoginSuccess = await initAutoLogin();
+                                if (autoLoginSuccess) {
+                                    updateLoginState(true);
+                                } else {
+                                    updateLoginState(false);
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            log('授权回调处理失败: ' + error.message);
+                            updateStatus('授权失败: ' + error.message, 'error');
+                        });
+                }
+            } else {
+                // 没有授权回调，尝试自动登录
+                setTimeout(async () => {
+                    const autoLoginSuccess = await initAutoLogin();
+                    if (!autoLoginSuccess) {
+                        // 自动登录失败，检查现有令牌状态
+                        checkExistingToken();
+                    }
+                }, 100);
+            }
+            
+            log('OAuth2 Demo 已初始化');
+        });
+    </script>
+</body>
+</html>

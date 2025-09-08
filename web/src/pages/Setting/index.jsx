@@ -32,6 +32,7 @@ import {
   MessageSquare,
   Palette,
   CreditCard,
+  Shield,
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
@@ -45,6 +46,7 @@ import RatioSetting from '../../components/settings/RatioSetting';
 import ChatsSetting from '../../components/settings/ChatsSetting';
 import DrawingSetting from '../../components/settings/DrawingSetting';
 import PaymentSetting from '../../components/settings/PaymentSetting';
+import OAuth2Setting from '../../components/settings/OAuth2Setting';
 
 const Setting = () => {
   const { t } = useTranslation();
@@ -133,6 +135,16 @@ const Setting = () => {
       ),
       content: <ModelSetting />,
       itemKey: 'models',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Shield size={18} />
+          {t('OAuth2 & SSO')}
+        </span>
+      ),
+      content: <OAuth2Setting />,
+      itemKey: 'oauth2',
     });
     panes.push({
       tab: (

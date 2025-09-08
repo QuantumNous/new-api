@@ -31,6 +31,19 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/oidc", middleware.CriticalRateLimit(), controller.OidcAuth)
 		apiRouter.GET("/oauth/linuxdo", middleware.CriticalRateLimit(), controller.LinuxdoOAuth)
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
+
+		// OAuth2 Server endpoints
+		apiRouter.GET("/.well-known/jwks.json", controller.GetJWKS)
+		apiRouter.GET("/.well-known/oauth-authorization-server", controller.OAuthServerInfo)
+		apiRouter.POST("/oauth/token", middleware.CriticalRateLimit(), controller.OAuthTokenEndpoint)
+		apiRouter.GET("/oauth/authorize", controller.OAuthAuthorizeEndpoint)
+		apiRouter.POST("/oauth/introspect", middleware.AdminAuth(), controller.OAuthIntrospect)
+		apiRouter.POST("/oauth/revoke", middleware.CriticalRateLimit(), controller.OAuthRevoke)
+
+		// OAuth2 管理API (前端使用)
+		apiRouter.GET("/oauth/jwks", controller.GetJWKS)
+		apiRouter.GET("/oauth/server-info", controller.OAuthServerInfo)
+
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
 		apiRouter.GET("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
 		apiRouter.GET("/oauth/email/bind", middleware.CriticalRateLimit(), controller.EmailBind)
@@ -233,6 +246,18 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
+		}
+
+		oauthClientsRoute := apiRouter.Group("/oauth_clients")
+		oauthClientsRoute.Use(middleware.AdminAuth())
+		{
+			oauthClientsRoute.GET("/", controller.GetAllOAuthClients)
+			oauthClientsRoute.GET("/search", controller.SearchOAuthClients)
+			oauthClientsRoute.GET("/:id", controller.GetOAuthClient)
+			oauthClientsRoute.POST("/", controller.CreateOAuthClient)
+			oauthClientsRoute.PUT("/", controller.UpdateOAuthClient)
+			oauthClientsRoute.DELETE("/:id", controller.DeleteOAuthClient)
+			oauthClientsRoute.POST("/:id/regenerate_secret", controller.RegenerateOAuthClientSecret)
 		}
 	}
 }

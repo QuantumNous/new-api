@@ -14,6 +14,7 @@ import (
 	"one-api/router"
 	"one-api/service"
 	"one-api/setting/ratio_setting"
+	"one-api/src/oauth"
 	"os"
 	"strconv"
 
@@ -203,5 +204,13 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+
+	// Initialize OAuth2 server
+	err = oauth.InitOAuthServer()
+	if err != nil {
+		common.SysLog("Warning: Failed to initialize OAuth2 server: " + err.Error())
+		// OAuth2 失败不应该阻止系统启动
+	}
+
 	return nil
 }
