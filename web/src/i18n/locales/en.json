@@ -2008,6 +2008,8 @@
   "复制全部": "Copy all",
   "JSON格式密钥，请确保格式正确": "JSON format key, please ensure the format is correct",
   "检测到多个密钥，您可以单独复制每个密钥，或点击复制全部获取完整内容。": "Detected multiple keys, you can copy each key individually or click Copy All to get the complete content.",
+  "启用自动同步到模型配置": "Enable auto sync to model configuration",
+  "💡 提示：当前已关闭自动同步，模型重定向不会影响模型配置列表": "💡 Tip: Auto sync is currently disabled, model redirects will not affect the model configuration list",
   "安全提醒": "Security reminder",
   "请妥善保管密钥信息，不要泄露给他人。如有安全疑虑，请及时更换密钥。": "Keep key information secure, do not disclose to others. If there are security concerns, please change the key immediately.",
   "安全验证": "Security verification",

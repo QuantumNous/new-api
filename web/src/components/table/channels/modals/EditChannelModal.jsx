@@ -35,6 +35,7 @@ import {
   Button,
   Typography,
   Checkbox,
+  Switch,
   Banner,
   Modal,
   ImagePreview,
@@ -161,6 +162,7 @@ const EditChannelModal = (props) => {
   const [channelSearchValue, setChannelSearchValue] = useState('');
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
+  const [enableModelMappingSync, setEnableModelMappingSync] = useState(false); // 是否启用模型映射同步功能
 
   // 2FA验证查看密钥相关状态
   const [twoFAState, setTwoFAState] = useState({
@@ -310,6 +312,11 @@ const EditChannelModal = (props) => {
 
   // 应用模型映射的核心逻辑
   const applyModelMapping = (mapping, currentModels, currentMapping) => {
+    // 只有在启用模型映射同步功能时才执行
+    if (!enableModelMappingSync) {
+      return { updatedModels: currentModels, newMapping: currentMapping, hasChanges: false };
+    }
+
     let updatedModels = [...currentModels];
     let newMapping = { ...currentMapping };
     let hasChanges = false;
@@ -363,6 +370,11 @@ const EditChannelModal = (props) => {
 
   // 实时同步模型重定向到模型配置的函数
   const syncModelMappingToModels = (mappingValue) => {
+    // 只有在启用模型映射同步功能时才执行
+    if (!enableModelMappingSync) {
+      return;
+    }
+
     const mapping = parseModelMapping(mappingValue);
     
     if (!mapping) {
@@ -835,6 +847,8 @@ const EditChannelModal = (props) => {
     reset2FAVerifyState();
     // 重置模型原始映射关系
     setModelOriginalMapping({});
+    // 重置模型映射同步开关状态
+    setEnableModelMappingSync(false);
   };
 
   // 组件卸载时清理资源
@@ -1884,11 +1898,22 @@ const EditChannelModal = (props) => {
                     templateLabel={t('填入模板')}
                     editorType="keyValue"
                     formApi={formApiRef.current}
+                    customSwitch={
+                      <>
+                        <Text className="text-sm">{t('启用自动同步到模型配置')}</Text>
+                        <Switch
+                          checked={enableModelMappingSync}
+                          onChange={(checked) => setEnableModelMappingSync(checked)}
+                        />
+                      </>
+                    }
                     extraText={
                       <div>
                         <div className="text-center">{t('键为请求中的模型名称，值为要替换的模型名称')}</div>
                         <div className="text-blue-600 text-xs mt-1">
-                          {t('💡 提示：设置重定向后，系统自动将“模型配置”中对应的"值"替换为"键"')}
+                          {enableModelMappingSync
+                            ? t(' 提示：设置重定向后，系统自动将"模型配置"中对应的"值"替换为"键"')
+                            : t(' 提示：当前已关闭自动同步，模型重定向不会影响模型配置列表')}
                         </div>
                       </div>
                     }
