@@ -35,8 +35,12 @@ func ProxyHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, proxyRequest 
 	startTime := common.GetBeijingTime()
 	var statusCode int = -1
 	var err error
+	var funcErr *dto.OpenAIErrorWithStatusCode
 	metrics.IncrementRelayRequestTotalCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, relayInfo.OriginModelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
 	defer func() {
+		if funcErr != nil {
+			err = fmt.Errorf(funcErr.Error.Message)
+		}
 		if err != nil {
 			metrics.IncrementRelayRequestFailedCounter(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, relayInfo.ChannelTag, relayInfo.BaseUrl, relayInfo.OriginModelName, relayInfo.Group, strconv.Itoa(openaiErr.StatusCode), strconv.Itoa(relayInfo.UserId), relayInfo.UserName, 1)
 		} else {
@@ -52,7 +56,6 @@ func ProxyHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, proxyRequest 
 	}
 
 	relayInfo.StartTime = startTime
-	var funcErr *dto.OpenAIErrorWithStatusCode
 
 	// 获取原始 body 数据
 	bodyBytes, ok := proxyRequest.([]byte)
