@@ -155,9 +155,12 @@ func updatePricing() {
 		vendorMap[vendors[i].Id] = &vendors[i]
 	}
 
+	// 初始化默认供应商映射
+	initDefaultVendorMapping(metaMap, vendorMap, enableAbilities)
+
 	// 构建对前端友好的供应商列表
-	vendorsList = make([]PricingVendor, 0, len(vendors))
-	for _, v := range vendors {
+	vendorsList = make([]PricingVendor, 0, len(vendorMap))
+	for _, v := range vendorMap {
 		vendorsList = append(vendorsList, PricingVendor{
 			ID:          v.Id,
 			Name:        v.Name,

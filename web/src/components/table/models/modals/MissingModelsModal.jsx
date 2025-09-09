@@ -18,19 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Modal, Table, Spin, Button, Typography, Empty, Input } from '@douyinfe/semi-ui';
-import { IllustrationNoResult, IllustrationNoResultDark } from '@douyinfe/semi-illustrations';
+import {
+  Modal,
+  Table,
+  Spin,
+  Button,
+  Typography,
+  Empty,
+  Input,
+} from '@douyinfe/semi-ui';
+import {
+  IllustrationNoResult,
+  IllustrationNoResultDark,
+} from '@douyinfe/semi-illustrations';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, showError } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
-const MissingModelsModal = ({
-  visible,
-  onClose,
-  onConfigureModel,
-  t,
-}) => {
+const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
   const [loading, setLoading] = useState(false);
   const [missingModels, setMissingModels] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -64,7 +70,7 @@ const MissingModelsModal = ({
 
   // 过滤和分页逻辑
   const filteredModels = missingModels.filter((model) =>
-    model.toLowerCase().includes(searchKeyword.toLowerCase())
+    model.toLowerCase().includes(searchKeyword.toLowerCase()),
   );
 
   const dataSource = (() => {
@@ -81,37 +87,40 @@ const MissingModelsModal = ({
       title: t('模型名称'),
       dataIndex: 'model',
       render: (text) => (
-        <div className="flex items-center">
+        <div className='flex items-center'>
           <Typography.Text strong>{text}</Typography.Text>
         </div>
-      )
+      ),
     },
     {
       title: '',
       dataIndex: 'operate',
       fixed: 'right',
-      width: 100,
+      width: 120,
       render: (text, record) => (
         <Button
-          type="primary"
-          size="small"
+          type='primary'
+          size='small'
           onClick={() => onConfigureModel(record.model)}
         >
           {t('配置')}
         </Button>
-      )
-    }
+      ),
+    },
   ];
 
   return (
     <Modal
       title={
-        <div className="flex flex-col gap-2 w-full">
-          <div className="flex items-center gap-2">
-            <Typography.Text strong className="!text-[var(--semi-color-text-0)] !text-base">
+        <div className='flex flex-col gap-2 w-full'>
+          <div className='flex items-center gap-2'>
+            <Typography.Text
+              strong
+              className='!text-[var(--semi-color-text-0)] !text-base'
+            >
               {t('未配置的模型列表')}
             </Typography.Text>
-            <Typography.Text type="tertiary" size="small">
+            <Typography.Text type='tertiary' size='small'>
               {t('共')} {missingModels.length} {t('个未配置模型')}
             </Typography.Text>
           </div>
@@ -121,20 +130,22 @@ const MissingModelsModal = ({
       onCancel={onClose}
       footer={null}
       size={isMobile ? 'full-width' : 'medium'}
-      className="!rounded-lg"
+      className='!rounded-lg'
     >
       <Spin spinning={loading}>
         {missingModels.length === 0 && !loading ? (
           <Empty
             image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+            darkModeImage={
+              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+            }
             description={t('暂无缺失模型')}
             style={{ padding: 30 }}
           />
         ) : (
-          <div className="missing-models-content">
+          <div className='missing-models-content'>
             {/* 搜索框 */}
-            <div className="flex items-center justify-end gap-2 w-full mb-4">
+            <div className='flex items-center justify-end gap-2 w-full mb-4'>
               <Input
                 placeholder={t('搜索模型...')}
                 value={searchKeyword}
@@ -142,7 +153,7 @@ const MissingModelsModal = ({
                   setSearchKeyword(v);
                   setCurrentPage(1);
                 }}
-                className="!w-full"
+                className='!w-full'
                 prefix={<IconSearch />}
                 showClear
               />
@@ -163,9 +174,17 @@ const MissingModelsModal = ({
               />
             ) : (
               <Empty
-                image={<IllustrationNoResult style={{ width: 100, height: 100 }} />}
-                darkModeImage={<IllustrationNoResultDark style={{ width: 100, height: 100 }} />}
-                description={searchKeyword ? t('未找到匹配的模型') : t('暂无缺失模型')}
+                image={
+                  <IllustrationNoResult style={{ width: 100, height: 100 }} />
+                }
+                darkModeImage={
+                  <IllustrationNoResultDark
+                    style={{ width: 100, height: 100 }}
+                  />
+                }
+                description={
+                  searchKeyword ? t('未找到匹配的模型') : t('暂无缺失模型')
+                }
                 style={{ padding: 20 }}
               />
             )}

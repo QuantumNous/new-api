@@ -83,9 +83,7 @@ const EditUserModal = (props) => {
   const fetchGroups = async () => {
     try {
       let res = await API.get(`/api/group/`);
-      setGroupOptions(
-        res.data.data.map((g) => ({ label: g, value: g }))
-      );
+      setGroupOptions(res.data.data.map((g) => ({ label: g, value: g })));
     } catch (e) {
       showError(e.message);
     }
@@ -116,7 +114,8 @@ const EditUserModal = (props) => {
   const submit = async (values) => {
     setLoading(true);
     let payload = { ...values };
-    if (typeof payload.quota === 'string') payload.quota = parseInt(payload.quota) || 0;
+    if (typeof payload.quota === 'string')
+      payload.quota = parseInt(payload.quota) || 0;
     if (userId) {
       payload.id = parseInt(userId);
     }
@@ -194,12 +193,20 @@ const EditUserModal = (props) => {
                 {/* 基本信息 */}
                 <Card className='!rounded-2xl shadow-sm border-0'>
                   <div className='flex items-center mb-2'>
-                    <Avatar size='small' color='blue' className='mr-2 shadow-md'>
+                    <Avatar
+                      size='small'
+                      color='blue'
+                      className='mr-2 shadow-md'
+                    >
                       <IconUser size={16} />
                     </Avatar>
                     <div>
-                      <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-                      <div className='text-xs text-gray-600'>{t('用户的基本账户信息')}</div>
+                      <Text className='text-lg font-medium'>
+                        {t('基本信息')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('用户的基本账户信息')}
+                      </div>
                     </div>
                   </div>
 
@@ -248,12 +255,20 @@ const EditUserModal = (props) => {
                 {userId && (
                   <Card className='!rounded-2xl shadow-sm border-0'>
                     <div className='flex items-center mb-2'>
-                      <Avatar size='small' color='green' className='mr-2 shadow-md'>
+                      <Avatar
+                        size='small'
+                        color='green'
+                        className='mr-2 shadow-md'
+                      >
                         <IconUserGroup size={16} />
                       </Avatar>
                       <div>
-                        <Text className='text-lg font-medium'>{t('权限设置')}</Text>
-                        <div className='text-xs text-gray-600'>{t('用户分组和额度管理')}</div>
+                        <Text className='text-lg font-medium'>
+                          {t('权限设置')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('用户分组和额度管理')}
+                        </div>
                       </div>
                     </div>
 
@@ -297,23 +312,41 @@ const EditUserModal = (props) => {
                 {/* 绑定信息 */}
                 <Card className='!rounded-2xl shadow-sm border-0'>
                   <div className='flex items-center mb-2'>
-                    <Avatar size='small' color='purple' className='mr-2 shadow-md'>
+                    <Avatar
+                      size='small'
+                      color='purple'
+                      className='mr-2 shadow-md'
+                    >
                       <IconLink size={16} />
                     </Avatar>
                     <div>
-                      <Text className='text-lg font-medium'>{t('绑定信息')}</Text>
-                      <div className='text-xs text-gray-600'>{t('第三方账户绑定状态（只读）')}</div>
+                      <Text className='text-lg font-medium'>
+                        {t('绑定信息')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('第三方账户绑定状态（只读）')}
+                      </div>
                     </div>
                   </div>
 
                   <Row gutter={12}>
-                    {['github_id', 'oidc_id', 'wechat_id', 'email', 'telegram_id'].map((field) => (
+                    {[
+                      'github_id',
+                      'oidc_id',
+                      'wechat_id',
+                      'email',
+                      'telegram_id',
+                    ].map((field) => (
                       <Col span={24} key={field}>
                         <Form.Input
                           field={field}
-                          label={t(`已绑定的 ${field.replace('_id', '').toUpperCase()} 账户`)}
+                          label={t(
+                            `已绑定的 ${field.replace('_id', '').toUpperCase()} 账户`,
+                          )}
                           readonly
-                          placeholder={t('此项只读，需要用户通过个人设置页面的相关绑定按钮进行绑定，不可直接修改')}
+                          placeholder={t(
+                            '此项只读，需要用户通过个人设置页面的相关绑定按钮进行绑定，不可直接修改',
+                          )}
                         />
                       </Col>
                     ))}
@@ -343,16 +376,14 @@ const EditUserModal = (props) => {
         }
       >
         <div className='mb-4'>
-          {
-            (() => {
-              const current = formApiRef.current?.getValue('quota') || 0;
-              return (
-                <Text type='secondary' className='block mb-2'>
-                  {`${t('新额度：')}${renderQuota(current)} + ${renderQuota(addQuotaLocal)} = ${renderQuota(current + parseInt(addQuotaLocal || 0))}`}
-                </Text>
-              );
-            })()
-          }
+          {(() => {
+            const current = formApiRef.current?.getValue('quota') || 0;
+            return (
+              <Text type='secondary' className='block mb-2'>
+                {`${t('新额度：')}${renderQuota(current)} + ${renderQuota(addQuotaLocal)} = ${renderQuota(current + parseInt(addQuotaLocal || 0))}`}
+              </Text>
+            );
+          })()}
         </div>
         <InputNumber
           placeholder={t('需要添加的额度（支持负数）')}
@@ -367,4 +398,4 @@ const EditUserModal = (props) => {
   );
 };
 
-export default EditUserModal; 
+export default EditUserModal;

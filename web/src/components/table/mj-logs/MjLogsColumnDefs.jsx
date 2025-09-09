@@ -18,12 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Button,
-  Progress,
-  Tag,
-  Typography
-} from '@douyinfe/semi-ui';
+import { Button, Progress, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   Palette,
   ZoomIn,
@@ -49,7 +44,7 @@ import {
   Loader,
   AlertCircle,
   Hash,
-  Video
+  Video,
 } from 'lucide-react';
 
 const colors = [
@@ -153,7 +148,11 @@ function renderType(type, t) {
       );
     case 'INPAINT':
       return (
-        <Tag color='violet' shape='circle' prefixIcon={<PaintBucket size={14} />}>
+        <Tag
+          color='violet'
+          shape='circle'
+          prefixIcon={<PaintBucket size={14} />}
+        >
           {t('局部重绘-提交')}
         </Tag>
       );
@@ -177,7 +176,11 @@ function renderType(type, t) {
       );
     case 'SWAP_FACE':
       return (
-        <Tag color='light-green' shape='circle' prefixIcon={<UserCheck size={14} />}>
+        <Tag
+          color='light-green'
+          shape='circle'
+          prefixIcon={<UserCheck size={14} />}
+        >
           {t('换脸')}
         </Tag>
       );
@@ -194,7 +197,11 @@ function renderCode(code, t) {
   switch (code) {
     case 1:
       return (
-        <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+        <Tag
+          color='green'
+          shape='circle'
+          prefixIcon={<CheckCircle size={14} />}
+        >
           {t('已提交')}
         </Tag>
       );
@@ -229,7 +236,11 @@ function renderStatus(type, t) {
   switch (type) {
     case 'SUCCESS':
       return (
-        <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+        <Tag
+          color='green'
+          shape='circle'
+          prefixIcon={<CheckCircle size={14} />}
+        >
           {t('成功')}
         </Tag>
       );
@@ -259,7 +270,11 @@ function renderStatus(type, t) {
       );
     case 'MODAL':
       return (
-        <Tag color='yellow' shape='circle' prefixIcon={<AlertCircle size={14} />}>
+        <Tag
+          color='yellow'
+          shape='circle'
+          prefixIcon={<AlertCircle size={14} />}
+        >
           {t('窗口等待')}
         </Tag>
       );
@@ -415,7 +430,7 @@ export const getMjLogsColumns = ({
         }
         return (
           <Button
-            size="small"
+            size='small'
             onClick={() => {
               openImageModal(text);
             }}
@@ -493,4 +508,4 @@ export const getMjLogsColumns = ({
       },
     },
   ];
-}; 
+};

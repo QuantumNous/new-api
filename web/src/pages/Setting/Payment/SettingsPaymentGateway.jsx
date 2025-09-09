@@ -18,14 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Button,
-  Form,
-  Row,
-  Col,
-  Typography,
-  Spin,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Row, Col, Typography, Spin } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
   API,
@@ -58,8 +51,14 @@ export default function SettingsPaymentGateway(props) {
         PayAddress: props.options.PayAddress || '',
         EpayId: props.options.EpayId || '',
         EpayKey: props.options.EpayKey || '',
-        Price: props.options.Price !== undefined ? parseFloat(props.options.Price) : 7.3,
-        MinTopUp: props.options.MinTopUp !== undefined ? parseFloat(props.options.MinTopUp) : 1,
+        Price:
+          props.options.Price !== undefined
+            ? parseFloat(props.options.Price)
+            : 7.3,
+        MinTopUp:
+          props.options.MinTopUp !== undefined
+            ? parseFloat(props.options.MinTopUp)
+            : 1,
         TopupGroupRatio: props.options.TopupGroupRatio || '',
         CustomCallbackAddress: props.options.CustomCallbackAddress || '',
         PayMethods: props.options.PayMethods || '',
@@ -126,19 +125,19 @@ export default function SettingsPaymentGateway(props) {
       }
 
       // 发送请求
-      const requestQueue = options.map(opt =>
+      const requestQueue = options.map((opt) =>
         API.put('/api/option/', {
           key: opt.key,
           value: opt.value,
-        })
+        }),
       );
 
       const results = await Promise.all(requestQueue);
 
       // 检查所有请求是否成功
-      const errorResults = results.filter(res => !res.data.success);
+      const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
-        errorResults.forEach(res => {
+        errorResults.forEach((res) => {
           showError(res.data.message);
         });
       } else {
@@ -162,11 +161,11 @@ export default function SettingsPaymentGateway(props) {
       >
         <Form.Section text={t('支付设置')}>
           <Text>
-            {t('（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）')}
+            {t(
+              '（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）',
+            )}
           </Text>
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-          >
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='PayAddress'
@@ -234,4 +233,4 @@ export default function SettingsPaymentGateway(props) {
       </Form>
     </Spin>
   );
-} 
+}

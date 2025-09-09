@@ -19,11 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
-import {
-  Settings,
-  Eye,
-  EyeOff,
-} from 'lucide-react';
+import { Settings, Eye, EyeOff } from 'lucide-react';
 
 const FloatingButtons = ({
   styleState,
@@ -55,7 +51,7 @@ const FloatingButtons = ({
           onClick={onToggleSettings}
           theme='solid'
           type='primary'
-          className="lg:hidden"
+          className='lg:hidden'
         />
       )}
 
@@ -64,8 +60,8 @@ const FloatingButtons = ({
         <Button
           icon={showDebugPanel ? <EyeOff size={18} /> : <Eye size={18} />}
           onClick={onToggleDebugPanel}
-          theme="solid"
-          type={showDebugPanel ? "danger" : "primary"}
+          theme='solid'
+          type={showDebugPanel ? 'danger' : 'primary'}
           style={{
             position: 'fixed',
             right: 16,
@@ -80,11 +76,11 @@ const FloatingButtons = ({
               ? 'linear-gradient(to right, #e11d48, #be123c)'
               : 'linear-gradient(to right, #4f46e5, #6366f1)',
           }}
-          className="lg:hidden"
+          className='lg:hidden'
         />
       )}
     </>
   );
 };
 
-export default FloatingButtons; 
+export default FloatingButtons;

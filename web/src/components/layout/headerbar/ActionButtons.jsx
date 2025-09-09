@@ -41,7 +41,7 @@ const ActionButtons = ({
   t,
 }) => {
   return (
-    <div className="flex items-center gap-2 md:gap-3">
+    <div className='flex items-center gap-2 md:gap-3'>
       <NewYearButton isNewYear={isNewYear} />
 
       <NotificationButton
@@ -50,11 +50,7 @@ const ActionButtons = ({
         t={t}
       />
 
-      <ThemeToggle
-        theme={theme}
-        onThemeToggle={onThemeToggle}
-        t={t}
-      />
+      <ThemeToggle theme={theme} onThemeToggle={onThemeToggle} t={t} />
 
       <LanguageSelector
         currentLang={currentLang}

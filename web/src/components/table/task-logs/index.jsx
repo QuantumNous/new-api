@@ -48,7 +48,7 @@ const TaskLogsPage = () => {
 
       <Layout>
         <CardPro
-          type="type2"
+          type='type2'
           statsArea={<TaskLogsActions {...taskLogsData} />}
           searchArea={<TaskLogsFilters {...taskLogsData} />}
           paginationArea={createCardProPagination({
@@ -69,4 +69,4 @@ const TaskLogsPage = () => {
   );
 };
 
-export default TaskLogsPage; 
+export default TaskLogsPage;

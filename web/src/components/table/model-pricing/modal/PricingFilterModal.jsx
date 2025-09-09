@@ -23,12 +23,7 @@ import { resetPricingFilters } from '../../../../helpers/utils';
 import FilterModalContent from './components/FilterModalContent';
 import FilterModalFooter from './components/FilterModalFooter';
 
-const PricingFilterModal = ({
-  visible,
-  onClose,
-  sidebarProps,
-  t
-}) => {
+const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
   const handleResetFilters = () =>
     resetPricingFilters({
       handleChange: sidebarProps.handleChange,
@@ -46,11 +41,7 @@ const PricingFilterModal = ({
     });
 
   const footer = (
-    <FilterModalFooter
-      onReset={handleResetFilters}
-      onConfirm={onClose}
-      t={t}
-    />
+    <FilterModalFooter onReset={handleResetFilters} onConfirm={onClose} t={t} />
   );
 
   return (
@@ -65,7 +56,7 @@ const PricingFilterModal = ({
         height: 'calc(100vh - 160px)',
         overflowY: 'auto',
         scrollbarWidth: 'none',
-        msOverflowStyle: 'none'
+        msOverflowStyle: 'none',
       }}
     >
       <FilterModalContent sidebarProps={sidebarProps} t={t} />
@@ -73,4 +64,4 @@ const PricingFilterModal = ({
   );
 };
 
-export default PricingFilterModal; 
+export default PricingFilterModal;

@@ -27,7 +27,7 @@ const BatchTagModal = ({
   batchSetTagValue,
   setBatchSetTagValue,
   selectedChannels,
-  t
+  t,
 }) => {
   return (
     <Modal
@@ -37,10 +37,10 @@ const BatchTagModal = ({
       onCancel={() => setShowBatchSetTag(false)}
       maskClosable={false}
       centered={true}
-      size="small"
-      className="!rounded-lg"
+      size='small'
+      className='!rounded-lg'
     >
-      <div className="mb-5">
+      <div className='mb-5'>
         <Typography.Text>{t('请输入要设置的标签名称')}</Typography.Text>
       </div>
       <Input
@@ -48,13 +48,16 @@ const BatchTagModal = ({
         value={batchSetTagValue}
         onChange={(v) => setBatchSetTagValue(v)}
       />
-      <div className="mt-4">
+      <div className='mt-4'>
         <Typography.Text type='secondary'>
-          {t('已选择 ${count} 个渠道').replace('${count}', selectedChannels.length)}
+          {t('已选择 ${count} 个渠道').replace(
+            '${count}',
+            selectedChannels.length,
+          )}
         </Typography.Text>
       </div>
     </Modal>
   );
 };
 
-export default BatchTagModal; 
+export default BatchTagModal;

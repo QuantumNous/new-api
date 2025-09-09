@@ -27,27 +27,32 @@ import { TABLE_COMPACT_MODES_KEY } from '../../constants';
  * 内部使用 localStorage 保存状态，并监听 storage 事件保持多标签页同步。
  */
 export function useTableCompactMode(tableKey = 'global') {
-    const [compactMode, setCompactModeState] = useState(() => getTableCompactMode(tableKey));
+  const [compactMode, setCompactModeState] = useState(() =>
+    getTableCompactMode(tableKey),
+  );
 
-    const setCompactMode = useCallback((value) => {
-        setCompactModeState(value);
-        setTableCompactMode(value, tableKey);
-    }, [tableKey]);
+  const setCompactMode = useCallback(
+    (value) => {
+      setCompactModeState(value);
+      setTableCompactMode(value, tableKey);
+    },
+    [tableKey],
+  );
 
-    useEffect(() => {
-        const handleStorage = (e) => {
-            if (e.key === TABLE_COMPACT_MODES_KEY) {
-                try {
-                    const modes = JSON.parse(e.newValue || '{}');
-                    setCompactModeState(!!modes[tableKey]);
-                } catch {
-                    // ignore parse error
-                }
-            }
-        };
-        window.addEventListener('storage', handleStorage);
-        return () => window.removeEventListener('storage', handleStorage);
-    }, [tableKey]);
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === TABLE_COMPACT_MODES_KEY) {
+        try {
+          const modes = JSON.parse(e.newValue || '{}');
+          setCompactModeState(!!modes[tableKey]);
+        } catch {
+          // ignore parse error
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [tableKey]);
 
-    return [compactMode, setCompactMode];
-} 
+  return [compactMode, setCompactMode];
+}

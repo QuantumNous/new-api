@@ -39,7 +39,7 @@ export const useModelPricingData = () => {
   const [filterEndpointType, setFilterEndpointType] = useState('all'); // 端点类型筛选: 'all' | string
   const [filterVendor, setFilterVendor] = useState('all'); // 供应商筛选: 'all' | 'unknown' | string
   const [filterTag, setFilterTag] = useState('all'); // 模型标签筛选: 'all' | string
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [currency, setCurrency] = useState('USD');
   const [showWithRecharge, setShowWithRecharge] = useState(false);
@@ -56,48 +56,57 @@ export const useModelPricingData = () => {
   const [userState] = useContext(UserContext);
 
   // 充值汇率（price）与美元兑人民币汇率（usd_exchange_rate）
-  const priceRate = useMemo(() => statusState?.status?.price ?? 1, [statusState]);
-  const usdExchangeRate = useMemo(() => statusState?.status?.usd_exchange_rate ?? priceRate, [statusState, priceRate]);
+  const priceRate = useMemo(
+    () => statusState?.status?.price ?? 1,
+    [statusState],
+  );
+  const usdExchangeRate = useMemo(
+    () => statusState?.status?.usd_exchange_rate ?? priceRate,
+    [statusState, priceRate],
+  );
 
   const filteredModels = useMemo(() => {
     let result = models;
 
     // 分组筛选
     if (filterGroup !== 'all') {
-      result = result.filter(model => model.enable_groups.includes(filterGroup));
+      result = result.filter((model) =>
+        model.enable_groups.includes(filterGroup),
+      );
     }
 
     // 计费类型筛选
     if (filterQuotaType !== 'all') {
-      result = result.filter(model => model.quota_type === filterQuotaType);
+      result = result.filter((model) => model.quota_type === filterQuotaType);
     }
 
     // 端点类型筛选
     if (filterEndpointType !== 'all') {
-      result = result.filter(model =>
-        model.supported_endpoint_types &&
-        model.supported_endpoint_types.includes(filterEndpointType)
+      result = result.filter(
+        (model) =>
+          model.supported_endpoint_types &&
+          model.supported_endpoint_types.includes(filterEndpointType),
       );
     }
 
     // 供应商筛选
     if (filterVendor !== 'all') {
       if (filterVendor === 'unknown') {
-        result = result.filter(model => !model.vendor_name);
+        result = result.filter((model) => !model.vendor_name);
       } else {
-        result = result.filter(model => model.vendor_name === filterVendor);
+        result = result.filter((model) => model.vendor_name === filterVendor);
       }
     }
 
     // 标签筛选
     if (filterTag !== 'all') {
       const tagLower = filterTag.toLowerCase();
-      result = result.filter(model => {
+      result = result.filter((model) => {
         if (!model.tags) return false;
         const tagsArr = model.tags
           .toLowerCase()
           .split(/[,;|\s]+/)
-          .map(tag => tag.trim())
+          .map((tag) => tag.trim())
           .filter(Boolean);
         return tagsArr.includes(tagLower);
       });
@@ -106,16 +115,28 @@ export const useModelPricingData = () => {
     // 搜索筛选
     if (searchValue.length > 0) {
       const searchTerm = searchValue.toLowerCase();
-      result = result.filter(model =>
-        (model.model_name && model.model_name.toLowerCase().includes(searchTerm)) ||
-        (model.description && model.description.toLowerCase().includes(searchTerm)) ||
-        (model.tags && model.tags.toLowerCase().includes(searchTerm)) ||
-        (model.vendor_name && model.vendor_name.toLowerCase().includes(searchTerm))
+      result = result.filter(
+        (model) =>
+          (model.model_name &&
+            model.model_name.toLowerCase().includes(searchTerm)) ||
+          (model.description &&
+            model.description.toLowerCase().includes(searchTerm)) ||
+          (model.tags && model.tags.toLowerCase().includes(searchTerm)) ||
+          (model.vendor_name &&
+            model.vendor_name.toLowerCase().includes(searchTerm)),
       );
     }
 
     return result;
-  }, [models, searchValue, filterGroup, filterQuotaType, filterEndpointType, filterVendor, filterTag]);
+  }, [
+    models,
+    searchValue,
+    filterGroup,
+    filterQuotaType,
+    filterEndpointType,
+    filterVendor,
+    filterTag,
+  ]);
 
   const rowSelection = useMemo(
     () => ({
@@ -130,7 +151,7 @@ export const useModelPricingData = () => {
   const displayPrice = (usdPrice) => {
     let priceInUSD = usdPrice;
     if (showWithRecharge) {
-      priceInUSD = usdPrice * priceRate / usdExchangeRate;
+      priceInUSD = (usdPrice * priceRate) / usdExchangeRate;
     }
 
     if (currency === 'CNY') {
@@ -176,7 +197,16 @@ export const useModelPricingData = () => {
     setLoading(true);
     let url = '/api/pricing';
     const res = await API.get(url);
-    const { success, message, data, vendors, group_ratio, usable_group, supported_endpoint, auto_groups } = res.data;
+    const {
+      success,
+      message,
+      data,
+      vendors,
+      group_ratio,
+      usable_group,
+      supported_endpoint,
+      auto_groups,
+    } = res.data;
     if (success) {
       setGroupRatio(group_ratio);
       setUsableGroup(usable_group);
@@ -184,7 +214,7 @@ export const useModelPricingData = () => {
       // 构建供应商 Map 方便查找
       const vendorMap = {};
       if (Array.isArray(vendors)) {
-        vendors.forEach(v => {
+        vendors.forEach((v) => {
           vendorMap[v.id] = v;
         });
       }
@@ -260,7 +290,14 @@ export const useModelPricingData = () => {
   // 当筛选条件变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterGroup, filterQuotaType, filterEndpointType, filterVendor, filterTag, searchValue]);
+  }, [
+    filterGroup,
+    filterQuotaType,
+    filterEndpointType,
+    filterVendor,
+    filterTag,
+    searchValue,
+  ]);
 
   return {
     // 状态
@@ -335,4 +372,4 @@ export const useModelPricingData = () => {
     // 国际化
     t,
   };
-}; 
+};

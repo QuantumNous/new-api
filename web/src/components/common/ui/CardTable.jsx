@@ -19,7 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Table, Card, Skeleton, Pagination, Empty, Button, Collapsible } from '@douyinfe/semi-ui';
+import {
+  Table,
+  Card,
+  Skeleton,
+  Pagination,
+  Empty,
+  Button,
+  Collapsible,
+} from '@douyinfe/semi-ui';
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
@@ -27,7 +35,7 @@ import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTi
 
 /**
  * CardTable 响应式表格组件
- * 
+ *
  * 在桌面端渲染 Semi-UI 的 Table 组件，在移动端则将每一行数据渲染成 Card 形式。
  * 该组件与 Table 组件的大部分 API 保持一致，只需将原 Table 换成 CardTable 即可。
  */
@@ -75,18 +83,22 @@ const CardTable = ({
 
     const renderSkeletonCard = (key) => {
       const placeholder = (
-        <div className="p-2">
+        <div className='p-2'>
           {visibleCols.map((col, idx) => {
             if (!col.title) {
               return (
-                <div key={idx} className="mt-2 flex justify-end">
+                <div key={idx} className='mt-2 flex justify-end'>
                   <Skeleton.Title active style={{ width: 100, height: 24 }} />
                 </div>
               );
             }
 
             return (
-              <div key={idx} className="flex justify-between items-center py-1 border-b last:border-b-0 border-dashed" style={{ borderColor: 'var(--semi-color-border)' }}>
+              <div
+                key={idx}
+                className='flex justify-between items-center py-1 border-b last:border-b-0 border-dashed'
+                style={{ borderColor: 'var(--semi-color-border)' }}
+              >
                 <Skeleton.Title active style={{ width: 80, height: 14 }} />
                 <Skeleton.Title
                   active
@@ -103,14 +115,14 @@ const CardTable = ({
       );
 
       return (
-        <Card key={key} className="!rounded-2xl shadow-sm">
+        <Card key={key} className='!rounded-2xl shadow-sm'>
           <Skeleton loading={true} active placeholder={placeholder}></Skeleton>
         </Card>
       );
     };
 
     return (
-      <div className="flex flex-col gap-2">
+      <div className='flex flex-col gap-2'>
         {[1, 2, 3].map((i) => renderSkeletonCard(i))}
       </div>
     );
@@ -127,9 +139,12 @@ const CardTable = ({
       (!tableProps.rowExpandable || tableProps.rowExpandable(record));
 
     return (
-      <Card key={rowKeyVal} className="!rounded-2xl shadow-sm">
+      <Card key={rowKeyVal} className='!rounded-2xl shadow-sm'>
         {columns.map((col, colIdx) => {
-          if (tableProps?.visibleColumns && !tableProps.visibleColumns[col.key]) {
+          if (
+            tableProps?.visibleColumns &&
+            !tableProps.visibleColumns[col.key]
+          ) {
             return null;
           }
 
@@ -140,7 +155,7 @@ const CardTable = ({
 
           if (!title) {
             return (
-              <div key={col.key || colIdx} className="mt-2 flex justify-end">
+              <div key={col.key || colIdx} className='mt-2 flex justify-end'>
                 {cellContent}
               </div>
             );
@@ -149,14 +164,16 @@ const CardTable = ({
           return (
             <div
               key={col.key || colIdx}
-              className="flex justify-between items-start py-1 border-b last:border-b-0 border-dashed"
+              className='flex justify-between items-start py-1 border-b last:border-b-0 border-dashed'
               style={{ borderColor: 'var(--semi-color-border)' }}
             >
-              <span className="font-medium text-gray-600 mr-2 whitespace-nowrap select-none">
+              <span className='font-medium text-gray-600 mr-2 whitespace-nowrap select-none'>
                 {title}
               </span>
-              <div className="flex-1 break-all flex justify-end items-center gap-1">
-                {cellContent !== undefined && cellContent !== null ? cellContent : '-'}
+              <div className='flex-1 break-all flex justify-end items-center gap-1'>
+                {cellContent !== undefined && cellContent !== null
+                  ? cellContent
+                  : '-'}
               </div>
             </div>
           );
@@ -177,7 +194,7 @@ const CardTable = ({
               {showDetails ? t('收起') : t('详情')}
             </Button>
             <Collapsible isOpen={showDetails} keepDOM>
-              <div className="pt-2">
+              <div className='pt-2'>
                 {tableProps.expandedRowRender(record, index)}
               </div>
             </Collapsible>
@@ -190,19 +207,23 @@ const CardTable = ({
   if (isEmpty) {
     if (tableProps.empty) return tableProps.empty;
     return (
-      <div className="flex justify-center p-4">
-        <Empty description="No Data" />
+      <div className='flex justify-center p-4'>
+        <Empty description='No Data' />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className='flex flex-col gap-2'>
       {dataSource.map((record, index) => (
-        <MobileRowCard key={getRowKey(record, index)} record={record} index={index} />
+        <MobileRowCard
+          key={getRowKey(record, index)}
+          record={record}
+          index={index}
+        />
       ))}
       {!hidePagination && tableProps.pagination && dataSource.length > 0 && (
-        <div className="mt-2 flex justify-center">
+        <div className='mt-2 flex justify-center'>
           <Pagination {...tableProps.pagination} />
         </div>
       )}
@@ -218,4 +239,4 @@ CardTable.propTypes = {
   hidePagination: PropTypes.bool,
 };
 
-export default CardTable; 
+export default CardTable;

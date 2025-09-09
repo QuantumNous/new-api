@@ -49,10 +49,8 @@ const ColumnSelectorModal = ({
       visible={showColumnSelector}
       onCancel={() => setShowColumnSelector(false)}
       footer={
-        <div className="flex justify-end">
-          <Button onClick={() => initDefaultColumns()}>
-            {t('重置')}
-          </Button>
+        <div className='flex justify-end'>
+          <Button onClick={() => initDefaultColumns()}>{t('重置')}</Button>
           <Button onClick={() => setShowColumnSelector(false)}>
             {t('取消')}
           </Button>
@@ -75,7 +73,7 @@ const ColumnSelectorModal = ({
         </Checkbox>
       </div>
       <div
-        className="flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4"
+        className='flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4'
         style={{ border: '1px solid var(--semi-color-border)' }}
       >
         {allColumns.map((column) => {
@@ -85,7 +83,7 @@ const ColumnSelectorModal = ({
           }
 
           return (
-            <div key={column.key} className="w-1/2 mb-4 pr-2">
+            <div key={column.key} className='w-1/2 mb-4 pr-2'>
               <Checkbox
                 checked={!!visibleColumns[column.key]}
                 onChange={(e) =>
@@ -102,4 +100,4 @@ const ColumnSelectorModal = ({
   );
 };
 
-export default ColumnSelectorModal; 
+export default ColumnSelectorModal;

@@ -20,7 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { API, showError, showSuccess, updateAPI, setUserData } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  updateAPI,
+  setUserData,
+} from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
 

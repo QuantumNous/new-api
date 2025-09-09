@@ -55,14 +55,7 @@ const MjLogsTable = (mjLogsData) => {
       openImageModal,
       isAdminUser,
     });
-  }, [
-    t,
-    COLUMN_KEYS,
-    copyText,
-    openContentModal,
-    openImageModal,
-    isAdminUser,
-  ]);
+  }, [t, COLUMN_KEYS, copyText, openContentModal, openImageModal, isAdminUser]);
 
   // Filter columns based on visibility settings
   const getVisibleColumns = () => {
@@ -86,13 +79,11 @@ const MjLogsTable = (mjLogsData) => {
       rowKey='key'
       loading={loading}
       scroll={compactMode ? undefined : { x: 'max-content' }}
-      className="rounded-xl overflow-hidden"
-      size="middle"
+      className='rounded-xl overflow-hidden'
+      size='middle'
       empty={
         <Empty
-          image={
-            <IllustrationNoResult style={{ width: 150, height: 150 }} />
-          }
+          image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
           darkModeImage={
             <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
           }
@@ -114,4 +105,4 @@ const MjLogsTable = (mjLogsData) => {
   );
 };
 
-export default MjLogsTable; 
+export default MjLogsTable;

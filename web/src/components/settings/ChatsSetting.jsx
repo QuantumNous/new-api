@@ -79,4 +79,4 @@ const ChatsSetting = () => {
   );
 };
 
-export default ChatsSetting; 
+export default ChatsSetting;

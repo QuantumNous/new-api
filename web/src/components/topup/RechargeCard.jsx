@@ -73,15 +73,17 @@ const RechargeCard = ({
   const redeemFormApiRef = useRef(null);
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
   return (
-    <Card className="!rounded-2xl shadow-sm border-0">
+    <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
-      <div className="flex items-center mb-4">
-        <Avatar size="small" color="blue" className="mr-3 shadow-md">
+      <div className='flex items-center mb-4'>
+        <Avatar size='small' color='blue' className='mr-3 shadow-md'>
           <CreditCard size={16} />
         </Avatar>
         <div>
-          <Typography.Text className="text-lg font-medium">{t('账户充值')}</Typography.Text>
-          <div className="text-xs">{t('多种充值方式，安全便捷')}</div>
+          <Typography.Text className='text-lg font-medium'>
+            {t('账户充值')}
+          </Typography.Text>
+          <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
         </div>
       </div>
 
@@ -91,52 +93,96 @@ const RechargeCard = ({
           className='!rounded-xl w-full'
           cover={
             <div
-              className="relative h-30"
+              className='relative h-30'
               style={{
                 '--palette-primary-darkerChannel': '37 99 235',
                 backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat'
+                backgroundRepeat: 'no-repeat',
               }}
             >
-              <div className="relative z-10 h-full flex flex-col justify-between p-4">
+              <div className='relative z-10 h-full flex flex-col justify-between p-4'>
                 <div className='flex justify-between items-center'>
-                  <Text strong style={{ color: 'white', fontSize: '16px' }}>{t('账户统计')}</Text>
+                  <Text strong style={{ color: 'white', fontSize: '16px' }}>
+                    {t('账户统计')}
+                  </Text>
                 </div>
 
                 {/* 统计数据 */}
                 <div className='grid grid-cols-3 gap-6 mt-4'>
                   {/* 当前余额 */}
                   <div className='text-center'>
-                    <div className='text-base sm:text-2xl font-bold mb-2' style={{ color: 'white' }}>
+                    <div
+                      className='text-base sm:text-2xl font-bold mb-2'
+                      style={{ color: 'white' }}
+                    >
                       {renderQuota(userState?.user?.quota)}
                     </div>
                     <div className='flex items-center justify-center text-sm'>
-                      <Wallet size={14} className="mr-1" style={{ color: 'rgba(255,255,255,0.8)' }} />
-                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{t('当前余额')}</Text>
+                      <Wallet
+                        size={14}
+                        className='mr-1'
+                        style={{ color: 'rgba(255,255,255,0.8)' }}
+                      />
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.8)',
+                          fontSize: '12px',
+                        }}
+                      >
+                        {t('当前余额')}
+                      </Text>
                     </div>
                   </div>
 
                   {/* 历史消耗 */}
                   <div className='text-center'>
-                    <div className='text-base sm:text-2xl font-bold mb-2' style={{ color: 'white' }}>
+                    <div
+                      className='text-base sm:text-2xl font-bold mb-2'
+                      style={{ color: 'white' }}
+                    >
                       {renderQuota(userState?.user?.used_quota)}
                     </div>
                     <div className='flex items-center justify-center text-sm'>
-                      <TrendingUp size={14} className="mr-1" style={{ color: 'rgba(255,255,255,0.8)' }} />
-                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{t('历史消耗')}</Text>
+                      <TrendingUp
+                        size={14}
+                        className='mr-1'
+                        style={{ color: 'rgba(255,255,255,0.8)' }}
+                      />
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.8)',
+                          fontSize: '12px',
+                        }}
+                      >
+                        {t('历史消耗')}
+                      </Text>
                     </div>
                   </div>
 
                   {/* 请求次数 */}
                   <div className='text-center'>
-                    <div className='text-base sm:text-2xl font-bold mb-2' style={{ color: 'white' }}>
+                    <div
+                      className='text-base sm:text-2xl font-bold mb-2'
+                      style={{ color: 'white' }}
+                    >
                       {userState?.user?.request_count || 0}
                     </div>
                     <div className='flex items-center justify-center text-sm'>
-                      <BarChart2 size={14} className="mr-1" style={{ color: 'rgba(255,255,255,0.8)' }} />
-                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{t('请求次数')}</Text>
+                      <BarChart2
+                        size={14}
+                        className='mr-1'
+                        style={{ color: 'rgba(255,255,255,0.8)' }}
+                      />
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.8)',
+                          fontSize: '12px',
+                        }}
+                      >
+                        {t('请求次数')}
+                      </Text>
                     </div>
                   </div>
                 </div>
@@ -147,9 +193,9 @@ const RechargeCard = ({
           {/* 在线充值表单 */}
           {statusLoading ? (
             <div className='py-8 flex justify-center'>
-              <Spin size="large" />
+              <Spin size='large' />
             </div>
-          ) : (enableOnlineTopUp || enableStripeTopUp) ? (
+          ) : enableOnlineTopUp || enableStripeTopUp ? (
             <Form
               getFormApi={(api) => (onlineFormApiRef.current = api)}
               initValues={{ topUpCount: topUpCount }}
@@ -162,7 +208,9 @@ const RechargeCard = ({
                         field='topUpCount'
                         label={t('充值数量')}
                         disabled={!enableOnlineTopUp && !enableStripeTopUp}
-                        placeholder={t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)}
+                        placeholder={
+                          t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                        }
                         value={topUpCount}
                         min={minTopUp}
                         max={999999999}
@@ -183,15 +231,28 @@ const RechargeCard = ({
                           }
                         }}
                         formatter={(value) => (value ? `${value}` : '')}
-                        parser={(value) => value ? parseInt(value.replace(/[^\d]/g, '')) : 0}
+                        parser={(value) =>
+                          value ? parseInt(value.replace(/[^\d]/g, '')) : 0
+                        }
                         extraText={
                           <Skeleton
                             loading={showAmountSkeleton}
                             active
-                            placeholder={<Skeleton.Title style={{ width: 120, height: 20, borderRadius: 6 }} />}
+                            placeholder={
+                              <Skeleton.Title
+                                style={{
+                                  width: 120,
+                                  height: 20,
+                                  borderRadius: 6,
+                                }}
+                              />
+                            }
                           >
-                            <Text type="secondary" className='text-red-600'>
-                              {t('实付金额：')}<span style={{ color: 'red' }}>{renderAmount()}</span>
+                            <Text type='secondary' className='text-red-600'>
+                              {t('实付金额：')}
+                              <span style={{ color: 'red' }}>
+                                {renderAmount()}
+                              </span>
                             </Text>
                           </Skeleton>
                         }
@@ -207,18 +268,30 @@ const RechargeCard = ({
                               theme='outline'
                               type='tertiary'
                               onClick={() => preTopUp(payMethod.type)}
-                              disabled={(!enableOnlineTopUp && payMethod.type !== 'stripe') ||
-                                (!enableStripeTopUp && payMethod.type === 'stripe')}
-                              loading={paymentLoading && payWay === payMethod.type}
+                              disabled={
+                                (!enableOnlineTopUp &&
+                                  payMethod.type !== 'stripe') ||
+                                (!enableStripeTopUp &&
+                                  payMethod.type === 'stripe')
+                              }
+                              loading={
+                                paymentLoading && payWay === payMethod.type
+                              }
                               icon={
                                 payMethod.type === 'alipay' ? (
-                                  <SiAlipay size={18} color="#1677FF" />
+                                  <SiAlipay size={18} color='#1677FF' />
                                 ) : payMethod.type === 'wxpay' ? (
-                                  <SiWechat size={18} color="#07C160" />
+                                  <SiWechat size={18} color='#07C160' />
                                 ) : payMethod.type === 'stripe' ? (
-                                  <SiStripe size={18} color="#635BFF" />
+                                  <SiStripe size={18} color='#635BFF' />
                                 ) : (
-                                  <CreditCard size={18} color={payMethod.color || 'var(--semi-color-text-2)'} />
+                                  <CreditCard
+                                    size={18}
+                                    color={
+                                      payMethod.color ||
+                                      'var(--semi-color-text-2)'
+                                    }
+                                  />
                                 )
                               }
                             >
@@ -237,18 +310,33 @@ const RechargeCard = ({
                       {presetAmounts.map((preset, index) => (
                         <Button
                           key={index}
-                          theme={selectedPreset === preset.value ? 'solid' : 'outline'}
-                          type={selectedPreset === preset.value ? 'primary' : 'tertiary'}
+                          theme={
+                            selectedPreset === preset.value
+                              ? 'solid'
+                              : 'outline'
+                          }
+                          type={
+                            selectedPreset === preset.value
+                              ? 'primary'
+                              : 'tertiary'
+                          }
                           onClick={() => {
                             selectPresetAmount(preset);
-                            onlineFormApiRef.current?.setValue('topUpCount', preset.value);
+                            onlineFormApiRef.current?.setValue(
+                              'topUpCount',
+                              preset.value,
+                            );
                           }}
                           className='!rounded-lg !py-2 !px-3'
                         >
                           <div className='flex items-center gap-2'>
                             <Coins size={14} className='opacity-80' />
-                            <span className='font-medium'>{formatLargeNumber(preset.value)}</span>
-                            <span className='text-xs text-gray-500'>￥{(preset.value * priceRatio).toFixed(2)}</span>
+                            <span className='font-medium'>
+                              {formatLargeNumber(preset.value)}
+                            </span>
+                            <span className='text-xs text-gray-500'>
+                              ￥{(preset.value * priceRatio).toFixed(2)}
+                            </span>
                           </div>
                         </Button>
                       ))}
@@ -260,7 +348,9 @@ const RechargeCard = ({
           ) : (
             <Banner
               type='info'
-              description={t('管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。')}
+              description={t(
+                '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
+              )}
               className='!rounded-xl'
               closeIcon={null}
             />
@@ -301,19 +391,21 @@ const RechargeCard = ({
               }
               showClear
               style={{ width: '100%' }}
-              extraText={topUpLink && (
-                <Text type="tertiary">
-                  {t('在找兑换码？')}
-                  <Text
-                    type="secondary"
-                    underline
-                    className="cursor-pointer"
-                    onClick={openTopUpLink}
-                  >
-                    {t('购买兑换码')}
+              extraText={
+                topUpLink && (
+                  <Text type='tertiary'>
+                    {t('在找兑换码？')}
+                    <Text
+                      type='secondary'
+                      underline
+                      className='cursor-pointer'
+                      onClick={openTopUpLink}
+                    >
+                      {t('购买兑换码')}
+                    </Text>
                   </Text>
-                </Text>
-              )}
+                )
+              }
             />
           </Form>
         </Card>

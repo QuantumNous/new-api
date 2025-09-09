@@ -19,13 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  API,
-  copy,
-  showError,
-  showInfo,
-  showSuccess
-} from '../../helpers';
+import { API, copy, showError, showInfo, showSuccess } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -71,6 +65,7 @@ const PersonalSetting = () => {
     webhookUrl: '',
     webhookSecret: '',
     notificationEmail: '',
+    barkUrl: '',
     acceptUnsetModelRatioModel: false,
     recordIpLog: false,
   });
@@ -112,6 +107,7 @@ const PersonalSetting = () => {
         webhookUrl: settings.webhook_url || '',
         webhookSecret: settings.webhook_secret || '',
         notificationEmail: settings.notification_email || '',
+        barkUrl: settings.bark_url || '',
         acceptUnsetModelRatioModel:
           settings.accept_unset_model_ratio_model || false,
         recordIpLog: settings.record_ip_log || false,
@@ -271,7 +267,11 @@ const PersonalSetting = () => {
   const handleNotificationSettingChange = (type, value) => {
     setNotificationSettings((prev) => ({
       ...prev,
-      [type]: value.target ? value.target.value !== undefined ? value.target.value : value.target.checked : value, // handle checkbox properly
+      [type]: value.target
+        ? value.target.value !== undefined
+          ? value.target.value
+          : value.target.checked
+        : value, // handle checkbox properly
     }));
   };
 
@@ -285,6 +285,7 @@ const PersonalSetting = () => {
         webhook_url: notificationSettings.webhookUrl,
         webhook_secret: notificationSettings.webhookSecret,
         notification_email: notificationSettings.notificationEmail,
+        bark_url: notificationSettings.barkUrl,
         accept_unset_model_ratio_model:
           notificationSettings.acceptUnsetModelRatioModel,
         record_ip_log: notificationSettings.recordIpLog,
@@ -302,14 +303,14 @@ const PersonalSetting = () => {
   };
 
   return (
-    <div className="mt-[60px]">
-      <div className="flex justify-center">
-        <div className="w-full max-w-7xl mx-auto px-2">
+    <div className='mt-[60px]'>
+      <div className='flex justify-center'>
+        <div className='w-full max-w-7xl mx-auto px-2'>
           {/* 顶部用户信息区域 */}
           <UserInfoHeader t={t} userState={userState} />
 
           {/* 账户管理和其他设置 */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6">
+          <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
             {/* 左侧：账户管理设置 */}
             <AccountManagement
               t={t}

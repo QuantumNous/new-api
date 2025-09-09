@@ -28,7 +28,7 @@ import {
   RadioGroup,
   Radio,
   Checkbox,
-  Tag
+  Tag,
 } from '@douyinfe/semi-ui';
 import {
   IconDelete,
@@ -72,7 +72,8 @@ export default function ModelSettingsVisualEditor(props) {
       const modelData = Array.from(modelNames).map((name) => {
         const price = modelPrice[name] === undefined ? '' : modelPrice[name];
         const ratio = modelRatio[name] === undefined ? '' : modelRatio[name];
-        const comp = completionRatio[name] === undefined ? '' : completionRatio[name];
+        const comp =
+          completionRatio[name] === undefined ? '' : completionRatio[name];
 
         return {
           name,
@@ -98,9 +99,7 @@ export default function ModelSettingsVisualEditor(props) {
 
   // 在 return 语句之前，先处理过滤和分页逻辑
   const filteredModels = models.filter((model) => {
-    const keywordMatch = searchText
-      ? model.name.toLowerCase().includes(searchText.toLowerCase())
-      : true;
+    const keywordMatch = searchText ? model.name.includes(searchText) : true;
     const conflictMatch = conflictOnly ? model.hasConflict : true;
     return keywordMatch && conflictMatch;
   });
@@ -263,7 +262,8 @@ export default function ModelSettingsVisualEditor(props) {
         if (model.name !== name) return model;
         const updated = { ...model, [field]: value };
         updated.hasConflict =
-          updated.price !== '' && (updated.ratio !== '' || updated.completionRatio !== '');
+          updated.price !== '' &&
+          (updated.ratio !== '' || updated.completionRatio !== '');
         return updated;
       }),
     );
@@ -349,7 +349,8 @@ export default function ModelSettingsVisualEditor(props) {
             completionRatio: values.completionRatio || '',
           };
           updated.hasConflict =
-            updated.price !== '' && (updated.ratio !== '' || updated.completionRatio !== '');
+            updated.price !== '' &&
+            (updated.ratio !== '' || updated.completionRatio !== '');
           return updated;
         }),
       );
@@ -371,7 +372,8 @@ export default function ModelSettingsVisualEditor(props) {
           completionRatio: values.completionRatio || '',
         };
         newModel.hasConflict =
-          newModel.price !== '' && (newModel.ratio !== '' || newModel.completionRatio !== '');
+          newModel.price !== '' &&
+          (newModel.ratio !== '' || newModel.completionRatio !== '');
         return [newModel, ...prev];
       });
       setVisible(false);

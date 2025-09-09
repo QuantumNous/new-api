@@ -70,14 +70,18 @@ const renderUsername = (text, record) => {
     return <span>{text}</span>;
   }
   const maxLen = 10;
-  const displayRemark = remark.length > maxLen ? remark.slice(0, maxLen) + '…' : remark;
+  const displayRemark =
+    remark.length > maxLen ? remark.slice(0, maxLen) + '…' : remark;
   return (
     <Space spacing={2}>
       <span>{text}</span>
-      <Tooltip content={remark} position="top" showArrow>
-        <Tag color='white' shape='circle' className="!text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 flex-shrink-0 rounded-full" style={{ backgroundColor: '#10b981' }} />
+      <Tooltip content={remark} position='top' showArrow>
+        <Tag color='white' shape='circle' className='!text-xs'>
+          <div className='flex items-center gap-1'>
+            <div
+              className='w-2 h-2 flex-shrink-0 rounded-full'
+              style={{ backgroundColor: '#10b981' }}
+            />
             {displayRemark}
           </div>
         </Tag>
@@ -107,18 +111,16 @@ const renderStatistics = (text, record, showEnableDisableModal, t) => {
   }
 
   const content = (
-    <Tag
-      color={tagColor}
-      shape='circle'
-      size='small'
-    >
+    <Tag color={tagColor} shape='circle' size='small'>
       {tagText}
     </Tag>
   );
 
   const tooltipContent = (
     <div className='text-xs'>
-      <div>{t('调用次数')}: {renderNumber(record.request_count)}</div>
+      <div>
+        {t('调用次数')}: {renderNumber(record.request_count)}
+      </div>
     </div>
   );
 
@@ -173,14 +175,16 @@ const renderInviteInfo = (text, record, t) => {
   return (
     <div>
       <Space spacing={1}>
-        <Tag color='white' shape='circle' className="!text-xs">
+        <Tag color='white' shape='circle' className='!text-xs'>
           {t('邀请')}: {renderNumber(record.aff_count)}
         </Tag>
-        <Tag color='white' shape='circle' className="!text-xs">
+        <Tag color='white' shape='circle' className='!text-xs'>
           {t('收益')}: {renderQuota(record.aff_history_quota)}
         </Tag>
-        <Tag color='white' shape='circle' className="!text-xs">
-          {record.inviter_id === 0 ? t('无邀请人') : `${t('邀请人')}: ${record.inviter_id}`}
+        <Tag color='white' shape='circle' className='!text-xs'>
+          {record.inviter_id === 0
+            ? t('无邀请人')
+            : `${t('邀请人')}: ${record.inviter_id}`}
         </Tag>
       </Space>
     </div>
@@ -190,15 +194,19 @@ const renderInviteInfo = (text, record, t) => {
 /**
  * Render operations column
  */
-const renderOperations = (text, record, {
-  setEditingUser,
-  setShowEditUser,
-  showPromoteModal,
-  showDemoteModal,
-  showEnableDisableModal,
-  showDeleteModal,
-  t
-}) => {
+const renderOperations = (
+  text,
+  record,
+  {
+    setEditingUser,
+    setShowEditUser,
+    showPromoteModal,
+    showDemoteModal,
+    showEnableDisableModal,
+    showDeleteModal,
+    t,
+  },
+) => {
   if (record.DeletedAt !== null) {
     return <></>;
   }
@@ -208,14 +216,14 @@ const renderOperations = (text, record, {
       {record.status === 1 ? (
         <Button
           type='danger'
-          size="small"
+          size='small'
           onClick={() => showEnableDisableModal(record, 'disable')}
         >
           {t('禁用')}
         </Button>
       ) : (
         <Button
-          size="small"
+          size='small'
           onClick={() => showEnableDisableModal(record, 'enable')}
         >
           {t('启用')}
@@ -223,7 +231,7 @@ const renderOperations = (text, record, {
       )}
       <Button
         type='tertiary'
-        size="small"
+        size='small'
         onClick={() => {
           setEditingUser(record);
           setShowEditUser(true);
@@ -233,21 +241,21 @@ const renderOperations = (text, record, {
       </Button>
       <Button
         type='warning'
-        size="small"
+        size='small'
         onClick={() => showPromoteModal(record)}
       >
         {t('提升')}
       </Button>
       <Button
         type='secondary'
-        size="small"
+        size='small'
         onClick={() => showDemoteModal(record)}
       >
         {t('降级')}
       </Button>
       <Button
         type='danger'
-        size="small"
+        size='small'
         onClick={() => showDeleteModal(record)}
       >
         {t('注销')}
@@ -266,7 +274,7 @@ export const getUsersColumns = ({
   showPromoteModal,
   showDemoteModal,
   showEnableDisableModal,
-  showDeleteModal
+  showDeleteModal,
 }) => {
   return [
     {
@@ -281,7 +289,8 @@ export const getUsersColumns = ({
     {
       title: t('状态'),
       dataIndex: 'info',
-      render: (text, record, index) => renderStatistics(text, record, showEnableDisableModal, t),
+      render: (text, record, index) =>
+        renderStatistics(text, record, showEnableDisableModal, t),
     },
     {
       title: t('剩余额度/总额度'),
@@ -312,15 +321,16 @@ export const getUsersColumns = ({
       dataIndex: 'operate',
       fixed: 'right',
       width: 200,
-      render: (text, record, index) => renderOperations(text, record, {
-        setEditingUser,
-        setShowEditUser,
-        showPromoteModal,
-        showDemoteModal,
-        showEnableDisableModal,
-        showDeleteModal,
-        t
-      }),
+      render: (text, record, index) =>
+        renderOperations(text, record, {
+          setEditingUser,
+          setShowEditUser,
+          showPromoteModal,
+          showDemoteModal,
+          showEnableDisableModal,
+          showDeleteModal,
+          t,
+        }),
     },
   ];
-}; 
+};

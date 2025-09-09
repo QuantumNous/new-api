@@ -28,19 +28,13 @@ import {
   Divider,
   Modal,
   Switch,
-  Tooltip
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
-  IllustrationNoResultDark
+  IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Save,
-  HelpCircle
-} from 'lucide-react';
+import { Plus, Edit, Trash2, Save, HelpCircle } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -59,7 +53,7 @@ const SettingsFAQ = ({ options, refresh }) => {
   const [hasChanges, setHasChanges] = useState(false);
   const [faqForm, setFaqForm] = useState({
     question: '',
-    answer: ''
+    answer: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -75,17 +69,19 @@ const SettingsFAQ = ({ options, refresh }) => {
       key: 'question',
       render: (text) => (
         <Tooltip content={text} showArrow>
-          <div style={{
-            maxWidth: '300px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontWeight: 'bold'
-          }}>
+          <div
+            style={{
+              maxWidth: '300px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontWeight: 'bold',
+            }}
+          >
             {text}
           </div>
         </Tooltip>
-      )
+      ),
     },
     {
       title: t('回答内容'),
@@ -93,17 +89,19 @@ const SettingsFAQ = ({ options, refresh }) => {
       key: 'answer',
       render: (text) => (
         <Tooltip content={text} showArrow>
-          <div style={{
-            maxWidth: '400px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            color: 'var(--semi-color-text-1)'
-          }}>
+          <div
+            style={{
+              maxWidth: '400px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--semi-color-text-1)',
+            }}
+          >
             {text}
           </div>
         </Tooltip>
-      )
+      ),
     },
     {
       title: t('操作'),
@@ -131,8 +129,8 @@ const SettingsFAQ = ({ options, refresh }) => {
             {t('删除')}
           </Button>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
   const updateOption = async (key, value) => {
@@ -167,7 +165,7 @@ const SettingsFAQ = ({ options, refresh }) => {
     setEditingFaq(null);
     setFaqForm({
       question: '',
-      answer: ''
+      answer: '',
     });
     setShowFaqModal(true);
   };
@@ -176,7 +174,7 @@ const SettingsFAQ = ({ options, refresh }) => {
     setEditingFaq(faq);
     setFaqForm({
       question: faq.question,
-      answer: faq.answer
+      answer: faq.answer,
     });
     setShowFaqModal(true);
   };
@@ -188,7 +186,7 @@ const SettingsFAQ = ({ options, refresh }) => {
 
   const confirmDeleteFaq = () => {
     if (deletingFaq) {
-      const newList = faqList.filter(item => item.id !== deletingFaq.id);
+      const newList = faqList.filter((item) => item.id !== deletingFaq.id);
       setFaqList(newList);
       setHasChanges(true);
       showSuccess('问答已删除，请及时点击“保存设置”进行保存');
@@ -208,16 +206,14 @@ const SettingsFAQ = ({ options, refresh }) => {
 
       let newList;
       if (editingFaq) {
-        newList = faqList.map(item =>
-          item.id === editingFaq.id
-            ? { ...item, ...faqForm }
-            : item
+        newList = faqList.map((item) =>
+          item.id === editingFaq.id ? { ...item, ...faqForm } : item,
         );
       } else {
-        const newId = Math.max(...faqList.map(item => item.id), 0) + 1;
+        const newId = Math.max(...faqList.map((item) => item.id), 0) + 1;
         const newFaq = {
           id: newId,
-          ...faqForm
+          ...faqForm,
         };
         newList = [...faqList, newFaq];
       }
@@ -225,7 +221,11 @@ const SettingsFAQ = ({ options, refresh }) => {
       setFaqList(newList);
       setHasChanges(true);
       setShowFaqModal(false);
-      showSuccess(editingFaq ? '问答已更新，请及时点击“保存设置”进行保存' : '问答已添加，请及时点击“保存设置”进行保存');
+      showSuccess(
+        editingFaq
+          ? '问答已更新，请及时点击“保存设置”进行保存'
+          : '问答已添加，请及时点击“保存设置”进行保存',
+      );
     } catch (error) {
       showError('操作失败: ' + error.message);
     } finally {
@@ -245,7 +245,7 @@ const SettingsFAQ = ({ options, refresh }) => {
       // 确保每个项目都有id
       const listWithIds = list.map((item, index) => ({
         ...item,
-        id: item.id || index + 1
+        id: item.id || index + 1,
       }));
       setFaqList(listWithIds);
     } catch (error) {
@@ -262,7 +262,11 @@ const SettingsFAQ = ({ options, refresh }) => {
 
   useEffect(() => {
     const enabledStr = options['console_setting.faq_enabled'];
-    setPanelEnabled(enabledStr === undefined ? true : enabledStr === 'true' || enabledStr === true);
+    setPanelEnabled(
+      enabledStr === undefined
+        ? true
+        : enabledStr === 'true' || enabledStr === true,
+    );
   }, [options['console_setting.faq_enabled']]);
 
   const handleToggleEnabled = async (checked) => {
@@ -290,31 +294,39 @@ const SettingsFAQ = ({ options, refresh }) => {
       return;
     }
 
-    const newList = faqList.filter(item => !selectedRowKeys.includes(item.id));
+    const newList = faqList.filter(
+      (item) => !selectedRowKeys.includes(item.id),
+    );
     setFaqList(newList);
     setSelectedRowKeys([]);
     setHasChanges(true);
-    showSuccess(`已删除 ${selectedRowKeys.length} 个常见问答，请及时点击“保存设置”进行保存`);
+    showSuccess(
+      `已删除 ${selectedRowKeys.length} 个常见问答，请及时点击“保存设置”进行保存`,
+    );
   };
 
   const renderHeader = () => (
-    <div className="flex flex-col w-full">
-      <div className="mb-2">
-        <div className="flex items-center text-blue-500">
-          <HelpCircle size={16} className="mr-2" />
-          <Text>{t('常见问答管理，为用户提供常见问题的答案（最多50个，前端显示最新20条）')}</Text>
+    <div className='flex flex-col w-full'>
+      <div className='mb-2'>
+        <div className='flex items-center text-blue-500'>
+          <HelpCircle size={16} className='mr-2' />
+          <Text>
+            {t(
+              '常见问答管理，为用户提供常见问题的答案（最多50个，前端显示最新20条）',
+            )}
+          </Text>
         </div>
       </div>
 
-      <Divider margin="12px" />
+      <Divider margin='12px' />
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
-        <div className="flex gap-2 w-full md:w-auto order-2 md:order-1">
+      <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
+        <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
           <Button
             theme='light'
             type='primary'
             icon={<Plus size={14} />}
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
             onClick={handleAddFaq}
           >
             {t('添加问答')}
@@ -325,9 +337,10 @@ const SettingsFAQ = ({ options, refresh }) => {
             theme='light'
             onClick={handleBatchDelete}
             disabled={selectedRowKeys.length === 0}
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
           >
-            {t('批量删除')} {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            {t('批量删除')}{' '}
+            {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
           </Button>
           <Button
             icon={<Save size={14} />}
@@ -335,14 +348,14 @@ const SettingsFAQ = ({ options, refresh }) => {
             loading={loading}
             disabled={!hasChanges}
             type='secondary'
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
           >
             {t('保存设置')}
           </Button>
         </div>
 
         {/* 启用开关 */}
-        <div className="order-1 md:order-2 flex items-center gap-2">
+        <div className='order-1 md:order-2 flex items-center gap-2'>
           <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
           <Text>{panelEnabled ? t('已启用') : t('已禁用')}</Text>
         </div>
@@ -381,7 +394,7 @@ const SettingsFAQ = ({ options, refresh }) => {
           columns={columns}
           dataSource={getCurrentPageData()}
           rowSelection={rowSelection}
-          rowKey="id"
+          rowKey='id'
           scroll={{ x: 'max-content' }}
           pagination={{
             currentPage: currentPage,
@@ -397,19 +410,23 @@ const SettingsFAQ = ({ options, refresh }) => {
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-            }
+            },
           }}
           size='middle'
           loading={loading}
           empty={
             <Empty
-              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-              darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
               description={t('暂无常见问答')}
               style={{ padding: 30 }}
             />
           }
-          className="overflow-hidden"
+          className='overflow-hidden'
         />
       </Form.Section>
 
@@ -423,7 +440,11 @@ const SettingsFAQ = ({ options, refresh }) => {
         confirmLoading={modalLoading}
         width={800}
       >
-        <Form layout='vertical' initValues={faqForm} key={editingFaq ? editingFaq.id : 'new'}>
+        <Form
+          layout='vertical'
+          initValues={faqForm}
+          key={editingFaq ? editingFaq.id : 'new'}
+        >
           <Form.Input
             field='question'
             label={t('问题标题')}
@@ -454,10 +475,10 @@ const SettingsFAQ = ({ options, refresh }) => {
         }}
         okText={t('确认删除')}
         cancelText={t('取消')}
-        type="warning"
+        type='warning'
         okButtonProps={{
           type: 'danger',
-          theme: 'solid'
+          theme: 'solid',
         }}
       >
         <Text>{t('确定要删除此问答吗？')}</Text>
@@ -466,4 +487,4 @@ const SettingsFAQ = ({ options, refresh }) => {
   );
 };
 
-export default SettingsFAQ; 
+export default SettingsFAQ;

@@ -210,6 +210,7 @@ func Register(c *gin.Context) {
 		Password:    user.Password,
 		DisplayName: user.Username,
 		InviterId:   inviterId,
+		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
@@ -426,6 +427,7 @@ func GetAffCode(c *gin.Context) {
 
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
+	userRole := c.GetInt("role")
 	user, err := model.GetUserById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -434,12 +436,132 @@ func GetSelf(c *gin.Context) {
 	// Hide admin remarks: set to empty to trigger omitempty tag, ensuring the remark field is not included in JSON returned to regular users
 	user.Remark = ""
 
+	// 计算用户权限信息
+	permissions := calculateUserPermissions(userRole)
+
+	// 获取用户设置并提取sidebar_modules
+	userSetting := user.GetSetting()
+
+	// 构建响应数据，包含用户信息和权限
+	responseData := map[string]interface{}{
+		"id":                user.Id,
+		"username":          user.Username,
+		"display_name":      user.DisplayName,
+		"role":              user.Role,
+		"status":            user.Status,
+		"email":             user.Email,
+		"group":             user.Group,
+		"quota":             user.Quota,
+		"used_quota":        user.UsedQuota,
+		"request_count":     user.RequestCount,
+		"aff_code":          user.AffCode,
+		"aff_count":         user.AffCount,
+		"aff_quota":         user.AffQuota,
+		"aff_history_quota": user.AffHistoryQuota,
+		"inviter_id":        user.InviterId,
+		"linux_do_id":       user.LinuxDOId,
+		"setting":           user.Setting,
+		"stripe_customer":   user.StripeCustomer,
+		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":       permissions,                // 新增权限字段
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user,
+		"data":    responseData,
 	})
 	return
+}
+
+// 计算用户权限的辅助函数
+func calculateUserPermissions(userRole int) map[string]interface{} {
+	permissions := map[string]interface{}{}
+
+	// 根据用户角色计算权限
+	if userRole == common.RoleRootUser {
+		// 超级管理员不需要边栏设置功能
+		permissions["sidebar_settings"] = false
+		permissions["sidebar_modules"] = map[string]interface{}{}
+	} else if userRole == common.RoleAdminUser {
+		// 管理员可以设置边栏，但不包含系统设置功能
+		permissions["sidebar_settings"] = true
+		permissions["sidebar_modules"] = map[string]interface{}{
+			"admin": map[string]interface{}{
+				"setting": false, // 管理员不能访问系统设置
+			},
+		}
+	} else {
+		// 普通用户只能设置个人功能，不包含管理员区域
+		permissions["sidebar_settings"] = true
+		permissions["sidebar_modules"] = map[string]interface{}{
+			"admin": false, // 普通用户不能访问管理员区域
+		}
+	}
+
+	return permissions
+}
+
+// 根据用户角色生成默认的边栏配置
+func generateDefaultSidebarConfig(userRole int) string {
+	defaultConfig := map[string]interface{}{}
+
+	// 聊天区域 - 所有用户都可以访问
+	defaultConfig["chat"] = map[string]interface{}{
+		"enabled":    true,
+		"playground": true,
+		"chat":       true,
+	}
+
+	// 控制台区域 - 所有用户都可以访问
+	defaultConfig["console"] = map[string]interface{}{
+		"enabled":    true,
+		"detail":     true,
+		"token":      true,
+		"log":        true,
+		"midjourney": true,
+		"task":       true,
+	}
+
+	// 个人中心区域 - 所有用户都可以访问
+	defaultConfig["personal"] = map[string]interface{}{
+		"enabled":  true,
+		"topup":    true,
+		"personal": true,
+	}
+
+	// 管理员区域 - 根据角色决定
+	if userRole == common.RoleAdminUser {
+		// 管理员可以访问管理员区域，但不能访问系统设置
+		defaultConfig["admin"] = map[string]interface{}{
+			"enabled":    true,
+			"channel":    true,
+			"models":     true,
+			"redemption": true,
+			"user":       true,
+			"setting":    false, // 管理员不能访问系统设置
+		}
+	} else if userRole == common.RoleRootUser {
+		// 超级管理员可以访问所有功能
+		defaultConfig["admin"] = map[string]interface{}{
+			"enabled":    true,
+			"channel":    true,
+			"models":     true,
+			"redemption": true,
+			"user":       true,
+			"setting":    true,
+		}
+	}
+	// 普通用户不包含admin区域
+
+	// 转换为JSON字符串
+	configBytes, err := json.Marshal(defaultConfig)
+	if err != nil {
+		common.SysLog("生成默认边栏配置失败: " + err.Error())
+		return ""
+	}
+
+	return string(configBytes)
 }
 
 func GetUserModels(c *gin.Context) {
@@ -528,8 +650,8 @@ func UpdateUser(c *gin.Context) {
 }
 
 func UpdateSelf(c *gin.Context) {
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var requestData map[string]interface{}
+	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -537,6 +659,60 @@ func UpdateSelf(c *gin.Context) {
 		})
 		return
 	}
+
+	// 检查是否是sidebar_modules更新请求
+	if sidebarModules, exists := requestData["sidebar_modules"]; exists {
+		userId := c.GetInt("id")
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		// 获取当前用户设置
+		currentSetting := user.GetSetting()
+
+		// 更新sidebar_modules字段
+		if sidebarModulesStr, ok := sidebarModules.(string); ok {
+			currentSetting.SidebarModules = sidebarModulesStr
+		}
+
+		// 保存更新后的设置
+		user.SetSetting(currentSetting)
+		if err := user.Update(false); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "更新设置失败: " + err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "设置更新成功",
+		})
+		return
+	}
+
+	// 原有的用户信息更新逻辑
+	var user model.User
+	requestDataBytes, err := json.Marshal(requestData)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	err = json.Unmarshal(requestDataBytes, &user)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+
 	if user.Password == "" {
 		user.Password = "$I_LOVE_U" // make Validator happy :)
 	}
@@ -679,6 +855,7 @@ func CreateUser(c *gin.Context) {
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
+		Role:        user.Role, // 保持管理员设置的角色
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
@@ -920,6 +1097,7 @@ type UpdateUserSettingRequest struct {
 	WebhookUrl                 string  `json:"webhook_url,omitempty"`
 	WebhookSecret              string  `json:"webhook_secret,omitempty"`
 	NotificationEmail          string  `json:"notification_email,omitempty"`
+	BarkUrl                    string  `json:"bark_url,omitempty"`
 	AcceptUnsetModelRatioModel bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                bool    `json:"record_ip_log"`
 }
@@ -935,7 +1113,7 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 验证预警类型
-	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook {
+	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的预警类型",
@@ -983,6 +1161,33 @@ func UpdateUserSetting(c *gin.Context) {
 		}
 	}
 
+	// 如果是Bark类型，验证Bark URL
+	if req.QuotaWarningType == dto.NotifyTypeBark {
+		if req.BarkUrl == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Bark推送URL不能为空",
+			})
+			return
+		}
+		// 验证URL格式
+		if _, err := url.ParseRequestURI(req.BarkUrl); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无效的Bark推送URL",
+			})
+			return
+		}
+		// 检查是否是HTTP或HTTPS
+		if !strings.HasPrefix(req.BarkUrl, "https://") && !strings.HasPrefix(req.BarkUrl, "http://") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Bark推送URL必须以http://或https://开头",
+			})
+			return
+		}
+	}
+
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
@@ -1009,6 +1214,11 @@ func UpdateUserSetting(c *gin.Context) {
 	// 如果提供了通知邮箱，添加到设置中
 	if req.QuotaWarningType == dto.NotifyTypeEmail && req.NotificationEmail != "" {
 		settings.NotificationEmail = req.NotificationEmail
+	}
+
+	// 如果是Bark类型，添加Bark URL到设置中
+	if req.QuotaWarningType == dto.NotifyTypeBark {
+		settings.BarkUrl = req.BarkUrl
 	}
 
 	// 更新用户设置

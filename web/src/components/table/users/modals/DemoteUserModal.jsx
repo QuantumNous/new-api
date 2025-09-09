@@ -27,11 +27,11 @@ const DemoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
       visible={visible}
       onCancel={onCancel}
       onOk={onConfirm}
-      type="warning"
+      type='warning'
     >
       {t('此操作将降低用户的权限级别')}
     </Modal>
   );
 };
 
-export default DemoteUserModal; 
+export default DemoteUserModal;

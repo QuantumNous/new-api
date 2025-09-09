@@ -36,11 +36,7 @@ import {
   Divider,
   Tooltip,
 } from '@douyinfe/semi-ui';
-import {
-  IconPlus,
-  IconDelete,
-  IconAlertTriangle,
-} from '@douyinfe/semi-icons';
+import { IconPlus, IconDelete, IconAlertTriangle } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
 
@@ -89,7 +85,7 @@ const JSONEditor = ({
   // 将键值对数组转换为对象（重复键时后面的会覆盖前面的）
   const keyValueArrayToObject = useCallback((arr) => {
     const result = {};
-    arr.forEach(item => {
+    arr.forEach((item) => {
       if (item.key) {
         result[item.key] = item.value;
       }
@@ -116,7 +112,8 @@ const JSONEditor = ({
   // 手动模式下的本地文本缓冲
   const [manualText, setManualText] = useState(() => {
     if (typeof value === 'string') return value;
-    if (value && typeof value === 'object') return JSON.stringify(value, null, 2);
+    if (value && typeof value === 'object')
+      return JSON.stringify(value, null, 2);
     return '';
   });
 
@@ -141,7 +138,7 @@ const JSONEditor = ({
     const keyCount = {};
     const duplicates = new Set();
 
-    keyValuePairs.forEach(pair => {
+    keyValuePairs.forEach((pair) => {
       if (pair.key) {
         keyCount[pair.key] = (keyCount[pair.key] || 0) + 1;
         if (keyCount[pair.key] > 1) {
@@ -179,51 +176,65 @@ const JSONEditor = ({
   useEffect(() => {
     if (editMode !== 'manual') {
       if (typeof value === 'string') setManualText(value);
-      else if (value && typeof value === 'object') setManualText(JSON.stringify(value, null, 2));
+      else if (value && typeof value === 'object')
+        setManualText(JSON.stringify(value, null, 2));
       else setManualText('');
     }
   }, [value, editMode]);
 
   // 处理可视化编辑的数据变化
-  const handleVisualChange = useCallback((newPairs) => {
-    setKeyValuePairs(newPairs);
-    const jsonObject = keyValueArrayToObject(newPairs);
-    const jsonString = Object.keys(jsonObject).length === 0 ? '' : JSON.stringify(jsonObject, null, 2);
+  const handleVisualChange = useCallback(
+    (newPairs) => {
+      setKeyValuePairs(newPairs);
+      const jsonObject = keyValueArrayToObject(newPairs);
+      const jsonString =
+        Object.keys(jsonObject).length === 0
+          ? ''
+          : JSON.stringify(jsonObject, null, 2);
 
-    setJsonError('');
+      setJsonError('');
 
-    // 通过formApi设置值
-    if (formApi && field) {
-      formApi.setValue(field, jsonString);
-    }
+      // 通过formApi设置值
+      if (formApi && field) {
+        formApi.setValue(field, jsonString);
+      }
 
-    onChange?.(jsonString);
-  }, [onChange, formApi, field, keyValueArrayToObject]);
+      onChange?.(jsonString);
+    },
+    [onChange, formApi, field, keyValueArrayToObject],
+  );
 
   // 处理手动编辑的数据变化
-  const handleManualChange = useCallback((newValue) => {
-    setManualText(newValue);
-    if (newValue && newValue.trim()) {
-      try {
-        const parsed = JSON.parse(newValue);
-        setKeyValuePairs(objectToKeyValueArray(parsed, keyValuePairs));
+  const handleManualChange = useCallback(
+    (newValue) => {
+      setManualText(newValue);
+      if (newValue && newValue.trim()) {
+        try {
+          const parsed = JSON.parse(newValue);
+          setKeyValuePairs(objectToKeyValueArray(parsed, keyValuePairs));
+          setJsonError('');
+          onChange?.(newValue);
+        } catch (error) {
+          setJsonError(error.message);
+        }
+      } else {
+        setKeyValuePairs([]);
         setJsonError('');
-        onChange?.(newValue);
-      } catch (error) {
-        setJsonError(error.message);
+        onChange?.('');
       }
-    } else {
-      setKeyValuePairs([]);
-      setJsonError('');
-      onChange?.('');
-    }
-  }, [onChange, objectToKeyValueArray, keyValuePairs]);
+    },
+    [onChange, objectToKeyValueArray, keyValuePairs],
+  );
 
   // 切换编辑模式
   const toggleEditMode = useCallback(() => {
     if (editMode === 'visual') {
       const jsonObject = keyValueArrayToObject(keyValuePairs);
-      setManualText(Object.keys(jsonObject).length === 0 ? '' : JSON.stringify(jsonObject, null, 2));
+      setManualText(
+        Object.keys(jsonObject).length === 0
+          ? ''
+          : JSON.stringify(jsonObject, null, 2),
+      );
       setEditMode('manual');
     } else {
       try {
@@ -243,40 +254,63 @@ const JSONEditor = ({
         return;
       }
     }
-  }, [editMode, value, manualText, keyValuePairs, keyValueArrayToObject, objectToKeyValueArray]);
+  }, [
+    editMode,
+    value,
+    manualText,
+    keyValuePairs,
+    keyValueArrayToObject,
+    objectToKeyValueArray,
+  ]);
 
   // 添加键值对
   const addKeyValue = useCallback(() => {
     const newPairs = [...keyValuePairs];
+    const existingKeys = newPairs.map((p) => p.key);
+    let counter = 1;
+    let newKey = `field_${counter}`;
+    while (existingKeys.includes(newKey)) {
+      counter += 1;
+      newKey = `field_${counter}`;
+    }
     newPairs.push({
       id: generateUniqueId(),
-      key: '',
-      value: ''
+      key: newKey,
+      value: '',
     });
     handleVisualChange(newPairs);
   }, [keyValuePairs, handleVisualChange]);
 
   // 删除键值对
-  const removeKeyValue = useCallback((id) => {
-    const newPairs = keyValuePairs.filter(pair => pair.id !== id);
-    handleVisualChange(newPairs);
-  }, [keyValuePairs, handleVisualChange]);
+  const removeKeyValue = useCallback(
+    (id) => {
+      const newPairs = keyValuePairs.filter((pair) => pair.id !== id);
+      handleVisualChange(newPairs);
+    },
+    [keyValuePairs, handleVisualChange],
+  );
 
   // 更新键名
-  const updateKey = useCallback((id, newKey) => {
-    const newPairs = keyValuePairs.map(pair =>
-      pair.id === id ? { ...pair, key: newKey } : pair
-    );
-    handleVisualChange(newPairs);
-  }, [keyValuePairs, handleVisualChange]);
+  const updateKey = useCallback(
+    (id, newKey) => {
+      const newPairs = keyValuePairs.map((pair) =>
+        pair.id === id ? { ...pair, key: newKey } : pair,
+      );
+      handleVisualChange(newPairs);
+    },
+    [keyValuePairs, handleVisualChange],
+  );
 
   // 更新值
-  const updateValue = useCallback((id, newValue) => {
-    const newPairs = keyValuePairs.map(pair =>
-      pair.id === id ? { ...pair, value: newValue } : pair
-    );
-    handleVisualChange(newPairs);
-  }, [keyValuePairs, handleVisualChange]);
+  const updateValue = useCallback(
+    (id, newValue) => {
+      const newPairs = keyValuePairs.map((pair) =>
+        pair.id === id ? { ...pair, value: newValue } : pair,
+      );
+      handleVisualChange(newPairs);
+    },
+    [keyValuePairs, handleVisualChange],
+  );
 
   // 填入模板
   const fillTemplate = useCallback(() => {
@@ -292,7 +326,14 @@ const JSONEditor = ({
       onChange?.(templateString);
       setJsonError('');
     }
-  }, [template, onChange, formApi, field, objectToKeyValueArray, keyValuePairs]);
+  }, [
+    template,
+    onChange,
+    formApi,
+    field,
+    objectToKeyValueArray,
+    keyValuePairs,
+  ]);
 
   // 渲染值输入控件（支持嵌套）
   const renderValueInput = (pairId, value) => {
@@ -300,12 +341,12 @@ const JSONEditor = ({
 
     if (valueType === 'boolean') {
       return (
-        <div className="flex items-center">
+        <div className='flex items-center'>
           <Switch
             checked={value}
             onChange={(newValue) => updateValue(pairId, newValue)}
           />
-          <Text type="tertiary" className="ml-2">
+          <Text type='tertiary' className='ml-2'>
             {value ? t('true') : t('false')}
           </Text>
         </div>
@@ -367,29 +408,29 @@ const JSONEditor = ({
   // 渲染键值对编辑器
   const renderKeyValueEditor = () => {
     return (
-      <div className="space-y-1">
+      <div className='space-y-1'>
         {/* 重复键警告 */}
         {duplicateKeys.size > 0 && (
           <Banner
-            type="warning"
+            type='warning'
             icon={<IconAlertTriangle />}
             description={
               <div>
                 <Text strong>{t('存在重复的键名：')}</Text>
                 <Text>{Array.from(duplicateKeys).join(', ')}</Text>
                 <br />
-                <Text type="tertiary" size="small">
+                <Text type='tertiary' size='small'>
                   {t('注意：JSON中重复的键只会保留最后一个同名键的值')}
                 </Text>
               </div>
             }
-            className="mb-3"
+            className='mb-3'
           />
         )}
 
         {keyValuePairs.length === 0 && (
-          <div className="text-center py-6 px-4">
-            <Text type="tertiary" className="text-gray-500 text-sm">
+          <div className='text-center py-6 px-4'>
+            <Text type='tertiary' className='text-gray-500 text-sm'>
               {t('暂无数据，点击下方按钮添加键值对')}
             </Text>
           </div>
@@ -397,13 +438,15 @@ const JSONEditor = ({
 
         {keyValuePairs.map((pair, index) => {
           const isDuplicate = duplicateKeys.has(pair.key);
-          const isLastDuplicate = isDuplicate &&
-            keyValuePairs.slice(index + 1).every(p => p.key !== pair.key);
+          const isLastDuplicate =
+            isDuplicate &&
+            keyValuePairs.slice(index + 1).every((p) => p.key !== pair.key);
 
           return (
-            <Row key={pair.id} gutter={8} align="middle">
-              <Col span={12}>
-                <div className="relative">
+
+            <Row key={pair.id} gutter={8} align='middle'>
+              <Col span={10}>
+                <div className='relative'>
                   <Input
                     placeholder={t('键名')}
                     value={pair.key}
@@ -419,24 +462,22 @@ const JSONEditor = ({
                       }
                     >
                       <IconAlertTriangle
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                        className='absolute right-2 top-1/2 transform -translate-y-1/2'
                         style={{
                           color: isLastDuplicate ? '#ff7d00' : '#faad14',
-                          fontSize: '14px'
+                          fontSize: '14px',
                         }}
                       />
                     </Tooltip>
                   )}
                 </div>
               </Col>
-              <Col span={10}>
-                {renderValueInput(pair.id, pair.value)}
-              </Col>
+              <Col span={12}>{renderValueInput(pair.id, pair.value)}</Col>
               <Col span={2}>
                 <Button
                   icon={<IconDelete />}
-                  type="danger"
-                  theme="borderless"
+                  type='danger'
+                  theme='borderless'
                   onClick={() => removeKeyValue(pair.id)}
                   style={{ width: '100%' }}
                 />
@@ -445,11 +486,11 @@ const JSONEditor = ({
           );
         })}
 
-        <div className="mt-2 flex justify-center">
+        <div className='mt-2 flex justify-center'>
           <Button
             icon={<IconPlus />}
-            type="primary"
-            theme="outline"
+            type='primary'
+            theme='outline'
             onClick={addKeyValue}
           >
             {t('添加键值对')}
@@ -461,27 +502,27 @@ const JSONEditor = ({
 
   // 渲染区域编辑器（特殊格式）- 也需要改造以支持重复键
   const renderRegionEditor = () => {
-    const defaultPair = keyValuePairs.find(pair => pair.key === 'default');
-    const modelPairs = keyValuePairs.filter(pair => pair.key !== 'default');
+    const defaultPair = keyValuePairs.find((pair) => pair.key === 'default');
+    const modelPairs = keyValuePairs.filter((pair) => pair.key !== 'default');
 
     return (
-      <div className="space-y-2">
+      <div className='space-y-2'>
         {/* 重复键警告 */}
         {duplicateKeys.size > 0 && (
           <Banner
-            type="warning"
+            type='warning'
             icon={<IconAlertTriangle />}
             description={
               <div>
                 <Text strong>{t('存在重复的键名：')}</Text>
                 <Text>{Array.from(duplicateKeys).join(', ')}</Text>
                 <br />
-                <Text type="tertiary" size="small">
+                <Text type='tertiary' size='small'>
                   {t('注意：JSON中重复的键只会保留最后一个同名键的值')}
                 </Text>
               </div>
             }
-            className="mb-3"
+            className='mb-3'
           />
         )}
 
@@ -494,11 +535,14 @@ const JSONEditor = ({
               if (defaultPair) {
                 updateValue(defaultPair.id, value);
               } else {
-                const newPairs = [...keyValuePairs, {
-                  id: generateUniqueId(),
-                  key: 'default',
-                  value: value
-                }];
+                const newPairs = [
+                  ...keyValuePairs,
+                  {
+                    id: generateUniqueId(),
+                    key: 'default',
+                    value: value,
+                  },
+                ];
                 handleVisualChange(newPairs);
               }
             }}
@@ -511,9 +555,9 @@ const JSONEditor = ({
             {modelPairs.map((pair) => {
               const isDuplicate = duplicateKeys.has(pair.key);
               return (
-                <Row key={pair.id} gutter={8} align="middle" className="mb-2">
+                <Row key={pair.id} gutter={8} align='middle' className='mb-2'>
                   <Col span={10}>
-                    <div className="relative">
+                    <div className='relative'>
                       <Input
                         placeholder={t('模型名称')}
                         value={pair.key}
@@ -523,7 +567,7 @@ const JSONEditor = ({
                       {isDuplicate && (
                         <Tooltip content={t('重复的键名')}>
                           <IconAlertTriangle
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                            className='absolute right-2 top-1/2 transform -translate-y-1/2'
                             style={{ color: '#faad14', fontSize: '14px' }}
                           />
                         </Tooltip>
@@ -540,8 +584,8 @@ const JSONEditor = ({
                   <Col span={2}>
                     <Button
                       icon={<IconDelete />}
-                      type="danger"
-                      theme="borderless"
+                      type='danger'
+                      theme='borderless'
                       onClick={() => removeKeyValue(pair.id)}
                       style={{ width: '100%' }}
                     />
@@ -550,12 +594,12 @@ const JSONEditor = ({
               );
             })}
 
-            <div className="mt-2 flex justify-center">
+            <div className='mt-2 flex justify-center'>
               <Button
                 icon={<IconPlus />}
                 onClick={addKeyValue}
-                type="primary"
-                theme="outline"
+                type='primary'
+                theme='outline'
               >
                 {t('添加模型区域')}
               </Button>
@@ -584,9 +628,9 @@ const JSONEditor = ({
     <Form.Slot label={label}>
       <Card
         header={
-          <div className="flex justify-between items-center">
+          <div className='flex justify-between items-center'>
             <Tabs
-              type="slash"
+              type='slash'
               activeKey={editMode}
               onChange={(key) => {
                 if (key === 'manual' && editMode === 'visual') {
@@ -596,8 +640,8 @@ const JSONEditor = ({
                 }
               }}
             >
-              <TabPane tab={t('可视化')} itemKey="visual" />
-              <TabPane tab={t('手动编辑')} itemKey="manual" />
+              <TabPane tab={t('可视化')} itemKey='visual' />
+              <TabPane tab={t('手动编辑')} itemKey='manual' />
             </Tabs>
 
             <div className="flex items-center gap-3">
@@ -620,14 +664,14 @@ const JSONEditor = ({
         }
         headerStyle={{ padding: '12px 16px' }}
         bodyStyle={{ padding: '16px' }}
-        className="!rounded-2xl"
+        className='!rounded-2xl'
       >
         {/* JSON错误提示 */}
         {hasJsonError && (
           <Banner
-            type="danger"
+            type='danger'
             description={`JSON 格式错误: ${jsonError}`}
-            className="mb-3"
+            className='mb-3'
           />
         )}
 
@@ -669,14 +713,12 @@ const JSONEditor = ({
         {/* 额外文本显示在卡片底部 */}
         {extraText && (
           <Divider margin='12px' align='center'>
-            <Text type="tertiary" size="small">{extraText}</Text>
+            <Text type='tertiary' size='small'>
+              {extraText}
+            </Text>
           </Divider>
         )}
-        {extraFooter && (
-          <div className="mt-1">
-            {extraFooter}
-          </div>
-        )}
+        {extraFooter && <div className='mt-1'>{extraFooter}</div>}
       </Card>
     </Form.Slot>
   );

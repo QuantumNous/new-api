@@ -145,13 +145,15 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 				Code:    e.errorCode,
 			}
 		}
+	default:
+		result = OpenAIError{
+			Message: e.Error(),
+			Type:    string(e.errorType),
+			Param:   "",
+			Code:    e.errorCode,
+		}
 	}
-	result = OpenAIError{
-		Message: e.Error(),
-		Type:    string(e.errorType),
-		Param:   "",
-		Code:    e.errorCode,
-	}
+
 	result.Message = common.MaskSensitiveInfo(result.Message)
 	return result
 }
@@ -160,13 +162,16 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	var result ClaudeError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
-		openAIError := e.RelayError.(OpenAIError)
-		result = ClaudeError{
-			Message: e.Error(),
-			Type:    fmt.Sprintf("%v", openAIError.Code),
+		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			result = ClaudeError{
+				Message: e.Error(),
+				Type:    fmt.Sprintf("%v", openAIError.Code),
+			}
 		}
 	case ErrorTypeClaudeError:
-		result = e.RelayError.(ClaudeError)
+		if claudeError, ok := e.RelayError.(ClaudeError); ok {
+			result = claudeError
+		}
 	default:
 		result = ClaudeError{
 			Message: e.Error(),

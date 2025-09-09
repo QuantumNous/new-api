@@ -36,7 +36,7 @@ const ModelsTabs = ({
   setShowEditVendor,
   setEditingVendor,
   loadVendors,
-  t
+  t,
 }) => {
   const handleTabChange = (key) => {
     setActiveVendorKey(key);
@@ -75,14 +75,14 @@ const ModelsTabs = ({
   return (
     <Tabs
       activeKey={activeVendorKey}
-      type="card"
+      type='card'
       collapsible
       onChange={handleTabChange}
-      className="mb-2"
+      className='mb-2'
       tabBarExtraContent={
         <Button
-          type="primary"
-          size="small"
+          type='primary'
+          size='small'
           onClick={() => setShowAddVendor(true)}
         >
           {t('新增供应商')}
@@ -90,11 +90,14 @@ const ModelsTabs = ({
       }
     >
       <TabPane
-        itemKey="all"
+        itemKey='all'
         tab={
-          <span className="flex items-center gap-2">
+          <span className='flex items-center gap-2'>
             {t('全部')}
-            <Tag color={activeVendorKey === 'all' ? 'red' : 'grey'} shape='circle'>
+            <Tag
+              color={activeVendorKey === 'all' ? 'red' : 'grey'}
+              shape='circle'
+            >
               {vendorCounts['all'] || 0}
             </Tag>
           </span>
@@ -109,15 +112,18 @@ const ModelsTabs = ({
             key={key}
             itemKey={key}
             tab={
-              <span className="flex items-center gap-2">
+              <span className='flex items-center gap-2'>
                 {getLobeHubIcon(vendor.icon || 'Layers', 14)}
                 {vendor.name}
-                <Tag color={activeVendorKey === key ? 'red' : 'grey'} shape='circle'>
+                <Tag
+                  color={activeVendorKey === key ? 'red' : 'grey'}
+                  shape='circle'
+                >
                   {count}
                 </Tag>
                 <Dropdown
-                  trigger="click"
-                  position="bottomRight"
+                  trigger='click'
+                  position='bottomRight'
                   render={
                     <Dropdown.Menu>
                       <Dropdown.Item
@@ -127,13 +133,16 @@ const ModelsTabs = ({
                         {t('编辑')}
                       </Dropdown.Item>
                       <Dropdown.Item
-                        type="danger"
+                        type='danger'
                         icon={<IconDelete />}
                         onClick={(e) => {
                           e.stopPropagation();
                           Modal.confirm({
                             title: t('确认删除'),
-                            content: t('确定要删除供应商 "{{name}}" 吗？此操作不可撤销。', { name: vendor.name }),
+                            content: t(
+                              '确定要删除供应商 "{{name}}" 吗？此操作不可撤销。',
+                              { name: vendor.name },
+                            ),
                             onOk: () => handleDeleteVendor(vendor, e),
                             okText: t('删除'),
                             cancelText: t('取消'),
@@ -149,9 +158,9 @@ const ModelsTabs = ({
                   onClickOutSide={(e) => e.stopPropagation()}
                 >
                   <Button
-                    size="small"
-                    type="tertiary"
-                    theme="outline"
+                    size='small'
+                    type='tertiary'
+                    theme='outline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     {t('操作')}

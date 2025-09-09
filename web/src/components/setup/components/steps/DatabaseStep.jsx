@@ -40,14 +40,16 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                   '您正在使用 SQLite 数据库。如果您在容器环境中运行，请确保已正确设置数据库文件的持久化映射，否则容器重启后所有数据将丢失！',
                 )}
               </p>
-              <p className="mt-1">
-                <strong>{t(
-                  '建议在生产环境中使用 MySQL 或 PostgreSQL 数据库，或确保 SQLite 数据库文件已映射到宿主机的持久化存储。',
-                )}</strong>
+              <p className='mt-1'>
+                <strong>
+                  {t(
+                    '建议在生产环境中使用 MySQL 或 PostgreSQL 数据库，或确保 SQLite 数据库文件已映射到宿主机的持久化存储。',
+                  )}
+                </strong>
               </p>
             </div>
           }
-          className="!rounded-lg"
+          className='!rounded-lg'
           fullMode={false}
           bordered
         />
@@ -68,7 +70,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
               </p>
             </div>
           }
-          className="!rounded-lg"
+          className='!rounded-lg'
           fullMode={false}
           bordered
         />
@@ -89,7 +91,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
               </p>
             </div>
           }
-          className="!rounded-lg"
+          className='!rounded-lg'
           fullMode={false}
           bordered
         />

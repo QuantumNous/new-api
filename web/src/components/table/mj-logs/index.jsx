@@ -41,7 +41,7 @@ const MjLogsPage = () => {
 
       <Layout>
         <CardPro
-          type="type2"
+          type='type2'
           statsArea={<MjLogsActions {...mjLogsData} />}
           searchArea={<MjLogsFilters {...mjLogsData} />}
           paginationArea={createCardProPagination({
@@ -62,4 +62,4 @@ const MjLogsPage = () => {
   );
 };
 
-export default MjLogsPage; 
+export default MjLogsPage;

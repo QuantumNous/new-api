@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react';
 import { API, showError, showSuccess, copy } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
-import { REDEMPTION_ACTIONS, REDEMPTION_STATUS } from '../../constants/redemption.constants';
+import {
+  REDEMPTION_ACTIONS,
+  REDEMPTION_STATUS,
+} from '../../constants/redemption.constants';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -193,8 +196,8 @@ export const useRedemptionsData = () => {
 
   // Row selection configuration
   const rowSelection = {
-    onSelect: (record, selected) => { },
-    onSelectAll: (selected, selectedRows) => { },
+    onSelect: (record, selected) => {},
+    onSelectAll: (selected, selectedRows) => {},
     onChange: (selectedRowKeys, selectedRows) => {
       setSelectedKeys(selectedRows);
     },
@@ -204,9 +207,11 @@ export const useRedemptionsData = () => {
   const handleRow = (record, index) => {
     // Local isExpired function
     const isExpired = (rec) => {
-      return rec.status === REDEMPTION_STATUS.UNUSED &&
+      return (
+        rec.status === REDEMPTION_STATUS.UNUSED &&
         rec.expired_time !== 0 &&
-        rec.expired_time < Math.floor(Date.now() / 1000);
+        rec.expired_time < Math.floor(Date.now() / 1000)
+      );
     };
 
     if (record.status !== REDEMPTION_STATUS.UNUSED || isExpired(record)) {
@@ -228,7 +233,7 @@ export const useRedemptionsData = () => {
       Modal.error({
         title: '无法复制到剪贴板，请手动复制',
         content: text,
-        size: 'large'
+        size: 'large',
       });
     }
   };
@@ -352,4 +357,4 @@ export const useRedemptionsData = () => {
     // Translation function
     t,
   };
-}; 
+};

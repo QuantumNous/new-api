@@ -56,7 +56,11 @@ const PaymentSetting = () => {
         switch (item.key) {
           case 'TopupGroupRatio':
             try {
-              newInputs[item.key] = JSON.stringify(JSON.parse(item.value), null, 2);
+              newInputs[item.key] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
             } catch (error) {
               console.error('解析TopupGroupRatio出错:', error);
               newInputs[item.key] = item.value;
@@ -116,4 +120,4 @@ const PaymentSetting = () => {
   );
 };
 
-export default PaymentSetting; 
+export default PaymentSetting;
