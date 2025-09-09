@@ -19,6 +19,30 @@ import (
 	"google.golang.org/genai"
 )
 
+// convertToStringSlice 安全地将 interface{} 转换为 []string
+func convertToStringSlice(stop interface{}) []string {
+	if stop == nil {
+		return nil
+	}
+
+	switch v := stop.(type) {
+	case []string:
+		return v
+	case []interface{}:
+		result := make([]string, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	case string:
+		return []string{v}
+	default:
+		return nil
+	}
+}
+
 // Setting safety to the lowest possible values since Gemini is already powerless enough
 func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatRequest, error) {
 
@@ -40,6 +64,7 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest) (*GeminiChatReque
 			topP := float32(textRequest.TopP)
 			return &topP
 		}(),
+		StopSequences:   convertToStringSlice(textRequest.Stop),
 		MaxOutputTokens: int32(textRequest.MaxTokens),
 		Seed: func() *int32 {
 			seed := int32(textRequest.Seed)
