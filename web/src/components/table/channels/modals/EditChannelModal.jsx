@@ -293,7 +293,7 @@ const EditChannelModal = (props) => {
 
   // 更新模型列表的统一方法
   const updateModelsList = (newModels, newMapping) => {
-    const uniqueModels = Array.from(new Set(newModels.filter(model => model && model.trim())));
+    const uniqueModels = Array.from(new Set(newModels.map(m => (m || '').trim()).filter(Boolean)));
     
     setInputs((inputs) => ({ ...inputs, models: uniqueModels }));
     if (formApiRef.current) {
@@ -2126,7 +2126,16 @@ const EditChannelModal = (props) => {
                         <Text className="text-sm">{t('启用自动同步到模型配置')}</Text>
                         <Switch
                           checked={enableModelMappingSync}
-                          onChange={(checked) => setEnableModelMappingSync(checked)}
+                          onChange={(checked) => {
+                            setEnableModelMappingSync(checked);
+                            const mappingStr =
+                              formApiRef.current?.getValue('model_mapping') ?? inputs.model_mapping;
+                            if (checked) {
+                              syncModelMappingToModels(mappingStr);
+                            } else {
+                              restoreModelsToOriginalNames();
+                            }
+                          }}
                         />
                       </>
                     }
