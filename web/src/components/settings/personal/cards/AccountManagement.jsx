@@ -44,6 +44,7 @@ import {
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onNodeLocAuthClicked,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
 
@@ -355,6 +356,47 @@ const AccountManagement = ({
                       }
                     >
                       {status.linuxdo_oauth ? t('绑定') : t('未启用')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* NodeLoc绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                      <SiLinux
+                        size={20}
+                        className='text-slate-600 dark:text-slate-300'
+                      />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>
+                        {t('NodeLoc')}
+                      </div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {renderAccountInfo(
+                          userState.user?.nodeloc_id,
+                          t('NodeLoc ID'),
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      onClick={() =>
+                        onNodeLocAuthClicked(status.nodeloc_client_id)
+                      }
+                      disabled={
+                        (userState.user && userState.user.nodeloc_id !== '') ||
+                        !status.nodeloc_oauth
+                      }
+                    >
+                      {status.nodeloc_oauth ? t('绑定') : t('未启用')}
                     </Button>
                   </div>
                 </div>

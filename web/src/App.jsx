@@ -207,6 +207,14 @@ function App() {
           }
         />
         <Route
+          path='/oauth/nodeloc'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <OAuth2Callback type='nodeloc'></OAuth2Callback>
+            </Suspense>
+          }
+        />
+        <Route
           path='/console/setting'
           element={
             <AdminRoute>

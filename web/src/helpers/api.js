@@ -263,7 +263,13 @@ export async function onLinuxDOOAuthClicked(linuxdo_client_id) {
     `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
   );
 }
-
+export async function onNodeLocAuthClicked(nodeloc_client_id) {
+  const state = await getOAuthState();
+  if (!state) return;
+  window.open(
+    `https://conn.nodeloc.cc/oauth2/auth?response_type=code&client_id=${nodeloc_client_id}&state=${state}`,
+  );
+}
 let channelModels = undefined;
 export async function loadChannelModels() {
   const res = await API.get('/api/models');
