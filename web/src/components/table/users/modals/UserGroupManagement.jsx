@@ -15,7 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
-+*/
+*/
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -276,6 +276,17 @@ const UserGroupManagement = ({ visible, onClose, onGroupUpdated }) => {
             <Popconfirm
               title={t('确定删除此分组？')}
               content={t('删除后无法恢复，请确认该分组未被用户使用')}
+              getPopupContainer={() => document.body}
+              zIndex={2000}
+              position={'topRight'}
+              onVisibleChange={(v) => {
+                if (v) {
+                  // 强制触发一次重算，避免初次展开时位置计算未考虑视窗边缘
+                  window.requestAnimationFrame(() => {
+                    window.dispatchEvent(new Event('resize'));
+                  });
+                }
+              }}
               onConfirm={() => deleteGroup(record.id)}
             >
               <Button size='small' type='danger'>
