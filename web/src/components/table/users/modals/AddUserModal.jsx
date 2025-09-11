@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
@@ -42,14 +42,33 @@ const AddUserModal = (props) => {
   const { t } = useTranslation();
   const formApiRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [groupOptions, setGroupOptions] = useState([]);
   const isMobile = useIsMobile();
 
   const getInitValues = () => ({
     username: '',
     display_name: '',
     password: '',
+    group: 'default', // 默认分组
     remark: '',
   });
+
+  // 获取分组列表
+  const fetchGroups = async () => {
+    try {
+      const res = await API.get('/api/group/');
+      if (res.data.success) {
+        setGroupOptions(
+          res.data.data.map((group) => ({
+            label: group,
+            value: group,
+          }))
+        );
+      }
+    } catch (error) {
+      showError(t('获取分组列表失败'));
+    }
+  };
 
   const submit = async (values) => {
     setLoading(true);
@@ -69,6 +88,13 @@ const AddUserModal = (props) => {
   const handleCancel = () => {
     props.handleClose();
   };
+
+  // 组件加载时获取分组列表
+  useEffect(() => {
+    if (props.visible) {
+      fetchGroups();
+    }
+  }, [props.visible]);
 
   return (
     <>
@@ -163,6 +189,17 @@ const AddUserModal = (props) => {
                       placeholder={t('请输入密码')}
                       rules={[{ required: true, message: t('请输入密码') }]}
                       showClear
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.Select
+                      field='group'
+                      label={t('分组')}
+                      placeholder={t('请选择用户分组')}
+                      optionList={groupOptions}
+                      rules={[{ required: true, message: t('请选择分组') }]}
+                      allowAdditions
+                      search
                     />
                   </Col>
                   <Col span={24}>

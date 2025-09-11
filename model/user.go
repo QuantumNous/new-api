@@ -7,6 +7,7 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	"one-api/logger"
+	"one-api/setting/operation_setting"
 	"strconv"
 	"strings"
 
@@ -45,6 +46,7 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	Avatar           string         `json:"avatar,omitempty" gorm:"type:longtext;column:avatar"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -92,7 +94,7 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 }
 
 // 根据用户角色生成默认的边栏配置
-func generateDefaultSidebarConfigForRole(userRole int) string {
+func GenerateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig := map[string]interface{}{}
 
 	// 聊天区域 - 所有用户都可以访问
@@ -127,8 +129,11 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 管理员默认可以访问分组管理
+			},
+			"setting": false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
@@ -137,8 +142,11 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
-			"user":       true,
-			"setting":    true,
+			"user": map[string]interface{}{
+				"enabled":         true,
+				"groupManagement": true, // 超级管理员默认可以访问分组管理
+			},
+			"setting": true,
 		}
 	}
 	// 普通用户不包含admin区域
@@ -400,7 +408,7 @@ func (user *User) Insert(inviterId int) error {
 	var createdUser User
 	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
 		// 生成基于角色的默认边栏配置
-		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
+		defaultSidebarConfig := GenerateDefaultSidebarConfigForRole(createdUser.Role)
 		if defaultSidebarConfig != "" {
 			currentSetting := createdUser.GetSetting()
 			currentSetting.SidebarModules = defaultSidebarConfig
@@ -414,13 +422,18 @@ func (user *User) Insert(inviterId int) error {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
 	if inviterId != 0 {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+		// 检查邀请功能是否启用
+		generalSetting := operation_setting.GetGeneralSetting()
+		if generalSetting.InvitationEnabled {
+			if common.QuotaForInvitee > 0 {
+				_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			}
+			if common.QuotaForInviter > 0 {
+				//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
+				RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			}
+			// 无论是否有奖励额度，都要更新邀请者的邀请统计
 			_ = inviteUser(inviterId)
 		}
 	}
@@ -445,6 +458,16 @@ func (user *User) Update(updatePassword bool) error {
 	return updateUserCache(*user)
 }
 
+func (user *User) UpdateAvatar() error {
+	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update("avatar", user.Avatar).Error; err != nil {
+		return err
+	}
+
+	// Update cache
+	DB.First(&user, user.Id)
+	return updateUserCache(*user)
+}
+
 func (user *User) Edit(updatePassword bool) error {
 	var err error
 	if updatePassword {
@@ -461,6 +484,7 @@ func (user *User) Edit(updatePassword bool) error {
 		"group":        newUser.Group,
 		"quota":        newUser.Quota,
 		"remark":       newUser.Remark,
+		"avatar":       newUser.Avatar,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -914,4 +938,73 @@ func RootUserExists() bool {
 		return false
 	}
 	return true
+}
+
+// UpdateUsersGroupName 更新所有使用指定分组名的用户的分组名称
+func UpdateUsersGroupName(oldGroupName, newGroupName string) error {
+	if oldGroupName == "" || newGroupName == "" {
+		return errors.New("分组名称不能为空")
+	}
+
+	common.SysLog(fmt.Sprintf("开始更新用户分组名称: '%s' -> '%s'", oldGroupName, newGroupName))
+
+	// 先查询有多少用户使用旧分组名
+	var count int64
+	if err := DB.Model(&User{}).Where(commonGroupCol+" = ?", oldGroupName).Count(&count).Error; err != nil {
+		common.SysLog(fmt.Sprintf("查询使用分组 '%s' 的用户数量失败: %s", oldGroupName, err.Error()))
+		return err
+	}
+	common.SysLog(fmt.Sprintf("找到 %d 个用户使用分组 '%s'", count, oldGroupName))
+
+	// 使用事务确保数据一致性
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 更新所有使用旧分组名的用户
+	result := tx.Model(&User{}).Where(commonGroupCol+" = ?", oldGroupName).Update(commonGroupCol, newGroupName)
+	if result.Error != nil {
+		tx.Rollback()
+		common.SysLog(fmt.Sprintf("更新用户分组名称失败: %s", result.Error.Error()))
+		return result.Error
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		common.SysLog(fmt.Sprintf("提交事务失败: %s", err.Error()))
+		return err
+	}
+
+	// 刷新缓存（异步），避免旧分组缓存导致读取不一致
+	if common.RedisEnabled {
+	  gopool.Go(func() {
+	    var ids []int
+	    if err := DB.Model(&User{}).
+	       Where(commonGroupCol+" = ?", newGroupName).
+	        Pluck("id", &ids).Error; err == nil {
+		    for _, id := range ids {
+	        _ = invalidateUserCache(id)
+	       }
+	    }
+	  })
+	}
+
+	common.SysLog(fmt.Sprintf("成功更新 %d 个用户的分组名称从 '%s' 到 '%s'", result.RowsAffected, oldGroupName, newGroupName))
+
+	// 验证更新结果
+	var newCount int64
+	if err := DB.Model(&User{}).Where(commonGroupCol+" = ?", newGroupName).Count(&newCount).Error; err != nil {
+		common.SysLog(fmt.Sprintf("验证更新结果失败: %s", err.Error()))
+	} else {
+		common.SysLog(fmt.Sprintf("验证: 现在有 %d 个用户使用分组 '%s'", newCount, newGroupName))
+	}
+
+	return nil
 }

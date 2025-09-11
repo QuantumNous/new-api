@@ -36,3 +36,62 @@ export const userConstants = {
   DELETE_SUCCESS: 'USERS_DELETE_SUCCESS',
   DELETE_FAILURE: 'USERS_DELETE_FAILURE',
 };
+
+/**
+ * 用户角色常量 - 与后端保持一致
+ * 对应后端 common/constants.go 中的角色定义
+ */
+export const USER_ROLES = {
+  GUEST: 0,      // RoleGuestUser
+  COMMON: 1,     // RoleCommonUser
+  ADMIN: 10,     // RoleAdminUser
+  ROOT: 100,     // RoleRootUser
+};
+
+/**
+ * 检查用户是否为管理员（包括超级管理员）
+ * @param {number} role - 用户角色
+ * @returns {boolean}
+ */
+export const isAdmin = (role) => {
+  return role === USER_ROLES.ADMIN || role === USER_ROLES.ROOT;
+};
+
+/**
+ * 检查用户是否为超级管理员
+ * @param {number} role - 用户角色
+ * @returns {boolean}
+ */
+export const isRoot = (role) => {
+  return role === USER_ROLES.ROOT;
+};
+
+/**
+ * 检查用户是否为普通用户
+ * @param {number} role - 用户角色
+ * @returns {boolean}
+ */
+export const isCommonUser = (role) => {
+  return role === USER_ROLES.COMMON;
+};
+
+/**
+ * 获取角色显示名称
+ * @param {number} role - 用户角色
+ * @param {function} t - 翻译函数
+ * @returns {string}
+ */
+export const getRoleDisplayName = (role, t) => {
+  switch (role) {
+    case USER_ROLES.COMMON:
+      return t('普通用户');
+    case USER_ROLES.ADMIN:
+      return t('管理员');
+    case USER_ROLES.ROOT:
+      return t('超级管理员');
+    case USER_ROLES.GUEST:
+      return t('访客');
+    default:
+      return t('未知身份');
+  }
+};

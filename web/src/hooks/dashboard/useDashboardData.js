@@ -214,12 +214,18 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [activeUptimeTab]);
 
   const getUserData = useCallback(async () => {
-    let res = await API.get(`/api/user/self`);
-    const { success, message, data } = res.data;
-    if (success) {
-      userDispatch({ type: 'login', payload: data });
-    } else {
-      showError(message);
+    try {
+      // 使用用户数据获取（包括头像）
+      const { getUserData } = await import('../../helpers/userDataManager');
+      const result = await getUserData();
+      if (result.success) {
+        userDispatch({ type: 'login', payload: result.data });
+      } else {
+        showError(result.message);
+      }
+    } catch (error) {
+      console.error('获取用户数据失败:', error);
+      showError('获取用户数据失败');
     }
   }, [userDispatch]);
 
