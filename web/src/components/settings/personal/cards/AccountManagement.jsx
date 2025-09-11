@@ -165,9 +165,10 @@ const AccountManagement = ({
                         {t('微信')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {userState.user && userState.user.wechat_id !== ''
-                          ? t('已绑定')
-                          : t('未绑定')}
+                        {renderAccountInfo(
+                          userState.user?.wechat_id,
+                          t('微信 ID'),
+                        )}
                       </div>
                     </div>
                   </div>
@@ -179,7 +180,7 @@ const AccountManagement = ({
                       disabled={!status.wechat_login}
                       onClick={() => setShowWeChatBindModal(true)}
                     >
-                      {userState.user && userState.user.wechat_id !== ''
+                      {userState.user && userState.user?.wechat_id
                         ? t('修改绑定')
                         : status.wechat_login
                           ? t('绑定')
@@ -298,7 +299,7 @@ const AccountManagement = ({
                   </div>
                   <div className='flex-shrink-0'>
                     {status.telegram_oauth ? (
-                      userState.user.telegram_id !== '' ? (
+                      userState.user?.telegram_id ? (
                         <Button disabled={true} size='small'>
                           {t('已绑定')}
                         </Button>
