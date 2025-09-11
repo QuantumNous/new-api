@@ -210,7 +210,7 @@ export default function GeneralSettings(props) {
                 />
               </Col>
             </Row>
-            <Row>
+            <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch
                   field={'DemoSiteEnabled'}
