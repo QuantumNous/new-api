@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"one-api/common"
 	"one-api/model"
+	"one-api/setting"
 	"strconv"
 	"strings"
 	"time"
@@ -80,17 +82,15 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 		return nil, errors.New("invalid code")
 	}
 
-	// Get access token using Basic auth
+	// Get access token using Basic Authentication as per NodeLoc documentation
 	tokenEndpoint := "https://conn.nodeloc.cc/oauth2/token"
+
+	// Create Basic Auth header: Base64(client_id:client_secret)
 	credentials := common.NodeLocClientId + ":" + common.NodeLocClientSecret
 	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
 
-	// Get redirect URI from request
-	scheme := "http"
-	if c.Request.TLS != nil {
-		scheme = "https"
-	}
-	redirectURI := fmt.Sprintf("%s://%s/api/oauth/nodeloc", scheme, c.Request.Host)
+	// Use configured server address for redirect URI to ensure consistency
+	redirectURI := setting.ServerAddress + "/api/oauth/nodeloc"
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -113,16 +113,33 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 	}
 	defer res.Body.Close()
 
-	var tokenRes struct {
-		AccessToken string `json:"access_token"`
-		Message     string `json:"message"`
+	// 读取响应体用于调试
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
-	if err := json.NewDecoder(res.Body).Decode(&tokenRes); err != nil {
-		return nil, err
+
+	// 检查HTTP状态码
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token request failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	var tokenRes struct {
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	if err := json.Unmarshal(body, &tokenRes); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %v, body: %s", err, string(body))
+	}
+
+	if tokenRes.Error != "" {
+		return nil, fmt.Errorf("OAuth error: %s - %s", tokenRes.Error, tokenRes.ErrorDescription)
 	}
 
 	if tokenRes.AccessToken == "" {
-		return nil, fmt.Errorf("failed to get access token: %s", tokenRes.Message)
+		return nil, fmt.Errorf("no access token in response: %s", string(body))
 	}
 
 	// Get user info
