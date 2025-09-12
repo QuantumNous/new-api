@@ -341,6 +341,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.LinuxDOClientSecret = value
 	case "LinuxDOMinimumTrustLevel":
 		common.LinuxDOMinimumTrustLevel, _ = strconv.Atoi(value)
+	case "NodeLocClientId":
+		common.NodeLocClientId = value
+	case "NodeLocClientSecret":
+		common.NodeLocClientSecret = value
 	case "Footer":
 		common.Footer = value
 	case "SystemName":
