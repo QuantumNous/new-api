@@ -44,6 +44,7 @@
 | GET | /api/oauth/github | 公开 | GitHub OAuth 跳转 |
 | GET | /api/oauth/oidc | 公开 | OIDC 通用 OAuth 跳转 |
 | GET | /api/oauth/linuxdo | 公开 | LinuxDo OAuth 跳转 |
+| GET | /api/oauth/nodeloc | 公开 | NodeLoc OAuth 跳转 |
 | GET | /api/oauth/wechat | 公开 | 微信扫码登录跳转 |
 | GET | /api/oauth/wechat/bind | 公开 | 微信账户绑定 |
 | GET | /api/oauth/email/bind | 公开 | 邮箱绑定 |

@@ -37,7 +37,7 @@ func InitOptionMap() {
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
-	common.OptionMap["NLAuthEnabled"] = strconv.FormatBool(common.NodeLocOAuthEnabled)
+	common.OptionMap["NodeLocAuthEnabled"] = strconv.FormatBool(common.NodeLocOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
