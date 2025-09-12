@@ -18,10 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Button,
-  Popconfirm,
-} from '@douyinfe/semi-ui';
+import { Button, Popconfirm } from '@douyinfe/semi-ui';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const DeploymentsActions = ({
@@ -34,7 +31,6 @@ const DeploymentsActions = ({
   batchStopDeployments,
   compactMode,
   setCompactMode,
-  setShowColumnSelector,
   t,
 }) => {
   const hasSelected = selectedKeys.length > 0;
@@ -61,15 +57,11 @@ const DeploymentsActions = ({
   };
 
 
-  const handleOpenColumnSelector = () => {
-    setShowColumnSelector(true);
-  };
-
   return (
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
         type='primary'
-        className='flex-1 md:flex-initial'
+        className='w-full md:w-auto'
         onClick={handleAddDeployment}
         size='small'
       >
@@ -79,8 +71,9 @@ const DeploymentsActions = ({
       {hasSelected && (
         <>
           <Button
-            type='success'
-            className='flex-1 md:flex-initial'
+            theme='solid'
+            type='primary'
+            className='w-full md:w-auto'
             onClick={handleBatchStart}
             disabled={selectedKeys.length === 0}
             size='small'
@@ -90,7 +83,7 @@ const DeploymentsActions = ({
           
           <Button
             type='warning'
-            className='flex-1 md:flex-initial'
+            className='w-full md:w-auto'
             onClick={handleBatchStop}
             disabled={selectedKeys.length === 0}
             size='small'
@@ -108,7 +101,7 @@ const DeploymentsActions = ({
           >
             <Button
               type='danger'
-              className='flex-1 md:flex-initial'
+              className='w-full md:w-auto'
               disabled={selectedKeys.length === 0}
               size='small'
             >
@@ -117,8 +110,8 @@ const DeploymentsActions = ({
           </Popconfirm>
 
           <Button
-            type='secondary'
-            className='flex-1 md:flex-initial'
+            type='tertiary'
+            className='w-full md:w-auto'
             onClick={handleDeselectAll}
             size='small'
           >
@@ -127,21 +120,12 @@ const DeploymentsActions = ({
         </>
       )}
 
+      {/* Compact Mode */}
       <CompactModeToggle
         compactMode={compactMode}
         setCompactMode={setCompactMode}
         t={t}
       />
-
-      {/* Column Selector */}
-      <Button
-        type='secondary'
-        className='flex-1 md:flex-initial'
-        onClick={handleOpenColumnSelector}
-        size='small'
-      >
-        {t('列设置')}
-      </Button>
     </div>
   );
 };

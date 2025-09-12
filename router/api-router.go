@@ -234,5 +234,24 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
 		}
+
+		// Deployments (model deployment management)
+		deploymentsRoute := apiRouter.Group("/deployments")
+		deploymentsRoute.Use(middleware.AdminAuth())
+		{
+			deploymentsRoute.GET("/", controller.GetAllDeployments)
+			deploymentsRoute.GET("/search", controller.SearchDeployments)
+			// Future:
+			// deploymentsRoute.GET("/search", controller.SearchDeployments)
+			// deploymentsRoute.POST("/", controller.CreateDeployment)
+			// deploymentsRoute.PUT("/:id", controller.UpdateDeployment)
+			// deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+			// deploymentsRoute.POST("/:id/start", controller.StartDeployment)
+			// deploymentsRoute.POST("/:id/stop", controller.StopDeployment)
+			// deploymentsRoute.POST("/:id/restart", controller.RestartDeployment)
+			// deploymentsRoute.POST("/batch_delete", controller.BatchDeleteDeployments)
+			// deploymentsRoute.POST("/batch_start", controller.BatchStartDeployments)
+			// deploymentsRoute.POST("/batch_stop", controller.BatchStopDeployments)
+		}
 	}
 }

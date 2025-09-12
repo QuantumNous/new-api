@@ -17,14 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import {
-  Form,
-  Input,
-  Select,
-  Button,
-  Space,
-} from '@douyinfe/semi-ui';
+import React, { useRef } from 'react';
+import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch, IconRefresh } from '@douyinfe/semi-icons';
 
 const DeploymentsFilters = ({
@@ -33,15 +27,21 @@ const DeploymentsFilters = ({
   searchDeployments,
   loading,
   searching,
+  setShowColumnSelector,
   t,
 }) => {
+  const formApiRef = useRef(null);
+
   const handleSubmit = (values) => {
     searchDeployments(values);
   };
 
-  const handleReset = (formApi) => {
-    formApi.reset();
-    formApi.submitForm();
+  const handleReset = () => {
+    if (!formApiRef.current) return;
+    formApiRef.current.reset();
+    setTimeout(() => {
+      formApiRef.current.submitForm();
+    }, 0);
   };
 
   const statusOptions = [
@@ -58,48 +58,66 @@ const DeploymentsFilters = ({
       layout='horizontal'
       onSubmit={handleSubmit}
       initValues={formInitValues}
-      getFormApi={(formApi) => setFormApi(formApi)}
+      getFormApi={(formApi) => {
+        setFormApi(formApi);
+        formApiRef.current = formApi;
+      }}
       className='w-full'
     >
-      <div className='flex flex-col lg:flex-row gap-2 w-full'>
-        <div className='flex flex-col sm:flex-row gap-2 flex-1'>
+      <div className='flex flex-col md:flex-row items-center gap-2 w-full'>
+        <div className='flex flex-col sm:flex-row gap-2 flex-1 w-full'>
           <Form.Input
             field='searchKeyword'
             placeholder={t('搜索部署名称或模型名称')}
             prefix={<IconSearch />}
             className='flex-1'
             showClear
+            size='small'
+            pure
           />
-          
+
           <Form.Select
             field='searchStatus'
             placeholder={t('选择状态')}
             optionList={statusOptions}
             className='w-full sm:w-40'
             showClear
+            size='small'
+            pure
           />
         </div>
 
-        <div className='flex gap-2'>
+        <div className='flex gap-2 w-full md:w-auto'>
           <Button
             htmlType='submit'
-            theme='solid'
-            type='primary'
+            type='tertiary'
             icon={<IconSearch />}
             loading={searching}
             disabled={loading}
+            size='small'
+            className='w-full md:w-auto'
           >
-            {t('搜索')}
+            {t('查询')}
           </Button>
-          
+
           <Button
-            theme='outline'
-            type='secondary'
+            type='tertiary'
             icon={<IconRefresh />}
-            onClick={(e, formApi) => handleReset(formApi)}
+            onClick={handleReset}
             disabled={loading || searching}
+            size='small'
+            className='w-full md:w-auto'
           >
             {t('重置')}
+          </Button>
+
+          <Button
+            type='tertiary'
+            onClick={() => setShowColumnSelector(true)}
+            size='small'
+            className='w-full md:w-auto'
+          >
+            {t('列设置')}
           </Button>
         </div>
       </div>

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
+import { 
   Button,
   Dropdown,
   Modal,
@@ -69,7 +69,7 @@ const renderStatus = (status, t) => {
   };
   
   return (
-    <Tag color={getStatusColor(status)} size="small">
+    <Tag color={getStatusColor(status)} size="small" shape='circle'>
       {statusLabels[status] || status}
     </Tag>
   );
@@ -115,7 +115,7 @@ const renderInstanceCount = (count, record, t) => {
   else if (status === 'error') countColor = 'red';
   
   return (
-    <Tag color={countColor} size="small">
+    <Tag color={countColor} size="small" shape='circle'>
       {count || 0} {t('个实例')}
     </Tag>
   );
@@ -140,7 +140,6 @@ export const getDeploymentsColumns = ({
       title: t('部署名称'),
       dataIndex: 'deployment_name',
       key: COLUMN_KEYS.deployment_name,
-      fixed: 'left',
       width: 180,
       render: (text, record) => (
         <div className="flex flex-col">

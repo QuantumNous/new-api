@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tabs, Badge } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
 import { 
   FaServer, 
   FaPlay, 
@@ -46,69 +46,41 @@ const DeploymentsTabs = ({
     return icons[status] || <FaServer />;
   };
 
-  const tabList = [
-    {
-      key: 'all',
-      label: t('全部'),
-      icon: getStatusIcon('all'),
-    },
-    {
-      key: 'running',
-      label: t('运行中'),
-      icon: getStatusIcon('running'),
-    },
-    {
-      key: 'deploying',
-      label: t('部署中'),
-      icon: getStatusIcon('deploying'),
-    },
-    {
-      key: 'stopped',
-      label: t('已停止'),
-      icon: getStatusIcon('stopped'),
-    },
-    {
-      key: 'error',
-      label: t('错误'),
-      icon: getStatusIcon('error'),
-    },
-    {
-      key: 'pending',
-      label: t('待部署'),
-      icon: getStatusIcon('pending'),
-    },
+  const tabs = [
+    { key: 'all', label: t('全部'), icon: getStatusIcon('all') },
+    { key: 'running', label: t('运行中'), icon: getStatusIcon('running') },
+    { key: 'deploying', label: t('部署中'), icon: getStatusIcon('deploying') },
+    { key: 'stopped', label: t('已停止'), icon: getStatusIcon('stopped') },
+    { key: 'error', label: t('错误'), icon: getStatusIcon('error') },
+    { key: 'pending', label: t('待部署'), icon: getStatusIcon('pending') },
   ];
 
   const renderTabTitle = (tab) => {
     const count = statusCounts[tab.key] || 0;
-    
+    const isActive = activeStatusKey === tab.key;
     return (
-      <div className='flex items-center gap-2'>
+      <span className='flex items-center gap-2'>
         {tab.icon}
-        <span>{tab.label}</span>
-        <Badge 
-          count={count} 
-          type={tab.key === 'error' ? 'danger' : 'primary'}
-          size='small'
-        />
-      </div>
+        {tab.label}
+        <Tag color={isActive ? 'red' : 'grey'} shape='circle'>
+          {count}
+        </Tag>
+      </span>
     );
   };
 
   return (
     <div className='w-full'>
       <Tabs
-        type='line'
         activeKey={activeStatusKey}
+        type='card'
+        collapsible
         onChange={handleTabChange}
+        className='mb-2'
         size='small'
       >
-        {tabList.map((tab) => (
-          <Tabs.TabPane
-            key={tab.key}
-            tab={renderTabTitle(tab)}
-            itemKey={tab.key}
-          />
+        {tabs.map((tab) => (
+          <TabPane key={tab.key} itemKey={tab.key} tab={renderTabTitle(tab)} />
         ))}
       </Tabs>
     </div>

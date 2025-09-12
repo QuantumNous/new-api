@@ -113,6 +113,7 @@ const DeploymentsPage = () => {
           searchDeployments={searchDeployments}
           loading={loading}
           searching={searching}
+          setShowColumnSelector={setShowColumnSelector}
           t={t}
         />}
         paginationArea={createCardProPagination({
