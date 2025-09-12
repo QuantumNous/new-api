@@ -1,5 +1,11 @@
 # 使用说明
 
+## 使用建议
+
+**原则上建议直接使用官方SDK改环境变量访问或者直接使用官方的REST风格的请求BODY构造HTTP请求访问。另外如碰到一些特殊的参数支持情况，可能会需要按照本站风格调用，请参阅下方特殊情况部分**
+
+使用OpenAI SDK的协议调用本站，可能出现参数不支持的，或者格式不支持的情况，内部会进行适配。使用时需要自行打一定流量来检测使用效果是否符合预期。
+
 ## 服务架构和调度策略
 
 为了提供较大的RPM（每分钟请求数），服务端持有一个大的号池，采用多厂商渠道调度策略：
@@ -13,6 +19,23 @@
 - **GPT**: Azure → OpenAI
 - **Claude**: AWS → Anthropic  
 - **Doubao**: 火山方舟
+
+### 指定调度渠道
+模型名请使用官方的模型名
+如需指定特定的调度渠道，可在请求头中携带 `X-Channel-Type` 参数：
+
+**示例**：
+```
+X-Channel-Type: google
+```
+
+**支持的渠道类型**：
+- `google` - 指定使用Google渠道
+- `openai` - 指定使用OpenAI渠道  
+- `azure` - 指定使用Azure渠道
+- `anthropic` - 指定使用Anthropic渠道
+- `aws` - 指定使用AWS渠道
+- `doubao` - 指定使用豆包渠道
 
 ### 注意事项
 
@@ -71,3 +94,41 @@ os.environ['GOOGLE_GEMINI_BASE_URL'] = "https://www.furion-tech.com/"
 # 初始化 Gemini 客户端
 client = genai.Client()
 ```
+
+## 特殊情况 
+Gemini 2.5 Pro YouTube 视频处理
+
+`gemini-2.5-pro` 模型在处理 YouTube 视频时需要特殊的调用格式支持。请使用以下请求格式：
+
+```json
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "描述这个视频的内容，并告诉我视频时长有多长"
+        },
+        {
+          "type": "youtube",
+          "mimetype": "video/webm",
+          "url": "https://www.youtube.com/watch?v=fXvqoWlLU1c"
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "video_metadata": {
+    "fps": 1,
+    "start_offset": "0s",
+    "end_offset": "10s"
+  },
+  "model": "gemini-2.5-pro-google"
+}
+```
+
+**注意事项**：
+- 必须使用 `gemini-2.5-pro-google` 作为模型名
+- YouTube URL 需要包含完整的 watch 链接
+- `video_metadata` 参数用于控制视频处理的帧率和时间范围
+- `start_offset` 和 `end_offset` 用于指定处理视频的起止时间
