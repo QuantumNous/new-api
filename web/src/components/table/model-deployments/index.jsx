@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import CardPro from '../../common/ui/CardPro';
 import DeploymentsTable from './DeploymentsTable';
 import DeploymentsActions from './DeploymentsActions';
 import DeploymentsFilters from './DeploymentsFilters';
 import DeploymentsTabs from './DeploymentsTabs';
 import EditDeploymentModal from './modals/EditDeploymentModal';
+import CreateDeploymentModal from './modals/CreateDeploymentModal';
 import ColumnSelectorModal from './modals/ColumnSelectorModal';
 import { useDeploymentsData } from '../../../hooks/model-deployments/useDeploymentsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
@@ -32,6 +33,9 @@ import { createCardProPagination } from '../../../helpers/utils';
 const DeploymentsPage = () => {
   const deploymentsData = useDeploymentsData();
   const isMobile = useIsMobile();
+  
+  // Create deployment modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const {
     // Edit state
@@ -80,6 +84,13 @@ const DeploymentsPage = () => {
         visible={showEdit}
         handleClose={closeEdit}
       />
+      
+      <CreateDeploymentModal
+        visible={showCreateModal}
+        onCancel={() => setShowCreateModal(false)}
+        onSuccess={refresh}
+        t={t}
+      />
 
       <ColumnSelectorModal
         visible={showColumnSelector}
@@ -104,6 +115,8 @@ const DeploymentsPage = () => {
           batchStopDeployments={batchStopDeployments}
           compactMode={compactMode}
           setCompactMode={setCompactMode}
+          showCreateModal={showCreateModal}
+          setShowCreateModal={setShowCreateModal}
           setShowColumnSelector={setShowColumnSelector}
           t={t}
         />}

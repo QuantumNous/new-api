@@ -25,11 +25,11 @@ func (m *MockHTTPClient) Do(req *HTTPRequest) (*HTTPResponse, error) {
 
 func TestNewClient(t *testing.T) {
 	apiKey := "test-api-key"
-	client := NewClient(apiKey)
+	client := NewEnterpriseClient(apiKey)
 
 	assert.NotNil(t, client)
 	assert.Equal(t, apiKey, client.APIKey)
-	assert.Equal(t, DefaultBaseURL, client.BaseURL)
+	assert.Equal(t, DefaultEnterpriseBaseURL, client.BaseURL)
 	assert.NotNil(t, client.HTTPClient)
 }
 

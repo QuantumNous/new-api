@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
@@ -25,6 +25,13 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getDeploymentsColumns } from './DeploymentsColumnDefs';
+
+// Import all the new modals
+import ViewLogsModal from './modals/ViewLogsModal';
+import ExtendDurationModal from './modals/ExtendDurationModal';
+import ViewDetailsModal from './modals/ViewDetailsModal';
+import UpdateConfigModal from './modals/UpdateConfigModal';
+import ConfirmationDialog from './modals/ConfirmationDialog';
 
 const DeploymentsTable = (deploymentsData) => {
   const {
@@ -47,10 +54,59 @@ const DeploymentsTable = (deploymentsData) => {
     stopDeployment,
     restartDeployment,
     deleteDeployment,
+    updateDeploymentName,
     setEditingDeployment,
     setShowEdit,
     refresh,
   } = deploymentsData;
+
+  // Modal states
+  const [selectedDeployment, setSelectedDeployment] = useState(null);
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmOperation, setConfirmOperation] = useState('delete');
+
+  // Enhanced modal handlers
+  const handleViewLogs = (deployment) => {
+    setSelectedDeployment(deployment);
+    setShowLogsModal(true);
+  };
+
+  const handleExtendDuration = (deployment) => {
+    setSelectedDeployment(deployment);
+    setShowExtendModal(true);
+  };
+
+  const handleViewDetails = (deployment) => {
+    setSelectedDeployment(deployment);
+    setShowDetailsModal(true);
+  };
+
+  const handleUpdateConfig = (deployment, operation = 'update') => {
+    setSelectedDeployment(deployment);
+    if (operation === 'delete' || operation === 'destroy') {
+      setConfirmOperation(operation);
+      setShowConfirmDialog(true);
+    } else {
+      setShowConfigModal(true);
+    }
+  };
+
+  const handleConfirmAction = () => {
+    if (selectedDeployment && confirmOperation === 'delete') {
+      deleteDeployment(selectedDeployment.id);
+    }
+    setShowConfirmDialog(false);
+    setSelectedDeployment(null);
+  };
+
+  const handleModalSuccess = (updatedDeployment) => {
+    // Refresh the deployments list
+    refresh?.();
+  };
 
   // Get all columns
   const allColumns = useMemo(() => {
@@ -61,11 +117,17 @@ const DeploymentsTable = (deploymentsData) => {
       stopDeployment,
       restartDeployment,
       deleteDeployment,
+      updateDeploymentName,
       setEditingDeployment,
       setShowEdit,
       refresh,
       activePage,
       deployments,
+      // Enhanced handlers
+      onViewLogs: handleViewLogs,
+      onExtendDuration: handleExtendDuration,
+      onViewDetails: handleViewDetails,
+      onUpdateConfig: handleUpdateConfig,
     });
   }, [
     t,
@@ -91,47 +153,96 @@ const DeploymentsTable = (deploymentsData) => {
   }, [visibleColumns, allColumns]);
 
   const tableColumns = useMemo(() => {
-    return compactMode
-      ? visibleColumnsList.map(({ fixed, ...rest }) => rest)
-      : visibleColumnsList;
+    if (compactMode) {
+      // In compact mode, remove fixed columns and adjust widths
+      return visibleColumnsList.map(({ fixed, width, ...rest }) => ({
+        ...rest,
+        width: width ? Math.max(width * 0.8, 80) : undefined, // Reduce width by 20% but keep minimum
+      }));
+    }
+    return visibleColumnsList;
   }, [compactMode, visibleColumnsList]);
 
   return (
-    <CardTable
-      columns={tableColumns}
-      dataSource={deployments}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      pagination={{
-        currentPage: activePage,
-        pageSize: pageSize,
-        total: deploymentCount,
-        pageSizeOpts: [10, 20, 50, 100],
-        showSizeChanger: true,
-        onPageSizeChange: handlePageSizeChange,
-        onPageChange: handlePageChange,
-      }}
-      hidePagination={true}
-      expandAllRows={false}
-      onRow={handleRow}
-      rowSelection={{
-        onChange: (selectedRowKeys, selectedRows) => {
-          setSelectedKeys(selectedRows);
-        },
-      }}
-      empty={
-        <Empty
-          image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-          darkModeImage={
-            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-          }
-          description={t('搜索无结果')}
-          style={{ padding: 30 }}
-        />
-      }
-      className='rounded-xl overflow-hidden'
-      size='middle'
-      loading={loading || searching}
-    />
+    <>
+      <CardTable
+        columns={tableColumns}
+        dataSource={deployments}
+        scroll={compactMode ? { x: 800 } : { x: 1200 }}
+        pagination={{
+          currentPage: activePage,
+          pageSize: pageSize,
+          total: deploymentCount,
+          pageSizeOpts: [10, 20, 50, 100],
+          showSizeChanger: true,
+          onPageSizeChange: handlePageSizeChange,
+          onPageChange: handlePageChange,
+        }}
+        hidePagination={true}
+        expandAllRows={false}
+        onRow={handleRow}
+        rowSelection={{
+          onChange: (selectedRowKeys, selectedRows) => {
+            setSelectedKeys(selectedRows);
+          },
+        }}
+        empty={
+          <Empty
+            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+            darkModeImage={
+              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+            }
+            description={t('搜索无结果')}
+            style={{ padding: 30 }}
+          />
+        }
+        className='rounded-xl overflow-hidden'
+        size='middle'
+        loading={loading || searching}
+      />
+
+      {/* Enhanced Modals */}
+      <ViewLogsModal
+        visible={showLogsModal}
+        onCancel={() => setShowLogsModal(false)}
+        deployment={selectedDeployment}
+        t={t}
+      />
+
+      <ExtendDurationModal
+        visible={showExtendModal}
+        onCancel={() => setShowExtendModal(false)}
+        deployment={selectedDeployment}
+        onSuccess={handleModalSuccess}
+        t={t}
+      />
+
+      <ViewDetailsModal
+        visible={showDetailsModal}
+        onCancel={() => setShowDetailsModal(false)}
+        deployment={selectedDeployment}
+        t={t}
+      />
+
+      <UpdateConfigModal
+        visible={showConfigModal}
+        onCancel={() => setShowConfigModal(false)}
+        deployment={selectedDeployment}
+        onSuccess={handleModalSuccess}
+        t={t}
+      />
+
+      <ConfirmationDialog
+        visible={showConfirmDialog}
+        onCancel={() => setShowConfirmDialog(false)}
+        onConfirm={handleConfirmAction}
+        title={t('确认操作')}
+        type="danger"
+        deployment={selectedDeployment}
+        operation={confirmOperation}
+        t={t}
+      />
+    </>
   );
 };
 

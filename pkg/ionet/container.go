@@ -96,40 +96,57 @@ func (c *Client) GetContainerJobs(deploymentID, containerID string) (*ContainerL
 	return &apiResp.Data, nil
 }
 
-// GetContainerLogs retrieves logs for a specific container
-func (c *Client) GetContainerLogs(deploymentID, containerID string, opts *GetLogsOptions) (string, error) {
+// GetContainerLogs retrieves logs for containers in a deployment
+func (c *Client) GetContainerLogs(deploymentID, containerID string, opts *GetLogsOptions) (*ContainerLogs, error) {
 	if deploymentID == "" {
-		return "", fmt.Errorf("deployment ID cannot be empty")
+		return nil, fmt.Errorf("deployment ID cannot be empty")
 	}
-	if containerID == "" {
-		return "", fmt.Errorf("container ID cannot be empty")
-	}
+	// containerID is optional for deployment logs
 
 	params := make(map[string]interface{})
 
+	if containerID != "" {
+		params["container_id"] = containerID
+	}
+
 	if opts != nil {
-		params["level"] = opts.Level
-		params["limit"] = opts.Limit
-		params["cursor"] = opts.Cursor
-		params["follow"] = opts.Follow
+		if opts.Level != "" {
+			params["level"] = opts.Level
+		}
+		if opts.Limit > 0 {
+			params["limit"] = opts.Limit
+		}
+		if opts.Cursor != "" {
+			params["cursor"] = opts.Cursor
+		}
+		if opts.Follow {
+			params["follow"] = "true"
+		}
 
 		if opts.StartTime != nil {
-			params["start_time"] = *opts.StartTime
+			params["start_time"] = opts.StartTime.Format(time.RFC3339)
 		}
 		if opts.EndTime != nil {
-			params["end_time"] = *opts.EndTime
+			params["end_time"] = opts.EndTime.Format(time.RFC3339)
 		}
 	}
 
-	endpoint := fmt.Sprintf("/deployment/%s/log/%s", deploymentID, containerID) + buildQueryParams(params)
+	endpoint := fmt.Sprintf("/deployment/%s/logs", deploymentID) + buildQueryParams(params)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to get container logs: %w", err)
+		return nil, fmt.Errorf("failed to get container logs: %w", err)
 	}
 
-	// API returns plain string according to docs
-	return string(resp.Body), nil
+	// Parse according to the actual API response format from docs:
+	// For now, we'll assume the API returns logs directly
+	// In production, this might be wrapped in a data object
+	var logs ContainerLogs
+	if err := json.Unmarshal(resp.Body, &logs); err != nil {
+		return nil, fmt.Errorf("failed to parse container logs: %w", err)
+	}
+
+	return &logs, nil
 }
 
 // StreamContainerLogs streams real-time logs for a specific container

@@ -96,14 +96,19 @@ export const useDeploymentsData = () => {
   const COLUMN_KEYS = useMemo(
     () => ({
       id: 'id',
+      status: 'status',
+      type: 'type',
+      container_name: 'container_name',
+      time_remaining: 'time_remaining',
+      hardware_info: 'hardware_info',
+      created_at: 'created_at',
+      actions: 'actions',
+      // Legacy keys for compatibility
       deployment_name: 'deployment_name',
       model_name: 'model_name',
-      status: 'status',
       instance_count: 'instance_count',
       resource_config: 'resource_config',
-      created_at: 'created_at',
       updated_at: 'updated_at',
-      actions: 'actions',
     }),
     [],
   );
@@ -118,14 +123,19 @@ export const useDeploymentsData = () => {
       }
     }
     return {
-      [COLUMN_KEYS.deployment_name]: true,
-      [COLUMN_KEYS.model_name]: true,
+      [COLUMN_KEYS.container_name]: true,
       [COLUMN_KEYS.status]: true,
-      [COLUMN_KEYS.instance_count]: true,
-      [COLUMN_KEYS.resource_config]: true,
+      [COLUMN_KEYS.type]: true,
+      [COLUMN_KEYS.time_remaining]: true,
+      [COLUMN_KEYS.hardware_info]: true,
       [COLUMN_KEYS.created_at]: true,
-      [COLUMN_KEYS.updated_at]: true,
       [COLUMN_KEYS.actions]: true,
+      // Legacy columns (hidden by default)
+      [COLUMN_KEYS.deployment_name]: false,
+      [COLUMN_KEYS.model_name]: false,
+      [COLUMN_KEYS.instance_count]: false,
+      [COLUMN_KEYS.resource_config]: false,
+      [COLUMN_KEYS.updated_at]: false,
     };
   });
 
@@ -305,6 +315,24 @@ export const useDeploymentsData = () => {
     }
   };
 
+  const updateDeploymentName = async (deploymentId, newName) => {
+    try {
+      const res = await API.put(`/api/deployments/${deploymentId}/name`, { name: newName });
+      if (res.data.success) {
+        showSuccess(t('部署名称更新成功'));
+        await refresh();
+        return true;
+      } else {
+        showError(res.data.message);
+        return false;
+      }
+    } catch (error) {
+      console.error(error);
+      showError(t('更新部署名称失败'));
+      return false;
+    }
+  };
+
   // Batch operations
   const batchDeleteDeployments = async () => {
     if (selectedKeys.length === 0) return;
@@ -427,6 +455,7 @@ export const useDeploymentsData = () => {
     stopDeployment,
     restartDeployment,
     deleteDeployment,
+    updateDeploymentName,
 
     // Batch operations
     batchDeleteDeployments,

@@ -239,13 +239,29 @@ func SetApiRouter(router *gin.Engine) {
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())
 		{
+			// List and search deployments
 			deploymentsRoute.GET("/", controller.GetAllDeployments)
 			deploymentsRoute.GET("/search", controller.SearchDeployments)
-			// Future:
-			// deploymentsRoute.GET("/search", controller.SearchDeployments)
-			// deploymentsRoute.POST("/", controller.CreateDeployment)
-			// deploymentsRoute.PUT("/:id", controller.UpdateDeployment)
-			// deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+
+			// Resource and configuration endpoints
+			deploymentsRoute.GET("/hardware-types", controller.GetHardwareTypes)
+			deploymentsRoute.GET("/locations", controller.GetLocations)
+			deploymentsRoute.GET("/available-replicas", controller.GetAvailableReplicas)
+			deploymentsRoute.POST("/price-estimation", controller.GetPriceEstimation)
+			deploymentsRoute.GET("/check-name", controller.CheckClusterNameAvailability)
+
+			// Create new deployment
+			deploymentsRoute.POST("/", controller.CreateDeployment)
+
+			// Individual deployment operations
+			deploymentsRoute.GET("/:id", controller.GetDeployment)
+			deploymentsRoute.GET("/:id/logs", controller.GetDeploymentLogs)
+			deploymentsRoute.PUT("/:id", controller.UpdateDeployment)
+			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
+			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
+			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+
+			// Future batch operations:
 			// deploymentsRoute.POST("/:id/start", controller.StartDeployment)
 			// deploymentsRoute.POST("/:id/stop", controller.StopDeployment)
 			// deploymentsRoute.POST("/:id/restart", controller.RestartDeployment)

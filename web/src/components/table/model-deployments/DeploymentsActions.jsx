@@ -31,13 +31,20 @@ const DeploymentsActions = ({
   batchStopDeployments,
   compactMode,
   setCompactMode,
+  showCreateModal,
+  setShowCreateModal,
   t,
 }) => {
   const hasSelected = selectedKeys.length > 0;
 
   const handleAddDeployment = () => {
-    setEditingDeployment({ id: undefined });
-    setShowEdit(true);
+    if (setShowCreateModal) {
+      setShowCreateModal(true);
+    } else {
+      // Fallback to old behavior if setShowCreateModal is not provided
+      setEditingDeployment({ id: undefined });
+      setShowEdit(true);
+    }
   };
 
   const handleBatchDelete = () => {
@@ -65,7 +72,7 @@ const DeploymentsActions = ({
         onClick={handleAddDeployment}
         size='small'
       >
-        {t('新增部署')}
+        {t('新建容器')}
       </Button>
 
       {hasSelected && (

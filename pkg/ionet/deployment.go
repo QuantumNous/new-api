@@ -87,8 +87,8 @@ func (c *Client) ListDeployments(opts *ListDeploymentsOptions) (*DeploymentList,
 	}
 
 	// Set derived fields for controller compatibility
-	for i := range apiResp.Data.Clusters {
-		deployment := &apiResp.Data.Clusters[i]
+	for i := range apiResp.Data.Deployments {
+		deployment := &apiResp.Data.Deployments[i]
 		deployment.GPUCount = deployment.HardwareQuantity
 		deployment.Replicas = deployment.HardwareQuantity // Assuming 1:1 mapping for now
 	}
@@ -299,6 +299,31 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	}
 
 	return priceResp, nil
+}
+
+// CheckClusterNameAvailability checks if a cluster name is available
+func (c *Client) CheckClusterNameAvailability(clusterName string) (bool, error) {
+	if clusterName == "" {
+		return false, fmt.Errorf("cluster name cannot be empty")
+	}
+
+	params := map[string]interface{}{
+		"cluster_name": clusterName,
+	}
+
+	endpoint := "/clusters/check_cluster_name_availability" + buildQueryParams(params)
+
+	resp, err := c.makeRequest("GET", endpoint, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to check cluster name availability: %w", err)
+	}
+
+	var availabilityResp bool
+	if err := json.Unmarshal(resp.Body, &availabilityResp); err != nil {
+		return false, fmt.Errorf("failed to parse cluster name availability response: %w", err)
+	}
+
+	return availabilityResp, nil
 }
 
 // UpdateClusterName updates the name of an existing cluster/deployment

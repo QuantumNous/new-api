@@ -28,6 +28,7 @@ import {
   Tooltip,
   Typography,
   Popconfirm,
+  Input,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -43,35 +44,180 @@ import {
   FaTrash, 
   FaServer,
   FaMemory,
-  FaMicrochip 
+  FaMicrochip,
+  FaCopy,
+  FaCheckCircle,
+  FaSpinner,
+  FaClock,
+  FaExclamationCircle,
+  FaBan,
+  FaEye,
+  FaTerminal,
+  FaPlus,
+  FaCog,
+  FaInfoCircle
 } from 'react-icons/fa';
 
-// Status color mapping
-const getStatusColor = (status) => {
-  const statusColors = {
-    'running': 'green',
-    'deploying': 'blue',
-    'stopped': 'grey',
-    'error': 'red',
-    'pending': 'orange',
+// Status color mapping with enhanced styling and icons
+const getStatusConfig = (status) => {
+  const statusConfig = {
+    'running': { 
+      color: 'green', 
+      bgColor: 'bg-green-50', 
+      textColor: 'text-green-700',
+      borderColor: 'border-green-200',
+      label: '运行中',
+      icon: <FaCheckCircle className="text-green-500" />
+    },
+    'completed': { 
+      color: 'green', 
+      bgColor: 'bg-green-50', 
+      textColor: 'text-green-700',
+      borderColor: 'border-green-200',
+      label: '已完成',
+      icon: <FaCheckCircle className="text-green-600" />
+    },
+    'deployment requested': {
+      color: 'blue',
+      bgColor: 'bg-blue-50',
+      textColor: 'text-blue-700',
+      borderColor: 'border-blue-200', 
+      label: '部署请求中',
+      icon: <FaSpinner className="text-blue-500 animate-spin" />
+    },
+    'termination requested': {
+      color: 'orange',
+      bgColor: 'bg-orange-50',
+      textColor: 'text-orange-700',
+      borderColor: 'border-orange-200',
+      label: '终止请求中', 
+      icon: <FaClock className="text-orange-500" />
+    },
+    'destroyed': { 
+      color: 'red', 
+      bgColor: 'bg-red-50', 
+      textColor: 'text-red-700',
+      borderColor: 'border-red-200',
+      label: '已销毁',
+      icon: <FaBan className="text-red-500" />
+    },
+    'failed': { 
+      color: 'red', 
+      bgColor: 'bg-red-50', 
+      textColor: 'text-red-700',
+      borderColor: 'border-red-200',
+      label: '失败',
+      icon: <FaExclamationCircle className="text-red-500" />
+    }
   };
-  return statusColors[status] || 'grey';
+  return statusConfig[status] || {
+    color: 'grey',
+    bgColor: 'bg-gray-50',
+    textColor: 'text-gray-700',
+    borderColor: 'border-gray-200',
+    label: status,
+    icon: <FaClock className="text-gray-500" />
+  };
 };
 
-// Render deployment status
+// Render deployment status with enhanced styling
 const renderStatus = (status, t) => {
-  const statusLabels = {
-    'running': t('运行中'),
-    'deploying': t('部署中'),
-    'stopped': t('已停止'),
-    'error': t('错误'),
-    'pending': t('待部署'),
-  };
+  const config = getStatusConfig(status);
   
   return (
-    <Tag color={getStatusColor(status)} size="small" shape='circle'>
-      {statusLabels[status] || status}
-    </Tag>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${config.bgColor} ${config.borderColor}`}>
+      <span className="flex items-center justify-center">{config.icon}</span>
+      <span className={`text-xs font-medium ${config.textColor}`}>
+        {t(config.label)}
+      </span>
+    </div>
+  );
+};
+
+// Container Name Cell Component - to properly handle React hooks
+const ContainerNameCell = ({ text, record, updateDeploymentName, t }) => {
+  const [showRenameModal, setShowRenameModal] = React.useState(false);
+  const [newName, setNewName] = React.useState(text);
+  const [isRenaming, setIsRenaming] = React.useState(false);
+
+  React.useEffect(() => {
+    if (showRenameModal) {
+      setNewName(text);
+    }
+  }, [showRenameModal, text]);
+
+  const handleRename = async () => {
+    if (newName.trim() === text || !newName.trim()) {
+      setShowRenameModal(false);
+      return;
+    }
+    
+    setIsRenaming(true);
+    const success = await updateDeploymentName(record.id, newName.trim());
+    setIsRenaming(false);
+    
+    if (success) {
+      setShowRenameModal(false);
+    }
+  };
+
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(record.id);
+    showSuccess(t('ID已复制到剪贴板'));
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <Typography.Text strong className="text-base">
+          {text}
+        </Typography.Text>
+        <Button
+          size="small"
+          theme="borderless"
+          icon={<FaEdit />}
+          className="opacity-70 hover:opacity-100 transition-opacity"
+          onClick={() => setShowRenameModal(true)}
+          style={{ padding: '2px 4px', minWidth: 'auto' }}
+        />
+      </div>
+      <div className="flex items-center">
+        <Typography.Text 
+          type="secondary" 
+          size="small" 
+          className="text-xs cursor-pointer hover:text-blue-600 transition-colors select-all"
+          onClick={handleCopyId}
+          title={t('点击复制ID')}
+        >
+          ID: {record.id}
+        </Typography.Text>
+      </div>
+      
+      <Modal
+        title={t('重命名容器')}
+        visible={showRenameModal}
+        onOk={handleRename}
+        onCancel={() => setShowRenameModal(false)}
+        okText={t('确定')}
+        cancelText={t('取消')}
+        confirmLoading={isRenaming}
+        width={400}
+      >
+        <div className="py-2">
+          <Typography.Text type="secondary" size="small" className="block mb-2">
+            {t('当前名称')}: {text}
+          </Typography.Text>
+          <Input
+            value={newName}
+            onChange={(value) => setNewName(value)}
+            placeholder={t('请输入新的容器名称')}
+            autoFocus
+            onEnterPress={handleRename}
+            className="w-full"
+          />
+        </div>
+      </Modal>
+    </div>
   );
 };
 
@@ -111,8 +257,8 @@ const renderInstanceCount = (count, record, t) => {
   let countColor = 'grey';
   
   if (status === 'running') countColor = 'green';
-  else if (status === 'deploying') countColor = 'blue';
-  else if (status === 'error') countColor = 'red';
+  else if (status === 'deployment requested') countColor = 'blue';
+  else if (status === 'failed') countColor = 'red';
   
   return (
     <Tag color={countColor} size="small" shape='circle'>
@@ -129,65 +275,81 @@ export const getDeploymentsColumns = ({
   stopDeployment,
   restartDeployment,
   deleteDeployment,
+  updateDeploymentName,
   setEditingDeployment,
   setShowEdit,
   refresh,
   activePage,
   deployments,
+  // New handlers for enhanced operations
+  onViewLogs,
+  onExtendDuration,
+  onViewDetails,
+  onUpdateConfig,
 }) => {
   const columns = [
     {
-      title: t('部署名称'),
-      dataIndex: 'deployment_name',
-      key: COLUMN_KEYS.deployment_name,
-      width: 180,
+      title: t('容器名称'),
+      dataIndex: 'container_name',
+      key: COLUMN_KEYS.container_name,
+      width: 300,
+      ellipsis: true,
       render: (text, record) => (
-        <div className="flex flex-col">
-          <Typography.Text strong copyable={{ content: text }}>
-            {text}
-          </Typography.Text>
-          <Typography.Text type="secondary" size="small">
-            ID: {record.id}
-          </Typography.Text>
-        </div>
-      ),
-    },
-    {
-      title: t('模型名称'),
-      dataIndex: 'model_name',
-      key: COLUMN_KEYS.model_name,
-      width: 200,
-      render: (text, record) => (
-        <div className="flex flex-col">
-          <Typography.Text strong>{text}</Typography.Text>
-          {record.model_version && (
-            <Typography.Text type="secondary" size="small">
-              版本: {record.model_version}
-            </Typography.Text>
-          )}
-        </div>
+        <ContainerNameCell 
+          text={text} 
+          record={record} 
+          updateDeploymentName={updateDeploymentName}
+          t={t}
+        />
       ),
     },
     {
       title: t('状态'),
       dataIndex: 'status',
       key: COLUMN_KEYS.status,
-      width: 100,
+      width: 140,
       render: (status) => renderStatus(status, t),
     },
     {
-      title: t('实例数量'),
-      dataIndex: 'instance_count',
-      key: COLUMN_KEYS.instance_count,
-      width: 120,
-      render: (count, record) => renderInstanceCount(count, record, t),
+      title: t('类型'),
+      dataIndex: 'type',
+      key: COLUMN_KEYS.type,
+      width: 100,
+      render: (text) => (
+        <Typography.Text className="text-sm">{text || 'Container'}</Typography.Text>
+      ),
     },
     {
-      title: t('资源配置'),
-      dataIndex: 'resource_config',
-      key: COLUMN_KEYS.resource_config,
-      width: 160,
-      render: (resource) => renderResourceConfig(resource, t),
+      title: t('剩余时间'),
+      dataIndex: 'time_remaining',
+      key: COLUMN_KEYS.time_remaining,
+      width: 130,
+      render: (text, record) => (
+        <div className="flex flex-col">
+          <Typography.Text className="text-sm font-medium">{text}</Typography.Text>
+          <Typography.Text type="secondary" size="small" className="text-xs">
+            {record.completed_percent}% 完成
+          </Typography.Text>
+        </div>
+      ),
+    },
+    {
+      title: t('硬件配置'),
+      dataIndex: 'hardware_info',
+      key: COLUMN_KEYS.hardware_info,
+      width: 220,
+      ellipsis: true,
+      render: (text, record) => (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-md">
+            <FaServer className="text-green-600 text-xs" />
+            <span className="text-xs font-medium text-green-700">
+              {record.hardware_name}
+            </span>
+          </div>
+          <span className="text-xs text-gray-500 font-medium">x{record.hardware_quantity}</span>
+        </div>
+      ),
     },
     {
       title: t('创建时间'),
@@ -195,174 +357,159 @@ export const getDeploymentsColumns = ({
       key: COLUMN_KEYS.created_at,
       width: 150,
       render: (text) => (
-        <span>{timestamp2string(text)}</span>
-      ),
-    },
-    {
-      title: t('更新时间'),
-      dataIndex: 'updated_at',
-      key: COLUMN_KEYS.updated_at,
-      width: 150,
-      render: (text) => (
-        <span>{timestamp2string(text)}</span>
+        <span className="text-sm text-gray-600">{timestamp2string(text)}</span>
       ),
     },
     {
       title: t('操作'),
       key: COLUMN_KEYS.actions,
       fixed: 'right',
-      width: 200,
+      width: 120,
       render: (_, record) => {
         const { status, id } = record;
-        
-        // Handle deployment operations
-        const handleStart = () => {
-          startDeployment(id);
-        };
-
-        const handleStop = () => {
-          stopDeployment(id);
-        };
-
-        const handleRestart = () => {
-          restartDeployment(id);
-        };
-
-        const handleEdit = () => {
-          setEditingDeployment(record);
-          setShowEdit(true);
-        };
 
         const handleDelete = () => {
-          Modal.confirm({
-            title: t('确认删除'),
-            content: `${t('确定要删除部署')} "${record.deployment_name}" ${t('吗？此操作不可逆。')}`,
-            okText: t('删除'),
-            cancelText: t('取消'),
-            okType: 'danger',
-            onOk: () => {
-              deleteDeployment(id);
-            },
-          });
+          // Use enhanced confirmation dialog
+          onUpdateConfig?.(record, 'delete');
         };
 
-        // Action buttons based on status
-        const getActionButtons = () => {
-          const buttons = [];
-          
-          if (status === 'stopped' || status === 'error') {
-            buttons.push(
-              <Button
-                key="start"
-                theme="solid"
-                type="primary"
-                size="small"
-                icon={<FaPlay />}
-                onClick={handleStart}
-              >
-                {t('启动')}
-              </Button>
-            );
+        // Get primary action based on status
+        const getPrimaryAction = () => {
+          switch (status) {
+            case 'failed':
+              return {
+                icon: <FaPlay className="text-xs" />,
+                text: t('重试'),
+                onClick: () => startDeployment(id),
+                type: 'primary',
+                theme: 'solid'
+              };
+            case 'running':
+              return {
+                icon: <FaStop className="text-xs" />,
+                text: t('停止'),
+                onClick: () => stopDeployment(id),
+                type: 'warning',
+                theme: 'solid'
+              };
+            case 'deployment requested':
+              return {
+                icon: <FaClock className="text-xs" />,
+                text: t('部署中'),
+                onClick: () => {},
+                type: 'secondary',
+                theme: 'outline',
+                disabled: true
+              };
+            case 'termination requested':
+              return {
+                icon: <FaClock className="text-xs" />,
+                text: t('终止中'),
+                onClick: () => {},
+                type: 'secondary', 
+                theme: 'outline',
+                disabled: true
+              };
+            case 'completed':
+            case 'destroyed':
+            default:
+              return {
+                icon: <FaRedo className="text-xs" />,
+                text: t('重启'),
+                onClick: () => restartDeployment(id),
+                type: 'secondary',
+                theme: 'outline'
+              };
           }
-          
-          if (status === 'running' || status === 'deploying') {
-            buttons.push(
-              <Button
-                key="stop"
-                theme="solid"
-                type="warning"
-                size="small"
-                icon={<FaStop />}
-                onClick={handleStop}
-              >
-                {t('停止')}
-              </Button>
-            );
-          }
-          
-          if (status === 'running' || status === 'error') {
-            buttons.push(
-              <Button
-                key="restart"
-                theme="outline"
-                type="secondary"
-                size="small"
-                icon={<FaRedo />}
-                onClick={handleRestart}
-              >
-                {t('重启')}
-              </Button>
-            );
-          }
-          
-          return buttons;
         };
 
-        const actionButtons = getActionButtons();
+        const primaryAction = getPrimaryAction();
         
-        // More actions dropdown
-        const moreActions = (
+        // All actions dropdown with enhanced operations
+        const allActions = (
           <Dropdown.Menu>
-            <Dropdown.Item
-              onClick={handleEdit}
-              icon={<FaEdit />}
-            >
-              {t('编辑')}
+            {/* View Actions */}
+            <Dropdown.Item onClick={() => onViewDetails?.(record)} icon={<FaInfoCircle />}>
+              {t('查看详情')}
             </Dropdown.Item>
+            <Dropdown.Item onClick={() => onViewLogs?.(record)} icon={<FaTerminal />}>
+              {t('查看日志')}
+            </Dropdown.Item>
+            
             <Dropdown.Divider />
+            
+            {/* Management Actions */}
+            {(status === 'running' || status === 'failed' || status === 'completed') && (
+              <Dropdown.Item onClick={() => restartDeployment(id)} icon={<FaRedo />}>
+                {t('重启')}
+              </Dropdown.Item>
+            )}
+            {status === 'failed' && (
+              <Dropdown.Item onClick={() => startDeployment(id)} icon={<FaPlay />}>
+                {t('重试')}
+              </Dropdown.Item>
+            )}
+            {status === 'running' && (
+              <Dropdown.Item onClick={() => stopDeployment(id)} icon={<FaStop />}>
+                {t('停止')}
+              </Dropdown.Item>
+            )}
+            
+            <Dropdown.Divider />
+            
+            {/* Configuration Actions */}
+            {(status === 'running' || status === 'deployment requested') && (
+              <Dropdown.Item onClick={() => onExtendDuration?.(record)} icon={<FaPlus />}>
+                {t('延长时长')}
+              </Dropdown.Item>
+            )}
+            {status === 'running' && (
+              <Dropdown.Item onClick={() => onUpdateConfig?.(record)} icon={<FaCog />}>
+                {t('更新配置')}
+              </Dropdown.Item>
+            )}
+            
+            <Dropdown.Divider />
+            
+            {/* Dangerous Actions */}
             <Dropdown.Item
               type="danger"
               onClick={handleDelete}
               icon={<FaTrash />}
             >
-              {t('删除')}
+              {t('销毁容器')}
             </Dropdown.Item>
           </Dropdown.Menu>
         );
 
         return (
-          <Space>
-            {actionButtons.length > 0 && (
-              <SplitButtonGroup>
-                {actionButtons[0]}
-                {actionButtons.length > 1 && (
-                  <Dropdown
-                    trigger="click"
-                    position="bottomRight"
-                    render={
-                      <Dropdown.Menu>
-                        {actionButtons.slice(1).map((button, idx) => (
-                          <Dropdown.Item key={idx} onClick={button.props.onClick}>
-                            {button.props.children}
-                          </Dropdown.Item>
-                        ))}
-                      </Dropdown.Menu>
-                    }
-                  >
-                    <Button
-                      theme="solid"
-                      type="primary"
-                      icon={<IconTreeTriangleDown />}
-                      size="small"
-                    />
-                  </Dropdown>
-                )}
-              </SplitButtonGroup>
-            )}
+          <div className="flex items-center gap-1">
+            <Button
+              size="small"
+              theme={primaryAction.theme}
+              type={primaryAction.type}
+              icon={primaryAction.icon}
+              onClick={primaryAction.onClick}
+              className="px-2 text-xs"
+              disabled={primaryAction.disabled}
+            >
+              {primaryAction.text}
+            </Button>
             
             <Dropdown
               trigger="click"
               position="bottomRight"
-              render={moreActions}
+              render={allActions}
             >
               <Button
+                size="small"
                 theme="outline"
                 type="secondary"
                 icon={<IconMore />}
-                size="small"
+                className="px-1"
               />
             </Dropdown>
-          </Space>
+          </div>
         );
       },
     },

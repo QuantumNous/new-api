@@ -8,7 +8,7 @@ import (
 
 func main() {
 	// Initialize the client with your API key
-	client := ionet.NewClient("io-v2-xxx")
+	client := ionet.NewEnterpriseClient("io-v2-xxx")
 
 	fmt.Println("=== IO.NET Deployment API Examples ===\n")
 

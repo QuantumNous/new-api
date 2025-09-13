@@ -55,7 +55,7 @@ const EditDeploymentModal = ({
   const formRef = useRef();
 
   const isEdit = editingDeployment?.id;
-  const title = isEdit ? t('编辑部署') : t('新增部署');
+  const title = isEdit ? t('重命名部署') : t('新增部署');
 
   // Resource configuration options
   const cpuOptions = [
@@ -105,37 +105,28 @@ const EditDeploymentModal = ({
 
   // Form submission
   const handleSubmit = async (values) => {
+    if (!isEdit || !editingDeployment?.id) {
+      showError(t('无效的部署信息'));
+      return;
+    }
+
     setLoading(true);
     try {
-      const deploymentData = {
-        deployment_name: values.deployment_name,
-        model_name: values.model_name,
-        instance_count: values.instance_count || 1,
-        resource_config: {
-          cpu: values.cpu,
-          memory: values.memory,
-          gpu: values.gpu || null,
-        },
-        description: values.description || '',
-      };
-
-      let res;
-      if (isEdit) {
-        res = await API.put(`/api/deployments/${editingDeployment.id}`, deploymentData);
-      } else {
-        res = await API.post('/api/deployments', deploymentData);
-      }
+      // Only handle name update for now
+      const res = await API.put(`/api/deployments/${editingDeployment.id}/name`, {
+        name: values.deployment_name,
+      });
 
       if (res.data.success) {
-        showSuccess(isEdit ? t('部署更新成功') : t('部署创建成功'));
+        showSuccess(t('部署名称更新成功'));
         handleClose();
         refresh();
       } else {
-        showError(res.data.message || t('操作失败'));
+        showError(res.data.message || t('更新失败'));
       }
     } catch (error) {
       console.error('Submit error:', error);
-      showError(t('操作失败，请检查输入信息'));
+      showError(t('更新失败，请检查输入信息'));
     }
     setLoading(false);
   };
@@ -149,21 +140,10 @@ const EditDeploymentModal = ({
 
   // Set form values when editing
   useEffect(() => {
-    if (formRef.current && editingDeployment && visible) {
-      if (isEdit) {
-        const { resource_config = {} } = editingDeployment;
-        formRef.current.setValues({
-          deployment_name: editingDeployment.deployment_name || '',
-          model_name: editingDeployment.model_name || '',
-          instance_count: editingDeployment.instance_count || 1,
-          cpu: resource_config.cpu || '1',
-          memory: resource_config.memory || '2Gi',
-          gpu: resource_config.gpu || '',
-          description: editingDeployment.description || '',
-        });
-      } else {
-        formRef.current.reset();
-      }
+    if (formRef.current && editingDeployment && visible && isEdit) {
+      formRef.current.setValues({
+        deployment_name: editingDeployment.deployment_name || '',
+      });
     }
   }, [editingDeployment, visible, isEdit]);
 
@@ -190,9 +170,9 @@ const EditDeploymentModal = ({
             labelPosition="top"
             style={{ width: '100%' }}
           >
-            <Card className="mb-4">
+            <Card>
               <Title heading={5} style={{ marginBottom: 16 }}>
-                {t('基本信息')}
+                {t('修改部署名称')}
               </Title>
               
               <Row gutter={16}>
@@ -200,101 +180,23 @@ const EditDeploymentModal = ({
                   <Form.Input
                     field="deployment_name"
                     label={t('部署名称')}
-                    placeholder={t('请输入部署名称')}
+                    placeholder={t('请输入新的部署名称')}
                     rules={[
                       { required: true, message: t('请输入部署名称') },
                       { 
-                        pattern: /^[a-zA-Z0-9-_]+$/, 
-                        message: t('部署名称只能包含字母、数字、横线和下划线') 
+                        pattern: /^[a-zA-Z0-9-_\u4e00-\u9fa5]+$/, 
+                        message: t('部署名称只能包含字母、数字、横线、下划线和中文') 
                       },
                     ]}
                   />
                 </Col>
               </Row>
 
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Select
-                    field="model_name"
-                    label={t('选择模型')}
-                    placeholder={t('请选择要部署的模型')}
-                    optionList={models}
-                    loading={loadingModels}
-                    filter
-                    rules={[{ required: true, message: t('请选择模型') }]}
-                  />
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.InputNumber
-                    field="instance_count"
-                    label={t('实例数量')}
-                    placeholder={t('请输入实例数量')}
-                    min={1}
-                    max={10}
-                    step={1}
-                    formatter={value => `${value} 个实例`}
-                    parser={value => value.replace(/[^\d]/g, '')}
-                    rules={[{ required: true, message: t('请输入实例数量') }]}
-                  />
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.TextArea
-                    field="description"
-                    label={t('描述')}
-                    placeholder={t('请输入部署描述（可选）')}
-                    rows={3}
-                    maxLength={500}
-                    showClear
-                  />
-                </Col>
-              </Row>
-            </Card>
-
-            <Card>
-              <Title heading={5} style={{ marginBottom: 16 }}>
-                {t('资源配置')}
-              </Title>
-              
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Select
-                    field="cpu"
-                    label={t('CPU配置')}
-                    placeholder={t('请选择CPU配置')}
-                    optionList={cpuOptions}
-                    rules={[{ required: true, message: t('请选择CPU配置') }]}
-                  />
-                </Col>
-                <Col span={12}>
-                  <Form.Select
-                    field="memory"
-                    label={t('内存配置')}
-                    placeholder={t('请选择内存配置')}
-                    optionList={memoryOptions}
-                    rules={[{ required: true, message: t('请选择内存配置') }]}
-                  />
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Select
-                    field="gpu"
-                    label={t('GPU配置')}
-                    placeholder={t('请选择GPU配置')}
-                    optionList={gpuOptions}
-                  />
-                </Col>
-              </Row>
-
-              {isEdit && editingDeployment.status && (
-                <div className="mt-4">
+              {isEdit && (
+                <div className="mt-4 p-3 bg-gray-50 rounded">
+                  <Text type="secondary">{t('部署ID')}: </Text>
+                  <Text code>{editingDeployment.id}</Text>
+                  <br />
                   <Text type="secondary">{t('当前状态')}: </Text>
                   <Tag color={editingDeployment.status === 'running' ? 'green' : 'grey'}>
                     {editingDeployment.status}

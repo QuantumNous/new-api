@@ -147,9 +147,9 @@ type Deployment struct {
 
 // DeploymentList represents a list of deployments with pagination
 type DeploymentList struct {
-	Clusters []Deployment `json:"clusters"` // Changed from "deployments" to match API
-	Total    int          `json:"total"`
-	Statuses []string     `json:"statuses"`
+	Deployments []Deployment `json:"deployments"` // Changed from "deployments" to match API
+	Total       int          `json:"total"`
+	Statuses    []string     `json:"statuses"`
 	// Note: API doesn't return page/page_size, handled by controller
 }
 
@@ -251,7 +251,7 @@ type UpdateDeploymentResponse struct {
 
 // UpdateClusterNameRequest represents request to update cluster name
 type UpdateClusterNameRequest struct {
-	Name string `json:"name"`
+	Name string `json:"cluster_name"`
 }
 
 // UpdateClusterNameResponse represents response from cluster name update

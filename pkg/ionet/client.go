@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	DefaultBaseURL = "https://api.io.solutions/enterprise/v1/io-cloud/caas"
-	DefaultTimeout = 30 * time.Second
+	DefaultEnterpriseBaseURL = "https://api.io.solutions/enterprise/v1/io-cloud/caas"
+	DefaultBaseURL           = "https://api.io.solutions/v1/io-cloud/caas"
+	DefaultTimeout           = 30 * time.Second
 )
 
 // DefaultHTTPClient is the default HTTP client implementation
@@ -69,7 +70,15 @@ func (c *DefaultHTTPClient) Do(req *HTTPRequest) (*HTTPResponse, error) {
 	}, nil
 }
 
-// NewClient creates a new IO.NET API client
+// NewEnterpriseClient creates a new IO.NET API client
+func NewEnterpriseClient(apiKey string) *Client {
+	return &Client{
+		BaseURL:    DefaultEnterpriseBaseURL,
+		APIKey:     apiKey,
+		HTTPClient: NewDefaultHTTPClient(DefaultTimeout),
+	}
+}
+
 func NewClient(apiKey string) *Client {
 	return &Client{
 		BaseURL:    DefaultBaseURL,
@@ -81,7 +90,7 @@ func NewClient(apiKey string) *Client {
 // NewClientWithConfig creates a new IO.NET API client with custom configuration
 func NewClientWithConfig(apiKey, baseURL string, httpClient HTTPClient) *Client {
 	if baseURL == "" {
-		baseURL = DefaultBaseURL
+		baseURL = DefaultEnterpriseBaseURL
 	}
 	if httpClient == nil {
 		httpClient = NewDefaultHTTPClient(DefaultTimeout)
