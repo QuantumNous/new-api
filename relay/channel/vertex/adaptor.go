@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"one-api/common"
 	"one-api/dto"
 	"one-api/relay/channel"
 	"one-api/relay/channel/claude"
@@ -80,16 +81,64 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	}
 }
 
-func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	adc := &Credentials{}
-	if err := json.Unmarshal([]byte(info.ApiKey), adc); err != nil {
-		return "", fmt.Errorf("failed to decode credentials file: %w", err)
-	}
+func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
-	a.AccountCredentials = *adc
+	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
+		adc := &Credentials{}
+		if err := common.Unmarshal([]byte(info.ApiKey), adc); err != nil {
+			return "", fmt.Errorf("failed to decode credentials file: %w", err)
+		}
+		a.AccountCredentials = *adc
+
+		if a.RequestMode == RequestModeLlama {
+			return fmt.Sprintf(
+				"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
+				region,
+				adc.ProjectID,
+				region,
+			), nil
+		}
+
+		if region == "global" {
+			return fmt.Sprintf(
+				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
+				adc.ProjectID,
+				modelName,
+				suffix,
+			), nil
+		} else {
+			return fmt.Sprintf(
+				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
+				region,
+				adc.ProjectID,
+				region,
+				modelName,
+				suffix,
+			), nil
+		}
+	} else {
+		if region == "global" {
+			return fmt.Sprintf(
+				"https://aiplatform.googleapis.com/v1/publishers/google/models/%s:%s?key=%s",
+				modelName,
+				suffix,
+				info.ApiKey,
+			), nil
+		} else {
+			return fmt.Sprintf(
+				"https://%s-aiplatform.googleapis.com/v1/publishers/google/models/%s:%s?key=%s",
+				region,
+				modelName,
+				suffix,
+				info.ApiKey,
+			), nil
+		}
+	}
+}
+
+func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
-
 		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 			// 新增逻辑：处理 -thinking-<budget> 格式
 			if strings.Contains(info.UpstreamModelName, "-thinking-") {
@@ -111,24 +160,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 			suffix = "predict"
 		}
-
-		if region == "global" {
-			return fmt.Sprintf(
-				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
-				adc.ProjectID,
-				info.UpstreamModelName,
-				suffix,
-			), nil
-		} else {
-			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
-				region,
-				adc.ProjectID,
-				region,
-				info.UpstreamModelName,
-				suffix,
-			), nil
-		}
+		return a.getRequestUrl(info, info.UpstreamModelName, suffix)
 	} else if a.RequestMode == RequestModeClaude {
 		if info.IsStream {
 			suffix = "streamRawPredict?alt=sse"
@@ -139,41 +171,25 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
 			model = v
 		}
-		if region == "global" {
-			return fmt.Sprintf(
-				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/anthropic/models/%s:%s",
-				adc.ProjectID,
-				model,
-				suffix,
-			), nil
-		} else {
-			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s",
-				region,
-				adc.ProjectID,
-				region,
-				model,
-				suffix,
-			), nil
-		}
+		return a.getRequestUrl(info, model, suffix)
 	} else if a.RequestMode == RequestModeLlama {
-		return fmt.Sprintf(
-			"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
-			region,
-			adc.ProjectID,
-			region,
-		), nil
+		return a.getRequestUrl(info, "", "")
 	}
 	return "", errors.New("unsupported request mode")
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	accessToken, err := getAccessToken(a, info)
-	if err != nil {
-		return err
+	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
+		accessToken, err := getAccessToken(a, info)
+		if err != nil {
+			return err
+		}
+		req.Set("Authorization", "Bearer "+accessToken)
 	}
-	req.Set("Authorization", "Bearer "+accessToken)
+  if a.AccountCredentials.ProjectID != "" {
+		req.Set("x-goog-user-project", a.AccountCredentials.ProjectID)
+	}
 	return nil
 }
 

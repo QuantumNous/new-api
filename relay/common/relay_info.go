@@ -481,6 +481,7 @@ type TaskSubmitReq struct {
 	Model          string                 `json:"model,omitempty"`
 	Mode           string                 `json:"mode,omitempty"`
 	Image          string                 `json:"image,omitempty"`
+	Images         []string               `json:"images,omitempty"`
 	Size           string                 `json:"size,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
@@ -490,6 +491,14 @@ type TaskSubmitReq struct {
 		Image string `json:"image"`
 	} `json:"image_list,omitempty"`
 	VideoUrl string `json:"video_url,omitempty"`
+}
+
+func (t TaskSubmitReq) GetPrompt() string {
+	return t.Prompt
+}
+
+func (t TaskSubmitReq) HasImage() bool {
+	return len(t.Images) > 0
 }
 
 type TaskInfo struct {

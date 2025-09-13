@@ -18,7 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 
-	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
@@ -89,22 +88,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
-	action := constant.TaskActionGenerate
-	info.Action = action
-
-	req := relaycommon.TaskSubmitReq{}
-	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
-		taskErr = service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(req.Prompt) == "" {
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
-		return
-	}
-
-	// Store into context for later usage
-	c.Set("task_request", req)
-	return nil
+	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -334,11 +318,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	}
 
 	// Handle one-of image_urls or binary_data_base64
-	if req.Image != "" {
-		if strings.HasPrefix(req.Image, "http") {
-			r.ImageUrls = []string{req.Image}
+	if req.HasImage() {
+		if strings.HasPrefix(req.Images[0], "http") {
+			r.ImageUrls = req.Images
 		} else {
-			r.BinaryDataBase64 = []string{req.Image}
+			r.BinaryDataBase64 = req.Images
 		}
 	}
 	metadata := req.Metadata

@@ -59,6 +59,31 @@ func (i *ImageRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// 序列化时需要重新把字段平铺
+func (r ImageRequest) MarshalJSON() ([]byte, error) {
+	// 将已定义字段转为 map
+	type Alias ImageRequest
+	alias := Alias(r)
+	base, err := common.Marshal(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	var baseMap map[string]json.RawMessage
+	if err := common.Unmarshal(base, &baseMap); err != nil {
+		return nil, err
+	}
+
+	// 合并 ExtraFields
+	for k, v := range r.Extra {
+		if _, exists := baseMap[k]; !exists {
+			baseMap[k] = v
+		}
+	}
+
+	return json.Marshal(baseMap)
+}
+
 func GetJSONFieldNames(t reflect.Type) map[string]struct{} {
 	fields := make(map[string]struct{})
 	for i := 0; i < t.NumField(); i++ {

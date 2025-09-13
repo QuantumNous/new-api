@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"one-api/common"
 	"one-api/model"
-	"one-api/setting"
 	"one-api/setting/system_setting"
 	"strconv"
 	"strings"
@@ -45,7 +44,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	values.Set("client_secret", system_setting.GetOIDCSettings().ClientSecret)
 	values.Set("code", code)
 	values.Set("grant_type", "authorization_code")
-	values.Set("redirect_uri", fmt.Sprintf("%s/oauth/oidc", setting.ServerAddress))
+	values.Set("redirect_uri", fmt.Sprintf("%s/oauth/oidc", system_setting.ServerAddress))
 	formData := values.Encode()
 	req, err := http.NewRequest("POST", system_setting.GetOIDCSettings().TokenEndpoint, strings.NewReader(formData))
 	if err != nil {

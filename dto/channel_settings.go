@@ -10,6 +10,14 @@ type ChannelSettings struct {
 	Regions                []string `json:"regions"`
 }
 
+type VertexKeyType string
+
+const (
+	VertexKeyTypeJSON   VertexKeyType = "json"
+	VertexKeyTypeAPIKey VertexKeyType = "api_key"
+)
+
 type ChannelOtherSettings struct {
-	AzureResponsesVersion string `json:"azure_responses_version,omitempty"`
+	AzureResponsesVersion string        `json:"azure_responses_version,omitempty"`
+	VertexKeyType         VertexKeyType `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 }

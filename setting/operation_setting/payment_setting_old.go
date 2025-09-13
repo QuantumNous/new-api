@@ -1,6 +1,13 @@
-package setting
+/**
+此文件为旧版支付设置文件，如需增加新的参数、变量等，请在 payment_setting.go 中添加
+This file is the old version of the payment settings file. If you need to add new parameters, variables, etc., please add them in payment_setting.go
+*/
 
-import "encoding/json"
+package operation_setting
+
+import (
+	"one-api/common"
+)
 
 var PayAddress = ""
 var CustomCallbackAddress = ""
@@ -21,15 +28,21 @@ var PayMethods = []map[string]string{
 		"color": "rgba(var(--semi-green-5), 1)",
 		"type":  "wxpay",
 	},
+	{
+		"name":      "自定义1",
+		"color":     "black",
+		"type":      "custom1",
+		"min_topup": "50",
+	},
 }
 
 func UpdatePayMethodsByJsonString(jsonString string) error {
 	PayMethods = make([]map[string]string, 0)
-	return json.Unmarshal([]byte(jsonString), &PayMethods)
+	return common.Unmarshal([]byte(jsonString), &PayMethods)
 }
 
 func PayMethods2JsonString() string {
-	jsonBytes, err := json.Marshal(PayMethods)
+	jsonBytes, err := common.Marshal(PayMethods)
 	if err != nil {
 		return "[]"
 	}

@@ -23,16 +23,6 @@ import (
 // Request / Response structures
 // ============================
 
-type SubmitReq struct {
-	Prompt   string                 `json:"prompt"`
-	Model    string                 `json:"model,omitempty"`
-	Mode     string                 `json:"mode,omitempty"`
-	Image    string                 `json:"image,omitempty"`
-	Size     string                 `json:"size,omitempty"`
-	Duration int                    `json:"duration,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-}
-
 type requestPayload struct {
 	Model             string   `json:"model"`
 	Images            []string `json:"images"`
@@ -90,23 +80,8 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	var req SubmitReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return service.TaskErrorWrapper(err, "invalid_request_body", http.StatusBadRequest)
-	}
-
-	if req.Prompt == "" {
-		return service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "missing_prompt", http.StatusBadRequest)
-	}
-
-	if req.Image != "" {
-		info.Action = constant.TaskActionGenerate
-	} else {
-		info.Action = constant.TaskActionTextGenerate
-	}
-
-	c.Set("task_request", req)
-	return nil
+	// Use the unified validation method for TaskSubmitReq with image-based action determination
+	return relaycommon.ValidateTaskRequestWithImageBinding(c, info)
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo) (io.Reader, error) {
@@ -114,7 +89,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
 	}
-	req := v.(SubmitReq)
+	req := v.(relaycommon.TaskSubmitReq)
 
 	body, err := a.convertToRequestPayload(&req)
 	if err != nil {
@@ -211,7 +186,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 // helpers
 // ============================
 
-func (a *TaskAdaptor) convertToRequestPayload(req *SubmitReq) (*requestPayload, error) {
+func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	var images []string
 	if req.Image != "" {
 		images = []string{req.Image}

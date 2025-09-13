@@ -142,6 +142,8 @@ const EditChannelModal = (props) => {
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
+    // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
+    vertex_key_type: 'json',
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -409,11 +411,17 @@ const EditChannelModal = (props) => {
           const parsedSettings = JSON.parse(data.settings);
           data.azure_responses_version =
             parsedSettings.azure_responses_version || '';
+          // 读取 Vertex 密钥格式
+          data.vertex_key_type = parsedSettings.vertex_key_type || 'json';
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
           data.region = '';
+          data.vertex_key_type = 'json';
         }
+      } else {
+        // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
+        data.vertex_key_type = 'json';
       }
 
       setInputs(data);
@@ -745,59 +753,56 @@ const EditChannelModal = (props) => {
     let localInputs = { ...formValues };
 
     if (localInputs.type === 41) {
-      if (useManualInput) {
-        // 手动输入模式
-        if (localInputs.key && localInputs.key.trim() !== '') {
-          try {
-            // 验证 JSON 格式
-            const parsedKey = JSON.parse(localInputs.key);
-            // 确保是有效的密钥格式
-            localInputs.key = JSON.stringify(parsedKey);
-          } catch (err) {
-            showError(t('密钥格式无效，请输入有效的 JSON 格式密钥'));
-            return;
-          }
-        } else if (!isEdit) {
+      const keyType = localInputs.vertex_key_type || 'json';
+      if (keyType === 'api_key') {
+        // 直接作为普通字符串密钥处理
+        if (!isEdit && (!localInputs.key || localInputs.key.trim() === '')) {
           showInfo(t('请输入密钥！'));
           return;
         }
       } else {
-        // 文件上传模式
-        let keys = vertexKeys;
-
-        // 若当前未选择文件，尝试从已上传文件列表解析（异步读取）
-        if (keys.length === 0 && vertexFileList.length > 0) {
-          try {
-            const parsed = await Promise.all(
-              vertexFileList.map(async (item) => {
-                const fileObj = item.fileInstance;
-                if (!fileObj) return null;
-                const txt = await fileObj.text();
-                return JSON.parse(txt);
-              }),
-            );
-            keys = parsed.filter(Boolean);
-          } catch (err) {
-            showError(t('解析密钥文件失败: {{msg}}', { msg: err.message }));
+        // JSON 服务账号密钥
+        if (useManualInput) {
+          if (localInputs.key && localInputs.key.trim() !== '') {
+            try {
+              const parsedKey = JSON.parse(localInputs.key);
+              localInputs.key = JSON.stringify(parsedKey);
+            } catch (err) {
+              showError(t('密钥格式无效，请输入有效的 JSON 格式密钥'));
+              return;
+            }
+          } else if (!isEdit) {
+            showInfo(t('请输入密钥！'));
             return;
-          }
-        }
-
-        // 创建模式必须上传密钥；编辑模式可选
-        if (keys.length === 0) {
-          if (!isEdit) {
-            showInfo(t('请上传密钥文件！'));
-            return;
-          } else {
-            // 编辑模式且未上传新密钥，不修改 key
-            delete localInputs.key;
           }
         } else {
-          // 有新密钥，则覆盖
-          if (batch) {
-            localInputs.key = JSON.stringify(keys);
+          // 文件上传模式
+          let keys = vertexKeys;
+          if (keys.length === 0 && vertexFileList.length > 0) {
+            try {
+              const parsed = await Promise.all(
+                vertexFileList.map(async (item) => {
+                  const fileObj = item.fileInstance;
+                  if (!fileObj) return null;
+                  const txt = await fileObj.text();
+                  return JSON.parse(txt);
+                }),
+              );
+              keys = parsed.filter(Boolean);
+            } catch (err) {
+              showError(t('解析密钥文件失败: {{msg}}', { msg: err.message }));
+              return;
+            }
+          }
+          if (keys.length === 0) {
+            if (!isEdit) {
+              showInfo(t('请上传密钥文件！'));
+              return;
+            } else {
+              delete localInputs.key;
+            }
           } else {
-            localInputs.key = JSON.stringify(keys[0]);
+            localInputs.key = batch ? JSON.stringify(keys) : JSON.stringify(keys[0]);
           }
         }
       }
@@ -853,6 +858,8 @@ const EditChannelModal = (props) => {
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
+    // 顶层的 vertex_key_type 不应发送给后端
+    delete localInputs.vertex_key_type;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -1178,8 +1185,40 @@ const EditChannelModal = (props) => {
                     autoComplete='new-password'
                   />
 
+                  {inputs.type === 41 && (
+                    <Form.Select
+                      field='vertex_key_type'
+                      label={t('密钥格式')}
+                      placeholder={t('请选择密钥格式')}
+                      optionList={[
+                        { label: 'JSON', value: 'json' },
+                        { label: 'API Key', value: 'api_key' },
+                      ]}
+                      style={{ width: '100%' }}
+                      value={inputs.vertex_key_type || 'json'}
+                      onChange={(value) => {
+                        // 更新设置中的 vertex_key_type
+                        handleChannelOtherSettingsChange('vertex_key_type', value);
+                        // 切换为 api_key 时，关闭批量与手动/文件切换，并清理已选文件
+                        if (value === 'api_key') {
+                          setBatch(false);
+                          setUseManualInput(false);
+                          setVertexKeys([]);
+                          setVertexFileList([]);
+                          if (formApiRef.current) {
+                            formApiRef.current.setValue('vertex_files', []);
+                          }
+                        }
+                      }}
+                      extraText={
+                        inputs.vertex_key_type === 'api_key'
+                          ? t('API Key 模式下不支持批量创建')
+                          : t('JSON 模式支持手动输入或上传服务账号 JSON')
+                      }
+                    />
+                  )}
                   {batch ? (
-                    inputs.type === 41 ? (
+                    inputs.type === 41 && (inputs.vertex_key_type || 'json') === 'json' ? (
                       <Form.Upload
                         field='vertex_files'
                         label={t('密钥文件 (.json)')}
@@ -1243,7 +1282,7 @@ const EditChannelModal = (props) => {
                     )
                   ) : (
                     <>
-                      {inputs.type === 41 ? (
+                      {inputs.type === 41 && (inputs.vertex_key_type || 'json') === 'json' ? (
                         <>
                           {!batch && (
                             <div className='flex items-center justify-between mb-3'>

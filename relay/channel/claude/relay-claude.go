@@ -32,7 +32,7 @@ func stopReasonClaude2OpenAI(reason string) string {
 	case "end_turn":
 		return "stop"
 	case "max_tokens":
-		return "max_tokens"
+		return "length"
 	case "tool_use":
 		return "tool_calls"
 	default:
@@ -274,19 +274,28 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 	claudeMessages := make([]dto.ClaudeMessage, 0)
 	isFirstMessage := true
+	// 初始化system消息数组，用于累积多个system消息
+	var systemMessages []dto.ClaudeMediaMessage
+
 	for _, message := range formatMessages {
 		if message.Role == "system" {
+			// 根据Claude API规范，system字段使用数组格式更有通用性
 			if message.IsStringContent() {
-				claudeRequest.System = message.StringContent()
+				systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: common.GetPointer[string](message.StringContent()),
+				})
 			} else {
-				contents := message.ParseContent()
-				content := ""
-				for _, ctx := range contents {
+				// 支持复合内容的system消息（虽然不常见，但需要考虑完整性）
+				for _, ctx := range message.ParseContent() {
 					if ctx.Type == "text" {
-						content += ctx.Text
+						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+							Type: "text",
+							Text: common.GetPointer[string](ctx.Text),
+						})
 					}
+					// 未来可以在这里扩展对图片等其他类型的支持
 				}
-				claudeRequest.System = content
 			}
 		} else {
 			if isFirstMessage {
@@ -392,6 +401,12 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 			claudeMessages = append(claudeMessages, claudeMessage)
 		}
 	}
+
+	// 设置累积的system消息
+	if len(systemMessages) > 0 {
+		claudeRequest.System = systemMessages
+	}
+
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil
@@ -426,7 +441,10 @@ func StreamResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse
 			choice.Delta.Role = "assistant"
 		} else if claudeResponse.Type == "content_block_start" {
 			if claudeResponse.ContentBlock != nil {
-				//choice.Delta.SetContentString(claudeResponse.ContentBlock.Text)
+				// 如果是文本块，尽可能发送首段文本（若存在）
+				if claudeResponse.ContentBlock.Type == "text" && claudeResponse.ContentBlock.Text != nil {
+					choice.Delta.SetContentString(*claudeResponse.ContentBlock.Text)
+				}
 				if claudeResponse.ContentBlock.Type == "tool_use" {
 					tools = append(tools, dto.ToolCallResponse{
 						Index: common.GetPointer(fcIdx),
@@ -698,7 +716,7 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	return claudeInfo.Usage, nil
 }
 
-func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data []byte, requestMode int) *types.NewAPIError {
+func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte, requestMode int) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
 	if err != nil {
@@ -736,7 +754,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		c.Set("claude_web_search_requests", claudeResponse.Usage.ServerToolUse.WebSearchRequests)
 	}
 
-	service.IOCopyBytesGracefully(c, nil, responseData)
+	service.IOCopyBytesGracefully(c, httpResp, responseData)
 	return nil
 }
 
@@ -757,7 +775,7 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	if common.DebugEnabled {
 		println("responseBody: ", string(responseBody))
 	}
-	handleErr := HandleClaudeResponseData(c, info, claudeInfo, responseBody, requestMode)
+	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody, requestMode)
 	if handleErr != nil {
 		return nil, handleErr
 	}
