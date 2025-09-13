@@ -37,6 +37,7 @@ import (
 	"one-api/relay/channel/zhipu"
 	"one-api/relay/channel/zhipu_4v"
 	"strconv"
+    "one-api/relay/channel/submodel"
 )
 
 func GetAdaptor(apiType int) channel.Adaptor {
@@ -101,6 +102,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &jimeng.Adaptor{}
 	case constant.APITypeMoonshot:
 		return &moonshot.Adaptor{} // Moonshot uses Claude API
+	case constant.APITypeSubmodel:
+		return &submodel.Adaptor{}
 	}
 	return nil
 }
