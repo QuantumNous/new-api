@@ -166,9 +166,12 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
-		err = common.UnmarshalBodyReusable(c, &modelRequest)
 		relayMode := relayconstant.RelayModeUnknown
 		if c.Request.Method == http.MethodPost {
+			err = common.UnmarshalBodyReusable(c, &modelRequest)
+			if err != nil {
+				return nil, false, errors.New("video无效的请求, " + err.Error())
+			}
 			relayMode = relayconstant.RelayModeVideoSubmit
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
