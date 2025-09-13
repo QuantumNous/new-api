@@ -52,8 +52,6 @@ export default function ModelSettingsVisualEditor(props) {
   const [loading, setLoading] = useState(false);
   const [pricingMode, setPricingMode] = useState('per-token'); // 'per-token' or 'per-request'
   const [pricingSubMode, setPricingSubMode] = useState('ratio'); // 'ratio' or 'token-price'
-  const [currencyType, setCurrencyType] = useState('USD'); // 'USD' or 'CNY'
-  const [USDExchangeRate, setUSDExchangeRate] = useState(7);
   const [conflictOnly, setConflictOnly] = useState(false);
   const [enabledModelNames, setEnabledModelNames] = useState([]);
   const [hiddenModeNames, setHiddenModelNames] = useState([]);
@@ -128,9 +126,6 @@ export default function ModelSettingsVisualEditor(props) {
         setHiddenModelNames(hiddenModels)
       }
       setModels(modelData);
-      if(props.options.USDExchangeRate){
-        setUSDExchangeRate(parseFloat(props.options.USDExchangeRate))
-      }
     } catch (error) {
       console.error('JSON解析错误:', error);
     }
@@ -327,9 +322,6 @@ export default function ModelSettingsVisualEditor(props) {
   };
 
   const calculateRatioFromTokenPrice = (tokenPrice) => {
-    if (currencyType === "CNY"){
-      tokenPrice = tokenPrice / USDExchangeRate
-    }
     return tokenPrice / 2;
   };
 
@@ -438,9 +430,6 @@ export default function ModelSettingsVisualEditor(props) {
   };
 
   const calculateTokenPriceFromRatio = (ratio) => {
-    if (currencyType === "CNY"){
-      ratio = ratio * USDExchangeRate
-    }
     return ratio * 2;
   };
 
@@ -448,7 +437,6 @@ export default function ModelSettingsVisualEditor(props) {
     setCurrentModel(null);
     setPricingMode('per-token');
     setPricingSubMode('ratio');
-    setCurrencyType('USD')
     setIsEditMode(false);
   };
 
@@ -469,7 +457,6 @@ export default function ModelSettingsVisualEditor(props) {
     // Set the pricing modes for the form
     setPricingMode(initialPricingMode);
     setPricingSubMode(initialPricingSubMode);
-    setCurrencyType(currencyType)
     // Create a copy of the model data to avoid modifying the original
     const modelCopy = { ...record };
 
@@ -493,38 +480,12 @@ export default function ModelSettingsVisualEditor(props) {
     setVisible(true);
   };
 
-  const handleCurrucyTypeChange = (value) => {
-      let newCurrencyType = value
-      let oldCurrencyType = currencyType
-      if(newCurrencyType === oldCurrencyType){
-        return
-      }
-      let updatedModel = {... currentModel}
-      if(newCurrencyType === "USD" && updatedModel.tokenPrice){
-        updatedModel.tokenPrice = updatedModel.tokenPrice / USDExchangeRate
-      }else if(updatedModel.tokenPrice) {
-        updatedModel.tokenPrice = updatedModel.tokenPrice * USDExchangeRate
-      }
-      if(newCurrencyType === "USD" && updatedModel.completionTokenPrice){
-        updatedModel.completionTokenPrice = updatedModel.completionTokenPrice / USDExchangeRate
-      }else if(updatedModel.completionTokenPrice) {
-        updatedModel.completionTokenPrice = updatedModel.completionTokenPrice * USDExchangeRate
-      }
-      if(newCurrencyType === "USD" && updatedModel.price){
-        updatedModel.price = updatedModel.price / USDExchangeRate
-      }else if(updatedModel.price){
-        updatedModel.price = updatedModel.price * USDExchangeRate
-      }
-      setCurrencyType(newCurrencyType)
-      setCurrentModel(updatedModel)
-  }
-
   useEffect(() => {
     // 当currentModel更新时，手动更新Form的值
     if (formRef.current) {
       formRef.current.formApi.setValues(currentModel);
     }
-  }, [currentModel,currencyType,pricingMode,pricingSubMode]);
+  }, [currentModel,pricingMode,pricingSubMode]);
 
   return (
     <>
@@ -624,9 +585,6 @@ export default function ModelSettingsVisualEditor(props) {
               // Clear ratios if we're in per-request mode
               valuesToSave.ratio = '';
               valuesToSave.completionRatio = '';
-            }
-            if(valuesToSave.price && currencyType !== "USD") {
-              valuesToSave.price = valuesToSave.price / USDExchangeRate;
             }
             resetModalState();
             addOrUpdateModel(valuesToSave);
@@ -747,13 +705,8 @@ export default function ModelSettingsVisualEditor(props) {
 
               {pricingSubMode === 'token-price' && (
                 <>
-                  <Select field="currencyType" value={currencyType} onChange={handleCurrucyTypeChange}>
-                      <Select.Option value={"USD"}>USD</Select.Option>
-                      <Select.Option value={"CNY"}>CNY</Select.Option>
-                    </Select>
                   <Form.InputNumber
                     hideButtons
-                    currency={currencyType}
                     precision={6}
                     field='tokenPrice'
                     label={t('输入价格')}
@@ -765,7 +718,6 @@ export default function ModelSettingsVisualEditor(props) {
                   />
                   <Form.InputNumber
                     hideButtons
-                    currency={currencyType}
                     precision={6}
                     field='completionTokenPrice'
                     label={t('输出价格')}
@@ -782,13 +734,8 @@ export default function ModelSettingsVisualEditor(props) {
 
           {pricingMode === 'per-request' && (
             <>
-              <Select field="currencyType" value={currencyType} onChange={handleCurrucyTypeChange}>
-                      <Select.Option value={"USD"}>USD</Select.Option>
-                      <Select.Option value={"CNY"}>CNY</Select.Option>
-                    </Select>
             <Form.InputNumber
               hideButtons
-              currency={currencyType}
               precision={6}
               field='price'
               label={t('固定价格(每次)')}
