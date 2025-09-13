@@ -10,8 +10,6 @@ import (
 	"net/url"
 	"one-api/common"
 	"one-api/model"
-	"one-api/setting"
-	"strconv"
 	"strings"
 	"time"
 
@@ -89,8 +87,18 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 	credentials := common.NodeLocClientId + ":" + common.NodeLocClientSecret
 	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
 
-	// Use configured server address for redirect URI to ensure consistency
-	redirectURI := setting.ServerAddress + "/api/oauth/nodeloc"
+	// Get redirect URI from request to match authorization request
+	scheme := "http"
+	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	
+	host := c.Request.Host
+	if forwardedHost := c.GetHeader("X-Forwarded-Host"); forwardedHost != "" {
+		host = forwardedHost
+	}
+	
+	redirectURI := fmt.Sprintf("%s://%s/oauth/nodeloc", scheme, host)
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -235,7 +243,7 @@ func NodeLocOAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			user.Username = "nodeloc_" + strconv.Itoa(model.GetMaxUserId()+1)
+			user.Username = "NL_" + nodeLocUser.Username
 			user.DisplayName = nodeLocUser.Username
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled

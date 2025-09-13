@@ -270,11 +270,11 @@ export async function onNodeLocAuthClicked(nodeloc_client_id) {
   // Get server address from status API to ensure redirect_uri matches backend
   const statusRes = await API.get('/api/status');
   const serverAddress = statusRes.data?.server_address || `${window.location.protocol}//${window.location.host}`;
-  const redirectUri = `${serverAddress}/api/oauth/nodeloc`;
+  const redirectUri = `${serverAddress}/oauth/nodeloc`;
   
-  window.open(
-    `https://conn.nodeloc.cc/oauth2/auth?response_type=code&client_id=${nodeloc_client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid%20profile&state=${state}`,
-  );
+  window.location.href = 
+    `https://conn.nodeloc.cc/oauth2/auth?response_type=code&client_id=${nodeloc_client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid%20profile&state=${state}`
+  ;
 }
 let channelModels = undefined;
 export async function loadChannelModels() {
