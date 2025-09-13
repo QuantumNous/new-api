@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"log"
@@ -16,6 +17,7 @@ import (
 	"one-api/setting/ratio_setting"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-contrib/sessions"
@@ -144,6 +146,22 @@ func main() {
 		SameSite: http.SameSiteStrictMode,
 	})
 	server.Use(sessions.Sessions("session", store))
+
+	analyticsInjectBuilder := &strings.Builder{}
+	if os.Getenv("UMAMI_WEBSITE_ID") != "" {
+		umamiSiteID := os.Getenv("UMAMI_WEBSITE_ID")
+		umamiScriptURL := os.Getenv("UMAMI_SCRIPT_URL")
+		if umamiScriptURL == "" {
+			umamiScriptURL = "https://analytics.umami.is/script.js"
+		}
+		analyticsInjectBuilder.WriteString("<script defer src=\"")
+		analyticsInjectBuilder.WriteString(umamiScriptURL)
+		analyticsInjectBuilder.WriteString("\" data-website-id=\"")
+		analyticsInjectBuilder.WriteString(umamiSiteID)
+		analyticsInjectBuilder.WriteString("\"></script>")
+	}
+	analyticsInject := analyticsInjectBuilder.String()
+	indexPage = bytes.ReplaceAll(indexPage, []byte("<analytics></analytics>\n"), []byte(analyticsInject))
 
 	router.SetRouter(server, buildFS, indexPage)
 	var port = os.Getenv("PORT")
