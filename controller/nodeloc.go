@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"one-api/common"
 	"one-api/model"
+	"strconv"
 	"strings"
 	"time"
 
@@ -243,7 +244,7 @@ func NodeLocOAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			user.Username = "NL_" + nodeLocUser.Username
+			user.Username = "NL_" + strconv.Itoa(model.GetMaxUserId()+1)
 			user.DisplayName = nodeLocUser.Username
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled

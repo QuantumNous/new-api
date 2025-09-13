@@ -47,6 +47,7 @@ import {
   onNodeLocAuthClicked,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
+import NodeLocIcon from '../../../common/logo/NodeLocIcon';
 
 const AccountManagement = ({
   t,
@@ -366,8 +367,8 @@ const AccountManagement = ({
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
-                      <SiLinux
-                        size={20}
+                      <NodeLocIcon
+                        style={{ fontSize: '20px' }}
                         className='text-slate-600 dark:text-slate-300'
                       />
                     </div>
