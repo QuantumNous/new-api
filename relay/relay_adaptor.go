@@ -132,6 +132,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskvertex.TaskAdaptor{}
 		case constant.ChannelTypeVidu:
 			return &taskVidu.TaskAdaptor{}
+		case constant.ChannelTypeAli:
+			return &ali.TaskAdaptor{}
 		}
 	}
 	return nil

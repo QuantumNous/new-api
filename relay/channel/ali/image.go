@@ -20,7 +20,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func oaiImage2Ali(request dto.ImageRequest) (*AliImageRequest, error) {
+func selectImageProcessMode(info *relaycommon.RelayInfo) *ImageProcessMode {
+	switch info.UpstreamModelName {
+	case "qwen-image", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo", "wanx-v1":
+		return text2ImageMode()
+	case "qwen-image-edit":
+		return multimoalGenerationMode()
+	case "wanx2.1-imageedit", "wanx-sketch-to-image-lite":
+		return image2ImageMode()
+	default:
+		return nil
+	}
+}
+
+func oaiImage2Ali(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if mode := a.imageProcessMode; mode != nil && mode.ProcessRequest != nil {
+		return mode.ProcessRequest(c, info, request)
+	}
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
 	imageRequest.ResponseFormat = request.ResponseFormat
@@ -255,7 +271,11 @@ func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, originBody [
 	return &imageResponse
 }
 
-func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+	if mode := a.imageProcessMode; mode != nil && mode.ProcessResponse != nil {
+		return mode.ProcessResponse(c, resp, info)
+	}
+
 	responseFormat := c.GetString("response_format")
 
 	var aliTaskResponse AliResponse
@@ -289,48 +309,7 @@ func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rela
 	}
 
 	fullTextResponse := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)
-	jsonResponse, err := common.Marshal(fullTextResponse)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
-	}
-	service.IOCopyBytesGracefully(c, resp, jsonResponse)
-	return nil, &dto.Usage{}
-}
-
-func aliImageEditHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
-	var aliResponse AliResponse
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError), nil
-	}
-
-	service.CloseResponseBodyGracefully(resp)
-	err = common.Unmarshal(responseBody, &aliResponse)
-	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError), nil
-	}
-
-	if aliResponse.Message != "" {
-		logger.LogError(c, "ali_task_failed: "+aliResponse.Message)
-		return types.NewError(errors.New(aliResponse.Message), types.ErrorCodeBadResponse), nil
-	}
-	var fullTextResponse dto.ImageResponse
-	if len(aliResponse.Output.Choices) > 0 {
-		fullTextResponse = dto.ImageResponse{
-			Created: info.StartTime.Unix(),
-			Data: []dto.ImageData{
-				{
-					Url:     aliResponse.Output.Choices[0]["message"].(map[string]any)["content"].([]any)[0].(map[string]any)["image"].(string),
-					B64Json: "",
-				},
-			},
-		}
-	}
-
-	var mapResponse map[string]any
-	_ = common.Unmarshal(responseBody, &mapResponse)
-	fullTextResponse.Extra = mapResponse
-	jsonResponse, err := common.Marshal(fullTextResponse)
+	jsonResponse, err := common.MarshalWithoutHTMLEscape(fullTextResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
