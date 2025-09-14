@@ -55,6 +55,7 @@ import {
   selectFilter,
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
+import OllamaModelModal from './OllamaModelModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import TwoFactorAuthModal from '../../../common/modals/TwoFactorAuthModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
@@ -159,6 +160,7 @@ const EditChannelModal = (props) => {
   const [isModalOpenurl, setIsModalOpenurl] = useState(false);
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [fetchedModels, setFetchedModels] = useState([]);
+  const [ollamaModalVisible, setOllamaModalVisible] = useState(false);
   const formApiRef = useRef(null);
   const [vertexKeys, setVertexKeys] = useState([]);
   const [vertexFileList, setVertexFileList] = useState([]);
@@ -1840,6 +1842,17 @@ const EditChannelModal = (props) => {
                         >
                           {t('获取模型列表')}
                         </Button>
+                        {inputs.type === 4 && isEdit && (
+                          <Button
+                            size='small'
+                            type='primary'
+                            theme='solid'
+                            onClick={() => setOllamaModalVisible(true)}
+                            style={{ backgroundColor: '#1890ff', borderColor: '#1890ff' }}
+                          >
+                            🦙 {t('Ollama 模型管理')}
+                          </Button>
+                        )}
                         <Button
                           size='small'
                           type='warning'
@@ -2345,6 +2358,17 @@ const EditChannelModal = (props) => {
           setModelModalVisible(false);
         }}
         onCancel={() => setModelModalVisible(false)}
+      />
+
+      <OllamaModelModal
+        visible={ollamaModalVisible}
+        onCancel={() => setOllamaModalVisible(false)}
+        channelId={channelId}
+        channelInfo={inputs}
+        onModelsUpdate={() => {
+          // 当模型更新后，重新获取模型列表以更新表单
+          fetchUpstreamModelList('models');
+        }}
       />
     </>
   );
