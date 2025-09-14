@@ -129,16 +129,16 @@ func ProxyHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, proxyRequest 
 	// 检查响应状态码
 	if httpResp.StatusCode != http.StatusOK {
 		// 错误响应：直接转发
-		for key, values := range httpResp.Header {
-			for _, value := range values {
-				c.Writer.Header().Add(key, value)
-			}
-		}
-		c.Writer.WriteHeader(httpResp.StatusCode)
-		_, err = io.Copy(c.Writer, httpResp.Body)
-		if err != nil {
-			common.LogError(c, fmt.Sprintf("Error copying error response: %v", err))
-		}
+		// for key, values := range httpResp.Header {
+		// 	for _, value := range values {
+		// 		c.Writer.Header().Add(key, value)
+		// 	}
+		// }
+		// c.Writer.WriteHeader(httpResp.StatusCode)
+		// _, err = io.Copy(c.Writer, httpResp.Body)
+		// if err != nil {
+		// 	common.LogError(c, fmt.Sprintf("Error copying error response: %v", err))
+		// }
 		funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("upstream error with status %d", httpResp.StatusCode), "upstream_error", httpResp.StatusCode)
 		statusCodeMappingStr := c.GetString("status_code_mapping")
 		service.ResetStatusCode(funcErr, statusCodeMappingStr)
