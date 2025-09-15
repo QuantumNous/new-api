@@ -139,7 +139,7 @@ func ProxyHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, proxyRequest 
 		// if err != nil {
 		// 	common.LogError(c, fmt.Sprintf("Error copying error response: %v", err))
 		// }
-		funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("upstream error with status %d", httpResp.StatusCode), "upstream_error", httpResp.StatusCode)
+		funcErr = service.OpenAIErrorWrapperLocal(fmt.Errorf("upstream error with status %d, err mess is %s", httpResp.StatusCode, httpResp.Body), "upstream_error", httpResp.StatusCode)
 		statusCodeMappingStr := c.GetString("status_code_mapping")
 		service.ResetStatusCode(funcErr, statusCodeMappingStr)
 		return funcErr
