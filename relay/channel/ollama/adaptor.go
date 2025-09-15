@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"one-api/dto"
 	"one-api/relay/channel"
 	"one-api/relay/channel/openai"
@@ -55,7 +56,21 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case relayconstant.RelayModeEmbeddings:
 		return info.ChannelBaseUrl + "/api/embed", nil
 	default:
-		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
+		// Map OpenAI API to Ollama API
+		requestPath := info.RequestURLPath
+		parts := strings.Split(requestPath, "?")
+		pathOnly := parts[0]
+		if strings.HasPrefix(pathOnly, "/v1/chat/completions") {
+			requestPath = strings.Replace(pathOnly, "/v1/chat/completions", "/api/chat", 1)
+		} else if strings.HasPrefix(pathOnly, "/v1/completions") {
+			requestPath = strings.Replace(pathOnly, "/v1/completions", "/api/generate", 1)
+		} else {
+			requestPath = pathOnly
+		}
+		if len(parts) > 1 {
+			requestPath = requestPath + "?" + strings.Join(parts[1:], "?")
+		}
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestPath, info.ChannelType), nil
 	}
 }
 
