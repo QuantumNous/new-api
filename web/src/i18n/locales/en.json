@@ -2084,5 +2084,10 @@
   "原价": "Original price",
   "优惠": "Discount",
   "折": "% off",
-  "节省": "Save"
+  "节省": "Save",
+  "今天": "Today",
+  "近 7 天": "Last 7 Days",
+  "本周": "This Week",
+  "本月": "This Month",
+  "近 30 天": "Last 30 Days"
 }

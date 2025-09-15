@@ -21,6 +21,8 @@ import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
+import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+
 const MjLogsFilters = ({
   formInitValues,
   setFormApi,
@@ -54,6 +56,11 @@ const MjLogsFilters = ({
               showClear
               pure
               size='small'
+              presets={DATE_RANGE_PRESETS.map(preset => ({
+                text: t(preset.text),
+                start: preset.start(),
+                end: preset.end()
+              }))}
             />
           </div>
 
