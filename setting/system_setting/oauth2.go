@@ -3,19 +3,21 @@ package system_setting
 import "one-api/setting/config"
 
 type OAuth2Settings struct {
-	Enabled             bool                `json:"enabled"`
-	Issuer              string              `json:"issuer"`
-	AccessTokenTTL      int                 `json:"access_token_ttl"`    // in minutes
-	RefreshTokenTTL     int                 `json:"refresh_token_ttl"`   // in minutes
-	AllowedGrantTypes   []string            `json:"allowed_grant_types"` // client_credentials, authorization_code, refresh_token
-	RequirePKCE         bool                `json:"require_pkce"`        // force PKCE for authorization code flow
-	JWTSigningAlgorithm string              `json:"jwt_signing_algorithm"`
-	JWTKeyID            string              `json:"jwt_key_id"`
-	JWTPrivateKeyFile   string              `json:"jwt_private_key_file"`
-	AutoCreateUser      bool                `json:"auto_create_user"`   // auto create user on first OAuth2 login
-	DefaultUserRole     int                 `json:"default_user_role"`  // default role for auto-created users
-	DefaultUserGroup    string              `json:"default_user_group"` // default group for auto-created users
-	ScopeMappings       map[string][]string `json:"scope_mappings"`     // scope to permissions mapping
+	Enabled               bool                `json:"enabled"`
+	Issuer                string              `json:"issuer"`
+	AccessTokenTTL        int                 `json:"access_token_ttl"`    // in minutes
+	RefreshTokenTTL       int                 `json:"refresh_token_ttl"`   // in minutes
+	AllowedGrantTypes     []string            `json:"allowed_grant_types"` // client_credentials, authorization_code, refresh_token
+	RequirePKCE           bool                `json:"require_pkce"`        // force PKCE for authorization code flow
+	JWTSigningAlgorithm   string              `json:"jwt_signing_algorithm"`
+	JWTKeyID              string              `json:"jwt_key_id"`
+	JWTPrivateKeyFile     string              `json:"jwt_private_key_file"`
+	AutoCreateUser        bool                `json:"auto_create_user"`         // auto create user on first OAuth2 login
+	DefaultUserRole       int                 `json:"default_user_role"`        // default role for auto-created users
+	DefaultUserGroup      string              `json:"default_user_group"`       // default group for auto-created users
+	ScopeMappings         map[string][]string `json:"scope_mappings"`           // scope to permissions mapping
+	MaxJWKSKeys           int                 `json:"max_jwks_keys"`            // maximum number of JWKS signing keys to retain
+	DefaultPrivateKeyPath string              `json:"default_private_key_path"` // suggested private key file path
 }
 
 // 默认配置
@@ -35,6 +37,8 @@ var defaultOAuth2Settings = OAuth2Settings{
 		"api:write": {"write"},
 		"admin":     {"admin"},
 	},
+	MaxJWKSKeys:           3,
+	DefaultPrivateKeyPath: "/etc/new-api/oauth2-private.pem",
 }
 
 func init() {

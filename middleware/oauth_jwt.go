@@ -7,6 +7,7 @@ import (
 	"one-api/common"
 	"one-api/model"
 	"one-api/setting/system_setting"
+	"one-api/src/oauth"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -108,23 +109,20 @@ func getPublicKeyByKid(kid string) (*rsa.PublicKey, error) {
 	// 这里先实现一个简单版本
 
 	// TODO: 实现JWKS缓存和刷新机制
-	settings := system_setting.GetOAuth2Settings()
-	if settings.JWTKeyID == kid {
-		// 从OAuth server模块获取公钥
-		// 这需要在OAuth server初始化后才能使用
-		return nil, fmt.Errorf("JWKS functionality not yet implemented")
+	pub := oauth.GetPublicKeyByKid(kid)
+	if pub == nil {
+		return nil, fmt.Errorf("unknown kid: %s", kid)
 	}
-
-	return nil, fmt.Errorf("unknown kid: %s", kid)
+	return pub, nil
 }
 
 // validateOAuthClaims 验证OAuth2 claims
 func validateOAuthClaims(claims jwt.MapClaims) error {
 	settings := system_setting.GetOAuth2Settings()
 
-	// 验证issuer
+	// 验证issuer（若配置了 Issuer 则强校验，否则仅要求存在）
 	if iss, ok := claims["iss"].(string); ok {
-		if iss != settings.Issuer {
+		if settings.Issuer != "" && iss != settings.Issuer {
 			return fmt.Errorf("invalid issuer")
 		}
 	} else {
@@ -145,6 +143,14 @@ func validateOAuthClaims(claims jwt.MapClaims) error {
 		}
 		if client.Status != common.UserStatusEnabled {
 			return fmt.Errorf("client disabled")
+		}
+
+		// 检查是否被撤销
+		if jti, ok := claims["jti"].(string); ok && jti != "" {
+			revoked, _ := model.IsTokenRevoked(jti)
+			if revoked {
+				return fmt.Errorf("token revoked")
+			}
 		}
 	} else {
 		return fmt.Errorf("missing client_id claim")
@@ -237,6 +243,34 @@ func OptionalOAuthAuth() gin.HandlerFunc {
 			}
 		}
 		c.Next()
+	}
+}
+
+// RequireOAuthScopeIfPresent enforces scope only when OAuth is present; otherwise no-op
+func RequireOAuthScopeIfPresent(requiredScope string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !c.GetBool("oauth_authenticated") {
+			c.Next()
+			return
+		}
+		scope, exists := c.Get("oauth_scope")
+		if !exists {
+			abortWithOAuthError(c, "insufficient_scope", "No scope in token")
+			return
+		}
+		scopeStr, ok := scope.(string)
+		if !ok {
+			abortWithOAuthError(c, "insufficient_scope", "Invalid scope format")
+			return
+		}
+		scopes := strings.Split(scopeStr, " ")
+		for _, s := range scopes {
+			if strings.TrimSpace(s) == requiredScope {
+				c.Next()
+				return
+			}
+		}
+		abortWithOAuthError(c, "insufficient_scope", fmt.Sprintf("Required scope: %s", requiredScope))
 	}
 }
 

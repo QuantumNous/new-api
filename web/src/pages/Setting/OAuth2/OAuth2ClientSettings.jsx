@@ -193,20 +193,37 @@ export default function OAuth2ClientSettings() {
             编辑
           </Button>
           {record.client_type === 'confidential' && (
-            <Button
-              theme="borderless"
-              type="secondary"
-              size="small"
-              onClick={() => handleRegenerateSecret(record)}
+            <Popconfirm
+              title="确认重新生成客户端密钥？"
+              content={
+                <div>
+                  <div>客户端：{record.name}</div>
+                  <div style={{ marginTop: 6 }}>操作不可撤销，旧密钥将立即失效。</div>
+                </div>
+              }
+              onConfirm={() => handleRegenerateSecret(record)}
+              okText="确认"
+              cancelText="取消"
             >
-              重新生成密钥
-            </Button>
+              <Button
+                theme="borderless"
+                type="secondary"
+                size="small"
+              >
+                重新生成密钥
+              </Button>
+            </Popconfirm>
           )}
           <Popconfirm
-            title="确定删除这个OAuth2客户端吗？"
-            content="删除后无法恢复，相关的API访问将失效。"
+            title="请再次确认删除该客户端"
+            content={
+              <div>
+                <div>客户端：{record.name}</div>
+                <div style={{ marginTop: 6, color: 'var(--semi-color-danger)' }}>删除后无法恢复，相关 API 调用将立即失效。</div>
+              </div>
+            }
             onConfirm={() => handleDelete(record)}
-            okText="确定"
+            okText="确定删除"
             cancelText="取消"
           >
             <Button

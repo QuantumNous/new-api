@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Form,
@@ -40,17 +40,128 @@ const { Option } = Select;
 const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
   const [formApi, setFormApi] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [redirectUris, setRedirectUris] = useState(['']);
+  const [redirectUris, setRedirectUris] = useState([]);
   const [clientType, setClientType] = useState('confidential');
   const [grantTypes, setGrantTypes] = useState(['client_credentials']);
+  const [allowedGrantTypes, setAllowedGrantTypes] = useState([
+    'client_credentials',
+    'authorization_code',
+    'refresh_token',
+  ]);
+
+  // 加载后端允许的授权类型（用于限制和默认值）
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await API.get('/api/option/');
+        const { success, data } = res.data || {};
+        if (!success || !Array.isArray(data)) return;
+        const found = data.find((i) => i.key === 'oauth2.allowed_grant_types');
+        if (!found) return;
+        let parsed = [];
+        try {
+          parsed = JSON.parse(found.value || '[]');
+        } catch (_) {}
+        if (mounted && Array.isArray(parsed) && parsed.length) {
+          setAllowedGrantTypes(parsed);
+        }
+      } catch (_) {
+        // 忽略错误，使用默认allowedGrantTypes
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const computeDefaultGrantTypes = (type, allowed) => {
+    const cand =
+      type === 'public'
+        ? ['authorization_code', 'refresh_token']
+        : ['client_credentials', 'authorization_code', 'refresh_token'];
+    const subset = cand.filter((g) => allowed.includes(g));
+    return subset.length ? subset : [allowed[0]].filter(Boolean);
+  };
+
+  // 当允许的类型或客户端类型变化时，自动设置更合理的默认值
+  useEffect(() => {
+    setGrantTypes((prev) => {
+      const normalizedPrev = Array.isArray(prev) ? prev : [];
+      // 移除不被允许或与客户端类型冲突的类型
+      let next = normalizedPrev.filter((g) => allowedGrantTypes.includes(g));
+      if (clientType === 'public') {
+        next = next.filter((g) => g !== 'client_credentials');
+      }
+      // 如果为空，则使用计算的默认
+      if (!next.length) {
+        next = computeDefaultGrantTypes(clientType, allowedGrantTypes);
+      }
+      return next;
+    });
+  }, [clientType, allowedGrantTypes]);
+
+  const isGrantTypeDisabled = (value) => {
+    if (!allowedGrantTypes.includes(value)) return true;
+    if (clientType === 'public' && value === 'client_credentials') return true;
+    return false;
+  };
+
+  // URL校验：允许 http(s)，本地开发可 http
+  const isValidRedirectUri = (uri) => {
+    if (!uri || !uri.trim()) return false;
+    try {
+      const u = new URL(uri.trim());
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+      if (u.protocol === 'http:') {
+        // 仅允许本地开发时使用 http
+        const host = u.hostname;
+        const isLocal =
+          host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+        if (!isLocal) return false;
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 
   // 处理提交
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
       // 过滤空的重定向URI
-      const validRedirectUris = redirectUris.filter(uri => uri.trim());
-      
+      const validRedirectUris = redirectUris
+        .map((u) => (u || '').trim())
+        .filter((u) => u.length > 0);
+
+      // 业务校验
+      if (!grantTypes.length) {
+        showError('请至少选择一种授权类型');
+        return;
+      }
+      // 校验是否包含不被允许的授权类型
+      const invalids = grantTypes.filter((g) => !allowedGrantTypes.includes(g));
+      if (invalids.length) {
+        showError(`不被允许的授权类型: ${invalids.join(', ')}`);
+        return;
+      }
+      if (clientType === 'public' && grantTypes.includes('client_credentials')) {
+        showError('公开客户端不允许使用client_credentials授权类型');
+        return;
+      }
+      if (grantTypes.includes('authorization_code')) {
+        if (!validRedirectUris.length) {
+          showError('选择授权码授权类型时，必须填写至少一个重定向URI');
+          return;
+        }
+        const allValid = validRedirectUris.every(isValidRedirectUri);
+        if (!allValid) {
+          showError('重定向URI格式不合法：仅支持https，或本地开发使用http');
+          return;
+        }
+      }
+
       const payload = {
         ...values,
         client_type: clientType,
@@ -118,8 +229,8 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
       formApi.reset();
     }
     setClientType('confidential');
-    setGrantTypes(['client_credentials']);
-    setRedirectUris(['']);
+    setGrantTypes(computeDefaultGrantTypes('confidential', allowedGrantTypes));
+    setRedirectUris([]);
   };
 
   // 处理取消
@@ -149,8 +260,12 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
   const handleGrantTypesChange = (values) => {
     setGrantTypes(values);
     // 如果包含authorization_code但没有重定向URI，则添加一个
-    if (values.includes('authorization_code') && redirectUris.length === 1 && !redirectUris[0]) {
+    if (values.includes('authorization_code') && redirectUris.length === 0) {
       setRedirectUris(['']);
+    }
+    // 公开客户端不允许client_credentials
+    if (clientType === 'public' && values.includes('client_credentials')) {
+      setGrantTypes(values.filter((v) => v !== 'client_credentials'));
     }
   };
 
@@ -159,7 +274,7 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
       title="创建OAuth2客户端"
       visible={visible}
       onCancel={handleCancel}
-      onOk={() => formApi?.submit()}
+      onOk={() => formApi?.submitForm()}
       okText="创建"
       cancelText="取消"
       confirmLoading={loading}
@@ -168,6 +283,12 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
     >
       <Form
         getFormApi={(api) => setFormApi(api)}
+        initValues={{
+          // 表单默认值优化：预置 OIDC 常用 scope
+          scopes: ['openid', 'profile', 'email', 'api:read'],
+          require_pkce: true,
+          grant_types: grantTypes,
+        }}
         onSubmit={handleSubmit}
         labelPosition="top"
       >
@@ -237,9 +358,15 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           onChange={handleGrantTypesChange}
           rules={[{ required: true, message: '请选择至少一种授权类型' }]}
         >
-          <Option value="client_credentials">Client Credentials（客户端凭证）</Option>
-          <Option value="authorization_code">Authorization Code（授权码）</Option>
-          <Option value="refresh_token">Refresh Token（刷新令牌）</Option>
+          <Option value="client_credentials" disabled={isGrantTypeDisabled('client_credentials')}>
+            Client Credentials（客户端凭证）
+          </Option>
+          <Option value="authorization_code" disabled={isGrantTypeDisabled('authorization_code')}>
+            Authorization Code（授权码）
+          </Option>
+          <Option value="refresh_token" disabled={isGrantTypeDisabled('refresh_token')}>
+            Refresh Token（刷新令牌）
+          </Option>
         </Form.Select>
 
         {/* Scope */}
@@ -247,9 +374,11 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           field="scopes"
           label="允许的权限范围（Scope）"
           multiple
-          defaultValue={['api:read']}
           rules={[{ required: true, message: '请选择至少一个权限范围' }]}
         >
+          <Option value="openid">openid（OIDC 基础身份）</Option>
+          <Option value="profile">profile（用户名/昵称等）</Option>
+          <Option value="email">email（邮箱信息）</Option>
           <Option value="api:read">api:read（读取API）</Option>
           <Option value="api:write">api:write（写入API）</Option>
           <Option value="admin">admin（管理员权限）</Option>
@@ -259,20 +388,19 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
         <Form.Switch
           field="require_pkce"
           label="强制PKCE验证"
-          defaultChecked={true}
         />
         <Paragraph type="tertiary" size="small" style={{ marginTop: -8, marginBottom: 16 }}>
           PKCE（Proof Key for Code Exchange）可提高授权码流程的安全性。
         </Paragraph>
 
         {/* 重定向URI */}
-        {grantTypes.includes('authorization_code') && (
+        {(grantTypes.includes('authorization_code') || redirectUris.length > 0) && (
           <>
             <Divider>重定向URI配置</Divider>
             <div style={{ marginBottom: 16 }}>
               <Text strong>重定向URI</Text>
               <Paragraph type="tertiary" size="small">
-                用于授权码流程，用户授权后将重定向到这些URI。必须使用HTTPS（本地开发可使用HTTP）。
+                用于授权码流程，用户授权后将重定向到这些URI。必须使用HTTPS（本地开发可使用HTTP，仅限localhost/127.0.0.1）。
               </Paragraph>
               
               <Space direction="vertical" style={{ width: '100%' }}>

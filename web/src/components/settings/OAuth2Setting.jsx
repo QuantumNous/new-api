@@ -18,26 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
-import { API, showError, toBoolean } from '../../helpers';
+import { Card, Spin, Space, Button } from '@douyinfe/semi-ui';
+import { API, showError } from '../../helpers';
 import OAuth2ServerSettings from '../../pages/Setting/OAuth2/OAuth2ServerSettings';
 import OAuth2ClientSettings from '../../pages/Setting/OAuth2/OAuth2ClientSettings';
+// import OAuth2Tools from '../../pages/Setting/OAuth2/OAuth2Tools';
+import OAuth2ToolsModal from '../../components/modals/oauth2/OAuth2ToolsModal';
+import OAuth2QuickStartModal from '../../components/modals/oauth2/OAuth2QuickStartModal';
+import JWKSManagerModal from '../../components/modals/oauth2/JWKSManagerModal';
 
 const OAuth2Setting = () => {
-  const [inputs, setInputs] = useState({
-    'oauth2.enabled': false,
-    'oauth2.issuer': '',
-    'oauth2.access_token_ttl': 10,
-    'oauth2.refresh_token_ttl': 720,
-    'oauth2.jwt_signing_algorithm': 'RS256',
-    'oauth2.jwt_key_id': 'oauth2-key-1',
-    'oauth2.jwt_private_key_file': '',
-    'oauth2.allowed_grant_types': ['client_credentials', 'authorization_code'],
-    'oauth2.require_pkce': true,
-    'oauth2.auto_create_user': false,
-    'oauth2.default_user_role': 1,
-    'oauth2.default_user_group': 'default',
-  });
+  // 原样保存后端 Option 键值（字符串），避免类型转换造成子组件解析错误
+  const [options, setOptions] = useState({});
   const [loading, setLoading] = useState(false);
 
   const getOptions = async () => {
@@ -46,25 +38,11 @@ const OAuth2Setting = () => {
       const res = await API.get('/api/option/');
       const { success, message, data } = res.data;
       if (success) {
-        let newInputs = {};
-        data.forEach((item) => {
-          if (Object.keys(inputs).includes(item.key)) {
-            if (item.key === 'oauth2.allowed_grant_types') {
-              try {
-                newInputs[item.key] = JSON.parse(item.value || '["client_credentials","authorization_code"]');
-              } catch {
-                newInputs[item.key] = ['client_credentials', 'authorization_code'];
-              }
-            } else if (typeof inputs[item.key] === 'boolean') {
-              newInputs[item.key] = toBoolean(item.value);
-            } else if (typeof inputs[item.key] === 'number') {
-              newInputs[item.key] = parseInt(item.value) || inputs[item.key];
-            } else {
-              newInputs[item.key] = item.value;
-            }
-          }
-        });
-        setInputs({...inputs, ...newInputs});
+        const map = {};
+        for (const item of data) {
+          map[item.key] = item.value;
+        }
+        setOptions(map);
       } else {
         showError(message);
       }
@@ -83,6 +61,10 @@ const OAuth2Setting = () => {
     getOptions();
   }, []);
 
+  const [qsVisible, setQsVisible] = useState(false);
+  const [jwksVisible, setJwksVisible] = useState(false);
+  const [toolsVisible, setToolsVisible] = useState(false);
+
   return (
     <div
       style={{
@@ -92,7 +74,18 @@ const OAuth2Setting = () => {
         marginTop: '10px',
       }}
     >
-      <OAuth2ServerSettings options={inputs} refresh={refresh} />
+      <Card>
+        <Space>
+          <Button type='primary' onClick={()=>setQsVisible(true)}>一键初始化向导</Button>
+          <Button onClick={()=>setJwksVisible(true)}>JWKS 管理</Button>
+          <Button onClick={()=>setToolsVisible(true)}>调试助手</Button>
+          <Button onClick={()=>window.open('/oauth-demo.html','_blank')}>前端 Demo</Button>
+        </Space>
+      </Card>
+      <OAuth2QuickStartModal visible={qsVisible} onClose={()=>setQsVisible(false)} onDone={refresh} />
+      <JWKSManagerModal visible={jwksVisible} onClose={()=>setJwksVisible(false)} />
+      <OAuth2ToolsModal visible={toolsVisible} onClose={()=>setToolsVisible(false)} />
+      <OAuth2ServerSettings options={options} refresh={refresh} onOpenJWKS={()=>setJwksVisible(true)} />
       <OAuth2ClientSettings />
     </div>
   );
