@@ -46,32 +46,6 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 
 	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 
-	if strings.HasPrefix(info.UpstreamModelName, "gemini-2.5-flash-image-preview") {
-		imageOutputCounts := 0
-		for _, candidate := range geminiResponse.Candidates {
-			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image/") {
-					imageOutputCounts++
-				}
-			}
-		}
-		if imageOutputCounts != 0 {
-			usage.CompletionTokens = usage.CompletionTokens - imageOutputCounts*1290
-			usage.TotalTokens = usage.TotalTokens - imageOutputCounts*1290
-			c.Set("gemini_image_tokens", imageOutputCounts*1290)
-		}
-	}
-
-	// if strings.HasPrefix(info.UpstreamModelName, "gemini-2.5-flash-image-preview") {
-	// 	for _, detail := range geminiResponse.UsageMetadata.CandidatesTokensDetails {
-	// 		if detail.Modality == "IMAGE" {
-	// 			usage.CompletionTokens = usage.CompletionTokens - detail.TokenCount
-	// 			usage.TotalTokens = usage.TotalTokens - detail.TokenCount
-	// 			c.Set("gemini_image_tokens", detail.TokenCount)
-	// 		}
-	// 	}
-	// }
-
 	for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
 		if detail.Modality == "AUDIO" {
 			usage.PromptTokensDetails.AudioTokens = detail.TokenCount
@@ -160,16 +134,6 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 					usage.PromptTokensDetails.AudioTokens = detail.TokenCount
 				} else if detail.Modality == "TEXT" {
 					usage.PromptTokensDetails.TextTokens = detail.TokenCount
-				}
-			}
-
-			if strings.HasPrefix(info.UpstreamModelName, "gemini-2.5-flash-image-preview") {
-				for _, detail := range geminiResponse.UsageMetadata.CandidatesTokensDetails {
-					if detail.Modality == "IMAGE" {
-						usage.CompletionTokens = usage.CompletionTokens - detail.TokenCount
-						usage.TotalTokens = usage.TotalTokens - detail.TokenCount
-						c.Set("gemini_image_tokens", detail.TokenCount)
-					}
 				}
 			}
 		}

@@ -447,8 +447,6 @@ export const useLogsData = () => {
             other?.audio_input_seperate_price || false,
             other?.audio_input_token_count || 0,
             other?.audio_input_price || 0,
-            other?.image_output_token_count || 0,
-            other?.image_output_price || 0,
           );
         }
         expandDataLocal.push({

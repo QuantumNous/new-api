@@ -15,6 +15,8 @@ import (
 	relayconstant "one-api/relay/constant"
 	"one-api/service"
 	"one-api/setting/ratio_setting"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +35,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 		platform = GetTaskPlatform(c)
 	}
 
+	info.InitChannelMeta(c)
 	adaptor := GetTaskAdaptor(platform)
 	if adaptor == nil {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
@@ -197,6 +200,9 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 	if taskErr != nil {
 		return taskErr
 	}
+	if len(respBody) == 0 {
+		respBody = []byte("{\"code\":\"success\",\"data\":null}")
+	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
 	_, err := io.Copy(c.Writer, bytes.NewBuffer(respBody))
@@ -276,10 +282,92 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	respBody, err = json.Marshal(dto.TaskResponse[any]{
-		Code: "success",
-		Data: TaskModel2Dto(originTask),
-	})
+	func() {
+		channelModel, err2 := model.GetChannelById(originTask.ChannelId, true)
+		if err2 != nil {
+			return
+		}
+		if channelModel.Type != constant.ChannelTypeVertexAi {
+			return
+		}
+		baseURL := constant.ChannelBaseURLs[channelModel.Type]
+		if channelModel.GetBaseURL() != "" {
+			baseURL = channelModel.GetBaseURL()
+		}
+		adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+		if adaptor == nil {
+			return
+		}
+		resp, err2 := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
+			"task_id": originTask.TaskID,
+			"action":  originTask.Action,
+		})
+		if err2 != nil || resp == nil {
+			return
+		}
+		defer resp.Body.Close()
+		body, err2 := io.ReadAll(resp.Body)
+		if err2 != nil {
+			return
+		}
+		ti, err2 := adaptor.ParseTaskResult(body)
+		if err2 == nil && ti != nil {
+			if ti.Status != "" {
+				originTask.Status = model.TaskStatus(ti.Status)
+			}
+			if ti.Progress != "" {
+				originTask.Progress = ti.Progress
+			}
+			if ti.Url != "" {
+				originTask.FailReason = ti.Url
+			}
+			_ = originTask.Update()
+			var raw map[string]any
+			_ = json.Unmarshal(body, &raw)
+			format := "mp4"
+			if respObj, ok := raw["response"].(map[string]any); ok {
+				if vids, ok := respObj["videos"].([]any); ok && len(vids) > 0 {
+					if v0, ok := vids[0].(map[string]any); ok {
+						if mt, ok := v0["mimeType"].(string); ok && mt != "" {
+							if strings.Contains(mt, "mp4") {
+								format = "mp4"
+							} else {
+								format = mt
+							}
+						}
+					}
+				}
+			}
+			status := "processing"
+			switch originTask.Status {
+			case model.TaskStatusSuccess:
+				status = "succeeded"
+			case model.TaskStatusFailure:
+				status = "failed"
+			case model.TaskStatusQueued, model.TaskStatusSubmitted:
+				status = "queued"
+			}
+			out := map[string]any{
+				"error":    nil,
+				"format":   format,
+				"metadata": nil,
+				"status":   status,
+				"task_id":  originTask.TaskID,
+				"url":      originTask.FailReason,
+			}
+			respBody, _ = json.Marshal(dto.TaskResponse[any]{
+				Code: "success",
+				Data: out,
+			})
+		}
+	}()
+
+	if len(respBody) == 0 {
+		respBody, err = json.Marshal(dto.TaskResponse[any]{
+			Code: "success",
+			Data: TaskModel2Dto(originTask),
+		})
+	}
 	return
 }
 

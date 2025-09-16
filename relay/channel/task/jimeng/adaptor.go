@@ -18,7 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 
-	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
@@ -37,6 +36,7 @@ type requestPayload struct {
 	Prompt           string   `json:"prompt,omitempty"`
 	Seed             int64    `json:"seed"`
 	AspectRatio      string   `json:"aspect_ratio"`
+	Frames           int      `json:"frames,omitempty"`
 }
 
 type responsePayload struct {
@@ -89,22 +89,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
-	action := constant.TaskActionGenerate
-	info.Action = action
-
-	req := relaycommon.TaskSubmitReq{}
-	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
-		taskErr = service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(req.Prompt) == "" {
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
-		return
-	}
-
-	// Store into context for later usage
-	c.Set("task_request", req)
-	return nil
+	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -327,18 +312,23 @@ func hmacSHA256(key []byte, data []byte) []byte {
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	r := requestPayload{
-		ReqKey:      "jimeng_vgfm_i2v_l20",
-		Prompt:      req.Prompt,
-		AspectRatio: "16:9", // Default aspect ratio
-		Seed:        -1,     // Default to random
+		ReqKey: req.Model,
+		Prompt: req.Prompt,
+	}
+
+	switch req.Duration {
+	case 10:
+		r.Frames = 241 // 24*10+1 = 241
+	default:
+		r.Frames = 121 // 24*5+1 = 121
 	}
 
 	// Handle one-of image_urls or binary_data_base64
-	if req.Image != "" {
-		if strings.HasPrefix(req.Image, "http") {
-			r.ImageUrls = []string{req.Image}
+	if req.HasImage() {
+		if strings.HasPrefix(req.Images[0], "http") {
+			r.ImageUrls = req.Images
 		} else {
-			r.BinaryDataBase64 = []string{req.Image}
+			r.BinaryDataBase64 = req.Images
 		}
 	}
 	metadata := req.Metadata
@@ -350,6 +340,22 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
+
+	// 即梦视频3.0 ReqKey转换
+	// https://www.volcengine.com/docs/85621/1792707
+	if strings.Contains(r.ReqKey, "jimeng_v30") {
+		if len(r.ImageUrls) > 1 {
+			// 多张图片：首尾帧生成
+			r.ReqKey = strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_tail_v30", 1)
+		} else if len(r.ImageUrls) == 1 {
+			// 单张图片：图生视频
+			r.ReqKey = strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_v30", 1)
+		} else {
+			// 无图片：文生视频
+			r.ReqKey = strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_t2v_v30", 1)
+		}
+	}
+
 	return &r, nil
 }
 

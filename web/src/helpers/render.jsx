@@ -1017,7 +1017,7 @@ export function renderModelPrice(
   cacheRatio = 1.0,
   image = false,
   imageRatio = 1.0,
-  imageInputTokens = 0,
+  imageOutputTokens = 0,
   webSearch = false,
   webSearchCallCount = 0,
   webSearchPrice = 0,
@@ -1027,8 +1027,6 @@ export function renderModelPrice(
   audioInputSeperatePrice = false,
   audioInputTokens = 0,
   audioInputPrice = 0,
-  imageOutputTokens = 0,
-  imageOutputPrice = 0,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1059,9 +1057,9 @@ export function renderModelPrice(
     let effectiveInputTokens =
       inputTokens - cacheTokens + cacheTokens * cacheRatio;
     // Handle image tokens if present
-    if (image && imageInputTokens > 0) {
+    if (image && imageOutputTokens > 0) {
       effectiveInputTokens =
-        inputTokens - imageInputTokens + imageInputTokens * imageRatio;
+        inputTokens - imageOutputTokens + imageOutputTokens * imageRatio;
     }
     if (audioInputTokens > 0) {
       effectiveInputTokens -= audioInputTokens;
@@ -1071,8 +1069,7 @@ export function renderModelPrice(
       (audioInputTokens / 1000000) * audioInputPrice * groupRatio +
       (completionTokens / 1000000) * completionRatioPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
-      (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
-      (imageOutputTokens / 1000000) * imageOutputPrice * groupRatio;
+      (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio;
 
     return (
       <>
@@ -1107,7 +1104,7 @@ export function renderModelPrice(
               )}
             </p>
           )}
-          {image && imageInputTokens > 0 && (
+          {image && imageOutputTokens > 0 && (
             <p>
               {i18next.t(
                 '图片输入价格：${{price}} * {{ratio}} = ${{total}} / 1M tokens (图片倍率: {{imageRatio}})',
@@ -1134,26 +1131,17 @@ export function renderModelPrice(
               })}
             </p>
           )}
-          {imageOutputPrice > 0 && imageOutputTokens > 0 && (
-            <p>
-              {i18next.t('图片输出价格：${{price}} * 分组倍率{{ratio}} = ${{total}} / 1M tokens', {
-                price: imageOutputPrice,
-                ratio: groupRatio,
-                total: imageOutputPrice * groupRatio,
-              })}
-            </p>
-          )}
           <p></p>
           <p>
             {(() => {
               // 构建输入部分描述
               let inputDesc = '';
-              if (image && imageInputTokens > 0) {
+              if (image && imageOutputTokens > 0) {
                 inputDesc = i18next.t(
                   '(输入 {{nonImageInput}} tokens + 图片输入 {{imageInput}} tokens * {{imageRatio}} / 1M tokens * ${{price}}',
                   {
-                    nonImageInput: inputTokens - imageInputTokens,
-                    imageInput: imageInputTokens,
+                    nonImageInput: inputTokens - imageOutputTokens,
+                    imageInput: imageOutputTokens,
                     imageRatio: imageRatio,
                     price: inputRatioPrice,
                   },
@@ -1222,16 +1210,6 @@ export function renderModelPrice(
                         ratioType: ratioLabel,
                       },
                     )
-                  : '',
-                imageOutputPrice > 0 && imageOutputTokens > 0
-                  ? i18next.t(
-                    ' + 图片输出 {{tokenCounts}} tokens * ${{price}} / 1M tokens * 分组倍率{{ratio}}',
-                    {
-                      tokenCounts: imageOutputTokens,
-                      price: imageOutputPrice,
-                      ratio: groupRatio,
-                    },
-                  )
                   : '',
               ].join('');
 

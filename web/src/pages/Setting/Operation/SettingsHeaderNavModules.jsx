@@ -304,7 +304,7 @@ export default function SettingsHeaderNavModules(props) {
                               headerNavModules.pricing?.requireAuth || false
                             }
                             onChange={handlePricingAuthChange}
-                            size='small'
+                            size='default'
                           />
                         </div>
                       </div>

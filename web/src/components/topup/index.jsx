@@ -80,6 +80,12 @@ const TopUp = () => {
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
   const [selectedPreset, setSelectedPreset] = useState(null);
+  
+  // 充值配置信息
+  const [topupInfo, setTopupInfo] = useState({
+    amount_options: [],
+    discount: {}
+  });
 
   const topUp = async () => {
     if (redemptionCode === '') {
@@ -248,6 +254,99 @@ const TopUp = () => {
     }
   };
 
+  // 获取充值配置信息
+  const getTopupInfo = async () => {
+    try {
+      const res = await API.get('/api/user/topup/info');
+      const { message, data, success } = res.data;
+      if (success) {
+        setTopupInfo({
+          amount_options: data.amount_options || [],
+          discount: data.discount || {}
+        });
+        
+        // 处理支付方式
+        let payMethods = data.pay_methods || [];
+        try {
+          if (typeof payMethods === 'string') {
+            payMethods = JSON.parse(payMethods);
+          }
+          if (payMethods && payMethods.length > 0) {
+            // 检查name和type是否为空
+            payMethods = payMethods.filter((method) => {
+              return method.name && method.type;
+            });
+            // 如果没有color，则设置默认颜色
+            payMethods = payMethods.map((method) => {
+              // 规范化最小充值数
+              const normalizedMinTopup = Number(method.min_topup);
+              method.min_topup = Number.isFinite(normalizedMinTopup) ? normalizedMinTopup : 0;
+
+              // Stripe 的最小充值从后端字段回填
+              if (method.type === 'stripe' && (!method.min_topup || method.min_topup <= 0)) {
+                const stripeMin = Number(data.stripe_min_topup);
+                if (Number.isFinite(stripeMin)) {
+                  method.min_topup = stripeMin;
+                }
+              }
+
+              if (!method.color) {
+                if (method.type === 'alipay') {
+                  method.color = 'rgba(var(--semi-blue-5), 1)';
+                } else if (method.type === 'wxpay') {
+                  method.color = 'rgba(var(--semi-green-5), 1)';
+                } else if (method.type === 'stripe') {
+                  method.color = 'rgba(var(--semi-purple-5), 1)';
+                } else {
+                  method.color = 'rgba(var(--semi-primary-5), 1)';
+                }
+              }
+              return method;
+            });
+          } else {
+            payMethods = [];
+          }
+
+          // 如果启用了 Stripe 支付，添加到支付方法列表
+          // 这个逻辑现在由后端处理，如果 Stripe 启用，后端会在 pay_methods 中包含它
+
+          setPayMethods(payMethods);
+          const enableStripeTopUp = data.enable_stripe_topup || false;
+          const enableOnlineTopUp = data.enable_online_topup || false;
+          const minTopUpValue = enableOnlineTopUp? data.min_topup : enableStripeTopUp? data.stripe_min_topup : 1;
+          setEnableOnlineTopUp(enableOnlineTopUp);
+          setEnableStripeTopUp(enableStripeTopUp);
+          setMinTopUp(minTopUpValue);
+          setTopUpCount(minTopUpValue);
+
+          // 如果没有自定义充值数量选项，根据最小充值金额生成预设充值额度选项
+          if (topupInfo.amount_options.length === 0) {
+            setPresetAmounts(generatePresetAmounts(minTopUpValue));
+          }
+
+          // 初始化显示实付金额
+          getAmount(minTopUpValue);
+        } catch (e) {
+          console.log('解析支付方式失败:', e);
+          setPayMethods([]);
+        }
+        
+        // 如果有自定义充值数量选项，使用它们替换默认的预设选项
+        if (data.amount_options && data.amount_options.length > 0) {
+          const customPresets = data.amount_options.map(amount => ({
+            value: amount,
+            discount: data.discount[amount] || 1.0
+          }));
+          setPresetAmounts(customPresets);
+        }
+      } else {
+        console.error('获取充值配置失败:', data);
+      }
+    } catch (error) {
+      console.error('获取充值配置异常:', error);
+    }
+  };
+
   // 获取邀请链接
   const getAffLink = async () => {
     const res = await API.get('/api/user/aff');
@@ -290,52 +389,7 @@ const TopUp = () => {
       getUserQuota().then();
     }
     setTransferAmount(getQuotaPerUnit());
-
-    let payMethods = localStorage.getItem('pay_methods');
-    try {
-      payMethods = JSON.parse(payMethods);
-      if (payMethods && payMethods.length > 0) {
-        // 检查name和type是否为空
-        payMethods = payMethods.filter((method) => {
-          return method.name && method.type;
-        });
-        // 如果没有color，则设置默认颜色
-        payMethods = payMethods.map((method) => {
-          if (!method.color) {
-            if (method.type === 'alipay') {
-              method.color = 'rgba(var(--semi-blue-5), 1)';
-            } else if (method.type === 'wxpay') {
-              method.color = 'rgba(var(--semi-green-5), 1)';
-            } else if (method.type === 'stripe') {
-              method.color = 'rgba(var(--semi-purple-5), 1)';
-            } else {
-              method.color = 'rgba(var(--semi-primary-5), 1)';
-            }
-          }
-          return method;
-        });
-      } else {
-        payMethods = [];
-      }
-
-      // 如果启用了 Stripe 支付，添加到支付方法列表
-      if (statusState?.status?.enable_stripe_topup) {
-        const hasStripe = payMethods.some((method) => method.type === 'stripe');
-        if (!hasStripe) {
-          payMethods.push({
-            name: 'Stripe',
-            type: 'stripe',
-            color: 'rgba(var(--semi-purple-5), 1)',
-          });
-        }
-      }
-
-      setPayMethods(payMethods);
-    } catch (e) {
-      console.log(e);
-      showError(t('支付方式配置错误, 请联系管理员'));
-    }
-  }, [statusState?.status?.enable_stripe_topup]);
+  }, []);
 
   useEffect(() => {
     if (affFetchedRef.current) return;
@@ -343,20 +397,18 @@ const TopUp = () => {
     getAffLink().then();
   }, []);
 
+  // 在 statusState 可用时获取充值信息
+  useEffect(() => {
+    getTopupInfo().then();
+  }, []);
+
   useEffect(() => {
     if (statusState?.status) {
-      const minTopUpValue = statusState.status.min_topup || 1;
-      setMinTopUp(minTopUpValue);
-      setTopUpCount(minTopUpValue);
+      // const minTopUpValue = statusState.status.min_topup || 1;
+      // setMinTopUp(minTopUpValue);
+      // setTopUpCount(minTopUpValue);
       setTopUpLink(statusState.status.top_up_link || '');
-      setEnableOnlineTopUp(statusState.status.enable_online_topup || false);
       setPriceRatio(statusState.status.price || 1);
-      setEnableStripeTopUp(statusState.status.enable_stripe_topup || false);
-
-      // 根据最小充值金额生成预设充值额度选项
-      setPresetAmounts(generatePresetAmounts(minTopUpValue));
-      // 初始化显示实付金额
-      getAmount(minTopUpValue);
 
       setStatusLoading(false);
     }
@@ -431,7 +483,11 @@ const TopUp = () => {
   const selectPresetAmount = (preset) => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
-    setAmount(preset.value * priceRatio);
+    
+    // 计算实际支付金额，考虑折扣
+    const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
+    const discountedAmount = preset.value * priceRatio * discount;
+    setAmount(discountedAmount);
   };
 
   // 格式化大数字显示
@@ -475,6 +531,8 @@ const TopUp = () => {
         renderAmount={renderAmount}
         payWay={payWay}
         payMethods={payMethods}
+        amountNumber={amount}
+        discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
       />
 
       {/* 用户信息头部 */}
@@ -512,6 +570,7 @@ const TopUp = () => {
               userState={userState}
               renderQuota={renderQuota}
               statusLoading={statusLoading}
+              topupInfo={topupInfo}
             />
           </div>
 

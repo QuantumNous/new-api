@@ -28,7 +28,6 @@ export function setStatusData(data) {
   localStorage.setItem('enable_task', data.enable_task);
   localStorage.setItem('enable_data_export', data.enable_data_export);
   localStorage.setItem('chats', JSON.stringify(data.chats));
-  localStorage.setItem('pay_methods', JSON.stringify(data.pay_methods));
   localStorage.setItem(
     'data_export_default_time',
     data.data_export_default_time,

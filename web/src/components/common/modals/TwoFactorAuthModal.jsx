@@ -135,7 +135,7 @@ const TwoFactorAuthModal = ({
             autoFocus
           />
           <Typography.Text type='tertiary' size='small' className='mt-2 block'>
-            {t('支持6位TOTP验证码或8位备用码')}
+            {t('支持6位TOTP验证码或8位备用码，可到`个人设置-安全设置-两步验证设置`配置或查看。')}
           </Typography.Text>
         </div>
       </div>

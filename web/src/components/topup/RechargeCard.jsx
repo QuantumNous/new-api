@@ -21,6 +21,7 @@ import React, { useRef } from 'react';
 import {
   Avatar,
   Typography,
+  Tag,
   Card,
   Button,
   Banner,
@@ -29,7 +30,7 @@ import {
   Space,
   Row,
   Col,
-  Spin,
+  Spin, Tooltip
 } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard, Coins, Wallet, BarChart2, TrendingUp } from 'lucide-react';
@@ -68,6 +69,7 @@ const RechargeCard = ({
   userState,
   renderQuota,
   statusLoading,
+  topupInfo,
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
@@ -261,44 +263,58 @@ const RechargeCard = ({
                     </Col>
                     <Col xs={24} sm={24} md={24} lg={14} xl={14}>
                       <Form.Slot label={t('选择支付方式')}>
-                        <Space wrap>
-                          {payMethods.map((payMethod) => (
-                            <Button
-                              key={payMethod.type}
-                              theme='outline'
-                              type='tertiary'
-                              onClick={() => preTopUp(payMethod.type)}
-                              disabled={
-                                (!enableOnlineTopUp &&
-                                  payMethod.type !== 'stripe') ||
-                                (!enableStripeTopUp &&
-                                  payMethod.type === 'stripe')
-                              }
-                              loading={
-                                paymentLoading && payWay === payMethod.type
-                              }
-                              icon={
-                                payMethod.type === 'alipay' ? (
-                                  <SiAlipay size={18} color='#1677FF' />
-                                ) : payMethod.type === 'wxpay' ? (
-                                  <SiWechat size={18} color='#07C160' />
-                                ) : payMethod.type === 'stripe' ? (
-                                  <SiStripe size={18} color='#635BFF' />
-                                ) : (
-                                  <CreditCard
-                                    size={18}
-                                    color={
-                                      payMethod.color ||
-                                      'var(--semi-color-text-2)'
-                                    }
-                                  />
-                                )
-                              }
-                            >
-                              {payMethod.name}
-                            </Button>
-                          ))}
-                        </Space>
+                        {payMethods && payMethods.length > 0 ? (
+                          <Space wrap>
+                            {payMethods.map((payMethod) => {
+                              const minTopupVal = Number(payMethod.min_topup) || 0;
+                              const isStripe = payMethod.type === 'stripe';
+                              const disabled =
+                                (!enableOnlineTopUp && !isStripe) ||
+                                (!enableStripeTopUp && isStripe) ||
+                                minTopupVal > Number(topUpCount || 0);
+
+                              const buttonEl = (
+                                <Button
+                                  key={payMethod.type}
+                                  theme='outline'
+                                  type='tertiary'
+                                  onClick={() => preTopUp(payMethod.type)}
+                                  disabled={disabled}
+                                  loading={paymentLoading && payWay === payMethod.type}
+                                  icon={
+                                    payMethod.type === 'alipay' ? (
+                                      <SiAlipay size={18} color='#1677FF' />
+                                    ) : payMethod.type === 'wxpay' ? (
+                                      <SiWechat size={18} color='#07C160' />
+                                    ) : payMethod.type === 'stripe' ? (
+                                      <SiStripe size={18} color='#635BFF' />
+                                    ) : (
+                                      <CreditCard
+                                        size={18}
+                                        color={payMethod.color || 'var(--semi-color-text-2)'}
+                                      />
+                                    )
+                                  }
+                                  className='!rounded-lg !px-4 !py-2'
+                                >
+                                  {payMethod.name}
+                                </Button>
+                              );
+
+                              return disabled && minTopupVal > Number(topUpCount || 0) ? (
+                                <Tooltip content={t('此支付方式最低充值金额为') + ' ' + minTopupVal} key={payMethod.type}>
+                                  {buttonEl}
+                                </Tooltip>
+                              ) : (
+                                <React.Fragment key={payMethod.type}>{buttonEl}</React.Fragment>
+                              );
+                            })}
+                          </Space>
+                        ) : (
+                          <div className='text-gray-500 text-sm p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300'>
+                            {t('暂无可用的支付方式，请联系管理员配置')}
+                          </div>
+                        )}
                       </Form.Slot>
                     </Col>
                   </Row>
@@ -306,41 +322,60 @@ const RechargeCard = ({
 
                 {(enableOnlineTopUp || enableStripeTopUp) && (
                   <Form.Slot label={t('选择充值额度')}>
-                    <Space wrap>
-                      {presetAmounts.map((preset, index) => (
-                        <Button
-                          key={index}
-                          theme={
-                            selectedPreset === preset.value
-                              ? 'solid'
-                              : 'outline'
-                          }
-                          type={
-                            selectedPreset === preset.value
-                              ? 'primary'
-                              : 'tertiary'
-                          }
-                          onClick={() => {
-                            selectPresetAmount(preset);
-                            onlineFormApiRef.current?.setValue(
-                              'topUpCount',
-                              preset.value,
-                            );
-                          }}
-                          className='!rounded-lg !py-2 !px-3'
-                        >
-                          <div className='flex items-center gap-2'>
-                            <Coins size={14} className='opacity-80' />
-                            <span className='font-medium'>
-                              {formatLargeNumber(preset.value)}
-                            </span>
-                            <span className='text-xs text-gray-500'>
-                              ￥{(preset.value * priceRatio).toFixed(2)}
-                            </span>
-                          </div>
-                        </Button>
-                      ))}
-                    </Space>
+                    <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
+                      {presetAmounts.map((preset, index) => {
+                        const discount = preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                        const originalPrice = preset.value * priceRatio;
+                        const discountedPrice = originalPrice * discount;
+                        const hasDiscount = discount < 1.0;
+                        const actualPay = discountedPrice;
+                        const save = originalPrice - discountedPrice;
+                        
+                        return (
+                          <Card
+                            key={index}
+                            style={{
+                              cursor: 'pointer',
+                              border: selectedPreset === preset.value 
+                                ? '2px solid var(--semi-color-primary)' 
+                                : '1px solid var(--semi-color-border)',
+                              height: '100%',
+                              width: '100%'
+                            }}
+                            bodyStyle={{ padding: '12px' }}
+                            onClick={() => {
+                              selectPresetAmount(preset);
+                              onlineFormApiRef.current?.setValue(
+                                'topUpCount',
+                                preset.value,
+                              );
+                            }}
+                          >
+                            <div style={{ textAlign: 'center' }}>
+                              <Typography.Title heading={6} style={{ margin: '0 0 8px 0' }}>
+                                <Coins size={18} />
+                                {formatLargeNumber(preset.value)}
+                                {hasDiscount && (
+                                   <Tag style={{ marginLeft: 4 }} color="green">
+                                   {t('折').includes('off') ?
+                                     ((1 - parseFloat(discount)) * 100).toFixed(1) :
+                                     (discount * 10).toFixed(1)}{t('折')}
+                                 </Tag>
+                                )}
+                              </Typography.Title>
+                              <div style={{ 
+                                color: 'var(--semi-color-text-2)', 
+                                fontSize: '12px', 
+                                margin: '4px 0' 
+                              }}>
+                                {t('实付')} {actualPay.toFixed(2)}，
+                                {hasDiscount ? `${t('节省')} ${save.toFixed(2)}` : `${t('节省')} 0.00`}
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
                   </Form.Slot>
                 )}
               </div>

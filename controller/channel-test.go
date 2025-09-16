@@ -235,7 +235,7 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(httpResp, true)
+			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			return testResult{
 				context:     c,
 				localErr:    err,

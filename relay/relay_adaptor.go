@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"github.com/gin-gonic/gin"
 	"one-api/constant"
 	"one-api/relay/channel"
 	"one-api/relay/channel/ali"
@@ -28,6 +27,7 @@ import (
 	taskjimeng "one-api/relay/channel/task/jimeng"
 	"one-api/relay/channel/task/kling"
 	"one-api/relay/channel/task/suno"
+	taskvertex "one-api/relay/channel/task/vertex"
 	taskVidu "one-api/relay/channel/task/vidu"
 	"one-api/relay/channel/tencent"
 	"one-api/relay/channel/vertex"
@@ -37,6 +37,8 @@ import (
 	"one-api/relay/channel/zhipu"
 	"one-api/relay/channel/zhipu_4v"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetAdaptor(apiType int) channel.Adaptor {
@@ -126,6 +128,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &kling.TaskAdaptor{}
 		case constant.ChannelTypeJimeng:
 			return &taskjimeng.TaskAdaptor{}
+		case constant.ChannelTypeVertexAi:
+			return &taskvertex.TaskAdaptor{}
 		case constant.ChannelTypeVidu:
 			return &taskVidu.TaskAdaptor{}
 		}

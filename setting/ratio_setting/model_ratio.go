@@ -178,7 +178,6 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-lite-preview-thinking-*":  0.05,
 	"gemini-2.5-flash-lite-preview-06-17":       0.05,
 	"gemini-2.5-flash":                          0.15,
-	"gemini-2.5-flash-image-preview":            0.15, // $0.30（text/image) / 1M tokens
 	"text-embedding-004":                        0.001,
 	"chatglm_turbo":                             0.3572,     // ￥0.005 / 1k tokens
 	"chatglm_pro":                               0.7143,     // ￥0.01 / 1k tokens
@@ -294,11 +293,10 @@ var (
 )
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":                  2,
-	"gpt-4o-gizmo-*":                 3,
-	"gpt-4-all":                      2,
-	"gpt-image-1":                    8,
-	"gemini-2.5-flash-image-preview": 8.3333333333,
+	"gpt-4-gizmo-*":  2,
+	"gpt-4o-gizmo-*": 3,
+	"gpt-4-all":      2,
+	"gpt-image-1":    8,
 }
 
 // InitRatioSettings initializes all model related settings maps
