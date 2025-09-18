@@ -60,6 +60,7 @@ const JSONEditor = ({
   editorType = 'keyValue',
   rules = [],
   formApi = null,
+  customSwitch = null,
   ...props
 }) => {
   const { t } = useTranslation();
@@ -442,6 +443,7 @@ const JSONEditor = ({
             keyValuePairs.slice(index + 1).every((p) => p.key !== pair.key);
 
           return (
+
             <Row key={pair.id} gutter={8} align='middle'>
               <Col span={10}>
                 <div className='relative'>
@@ -642,11 +644,22 @@ const JSONEditor = ({
               <TabPane tab={t('手动编辑')} itemKey='manual' />
             </Tabs>
 
-            {template && templateLabel && (
-              <Button type='tertiary' onClick={fillTemplate} size='small'>
-                {templateLabel}
-              </Button>
-            )}
+            <div className="flex items-center gap-3">
+              {customSwitch && (
+                <div className="flex items-center gap-2">
+                  {customSwitch}
+                </div>
+              )}
+              {template && templateLabel && (
+                <Button
+                  type="tertiary"
+                  onClick={fillTemplate}
+                  size="small"
+                >
+                  {templateLabel}
+                </Button>
+              )}
+            </div>
           </div>
         }
         headerStyle={{ padding: '12px 16px' }}
