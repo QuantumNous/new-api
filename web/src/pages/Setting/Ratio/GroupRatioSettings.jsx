@@ -51,13 +51,35 @@ export default function GroupRatioSettings(props) {
           if (!updateArray.length)
             return showWarning(t('你似乎并没有修改什么'));
 
-          const requestQueue = updateArray.map((item) => {
-            const value =
-              typeof inputs[item.key] === 'boolean'
-                ? String(inputs[item.key])
-                : inputs[item.key];
-            return API.put('/api/option/', { key: item.key, value });
-          });
+          // 检查是否包含分组相关的设置
+          const groupRelatedKeys = ['GroupRatio', 'UserUsableGroups'];
+          const hasGroupUpdates = updateArray.some(item => groupRelatedKeys.includes(item.key));
+          const otherUpdates = updateArray.filter(item => !groupRelatedKeys.includes(item.key));
+
+          let requestQueue = [];
+
+          // 处理非分组相关的更新
+          if (otherUpdates.length > 0) {
+            requestQueue = otherUpdates.map((item) => {
+              const value =
+                typeof inputs[item.key] === 'boolean'
+                  ? String(inputs[item.key])
+                  : inputs[item.key];
+              return API.put('/api/option/', { key: item.key, value });
+            });
+          }
+
+          // 处理分组相关的更新
+          if (hasGroupUpdates) {
+            const groupData = {};
+            if (inputs.GroupRatio) groupData.GroupRatio = inputs.GroupRatio;
+            if (inputs.UserUsableGroups) groupData.UserUsableGroups = inputs.UserUsableGroups;
+            requestQueue.push(API.put('/api/user_group/batch', groupData));
+          }
+
+          if (requestQueue.length === 0) {
+            return showWarning(t('你似乎并没有修改什么'));
+          }
 
           setLoading(true);
           Promise.all(requestQueue)

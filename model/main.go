@@ -278,6 +278,11 @@ func migrateDB() error {
 		common.SysLog("初始化默认用户分组失败: " + err.Error())
 	}
 
+	// 迁移用户分组数据
+	if err := MigrateUserGroupData(); err != nil {
+		common.SysLog("迁移用户分组数据失败: " + err.Error())
+	}
+
 	return nil
 }
 
@@ -481,5 +486,47 @@ func PingDB() error {
 
 	lastPingTime = time.Now()
 	common.SysLog("Database pinged successfully")
+	return nil
+}
+
+// MigrateUserGroupData 迁移用户分组数据
+func MigrateUserGroupData() error {
+	// 检查是否已经执行过迁移标记
+	var migrationOption Option
+	err := DB.Where("`key` = ?", "UserGroupMigrationCompleted").First(&migrationOption).Error
+	if err == nil && migrationOption.Value == "true" {
+		// 已经迁移过，跳过
+		return nil
+	}
+
+	// 检查是否需要迁移
+	var count int64
+	DB.Model(&UserGroup{}).Count(&count)
+	if count == 0 {
+		// 没有用户分组数据，标记为已迁移
+		UpdateOption("UserGroupMigrationCompleted", "true")
+		return nil
+	}
+
+	// 检查是否存在 options 表中的分组数据需要迁移
+	var groupRatioOption Option
+	err = DB.Where("`key` = ?", "GroupRatio").First(&groupRatioOption).Error
+	if err != nil {
+		// 没有 GroupRatio 配置，说明不需要迁移，标记为已完成
+		UpdateOption("UserGroupMigrationCompleted", "true")
+		return nil
+	}
+
+	// 检查是否已经迁移过（通过检查是否存在非默认分组）
+	var nonDefaultCount int64
+	DB.Model(&UserGroup{}).Where("name NOT IN (?)", []string{"default", "vip", "svip"}).Count(&nonDefaultCount)
+
+	if nonDefaultCount > 0 {
+		// 已经有非默认分组，说明已经迁移过，标记为已完成
+		UpdateOption("UserGroupMigrationCompleted", "true")
+		return nil
+	}
+
+	common.SysLog("检测到需要迁移用户分组数据，请访问分组管理页面或调用迁移 API")
 	return nil
 }

@@ -9,7 +9,7 @@ type UserGroup struct {
 	Id          int            `json:"id"`
 	Name        string         `json:"name" gorm:"size:64;not null;uniqueIndex:uk_user_group_name,where:deleted_at IS NULL"`
 	Description string         `json:"description,omitempty" gorm:"type:varchar(255)"`
-	Ratio       float64        `json:"ratio" gorm:"type:decimal(10,4);default:1.0"`
+	Ratio       float64        `json:"ratio" gorm:"default:1.0"`
 	CreatedTime int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
@@ -135,3 +135,5 @@ func InitDefaultUserGroups() error {
 
 	return nil
 }
+
+

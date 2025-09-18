@@ -214,6 +214,9 @@ func SetApiRouter(router *gin.Engine) {
 			userGroupRoute.POST("/", controller.CreateUserGroup)
 			userGroupRoute.PUT("/", controller.UpdateUserGroup)
 			userGroupRoute.DELETE("/:id", controller.DeleteUserGroup)
+			userGroupRoute.POST("/migrate", controller.MigrateUserGroupData)
+			userGroupRoute.GET("/options", controller.GetUserGroupsAsOptions)
+			userGroupRoute.PUT("/batch", controller.BatchUpdateUserGroups)
 		}
 
 		mjRoute := apiRouter.Group("/mj")
