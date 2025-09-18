@@ -8,6 +8,7 @@ import (
 
 	"one-api/common"
 	"one-api/model"
+	"one-api/service"
 	"one-api/setting"
 	"one-api/setting/ratio_setting"
 
@@ -73,19 +74,9 @@ func CreateUserGroup(c *gin.Context) {
 		return
 	}
 
-	// 同步到分组倍率设置
-	if err := syncGroupToRatioSetting(g.Name, g.Ratio, true); err != nil {
-		common.SysLog("同步分组到倍率设置失败: " + err.Error())
-	}
-
-	// 同步到用户可选分组
-	if err := syncGroupToUserUsableGroups(g.Name, g.Description, true); err != nil {
-		common.SysLog("同步分组到用户可选分组失败: " + err.Error())
-	}
-
-	// 同步到充值分组倍率
-	if err := syncGroupToTopupRatio(g.Name, g.Ratio, true); err != nil {
-		common.SysLog("同步分组到充值倍率设置失败: " + err.Error())
+	// 同步到内存
+	if err := service.SyncUserGroupsToMemory(); err != nil {
+		common.SysLog("同步用户分组到内存失败: " + err.Error())
 	}
 
 	common.ApiSuccess(c, &g)
@@ -186,33 +177,9 @@ func UpdateUserGroup(c *gin.Context) {
 		return
 	}
 
-	// 事务提交成功后，同步设置（这些操作失败不影响核心数据一致性）
-	if oldGroup.Name != g.Name {
-		// 从旧设置中移除
-		if err := syncGroupToRatioSetting(oldGroup.Name, 0, false); err != nil {
-			common.SysLog("从倍率设置中移除旧分组失败: " + err.Error())
-		}
-		if err := syncGroupToUserUsableGroups(oldGroup.Name, "", false); err != nil {
-			common.SysLog("从用户可选分组中移除旧分组失败: " + err.Error())
-		}
-		if err := syncGroupToTopupRatio(oldGroup.Name, 0, false); err != nil {
-			common.SysLog("从充值倍率设置中移除旧分组失败: " + err.Error())
-		}
-	}
-
-	// 同步到分组倍率设置
-	if err := syncGroupToRatioSetting(g.Name, g.Ratio, true); err != nil {
-		common.SysLog("同步分组到倍率设置失败: " + err.Error())
-	}
-
-	// 同步到用户可选分组
-	if err := syncGroupToUserUsableGroups(g.Name, g.Description, true); err != nil {
-		common.SysLog("同步分组到用户可选分组失败: " + err.Error())
-	}
-
-	// 同步到充值分组倍率
-	if err := syncGroupToTopupRatio(g.Name, g.Ratio, true); err != nil {
-		common.SysLog("同步分组到充值倍率设置失败: " + err.Error())
+	// 事务提交成功后，同步到内存
+	if err := service.SyncUserGroupsToMemory(); err != nil {
+		common.SysLog("同步用户分组到内存失败: " + err.Error())
 	}
 
 	common.ApiSuccess(c, &g)
@@ -252,19 +219,9 @@ func DeleteUserGroup(c *gin.Context) {
 		return
 	}
 
-	// 从分组倍率设置中移除
-	if err := syncGroupToRatioSetting(group.Name, 0, false); err != nil {
-		common.SysLog("从倍率设置中移除分组失败: " + err.Error())
-	}
-
-	// 从用户可选分组中移除
-	if err := syncGroupToUserUsableGroups(group.Name, "", false); err != nil {
-		common.SysLog("从用户可选分组中移除分组失败: " + err.Error())
-	}
-
-	// 从充值分组倍率中移除
-	if err := syncGroupToTopupRatio(group.Name, 0, false); err != nil {
-		common.SysLog("从充值倍率设置中移除分组失败: " + err.Error())
+	// 同步到内存
+	if err := service.SyncUserGroupsToMemory(); err != nil {
+		common.SysLog("同步用户分组到内存失败: " + err.Error())
 	}
 
 	common.ApiSuccess(c, nil)
@@ -343,4 +300,131 @@ func syncGroupToTopupRatio(groupName string, ratio float64, add bool) error {
 
 	// 更新内存中的设置
 	return common.UpdateTopupGroupRatioByJSONString(string(jsonBytes))
+}
+
+// MigrateUserGroupData 迁移用户分组数据
+func MigrateUserGroupData(c *gin.Context) {
+	if err := service.MigrateUserGroupsFromOptions(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 同步到内存
+	if err := service.SyncUserGroupsToMemory(); err != nil {
+		common.SysLog("同步用户分组到内存失败: " + err.Error())
+	}
+
+	common.ApiSuccess(c, "用户分组数据迁移完成")
+}
+
+// GetUserGroupsAsOptions 获取用户分组数据（以 options 格式返回）
+func GetUserGroupsAsOptions(c *gin.Context) {
+	options, err := service.GetUserGroupsAsOptions()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, options)
+}
+
+// BatchUpdateUserGroups 批量更新用户分组
+func BatchUpdateUserGroups(c *gin.Context) {
+	var req struct {
+		GroupRatio       string `json:"GroupRatio"`
+		UserUsableGroups string `json:"UserUsableGroups"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 解析分组倍率
+	var groupRatio map[string]float64
+	if req.GroupRatio != "" {
+		if err := json.Unmarshal([]byte(req.GroupRatio), &groupRatio); err != nil {
+			common.ApiErrorMsg(c, "分组倍率格式错误: "+err.Error())
+			return
+		}
+	}
+
+	// 解析用户可选分组
+	var userUsableGroups map[string]string
+	if req.UserUsableGroups != "" {
+		if err := json.Unmarshal([]byte(req.UserUsableGroups), &userUsableGroups); err != nil {
+			common.ApiErrorMsg(c, "用户可选分组格式错误: "+err.Error())
+			return
+		}
+	}
+
+	// 合并所有分组名称
+	allGroups := make(map[string]bool)
+	for name := range groupRatio {
+		allGroups[name] = true
+	}
+	for name := range userUsableGroups {
+		allGroups[name] = true
+	}
+
+	// 批量更新分组
+	updatedCount := 0
+	for groupName := range allGroups {
+		// 获取现有分组
+		existingGroup, err := model.GetUserGroupByName(groupName)
+		if err != nil && err.Error() != "record not found" {
+			common.SysLog("获取分组 " + groupName + " 时出错: " + err.Error())
+			continue
+		}
+
+		ratio := groupRatio[groupName]
+		if ratio == 0 {
+			ratio = 1.0 // 默认倍率
+		}
+
+		description := userUsableGroups[groupName]
+		if description == "" {
+			description = groupName + "分组"
+		}
+
+		if existingGroup == nil {
+			// 创建新分组
+			newGroup := &model.UserGroup{
+				Name:        groupName,
+				Description: description,
+				Ratio:       ratio,
+			}
+			if err := newGroup.Insert(); err != nil {
+				common.SysLog("创建分组 " + groupName + " 失败: " + err.Error())
+				continue
+			}
+			updatedCount++
+		} else {
+			// 更新现有分组
+			needUpdate := false
+			if existingGroup.Ratio != ratio {
+				existingGroup.Ratio = ratio
+				needUpdate = true
+			}
+			if existingGroup.Description != description {
+				existingGroup.Description = description
+				needUpdate = true
+			}
+
+			if needUpdate {
+				if err := existingGroup.Update(); err != nil {
+					common.SysLog("更新分组 " + groupName + " 失败: " + err.Error())
+					continue
+				}
+				updatedCount++
+			}
+		}
+	}
+
+	// 同步到内存
+	if err := service.SyncUserGroupsToMemory(); err != nil {
+		common.SysLog("同步用户分组到内存失败: " + err.Error())
+	}
+
+	common.ApiSuccess(c, fmt.Sprintf("批量更新完成，处理了 %d 个分组", updatedCount))
 }

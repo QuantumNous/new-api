@@ -201,6 +201,19 @@ func SetApiRouter(router *gin.Engine) {
 			prefillGroupRoute.DELETE("/:id", controller.DeletePrefillGroup)
 		}
 
+		userGroupRoute := apiRouter.Group("/user_group")
+		userGroupRoute.Use(middleware.AdminAuth())
+		userGroupRoute.Use(middleware.ModuleAuth("admin.user.groupManagement"))
+		{
+			userGroupRoute.GET("/", controller.GetAllUserGroups)
+			userGroupRoute.POST("/", controller.CreateUserGroup)
+			userGroupRoute.PUT("/", controller.UpdateUserGroup)
+			userGroupRoute.DELETE("/:id", controller.DeleteUserGroup)
+			userGroupRoute.POST("/migrate", controller.MigrateUserGroupData)
+			userGroupRoute.GET("/options", controller.GetUserGroupsAsOptions)
+			userGroupRoute.PUT("/batch", controller.BatchUpdateUserGroups)
+		}
+
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
 		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
