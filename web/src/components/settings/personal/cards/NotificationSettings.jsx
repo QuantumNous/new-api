@@ -44,6 +44,7 @@ import CodeViewer from '../../../playground/CodeViewer';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
 import { useUserPermissions } from '../../../../hooks/common/useUserPermissions';
+import { useSidebar } from '../../../../hooks/common/useSidebar';
 
 const NotificationSettings = ({
   t,
@@ -97,6 +98,9 @@ const NotificationSettings = ({
     isSidebarModuleAllowed,
   } = useUserPermissions();
 
+  // 使用useSidebar钩子获取刷新方法
+  const { refreshUserConfig } = useSidebar();
+
   // 左侧边栏设置处理函数
   const handleSectionChange = (sectionKey) => {
     return (checked) => {
@@ -132,6 +136,9 @@ const NotificationSettings = ({
       });
       if (res.data.success) {
         showSuccess(t('侧边栏设置保存成功'));
+
+        // 刷新useSidebar钩子中的用户配置，实现实时更新
+        await refreshUserConfig();
       } else {
         showError(res.data.message);
       }
@@ -334,7 +341,7 @@ const NotificationSettings = ({
                 loading={sidebarLoading}
                 className='!rounded-lg'
               >
-                {t('保存边栏设置')}
+                {t('保存设置')}
               </Button>
             </>
           ) : (

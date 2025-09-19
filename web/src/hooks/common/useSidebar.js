@@ -21,6 +21,10 @@ import { useState, useEffect, useMemo, useContext } from 'react';
 import { StatusContext } from '../../context/Status';
 import { API } from '../../helpers';
 
+// 创建一个全局事件系统来同步所有useSidebar实例
+const sidebarEventTarget = new EventTarget();
+const SIDEBAR_REFRESH_EVENT = 'sidebar-refresh';
+
 export const useSidebar = () => {
   const [statusState] = useContext(StatusContext);
   const [userConfig, setUserConfig] = useState(null);
@@ -124,9 +128,12 @@ export const useSidebar = () => {
 
   // 刷新用户配置的方法（供外部调用）
   const refreshUserConfig = async () => {
-    if (Object.keys(adminConfig).length > 0) {
+     if (Object.keys(adminConfig).length > 0) {
       await loadUserConfig();
     }
+
+    // 触发全局刷新事件，通知所有useSidebar实例更新
+    sidebarEventTarget.dispatchEvent(new CustomEvent(SIDEBAR_REFRESH_EVENT));
   };
 
   // 加载用户配置
@@ -135,6 +142,21 @@ export const useSidebar = () => {
     if (Object.keys(adminConfig).length > 0) {
       loadUserConfig();
     }
+  }, [adminConfig]);
+
+  // 监听全局刷新事件
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (Object.keys(adminConfig).length > 0) {
+        loadUserConfig();
+      }
+    };
+
+    sidebarEventTarget.addEventListener(SIDEBAR_REFRESH_EVENT, handleRefresh);
+
+    return () => {
+      sidebarEventTarget.removeEventListener(SIDEBAR_REFRESH_EVENT, handleRefresh);
+    };
   }, [adminConfig]);
 
   // 计算最终的显示配置
