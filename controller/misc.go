@@ -63,6 +63,7 @@ func GetStatus(c *gin.Context) {
 		"turnstile_site_key":          common.TurnstileSiteKey,
 		"top_up_link":                 common.TopUpLink,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
+		"invitation_enabled":          operation_setting.GetGeneralSetting().InvitationEnabled,
 		"quota_per_unit":              common.QuotaPerUnit,
 		"display_in_currency":         common.DisplayInCurrencyEnabled,
 		"enable_batch_update":         common.BatchUpdateEnabled,

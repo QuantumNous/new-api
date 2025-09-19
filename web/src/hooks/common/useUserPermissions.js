@@ -37,14 +37,14 @@ export const useUserPermissions = () => {
       if (res.data.success) {
         const userPermissions = res.data.data.permissions;
         setPermissions(userPermissions);
-        console.log('用户权限加载成功:', userPermissions);
+        //console.log('用户权限加载成功:', userPermissions);
       } else {
         setError(res.data.message || '获取权限失败');
-        console.error('获取权限失败:', res.data.message);
+        //console.error('获取权限失败:', res.data.message);
       }
     } catch (error) {
       setError('网络错误，请重试');
-      console.error('加载用户权限异常:', error);
+      //console.error('加载用户权限异常:', error);
     } finally {
       setLoading(false);
     }

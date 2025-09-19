@@ -60,6 +60,8 @@ const TopUp = () => {
   const [enableStripeTopUp, setEnableStripeTopUp] = useState(
     statusState?.status?.enable_stripe_topup || false,
   );
+  const [invitationEnabled, setInvitationEnabled] = useState(false); // 初始为false，避免闪烁
+  const [invitationConfigLoaded, setInvitationConfigLoaded] = useState(false); // 添加配置加载状态
   const [statusLoading, setStatusLoading] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -359,6 +361,44 @@ const TopUp = () => {
     }
   };
 
+  // 获取邀请功能配置状态
+  const getInvitationConfig = async () => {
+    try {
+      const res = await API.get('/api/status');
+      const { success, data } = res.data;
+      if (success) {
+        //console.log('从status接口获取到的邀请功能配置:', data.invitation_enabled);
+        const enabled = data.invitation_enabled === true;
+        //console.log('邀请功能状态:', enabled);
+        setInvitationEnabled(enabled);
+        setInvitationConfigLoaded(true);
+        // 只有在邀请功能启用时才获取邀请链接
+        if (enabled && !affFetchedRef.current) {
+          affFetchedRef.current = true;
+          getAffLink();
+        }
+      } else {
+        // API调用失败，使用后端默认值（true）
+        //console.log('status接口调用失败，使用默认值true');
+        setInvitationEnabled(true);
+        setInvitationConfigLoaded(true);
+        if (!affFetchedRef.current) {
+          affFetchedRef.current = true;
+          getAffLink();
+        }
+      }
+    } catch (error) {
+      //console.error('获取邀请功能配置失败:', error);
+      // 出错时使用后端默认值（true）
+      setInvitationEnabled(true);
+      setInvitationConfigLoaded(true);
+      if (!affFetchedRef.current) {
+        affFetchedRef.current = true;
+        getAffLink();
+      }
+    }
+  };
+
   // 划转邀请额度
   const transfer = async () => {
     if (transferAmount < getQuotaPerUnit()) {
@@ -389,18 +429,55 @@ const TopUp = () => {
       getUserQuota().then();
     }
     setTransferAmount(getQuotaPerUnit());
-  }, []);
+    getInvitationConfig().then();
 
-  useEffect(() => {
-    if (affFetchedRef.current) return;
-    affFetchedRef.current = true;
-    getAffLink().then();
-  }, []);
+    let payMethods = localStorage.getItem('pay_methods');
+    try {
+      payMethods = JSON.parse(payMethods);
+      if (payMethods && payMethods.length > 0) {
+        // 检查name和type是否为空
+        payMethods = payMethods.filter((method) => {
+          return method.name && method.type;
+        });
+        // 如果没有color，则设置默认颜色
+        payMethods = payMethods.map((method) => {
+          if (!method.color) {
+            if (method.type === 'alipay') {
+              method.color = 'rgba(var(--semi-blue-5), 1)';
+            } else if (method.type === 'wxpay') {
+              method.color = 'rgba(var(--semi-green-5), 1)';
+            } else if (method.type === 'stripe') {
+              method.color = 'rgba(var(--semi-purple-5), 1)';
+            } else {
+              method.color = 'rgba(var(--semi-primary-5), 1)';
+            }
+          }
+          return method;
+        });
+      } else {
+        payMethods = [];
+      }
 
-  // 在 statusState 可用时获取充值信息
-  useEffect(() => {
-    getTopupInfo().then();
-  }, []);
+      // 如果启用了 Stripe 支付，添加到支付方法列表
+      if (statusState?.status?.enable_stripe_topup) {
+        const hasStripe = payMethods.some((method) => method.type === 'stripe');
+        if (!hasStripe) {
+          payMethods.push({
+            name: 'Stripe',
+            type: 'stripe',
+            color: 'rgba(var(--semi-purple-5), 1)',
+          });
+        }
+      }
+
+      setPayMethods(payMethods);
+    } catch (e) {
+      console.log(e);
+      showError(t('支付方式配置错误, 请联系管理员'));
+    }
+  }, [statusState?.status?.enable_stripe_topup]);
+
+  // 移除独立的getAffLink调用，现在由getInvitationConfig统一处理
 
   useEffect(() => {
     if (statusState?.status) {
@@ -537,9 +614,9 @@ const TopUp = () => {
 
       {/* 用户信息头部 */}
       <div className='space-y-6'>
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
+        <div className={`grid grid-cols-1 gap-6 ${invitationConfigLoaded && invitationEnabled ? 'lg:grid-cols-12' : 'lg:grid-cols-1'}`}>
           {/* 左侧充值区域 */}
-          <div className='lg:col-span-7 space-y-6 w-full'>
+          <div className={`space-y-6 w-full ${invitationConfigLoaded && invitationEnabled ? 'lg:col-span-7' : 'lg:col-span-1 max-w-2xl mx-auto'}`}>
             <RechargeCard
               t={t}
               enableOnlineTopUp={enableOnlineTopUp}
@@ -574,17 +651,19 @@ const TopUp = () => {
             />
           </div>
 
-          {/* 右侧信息区域 */}
-          <div className='lg:col-span-5'>
-            <InvitationCard
-              t={t}
-              userState={userState}
-              renderQuota={renderQuota}
-              setOpenTransfer={setOpenTransfer}
-              affLink={affLink}
-              handleAffLinkClick={handleAffLinkClick}
-            />
-          </div>
+          {/* 右侧信息区域 - 仅在配置加载完成且邀请功能启用时显示 */}
+          {invitationConfigLoaded && invitationEnabled && (
+            <div className='lg:col-span-5'>
+              <InvitationCard
+                t={t}
+                userState={userState}
+                renderQuota={renderQuota}
+                setOpenTransfer={setOpenTransfer}
+                affLink={affLink}
+                handleAffLinkClick={handleAffLinkClick}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

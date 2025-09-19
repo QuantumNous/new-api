@@ -664,7 +664,7 @@ const NotificationSettings = ({
                         color: 'var(--semi-color-text-2)',
                       }}
                     >
-                      {t('您可以个性化设置侧边栏的要显示功能')}
+                      {t('您可以个性化设置侧边栏要显示的功能')}
                     </Typography.Text>
                   </div>
                   {/* 边栏设置功能区域容器 */}

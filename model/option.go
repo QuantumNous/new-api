@@ -159,6 +159,8 @@ func loadOptionsFromDatabase() {
 	}
 }
 
+
+
 func SyncOptions(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
