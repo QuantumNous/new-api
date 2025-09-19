@@ -218,6 +218,17 @@ export default function GeneralSettings(props) {
                   onChange={handleFieldChange('SelfUseModeEnabled')}
                 />
               </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'general_setting.invitation_enabled'}
+                  label={t('邀请功能')}
+                  extraText={t('关闭后：不再启用邀请奖励功能')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('general_setting.invitation_enabled')}
+                />
+              </Col>
             </Row>
             <Row>
               <Button size='default' onClick={onSubmit}>

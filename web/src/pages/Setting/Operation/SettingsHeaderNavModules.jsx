@@ -110,8 +110,8 @@ export default function SettingsHeaderNavModules(props) {
           type: 'set',
           payload: {
             ...statusState.status,
-            HeaderNavModules: JSON.stringify(headerNavModules),
-          },
+            header_nav_modules: JSON.stringify(headerNavModules)
+          }
         });
 
         // 刷新父组件状态
