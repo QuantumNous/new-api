@@ -32,6 +32,7 @@ import {
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onNodeLocAuthClicked,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import { Button, Card, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
@@ -43,6 +44,7 @@ import { IconGithubLogo, IconMail, IconLock } from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
+import NodeLocIcon from '../common/logo/NodeLocIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 
@@ -67,6 +69,7 @@ const LoginForm = () => {
   const [githubLoading, setGithubLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [nodelocLoading, setNodelocLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -258,7 +261,16 @@ const LoginForm = () => {
       setTimeout(() => setLinuxdoLoading(false), 3000);
     }
   };
-
+  // 包装的NodeLoc登录点击处理
+  const handleNodeLocAuthClick = () => {
+    setNodelocLoading(true);
+    try {
+      onNodeLocAuthClicked(status.nodeloc_client_id);
+    } finally {
+      // 由于重定向，这里不会执行到，但为了完整性添加
+      setTimeout(() => setNodelocLoading(false), 3000);
+    }
+  };
   // 包装的邮箱登录选项点击处理
   const handleEmailLoginClick = () => {
     setEmailLoginLoading(true);
@@ -375,14 +387,25 @@ const LoginForm = () => {
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
                   </Button>
                 )}
-
-                {status.telegram_oauth && (
-                  <div className='flex justify-center my-2'>
-                    <TelegramLoginButton
-                      dataOnauth={onTelegramLoginClicked}
-                      botName={status.telegram_bot_name}
-                    />
-                  </div>
+                {status.nodeloc_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <NodeLocIcon
+                        style={{
+                          color: '#E95420',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleNodeLocAuthClick}
+                    loading={nodelocLoading}
+                  >
+                    <span className='ml-3'>{t('使用 NodeLoc 继续')}</span>
+                  </Button>
                 )}
 
                 <Divider margin='12px' align='center'>
@@ -485,6 +508,7 @@ const LoginForm = () => {
                 status.oidc_enabled ||
                 status.wechat_login ||
                 status.linuxdo_oauth ||
+                status.nodeloc_oauth ||
                 status.telegram_oauth) && (
                 <>
                   <Divider margin='12px' align='center'>
@@ -620,6 +644,7 @@ const LoginForm = () => {
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||
+          status.nodeloc_oauth ||
           status.telegram_oauth
         )
           ? renderEmailLoginForm()
