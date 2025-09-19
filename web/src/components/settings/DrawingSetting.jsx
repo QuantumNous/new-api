@@ -81,4 +81,4 @@ const DrawingSetting = () => {
   );
 };
 
-export default DrawingSetting; 
+export default DrawingSetting;

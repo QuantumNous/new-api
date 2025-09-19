@@ -2,12 +2,10 @@ package common
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"one-api/constant"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {

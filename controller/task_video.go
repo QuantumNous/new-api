@@ -113,7 +113,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 			task.StartTime = now
 		}
 	case model.TaskStatusSuccess:
-		task.Progress =	 "100%"
+		task.Progress = "100%"
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}

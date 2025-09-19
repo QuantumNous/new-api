@@ -31,9 +31,8 @@ const UsersFilters = ({
   groupOptions,
   loading,
   searching,
-  t
+  t,
 }) => {
-
   const formApiRef = useRef(null);
 
   const handleReset = () => {
@@ -55,26 +54,26 @@ const UsersFilters = ({
         searchUsers(1, pageSize);
       }}
       allowEmpty={true}
-      autoComplete="off"
-      layout="horizontal"
-      trigger="change"
+      autoComplete='off'
+      layout='horizontal'
+      trigger='change'
       stopValidateWithError={false}
-      className="w-full md:w-auto order-1 md:order-2"
+      className='w-full md:w-auto order-1 md:order-2'
     >
-      <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
-        <div className="relative w-full md:w-64">
+      <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
+        <div className='relative w-full md:w-64'>
           <Form.Input
-            field="searchKeyword"
+            field='searchKeyword'
             prefix={<IconSearch />}
             placeholder={t('支持搜索用户的 ID、用户名、显示名称和邮箱地址')}
             showClear
             pure
-            size="small"
+            size='small'
           />
         </div>
-        <div className="w-full md:w-48">
+        <div className='w-full md:w-48'>
           <Form.Select
-            field="searchGroup"
+            field='searchGroup'
             placeholder={t('选择分组')}
             optionList={groupOptions}
             onChange={(value) => {
@@ -83,27 +82,27 @@ const UsersFilters = ({
                 searchUsers(1, pageSize);
               }, 100);
             }}
-            className="w-full"
+            className='w-full'
             showClear
             pure
-            size="small"
+            size='small'
           />
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className='flex gap-2 w-full md:w-auto'>
           <Button
-            type="tertiary"
-            htmlType="submit"
+            type='tertiary'
+            htmlType='submit'
             loading={loading || searching}
-            className="flex-1 md:flex-initial md:w-auto"
-            size="small"
+            className='flex-1 md:flex-initial md:w-auto'
+            size='small'
           >
             {t('查询')}
           </Button>
           <Button
             type='tertiary'
             onClick={handleReset}
-            className="flex-1 md:flex-initial md:w-auto"
-            size="small"
+            className='flex-1 md:flex-initial md:w-auto'
+            size='small'
           >
             {t('重置')}
           </Button>
@@ -113,4 +112,4 @@ const UsersFilters = ({
   );
 };
 
-export default UsersFilters; 
+export default UsersFilters;

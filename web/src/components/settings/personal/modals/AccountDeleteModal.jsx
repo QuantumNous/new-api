@@ -32,13 +32,13 @@ const AccountDeleteModal = ({
   userState,
   turnstileEnabled,
   turnstileSiteKey,
-  setTurnstileToken
+  setTurnstileToken,
 }) => {
   return (
     <Modal
       title={
-        <div className="flex items-center">
-          <IconDelete className="mr-2 text-red-500" />
+        <div className='flex items-center'>
+          <IconDelete className='mr-2 text-red-500' />
           {t('删除账户确认')}
         </div>
       }
@@ -47,35 +47,37 @@ const AccountDeleteModal = ({
       onOk={deleteAccount}
       size={'small'}
       centered={true}
-      className="modern-modal"
+      className='modern-modal'
     >
-      <div className="space-y-4 py-4">
+      <div className='space-y-4 py-4'>
         <Banner
           type='danger'
           description={t('您正在删除自己的帐户，将清空所有数据且不可恢复')}
           closeIcon={null}
-          className="!rounded-lg"
+          className='!rounded-lg'
         />
 
         <div>
-          <Typography.Text strong className="block mb-2 text-red-600">
+          <Typography.Text strong className='block mb-2 text-red-600'>
             {t('请输入您的用户名以确认删除')}
           </Typography.Text>
           <Input
-            placeholder={t('输入你的账户名{{username}}以确认删除', { username: ` ${userState?.user?.username} ` })}
+            placeholder={t('输入你的账户名{{username}}以确认删除', {
+              username: ` ${userState?.user?.username} `,
+            })}
             name='self_account_deletion_confirmation'
             value={inputs.self_account_deletion_confirmation}
             onChange={(value) =>
               handleInputChange('self_account_deletion_confirmation', value)
             }
-            size="large"
-            className="!rounded-lg"
+            size='large'
+            className='!rounded-lg'
             prefix={<IconUser />}
           />
         </div>
 
         {turnstileEnabled && (
-          <div className="flex justify-center">
+          <div className='flex justify-center'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {

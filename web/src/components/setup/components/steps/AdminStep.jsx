@@ -31,7 +31,7 @@ const AdminStep = ({
   setFormData,
   formRef,
   renderNavigationButtons,
-  t
+  t,
 }) => {
   return (
     <>
@@ -40,11 +40,11 @@ const AdminStep = ({
           type='info'
           closeIcon={null}
           description={
-            <div className="flex items-center">
+            <div className='flex items-center'>
               <span>{t('管理员账号已经初始化过，请继续设置其他参数')}</span>
             </div>
           }
-          className="!rounded-lg"
+          className='!rounded-lg'
         />
       ) : (
         <>
@@ -55,7 +55,7 @@ const AdminStep = ({
             prefix={<IconUser />}
             showClear
             noLabel={false}
-            validateStatus="default"
+            validateStatus='default'
             rules={[{ required: true, message: t('请输入管理员用户名') }]}
             initValue={formData.username || ''}
             onChange={(value) => {
@@ -70,11 +70,11 @@ const AdminStep = ({
             prefix={<IconLock />}
             showClear
             noLabel={false}
-            mode="password"
-            validateStatus="default"
+            mode='password'
+            validateStatus='default'
             rules={[
               { required: true, message: t('请输入管理员密码') },
-              { min: 8, message: t('密码长度至少为8个字符') }
+              { min: 8, message: t('密码长度至少为8个字符') },
             ]}
             initValue={formData.password || ''}
             onChange={(value) => {
@@ -89,8 +89,8 @@ const AdminStep = ({
             prefix={<IconLock />}
             showClear
             noLabel={false}
-            mode="password"
-            validateStatus="default"
+            mode='password'
+            validateStatus='default'
             rules={[
               { required: true, message: t('请确认管理员密码') },
               {
@@ -102,8 +102,8 @@ const AdminStep = ({
                     }
                   }
                   return Promise.resolve();
-                }
-              }
+                },
+              },
             ]}
             initValue={formData.confirmPassword || ''}
             onChange={(value) => {

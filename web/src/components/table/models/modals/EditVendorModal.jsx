@@ -18,12 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  Modal,
-  Form,
-  Col,
-  Row,
-} from '@douyinfe/semi-ui';
+import { Modal, Form, Col, Row } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { Typography } from '@douyinfe/semi-ui';
 import { IconLink } from '@douyinfe/semi-icons';
@@ -138,7 +133,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
         <Row gutter={12}>
           <Col span={24}>
             <Form.Input
-              field="name"
+              field='name'
               label={t('供应商名称')}
               placeholder={t('请输入供应商名称，如：OpenAI')}
               rules={[{ required: true, message: t('请输入供应商名称') }]}
@@ -147,7 +142,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
           </Col>
           <Col span={24}>
             <Form.TextArea
-              field="description"
+              field='description'
               label={t('描述')}
               placeholder={t('请输入供应商描述')}
               rows={3}
@@ -156,14 +151,19 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
           </Col>
           <Col span={24}>
             <Form.Input
-              field="icon"
+              field='icon'
               label={t('供应商图标')}
-              placeholder={t("请输入图标名称")}
+              placeholder={t('请输入图标名称')}
               extraText={
                 <span>
-                  {t('图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={\'platform\'}、OpenRouter.Avatar.shape={\'square\'}，查询所有可用图标请 ')}
+                  {t(
+                    "图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={'platform'}、OpenRouter.Avatar.shape={'square'}，查询所有可用图标请 ",
+                  )}
                   <Typography.Text
-                    link={{ href: 'https://icons.lobehub.com/components/lobe-hub', target: '_blank' }}
+                    link={{
+                      href: 'https://icons.lobehub.com/components/lobe-hub',
+                      target: '_blank',
+                    }}
                     icon={<IconLink />}
                     underline
                   >
@@ -175,11 +175,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
             />
           </Col>
           <Col span={24}>
-            <Form.Switch
-              field="status"
-              label={t('状态')}
-              initValue={true}
-            />
+            <Form.Switch field='status' label={t('状态')} initValue={true} />
           </Col>
         </Row>
       </Form>

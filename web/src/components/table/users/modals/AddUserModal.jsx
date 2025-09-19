@@ -33,11 +33,7 @@ import {
   Row,
   Col,
 } from '@douyinfe/semi-ui';
-import {
-  IconSave,
-  IconClose,
-  IconUserAdd,
-} from '@douyinfe/semi-icons';
+import { IconSave, IconClose, IconUserAdd } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
 const { Text, Title } = Typography;
@@ -80,8 +76,10 @@ const AddUserModal = (props) => {
         placement={'left'}
         title={
           <Space>
-            <Tag color="green" shape="circle">{t('新建')}</Tag>
-            <Title heading={4} className="m-0">
+            <Tag color='green' shape='circle'>
+              {t('新建')}
+            </Tag>
+            <Title heading={4} className='m-0'>
               {t('添加用户')}
             </Title>
           </Space>
@@ -90,10 +88,10 @@ const AddUserModal = (props) => {
         visible={props.visible}
         width={isMobile ? '100%' : 600}
         footer={
-          <div className="flex justify-end bg-white">
+          <div className='flex justify-end bg-white'>
             <Space>
               <Button
-                theme="solid"
+                theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
                 loading={loading}
@@ -101,8 +99,8 @@ const AddUserModal = (props) => {
                 {t('提交')}
               </Button>
               <Button
-                theme="light"
-                type="primary"
+                theme='light'
+                type='primary'
                 onClick={handleCancel}
                 icon={<IconClose />}
               >
@@ -117,7 +115,7 @@ const AddUserModal = (props) => {
         <Spin spinning={loading}>
           <Form
             initValues={getInitValues()}
-            getFormApi={(api) => formApiRef.current = api}
+            getFormApi={(api) => (formApiRef.current = api)}
             onSubmit={submit}
             onSubmitFail={(errs) => {
               const first = Object.values(errs)[0];
@@ -125,15 +123,17 @@ const AddUserModal = (props) => {
               formApiRef.current?.scrollToError();
             }}
           >
-            <div className="p-2">
-              <Card className="!rounded-2xl shadow-sm border-0">
-                <div className="flex items-center mb-2">
-                  <Avatar size="small" color="blue" className="mr-2 shadow-md">
+            <div className='p-2'>
+              <Card className='!rounded-2xl shadow-sm border-0'>
+                <div className='flex items-center mb-2'>
+                  <Avatar size='small' color='blue' className='mr-2 shadow-md'>
                     <IconUserAdd size={16} />
                   </Avatar>
                   <div>
-                    <Text className="text-lg font-medium">{t('用户信息')}</Text>
-                    <div className="text-xs text-gray-600">{t('创建新用户账户')}</div>
+                    <Text className='text-lg font-medium'>{t('用户信息')}</Text>
+                    <div className='text-xs text-gray-600'>
+                      {t('创建新用户账户')}
+                    </div>
                   </div>
                 </div>
 
@@ -183,4 +183,4 @@ const AddUserModal = (props) => {
   );
 };
 
-export default AddUserModal; 
+export default AddUserModal;

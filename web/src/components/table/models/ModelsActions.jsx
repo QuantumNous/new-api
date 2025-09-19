@@ -21,10 +21,12 @@ import React, { useState } from 'react';
 import MissingModelsModal from './modals/MissingModelsModal';
 import PrefillGroupManagement from './modals/PrefillGroupManagement';
 import EditPrefillGroupModal from './modals/EditPrefillGroupModal';
-import { Button, Modal } from '@douyinfe/semi-ui';
+import { Button, Modal, Popover, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import { showSuccess, showError, copy } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import SelectionNotification from './components/SelectionNotification';
+import UpstreamConflictModal from './modals/UpstreamConflictModal';
+import SyncWizardModal from './modals/SyncWizardModal';
 
 const ModelsActions = ({
   selectedKeys,
@@ -32,6 +34,11 @@ const ModelsActions = ({
   setEditingModel,
   setShowEdit,
   batchDeleteModels,
+  syncing,
+  previewing,
+  syncUpstream,
+  previewUpstreamDiff,
+  applyUpstreamOverwrite,
   compactMode,
   setCompactMode,
   t,
@@ -42,6 +49,23 @@ const ModelsActions = ({
   const [showGroupManagement, setShowGroupManagement] = useState(false);
   const [showAddPrefill, setShowAddPrefill] = useState(false);
   const [prefillInit, setPrefillInit] = useState({ id: undefined });
+  const [showConflict, setShowConflict] = useState(false);
+  const [conflicts, setConflicts] = useState([]);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncLocale, setSyncLocale] = useState('zh');
+
+  const handleSyncUpstream = async (locale) => {
+    // 先预览
+    const data = await previewUpstreamDiff?.({ locale });
+    const conflictItems = data?.conflicts || [];
+    if (conflictItems.length > 0) {
+      setConflicts(conflictItems);
+      setShowConflict(true);
+      return;
+    }
+    // 无冲突，直接同步缺失
+    await syncUpstream?.({ locale });
+  };
 
   // Handle delete selected models with confirmation
   const handleDeleteSelectedModels = () => {
@@ -61,7 +85,7 @@ const ModelsActions = ({
 
   // Handle add selected models to prefill group
   const handleCopyNames = async () => {
-    const text = selectedKeys.map(m => m.model_name).join(',');
+    const text = selectedKeys.map((m) => m.model_name).join(',');
     if (!text) return;
     const ok = await copy(text);
     if (ok) {
@@ -80,34 +104,69 @@ const ModelsActions = ({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1">
+      <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
-          type="primary"
-          className="flex-1 md:flex-initial"
+          type='primary'
+          className='flex-1 md:flex-initial'
           onClick={() => {
             setEditingModel({
               id: undefined,
             });
             setShowEdit(true);
           }}
-          size="small"
+          size='small'
         >
           {t('添加模型')}
         </Button>
 
         <Button
-          type="secondary"
-          className="flex-1 md:flex-initial"
-          size="small"
+          type='secondary'
+          className='flex-1 md:flex-initial'
+          size='small'
           onClick={() => setShowMissingModal(true)}
         >
           {t('未配置模型')}
         </Button>
 
+        <Popover
+          position='bottom'
+          trigger='hover'
+          content={
+            <div className='p-2 max-w-[360px]'>
+              <div className='text-[var(--semi-color-text-2)] text-sm'>
+                {t(
+                  '模型社区需要大家的共同维护，如发现数据有误或想贡献新的模型数据，请访问：',
+                )}
+              </div>
+              <a
+                href='https://github.com/basellm/llm-metadata'
+                target='_blank'
+                rel='noreferrer'
+                className='text-blue-600 underline'
+              >
+                https://github.com/basellm/llm-metadata
+              </a>
+            </div>
+          }
+        >
+          <Button
+            type='secondary'
+            className='flex-1 md:flex-initial'
+            size='small'
+            loading={syncing || previewing}
+            onClick={() => {
+              setSyncLocale('zh');
+              setShowSyncModal(true);
+            }}
+          >
+            {t('同步')}
+          </Button>
+        </Popover>
+
         <Button
-          type="secondary"
-          className="flex-1 md:flex-initial"
-          size="small"
+          type='secondary'
+          className='flex-1 md:flex-initial'
+          size='small'
           onClick={() => setShowGroupManagement(true)}
         >
           {t('预填组管理')}
@@ -134,12 +193,28 @@ const ModelsActions = ({
         visible={showDeleteModal}
         onCancel={() => setShowDeleteModal(false)}
         onOk={handleConfirmDelete}
-        type="warning"
+        type='warning'
       >
         <div>
-          {t('确定要删除所选的 {{count}} 个模型吗？', { count: selectedKeys.length })}
+          {t('确定要删除所选的 {{count}} 个模型吗？', {
+            count: selectedKeys.length,
+          })}
         </div>
       </Modal>
+
+      <SyncWizardModal
+        visible={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        loading={syncing || previewing}
+        t={t}
+        onConfirm={async ({ option, locale }) => {
+          setSyncLocale(locale);
+          if (option === 'official') {
+            await handleSyncUpstream(locale);
+          }
+          setShowSyncModal(false);
+        }}
+      />
 
       <MissingModelsModal
         visible={showMissingModal}
@@ -162,6 +237,20 @@ const ModelsActions = ({
         onClose={() => setShowAddPrefill(false)}
         editingGroup={prefillInit}
         onSuccess={() => setShowAddPrefill(false)}
+      />
+
+      <UpstreamConflictModal
+        visible={showConflict}
+        onClose={() => setShowConflict(false)}
+        conflicts={conflicts}
+        onSubmit={async (payload) => {
+          return await applyUpstreamOverwrite?.({
+            overwrite: payload,
+            locale: syncLocale,
+          });
+        }}
+        t={t}
+        loading={syncing}
       />
     </>
   );

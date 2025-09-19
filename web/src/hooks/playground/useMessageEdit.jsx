@@ -20,7 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useState, useRef } from 'react';
 import { Toast, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { getTextContent, buildApiPayload, createLoadingAssistantMessage } from '../../helpers';
+import {
+  getTextContent,
+  buildApiPayload,
+  createLoadingAssistantMessage,
+} from '../../helpers';
 import { MESSAGE_ROLES } from '../../constants/playground.constants';
 
 export const useMessageEdit = (
@@ -28,7 +32,7 @@ export const useMessageEdit = (
   inputs,
   parameterEnabled,
   sendRequest,
-  saveMessages
+  saveMessages,
 ) => {
   const { t } = useTranslation();
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -45,31 +49,36 @@ export const useMessageEdit = (
   const handleEditSave = useCallback(() => {
     if (!editingMessageId || !editValue.trim()) return;
 
-    setMessage(prevMessages => {
-      let messageIndex = prevMessages.findIndex(msg => msg === editingMessageRef.current);
+    setMessage((prevMessages) => {
+      let messageIndex = prevMessages.findIndex(
+        (msg) => msg === editingMessageRef.current,
+      );
 
       if (messageIndex === -1) {
-        messageIndex = prevMessages.findIndex(msg => msg.id === editingMessageId);
+        messageIndex = prevMessages.findIndex(
+          (msg) => msg.id === editingMessageId,
+        );
       }
 
       const targetMessage = prevMessages[messageIndex];
       let newContent;
 
       if (Array.isArray(targetMessage.content)) {
-        newContent = targetMessage.content.map(item =>
-          item.type === 'text' ? { ...item, text: editValue.trim() } : item
+        newContent = targetMessage.content.map((item) =>
+          item.type === 'text' ? { ...item, text: editValue.trim() } : item,
         );
       } else {
         newContent = editValue.trim();
       }
 
-      const updatedMessages = prevMessages.map(msg =>
-        msg.id === editingMessageId ? { ...msg, content: newContent } : msg
+      const updatedMessages = prevMessages.map((msg) =>
+        msg.id === editingMessageId ? { ...msg, content: newContent } : msg,
       );
 
       // 处理用户消息编辑后的重新生成
       if (targetMessage.role === MESSAGE_ROLES.USER) {
-        const hasSubsequentAssistantReply = messageIndex < prevMessages.length - 1 &&
+        const hasSubsequentAssistantReply =
+          messageIndex < prevMessages.length - 1 &&
           prevMessages[messageIndex + 1].role === MESSAGE_ROLES.ASSISTANT;
 
         if (hasSubsequentAssistantReply) {
@@ -79,14 +88,25 @@ export const useMessageEdit = (
             okText: t('重新生成'),
             cancelText: t('仅保存'),
             onOk: () => {
-              const messagesUntilUser = updatedMessages.slice(0, messageIndex + 1);
+              const messagesUntilUser = updatedMessages.slice(
+                0,
+                messageIndex + 1,
+              );
               setMessage(messagesUntilUser);
               // 编辑后保存（重新生成的情况），传入更新后的消息列表
               setTimeout(() => saveMessages(messagesUntilUser), 0);
 
               setTimeout(() => {
-                const payload = buildApiPayload(messagesUntilUser, null, inputs, parameterEnabled);
-                setMessage(prevMsg => [...prevMsg, createLoadingAssistantMessage()]);
+                const payload = buildApiPayload(
+                  messagesUntilUser,
+                  null,
+                  inputs,
+                  parameterEnabled,
+                );
+                setMessage((prevMsg) => [
+                  ...prevMsg,
+                  createLoadingAssistantMessage(),
+                ]);
                 sendRequest(payload, inputs.stream);
               }, 100);
             },
@@ -94,7 +114,7 @@ export const useMessageEdit = (
               setMessage(updatedMessages);
               // 编辑后保存（仅保存的情况），传入更新后的消息列表
               setTimeout(() => saveMessages(updatedMessages), 0);
-            }
+            },
           });
           return prevMessages;
         }
@@ -109,7 +129,16 @@ export const useMessageEdit = (
     editingMessageRef.current = null;
     setEditValue('');
     Toast.success({ content: t('消息已更新'), duration: 2 });
-  }, [editingMessageId, editValue, t, inputs, parameterEnabled, sendRequest, setMessage, saveMessages]);
+  }, [
+    editingMessageId,
+    editValue,
+    t,
+    inputs,
+    parameterEnabled,
+    sendRequest,
+    setMessage,
+    saveMessages,
+  ]);
 
   const handleEditCancel = useCallback(() => {
     setEditingMessageId(null);
@@ -123,6 +152,6 @@ export const useMessageEdit = (
     setEditValue,
     handleMessageEdit,
     handleEditSave,
-    handleEditCancel
+    handleEditCancel,
   };
-}; 
+};

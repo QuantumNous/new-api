@@ -21,15 +21,21 @@ import React from 'react';
 import { Tag, Button, Space, Popover, Dropdown } from '@douyinfe/semi-ui';
 import { IconMore } from '@douyinfe/semi-icons';
 import { renderQuota, timestamp2string } from '../../../helpers';
-import { REDEMPTION_STATUS, REDEMPTION_STATUS_MAP, REDEMPTION_ACTIONS } from '../../../constants/redemption.constants';
+import {
+  REDEMPTION_STATUS,
+  REDEMPTION_STATUS_MAP,
+  REDEMPTION_ACTIONS,
+} from '../../../constants/redemption.constants';
 
 /**
  * Check if redemption code is expired
  */
 export const isExpired = (record) => {
-  return record.status === REDEMPTION_STATUS.UNUSED &&
+  return (
+    record.status === REDEMPTION_STATUS.UNUSED &&
     record.expired_time !== 0 &&
-    record.expired_time < Math.floor(Date.now() / 1000);
+    record.expired_time < Math.floor(Date.now() / 1000)
+  );
 };
 
 /**
@@ -45,7 +51,9 @@ const renderTimestamp = (timestamp) => {
 const renderStatus = (status, record, t) => {
   if (isExpired(record)) {
     return (
-      <Tag color='orange' shape='circle'>{t('已过期')}</Tag>
+      <Tag color='orange' shape='circle'>
+        {t('已过期')}
+      </Tag>
     );
   }
 
@@ -77,7 +85,7 @@ export const getRedemptionsColumns = ({
   refresh,
   redemptions,
   activePage,
-  showDeleteRedemptionModal
+  showDeleteRedemptionModal,
 }) => {
   return [
     {
@@ -145,7 +153,7 @@ export const getRedemptionsColumns = ({
             onClick: () => {
               showDeleteRedemptionModal(record);
             },
-          }
+          },
         ];
 
         if (record.status === REDEMPTION_STATUS.UNUSED && !isExpired(record)) {
@@ -171,16 +179,17 @@ export const getRedemptionsColumns = ({
 
         return (
           <Space>
-            <Popover content={record.key} style={{ padding: 20 }} position='top'>
-              <Button
-                type='tertiary'
-                size="small"
-              >
+            <Popover
+              content={record.key}
+              style={{ padding: 20 }}
+              position='top'
+            >
+              <Button type='tertiary' size='small'>
                 {t('查看')}
               </Button>
             </Popover>
             <Button
-              size="small"
+              size='small'
               onClick={async () => {
                 await copyText(record.key);
               }}
@@ -189,7 +198,7 @@ export const getRedemptionsColumns = ({
             </Button>
             <Button
               type='tertiary'
-              size="small"
+              size='small'
               onClick={() => {
                 setEditingRedemption(record);
                 setShowEdit(true);
@@ -203,15 +212,11 @@ export const getRedemptionsColumns = ({
               position='bottomRight'
               menu={moreMenuItems}
             >
-              <Button
-                type='tertiary'
-                size="small"
-                icon={<IconMore />}
-              />
+              <Button type='tertiary' size='small' icon={<IconMore />} />
             </Dropdown>
           </Space>
         );
       },
     },
   ];
-}; 
+};

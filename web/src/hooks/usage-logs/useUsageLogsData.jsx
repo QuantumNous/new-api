@@ -35,7 +35,7 @@ import {
   renderLogContent,
   renderAudioModelPrice,
   renderClaudeModelPrice,
-  renderModelPrice
+  renderModelPrice,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -75,7 +75,9 @@ export const useLogsData = () => {
   // User and admin
   const isAdminUser = isAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
-  const STORAGE_KEY = isAdminUser ? 'logs-table-columns-admin' : 'logs-table-columns-user';
+  const STORAGE_KEY = isAdminUser
+    ? 'logs-table-columns-admin'
+    : 'logs-table-columns-user';
 
   // Statistics state
   const [stat, setStat] = useState({
@@ -352,28 +354,28 @@ export const useLogsData = () => {
           key: t('日志详情'),
           value: other?.claude
             ? renderClaudeLogContent(
-              other?.model_ratio,
-              other.completion_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_ratio || 1.0,
-              other.cache_creation_ratio || 1.0,
-            )
+                other?.model_ratio,
+                other.completion_ratio,
+                other.model_price,
+                other.group_ratio,
+                other?.user_group_ratio,
+                other.cache_ratio || 1.0,
+                other.cache_creation_ratio || 1.0,
+              )
             : renderLogContent(
-              other?.model_ratio,
-              other.completion_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_ratio || 1.0,
-              false,
-              1.0,
-              other.web_search || false,
-              other.web_search_call_count || 0,
-              other.file_search || false,
-              other.file_search_call_count || 0,
-            ),
+                other?.model_ratio,
+                other.completion_ratio,
+                other.model_price,
+                other.group_ratio,
+                other?.user_group_ratio,
+                other.cache_ratio || 1.0,
+                false,
+                1.0,
+                other.web_search || false,
+                other.web_search_call_count || 0,
+                other.file_search || false,
+                other.file_search_call_count || 0,
+              ),
         });
       }
       if (logs[i].type === 2) {
@@ -514,7 +516,7 @@ export const useLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => { });
+    loadLogs(page, pageSize).then((r) => {});
   };
 
   const handlePageSizeChange = async (size) => {
@@ -624,4 +626,4 @@ export const useLogsData = () => {
     // Translation
     t,
   };
-}; 
+};

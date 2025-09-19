@@ -22,7 +22,7 @@ import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
-  IllustrationNoResultDark
+  IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getUsersColumns } from './UsersColumnDefs';
 import PromoteUserModal from './modals/PromoteUserModal';
@@ -103,23 +103,21 @@ const UsersTable = (usersData) => {
       showPromoteModal: showPromoteUserModal,
       showDemoteModal: showDemoteUserModal,
       showEnableDisableModal: showEnableDisableUserModal,
-      showDeleteModal: showDeleteUserModal
+      showDeleteModal: showDeleteUserModal,
     });
-  }, [
-    t,
-    setEditingUser,
-    setShowEditUser,
-  ]);
+  }, [t, setEditingUser, setShowEditUser]);
 
   // Handle compact mode by removing fixed positioning
   const tableColumns = useMemo(() => {
-    return compactMode ? columns.map(col => {
-      if (col.dataIndex === 'operate') {
-        const { fixed, ...rest } = col;
-        return rest;
-      }
-      return col;
-    }) : columns;
+    return compactMode
+      ? columns.map((col) => {
+          if (col.dataIndex === 'operate') {
+            const { fixed, ...rest } = col;
+            return rest;
+          }
+          return col;
+        })
+      : columns;
   }, [compactMode, columns]);
 
   return (
@@ -143,13 +141,15 @@ const UsersTable = (usersData) => {
         empty={
           <Empty
             image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+            darkModeImage={
+              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+            }
             description={t('搜索无结果')}
             style={{ padding: 30 }}
           />
         }
-        className="overflow-hidden"
-        size="middle"
+        className='overflow-hidden'
+        size='middle'
       />
 
       {/* Modal components */}
@@ -192,4 +192,4 @@ const UsersTable = (usersData) => {
   );
 };
 
-export default UsersTable; 
+export default UsersTable;

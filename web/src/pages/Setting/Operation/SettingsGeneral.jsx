@@ -18,15 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  Row,
-  Spin,
-  Modal,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Row, Spin, Modal } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,

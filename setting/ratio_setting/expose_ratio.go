@@ -5,13 +5,13 @@ import "sync/atomic"
 var exposeRatioEnabled atomic.Bool
 
 func init() {
-    exposeRatioEnabled.Store(false)
+	exposeRatioEnabled.Store(false)
 }
 
 func SetExposeRatioEnabled(enabled bool) {
-    exposeRatioEnabled.Store(enabled)
+	exposeRatioEnabled.Store(enabled)
 }
 
 func IsExposeRatioEnabled() bool {
-    return exposeRatioEnabled.Load()
-} 
+	return exposeRatioEnabled.Load()
+}

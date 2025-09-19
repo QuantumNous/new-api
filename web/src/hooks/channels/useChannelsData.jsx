@@ -25,9 +25,13 @@ import {
   showInfo,
   showSuccess,
   loadChannelModels,
-  copy
+  copy,
 } from '../../helpers';
-import { CHANNEL_OPTIONS, ITEMS_PER_PAGE, MODEL_TABLE_PAGE_SIZE } from '../../constants';
+import {
+  CHANNEL_OPTIONS,
+  ITEMS_PER_PAGE,
+  MODEL_TABLE_PAGE_SIZE,
+} from '../../constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import { Modal } from '@douyinfe/semi-ui';
@@ -64,7 +68,7 @@ export const useChannelsData = () => {
 
   // Status filter
   const [statusFilter, setStatusFilter] = useState(
-    localStorage.getItem('channel-status-filter') || 'all'
+    localStorage.getItem('channel-status-filter') || 'all',
   );
 
   // Type tabs states
@@ -115,9 +119,12 @@ export const useChannelsData = () => {
   // Initialize from localStorage
   useEffect(() => {
     const localIdSort = localStorage.getItem('id-sort') === 'true';
-    const localPageSize = parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
-    const localEnableTagMode = localStorage.getItem('enable-tag-mode') === 'true';
-    const localEnableBatchDelete = localStorage.getItem('enable-batch-delete') === 'true';
+    const localPageSize =
+      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
+    const localEnableTagMode =
+      localStorage.getItem('enable-tag-mode') === 'true';
+    const localEnableBatchDelete =
+      localStorage.getItem('enable-batch-delete') === 'true';
 
     setIdSort(localIdSort);
     setPageSize(localPageSize);
@@ -175,7 +182,10 @@ export const useChannelsData = () => {
   // Save column preferences
   useEffect(() => {
     if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem('channels-table-columns', JSON.stringify(visibleColumns));
+      localStorage.setItem(
+        'channels-table-columns',
+        JSON.stringify(visibleColumns),
+      );
     }
   }, [visibleColumns]);
 
@@ -289,14 +299,21 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword !== '' || searchGroup !== '' || searchModel !== '') {
       setLoading(true);
-      await searchChannels(enableTagMode, typeKey, statusF, page, pageSize, idSort);
+      await searchChannels(
+        enableTagMode,
+        typeKey,
+        statusF,
+        page,
+        pageSize,
+        idSort,
+      );
       setLoading(false);
       return;
     }
 
     const reqId = ++requestCounter.current;
     setLoading(true);
-    const typeParam = (typeKey !== 'all') ? `&type=${typeKey}` : '';
+    const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
     const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
     const res = await API.get(
       `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
@@ -310,7 +327,10 @@ export const useChannelsData = () => {
     if (success) {
       const { items, total, type_counts } = data;
       if (type_counts) {
-        const sumAll = Object.values(type_counts).reduce((acc, v) => acc + v, 0);
+        const sumAll = Object.values(type_counts).reduce(
+          (acc, v) => acc + v,
+          0,
+        );
         setTypeCounts({ ...type_counts, all: sumAll });
       }
       setChannelFormat(items, enableTagMode);
@@ -334,11 +354,18 @@ export const useChannelsData = () => {
     setSearching(true);
     try {
       if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-        await loadChannels(page, pageSz, sortFlag, enableTagMode, typeKey, statusF);
+        await loadChannels(
+          page,
+          pageSz,
+          sortFlag,
+          enableTagMode,
+          typeKey,
+          statusF,
+        );
         return;
       }
 
-      const typeParam = (typeKey !== 'all') ? `&type=${typeKey}` : '';
+      const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
       const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
       const res = await API.get(
         `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
@@ -346,7 +373,10 @@ export const useChannelsData = () => {
       const { success, message, data } = res.data;
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
-        const sumAll = Object.values(type_counts).reduce((acc, v) => acc + v, 0);
+        const sumAll = Object.values(type_counts).reduce(
+          (acc, v) => acc + v,
+          0,
+        );
         setTypeCounts({ ...type_counts, all: sumAll });
         setChannelFormat(items, enableTagMode);
         setChannelCount(total);
@@ -365,7 +395,14 @@ export const useChannelsData = () => {
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
       await loadChannels(page, pageSize, idSort, enableTagMode);
     } else {
-      await searchChannels(enableTagMode, activeTypeKey, statusFilter, page, pageSize, idSort);
+      await searchChannels(
+        enableTagMode,
+        activeTypeKey,
+        statusFilter,
+        page,
+        pageSize,
+        idSort,
+      );
     }
   };
 
@@ -451,9 +488,16 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     setActivePage(page);
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(page, pageSize, idSort, enableTagMode).then(() => { });
+      loadChannels(page, pageSize, idSort, enableTagMode).then(() => {});
     } else {
-      searchChannels(enableTagMode, activeTypeKey, statusFilter, page, pageSize, idSort);
+      searchChannels(
+        enableTagMode,
+        activeTypeKey,
+        statusFilter,
+        page,
+        pageSize,
+        idSort,
+      );
     }
   };
 
@@ -469,7 +513,14 @@ export const useChannelsData = () => {
           showError(reason);
         });
     } else {
-      searchChannels(enableTagMode, activeTypeKey, statusFilter, 1, size, idSort);
+      searchChannels(
+        enableTagMode,
+        activeTypeKey,
+        statusFilter,
+        1,
+        size,
+        idSort,
+      );
     }
   };
 
@@ -500,7 +551,10 @@ export const useChannelsData = () => {
         showError(res?.data?.message || t('渠道复制失败'));
       }
     } catch (error) {
-      showError(t('渠道复制失败: ') + (error?.response?.data?.message || error?.message || error));
+      showError(
+        t('渠道复制失败: ') +
+          (error?.response?.data?.message || error?.message || error),
+      );
     }
   };
 
@@ -539,7 +593,11 @@ export const useChannelsData = () => {
         data.priority = parseInt(data.priority);
         break;
       case 'weight':
-        if (data.weight === undefined || data.weight < 0 || data.weight === '') {
+        if (
+          data.weight === undefined ||
+          data.weight < 0 ||
+          data.weight === ''
+        ) {
           showInfo('权重必须是非负整数！');
           return;
         }
@@ -682,7 +740,11 @@ export const useChannelsData = () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
     if (success) {
-      showSuccess(t('已修复 ${success} 个通道，失败 ${fails} 个通道。').replace('${success}', data.success).replace('${fails}', data.fails));
+      showSuccess(
+        t('已修复 ${success} 个通道，失败 ${fails} 个通道。')
+          .replace('${success}', data.success)
+          .replace('${fails}', data.fails),
+      );
       await refresh();
     } else {
       showError(message);
@@ -691,7 +753,7 @@ export const useChannelsData = () => {
 
   // Test channel
   const testChannel = async (record, model) => {
-    setTestQueue(prev => [...prev, { channel: record, model }]);
+    setTestQueue((prev) => [...prev, { channel: record, model }]);
     if (!isProcessingQueue) {
       setIsProcessingQueue(true);
     }
@@ -710,21 +772,28 @@ export const useChannelsData = () => {
       } else {
         const filteredModelsList = currentTestChannel.models
           .split(',')
-          .filter((m) => m.toLowerCase().includes(modelSearchKeyword.toLowerCase()));
+          .filter((m) =>
+            m.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
+          );
         const modelIdx = filteredModelsList.indexOf(model);
-        pageNo = modelIdx !== -1 ? Math.floor(modelIdx / MODEL_TABLE_PAGE_SIZE) + 1 : 1;
+        pageNo =
+          modelIdx !== -1
+            ? Math.floor(modelIdx / MODEL_TABLE_PAGE_SIZE) + 1
+            : 1;
       }
       setModelTablePage(pageNo);
     }
 
     try {
-      setTestingModels(prev => new Set([...prev, model]));
-      const res = await API.get(`/api/channel/test/${channel.id}?model=${model}`);
+      setTestingModels((prev) => new Set([...prev, model]));
+      const res = await API.get(
+        `/api/channel/test/${channel.id}?model=${model}`,
+      );
       const { success, message, time } = res.data;
 
-      setModelTestResults(prev => ({
+      setModelTestResults((prev) => ({
         ...prev,
-        [`${channel.id}-${model}`]: { success, time }
+        [`${channel.id}-${model}`]: { success, time },
       }));
 
       if (success) {
@@ -745,14 +814,14 @@ export const useChannelsData = () => {
     } catch (error) {
       showError(error.message);
     } finally {
-      setTestingModels(prev => {
+      setTestingModels((prev) => {
         const newSet = new Set(prev);
         newSet.delete(model);
         return newSet;
       });
     }
 
-    setTestQueue(prev => prev.slice(1));
+    setTestQueue((prev) => prev.slice(1));
   };
 
   // Monitor queue changes
@@ -943,4 +1012,4 @@ export const useChannelsData = () => {
     setCompactMode,
     setActivePage,
   };
-}; 
+};

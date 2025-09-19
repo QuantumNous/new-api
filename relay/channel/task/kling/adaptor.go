@@ -38,15 +38,46 @@ type SubmitReq struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
+type TrajectoryPoint struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+type DynamicMask struct {
+	Mask         string            `json:"mask,omitempty"`
+	Trajectories []TrajectoryPoint `json:"trajectories,omitempty"`
+}
+
+type CameraConfig struct {
+	Horizontal float64 `json:"horizontal,omitempty"`
+	Vertical   float64 `json:"vertical,omitempty"`
+	Pan        float64 `json:"pan,omitempty"`
+	Tilt       float64 `json:"tilt,omitempty"`
+	Roll       float64 `json:"roll,omitempty"`
+	Zoom       float64 `json:"zoom,omitempty"`
+}
+
+type CameraControl struct {
+	Type   string        `json:"type,omitempty"`
+	Config *CameraConfig `json:"config,omitempty"`
+}
+
 type requestPayload struct {
-	Prompt      string  `json:"prompt,omitempty"`
-	Image       string  `json:"image,omitempty"`
-	Mode        string  `json:"mode,omitempty"`
-	Duration    string  `json:"duration,omitempty"`
-	AspectRatio string  `json:"aspect_ratio,omitempty"`
-	ModelName   string  `json:"model_name,omitempty"`
-	Model       string  `json:"model,omitempty"` // Compatible with upstreams that only recognize "model"
-	CfgScale    float64 `json:"cfg_scale,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	Image          string         `json:"image,omitempty"`
+	ImageTail      string         `json:"image_tail,omitempty"`
+	NegativePrompt string         `json:"negative_prompt,omitempty"`
+	Mode           string         `json:"mode,omitempty"`
+	Duration       string         `json:"duration,omitempty"`
+	AspectRatio    string         `json:"aspect_ratio,omitempty"`
+	ModelName      string         `json:"model_name,omitempty"`
+	Model          string         `json:"model,omitempty"` // Compatible with upstreams that only recognize "model"
+	CfgScale       float64        `json:"cfg_scale,omitempty"`
+	StaticMask     string         `json:"static_mask,omitempty"`
+	DynamicMasks   []DynamicMask  `json:"dynamic_masks,omitempty"`
+	CameraControl  *CameraControl `json:"camera_control,omitempty"`
+	CallbackUrl    string         `json:"callback_url,omitempty"`
+	ExternalTaskId string         `json:"external_task_id,omitempty"`
 }
 
 type responsePayload struct {
@@ -141,6 +172,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	if body.Image == "" && body.ImageTail == "" {
+		c.Set("action", constant.TaskActionTextGenerate)
+	}
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -223,14 +257,19 @@ func (a *TaskAdaptor) GetChannelName() string {
 
 func (a *TaskAdaptor) convertToRequestPayload(req *SubmitReq) (*requestPayload, error) {
 	r := requestPayload{
-		Prompt:      req.Prompt,
-		Image:       req.Image,
-		Mode:        defaultString(req.Mode, "std"),
-		Duration:    fmt.Sprintf("%d", defaultInt(req.Duration, 5)),
-		AspectRatio: a.getAspectRatio(req.Size),
-		ModelName:   req.Model,
-		Model:       req.Model, // Keep consistent with model_name, double writing improves compatibility
-		CfgScale:    0.5,
+		Prompt:         req.Prompt,
+		Image:          req.Image,
+		Mode:           defaultString(req.Mode, "std"),
+		Duration:       fmt.Sprintf("%d", defaultInt(req.Duration, 5)),
+		AspectRatio:    a.getAspectRatio(req.Size),
+		ModelName:      req.Model,
+		Model:          req.Model, // Keep consistent with model_name, double writing improves compatibility
+		CfgScale:       0.5,
+		StaticMask:     "",
+		DynamicMasks:   []DynamicMask{},
+		CameraControl:  nil,
+		CallbackUrl:    "",
+		ExternalTaskId: "",
 	}
 	if r.ModelName == "" {
 		r.ModelName = "kling-v1"

@@ -21,7 +21,10 @@ import { Toast, Pagination } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
-import { THINK_TAG_REGEX, MESSAGE_ROLES } from '../constants/playground.constants';
+import {
+  THINK_TAG_REGEX,
+  MESSAGE_ROLES,
+} from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 
@@ -95,7 +98,9 @@ let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
 let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
 let showNoticeOptions = { autoClose: false };
 
-const isMobileScreen = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches;
+const isMobileScreen = window.matchMedia(
+  `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
+).matches;
 if (isMobileScreen) {
   showErrorOptions.position = 'top-center';
   // showErrorOptions.transition = 'flip';
@@ -316,7 +321,7 @@ export const getTextContent = (message) => {
   if (!message || !message.content) return '';
 
   if (Array.isArray(message.content)) {
-    const textContent = message.content.find(item => item.type === 'text');
+    const textContent = message.content.find((item) => item.type === 'text');
     return textContent?.text || '';
   }
   return typeof message.content === 'string' ? message.content : '';
@@ -341,15 +346,19 @@ export const processThinkTags = (content, reasoningContent = '') => {
   }
   replyParts.push(content.substring(lastIndex));
 
-  const processedContent = replyParts.join('').replace(/<\/?think>/g, '').trim();
+  const processedContent = replyParts
+    .join('')
+    .replace(/<\/?think>/g, '')
+    .trim();
   const thoughtsStr = thoughts.join('\n\n---\n\n');
-  const processedReasoningContent = reasoningContent && thoughtsStr
-    ? `${reasoningContent}\n\n---\n\n${thoughtsStr}`
-    : reasoningContent || thoughtsStr;
+  const processedReasoningContent =
+    reasoningContent && thoughtsStr
+      ? `${reasoningContent}\n\n---\n\n${thoughtsStr}`
+      : reasoningContent || thoughtsStr;
 
   return {
     content: processedContent,
-    reasoningContent: processedReasoningContent
+    reasoningContent: processedReasoningContent,
   };
 };
 
@@ -364,10 +373,14 @@ export const processIncompleteThinkTags = (content, reasoningContent = '') => {
 
   const fragmentAfterLastOpen = content.substring(lastOpenThinkIndex);
   if (!fragmentAfterLastOpen.includes('</think>')) {
-    const unclosedThought = fragmentAfterLastOpen.substring('<think>'.length).trim();
+    const unclosedThought = fragmentAfterLastOpen
+      .substring('<think>'.length)
+      .trim();
     const cleanContent = content.substring(0, lastOpenThinkIndex);
     const processedReasoningContent = unclosedThought
-      ? reasoningContent ? `${reasoningContent}\n\n---\n\n${unclosedThought}` : unclosedThought
+      ? reasoningContent
+        ? `${reasoningContent}\n\n---\n\n${unclosedThought}`
+        : unclosedThought
       : reasoningContent;
 
     return processThinkTags(cleanContent, processedReasoningContent);
@@ -377,20 +390,24 @@ export const processIncompleteThinkTags = (content, reasoningContent = '') => {
 };
 
 // 构建消息内容（包含图片）
-export const buildMessageContent = (textContent, imageUrls = [], imageEnabled = false) => {
+export const buildMessageContent = (
+  textContent,
+  imageUrls = [],
+  imageEnabled = false,
+) => {
   if (!textContent && (!imageUrls || imageUrls.length === 0)) {
     return '';
   }
 
-  const validImageUrls = imageUrls.filter(url => url && url.trim() !== '');
+  const validImageUrls = imageUrls.filter((url) => url && url.trim() !== '');
 
   if (imageEnabled && validImageUrls.length > 0) {
     return [
       { type: 'text', text: textContent || '' },
-      ...validImageUrls.map(url => ({
+      ...validImageUrls.map((url) => ({
         type: 'image_url',
-        image_url: { url: url.trim() }
-      }))
+        image_url: { url: url.trim() },
+      })),
     ];
   }
 
@@ -403,27 +420,26 @@ export const createMessage = (role, content, options = {}) => ({
   content,
   createAt: Date.now(),
   id: generateMessageId(),
-  ...options
+  ...options,
 });
 
 // 创建加载中的助手消息
-export const createLoadingAssistantMessage = () => createMessage(
-  MESSAGE_ROLES.ASSISTANT,
-  '',
-  {
+export const createLoadingAssistantMessage = () =>
+  createMessage(MESSAGE_ROLES.ASSISTANT, '', {
     reasoningContent: '',
     isReasoningExpanded: true,
     isThinkingComplete: false,
     hasAutoCollapsed: false,
-    status: 'loading'
-  }
-);
+    status: 'loading',
+  });
 
 // 检查消息是否包含图片
 export const hasImageContent = (message) => {
-  return message &&
+  return (
+    message &&
     Array.isArray(message.content) &&
-    message.content.some(item => item.type === 'image_url');
+    message.content.some((item) => item.type === 'image_url')
+  );
 };
 
 // 格式化消息用于API请求
@@ -432,15 +448,13 @@ export const formatMessageForAPI = (message) => {
 
   return {
     role: message.role,
-    content: message.content
+    content: message.content,
   };
 };
 
 // 验证消息是否有效
 export const isValidMessage = (message) => {
-  return message &&
-    message.role &&
-    (message.content || message.content === '');
+  return message && message.role && (message.content || message.content === '');
 };
 
 // 获取最后一条用户消息
@@ -590,7 +604,10 @@ export const calculateModelPrice = ({
   if (selectedGroup === 'all' || usedGroupRatio === undefined) {
     // 在模型可用分组中选择倍率最小的分组，若无则使用 1
     let minRatio = Number.POSITIVE_INFINITY;
-    if (Array.isArray(record.enable_groups) && record.enable_groups.length > 0) {
+    if (
+      Array.isArray(record.enable_groups) &&
+      record.enable_groups.length > 0
+    ) {
       record.enable_groups.forEach((g) => {
         const r = groupRatio[g];
         if (r !== undefined && r < minRatio) {
@@ -611,7 +628,8 @@ export const calculateModelPrice = ({
   if (record.quota_type === 0) {
     // 按量计费
     const inputRatioPriceUSD = record.model_ratio * 2 * usedGroupRatio;
-    const completionRatioPriceUSD = record.model_ratio * record.completion_ratio * 2 * usedGroupRatio;
+    const completionRatioPriceUSD =
+      record.model_ratio * record.completion_ratio * 2 * usedGroupRatio;
 
     const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
     const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
@@ -619,8 +637,10 @@ export const calculateModelPrice = ({
     const rawDisplayInput = displayPrice(inputRatioPriceUSD);
     const rawDisplayCompletion = displayPrice(completionRatioPriceUSD);
 
-    const numInput = parseFloat(rawDisplayInput.replace(/[^0-9.]/g, '')) / unitDivisor;
-    const numCompletion = parseFloat(rawDisplayCompletion.replace(/[^0-9.]/g, '')) / unitDivisor;
+    const numInput =
+      parseFloat(rawDisplayInput.replace(/[^0-9.]/g, '')) / unitDivisor;
+    const numCompletion =
+      parseFloat(rawDisplayCompletion.replace(/[^0-9.]/g, '')) / unitDivisor;
 
     return {
       inputPrice: `${currency === 'CNY' ? '¥' : '$'}${numInput.toFixed(precision)}`,
@@ -656,22 +676,15 @@ export const calculateModelPrice = ({
 
 // 格式化价格信息（用于卡片视图）
 export const formatPriceInfo = (priceData, t) => {
-  const groupTag = priceData.usedGroup ? (
-    <span style={{ color: 'var(--semi-color-text-1)' }} className="ml-1 text-xs">
-      {t('分组')} {priceData.usedGroup}
-    </span>
-  ) : null;
-
   if (priceData.isPerToken) {
     return (
       <>
         <span style={{ color: 'var(--semi-color-text-1)' }}>
-          {t('提示')} {priceData.inputPrice}/{priceData.unitLabel}
+          {t('输入')} {priceData.inputPrice}/{priceData.unitLabel}
         </span>
         <span style={{ color: 'var(--semi-color-text-1)' }}>
-          {t('补全')} {priceData.completionPrice}/{priceData.unitLabel}
+          {t('输出')} {priceData.completionPrice}/{priceData.unitLabel}
         </span>
-        {groupTag}
       </>
     );
   }
@@ -681,7 +694,6 @@ export const formatPriceInfo = (priceData, t) => {
       <span style={{ color: 'var(--semi-color-text-1)' }}>
         {t('模型价格')} {priceData.price}
       </span>
-      {groupTag}
     </>
   );
 };
@@ -711,7 +723,7 @@ export const createCardProPagination = ({
       {/* 桌面端左侧总数信息 */}
       {!isMobile && (
         <span
-          className="text-sm select-none"
+          className='text-sm select-none'
           style={{ color: 'var(--semi-color-text-2)' }}
         >
           {totalText}
@@ -727,7 +739,7 @@ export const createCardProPagination = ({
         showSizeChanger={showSizeChanger}
         onPageSizeChange={onPageSizeChange}
         onPageChange={onPageChange}
-        size={isMobile ? "small" : "default"}
+        size={isMobile ? 'small' : 'default'}
         showQuickJumper={isMobile}
         showTotal
       />

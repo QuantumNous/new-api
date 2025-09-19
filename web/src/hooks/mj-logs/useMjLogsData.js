@@ -26,7 +26,7 @@ import {
   isAdmin,
   showError,
   showSuccess,
-  timestamp2string
+  timestamp2string,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -61,7 +61,9 @@ export const useMjLogsData = () => {
   // User and admin
   const isAdminUser = isAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
-  const STORAGE_KEY = isAdminUser ? 'mj-logs-table-columns-admin' : 'mj-logs-table-columns-user';
+  const STORAGE_KEY = isAdminUser
+    ? 'mj-logs-table-columns-admin'
+    : 'mj-logs-table-columns-user';
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,7 +79,7 @@ export const useMjLogsData = () => {
     mj_id: '',
     dateRange: [
       timestamp2string(now.getTime() / 1000 - 2592000),
-      timestamp2string(now.getTime() / 1000 + 3600)
+      timestamp2string(now.getTime() / 1000 + 3600),
     ],
   };
 
@@ -222,7 +224,8 @@ export const useMjLogsData = () => {
   // Load logs function
   const loadLogs = async (page = 1, size = pageSize) => {
     setLoading(true);
-    const { channel_id, mj_id, start_timestamp, end_timestamp } = getFormValues();
+    const { channel_id, mj_id, start_timestamp, end_timestamp } =
+      getFormValues();
     let localStartTimestamp = Date.parse(start_timestamp);
     let localEndTimestamp = Date.parse(end_timestamp);
     const url = isAdminUser
@@ -275,7 +278,8 @@ export const useMjLogsData = () => {
 
   // Initialize data
   useEffect(() => {
-    const localPageSize = parseInt(localStorage.getItem('mj-page-size')) || ITEMS_PER_PAGE;
+    const localPageSize =
+      parseInt(localStorage.getItem('mj-page-size')) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
     loadLogs(1, localPageSize).then();
   }, []);
@@ -331,4 +335,4 @@ export const useMjLogsData = () => {
     // Translation
     t,
   };
-}; 
+};

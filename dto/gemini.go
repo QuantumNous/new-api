@@ -2,12 +2,11 @@ package dto
 
 import (
 	"encoding/json"
+	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"one-api/logger"
 	"one-api/types"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 type GeminiChatRequest struct {

@@ -44,4 +44,4 @@ const ContentModal = ({
   );
 };
 
-export default ContentModal; 
+export default ContentModal;

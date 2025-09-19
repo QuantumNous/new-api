@@ -35,37 +35,50 @@ const ModelPricingTable = ({
   autoGroups = [],
   t,
 }) => {
-  const modelEnableGroups = Array.isArray(modelData?.enable_groups) ? modelData.enable_groups : [];
-  const autoChain = autoGroups.filter(g => modelEnableGroups.includes(g));
+  const modelEnableGroups = Array.isArray(modelData?.enable_groups)
+    ? modelData.enable_groups
+    : [];
+  const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
   const renderGroupPriceTable = () => {
     // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
     const availableGroups = Object.keys(usableGroup || {})
-      .filter(g => g !== '')
-      .filter(g => g !== 'auto')
-      .filter(g => modelEnableGroups.includes(g));
+      .filter((g) => g !== '')
+      .filter((g) => g !== 'auto')
+      .filter((g) => modelEnableGroups.includes(g));
 
     // 准备表格数据
-    const tableData = availableGroups.map(group => {
-      const priceData = modelData ? calculateModelPrice({
-        record: modelData,
-        selectedGroup: group,
-        groupRatio,
-        tokenUnit,
-        displayPrice,
-        currency
-      }) : { inputPrice: '-', outputPrice: '-', price: '-' };
+    const tableData = availableGroups.map((group) => {
+      const priceData = modelData
+        ? calculateModelPrice({
+            record: modelData,
+            selectedGroup: group,
+            groupRatio,
+            tokenUnit,
+            displayPrice,
+            currency,
+          })
+        : { inputPrice: '-', outputPrice: '-', price: '-' };
 
       // 获取分组倍率
-      const groupRatioValue = groupRatio && groupRatio[group] ? groupRatio[group] : 1;
+      const groupRatioValue =
+        groupRatio && groupRatio[group] ? groupRatio[group] : 1;
 
       return {
         key: group,
         group: group,
         ratio: groupRatioValue,
-        billingType: modelData?.quota_type === 0 ? t('按量计费') : (modelData?.quota_type === 1 ? t('按次计费') : '-'),
+        billingType:
+          modelData?.quota_type === 0
+            ? t('按量计费')
+            : modelData?.quota_type === 1
+              ? t('按次计费')
+              : '-',
         inputPrice: modelData?.quota_type === 0 ? priceData.inputPrice : '-',
-        outputPrice: modelData?.quota_type === 0 ? (priceData.completionPrice || priceData.outputPrice) : '-',
+        outputPrice:
+          modelData?.quota_type === 0
+            ? priceData.completionPrice || priceData.outputPrice
+            : '-',
         fixedPrice: modelData?.quota_type === 1 ? priceData.price : '-',
       };
     });
@@ -76,8 +89,9 @@ const ModelPricingTable = ({
         title: t('分组'),
         dataIndex: 'group',
         render: (text) => (
-          <Tag color="white" size="small" shape="circle">
-            {text}{t('分组')}
+          <Tag color='white' size='small' shape='circle'>
+            {text}
+            {t('分组')}
           </Tag>
         ),
       },
@@ -89,7 +103,7 @@ const ModelPricingTable = ({
         title: t('倍率'),
         dataIndex: 'ratio',
         render: (text) => (
-          <Tag color="white" size="small" shape="circle">
+          <Tag color='white' size='small' shape='circle'>
             {text}x
           </Tag>
         ),
@@ -105,7 +119,7 @@ const ModelPricingTable = ({
         if (text === t('按量计费')) color = 'violet';
         else if (text === t('按次计费')) color = 'teal';
         return (
-          <Tag color={color} size="small" shape="circle">
+          <Tag color={color} size='small' shape='circle'>
             {text || '-'}
           </Tag>
         );
@@ -121,8 +135,10 @@ const ModelPricingTable = ({
           dataIndex: 'inputPrice',
           render: (text) => (
             <>
-              <div className="font-semibold text-orange-600">{text}</div>
-              <div className="text-xs text-gray-500">/ {tokenUnit === 'K' ? '1K' : '1M'} tokens</div>
+              <div className='font-semibold text-orange-600'>{text}</div>
+              <div className='text-xs text-gray-500'>
+                / {tokenUnit === 'K' ? '1K' : '1M'} tokens
+              </div>
             </>
           ),
         },
@@ -131,11 +147,13 @@ const ModelPricingTable = ({
           dataIndex: 'outputPrice',
           render: (text) => (
             <>
-              <div className="font-semibold text-orange-600">{text}</div>
-              <div className="text-xs text-gray-500">/ {tokenUnit === 'K' ? '1K' : '1M'} tokens</div>
+              <div className='font-semibold text-orange-600'>{text}</div>
+              <div className='text-xs text-gray-500'>
+                / {tokenUnit === 'K' ? '1K' : '1M'} tokens
+              </div>
             </>
           ),
-        }
+        },
       );
     } else {
       // 按次计费
@@ -144,8 +162,8 @@ const ModelPricingTable = ({
         dataIndex: 'fixedPrice',
         render: (text) => (
           <>
-            <div className="font-semibold text-orange-600">{text}</div>
-            <div className="text-xs text-gray-500">/ 次</div>
+            <div className='font-semibold text-orange-600'>{text}</div>
+            <div className='text-xs text-gray-500'>/ 次</div>
           </>
         ),
       });
@@ -156,32 +174,37 @@ const ModelPricingTable = ({
         dataSource={tableData}
         columns={columns}
         pagination={false}
-        size="small"
+        size='small'
         bordered={false}
-        className="!rounded-lg"
+        className='!rounded-lg'
       />
     );
   };
 
   return (
-    <Card className="!rounded-2xl shadow-sm border-0">
-      <div className="flex items-center mb-4">
-        <Avatar size="small" color="orange" className="mr-2 shadow-md">
+    <Card className='!rounded-2xl shadow-sm border-0'>
+      <div className='flex items-center mb-4'>
+        <Avatar size='small' color='orange' className='mr-2 shadow-md'>
           <IconCoinMoneyStroked size={16} />
         </Avatar>
         <div>
-          <Text className="text-lg font-medium">{t('分组价格')}</Text>
-          <div className="text-xs text-gray-600">{t('不同用户分组的价格信息')}</div>
+          <Text className='text-lg font-medium'>{t('分组价格')}</Text>
+          <div className='text-xs text-gray-600'>
+            {t('不同用户分组的价格信息')}
+          </div>
         </div>
       </div>
       {autoChain.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 mb-4">
-          <span className="text-sm text-gray-600">{t('auto分组调用链路')}</span>
-          <span className="text-sm">→</span>
+        <div className='flex flex-wrap items-center gap-1 mb-4'>
+          <span className='text-sm text-gray-600'>{t('auto分组调用链路')}</span>
+          <span className='text-sm'>→</span>
           {autoChain.map((g, idx) => (
             <React.Fragment key={g}>
-              <Tag color="white" size="small" shape="circle">{g}{t('分组')}</Tag>
-              {idx < autoChain.length - 1 && <span className="text-sm">→</span>}
+              <Tag color='white' size='small' shape='circle'>
+                {g}
+                {t('分组')}
+              </Tag>
+              {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
             </React.Fragment>
           ))}
         </div>
@@ -191,4 +214,4 @@ const ModelPricingTable = ({
   );
 };
 
-export default ModelPricingTable; 
+export default ModelPricingTable;

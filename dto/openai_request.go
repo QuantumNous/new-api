@@ -265,7 +265,7 @@ type Message struct {
 	Reasoning        string          `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
-	parsedContent    *[]MediaContent
+	parsedContent    []MediaContent
 	//parsedStringContent *string
 }
 
@@ -441,7 +441,7 @@ func (m *Message) SetStringContent(content string) {
 
 func (m *Message) SetMediaContent(content []MediaContent) {
 	m.Content = content
-	m.parsedContent = &content
+	m.parsedContent = content
 }
 
 func (m *Message) IsStringContent() bool {
@@ -456,8 +456,8 @@ func (m *Message) ParseContent() []MediaContent {
 	if m.Content == nil {
 		return nil
 	}
-	if m.parsedContent != nil && len(*m.parsedContent) > 0 {
-		return *m.parsedContent
+	if len(m.parsedContent) > 0 {
+		return m.parsedContent
 	}
 
 	var contentList []MediaContent
@@ -468,7 +468,7 @@ func (m *Message) ParseContent() []MediaContent {
 			Type: ContentTypeText,
 			Text: content,
 		}}
-		m.parsedContent = &contentList
+		m.parsedContent = contentList
 		return contentList
 	}
 
@@ -580,7 +580,7 @@ func (m *Message) ParseContent() []MediaContent {
 	}
 
 	if len(contentList) > 0 {
-		m.parsedContent = &contentList
+		m.parsedContent = contentList
 	}
 	return contentList
 }
@@ -766,27 +766,27 @@ type WebSearchOptions struct {
 
 // https://platform.openai.com/docs/api-reference/responses/create
 type OpenAIResponsesRequest struct {
-	Model              string           `json:"model"`
-	Input              *json.RawMessage `json:"input,omitempty"`
-	Include            json.RawMessage  `json:"include,omitempty"`
-	Instructions       json.RawMessage  `json:"instructions,omitempty"`
-	MaxOutputTokens    uint             `json:"max_output_tokens,omitempty"`
-	Metadata           json.RawMessage  `json:"metadata,omitempty"`
-	ParallelToolCalls  bool             `json:"parallel_tool_calls,omitempty"`
-	PreviousResponseID string           `json:"previous_response_id,omitempty"`
-	Reasoning          *Reasoning       `json:"reasoning,omitempty"`
-	ServiceTier        string           `json:"service_tier,omitempty"`
-	Store              bool             `json:"store,omitempty"`
-	Stream             bool             `json:"stream,omitempty"`
-	Temperature        float64          `json:"temperature,omitempty"`
-	Text               json.RawMessage  `json:"text,omitempty"`
-	ToolChoice         json.RawMessage  `json:"tool_choice,omitempty"`
-	Tools              *json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
-	TopP               float64          `json:"top_p,omitempty"`
-	Truncation         string           `json:"truncation,omitempty"`
-	User               string           `json:"user,omitempty"`
-	MaxToolCalls       uint             `json:"max_tool_calls,omitempty"`
-	Prompt             json.RawMessage  `json:"prompt,omitempty"`
+	Model              string          `json:"model"`
+	Input              json.RawMessage `json:"input,omitempty"`
+	Include            json.RawMessage `json:"include,omitempty"`
+	Instructions       json.RawMessage `json:"instructions,omitempty"`
+	MaxOutputTokens    uint            `json:"max_output_tokens,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	ParallelToolCalls  bool            `json:"parallel_tool_calls,omitempty"`
+	PreviousResponseID string          `json:"previous_response_id,omitempty"`
+	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
+	ServiceTier        string          `json:"service_tier,omitempty"`
+	Store              bool            `json:"store,omitempty"`
+	Stream             bool            `json:"stream,omitempty"`
+	Temperature        float64         `json:"temperature,omitempty"`
+	Text               json.RawMessage `json:"text,omitempty"`
+	ToolChoice         json.RawMessage `json:"tool_choice,omitempty"`
+	Tools              json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
+	TopP               float64         `json:"top_p,omitempty"`
+	Truncation         string          `json:"truncation,omitempty"`
+	User               string          `json:"user,omitempty"`
+	MaxToolCalls       uint            `json:"max_tool_calls,omitempty"`
+	Prompt             json.RawMessage `json:"prompt,omitempty"`
 }
 
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -837,8 +837,8 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		texts = append(texts, string(r.Prompt))
 	}
 
-	if r.Tools != nil && len(*r.Tools) > 0 {
-		texts = append(texts, string(*r.Tools))
+	if len(r.Tools) > 0 {
+		texts = append(texts, string(r.Tools))
 	}
 
 	return &types.TokenCountMeta{
@@ -859,9 +859,9 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 }
 
 func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
-	var toolsMap = make([]map[string]any, 0)
-	if r.Tools != nil && len(*r.Tools) > 0 {
-		_ = common.Unmarshal(*r.Tools, &toolsMap)
+	var toolsMap []map[string]any
+	if len(r.Tools) > 0 {
+		_ = common.Unmarshal(r.Tools, &toolsMap)
 	}
 	return toolsMap
 }
@@ -896,17 +896,17 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 	// 	inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
 	// 	return inputs
 	// }
-	if common.GetJsonType(*r.Input) == "string" {
+	if common.GetJsonType(r.Input) == "string" {
 		var str string
-		_ = common.Unmarshal(*r.Input, &str)
+		_ = common.Unmarshal(r.Input, &str)
 		inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
 		return inputs
 	}
 
 	// Try array of parts
-	if common.GetJsonType(*r.Input) == "array" {
+	if common.GetJsonType(r.Input) == "array" {
 		var array []any
-		_ = common.Unmarshal(*r.Input, &array)
+		_ = common.Unmarshal(r.Input, &array)
 		for _, itemAny := range array {
 			// Already parsed MediaInput
 			if media, ok := itemAny.(MediaInput); ok {

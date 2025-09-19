@@ -26,9 +26,9 @@ const { Text } = Typography;
 
 const UsersDescription = ({ compactMode, setCompactMode, t }) => {
   return (
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
-      <div className="flex items-center text-blue-500">
-        <IconUserAdd className="mr-2" />
+    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
+      <div className='flex items-center text-blue-500'>
+        <IconUserAdd className='mr-2' />
         <Text>{t('用户管理')}</Text>
       </div>
       <CompactModeToggle
@@ -40,4 +40,4 @@ const UsersDescription = ({ compactMode, setCompactMode, t }) => {
   );
 };
 
-export default UsersDescription; 
+export default UsersDescription;

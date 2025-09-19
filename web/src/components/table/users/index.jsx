@@ -78,7 +78,7 @@ const UsersPage = () => {
       />
 
       <CardPro
-        type="type1"
+        type='type1'
         descriptionArea={
           <UsersDescription
             compactMode={compactMode}
@@ -87,11 +87,8 @@ const UsersPage = () => {
           />
         }
         actionsArea={
-          <div className="flex flex-col md:flex-row justify-between items-center gap-2 w-full">
-            <UsersActions
-              setShowAddUser={setShowAddUser}
-              t={t}
-            />
+          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+            <UsersActions setShowAddUser={setShowAddUser} t={t} />
 
             <UsersFilters
               formInitValues={formInitValues}
@@ -124,4 +121,4 @@ const UsersPage = () => {
   );
 };
 
-export default UsersPage; 
+export default UsersPage;

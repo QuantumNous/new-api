@@ -29,18 +29,25 @@ import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
  * @param {boolean} loading 是否加载中
  * @param {Function} t i18n
  */
-const PricingTags = ({ filterTag, setFilterTag, models = [], allModels = [], loading = false, t }) => {
+const PricingTags = ({
+  filterTag,
+  setFilterTag,
+  models = [],
+  allModels = [],
+  loading = false,
+  t,
+}) => {
   // 提取系统所有标签
   const getAllTags = React.useMemo(() => {
     const tagSet = new Set();
 
-    (allModels.length > 0 ? allModels : models).forEach(model => {
+    (allModels.length > 0 ? allModels : models).forEach((model) => {
       if (model.tags) {
         model.tags
           .split(/[,;|\s]+/) // 逗号、分号、竖线或空白字符
-          .map(tag => tag.trim())
+          .map((tag) => tag.trim())
           .filter(Boolean)
-          .forEach(tag => tagSet.add(tag.toLowerCase()));
+          .forEach((tag) => tagSet.add(tag.toLowerCase()));
       }
     });
 
@@ -48,19 +55,22 @@ const PricingTags = ({ filterTag, setFilterTag, models = [], allModels = [], loa
   }, [allModels, models]);
 
   // 计算标签对应的模型数量
-  const getTagCount = React.useCallback((tag) => {
-    if (tag === 'all') return models.length;
+  const getTagCount = React.useCallback(
+    (tag) => {
+      if (tag === 'all') return models.length;
 
-    const tagLower = tag.toLowerCase();
-    return models.filter(model => {
-      if (!model.tags) return false;
-      return model.tags
-        .toLowerCase()
-        .split(/[,;|\s]+/)
-        .map(tg => tg.trim())
-        .includes(tagLower);
-    }).length;
-  }, [models]);
+      const tagLower = tag.toLowerCase();
+      return models.filter((model) => {
+        if (!model.tags) return false;
+        return model.tags
+          .toLowerCase()
+          .split(/[,;|\s]+/)
+          .map((tg) => tg.trim())
+          .includes(tagLower);
+      }).length;
+    },
+    [models],
+  );
 
   const items = React.useMemo(() => {
     const result = [
@@ -69,10 +79,10 @@ const PricingTags = ({ filterTag, setFilterTag, models = [], allModels = [], loa
         label: t('全部标签'),
         tagCount: getTagCount('all'),
         disabled: models.length === 0,
-      }
+      },
     ];
 
-    getAllTags.forEach(tag => {
+    getAllTags.forEach((tag) => {
       const count = getTagCount(tag);
       result.push({
         value: tag,

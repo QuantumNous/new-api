@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
@@ -35,8 +36,13 @@ func GetOptions(c *gin.Context) {
 	return
 }
 
+type OptionUpdateRequest struct {
+	Key   string `json:"key"`
+	Value any    `json:"value"`
+}
+
 func UpdateOption(c *gin.Context) {
-	var option model.Option
+	var option OptionUpdateRequest
 	err := json.NewDecoder(c.Request.Body).Decode(&option)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -44,6 +50,16 @@ func UpdateOption(c *gin.Context) {
 			"message": "无效的参数",
 		})
 		return
+	}
+	switch option.Value.(type) {
+	case bool:
+		option.Value = common.Interface2String(option.Value.(bool))
+	case float64:
+		option.Value = common.Interface2String(option.Value.(float64))
+	case int:
+		option.Value = common.Interface2String(option.Value.(int))
+	default:
+		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
 	case "GitHubOAuthEnabled":
@@ -104,7 +120,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "GroupRatio":
-		err = ratio_setting.CheckGroupRatio(option.Value)
+		err = ratio_setting.CheckGroupRatio(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -113,7 +129,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "ModelRequestRateLimitGroup":
-		err = setting.CheckModelRequestRateLimitGroup(option.Value)
+		err = setting.CheckModelRequestRateLimitGroup(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -122,7 +138,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "console_setting.api_info":
-		err = console_setting.ValidateConsoleSettings(option.Value, "ApiInfo")
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -131,7 +147,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "console_setting.announcements":
-		err = console_setting.ValidateConsoleSettings(option.Value, "Announcements")
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "Announcements")
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -140,7 +156,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "console_setting.faq":
-		err = console_setting.ValidateConsoleSettings(option.Value, "FAQ")
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "FAQ")
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -149,7 +165,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "console_setting.uptime_kuma_groups":
-		err = console_setting.ValidateConsoleSettings(option.Value, "UptimeKumaGroups")
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "UptimeKumaGroups")
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -158,7 +174,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	}
-	err = model.UpdateOption(option.Key, option.Value)
+	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {
 		common.ApiError(c, err)
 		return

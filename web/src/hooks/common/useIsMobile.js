@@ -32,4 +32,4 @@ export const useIsMobile = () => {
     () => window.matchMedia(query).matches,
     () => false,
   );
-}; 
+};

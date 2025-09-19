@@ -95,10 +95,12 @@ export const useModelsData = () => {
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [showEditVendor, setShowEditVendor] = useState(false);
   const [editingVendor, setEditingVendor] = useState({ id: undefined });
+  const [syncing, setSyncing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   const vendorMap = useMemo(() => {
     const map = {};
-    vendors.forEach(v => {
+    vendors.forEach((v) => {
       map[v.id] = v;
     });
     return map;
@@ -118,7 +120,11 @@ export const useModelsData = () => {
   };
 
   // Load models data
-  const loadModels = async (page = 1, size = pageSize, vendorKey = activeVendorKey) => {
+  const loadModels = async (
+    page = 1,
+    size = pageSize,
+    vendorKey = activeVendorKey,
+  ) => {
     setLoading(true);
     try {
       let url = `/api/models/?p=${page}&page_size=${size}`;
@@ -136,7 +142,10 @@ export const useModelsData = () => {
         setModelFormat(newPageData);
 
         if (data.vendor_counts) {
-          const sumAll = Object.values(data.vendor_counts).reduce((acc, v) => acc + v, 0);
+          const sumAll = Object.values(data.vendor_counts).reduce(
+            (acc, v) => acc + v,
+            0,
+          );
           setVendorCounts({ ...data.vendor_counts, all: sumAll });
         }
       } else {
@@ -154,6 +163,91 @@ export const useModelsData = () => {
   // Refresh data
   const refresh = async (page = activePage) => {
     await loadModels(page, pageSize);
+  };
+
+  // Sync upstream models/vendors for missing models only
+  const syncUpstream = async (opts = {}) => {
+    const locale = opts?.locale;
+    setSyncing(true);
+    try {
+      const body = {};
+      if (locale) body.locale = locale;
+      const res = await API.post('/api/models/sync_upstream', body);
+      const { success, message, data } = res.data || {};
+      if (success) {
+        const createdModels = data?.created_models || 0;
+        const createdVendors = data?.created_vendors || 0;
+        const skipped = (data?.skipped_models || []).length || 0;
+        showSuccess(
+          t(
+            `已同步：新增 ${createdModels} 模型，新增 ${createdVendors} 供应商，跳过 ${skipped} 项`,
+          ),
+        );
+        await loadVendors();
+        await refresh();
+      } else {
+        showError(message || t('同步失败'));
+      }
+    } catch (e) {
+      showError(t('同步失败'));
+    }
+    setSyncing(false);
+  };
+
+  // Preview upstream differences
+  const previewUpstreamDiff = async (opts = {}) => {
+    const locale = opts?.locale;
+    setPreviewing(true);
+    try {
+      const url = `/api/models/sync_upstream/preview${locale ? `?locale=${locale}` : ''}`;
+      const res = await API.get(url);
+      const { success, message, data } = res.data || {};
+      if (success) {
+        return data || { missing: [], conflicts: [] };
+      }
+      showError(message || t('预览失败'));
+      return { missing: [], conflicts: [] };
+    } catch (e) {
+      showError(t('预览失败'));
+      return { missing: [], conflicts: [] };
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  // Apply selected overwrite
+  const applyUpstreamOverwrite = async (payloadOrArray = []) => {
+    const isArray = Array.isArray(payloadOrArray);
+    const overwrite = isArray ? payloadOrArray : payloadOrArray.overwrite || [];
+    const locale = isArray ? undefined : payloadOrArray.locale;
+    setSyncing(true);
+    try {
+      const body = { overwrite };
+      if (locale) body.locale = locale;
+      const res = await API.post('/api/models/sync_upstream', body);
+      const { success, message, data } = res.data || {};
+      if (success) {
+        const createdModels = data?.created_models || 0;
+        const updatedModels = data?.updated_models || 0;
+        const createdVendors = data?.created_vendors || 0;
+        const skipped = (data?.skipped_models || []).length || 0;
+        showSuccess(
+          t(
+            `完成：新增 ${createdModels} 模型，更新 ${updatedModels} 模型，新增 ${createdVendors} 供应商，跳过 ${skipped} 项`,
+          ),
+        );
+        await loadVendors();
+        await refresh();
+        return true;
+      }
+      showError(message || t('同步失败'));
+      return false;
+    } catch (e) {
+      showError(t('同步失败'));
+      return false;
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // Search models with keyword and vendor
@@ -178,7 +272,10 @@ export const useModelsData = () => {
         setModelCount(data.total || newPageData.length);
         setModelFormat(newPageData);
         if (data.vendor_counts) {
-          const sumAll = Object.values(data.vendor_counts).reduce((acc, v) => acc + v, 0);
+          const sumAll = Object.values(data.vendor_counts).reduce(
+            (acc, v) => acc + v,
+            0,
+          );
           setVendorCounts({ ...data.vendor_counts, all: sumAll });
         }
       } else {
@@ -217,17 +314,18 @@ export const useModelsData = () => {
         await refresh();
       } else {
         // Update local state for enable/disable
-        setModels(prevModels =>
-          prevModels.map(model =>
-            model.id === id ? { ...model, status: action === 'enable' ? 1 : 0 } : model
-          )
+        setModels((prevModels) =>
+          prevModels.map((model) =>
+            model.id === id
+              ? { ...model, status: action === 'enable' ? 1 : 0 }
+              : model,
+          ),
         );
       }
     } else {
       showError(message);
     }
   };
-
 
   // Handle page change
   const handlePageChange = (page) => {
@@ -249,11 +347,14 @@ export const useModelsData = () => {
 
   // Handle row click and styling
   const handleRow = (record, index) => {
-    const rowStyle = record.status !== 1 ? {
-      style: {
-        background: 'var(--semi-color-disabled-border)',
-      },
-    } : {};
+    const rowStyle =
+      record.status !== 1
+        ? {
+            style: {
+              background: 'var(--semi-color-disabled-border)',
+            },
+          }
+        : {};
 
     return {
       ...rowStyle,
@@ -262,8 +363,10 @@ export const useModelsData = () => {
         if (event.target.closest('button, .semi-button')) {
           return;
         }
-        const newSelectedKeys = selectedKeys.some(item => item.id === record.id)
-          ? selectedKeys.filter(item => item.id !== record.id)
+        const newSelectedKeys = selectedKeys.some(
+          (item) => item.id === record.id,
+        )
+          ? selectedKeys.filter((item) => item.id !== record.id)
           : [...selectedKeys, record];
         setSelectedKeys(newSelectedKeys);
       },
@@ -278,8 +381,8 @@ export const useModelsData = () => {
     }
 
     try {
-      const deletePromises = selectedKeys.map(model =>
-        API.delete(`/api/models/${model.id}`)
+      const deletePromises = selectedKeys.map((model) =>
+        API.delete(`/api/models/${model.id}`),
       );
 
       const results = await Promise.all(deletePromises);
@@ -289,7 +392,9 @@ export const useModelsData = () => {
         if (res.data.success) {
           successCount++;
         } else {
-          showError(`删除模型 ${selectedKeys[index].model_name} 失败: ${res.data.message}`);
+          showError(
+            `删除模型 ${selectedKeys[index].model_name} 失败: ${res.data.message}`,
+          );
         }
       });
 
@@ -380,5 +485,12 @@ export const useModelsData = () => {
 
     // Translation
     t,
+
+    // Upstream sync
+    syncing,
+    previewing,
+    syncUpstream,
+    previewUpstreamDiff,
+    applyUpstreamOverwrite,
   };
 };

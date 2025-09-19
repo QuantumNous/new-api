@@ -28,10 +28,7 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
-import {
-  Modal,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -60,7 +57,9 @@ const TopUp = () => {
   );
   const [priceRatio, setPriceRatio] = useState(statusState?.status?.price || 1);
 
-  const [enableStripeTopUp, setEnableStripeTopUp] = useState(statusState?.status?.enable_stripe_topup || false);
+  const [enableStripeTopUp, setEnableStripeTopUp] = useState(
+    statusState?.status?.enable_stripe_topup || false,
+  );
   const [statusLoading, setStatusLoading] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -321,12 +320,12 @@ const TopUp = () => {
 
       // 如果启用了 Stripe 支付，添加到支付方法列表
       if (statusState?.status?.enable_stripe_topup) {
-        const hasStripe = payMethods.some(method => method.type === 'stripe');
+        const hasStripe = payMethods.some((method) => method.type === 'stripe');
         if (!hasStripe) {
           payMethods.push({
             name: 'Stripe',
             type: 'stripe',
-            color: 'rgba(var(--semi-purple-5), 1)'
+            color: 'rgba(var(--semi-purple-5), 1)',
           });
         }
       }
@@ -418,7 +417,7 @@ const TopUp = () => {
     } finally {
       setAmountLoading(false);
     }
-  }
+  };
 
   const handleCancel = () => {
     setOpen(false);
@@ -443,8 +442,8 @@ const TopUp = () => {
   // 根据最小充值金额生成预设充值额度选项
   const generatePresetAmounts = (minAmount) => {
     const multipliers = [1, 5, 10, 30, 50, 100, 300, 500];
-    return multipliers.map(multiplier => ({
-      value: minAmount * multiplier
+    return multipliers.map((multiplier) => ({
+      value: minAmount * multiplier,
     }));
   };
 

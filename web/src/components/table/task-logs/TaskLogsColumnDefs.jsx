@@ -18,11 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Progress,
-  Tag,
-  Typography
-} from '@douyinfe/semi-ui';
+import { Progress, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   Music,
   FileText,
@@ -36,9 +32,12 @@ import {
   List,
   Hash,
   Video,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
-import { TASK_ACTION_GENERATE, TASK_ACTION_TEXT_GENERATE } from '../../../constants/common.constant';
+import {
+  TASK_ACTION_GENERATE,
+  TASK_ACTION_TEXT_GENERATE,
+} from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 
 const colors = [
@@ -122,7 +121,9 @@ const renderType = (type, t) => {
 };
 
 const renderPlatform = (platform, t) => {
-  let option = CHANNEL_OPTIONS.find(opt => String(opt.value) === String(platform));
+  let option = CHANNEL_OPTIONS.find(
+    (opt) => String(opt.value) === String(platform),
+  );
   if (option) {
     return (
       <Tag color={option.color} shape='circle' prefixIcon={<Video size={14} />}>
@@ -150,7 +151,11 @@ const renderStatus = (type, t) => {
   switch (type) {
     case 'SUCCESS':
       return (
-        <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
+        <Tag
+          color='green'
+          shape='circle'
+          prefixIcon={<CheckCircle size={14} />}
+        >
           {t('成功')}
         </Tag>
       );
@@ -310,23 +315,21 @@ export const getTaskLogsColumns = ({
       render: (text, record, index) => {
         return (
           <div>
-            {
-              isNaN(text?.replace('%', '')) ? (
-                text || '-'
-              ) : (
-                <Progress
-                  stroke={
-                    record.status === 'FAILURE'
-                      ? 'var(--semi-color-warning)'
-                      : null
-                  }
-                  percent={text ? parseInt(text.replace('%', '')) : 0}
-                  showInfo={true}
-                  aria-label='task progress'
-                  style={{ minWidth: '160px' }}
-                />
-              )
-            }
+            {isNaN(text?.replace('%', '')) ? (
+              text || '-'
+            ) : (
+              <Progress
+                stroke={
+                  record.status === 'FAILURE'
+                    ? 'var(--semi-color-warning)'
+                    : null
+                }
+                percent={text ? parseInt(text.replace('%', '')) : 0}
+                showInfo={true}
+                aria-label='task progress'
+                style={{ minWidth: '160px' }}
+              />
+            )}
           </div>
         );
       },
@@ -338,14 +341,16 @@ export const getTaskLogsColumns = ({
       fixed: 'right',
       render: (text, record, index) => {
         // 仅当为视频生成任务且成功，且 fail_reason 是 URL 时显示可点击链接
-        const isVideoTask = record.action === TASK_ACTION_GENERATE || record.action === TASK_ACTION_TEXT_GENERATE;
+        const isVideoTask =
+          record.action === TASK_ACTION_GENERATE ||
+          record.action === TASK_ACTION_TEXT_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
         if (isSuccess && isVideoTask && isUrl) {
           return (
             <a
-              href="#"
-              onClick={e => {
+              href='#'
+              onClick={(e) => {
                 e.preventDefault();
                 openVideoModal(text);
               }}
@@ -371,4 +376,4 @@ export const getTaskLogsColumns = ({
       },
     },
   ];
-}; 
+};

@@ -20,12 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
-import {
-  API,
-  copy,
-  showError,
-  showSuccess,
-} from '../../helpers';
+import { API, copy, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
@@ -139,9 +134,9 @@ export const useTokensData = (openFluentNotification) => {
         id: 'new-api',
         baseUrl: serverAddress,
         apiKey: 'sk-' + record.key,
-      }
+      };
       let encodedConfig = encodeURIComponent(
-        btoa(JSON.stringify(cherryConfig))
+        btoa(JSON.stringify(cherryConfig)),
       );
       url = url.replaceAll('{cherryConfig}', encodedConfig);
     } else {
@@ -235,8 +230,8 @@ export const useTokensData = (openFluentNotification) => {
 
   // Row selection handlers
   const rowSelection = {
-    onSelect: (record, selected) => { },
-    onSelectAll: (selected, selectedRows) => { },
+    onSelect: (record, selected) => {},
+    onSelectAll: (selected, selectedRows) => {},
     onChange: (selectedRowKeys, selectedRows) => {
       setSelectedKeys(selectedRows);
     },
@@ -296,9 +291,9 @@ export const useTokensData = (openFluentNotification) => {
       icon: null,
       content: t('请选择你的复制方式'),
       footer: (
-        <div className="flex gap-2">
+        <div className='flex gap-2'>
           <button
-            className="px-3 py-1 bg-gray-200 rounded"
+            className='px-3 py-1 bg-gray-200 rounded'
             onClick={async () => {
               let content = '';
               for (let i = 0; i < selectedKeys.length; i++) {
@@ -312,7 +307,7 @@ export const useTokensData = (openFluentNotification) => {
             {t('名称+密钥')}
           </button>
           <button
-            className="px-3 py-1 bg-blue-500 text-white rounded"
+            className='px-3 py-1 bg-blue-500 text-white rounded'
             onClick={async () => {
               let content = '';
               for (let i = 0; i < selectedKeys.length; i++) {
@@ -389,4 +384,4 @@ export const useTokensData = (openFluentNotification) => {
     // Translation
     t,
   };
-}; 
+};

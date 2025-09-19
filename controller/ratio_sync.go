@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"one-api/logger"
 	"strings"
@@ -21,7 +23,25 @@ const (
 	defaultTimeoutSeconds = 10
 	defaultEndpoint       = "/api/ratio_config"
 	maxConcurrentFetches  = 8
+	maxRatioConfigBytes   = 10 << 20 // 10MB
+	floatEpsilon          = 1e-9
 )
+
+func nearlyEqual(a, b float64) bool {
+	if a > b {
+		return a-b < floatEpsilon
+	}
+	return b-a < floatEpsilon
+}
+
+func valuesEqual(a, b interface{}) bool {
+	af, aok := a.(float64)
+	bf, bok := b.(float64)
+	if aok && bok {
+		return nearlyEqual(af, bf)
+	}
+	return a == b
+}
 
 var ratioTypes = []string{"model_ratio", "completion_ratio", "cache_ratio", "model_price"}
 
@@ -87,7 +107,23 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	sem := make(chan struct{}, maxConcurrentFetches)
 
-	client := &http.Client{Transport: &http.Transport{MaxIdleConns: 100, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ExpectContinueTimeout: 1 * time.Second}}
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	transport := &http.Transport{MaxIdleConns: 100, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ExpectContinueTimeout: 1 * time.Second, ResponseHeaderTimeout: 10 * time.Second}
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			host = addr
+		}
+		// 对 github.io 优先尝试 IPv4，失败则回退 IPv6
+		if strings.HasSuffix(host, "github.io") {
+			if conn, err := dialer.DialContext(ctx, "tcp4", addr); err == nil {
+				return conn, nil
+			}
+			return dialer.DialContext(ctx, "tcp6", addr)
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+	client := &http.Client{Transport: transport}
 
 	for _, chn := range upstreams {
 		wg.Add(1)
@@ -98,12 +134,17 @@ func FetchUpstreamRatios(c *gin.Context) {
 			defer func() { <-sem }()
 
 			endpoint := chItem.Endpoint
-			if endpoint == "" {
-				endpoint = defaultEndpoint
-			} else if !strings.HasPrefix(endpoint, "/") {
-				endpoint = "/" + endpoint
+			var fullURL string
+			if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
+				fullURL = endpoint
+			} else {
+				if endpoint == "" {
+					endpoint = defaultEndpoint
+				} else if !strings.HasPrefix(endpoint, "/") {
+					endpoint = "/" + endpoint
+				}
+				fullURL = chItem.BaseURL + endpoint
 			}
-			fullURL := chItem.BaseURL + endpoint
 
 			uniqueName := chItem.Name
 			if chItem.ID != 0 {
@@ -120,10 +161,19 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			resp, err := client.Do(httpReq)
-			if err != nil {
-				logger.LogWarn(c.Request.Context(), "http error on "+chItem.Name+": "+err.Error())
-				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+			// 简单重试：最多 3 次，指数退避
+			var resp *http.Response
+			var lastErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				resp, lastErr = client.Do(httpReq)
+				if lastErr == nil {
+					break
+				}
+				time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
+			}
+			if lastErr != nil {
+				logger.LogWarn(c.Request.Context(), "http error on "+chItem.Name+": "+lastErr.Error())
+				ch <- upstreamResult{Name: uniqueName, Err: lastErr.Error()}
 				return
 			}
 			defer resp.Body.Close()
@@ -132,6 +182,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 				ch <- upstreamResult{Name: uniqueName, Err: resp.Status}
 				return
 			}
+
+			// Content-Type 和响应体大小校验
+			if ct := resp.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "application/json") {
+				logger.LogWarn(c.Request.Context(), "unexpected content-type from "+chItem.Name+": "+ct)
+			}
+			limited := io.LimitReader(resp.Body, maxRatioConfigBytes)
 			// 兼容两种上游接口格式：
 			//  type1: /api/ratio_config -> data 为 map[string]any，包含 model_ratio/completion_ratio/cache_ratio/model_price
 			//  type2: /api/pricing      -> data 为 []Pricing 列表，需要转换为与 type1 相同的 map 格式
@@ -141,7 +197,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				Message string          `json:"message"`
 			}
 
-			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			if err := json.NewDecoder(limited).Decode(&body); err != nil {
 				logger.LogWarn(c.Request.Context(), "json decode failed from "+chItem.Name+": "+err.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
@@ -151,6 +207,8 @@ func FetchUpstreamRatios(c *gin.Context) {
 				ch <- upstreamResult{Name: uniqueName, Err: body.Message}
 				return
 			}
+
+			// 若 Data 为空，将继续按 type1 尝试解析（与多数静态 ratio_config 兼容）
 
 			// 尝试按 type1 解析
 			var type1Data map[string]any
@@ -357,9 +415,9 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 						upstreamValue = val
 						hasUpstreamValue = true
 
-						if localValue != nil && localValue != val {
+						if localValue != nil && !valuesEqual(localValue, val) {
 							hasDifference = true
-						} else if localValue == val {
+						} else if valuesEqual(localValue, val) {
 							upstreamValue = "same"
 						}
 					}
@@ -465,6 +523,13 @@ func GetSyncableChannels(c *gin.Context) {
 			})
 		}
 	}
+
+	syncableChannels = append(syncableChannels, dto.SyncableChannel{
+		ID:      -100,
+		Name:    "官方倍率预设",
+		BaseURL: "https://basellm.github.io",
+		Status:  1,
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

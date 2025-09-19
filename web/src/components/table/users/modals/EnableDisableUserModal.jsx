@@ -26,7 +26,7 @@ const EnableDisableUserModal = ({
   onConfirm,
   user,
   action,
-  t
+  t,
 }) => {
   const isDisable = action === 'disable';
 
@@ -36,11 +36,11 @@ const EnableDisableUserModal = ({
       visible={visible}
       onCancel={onCancel}
       onOk={onConfirm}
-      type="warning"
+      type='warning'
     >
       {isDisable ? t('此操作将禁用用户账户') : t('此操作将启用用户账户')}
     </Modal>
   );
 };
 
-export default EnableDisableUserModal; 
+export default EnableDisableUserModal;

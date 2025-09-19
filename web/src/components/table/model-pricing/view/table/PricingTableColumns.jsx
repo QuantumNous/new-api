@@ -20,8 +20,17 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Tag, Space, Tooltip } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { renderModelTag, stringToColor, calculateModelPrice, getLobeHubIcon } from '../../../../../helpers';
-import { renderLimitedItems, renderDescription } from '../../../../common/ui/RenderUtils';
+import {
+  renderModelTag,
+  stringToColor,
+  calculateModelPrice,
+  getLobeHubIcon,
+} from '../../../../../helpers';
+import {
+  renderLimitedItems,
+  renderDescription,
+} from '../../../../common/ui/RenderUtils';
+import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t) {
   switch (type) {
@@ -46,7 +55,11 @@ function renderQuotaType(type, t) {
 const renderVendor = (vendorName, vendorIcon, t) => {
   if (!vendorName) return '-';
   return (
-    <Tag color='white' shape='circle' prefixIcon={getLobeHubIcon(vendorIcon || 'Layers', 14)}>
+    <Tag
+      color='white'
+      shape='circle'
+      prefixIcon={getLobeHubIcon(vendorIcon || 'Layers', 14)}
+    >
       {vendorName}
     </Tag>
   );
@@ -55,15 +68,20 @@ const renderVendor = (vendorName, vendorIcon, t) => {
 // Render tags list using RenderUtils
 const renderTags = (text) => {
   if (!text) return '-';
-  const tagsArr = text.split(',').filter(tag => tag.trim());
+  const tagsArr = text.split(',').filter((tag) => tag.trim());
   return renderLimitedItems({
     items: tagsArr,
     renderItem: (tag, idx) => (
-      <Tag key={idx} color={stringToColor(tag.trim())} shape='circle' size='small'>
+      <Tag
+        key={idx}
+        color={stringToColor(tag.trim())}
+        shape='circle'
+        size='small'
+      >
         {tag.trim()}
       </Tag>
     ),
-    maxDisplay: 3
+    maxDisplay: 3,
   });
 };
 
@@ -74,11 +92,7 @@ function renderSupportedEndpoints(endpoints) {
   return (
     <Space wrap>
       {endpoints.map((endpoint, idx) => (
-        <Tag
-          key={endpoint}
-          color={stringToColor(endpoint)}
-          shape='circle'
-        >
+        <Tag key={endpoint} color={stringToColor(endpoint)} shape='circle'>
           {endpoint}
         </Tag>
       ))}
@@ -98,7 +112,7 @@ export const getPricingTableColumns = ({
   displayPrice,
   showRatio,
 }) => {
-
+  const isMobile = useIsMobile();
   const priceDataCache = new WeakMap();
 
   const getPriceData = (record) => {
@@ -132,7 +146,7 @@ export const getPricingTableColumns = ({
       return renderModelTag(text, {
         onClick: () => {
           copyText(text);
-        }
+        },
       });
     },
     onFilter: (value, record) =>
@@ -166,15 +180,21 @@ export const getPricingTableColumns = ({
     render: (text, record) => renderVendor(text, record.vendor_icon, t),
   };
 
-  const baseColumns = [modelNameColumn, vendorColumn, descriptionColumn, tagsColumn, quotaColumn];
+  const baseColumns = [
+    modelNameColumn,
+    vendorColumn,
+    descriptionColumn,
+    tagsColumn,
+    quotaColumn,
+  ];
 
   const ratioColumn = {
     title: () => (
-      <div className="flex items-center space-x-1">
+      <div className='flex items-center space-x-1'>
         <span>{t('倍率')}</span>
         <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
           <IconHelpCircle
-            className="text-blue-500 cursor-pointer"
+            className='text-blue-500 cursor-pointer'
             onClick={() => {
               setModalImageUrl('/ratio.png');
               setIsModalOpenurl(true);
@@ -189,14 +209,15 @@ export const getPricingTableColumns = ({
       const priceData = getPriceData(record);
 
       return (
-        <div className="space-y-1">
-          <div className="text-gray-700">
+        <div className='space-y-1'>
+          <div className='text-gray-700'>
             {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
           </div>
-          <div className="text-gray-700">
-            {t('补全倍率')}：{record.quota_type === 0 ? completionRatio : t('无')}
+          <div className='text-gray-700'>
+            {t('补全倍率')}：
+            {record.quota_type === 0 ? completionRatio : t('无')}
           </div>
-          <div className="text-gray-700">
+          <div className='text-gray-700'>
             {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}
           </div>
         </div>
@@ -207,24 +228,25 @@ export const getPricingTableColumns = ({
   const priceColumn = {
     title: t('模型价格'),
     dataIndex: 'model_price',
-    fixed: 'right',
+    ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
       const priceData = getPriceData(record);
 
       if (priceData.isPerToken) {
         return (
-          <div className="space-y-1">
-            <div className="text-gray-700">
-              {t('提示')} {priceData.inputPrice} / 1{priceData.unitLabel} tokens
+          <div className='space-y-1'>
+            <div className='text-gray-700'>
+              {t('输入')} {priceData.inputPrice} / 1{priceData.unitLabel} tokens
             </div>
-            <div className="text-gray-700">
-              {t('补全')} {priceData.completionPrice} / 1{priceData.unitLabel} tokens
+            <div className='text-gray-700'>
+              {t('输出')} {priceData.completionPrice} / 1{priceData.unitLabel}{' '}
+              tokens
             </div>
           </div>
         );
       } else {
         return (
-          <div className="text-gray-700">
+          <div className='text-gray-700'>
             {t('模型价格')}：{priceData.price}
           </div>
         );
@@ -239,4 +261,4 @@ export const getPricingTableColumns = ({
   }
   columns.push(priceColumn);
   return columns;
-}; 
+};

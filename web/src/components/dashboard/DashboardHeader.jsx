@@ -27,19 +27,19 @@ const DashboardHeader = ({
   showSearchModal,
   refresh,
   loading,
-  t
+  t,
 }) => {
-  const ICON_BUTTON_CLASS = "text-white hover:bg-opacity-80 !rounded-full";
+  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
 
   return (
-    <div className="flex items-center justify-between mb-4">
+    <div className='flex items-center justify-between mb-4'>
       <h2
-        className="text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out"
+        className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
         style={{ opacity: greetingVisible ? 1 : 0 }}
       >
         {getGreeting}
       </h2>
-      <div className="flex gap-3">
+      <div className='flex gap-3'>
         <Button
           type='tertiary'
           icon={<Search size={16} />}
@@ -58,4 +58,4 @@ const DashboardHeader = ({
   );
 };
 
-export default DashboardHeader; 
+export default DashboardHeader;

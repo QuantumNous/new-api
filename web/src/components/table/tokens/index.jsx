@@ -18,8 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Notification, Button, Space, Toast, Typography, Select } from '@douyinfe/semi-ui';
-import { API, showError, getModelCategories, selectFilter } from '../../../helpers';
+import {
+  Notification,
+  Button,
+  Space,
+  Toast,
+  Typography,
+  Select,
+} from '@douyinfe/semi-ui';
+import {
+  API,
+  showError,
+  getModelCategories,
+  selectFilter,
+} from '../../../helpers';
 import CardPro from '../../common/ui/CardPro';
 import TokensTable from './TokensTable';
 import TokensActions from './TokensActions';
@@ -33,9 +45,17 @@ import { createCardProPagination } from '../../../helpers/utils';
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
   const openFluentNotificationRef = useRef(null);
-  const tokensData = useTokensData((key) => openFluentNotificationRef.current?.(key));
+  const tokensData = useTokensData((key) =>
+    openFluentNotificationRef.current?.(key),
+  );
   const isMobile = useIsMobile();
-  const latestRef = useRef({ tokens: [], selectedKeys: [], t: (k) => k, selectedModel: '', prefillKey: '' });
+  const latestRef = useRef({
+    tokens: [],
+    selectedKeys: [],
+    t: (k) => k,
+    selectedModel: '',
+    prefillKey: '',
+  });
   const [modelOptions, setModelOptions] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [fluentNoticeOpen, setFluentNoticeOpen] = useState(false);
@@ -50,7 +70,13 @@ function TokensPage() {
       selectedModel,
       prefillKey,
     };
-  }, [tokensData.tokens, tokensData.selectedKeys, tokensData.t, selectedModel, prefillKey]);
+  }, [
+    tokensData.tokens,
+    tokensData.selectedKeys,
+    tokensData.t,
+    selectedModel,
+    prefillKey,
+  ]);
 
   const loadModels = async () => {
     try {
@@ -68,7 +94,7 @@ function TokensPage() {
           }
           return {
             label: (
-              <span className="flex items-center gap-1">
+              <span className='flex items-center gap-1'>
                 {icon}
                 {model}
               </span>
@@ -90,7 +116,7 @@ function TokensPage() {
     const SUPPRESS_KEY = 'fluent_notify_suppressed';
     if (modelOptions.length === 0) {
       // fire-and-forget; a later effect will refresh the notice content
-      loadModels()
+      loadModels();
     }
     if (!key && localStorage.getItem(SUPPRESS_KEY) === '1') return;
     const container = document.getElementById('fluent-new-api-container');
@@ -123,19 +149,29 @@ function TokensPage() {
             />
           </div>
           <Space>
-            <Button theme="solid" type="primary" onClick={handlePrefillToFluent}>
+            <Button
+              theme='solid'
+              type='primary'
+              onClick={handlePrefillToFluent}
+            >
               {t('一键填充到 FluentRead')}
             </Button>
             {!key && (
-              <Button type="warning" onClick={() => {
-                localStorage.setItem(SUPPRESS_KEY, '1');
-                Notification.close('fluent-detected');
-                Toast.info(t('已关闭后续提醒'));
-              }}>
+              <Button
+                type='warning'
+                onClick={() => {
+                  localStorage.setItem(SUPPRESS_KEY, '1');
+                  Notification.close('fluent-detected');
+                  Toast.info(t('已关闭后续提醒'));
+                }}
+              >
                 {t('不再提醒')}
               </Button>
             )}
-            <Button type="tertiary" onClick={() => Notification.close('fluent-detected')}>
+            <Button
+              type='tertiary'
+              onClick={() => Notification.close('fluent-detected')}
+            >
               {t('关闭')}
             </Button>
           </Space>
@@ -149,7 +185,13 @@ function TokensPage() {
 
   // Prefill to Fluent handler
   const handlePrefillToFluent = () => {
-    const { tokens, selectedKeys, t, selectedModel: chosenModel, prefillKey: overrideKey } = latestRef.current;
+    const {
+      tokens,
+      selectedKeys,
+      t,
+      selectedModel: chosenModel,
+      prefillKey: overrideKey,
+    } = latestRef.current;
     const container = document.getElementById('fluent-new-api-container');
     if (!container) {
       Toast.error(t('未检测到 Fluent 容器'));
@@ -167,7 +209,7 @@ function TokensPage() {
       try {
         status = JSON.parse(status);
         serverAddress = status.server_address || '';
-      } catch (_) { }
+      } catch (_) {}
     }
     if (!serverAddress) serverAddress = window.location.origin;
 
@@ -175,9 +217,12 @@ function TokensPage() {
     if (overrideKey) {
       apiKeyToUse = 'sk-' + overrideKey;
     } else {
-      const token = (selectedKeys && selectedKeys.length === 1)
-        ? selectedKeys[0]
-        : (tokens && tokens.length > 0 ? tokens[0] : null);
+      const token =
+        selectedKeys && selectedKeys.length === 1
+          ? selectedKeys[0]
+          : tokens && tokens.length > 0
+            ? tokens[0]
+            : null;
       if (!token) {
         Toast.warning(t('没有可用令牌用于填充'));
         return;
@@ -192,7 +237,9 @@ function TokensPage() {
       model: chosenModel,
     };
 
-    container.dispatchEvent(new CustomEvent('fluent:prefill', { detail: payload }));
+    container.dispatchEvent(
+      new CustomEvent('fluent:prefill', { detail: payload }),
+    );
     Toast.success(t('已发送到 Fluent'));
     Notification.close('fluent-detected');
   };
@@ -230,13 +277,18 @@ function TokensPage() {
     const existing = document.querySelector(selector);
     if (existing) {
       console.log('Fluent container detected (initial):', existing);
-      window.dispatchEvent(new CustomEvent('fluent-container:appeared', { detail: existing }));
+      window.dispatchEvent(
+        new CustomEvent('fluent-container:appeared', { detail: existing }),
+      );
     }
 
     const isOrContainsTarget = (node) => {
       if (!(node && node.nodeType === 1)) return false;
       if (node.id === 'fluent-new-api-container') return true;
-      return typeof node.querySelector === 'function' && !!node.querySelector(selector);
+      return (
+        typeof node.querySelector === 'function' &&
+        !!node.querySelector(selector)
+      );
     };
 
     const observer = new MutationObserver((mutations) => {
@@ -247,7 +299,9 @@ function TokensPage() {
             const el = document.querySelector(selector);
             if (el) {
               console.log('Fluent container appeared:', el);
-              window.dispatchEvent(new CustomEvent('fluent-container:appeared', { detail: el }));
+              window.dispatchEvent(
+                new CustomEvent('fluent-container:appeared', { detail: el }),
+              );
             }
             break;
           }
@@ -310,7 +364,7 @@ function TokensPage() {
       />
 
       <CardPro
-        type="type1"
+        type='type1'
         descriptionArea={
           <TokensDescription
             compactMode={compactMode}
@@ -319,7 +373,7 @@ function TokensPage() {
           />
         }
         actionsArea={
-          <div className="flex flex-col md:flex-row justify-between items-center gap-2 w-full">
+          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
             <TokensActions
               selectedKeys={selectedKeys}
               setEditingToken={setEditingToken}
@@ -330,7 +384,7 @@ function TokensPage() {
               t={t}
             />
 
-            <div className="w-full md:w-full lg:w-auto order-1 md:order-2">
+            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
               <TokensFilters
                 formInitValues={formInitValues}
                 setFormApi={setFormApi}
@@ -359,4 +413,4 @@ function TokensPage() {
   );
 }
 
-export default TokensPage; 
+export default TokensPage;

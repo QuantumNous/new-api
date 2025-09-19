@@ -28,13 +28,23 @@ import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
  * @param {boolean} loading 是否加载中
  * @param {Function} t i18n
  */
-const PricingEndpointTypes = ({ filterEndpointType, setFilterEndpointType, models = [], allModels = [], loading = false, t }) => {
+const PricingEndpointTypes = ({
+  filterEndpointType,
+  setFilterEndpointType,
+  models = [],
+  allModels = [],
+  loading = false,
+  t,
+}) => {
   // 获取系统中所有端点类型（基于 allModels，如果未提供则退化为 models）
   const getAllEndpointTypes = () => {
     const endpointTypes = new Set();
-    (allModels.length > 0 ? allModels : models).forEach(model => {
-      if (model.supported_endpoint_types && Array.isArray(model.supported_endpoint_types)) {
-        model.supported_endpoint_types.forEach(endpoint => {
+    (allModels.length > 0 ? allModels : models).forEach((model) => {
+      if (
+        model.supported_endpoint_types &&
+        Array.isArray(model.supported_endpoint_types)
+      ) {
+        model.supported_endpoint_types.forEach((endpoint) => {
           endpointTypes.add(endpoint);
         });
       }
@@ -47,9 +57,10 @@ const PricingEndpointTypes = ({ filterEndpointType, setFilterEndpointType, model
     if (endpointType === 'all') {
       return models.length;
     }
-    return models.filter(model =>
-      model.supported_endpoint_types &&
-      model.supported_endpoint_types.includes(endpointType)
+    return models.filter(
+      (model) =>
+        model.supported_endpoint_types &&
+        model.supported_endpoint_types.includes(endpointType),
     ).length;
   };
 
@@ -61,16 +72,21 @@ const PricingEndpointTypes = ({ filterEndpointType, setFilterEndpointType, model
   const availableEndpointTypes = getAllEndpointTypes();
 
   const items = [
-    { value: 'all', label: t('全部端点'), tagCount: getEndpointTypeCount('all'), disabled: models.length === 0 },
-    ...availableEndpointTypes.map(endpointType => {
+    {
+      value: 'all',
+      label: t('全部端点'),
+      tagCount: getEndpointTypeCount('all'),
+      disabled: models.length === 0,
+    },
+    ...availableEndpointTypes.map((endpointType) => {
       const count = getEndpointTypeCount(endpointType);
-      return ({
+      return {
         value: endpointType,
         label: getEndpointTypeLabel(endpointType),
         tagCount: count,
-        disabled: count === 0
-      });
-    })
+        disabled: count === 0,
+      };
+    }),
   ];
 
   return (
@@ -85,4 +101,4 @@ const PricingEndpointTypes = ({ filterEndpointType, setFilterEndpointType, model
   );
 };
 
-export default PricingEndpointTypes; 
+export default PricingEndpointTypes;

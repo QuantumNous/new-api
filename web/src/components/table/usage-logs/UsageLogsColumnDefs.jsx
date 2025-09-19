@@ -24,7 +24,7 @@ import {
   Tag,
   Tooltip,
   Popover,
-  Typography
+  Typography,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -38,7 +38,7 @@ import {
   renderModelPriceSimple,
   renderAudioModelPrice,
   renderClaudeModelPrice,
-  renderModelPrice
+  renderModelPrice,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
@@ -181,7 +181,7 @@ function renderModelName(record, copyText, t) {
   if (!modelMapped) {
     return renderModelTag(record.model_name, {
       onClick: (event) => {
-        copyText(event, record.model_name).then((r) => { });
+        copyText(event, record.model_name).then((r) => {});
       },
     });
   } else {
@@ -198,7 +198,7 @@ function renderModelName(record, copyText, t) {
                     </Typography.Text>
                     {renderModelTag(record.model_name, {
                       onClick: (event) => {
-                        copyText(event, record.model_name).then((r) => { });
+                        copyText(event, record.model_name).then((r) => {});
                       },
                     })}
                   </div>
@@ -209,7 +209,7 @@ function renderModelName(record, copyText, t) {
                     {renderModelTag(other.upstream_model_name, {
                       onClick: (event) => {
                         copyText(event, other.upstream_model_name).then(
-                          (r) => { },
+                          (r) => {},
                         );
                       },
                     })}
@@ -220,7 +220,7 @@ function renderModelName(record, copyText, t) {
           >
             {renderModelTag(record.model_name, {
               onClick: (event) => {
-                copyText(event, record.model_name).then((r) => { });
+                copyText(event, record.model_name).then((r) => {});
               },
               suffixIcon: (
                 <Route
@@ -264,7 +264,8 @@ export const getLogsColumns = ({
           }
         }
 
-        return isAdminUser && (record.type === 0 || record.type === 2 || record.type === 5) ? (
+        return isAdminUser &&
+          (record.type === 0 || record.type === 2 || record.type === 5) ? (
           <Space>
             <Tooltip content={record.channel_name || t('未知渠道')}>
               <span>
@@ -456,10 +457,14 @@ export const getLogsColumns = ({
     {
       key: COLUMN_KEYS.IP,
       title: (
-        <div className="flex items-center gap-1">
+        <div className='flex items-center gap-1'>
           {t('IP')}
-          <Tooltip content={t('只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录')}>
-            <IconHelpCircle className="text-gray-400 cursor-help" />
+          <Tooltip
+            content={t(
+              '只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录',
+            )}
+          >
+            <IconHelpCircle className='text-gray-400 cursor-help' />
           </Tooltip>
         </div>
       ),
@@ -538,33 +543,33 @@ export const getLogsColumns = ({
         }
         let content = other?.claude
           ? renderModelPriceSimple(
-            other.model_ratio,
-            other.model_price,
-            other.group_ratio,
-            other?.user_group_ratio,
-            other.cache_tokens || 0,
-            other.cache_ratio || 1.0,
-            other.cache_creation_tokens || 0,
-            other.cache_creation_ratio || 1.0,
-            false,
-            1.0,
-            other?.is_system_prompt_overwritten,
-            'claude'
-          )
+              other.model_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_tokens || 0,
+              other.cache_ratio || 1.0,
+              other.cache_creation_tokens || 0,
+              other.cache_creation_ratio || 1.0,
+              false,
+              1.0,
+              other?.is_system_prompt_overwritten,
+              'claude',
+            )
           : renderModelPriceSimple(
-            other.model_ratio,
-            other.model_price,
-            other.group_ratio,
-            other?.user_group_ratio,
-            other.cache_tokens || 0,
-            other.cache_ratio || 1.0,
-            0,
-            1.0,
-            false,
-            1.0,
-            other?.is_system_prompt_overwritten,
-            'openai'
-          );
+              other.model_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_tokens || 0,
+              other.cache_ratio || 1.0,
+              0,
+              1.0,
+              false,
+              1.0,
+              other?.is_system_prompt_overwritten,
+              'openai',
+            );
         return (
           <Typography.Paragraph
             ellipsis={{
@@ -578,4 +583,4 @@ export const getLogsColumns = ({
       },
     },
   ];
-}; 
+};

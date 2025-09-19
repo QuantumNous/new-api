@@ -27,7 +27,7 @@ export const useDataLoader = (
   inputs,
   handleInputChange,
   setModels,
-  setGroups
+  setGroups,
 ) => {
   const { t } = useTranslation();
 
@@ -37,7 +37,10 @@ export const useDataLoader = (
       const { success, message, data } = res.data;
 
       if (success) {
-        const { modelOptions, selectedModel } = processModelsData(data, inputs.model);
+        const { modelOptions, selectedModel } = processModelsData(
+          data,
+          inputs.model,
+        );
         setModels(modelOptions);
 
         if (selectedModel !== inputs.model) {
@@ -57,11 +60,15 @@ export const useDataLoader = (
       const { success, message, data } = res.data;
 
       if (success) {
-        const userGroup = userState?.user?.group || JSON.parse(localStorage.getItem('user'))?.group;
+        const userGroup =
+          userState?.user?.group ||
+          JSON.parse(localStorage.getItem('user'))?.group;
         const groupOptions = processGroupsData(data, userGroup);
         setGroups(groupOptions);
 
-        const hasCurrentGroup = groupOptions.some(option => option.value === inputs.group);
+        const hasCurrentGroup = groupOptions.some(
+          (option) => option.value === inputs.group,
+        );
         if (!hasCurrentGroup) {
           handleInputChange('group', groupOptions[0]?.value || '');
         }
@@ -83,6 +90,6 @@ export const useDataLoader = (
 
   return {
     loadModels,
-    loadGroups
+    loadGroups,
   };
-}; 
+};

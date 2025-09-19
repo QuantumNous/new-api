@@ -102,15 +102,17 @@ const highlightJson = (str) => {
         color = '#569cd6';
       }
       return `<span style="color: ${color}">${match}</span>`;
-    }
+    },
   );
 };
 
 const isJsonLike = (content, language) => {
   if (language === 'json') return true;
   const trimmed = content.trim();
-  return (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'));
+  return (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  );
 };
 
 const formatContent = (content) => {
@@ -148,7 +150,10 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
   const contentMetrics = useMemo(() => {
     const length = formattedContent.length;
     const isLarge = length > PERFORMANCE_CONFIG.MAX_DISPLAY_LENGTH;
-    const isVeryLarge = length > PERFORMANCE_CONFIG.MAX_DISPLAY_LENGTH * PERFORMANCE_CONFIG.VERY_LARGE_MULTIPLIER;
+    const isVeryLarge =
+      length >
+      PERFORMANCE_CONFIG.MAX_DISPLAY_LENGTH *
+        PERFORMANCE_CONFIG.VERY_LARGE_MULTIPLIER;
     return { length, isLarge, isVeryLarge };
   }, [formattedContent.length]);
 
@@ -156,8 +161,10 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
     if (!contentMetrics.isLarge || isExpanded) {
       return formattedContent;
     }
-    return formattedContent.substring(0, PERFORMANCE_CONFIG.PREVIEW_LENGTH) +
-      '\n\n// ... 内容被截断以提升性能 ...';
+    return (
+      formattedContent.substring(0, PERFORMANCE_CONFIG.PREVIEW_LENGTH) +
+      '\n\n// ... 内容被截断以提升性能 ...'
+    );
   }, [formattedContent, contentMetrics.isLarge, isExpanded]);
 
   const highlightedContent = useMemo(() => {
@@ -174,9 +181,10 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 
   const handleCopy = useCallback(async () => {
     try {
-      const textToCopy = typeof content === 'object' && content !== null
-        ? JSON.stringify(content, null, 2)
-        : content;
+      const textToCopy =
+        typeof content === 'object' && content !== null
+          ? JSON.stringify(content, null, 2)
+          : content;
 
       const success = await copy(textToCopy);
       setCopied(true);
@@ -205,11 +213,12 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
   }, [isExpanded, contentMetrics.isVeryLarge]);
 
   if (!content) {
-    const placeholderText = {
-      preview: t('正在构造请求体预览...'),
-      request: t('暂无请求数据'),
-      response: t('暂无响应数据')
-    }[title] || t('暂无数据');
+    const placeholderText =
+      {
+        preview: t('正在构造请求体预览...'),
+        request: t('暂无请求数据'),
+        response: t('暂无响应数据'),
+      }[title] || t('暂无数据');
 
     return (
       <div style={codeThemeStyles.noContent}>
@@ -222,7 +231,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
   const contentPadding = contentMetrics.isLarge ? '52px' : '16px';
 
   return (
-    <div style={codeThemeStyles.container} className="h-full">
+    <div style={codeThemeStyles.container} className='h-full'>
       {/* 性能警告 */}
       {contentMetrics.isLarge && (
         <div style={codeThemeStyles.performanceWarning}>
@@ -250,8 +259,8 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
           <Button
             icon={<Copy size={14} />}
             onClick={handleCopy}
-            size="small"
-            theme="borderless"
+            size='small'
+            theme='borderless'
             style={{
               backgroundColor: 'transparent',
               border: 'none',
@@ -268,25 +277,29 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
           ...codeThemeStyles.content,
           paddingTop: contentPadding,
         }}
-        className="model-settings-scroll"
+        className='model-settings-scroll'
       >
         {isProcessing ? (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '200px',
-            color: '#888'
-          }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid #444',
-              borderTop: '2px solid #888',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              marginRight: '8px'
-            }} />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '200px',
+              color: '#888',
+            }}
+          >
+            <div
+              style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid #444',
+                borderTop: '2px solid #888',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                marginRight: '8px',
+              }}
+            />
             {t('正在处理大内容...')}
           </div>
         ) : (
@@ -296,18 +309,22 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 
       {/* 展开/收起按钮 */}
       {contentMetrics.isLarge && !isProcessing && (
-        <div style={{
-          ...codeThemeStyles.actionButton,
-          bottom: '12px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-        }}>
+        <div
+          style={{
+            ...codeThemeStyles.actionButton,
+            bottom: '12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
+        >
           <Tooltip content={isExpanded ? t('收起内容') : t('显示完整内容')}>
             <Button
-              icon={isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              icon={
+                isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+              }
               onClick={handleToggleExpand}
-              size="small"
-              theme="borderless"
+              size='small'
+              theme='borderless'
               style={{
                 backgroundColor: 'transparent',
                 border: 'none',
@@ -317,8 +334,16 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
             >
               {isExpanded ? t('收起') : t('展开')}
               {!isExpanded && (
-                <span style={{ fontSize: '11px', opacity: 0.7, marginLeft: '4px' }}>
-                  (+{Math.round((contentMetrics.length - PERFORMANCE_CONFIG.PREVIEW_LENGTH) / 1000)}K)
+                <span
+                  style={{ fontSize: '11px', opacity: 0.7, marginLeft: '4px' }}
+                >
+                  (+
+                  {Math.round(
+                    (contentMetrics.length -
+                      PERFORMANCE_CONFIG.PREVIEW_LENGTH) /
+                      1000,
+                  )}
+                  K)
                 </span>
               )}
             </Button>
@@ -329,4 +354,4 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
   );
 };
 
-export default CodeViewer; 
+export default CodeViewer;

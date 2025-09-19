@@ -38,6 +38,8 @@ export default function SettingsMonitoring(props) {
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
     AutomaticDisableKeywords: '',
+    'monitor_setting.auto_test_channel_enabled': false,
+    'monitor_setting.auto_test_channel_minutes': 10,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -98,6 +100,40 @@ export default function SettingsMonitoring(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('监控设置')}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'monitor_setting.auto_test_channel_enabled'}
+                  label={t('定时测试所有通道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_channel_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('自动测试所有通道间隔时间')}
+                  step={1}
+                  min={1}
+                  suffix={t('分钟')}
+                  extraText={t('每隔多少分钟测试一次所有通道')}
+                  placeholder={''}
+                  field={'monitor_setting.auto_test_channel_minutes'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_channel_minutes': parseInt(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber

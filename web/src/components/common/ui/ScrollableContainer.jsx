@@ -24,197 +24,219 @@ import React, {
   useCallback,
   useMemo,
   useImperativeHandle,
-  forwardRef
+  forwardRef,
 } from 'react';
 
 /**
  * ScrollableContainer 可滚动容器组件
- * 
+ *
  * 提供自动检测滚动状态和显示渐变指示器的功能
  * 当内容超出容器高度且未滚动到底部时，会显示底部渐变指示器
- * 
+ *
  */
-const ScrollableContainer = forwardRef(({
-  children,
-  maxHeight = '24rem',
-  className = '',
-  contentClassName = 'p-2',
-  fadeIndicatorClassName = '',
-  checkInterval = 100,
-  scrollThreshold = 5,
-  debounceDelay = 16, // ~60fps
-  onScroll,
-  onScrollStateChange,
-  ...props
-}, ref) => {
-  const scrollRef = useRef(null);
-  const containerRef = useRef(null);
-  const debounceTimerRef = useRef(null);
-  const resizeObserverRef = useRef(null);
-  const onScrollStateChangeRef = useRef(onScrollStateChange);
-  const onScrollRef = useRef(onScroll);
-
-  const [showScrollHint, setShowScrollHint] = useState(false);
-
-  useEffect(() => {
-    onScrollStateChangeRef.current = onScrollStateChange;
-  }, [onScrollStateChange]);
-
-  useEffect(() => {
-    onScrollRef.current = onScroll;
-  }, [onScroll]);
-
-  const debounce = useCallback((func, delay) => {
-    return (...args) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => func(...args), delay);
-    };
-  }, []);
-
-  const checkScrollable = useCallback(() => {
-    if (!scrollRef.current) return;
-
-    const element = scrollRef.current;
-    const isScrollable = element.scrollHeight > element.clientHeight;
-    const isAtBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - scrollThreshold;
-    const shouldShowHint = isScrollable && !isAtBottom;
-
-    setShowScrollHint(shouldShowHint);
-
-    if (onScrollStateChangeRef.current) {
-      onScrollStateChangeRef.current({
-        isScrollable,
-        isAtBottom,
-        showScrollHint: shouldShowHint,
-        scrollTop: element.scrollTop,
-        scrollHeight: element.scrollHeight,
-        clientHeight: element.clientHeight
-      });
-    }
-  }, [scrollThreshold]);
-
-  const debouncedCheckScrollable = useMemo(() =>
-    debounce(checkScrollable, debounceDelay),
-    [debounce, checkScrollable, debounceDelay]
-  );
-
-  const handleScroll = useCallback((e) => {
-    debouncedCheckScrollable();
-    if (onScrollRef.current) {
-      onScrollRef.current(e);
-    }
-  }, [debouncedCheckScrollable]);
-
-  useImperativeHandle(ref, () => ({
-    checkScrollable: () => {
-      checkScrollable();
+const ScrollableContainer = forwardRef(
+  (
+    {
+      children,
+      maxHeight = '24rem',
+      className = '',
+      contentClassName = '',
+      fadeIndicatorClassName = '',
+      checkInterval = 100,
+      scrollThreshold = 5,
+      debounceDelay = 16, // ~60fps
+      onScroll,
+      onScrollStateChange,
+      ...props
     },
-    scrollToTop: () => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = 0;
-      }
-    },
-    scrollToBottom: () => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    },
-    getScrollInfo: () => {
-      if (!scrollRef.current) return null;
-      const element = scrollRef.current;
-      return {
-        scrollTop: element.scrollTop,
-        scrollHeight: element.scrollHeight,
-        clientHeight: element.clientHeight,
-        isScrollable: element.scrollHeight > element.clientHeight,
-        isAtBottom: element.scrollTop + element.clientHeight >= element.scrollHeight - scrollThreshold
+    ref,
+  ) => {
+    const scrollRef = useRef(null);
+    const containerRef = useRef(null);
+    const debounceTimerRef = useRef(null);
+    const resizeObserverRef = useRef(null);
+    const onScrollStateChangeRef = useRef(onScrollStateChange);
+    const onScrollRef = useRef(onScroll);
+
+    const [showScrollHint, setShowScrollHint] = useState(false);
+
+    useEffect(() => {
+      onScrollStateChangeRef.current = onScrollStateChange;
+    }, [onScrollStateChange]);
+
+    useEffect(() => {
+      onScrollRef.current = onScroll;
+    }, [onScroll]);
+
+    const debounce = useCallback((func, delay) => {
+      return (...args) => {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+        debounceTimerRef.current = setTimeout(() => func(...args), delay);
       };
-    }
-  }), [checkScrollable, scrollThreshold]);
+    }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      checkScrollable();
-    }, checkInterval);
-    return () => clearTimeout(timer);
-  }, [checkScrollable, checkInterval]);
+    const checkScrollable = useCallback(() => {
+      if (!scrollRef.current) return;
 
-  useEffect(() => {
-    if (!scrollRef.current) return;
+      const element = scrollRef.current;
+      const isScrollable = element.scrollHeight > element.clientHeight;
+      const isAtBottom =
+        element.scrollTop + element.clientHeight >=
+        element.scrollHeight - scrollThreshold;
+      const shouldShowHint = isScrollable && !isAtBottom;
 
-    if (typeof ResizeObserver === 'undefined') {
-      if (typeof MutationObserver !== 'undefined') {
-        const observer = new MutationObserver(() => {
-          debouncedCheckScrollable();
+      setShowScrollHint(shouldShowHint);
+
+      if (onScrollStateChangeRef.current) {
+        onScrollStateChangeRef.current({
+          isScrollable,
+          isAtBottom,
+          showScrollHint: shouldShowHint,
+          scrollTop: element.scrollTop,
+          scrollHeight: element.scrollHeight,
+          clientHeight: element.clientHeight,
         });
-
-        observer.observe(scrollRef.current, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          characterData: true
-        });
-
-        return () => observer.disconnect();
       }
-      return;
-    }
+    }, [scrollThreshold]);
 
-    resizeObserverRef.current = new ResizeObserver((entries) => {
-      for (const entry of entries) {
+    const debouncedCheckScrollable = useMemo(
+      () => debounce(checkScrollable, debounceDelay),
+      [debounce, checkScrollable, debounceDelay],
+    );
+
+    const handleScroll = useCallback(
+      (e) => {
         debouncedCheckScrollable();
+        if (onScrollRef.current) {
+          onScrollRef.current(e);
+        }
+      },
+      [debouncedCheckScrollable],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        checkScrollable: () => {
+          checkScrollable();
+        },
+        scrollToTop: () => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = 0;
+          }
+        },
+        scrollToBottom: () => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+        },
+        getScrollInfo: () => {
+          if (!scrollRef.current) return null;
+          const element = scrollRef.current;
+          return {
+            scrollTop: element.scrollTop,
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight,
+            isScrollable: element.scrollHeight > element.clientHeight,
+            isAtBottom:
+              element.scrollTop + element.clientHeight >=
+              element.scrollHeight - scrollThreshold,
+          };
+        },
+      }),
+      [checkScrollable, scrollThreshold],
+    );
+
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        checkScrollable();
+      }, checkInterval);
+      return () => clearTimeout(timer);
+    }, [checkScrollable, checkInterval]);
+
+    useEffect(() => {
+      if (!scrollRef.current) return;
+
+      if (typeof ResizeObserver === 'undefined') {
+        if (typeof MutationObserver !== 'undefined') {
+          const observer = new MutationObserver(() => {
+            debouncedCheckScrollable();
+          });
+
+          observer.observe(scrollRef.current, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            characterData: true,
+          });
+
+          return () => observer.disconnect();
+        }
+        return;
       }
-    });
 
-    resizeObserverRef.current.observe(scrollRef.current);
+      resizeObserverRef.current = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          debouncedCheckScrollable();
+        }
+      });
 
-    return () => {
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-      }
-    };
-  }, [debouncedCheckScrollable]);
+      resizeObserverRef.current.observe(scrollRef.current);
 
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
+      return () => {
+        if (resizeObserverRef.current) {
+          resizeObserverRef.current.disconnect();
+        }
+      };
+    }, [debouncedCheckScrollable]);
 
-  const containerStyle = useMemo(() => ({
-    maxHeight
-  }), [maxHeight]);
+    useEffect(() => {
+      return () => {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+      };
+    }, []);
 
-  const fadeIndicatorStyle = useMemo(() => ({
-    opacity: showScrollHint ? 1 : 0
-  }), [showScrollHint]);
+    const containerStyle = useMemo(
+      () => ({
+        maxHeight,
+      }),
+      [maxHeight],
+    );
 
-  return (
-    <div
-      ref={containerRef}
-      className={`card-content-container ${className}`}
-      {...props}
-    >
+    const fadeIndicatorStyle = useMemo(
+      () => ({
+        opacity: showScrollHint ? 1 : 0,
+      }),
+      [showScrollHint],
+    );
+
+    return (
       <div
-        ref={scrollRef}
-        className={`overflow-y-auto card-content-scroll ${contentClassName}`}
-        style={containerStyle}
-        onScroll={handleScroll}
+        ref={containerRef}
+        className={`card-content-container ${className}`}
+        {...props}
       >
-        {children}
+        <div
+          ref={scrollRef}
+          className={`overflow-y-auto card-content-scroll ${contentClassName}`}
+          style={containerStyle}
+          onScroll={handleScroll}
+        >
+          {children}
+        </div>
+        <div
+          className={`card-content-fade-indicator ${fadeIndicatorClassName}`}
+          style={fadeIndicatorStyle}
+        />
       </div>
-      <div
-        className={`card-content-fade-indicator ${fadeIndicatorClassName}`}
-        style={fadeIndicatorStyle}
-      />
-    </div>
-  );
-});
+    );
+  },
+);
 
 ScrollableContainer.displayName = 'ScrollableContainer';
 
-export default ScrollableContainer; 
+export default ScrollableContainer;
