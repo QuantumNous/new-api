@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui';
 import { ChevronDown } from 'lucide-react';
@@ -39,6 +39,7 @@ const UserArea = ({
   navigate,
   t,
 }) => {
+  const dropdownRef = useRef(null);
   if (isLoading) {
     return (
       <SkeletonWrapper
@@ -52,90 +53,93 @@ const UserArea = ({
 
   if (userState.user) {
     return (
-      <Dropdown
-        position='bottomRight'
-        render={
-          <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-            <Dropdown.Item
-              onClick={() => {
-                navigate('/console/personal');
-              }}
-              className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-            >
-              <div className='flex items-center gap-2'>
-                <IconUserSetting
-                  size='small'
-                  className='text-gray-500 dark:text-gray-400'
-                />
-                <span>{t('个人设置')}</span>
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item
-              onClick={() => {
-                navigate('/console/token');
-              }}
-              className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-            >
-              <div className='flex items-center gap-2'>
-                <IconKey
-                  size='small'
-                  className='text-gray-500 dark:text-gray-400'
-                />
-                <span>{t('令牌管理')}</span>
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item
-              onClick={() => {
-                navigate('/console/topup');
-              }}
-              className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-            >
-              <div className='flex items-center gap-2'>
-                <IconCreditCard
-                  size='small'
-                  className='text-gray-500 dark:text-gray-400'
-                />
-                <span>{t('钱包管理')}</span>
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item
-              onClick={logout}
-              className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'
-            >
-              <div className='flex items-center gap-2'>
-                <IconExit
-                  size='small'
-                  className='text-gray-500 dark:text-gray-400'
-                />
-                <span>{t('退出')}</span>
-              </div>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        }
-      >
-        <Button
-          theme='borderless'
-          type='tertiary'
-          className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
+      <div className='relative' ref={dropdownRef}>
+        <Dropdown
+          position='bottomRight'
+          getPopupContainer={() => dropdownRef.current}
+          render={
+            <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
+              <Dropdown.Item
+                onClick={() => {
+                  navigate('/console/personal');
+                }}
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+              >
+                <div className='flex items-center gap-2'>
+                  <IconUserSetting
+                    size='small'
+                    className='text-gray-500 dark:text-gray-400'
+                  />
+                  <span>{t('个人设置')}</span>
+                </div>
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={() => {
+                  navigate('/console/token');
+                }}
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+              >
+                <div className='flex items-center gap-2'>
+                  <IconKey
+                    size='small'
+                    className='text-gray-500 dark:text-gray-400'
+                  />
+                  <span>{t('令牌管理')}</span>
+                </div>
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={() => {
+                  navigate('/console/topup');
+                }}
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+              >
+                <div className='flex items-center gap-2'>
+                  <IconCreditCard
+                    size='small'
+                    className='text-gray-500 dark:text-gray-400'
+                  />
+                  <span>{t('钱包管理')}</span>
+                </div>
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={logout}
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'
+              >
+                <div className='flex items-center gap-2'>
+                  <IconExit
+                    size='small'
+                    className='text-gray-500 dark:text-gray-400'
+                  />
+                  <span>{t('退出')}</span>
+                </div>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          }
         >
-          <Avatar
-            size='extra-small'
-            color={stringToColor(userState.user.username)}
-            className='mr-1'
+          <Button
+            theme='borderless'
+            type='tertiary'
+            className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
           >
-            {userState.user.username[0].toUpperCase()}
-          </Avatar>
-          <span className='hidden md:inline'>
-            <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
-              {userState.user.username}
-            </Typography.Text>
-          </span>
-          <ChevronDown
-            size={14}
-            className='text-xs text-semi-color-text-2 dark:text-gray-400'
-          />
-        </Button>
-      </Dropdown>
+            <Avatar
+              size='extra-small'
+              color={stringToColor(userState.user.username)}
+              className='mr-1'
+            >
+              {userState.user.username[0].toUpperCase()}
+            </Avatar>
+            <span className='hidden md:inline'>
+              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
+                {userState.user.username}
+              </Typography.Text>
+            </span>
+            <ChevronDown
+              size={14}
+              className='text-xs text-semi-color-text-2 dark:text-gray-400'
+            />
+          </Button>
+        </Dropdown>
+      </div>
     );
   } else {
     const showRegisterButton = !isSelfUseMode;
