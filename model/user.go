@@ -915,3 +915,58 @@ func RootUserExists() bool {
 	}
 	return true
 }
+
+// UpdateUsersGroupName 更新所有使用指定分组名的用户的分组名称
+func UpdateUsersGroupName(oldGroupName, newGroupName string) error {
+	if oldGroupName == "" || newGroupName == "" {
+		return errors.New("分组名称不能为空")
+	}
+
+	common.SysLog(fmt.Sprintf("开始更新用户分组名称: '%s' -> '%s'", oldGroupName, newGroupName))
+
+	// 先查询有多少用户使用旧分组名
+	var count int64
+	if err := DB.Model(&User{}).Where(commonGroupCol+" = ?", oldGroupName).Count(&count).Error; err != nil {
+		common.SysLog(fmt.Sprintf("查询使用分组 '%s' 的用户数量失败: %s", oldGroupName, err.Error()))
+		return err
+	}
+	common.SysLog(fmt.Sprintf("找到 %d 个用户使用分组 '%s'", count, oldGroupName))
+
+	// 使用事务确保数据一致性
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 更新所有使用旧分组名的用户
+	result := tx.Model(&User{}).Where(commonGroupCol+" = ?", oldGroupName).Update(commonGroupCol, newGroupName)
+	if result.Error != nil {
+		tx.Rollback()
+		common.SysLog(fmt.Sprintf("更新用户分组名称失败: %s", result.Error.Error()))
+		return result.Error
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		common.SysLog(fmt.Sprintf("提交事务失败: %s", err.Error()))
+		return err
+	}
+
+	common.SysLog(fmt.Sprintf("成功更新 %d 个用户的分组名称从 '%s' 到 '%s'", result.RowsAffected, oldGroupName, newGroupName))
+
+	// 验证更新结果
+	var newCount int64
+	if err := DB.Model(&User{}).Where(commonGroupCol+" = ?", newGroupName).Count(&newCount).Error; err != nil {
+		common.SysLog(fmt.Sprintf("验证更新结果失败: %s", err.Error()))
+	} else {
+		common.SysLog(fmt.Sprintf("验证: 现在有 %d 个用户使用分组 '%s'", newCount, newGroupName))
+	}
+
+	return nil
+}
