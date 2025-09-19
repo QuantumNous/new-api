@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"one-api/common"
-	"one-api/setting"
+	"one-api/setting/system_setting"
 	"strings"
 )
 
@@ -21,14 +21,14 @@ type WorkerRequest struct {
 
 // DoWorkerRequest 通过Worker发送请求
 func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
-	if !setting.EnableWorker() {
+	if !system_setting.EnableWorker() {
 		return nil, fmt.Errorf("worker not enabled")
 	}
-	if !setting.WorkerAllowHttpImageRequestEnabled && !strings.HasPrefix(req.URL, "https") {
+	if !system_setting.WorkerAllowHttpImageRequestEnabled && !strings.HasPrefix(req.URL, "https") {
 		return nil, fmt.Errorf("only support https url")
 	}
 
-	workerUrl := setting.WorkerUrl
+	workerUrl := system_setting.WorkerUrl
 	if !strings.HasSuffix(workerUrl, "/") {
 		workerUrl += "/"
 	}
@@ -43,11 +43,11 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 }
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {
-	if setting.EnableWorker() {
+	if system_setting.EnableWorker() {
 		common.SysLog(fmt.Sprintf("downloading file from worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
 		req := &WorkerRequest{
 			URL: originUrl,
-			Key: setting.WorkerValidKey,
+			Key: system_setting.WorkerValidKey,
 		}
 		return DoWorkerRequest(req)
 	} else {
