@@ -45,6 +45,7 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	Avatar           string         `json:"avatar,omitempty" gorm:"type:longtext;column:avatar"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -445,6 +446,16 @@ func (user *User) Update(updatePassword bool) error {
 	return updateUserCache(*user)
 }
 
+func (user *User) UpdateAvatar() error {
+	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update("avatar", user.Avatar).Error; err != nil {
+		return err
+	}
+
+	// Update cache
+	DB.First(&user, user.Id)
+	return updateUserCache(*user)
+}
+
 func (user *User) Edit(updatePassword bool) error {
 	var err error
 	if updatePassword {
@@ -461,6 +472,7 @@ func (user *User) Edit(updatePassword bool) error {
 		"group":        newUser.Group,
 		"quota":        newUser.Quota,
 		"remark":       newUser.Remark,
+		"avatar":       newUser.Avatar,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

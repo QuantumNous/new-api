@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Avatar,
   Card,
@@ -25,7 +25,11 @@ import {
   Divider,
   Typography,
   Badge,
+  Upload,
+  Toast,
+  Modal,
 } from '@douyinfe/semi-ui';
+import { IconCamera } from '@douyinfe/semi-icons';
 import {
   isRoot,
   isAdmin,
@@ -33,8 +37,30 @@ import {
   stringToColor,
 } from '../../../../helpers';
 import { Coins, BarChart2, Users } from 'lucide-react';
+import { updateUserAvatar } from '../../../../helpers/userDataManager';
 
-const UserInfoHeader = ({ t, userState }) => {
+// 添加样式确保头像上传的点击热区是圆形
+const avatarUploadStyle = `
+.avatar-upload .semi-upload-add {
+  border-radius: 50% !important;
+}
+`;
+
+// 注入样式
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = avatarUploadStyle;
+  if (!document.head.querySelector('style[data-avatar-upload]')) {
+    styleElement.setAttribute('data-avatar-upload', 'true');
+    document.head.appendChild(styleElement);
+  }
+}
+
+const UserInfoHeader = ({ t, userState, onUserDataUpdate }) => {
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewImage, setPreviewImage] = useState('');
+  const [uploading, setUploading] = useState(false);
+
   const getUsername = () => {
     if (userState.user) {
       return userState.user.username;
@@ -50,6 +76,127 @@ const UserInfoHeader = ({ t, userState }) => {
     }
     return 'NA';
   };
+
+  // 将文件转换为base64
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 上传前验证
+  const beforeUpload = ({ file }) => {
+    console.log('beforeUpload file:', file); // 调试日志
+
+    // 获取文件类型，可能在 file.type 或 file.fileInstance.type 中
+    const fileType = file.type || (file.fileInstance && file.fileInstance.type) || '';
+    const fileSize = file.size || (file.fileInstance && file.fileInstance.size) || 0;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(fileType.toLowerCase())) {
+      console.log('File type validation failed:', fileType); // 调试日志
+      Toast.error(t('不支持的图片格式，仅支持 JPEG、PNG、GIF、WebP'));
+      return {
+        autoRemove: true,
+        shouldUpload: false,
+        status: 'validateFail',
+        validateMessage: t('不支持的图片格式，仅支持 JPEG、PNG、GIF、WebP')
+      };
+    }
+
+    // 考虑base64编码会增加约33%的大小，所以原始文件限制为1.5MB
+    const maxSize = 1.5 * 1024 * 1024; // 1.5MB
+    if (fileSize > maxSize) {
+      Toast.error(t('图片文件大小不能超过1.5MB'));
+      return {
+        autoRemove: true,
+        shouldUpload: false,
+        status: 'validateFail',
+        validateMessage: t('图片文件大小不能超过1.5MB')
+      };
+    }
+
+    return {
+      shouldUpload: false, // 不直接上传，而是先预览
+      status: 'success'
+    };
+  };
+
+  // 处理文件选择
+  const handleFileChange = async ({ currentFile }) => {
+    console.log('handleFileChange currentFile:', currentFile); // 调试日志
+
+    if (currentFile && currentFile.fileInstance) {
+      // 再次验证文件类型（客户端验证）
+      const fileType = currentFile.fileInstance.type;
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
+      if (!allowedTypes.includes(fileType.toLowerCase())) {
+        Toast.error(t('不支持的图片格式，仅支持 JPEG、PNG、GIF、WebP'));
+        return;
+      }
+
+      try {
+        setUploading(true);
+        const base64Data = await fileToBase64(currentFile.fileInstance);
+
+        // 验证base64数据大小（约2MB限制）
+        const base64Size = base64Data.length;
+        const maxBase64Size = 2 * 1024 * 1024; // 2MB
+
+        if (base64Size > maxBase64Size) {
+          Toast.error(t('图片编码后数据过大，请选择更小的图片'));
+          return;
+        }
+
+        setPreviewImage(base64Data);
+        setPreviewVisible(true);
+      } catch (error) {
+        Toast.error(t('图片处理失败，请重试'));
+        console.error('File processing error:', error);
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
+
+  // 确认上传头像
+  const handleConfirmUpload = async () => {
+    if (!previewImage) return;
+
+    try {
+      setUploading(true);
+
+      // 使用新的用户数据管理器上传头像
+      const result = await updateUserAvatar(previewImage, {
+        id: userState.user?.id,
+        username: userState.user?.username || '',
+        display_name: userState.user?.display_name || '',
+      });
+
+      if (result.success) {
+        setPreviewVisible(false);
+        setPreviewImage('');
+        Toast.success(t('头像更新成功'));
+        // 刷新用户数据
+        if (onUserDataUpdate) {
+          await onUserDataUpdate();
+        }
+      } else {
+        Toast.error(result.message || t('头像更新失败，请重试'));
+      }
+    } catch (error) {
+      Toast.error(t('头像更新失败，请重试'));
+      console.error('Avatar update error:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+
 
   return (
     <Card
@@ -69,9 +216,43 @@ const UserInfoHeader = ({ t, userState }) => {
           <div className='relative z-10 h-full flex flex-col justify-end p-6'>
             <div className='flex items-center'>
               <div className='flex items-stretch gap-3 sm:gap-4 flex-1 min-w-0'>
-                <Avatar size='large' color={stringToColor(getUsername())}>
-                  {getAvatarText()}
-                </Avatar>
+                <Upload
+                  className="avatar-upload"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  beforeUpload={beforeUpload}
+                  onChange={handleFileChange}
+                  showUploadList={false}
+                  maxSize={1536}
+                  onSizeError={() => {
+                    Toast.error(t('图片文件大小不能超过1.5MB'));
+                  }}
+                  onAcceptInvalid={() => {
+                    Toast.error(t('不支持的图片格式，仅支持 JPEG、PNG、GIF、WebP'));
+                  }}
+                  disabled={uploading}
+                >
+                  <Avatar
+                    size='large'
+                    src={userState.user?.avatar || undefined}
+                    color={userState.user?.avatar ? undefined : stringToColor(getUsername())}
+                    hoverMask={
+                      <div style={{
+                        backgroundColor: 'var(--semi-color-overlay-bg)',
+                        height: '100%',
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--semi-color-white)',
+                      }}>
+                        <IconCamera />
+                      </div>
+                    }
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {!userState.user?.avatar && getAvatarText()}
+                  </Avatar>
+                </Upload>
                 <div className='flex-1 min-w-0 flex flex-col justify-between'>
                   <div
                     className='text-3xl font-bold truncate'
@@ -213,6 +394,32 @@ const UserInfoHeader = ({ t, userState }) => {
           </div>
         </Card>
       </div>
+
+      {/* 头像预览模态框 */}
+      <Modal
+        title={t('预览头像')}
+        visible={previewVisible}
+        onCancel={() => {
+          setPreviewVisible(false);
+          setPreviewImage('');
+        }}
+        onOk={handleConfirmUpload}
+        okText={t('确认上传')}
+        cancelText={t('取消')}
+        confirmLoading={uploading}
+        width={400}
+      >
+        <div className="flex flex-col items-center space-y-4">
+          <Avatar
+            size="extra-large"
+            src={previewImage}
+            className="border-2 border-gray-200"
+          />
+          <p className="text-sm text-gray-600">
+            {t('确认要使用这张图片作为头像吗？')}
+          </p>
+        </div>
+      </Modal>
     </Card>
   );
 };
