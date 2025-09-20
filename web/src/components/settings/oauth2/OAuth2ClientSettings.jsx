@@ -32,6 +32,10 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { User } from 'lucide-react';
+import {
+  IllustrationNoResult,
+  IllustrationNoResultDark,
+} from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../helpers';
 import CreateOAuth2ClientModal from './modals/CreateOAuth2ClientModal';
 import EditOAuth2ClientModal from './modals/EditOAuth2ClientModal';
@@ -311,7 +315,7 @@ export default function OAuth2ClientSettings() {
         </div>
       }
     >
-      <div style={{ marginBottom: 16 }}>
+      <div className='mb-4'>
         <Text type='tertiary'>
           {t(
             '管理OAuth2客户端应用程序，每个客户端代表一个可以访问API的应用程序。机密客户端用于服务器端应用，公开客户端用于移动应用或单页应用。',
@@ -326,34 +330,25 @@ export default function OAuth2ClientSettings() {
         rowKey='id'
         loading={loading}
         scroll={{ x: 'max-content' }}
-        style={{ marginTop: 8 }}
         pagination={{
           showSizeChanger: true,
           showQuickJumper: true,
-          showTotal: (total, range) =>
-            t('第 {{start}}-{{end}} 条，共 {{total}} 条', {
-              start: range[0],
-              end: range[1],
-              total,
-            }),
+          showTotal: true,
           pageSize: 10,
-          size: 'small',
-          style: { marginTop: 16 },
         }}
         empty={
           <Empty
-            image={<User size={48} className='text-gray-400' />}
-            title={t('暂无OAuth2客户端')}
-            description={
-              <div className='text-gray-500 mt-2'>
-                {t('还没有创建任何客户端，点击下方按钮创建第一个客户端')}
-              </div>
+            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+            darkModeImage={
+              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
             }
+            title={t('暂无OAuth2客户端')}
+            description={t('还没有创建任何客户端，点击下方按钮创建第一个客户端')}
+            style={{ padding: 30 }}
           >
             <Button
               type='primary'
               onClick={() => setShowCreateModal(true)}
-              className='mt-4'
             >
               {t('创建第一个客户端')}
             </Button>
