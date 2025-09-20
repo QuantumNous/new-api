@@ -244,14 +244,6 @@ export default function OAuth2ServerSettings(props) {
               )}
             </div>
             <div className='flex items-center gap-2 sm:flex-shrink-0'>
-              <Button
-                type='primary'
-                onClick={onSubmit}
-                loading={loading}
-                size='small'
-              >
-                {t('保存配置')}
-              </Button>
               {isEnabled && (
                 <Button
                   type='secondary'
@@ -261,6 +253,14 @@ export default function OAuth2ServerSettings(props) {
                   {t('密钥管理')}
                 </Button>
               )}
+              <Button
+                type='primary'
+                onClick={onSubmit}
+                loading={loading}
+                size='small'
+              >
+                {t('保存配置')}
+              </Button>
             </div>
           </div>
         }

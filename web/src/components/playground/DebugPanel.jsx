@@ -28,7 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { Code, Zap, Clock, X, Eye, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import CodeViewer from './CodeViewer';
+import CodeViewer from '../common/ui/CodeViewer';
 
 const DebugPanel = ({
   debugData,

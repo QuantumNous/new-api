@@ -31,7 +31,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { User, Grid3X3 } from 'lucide-react';
+import { User } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import CreateOAuth2ClientModal from './modals/CreateOAuth2ClientModal';
 import EditOAuth2ClientModal from './modals/EditOAuth2ClientModal';
@@ -138,13 +138,14 @@ export default function OAuth2ClientSettings() {
     {
       title: t('客户端名称'),
       dataIndex: 'name',
-      render: (name) => (
-        <div className='flex items-center'>
+      render: (name, record) => (
+        <div className='flex items-center cursor-help'>
           <User size={16} className='mr-1.5 text-gray-500' />
-          <Text strong>{name}</Text>
+          <Tooltip content={record.description || t('暂无描述')} position='top'>
+            <Text strong>{name}</Text>
+          </Tooltip>
         </div>
       ),
-      width: 150,
     },
     {
       title: t('客户端ID'),
@@ -154,30 +155,24 @@ export default function OAuth2ClientSettings() {
           {id}
         </Text>
       ),
-      width: 200,
     },
     {
-      title: t('描述'),
-      dataIndex: 'description',
-      render: (description) => (
-        <Text type='tertiary' size='small'>
-          {description || '-'}
-        </Text>
+      title: t('状态'),
+      dataIndex: 'status',
+      render: (status) => (
+        <Tag color={status === 1 ? 'green' : 'red'} shape='circle'>
+          {status === 1 ? t('启用') : t('禁用')}
+        </Tag>
       ),
-      width: 150,
     },
     {
       title: t('类型'),
       dataIndex: 'client_type',
       render: (text) => (
-        <Tag
-          color={text === 'confidential' ? 'blue' : 'green'}
-          style={{ borderRadius: '12px' }}
-        >
+        <Tag color='white' shape='circle'>
           {text === 'confidential' ? t('机密客户端') : t('公开客户端')}
         </Tag>
       ),
-      width: 120,
     },
     {
       title: t('授权类型'),
@@ -195,7 +190,7 @@ export default function OAuth2ClientSettings() {
         return (
           <div className='flex flex-wrap gap-1'>
             {types.slice(0, 2).map((type) => (
-              <Tag key={type} size='small' style={{ borderRadius: '8px' }}>
+              <Tag color='white' key={type} size='small' shape='circle'>
                 {typeMap[type] || type}
               </Tag>
             ))}
@@ -206,7 +201,7 @@ export default function OAuth2ClientSettings() {
                   .map((t) => typeMap[t] || t)
                   .join(', ')}
               >
-                <Tag size='small' style={{ borderRadius: '8px' }}>
+                <Tag color='white' size='small' shape='circle'>
                   +{types.length - 2}
                 </Tag>
               </Tooltip>
@@ -214,106 +209,54 @@ export default function OAuth2ClientSettings() {
           </div>
         );
       },
-      width: 150,
-    },
-    {
-      title: t('状态'),
-      dataIndex: 'status',
-      render: (status) => (
-        <Tag
-          color={status === 1 ? 'green' : 'red'}
-          style={{ borderRadius: '12px' }}
-        >
-          {status === 1 ? t('启用') : t('禁用')}
-        </Tag>
-      ),
-      width: 80,
     },
     {
       title: t('创建时间'),
       dataIndex: 'created_time',
       render: (time) => new Date(time * 1000).toLocaleString(),
-      width: 150,
     },
     {
       title: t('操作'),
       render: (_, record) => (
         <Space size={4} wrap>
           <Button
-            theme='borderless'
             type='primary'
             size='small'
             onClick={() => {
               setEditingClient(record);
               setShowEditModal(true);
             }}
-            style={{ padding: '4px 8px' }}
           >
             {t('编辑')}
           </Button>
           {record.client_type === 'confidential' && (
             <Popconfirm
               title={t('确认重新生成客户端密钥？')}
-              content={
-                <div style={{ maxWidth: 280 }}>
-                  <div className='mb-2'>
-                    <Text strong>{t('客户端')}：</Text>
-                    <Text>{record.name}</Text>
-                  </div>
-                  <div className='p-3 bg-orange-50 border border-orange-200 rounded-md'>
-                    <Text size='small' type='warning'>
-                      ⚠️ {t('操作不可撤销，旧密钥将立即失效。')}
-                    </Text>
-                  </div>
-                </div>
-              }
+              content={t('操作不可撤销，旧密钥将立即失效。')}
               onConfirm={() => handleRegenerateSecret(record)}
               okText={t('确认')}
               cancelText={t('取消')}
               position='bottomLeft'
             >
-              <Button
-                theme='borderless'
-                type='secondary'
-                size='small'
-                style={{ padding: '4px 8px' }}
-              >
+              <Button type='secondary' size='small'>
                 {t('重新生成密钥')}
               </Button>
             </Popconfirm>
           )}
           <Popconfirm
             title={t('请再次确认删除该客户端')}
-            content={
-              <div style={{ maxWidth: 280 }}>
-                <div className='mb-2'>
-                  <Text strong>{t('客户端')}：</Text>
-                  <Text>{record.name}</Text>
-                </div>
-                <div className='p-3 bg-red-50 border border-red-200 rounded-md'>
-                  <Text size='small' type='danger'>
-                    🗑️ {t('删除后无法恢复，相关 API 调用将立即失效。')}
-                  </Text>
-                </div>
-              </div>
-            }
+            content={t('删除后无法恢复，相关 API 调用将立即失效。')}
             onConfirm={() => handleDelete(record)}
             okText={t('确定删除')}
             cancelText={t('取消')}
             position='bottomLeft'
           >
-            <Button
-              theme='borderless'
-              type='danger'
-              size='small'
-              style={{ padding: '4px 8px' }}
-            >
+            <Button type='danger' size='small'>
               {t('删除')}
             </Button>
           </Popconfirm>
         </Space>
       ),
-      width: 140,
       fixed: 'right',
     },
   ];
@@ -348,13 +291,13 @@ export default function OAuth2ClientSettings() {
               size='small'
               style={{ width: 300 }}
             />
-            <Button onClick={loadClients} size='small'>
+            <Button type='tertiary' onClick={loadClients} size='small'>
               {t('刷新')}
             </Button>
-            <Button onClick={showServerInfo} size='small'>
+            <Button type='secondary' onClick={showServerInfo} size='small'>
               {t('服务器信息')}
             </Button>
-            <Button onClick={showJWKS} size='small'>
+            <Button type='secondary' onClick={showJWKS} size='small'>
               {t('查看JWKS')}
             </Button>
             <Button
@@ -382,7 +325,7 @@ export default function OAuth2ClientSettings() {
         dataSource={filteredClients}
         rowKey='id'
         loading={loading}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 'max-content' }}
         style={{ marginTop: 8 }}
         pagination={{
           showSizeChanger: true,

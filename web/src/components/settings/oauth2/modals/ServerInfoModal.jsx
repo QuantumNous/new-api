@@ -18,11 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Typography } from '@douyinfe/semi-ui';
+import { Modal } from '@douyinfe/semi-ui';
 import { API, showError } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
-
-const { Text } = Typography;
+import CodeViewer from '../../../common/ui/CodeViewer';
 
 const ServerInfoModal = ({ visible, onClose }) => {
   const { t } = useTranslation();
@@ -49,14 +48,7 @@ const ServerInfoModal = ({ visible, onClose }) => {
 
   return (
     <Modal
-      title={
-        <div className='flex items-center'>
-          <span>🖥️</span>
-          <Text strong className='ml-2'>
-            {t('OAuth2 服务器信息')}
-          </Text>
-        </div>
-      }
+      title={t('OAuth2 服务器信息')}
       visible={visible}
       onCancel={onClose}
       onOk={onClose}
@@ -66,20 +58,13 @@ const ServerInfoModal = ({ visible, onClose }) => {
       bodyStyle={{ padding: '20px 24px' }}
       confirmLoading={loading}
     >
-      <pre
-        style={{
-          background: 'var(--semi-color-fill-0)',
-          padding: '16px',
-          borderRadius: '8px',
-          fontSize: '12px',
-          maxHeight: '400px',
-          overflow: 'auto',
-          border: '1px solid var(--semi-color-border)',
-          margin: 0,
-        }}
-      >
-        {serverInfo ? JSON.stringify(serverInfo, null, 2) : t('加载中...')}
-      </pre>
+      <CodeViewer
+        content={
+          serverInfo ? JSON.stringify(serverInfo, null, 2) : t('加载中...')
+        }
+        title={t('OAuth2 服务器配置')}
+        language='json'
+      />
     </Modal>
   );
 };

@@ -2174,5 +2174,8 @@
   "生产环境务必启用 HTTPS，并妥善管理 JWT 签名密钥": "Enable HTTPS in production and manage JWT signing keys properly",
   "个客户端": "clients",
   "请妥善保管此密钥，用于应用程序的身份验证": "Please keep this secret safe, it is used for application authentication",
-  "客户端名称": "Client Name"
+  "客户端名称": "Client Name",
+  "暂无描述": "No description",
+  "OAuth2 服务器配置": "OAuth2 Server Configuration",
+  "JWKS 密钥集": "JWKS Key Set"
 }

@@ -21,7 +21,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
 import { Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { copy } from '../../helpers';
+import { copy } from '../../../helpers';
 
 const PERFORMANCE_CONFIG = {
   MAX_DISPLAY_LENGTH: 50000, // 最大显示字符数

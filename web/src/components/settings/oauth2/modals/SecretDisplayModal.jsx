@@ -28,14 +28,7 @@ const SecretDisplayModal = ({ visible, onClose, secret }) => {
 
   return (
     <Modal
-      title={
-        <div className='flex items-center'>
-          <span>🔑</span>
-          <Text strong className='ml-2'>
-            {t('客户端密钥已重新生成')}
-          </Text>
-        </div>
-      }
+      title={t('客户端密钥已重新生成')}
       visible={visible}
       onCancel={onClose}
       onOk={onClose}
@@ -45,29 +38,16 @@ const SecretDisplayModal = ({ visible, onClose, secret }) => {
       bodyStyle={{ padding: '20px 24px' }}
     >
       <Banner
-        type='warning'
+        type='success'
+        closeIcon={null}
         description={t(
           '新的客户端密钥如下，请立即复制保存。关闭此窗口后将无法再次查看。',
         )}
-        className='mb-5'
+        className='mb-5 !rounded-lg'
       />
-      <div className='bg-gray-50 p-4 rounded-lg border font-mono break-all'>
-        <Text
-          code
-          copyable={{
-            content: secret,
-            successTip: t('已复制到剪贴板'),
-          }}
-          style={{ fontSize: '13px', lineHeight: '1.5' }}
-        >
-          {secret}
-        </Text>
-      </div>
-      <div className='mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md'>
-        <Text size='small' type='tertiary'>
-          💡 {t('请妥善保管此密钥，用于应用程序的身份验证')}
-        </Text>
-      </div>
+      <Text code copyable>
+        {secret}
+      </Text>
     </Modal>
   );
 };

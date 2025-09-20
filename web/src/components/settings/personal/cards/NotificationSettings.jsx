@@ -40,7 +40,7 @@ import {
   showSuccess,
   showError,
 } from '../../../../helpers';
-import CodeViewer from '../../../playground/CodeViewer';
+import CodeViewer from '../../../common/ui/CodeViewer';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
 import { useUserPermissions } from '../../../../hooks/common/useUserPermissions';
