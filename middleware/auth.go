@@ -8,11 +8,14 @@ import (
 	"one-api/model"
 	"one-api/setting"
 	"one-api/setting/ratio_setting"
+	"one-api/setting/system_setting"
+	"one-api/src/oauth"
 	"strconv"
 	"strings"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 func validUserInfo(username string, role int) bool {
@@ -177,6 +180,7 @@ func WssAuth(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		rawAuth := c.Request.Header.Get("Authorization")
 		// 先检测是否为ws
 		if c.Request.Header.Get("Sec-WebSocket-Protocol") != "" {
 			// Sec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-xxx, openai-beta.realtime-v1
@@ -235,6 +239,11 @@ func TokenAuth() func(c *gin.Context) {
 			}
 		}
 		if err != nil {
+			// OAuth Bearer fallback
+			if tryOAuthBearer(c, rawAuth) {
+				c.Next()
+				return
+			}
 			abortWithOpenAiMessage(c, http.StatusUnauthorized, err.Error())
 			return
 		}
@@ -286,6 +295,74 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		c.Next()
 	}
+}
+
+// tryOAuthBearer validates an OAuth JWT access token and sets minimal context for relay
+func tryOAuthBearer(c *gin.Context, rawAuth string) bool {
+	if rawAuth == "" || !strings.HasPrefix(rawAuth, "Bearer ") {
+		return false
+	}
+	tokenString := strings.TrimSpace(strings.TrimPrefix(rawAuth, "Bearer "))
+	if tokenString == "" {
+		return false
+	}
+	settings := system_setting.GetOAuth2Settings()
+	// Parse & verify
+	parsed, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, jwt.ErrTokenSignatureInvalid
+		}
+		if kid, ok := t.Header["kid"].(string); ok {
+			if settings.JWTKeyID != "" && kid != settings.JWTKeyID {
+				return nil, jwt.ErrTokenSignatureInvalid
+			}
+		}
+		pub := oauth.GetRSAPublicKey()
+		if pub == nil {
+			return nil, jwt.ErrTokenUnverifiable
+		}
+		return pub, nil
+	})
+	if err != nil || parsed == nil || !parsed.Valid {
+		return false
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return false
+	}
+	// issuer check when configured
+	if iss, ok2 := claims["iss"].(string); !ok2 || (settings.Issuer != "" && iss != settings.Issuer) {
+		return false
+	}
+	// revoke check
+	if jti, ok2 := claims["jti"].(string); ok2 && jti != "" {
+		if revoked, _ := model.IsTokenRevoked(jti); revoked {
+			return false
+		}
+	}
+	// scope check: must contain api:read or api:write or admin
+	scope, _ := claims["scope"].(string)
+	scopePadded := " " + scope + " "
+	if !(strings.Contains(scopePadded, " api:read ") || strings.Contains(scopePadded, " api:write ") || strings.Contains(scopePadded, " admin ")) {
+		return false
+	}
+	// subject must be user id to support quota logic
+	sub, _ := claims["sub"].(string)
+	uid, err := strconv.Atoi(sub)
+	if err != nil || uid <= 0 {
+		return false
+	}
+	// load user cache & set context
+	userCache, err := model.GetUserCache(uid)
+	if err != nil || userCache == nil || userCache.Status != common.UserStatusEnabled {
+		return false
+	}
+	c.Set("id", uid)
+	c.Set("group", userCache.Group)
+	c.Set("user_group", userCache.Group)
+	// set UsingGroup
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, userCache.Group)
+	return true
 }
 
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {

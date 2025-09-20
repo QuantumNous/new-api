@@ -1,0 +1,167 @@
+<!-- This file is a copy of examples/oauth-demo.html for direct serving under /oauth-demo.html -->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OAuth2/OIDC 授权码 + PKCE 前端演示</title>
+  <style>
+    :root { --bg:#0b0c10; --panel:#111317; --muted:#aab2bf; --accent:#3b82f6; --ok:#16a34a; --warn:#f59e0b; --err:#ef4444; --border:#1f2430; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: var(--bg); color:#e5e7eb; }
+    .wrap { max-width: 980px; margin: 32px auto; padding: 0 16px; }
+    h1 { font-size: 22px; margin:0 0 16px; }
+    .card { background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px; margin: 12px 0; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .col { flex: 1 1 280px; display:flex; flex-direction:column; }
+    label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input, textarea, select { background:#0f1115; color:#e5e7eb; border:1px solid var(--border); padding:10px 12px; border-radius:8px; outline:none; }
+    textarea { min-height: 100px; resize: vertical; }
+    .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
+    button { background:#1a1f2b; color:#e5e7eb; border:1px solid var(--border); padding:8px 12px; border-radius:8px; cursor:pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color:white; }
+    button.ok { background: var(--ok); border-color: var(--ok); color:white; }
+    button.warn { background: var(--warn); border-color: var(--warn); color:black; }
+    button.ghost { background: transparent; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 880px){ .grid2 { grid-template-columns: 1fr; } }
+    .ok { color: #10b981; }
+    .err { color: #ef4444; }
+    .sep { height:1px; background: var(--border); margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>OAuth2/OIDC 授权码 + PKCE 前端演示</h1>
+    <div class="card">
+      <div class="row">
+        <div class="col">
+          <label>Issuer（可选，用于自动发现 /.well-known/openid-configuration）</label>
+          <input id="issuer" placeholder="https://your-domain" />
+          <div class="btns"><button class="" id="btnDiscover">自动发现端点</button></div>
+          <div class="muted">提示：若未配置 Issuer，可直接填写下方端点。</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <label>Response Type</label>
+          <select id="response_type">
+            <option value="code" selected>code</option>
+            <option value="token">token</option>
+          </select>
+        </div>
+        <div class="col"><label>Authorization Endpoint</label><input id="authorization_endpoint" placeholder="https://domain/api/oauth/authorize" /></div>
+        <div class="col"><label>Token Endpoint</label><input id="token_endpoint" placeholder="https://domain/api/oauth/token" /></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>UserInfo Endpoint（可选）</label><input id="userinfo_endpoint" placeholder="https://domain/api/oauth/userinfo" /></div>
+        <div class="col"><label>Client ID</label><input id="client_id" placeholder="your-public-client-id" /></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Client Secret（可选，机密客户端）</label><input id="client_secret" placeholder="留空表示公开客户端" /></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Redirect URI（当前页地址或你的回调）</label><input id="redirect_uri" /></div>
+        <div class="col"><label>Scope</label><input id="scope" value="openid profile email" /></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>State</label><input id="state" /></div>
+        <div class="col"><label>Nonce</label><input id="nonce" /></div>
+      </div>
+      <div class="row">
+        <div class="col"><label>Code Verifier（自动生成，不会上送）</label><input id="code_verifier" class="mono" readonly /></div>
+        <div class="col"><label>Code Challenge（S256）</label><input id="code_challenge" class="mono" readonly /></div>
+      </div>
+      <div class="btns">
+        <button id="btnGenPkce">生成 PKCE</button>
+        <button id="btnRandomState">随机 State</button>
+        <button id="btnRandomNonce">随机 Nonce</button>
+        <button id="btnMakeAuthURL">生成授权链接</button>
+        <button id="btnAuthorize" class="primary">跳转授权</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div class="col">
+          <label>授权链接（只生成不跳转）</label>
+          <textarea id="authorize_url" class="mono" placeholder="(空)"></textarea>
+          <div class="btns"><button id="btnCopyAuthURL">复制链接</button></div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="muted">说明：
+        <ul>
+          <li>本页为纯前端演示，适用于公开客户端（不需要 client_secret）。</li>
+          <li>如跨域调用 Token/UserInfo，需要服务端正确设置 CORS；建议将此 demo 部署到同源域名下。</li>
+        </ul>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <div class="col">
+          <label>粘贴 OIDC Discovery JSON（/.well-known/openid-configuration）</label>
+          <textarea id="conf_json" class="mono" placeholder='{"issuer":"https://...","authorization_endpoint":"...","token_endpoint":"...","userinfo_endpoint":"..."}'></textarea>
+          <div class="btns">
+            <button id="btnParseConf">解析并填充端点</button>
+            <button id="btnGenConf">用当前端点生成 JSON</button>
+          </div>
+          <div class="muted">可将服务端返回的 OIDC Discovery JSON 粘贴到此处，点击“解析并填充端点”。</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><div class="col"><label>授权结果</label><div id="authResult" class="muted">等待授权...</div></div></div>
+      <div class="grid2" style="margin-top:12px;">
+        <div>
+          <label>Access Token</label>
+          <textarea id="access_token" class="mono" placeholder="(空)"></textarea>
+          <div class="btns"><button id="btnCopyAT">复制</button><button id="btnCallUserInfo" class="ok">调用 UserInfo</button></div>
+          <div id="userinfoOut" class="muted" style="margin-top:6px;"></div>
+        </div>
+        <div>
+          <label>ID Token（JWT）</label>
+          <textarea id="id_token" class="mono" placeholder="(空)"></textarea>
+          <div class="btns"><button id="btnDecodeJWT">解码显示 Claims</button></div>
+          <pre id="jwtClaims" class="mono" style="white-space:pre-wrap; word-break:break-all; margin-top:6px;"></pre>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:12px;">
+        <div>
+          <label>Refresh Token</label>
+          <textarea id="refresh_token" class="mono" placeholder="(空)"></textarea>
+          <div class="btns"><button id="btnRefreshToken">使用 Refresh Token 刷新</button></div>
+        </div>
+        <div>
+          <label>原始 Token 响应</label>
+          <textarea id="token_raw" class="mono" placeholder="(空)"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const toB64Url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    async function sha256B64Url(str){ const data=new TextEncoder().encode(str); const digest=await crypto.subtle.digest('SHA-256', data); return toB64Url(digest); }
+    function randStr(len=64){ const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'; const arr=new Uint8Array(len); crypto.getRandomValues(arr); return Array.from(arr,v=>chars[v%chars.length]).join(''); }
+    function setAuthInfo(msg, ok=true){ const el=$('authResult'); el.textContent=msg; el.className = ok? 'ok':'err'; }
+    function qs(name){ const u=new URL(location.href); return u.searchParams.get(name); }
+    function persist(k,v){ sessionStorage.setItem('demo_'+k, v); }
+    function load(k){ return sessionStorage.getItem('demo_'+k) || ''; }
+    (function init(){ $('redirect_uri').value = window.location.origin + window.location.pathname; const iss=load('issuer'); if(iss) $('issuer').value=iss; const cid=load('client_id'); if(cid) $('client_id').value=cid; const scp=load('scope'); if(scp) $('scope').value=scp; })();
+    $('btnDiscover').onclick = async () => { const iss=$('issuer').value.trim(); if(!iss){ alert('请填写 Issuer'); return; } try{ persist('issuer', iss); const res=await fetch(iss.replace(/\/$/,'')+'/api/.well-known/openid-configuration'); const d=await res.json(); $('authorization_endpoint').value=d.authorization_endpoint||''; $('token_endpoint').value=d.token_endpoint||''; $('userinfo_endpoint').value=d.userinfo_endpoint||''; if(d.issuer){ $('issuer').value=d.issuer; persist('issuer', d.issuer);} $('conf_json').value=JSON.stringify(d,null,2); setAuthInfo('已从发现文档加载端点', true);}catch(e){ setAuthInfo('自动发现失败：'+e,false);} };
+    $('btnGenPkce').onclick = async () => { const v=randStr(64); const c=await sha256B64Url(v); $('code_verifier').value=v; $('code_challenge').value=c; persist('code_verifier',v); persist('code_challenge',c); setAuthInfo('已生成 PKCE 参数', true); };
+    $('btnRandomState').onclick = ()=>{ $('state').value=randStr(16); persist('state',$('state').value);} ;
+    $('btnRandomNonce').onclick = ()=>{ $('nonce').value=randStr(16); persist('nonce',$('nonce').value);} ;
+    function buildAuthorizeURLFromFields(){ const auth=$('authorization_endpoint').value.trim(); const token=$('token_endpoint').value.trim(); const cid=$('client_id').value.trim(); const red=$('redirect_uri').value.trim(); const scp=$('scope').value.trim()||'openid profile email'; const rt=$('response_type').value; const st=$('state').value.trim()||randStr(16); const no=$('nonce').value.trim()||randStr(16); const cc=$('code_challenge').value.trim(); const cv=$('code_verifier').value.trim(); if(!auth||!cid||!red){ throw new Error('请先完善端点/ClientID/RedirectURI'); } if(rt==='code' && (!cc||!cv)){ throw new Error('请先生成 PKCE'); } persist('authorization_endpoint', auth); persist('token_endpoint', token); persist('client_id', cid); persist('redirect_uri', red); persist('scope', scp); persist('state', st); persist('nonce', no); persist('code_verifier', cv); const u=new URL(auth); u.searchParams.set('response_type', rt); u.searchParams.set('client_id',cid); u.searchParams.set('redirect_uri',red); u.searchParams.set('scope',scp); u.searchParams.set('state',st); if(no) u.searchParams.set('nonce',no); if(rt==='code'){ u.searchParams.set('code_challenge',cc); u.searchParams.set('code_challenge_method','S256'); } return u.toString(); }
+    $('btnMakeAuthURL').onclick = ()=>{ try{ const url=buildAuthorizeURLFromFields(); $('authorize_url').value=url; setAuthInfo('已生成授权链接',true);}catch(e){ setAuthInfo(e.message,false);} };
+    $('btnAuthorize').onclick = ()=>{ try{ const url=buildAuthorizeURLFromFields(); location.href=url; }catch(e){ setAuthInfo(e.message,false);} };
+    $('btnCopyAuthURL').onclick = async()=>{ try{ await navigator.clipboard.writeText($('authorize_url').value);}catch{} };
+    async function postForm(url, data, basic){ const body=Object.entries(data).map(([k,v])=> `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&'); const headers={ 'Content-Type':'application/x-www-form-urlencoded' }; if(basic&&basic.id&&basic.secret){ headers['Authorization']='Basic '+btoa(`${basic.id}:${basic.secret}`);} const res=await fetch(url,{ method:'POST', headers, body }); if(!res.ok){ const t=await res.text(); throw new Error(`HTTP ${res.status} ${t}`);} return res.json(); }
+    async function handleCallback(){ const frag=location.hash&&location.hash.startsWith('#')?new URLSearchParams(location.hash.slice(1)):null; const at=frag?frag.get('access_token'):null; const err=qs('error')|| (frag?frag.get('error'):null); const state=qs('state')||(frag?frag.get('state'):null); if(err){ setAuthInfo('授权失败：'+err,false); return; } if(at){ $('access_token').value=at||''; $('token_raw').value=JSON.stringify({ access_token: at, token_type: frag.get('token_type'), expires_in: frag.get('expires_in'), scope: frag.get('scope'), state }, null, 2); setAuthInfo('隐式模式已获取 Access Token', true); return; } const code=qs('code'); if(!code){ setAuthInfo('等待授权...', true); return; } if(state && load('state') && state!==load('state')){ setAuthInfo('state 不匹配，已拒绝', false); return; } try{ const tokenEp=load('token_endpoint'); const cid=load('client_id'); const csec=$('client_secret').value.trim(); const basic=csec?{id:cid,secret:csec}:null; const data=await postForm(tokenEp,{ grant_type:'authorization_code', code, client_id:cid, redirect_uri:load('redirect_uri'), code_verifier:load('code_verifier') }, basic); $('access_token').value=data.access_token||''; $('id_token').value=data.id_token||''; $('refresh_token').value=data.refresh_token||''; $('token_raw').value=JSON.stringify(data,null,2); setAuthInfo('授权成功，已获取令牌', true);}catch(e){ setAuthInfo('交换令牌失败：'+e.message,false);} } handleCallback();
+    $('btnCopyAT').onclick = async ()=>{ try{ await navigator.clipboard.writeText($('access_token').value);}catch{} };
+    $('btnDecodeJWT').onclick = ()=>{ const t=$('id_token').value.trim(); if(!t){ $('jwtClaims').textContent='(空)'; return;} const parts=t.split('.'); if(parts.length<2){ $('jwtClaims').textContent='格式错误'; return;} try{ const json=JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/'))); $('jwtClaims').textContent=JSON.stringify(json,null,2);}catch(e){ $('jwtClaims').textContent='解码失败：'+e; } };
+    $('btnCallUserInfo').onclick = async ()=>{ const at=$('access_token').value.trim(); const ep=$('userinfo_endpoint').value.trim(); if(!at||!ep){ alert('请填写UserInfo端点并获取AccessToken'); return;} try{ const res=await fetch(ep,{ headers:{ Authorization:'Bearer '+at }}); const data=await res.json(); $('userinfoOut').textContent=JSON.stringify(data,null,2);}catch(e){ $('userinfoOut').textContent='调用失败：'+e; } };
+    $('btnRefreshToken').onclick = async ()=>{ const rt=$('refresh_token').value.trim(); if(!rt){ alert('没有刷新令牌'); return;} try{ const tokenEp=load('token_endpoint'); const cid=load('client_id'); const csec=$('client_secret').value.trim(); const basic=csec?{id:cid,secret:csec}:null; const data=await postForm(tokenEp,{ grant_type:'refresh_token', refresh_token:rt, client_id:cid }, basic); $('access_token').value=data.access_token||''; $('id_token').value=data.id_token||''; $('refresh_token').value=data.refresh_token||''; $('token_raw').value=JSON.stringify(data,null,2); setAuthInfo('刷新成功', true);}catch(e){ setAuthInfo('刷新失败：'+e.message,false);} };
+    $('btnParseConf').onclick = ()=>{ const txt=$('conf_json').value.trim(); if(!txt){ alert('请先粘贴 JSON'); return;} try{ const d=JSON.parse(txt); if(d.issuer){ $('issuer').value=d.issuer; persist('issuer', d.issuer);} if(d.authorization_endpoint) $('authorization_endpoint').value=d.authorization_endpoint; if(d.token_endpoint) $('token_endpoint').value=d.token_endpoint; if(d.userinfo_endpoint) $('userinfo_endpoint').value=d.userinfo_endpoint; setAuthInfo('已解析配置并填充端点', true);}catch(e){ setAuthInfo('解析失败：'+e,false);} };
+    $('btnGenConf').onclick = ()=>{ const d={ issuer:$('issuer').value.trim()||undefined, authorization_endpoint:$('authorization_endpoint').value.trim()||undefined, token_endpoint:$('token_endpoint').value.trim()||undefined, userinfo_endpoint:$('userinfo_endpoint').value.trim()||undefined }; $('conf_json').value = JSON.stringify(d,null,2); };
+  </script>
+</body>
+</html>

@@ -44,6 +44,7 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import Playground from './pages/Playground';
 import OAuth2Callback from './components/auth/OAuth2Callback';
+import OAuthConsent from './pages/OAuth/Consent';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
@@ -195,6 +196,14 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>}>
               <OAuth2Callback type='oidc'></OAuth2Callback>
+            </Suspense>
+          }
+        />
+        <Route
+          path='/oauth/consent'
+          element={
+            <Suspense fallback={<Loading></Loading>}>
+              <OAuthConsent />
             </Suspense>
           }
         />

@@ -31,6 +31,21 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/oidc", middleware.CriticalRateLimit(), controller.OidcAuth)
 		apiRouter.GET("/oauth/linuxdo", middleware.CriticalRateLimit(), controller.LinuxdoOAuth)
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
+
+		// OAuth2 Server endpoints
+		apiRouter.GET("/.well-known/jwks.json", controller.GetJWKS)
+		apiRouter.GET("/.well-known/openid-configuration", controller.OAuthOIDCConfiguration)
+		apiRouter.GET("/.well-known/oauth-authorization-server", controller.OAuthServerInfo)
+		apiRouter.POST("/oauth/token", middleware.CriticalRateLimit(), controller.OAuthTokenEndpoint)
+		apiRouter.GET("/oauth/authorize", controller.OAuthAuthorizeEndpoint)
+		apiRouter.POST("/oauth/introspect", middleware.AdminAuth(), controller.OAuthIntrospect)
+		apiRouter.POST("/oauth/revoke", middleware.CriticalRateLimit(), controller.OAuthRevoke)
+		apiRouter.GET("/oauth/userinfo", middleware.OAuthJWTAuth(), controller.OAuthUserInfo)
+
+		// OAuth2 管理API (前端使用)
+		apiRouter.GET("/oauth/jwks", controller.GetJWKS)
+		apiRouter.GET("/oauth/server-info", controller.OAuthServerInfo)
+
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
 		apiRouter.GET("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
 		apiRouter.GET("/oauth/email/bind", middleware.CriticalRateLimit(), controller.EmailBind)
@@ -39,6 +54,17 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
+
+		// OAuth2 admin operations
+		oauthAdmin := apiRouter.Group("/oauth")
+		oauthAdmin.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.RootAuth())
+		{
+			oauthAdmin.POST("/keys/rotate", controller.RotateOAuthSigningKey)
+			oauthAdmin.GET("/keys", controller.ListOAuthSigningKeys)
+			oauthAdmin.DELETE("/keys/:kid", controller.DeleteOAuthSigningKey)
+			oauthAdmin.POST("/keys/generate_file", controller.GenerateOAuthSigningKeyFile)
+			oauthAdmin.POST("/keys/import_pem", controller.ImportOAuthSigningKey)
+		}
 
 		userRoute := apiRouter.Group("/user")
 		{
@@ -78,7 +104,7 @@ func SetApiRouter(router *gin.Engine) {
 			}
 
 			adminRoute := userRoute.Group("/")
-			adminRoute.Use(middleware.AdminAuth())
+			adminRoute.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.AdminAuth())
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
 				adminRoute.GET("/search", controller.SearchUsers)
@@ -94,7 +120,7 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 		optionRoute := apiRouter.Group("/option")
-		optionRoute.Use(middleware.RootAuth())
+		optionRoute.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.RootAuth())
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
@@ -108,7 +134,7 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
 		channelRoute := apiRouter.Group("/channel")
-		channelRoute.Use(middleware.AdminAuth())
+		channelRoute.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.AdminAuth())
 		{
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)
@@ -159,7 +185,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		redemptionRoute := apiRouter.Group("/redemption")
-		redemptionRoute.Use(middleware.AdminAuth())
+		redemptionRoute.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.AdminAuth())
 		{
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
@@ -187,13 +213,13 @@ func SetApiRouter(router *gin.Engine) {
 			logRoute.GET("/token", controller.GetLogByKey)
 		}
 		groupRoute := apiRouter.Group("/group")
-		groupRoute.Use(middleware.AdminAuth())
+		groupRoute.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.AdminAuth())
 		{
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
-		prefillGroupRoute.Use(middleware.AdminAuth())
+		prefillGroupRoute.Use(middleware.OptionalOAuthAuth(), middleware.RequireOAuthScopeIfPresent("admin"), middleware.AdminAuth())
 		{
 			prefillGroupRoute.GET("/", controller.GetPrefillGroups)
 			prefillGroupRoute.POST("/", controller.CreatePrefillGroup)
@@ -234,6 +260,18 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
+		}
+
+		oauthClientsRoute := apiRouter.Group("/oauth_clients")
+		oauthClientsRoute.Use(middleware.AdminAuth())
+		{
+			oauthClientsRoute.GET("/", controller.GetAllOAuthClients)
+			oauthClientsRoute.GET("/search", controller.SearchOAuthClients)
+			oauthClientsRoute.GET("/:id", controller.GetOAuthClient)
+			oauthClientsRoute.POST("/", controller.CreateOAuthClient)
+			oauthClientsRoute.PUT("/", controller.UpdateOAuthClient)
+			oauthClientsRoute.DELETE("/:id", controller.DeleteOAuthClient)
+			oauthClientsRoute.POST("/:id/regenerate_secret", controller.RegenerateOAuthClientSecret)
 		}
 	}
 }
