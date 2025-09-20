@@ -75,13 +75,17 @@ export async function copy(text) {
     await navigator.clipboard.writeText(text);
   } catch (e) {
     try {
-      // 构建input 执行 复制命令
-      var _input = window.document.createElement('input');
-      _input.value = text;
-      window.document.body.appendChild(_input);
-      _input.select();
-      window.document.execCommand('Copy');
-      window.document.body.removeChild(_input);
+      // 构建 textarea 执行复制命令，保留多行文本格式
+      const textarea = window.document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      window.document.body.appendChild(textarea);
+      textarea.select();
+      window.document.execCommand('copy');
+      window.document.body.removeChild(textarea);
     } catch (e) {
       okay = false;
       console.error(e);
