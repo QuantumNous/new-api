@@ -30,13 +30,14 @@ import {
   Divider,
   Button,
 } from '@douyinfe/semi-ui';
-import { Plus, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
 
 const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
+  const { t } = useTranslation();
   const [formApi, setFormApi] = useState(null);
   const [loading, setLoading] = useState(false);
   const [redirectUris, setRedirectUris] = useState([]);
@@ -99,9 +100,10 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
       let parsedRedirectUris = [];
       if (client.redirect_uris) {
         try {
-          const parsed = typeof client.redirect_uris === 'string' 
-            ? JSON.parse(client.redirect_uris)
-            : client.redirect_uris;
+          const parsed =
+            typeof client.redirect_uris === 'string'
+              ? JSON.parse(client.redirect_uris)
+              : client.redirect_uris;
           if (Array.isArray(parsed) && parsed.length > 0) {
             parsedRedirectUris = parsed;
           }
@@ -114,12 +116,16 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
       const filteredGrantTypes = (parsedGrantTypes || []).filter((g) =>
         allowedGrantTypes.includes(g),
       );
-      const finalGrantTypes = client.client_type === 'public'
-        ? filteredGrantTypes.filter((g) => g !== 'client_credentials')
-        : filteredGrantTypes;
+      const finalGrantTypes =
+        client.client_type === 'public'
+          ? filteredGrantTypes.filter((g) => g !== 'client_credentials')
+          : filteredGrantTypes;
 
       setGrantTypes(finalGrantTypes);
-      if (finalGrantTypes.includes('authorization_code') && parsedRedirectUris.length === 0) {
+      if (
+        finalGrantTypes.includes('authorization_code') &&
+        parsedRedirectUris.length === 0
+      ) {
         setRedirectUris(['']);
       } else {
         setRedirectUris(parsedRedirectUris);
@@ -153,18 +159,23 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
 
       // 校验授权类型
       if (!grantTypes.length) {
-        showError('请至少选择一种授权类型');
+        showError(t('请至少选择一种授权类型'));
         setLoading(false);
         return;
       }
       const invalids = grantTypes.filter((g) => !allowedGrantTypes.includes(g));
       if (invalids.length) {
-        showError(`不被允许的授权类型: ${invalids.join(', ')}`);
+        showError(
+          t('不被允许的授权类型: {{types}}', { types: invalids.join(', ') }),
+        );
         setLoading(false);
         return;
       }
-      if (client?.client_type === 'public' && grantTypes.includes('client_credentials')) {
-        showError('公开客户端不允许使用client_credentials授权类型');
+      if (
+        client?.client_type === 'public' &&
+        grantTypes.includes('client_credentials')
+      ) {
+        showError(t('公开客户端不允许使用client_credentials授权类型'));
         setLoading(false);
         return;
       }
@@ -177,7 +188,9 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
           if (u.protocol === 'http:') {
             const host = u.hostname;
             const isLocal =
-              host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+              host === 'localhost' ||
+              host === '127.0.0.1' ||
+              host.endsWith('.local');
             if (!isLocal) return false;
           }
           return true;
@@ -187,18 +200,18 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
       };
       if (grantTypes.includes('authorization_code')) {
         if (!validRedirectUris.length) {
-          showError('选择授权码授权类型时，必须填写至少一个重定向URI');
+          showError(t('选择授权码授权类型时，必须填写至少一个重定向URI'));
           setLoading(false);
           return;
         }
         const allValid = validRedirectUris.every(isValidRedirectUri);
         if (!allValid) {
-          showError('重定向URI格式不合法：仅支持https，或本地开发使用http');
+          showError(t('重定向URI格式不合法：仅支持https，或本地开发使用http'));
           setLoading(false);
           return;
         }
       }
-      
+
       const payload = {
         ...values,
         grant_types: grantTypes,
@@ -207,15 +220,15 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
 
       const res = await API.put('/api/oauth_clients/', payload);
       const { success, message } = res.data;
-      
+
       if (success) {
-        showSuccess('OAuth2客户端更新成功');
+        showSuccess(t('OAuth2客户端更新成功'));
         onSuccess();
       } else {
         showError(message);
       }
     } catch (error) {
-      showError('更新OAuth2客户端失败');
+      showError(t('更新OAuth2客户端失败'));
     } finally {
       setLoading(false);
     }
@@ -246,7 +259,10 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
       setRedirectUris(['']);
     }
     // 公开客户端不允许client_credentials
-    if (client?.client_type === 'public' && values.includes('client_credentials')) {
+    if (
+      client?.client_type === 'public' &&
+      values.includes('client_credentials')
+    ) {
       setGrantTypes(values.filter((v) => v !== 'client_credentials'));
     }
   };
@@ -255,12 +271,12 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
 
   return (
     <Modal
-      title={`编辑OAuth2客户端 - ${client.name}`}
+      title={t('编辑OAuth2客户端 - {{name}}', { name: client.name })}
       visible={visible}
       onCancel={onCancel}
       onOk={() => formApi?.submitForm()}
-      okText="保存"
-      cancelText="取消"
+      okText={t('保存')}
+      cancelText={t('取消')}
       confirmLoading={loading}
       width={600}
       style={{ top: 50 }}
@@ -268,143 +284,163 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
       <Form
         getFormApi={(api) => setFormApi(api)}
         onSubmit={handleSubmit}
-        labelPosition="top"
+        labelPosition='top'
       >
         {/* 客户端ID（只读） */}
         <Form.Input
-          field="id"
-          label="客户端ID"
+          field='id'
+          label={t('客户端ID')}
           disabled
           style={{ backgroundColor: '#f8f9fa' }}
         />
 
         {/* 基本信息 */}
         <Form.Input
-          field="name"
-          label="客户端名称"
-          placeholder="输入客户端名称"
-          rules={[{ required: true, message: '请输入客户端名称' }]}
+          field='name'
+          label={t('客户端名称')}
+          placeholder={t('输入客户端名称')}
+          rules={[{ required: true, message: t('请输入客户端名称') }]}
         />
 
         <Form.TextArea
-          field="description"
-          label="描述"
-          placeholder="输入客户端描述"
+          field='description'
+          label={t('描述')}
+          placeholder={t('输入客户端描述')}
           rows={3}
         />
 
         {/* 客户端类型（只读） */}
         <Form.Select
-          field="client_type"
-          label="客户端类型"
+          field='client_type'
+          label={t('客户端类型')}
           disabled
           style={{ backgroundColor: '#f8f9fa' }}
         >
-          <Option value="confidential">机密客户端（Confidential）</Option>
-          <Option value="public">公开客户端（Public）</Option>
+          <Option value='confidential'>
+            {t('机密客户端（Confidential）')}
+          </Option>
+          <Option value='public'>{t('公开客户端（Public）')}</Option>
         </Form.Select>
-        
-        <Paragraph type="tertiary" size="small" style={{ marginTop: -8, marginBottom: 16 }}>
-          客户端类型创建后不可更改。
+
+        <Paragraph
+          type='tertiary'
+          size='small'
+          style={{ marginTop: -8, marginBottom: 16 }}
+        >
+          {t('客户端类型创建后不可更改。')}
         </Paragraph>
 
         {/* 授权类型 */}
         <Form.Select
-          field="grant_types"
-          label="允许的授权类型"
+          field='grant_types'
+          label={t('允许的授权类型')}
           multiple
           value={grantTypes}
           onChange={handleGrantTypesChange}
-          rules={[{ required: true, message: '请选择至少一种授权类型' }]}
+          rules={[{ required: true, message: t('请选择至少一种授权类型') }]}
         >
-          <Option value="client_credentials" disabled={
-            client?.client_type === 'public' || !allowedGrantTypes.includes('client_credentials')
-          }>
-            Client Credentials（客户端凭证）
+          <Option
+            value='client_credentials'
+            disabled={
+              client?.client_type === 'public' ||
+              !allowedGrantTypes.includes('client_credentials')
+            }
+          >
+            {t('Client Credentials（客户端凭证）')}
           </Option>
-          <Option value="authorization_code" disabled={!allowedGrantTypes.includes('authorization_code')}>
-            Authorization Code（授权码）
+          <Option
+            value='authorization_code'
+            disabled={!allowedGrantTypes.includes('authorization_code')}
+          >
+            {t('Authorization Code（授权码）')}
           </Option>
-          <Option value="refresh_token" disabled={!allowedGrantTypes.includes('refresh_token')}>
-            Refresh Token（刷新令牌）
+          <Option
+            value='refresh_token'
+            disabled={!allowedGrantTypes.includes('refresh_token')}
+          >
+            {t('Refresh Token（刷新令牌）')}
           </Option>
         </Form.Select>
 
         {/* Scope */}
         <Form.Select
-          field="scopes"
-          label="允许的权限范围（Scope）"
+          field='scopes'
+          label={t('允许的权限范围（Scope）')}
           multiple
-          rules={[{ required: true, message: '请选择至少一个权限范围' }]}
+          rules={[{ required: true, message: t('请选择至少一个权限范围') }]}
         >
-          <Option value="openid">openid（OIDC 基础身份）</Option>
-          <Option value="profile">profile（用户名/昵称等）</Option>
-          <Option value="email">email（邮箱信息）</Option>
-          <Option value="api:read">api:read（读取API）</Option>
-          <Option value="api:write">api:write（写入API）</Option>
-          <Option value="admin">admin（管理员权限）</Option>
+          <Option value='openid'>openid（OIDC 基础身份）</Option>
+          <Option value='profile'>profile（用户名/昵称等）</Option>
+          <Option value='email'>email（邮箱信息）</Option>
+          <Option value='api:read'>api:read（读取API）</Option>
+          <Option value='api:write'>api:write（写入API）</Option>
+          <Option value='admin'>admin（管理员权限）</Option>
         </Form.Select>
 
         {/* PKCE设置 */}
-        <Form.Switch
-          field="require_pkce"
-          label="强制PKCE验证"
-        />
-        <Paragraph type="tertiary" size="small" style={{ marginTop: -8, marginBottom: 16 }}>
-          PKCE（Proof Key for Code Exchange）可提高授权码流程的安全性。
+        <Form.Switch field='require_pkce' label={t('强制PKCE验证')} />
+        <Paragraph
+          type='tertiary'
+          size='small'
+          style={{ marginTop: -8, marginBottom: 16 }}
+        >
+          {t('PKCE（Proof Key for Code Exchange）可提高授权码流程的安全性。')}
         </Paragraph>
 
         {/* 状态 */}
         <Form.Select
-          field="status"
-          label="状态"
-          rules={[{ required: true, message: '请选择状态' }]}
+          field='status'
+          label={t('状态')}
+          rules={[{ required: true, message: t('请选择状态') }]}
         >
-          <Option value={1}>启用</Option>
-          <Option value={2}>禁用</Option>
+          <Option value={1}>{t('启用')}</Option>
+          <Option value={2}>{t('禁用')}</Option>
         </Form.Select>
 
         {/* 重定向URI */}
-        {(grantTypes.includes('authorization_code') || redirectUris.length > 0) && (
+        {(grantTypes.includes('authorization_code') ||
+          redirectUris.length > 0) && (
           <>
-            <Divider>重定向URI配置</Divider>
+            <Divider>{t('重定向URI配置')}</Divider>
             <div style={{ marginBottom: 16 }}>
-              <Text strong>重定向URI</Text>
-              <Paragraph type="tertiary" size="small">
-                用于授权码流程，用户授权后将重定向到这些URI。必须使用HTTPS（本地开发可使用HTTP，仅限localhost/127.0.0.1）。
+              <Text strong>{t('重定向URI')}</Text>
+              <Paragraph type='tertiary' size='small'>
+                {t(
+                  '用于授权码流程，用户授权后将重定向到这些URI。必须使用HTTPS（本地开发可使用HTTP，仅限localhost/127.0.0.1）。',
+                )}
               </Paragraph>
-              
-              <Space direction="vertical" style={{ width: '100%' }}>
+
+              <Space direction='vertical' style={{ width: '100%' }}>
                 {redirectUris.map((uri, index) => (
                   <Space key={index} style={{ width: '100%' }}>
                     <Input
-                      placeholder="https://your-app.com/callback"
+                      placeholder='https://your-app.com/callback'
                       value={uri}
                       onChange={(value) => updateRedirectUri(index, value)}
                       style={{ flex: 1 }}
                     />
                     {redirectUris.length > 1 && (
                       <Button
-                        theme="borderless"
-                        type="danger"
-                        size="small"
-                        icon={<Trash2 size={14} />}
+                        theme='borderless'
+                        type='danger'
+                        size='small'
                         onClick={() => removeRedirectUri(index)}
-                      />
+                      >
+                        {t('删除')}
+                      </Button>
                     )}
                   </Space>
                 ))}
               </Space>
-              
+
               <Button
-                theme="borderless"
-                type="primary"
-                size="small"
-                icon={<Plus size={14} />}
+                theme='borderless'
+                type='primary'
+                size='small'
                 onClick={addRedirectUri}
                 style={{ marginTop: 8 }}
               >
-                添加重定向URI
+                {t('添加重定向URI')}
               </Button>
             </div>
           </>

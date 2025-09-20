@@ -31,7 +31,6 @@ import {
   Row,
   Col,
 } from '@douyinfe/semi-ui';
-import { Plus, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -119,7 +118,9 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
         // 仅允许本地开发时使用 http
         const host = u.hostname;
         const isLocal =
-          host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host.endsWith('.local');
         if (!isLocal) return false;
       }
       return true;
@@ -145,10 +146,15 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
       // 校验是否包含不被允许的授权类型
       const invalids = grantTypes.filter((g) => !allowedGrantTypes.includes(g));
       if (invalids.length) {
-        showError(t('不被允许的授权类型: {{types}}', { types: invalids.join(', ') }));
+        showError(
+          t('不被允许的授权类型: {{types}}', { types: invalids.join(', ') }),
+        );
         return;
       }
-      if (clientType === 'public' && grantTypes.includes('client_credentials')) {
+      if (
+        clientType === 'public' &&
+        grantTypes.includes('client_credentials')
+      ) {
         showError(t('公开客户端不允许使用client_credentials授权类型'));
         return;
       }
@@ -173,17 +179,23 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
 
       const res = await API.post('/api/oauth_clients/', payload);
       const { success, message, client_id, client_secret } = res.data;
-      
+
       if (success) {
         showSuccess(t('OAuth2客户端创建成功'));
-        
+
         // 显示客户端信息
         Modal.info({
           title: t('客户端创建成功'),
           content: (
             <div>
               <Paragraph>{t('请妥善保存以下信息：')}</Paragraph>
-              <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '6px' }}>
+              <div
+                style={{
+                  background: '#f8f9fa',
+                  padding: '16px',
+                  borderRadius: '6px',
+                }}
+              >
                 <div style={{ marginBottom: '12px' }}>
                   <Text strong>{t('客户端ID')}：</Text>
                   <br />
@@ -201,11 +213,10 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
                   </div>
                 )}
               </div>
-              <Paragraph type="warning" style={{ marginTop: '12px' }}>
-                {client_secret 
-                  ? t('客户端密钥仅显示一次，请立即复制保存。') 
-                  : t('公开客户端无需密钥。')
-                }
+              <Paragraph type='warning' style={{ marginTop: '12px' }}>
+                {client_secret
+                  ? t('客户端密钥仅显示一次，请立即复制保存。')
+                  : t('公开客户端无需密钥。')}
               </Paragraph>
             </div>
           ),
@@ -213,7 +224,7 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           onOk: () => {
             resetForm();
             onSuccess();
-          }
+          },
         });
       } else {
         showError(message);
@@ -280,13 +291,13 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
       okText={t('创建')}
       cancelText={t('取消')}
       confirmLoading={loading}
-      width="90vw"
-      style={{ 
-        top: 20, 
+      width='90vw'
+      style={{
+        top: 20,
         maxWidth: '800px',
         '@media (min-width: 768px)': {
-          width: '600px'
-        }
+          width: '600px',
+        },
       }}
     >
       <Form
@@ -298,13 +309,13 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           grant_types: grantTypes,
         }}
         onSubmit={handleSubmit}
-        labelPosition="top"
+        labelPosition='top'
       >
         {/* 基本信息 */}
         <Row gutter={[16, 24]}>
           <Col xs={24}>
             <Form.Input
-              field="name"
+              field='name'
               label={t('客户端名称')}
               placeholder={t('输入客户端名称')}
               rules={[{ required: true, message: t('请输入客户端名称') }]}
@@ -313,7 +324,7 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           </Col>
           <Col xs={24}>
             <Form.TextArea
-              field="description"
+              field='description'
               label={t('描述')}
               placeholder={t('输入客户端描述')}
               rows={3}
@@ -325,31 +336,40 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
         {/* 客户端类型 */}
         <div>
           <Text strong>{t('客户端类型')}</Text>
-          <Paragraph type="tertiary" size="small" style={{ marginTop: 4, marginBottom: 8 }}>
+          <Paragraph
+            type='tertiary'
+            size='small'
+            style={{ marginTop: 4, marginBottom: 8 }}
+          >
             {t('选择适合您应用程序的客户端类型。')}
           </Paragraph>
           <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
             <Col xs={24} md={12}>
-              <div 
+              <div
                 onClick={() => setClientType('confidential')}
                 style={{
                   padding: '16px',
                   border: `2px solid ${clientType === 'confidential' ? '#3370ff' : '#e4e6e9'}`,
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  background: clientType === 'confidential' ? '#f0f5ff' : '#fff',
+                  background:
+                    clientType === 'confidential' ? '#f0f5ff' : '#fff',
                   transition: 'all 0.2s ease',
-                  minHeight: '80px'
+                  minHeight: '80px',
                 }}
               >
                 <Text strong>{t('机密客户端（Confidential）')}</Text>
-                <Paragraph type="tertiary" size="small" style={{ margin: '4px 0 0 0' }}>
+                <Paragraph
+                  type='tertiary'
+                  size='small'
+                  style={{ margin: '4px 0 0 0' }}
+                >
                   {t('用于服务器端应用，可以安全地存储客户端密钥')}
                 </Paragraph>
               </div>
             </Col>
             <Col xs={24} md={12}>
-              <div 
+              <div
                 onClick={() => setClientType('public')}
                 style={{
                   padding: '16px',
@@ -358,11 +378,15 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
                   cursor: 'pointer',
                   background: clientType === 'public' ? '#f0f5ff' : '#fff',
                   transition: 'all 0.2s ease',
-                  minHeight: '80px'
+                  minHeight: '80px',
                 }}
               >
                 <Text strong>{t('公开客户端（Public）')}</Text>
-                <Paragraph type="tertiary" size="small" style={{ margin: '4px 0 0 0' }}>
+                <Paragraph
+                  type='tertiary'
+                  size='small'
+                  style={{ margin: '4px 0 0 0' }}
+                >
                   {t('用于移动应用或单页应用，无法安全存储密钥')}
                 </Paragraph>
               </div>
@@ -374,7 +398,7 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           {/* 授权类型 */}
           <Col xs={24} lg={12}>
             <Form.Select
-              field="grant_types"
+              field='grant_types'
               label={t('允许的授权类型')}
               multiple
               value={grantTypes}
@@ -382,13 +406,22 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
               rules={[{ required: true, message: t('请选择至少一种授权类型') }]}
               style={{ width: '100%' }}
             >
-              <Option value="client_credentials" disabled={isGrantTypeDisabled('client_credentials')}>
+              <Option
+                value='client_credentials'
+                disabled={isGrantTypeDisabled('client_credentials')}
+              >
                 {t('Client Credentials（客户端凭证）')}
               </Option>
-              <Option value="authorization_code" disabled={isGrantTypeDisabled('authorization_code')}>
+              <Option
+                value='authorization_code'
+                disabled={isGrantTypeDisabled('authorization_code')}
+              >
                 {t('Authorization Code（授权码）')}
               </Option>
-              <Option value="refresh_token" disabled={isGrantTypeDisabled('refresh_token')}>
+              <Option
+                value='refresh_token'
+                disabled={isGrantTypeDisabled('refresh_token')}
+              >
                 {t('Refresh Token（刷新令牌）')}
               </Option>
             </Form.Select>
@@ -397,75 +430,88 @@ const CreateOAuth2ClientModal = ({ visible, onCancel, onSuccess }) => {
           {/* Scope */}
           <Col xs={24} lg={12}>
             <Form.Select
-              field="scopes"
+              field='scopes'
               label={t('允许的权限范围（Scope）')}
               multiple
               rules={[{ required: true, message: t('请选择至少一个权限范围') }]}
               style={{ width: '100%' }}
             >
-              <Option value="openid">openid（OIDC 基础身份）</Option>
-              <Option value="profile">profile（用户名/昵称等）</Option>
-              <Option value="email">email（邮箱信息）</Option>
-              <Option value="api:read">api:read（读取API）</Option>
-              <Option value="api:write">api:write（写入API）</Option>
-              <Option value="admin">admin（管理员权限）</Option>
+              <Option value='openid'>openid（OIDC 基础身份）</Option>
+              <Option value='profile'>profile（用户名/昵称等）</Option>
+              <Option value='email'>email（邮箱信息）</Option>
+              <Option value='api:read'>api:read（读取API）</Option>
+              <Option value='api:write'>api:write（写入API）</Option>
+              <Option value='admin'>admin（管理员权限）</Option>
             </Form.Select>
           </Col>
 
           {/* PKCE设置 */}
           <Col xs={24}>
-            <Form.Switch
-              field="require_pkce"
-              label={t('强制PKCE验证')}
-            />
-            <Paragraph type="tertiary" size="small" style={{ marginTop: 4, marginBottom: 0 }}>
-              {t('PKCE（Proof Key for Code Exchange）可提高授权码流程的安全性。')}
+            <Form.Switch field='require_pkce' label={t('强制PKCE验证')} />
+            <Paragraph
+              type='tertiary'
+              size='small'
+              style={{ marginTop: 4, marginBottom: 0 }}
+            >
+              {t(
+                'PKCE（Proof Key for Code Exchange）可提高授权码流程的安全性。',
+              )}
             </Paragraph>
           </Col>
         </Row>
 
         {/* 重定向URI */}
-        {(grantTypes.includes('authorization_code') || redirectUris.length > 0) && (
+        {(grantTypes.includes('authorization_code') ||
+          redirectUris.length > 0) && (
           <>
             <Divider>{t('重定向URI配置')}</Divider>
             <div style={{ marginBottom: 16 }}>
               <Text strong>{t('重定向URI')}</Text>
-              <Paragraph type="tertiary" size="small">
-                {t('用于授权码流程，用户授权后将重定向到这些URI。必须使用HTTPS（本地开发可使用HTTP，仅限localhost/127.0.0.1）。')}
+              <Paragraph type='tertiary' size='small'>
+                {t(
+                  '用于授权码流程，用户授权后将重定向到这些URI。必须使用HTTPS（本地开发可使用HTTP，仅限localhost/127.0.0.1）。',
+                )}
               </Paragraph>
-              
+
               <div style={{ width: '100%' }}>
                 {redirectUris.map((uri, index) => (
                   <Row gutter={[8, 8]} key={index} style={{ marginBottom: 8 }}>
                     <Col xs={redirectUris.length > 1 ? 20 : 24}>
                       <Input
-                        placeholder="https://your-app.com/callback"
+                        placeholder='https://your-app.com/callback'
                         value={uri}
                         onChange={(value) => updateRedirectUri(index, value)}
                         style={{ width: '100%' }}
                       />
                     </Col>
                     {redirectUris.length > 1 && (
-                      <Col xs={4} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Col
+                        xs={4}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
                         <Button
-                          theme="borderless"
-                          type="danger"
-                          size="small"
-                          icon={<Trash2 size={14} />}
+                          theme='borderless'
+                          type='danger'
+                          size='small'
                           onClick={() => removeRedirectUri(index)}
                           style={{ width: '100%' }}
-                        />
+                        >
+                          {t('删除')}
+                        </Button>
                       </Col>
                     )}
                   </Row>
                 ))}
               </div>
-              
+
               <Button
-                theme="borderless"
-                type="primary"
-                size="small"
-                icon={<Plus size={14} />}
+                theme='borderless'
+                type='primary'
+                size='small'
                 onClick={addRedirectUri}
                 style={{ marginTop: 8 }}
               >

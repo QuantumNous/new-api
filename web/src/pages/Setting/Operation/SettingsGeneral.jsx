@@ -130,19 +130,20 @@ export default function GeneralSettings(props) {
                   showClear
                 />
               </Col>
-              {inputs.QuotaPerUnit !== '500000' && inputs.QuotaPerUnit !== 500000 && (
-                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                  <Form.Input
-                    field={'QuotaPerUnit'}
-                    label={t('单位美元额度')}
-                    initValue={''}
-                    placeholder={t('一单位货币能兑换的额度')}
-                    onChange={handleFieldChange('QuotaPerUnit')}
-                    showClear
-                    onClick={() => setShowQuotaWarning(true)}
-                  />
-                </Col>
-              )}
+              {inputs.QuotaPerUnit !== '500000' &&
+                inputs.QuotaPerUnit !== 500000 && (
+                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                    <Form.Input
+                      field={'QuotaPerUnit'}
+                      label={t('单位美元额度')}
+                      initValue={''}
+                      placeholder={t('一单位货币能兑换的额度')}
+                      onChange={handleFieldChange('QuotaPerUnit')}
+                      showClear
+                      onClick={() => setShowQuotaWarning(true)}
+                    />
+                  </Col>
+                )}
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Input
                   field={'USDExchangeRate'}

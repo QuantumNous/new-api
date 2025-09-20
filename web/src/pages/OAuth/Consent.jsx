@@ -18,7 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, Button, Typography, Spin, Banner, Avatar, Divider, Popover } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Button,
+  Typography,
+  Spin,
+  Banner,
+  Avatar,
+  Divider,
+  Popover,
+} from '@douyinfe/semi-ui';
 import { Link, Dot, Key, User, Mail, Eye, Pencil, Shield } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -135,13 +144,21 @@ export default function OAuthConsent() {
         {loading ? (
           <Card className='text-center py-8'>
             <Spin size='large' />
-            <Text type='tertiary' className='block mt-4'>{t('加载授权信息中...')}</Text>
+            <Text type='tertiary' className='block mt-4'>
+              {t('加载授权信息中...')}
+            </Text>
           </Card>
         ) : error ? (
           <Card>
             <Banner
               type='warning'
-              description={error === 'login_required' ? t('请先登录后再继续授权。') : t('暂时无法加载授权信息')}
+              closeIcon={null}
+              className='!rounded-lg'
+              description={
+                error === 'login_required'
+                  ? t('请先登录后再继续授权。')
+                  : t('暂时无法加载授权信息')
+              }
             />
           </Card>
         ) : (
@@ -173,7 +190,9 @@ export default function OAuthConsent() {
                         {t('授权后将重定向到')}
                       </Text>
                       <Text type='tertiary' size='small' className='block'>
-                        {info?.redirect_uri?.length > 60 ? info.redirect_uri.slice(0, 60) + '...' : info?.redirect_uri}
+                        {info?.redirect_uri?.length > 60
+                          ? info.redirect_uri.slice(0, 60) + '...'
+                          : info?.redirect_uri}
                       </Text>
                     </div>
                   </div>
@@ -190,12 +209,20 @@ export default function OAuthConsent() {
                             {info?.client?.name || info?.client?.id}
                           </Text>
                           {info?.client?.desc && (
-                            <Text type='tertiary' size='small' className='block'>
+                            <Text
+                              type='tertiary'
+                              size='small'
+                              className='block'
+                            >
                               {info.client.desc}
                             </Text>
                           )}
                           {info?.client?.domain && (
-                            <Text type='tertiary' size='small' className='block mt-1'>
+                            <Text
+                              type='tertiary'
+                              size='small'
+                              className='block mt-1'
+                            >
                               {t('域名')}: {info.client.domain}
                             </Text>
                           )}
@@ -207,11 +234,15 @@ export default function OAuthConsent() {
                       <Avatar
                         size={36}
                         style={{
-                          backgroundColor: stringToColor(info?.client?.name || info?.client?.id || 'A'),
-                          cursor: 'pointer'
+                          backgroundColor: stringToColor(
+                            info?.client?.name || info?.client?.id || 'A',
+                          ),
+                          cursor: 'pointer',
                         }}
                       >
-                        {String(info?.client?.name || info?.client?.id || 'A').slice(0, 1).toUpperCase()}
+                        {String(info?.client?.name || info?.client?.id || 'A')
+                          .slice(0, 1)
+                          .toUpperCase()}
                       </Avatar>
                     </Popover>
                     {/* 链接图标 */}
@@ -232,8 +263,10 @@ export default function OAuthConsent() {
                       <div
                         className='w-full h-full rounded-full flex items-center justify-center'
                         style={{
-                          backgroundColor: stringToColor(window.location.hostname || 'S'),
-                          display: 'none'
+                          backgroundColor: stringToColor(
+                            window.location.hostname || 'S',
+                          ),
+                          display: 'none',
                         }}
                       >
                         <Text className='font-bold text-lg'>
@@ -254,12 +287,17 @@ export default function OAuthConsent() {
                   <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3'>
                     <div className='flex-1 min-w-0'>
                       <Text className='block text-sm sm:text-base'>
-                        <Text strong>{info?.client?.name || info?.client?.id}</Text>
-                        {' '}{t('由')}{' '}
-                        <Text strong>{info?.client?.domain || t('未知域')}</Text>
+                        <Text strong>
+                          {info?.client?.name || info?.client?.id}
+                        </Text>{' '}
+                        {t('由')}{' '}
+                        <Text strong>
+                          {info?.client?.domain || t('未知域')}
+                        </Text>
                       </Text>
                       <Text type='tertiary' size='small' className='block mt-1'>
-                        {t('想要访问你的')} <Text strong>{info?.user?.name || ''}</Text> {t('账户')}
+                        {t('想要访问你的')}{' '}
+                        <Text strong>{info?.user?.name || ''}</Text> {t('账户')}
                       </Text>
                     </div>
                     <Button
@@ -269,7 +307,10 @@ export default function OAuthConsent() {
                       className='w-full sm:w-auto flex-shrink-0'
                       onClick={() => {
                         const u = new URL(window.location.origin + '/login');
-                        u.searchParams.set('next', '/oauth/consent' + window.location.search);
+                        u.searchParams.set(
+                          'next',
+                          '/oauth/consent' + window.location.search,
+                        );
                         window.location.href = u.toString();
                       }}
                     >
@@ -306,13 +347,25 @@ export default function OAuthConsent() {
               <Card bordered={false}>
                 <div className='text-center'>
                   <div className='flex flex-wrap justify-center gap-x-2 gap-y-1 items-center'>
-                    <Text size='small'>{t('客户端ID')}: {info?.client?.id?.slice(-8) || 'N/A'}</Text>
+                    <Text size='small'>
+                      {t('客户端ID')}: {info?.client?.id?.slice(-8) || 'N/A'}
+                    </Text>
                     <Dot size={16} />
-                    <Text size='small'>{t('类型')}: {info?.client?.type === 'public' ? t('公开应用') : t('机密应用')}</Text>
+                    <Text size='small'>
+                      {t('类型')}:{' '}
+                      {info?.client?.type === 'public'
+                        ? t('公开应用')
+                        : t('机密应用')}
+                    </Text>
                     {info?.response_type && (
                       <>
                         <Dot size={16} />
-                        <Text size='small'>{t('授权类型')}: {info.response_type === 'code' ? t('授权码') : info.response_type}</Text>
+                        <Text size='small'>
+                          {t('授权类型')}:{' '}
+                          {info.response_type === 'code'
+                            ? t('授权码')
+                            : info.response_type}
+                        </Text>
                       </>
                     )}
                     {info?.require_pkce && (

@@ -61,10 +61,7 @@ const OAuth2Setting = () => {
   return (
     <Spin spinning={loading} size='large'>
       {/* 服务器配置 */}
-      <OAuth2ServerSettings 
-        options={options} 
-        refresh={refresh}
-      />
+      <OAuth2ServerSettings options={options} refresh={refresh} />
 
       {/* 客户端管理 */}
       <OAuth2ClientSettings />
