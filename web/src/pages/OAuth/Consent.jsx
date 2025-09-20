@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Button, Typography, Spin, Banner, Avatar, Divider, Popover } from '@douyinfe/semi-ui';
 import { Link, Dot, Key, User, Mail, Eye, Pencil, Shield } from 'lucide-react';
@@ -111,8 +130,8 @@ export default function OAuthConsent() {
   };
 
   return (
-    <div className='min-h-screen flex items-center justify-center px-4'>
-      <div className='w-full max-w-lg'>
+    <div className='min-h-screen flex items-center justify-center px-3 sm:px-4 py-16 sm:py-20'>
+      <div className='w-full max-w-sm sm:max-w-lg'>
         {loading ? (
           <Card className='text-center py-8'>
             <Spin size='large' />
@@ -131,8 +150,8 @@ export default function OAuthConsent() {
               <Card
                 className='!rounded-2xl border-0'
                 footer={
-                  <div className='space-y-3'>
-                    <div className='flex gap-2'>
+                  <div className='space-y-3 px-2 sm:px-0'>
+                    <div className='flex flex-col sm:flex-row gap-2'>
                       <Button
                         theme='outline'
                         onClick={() => handleAction('deny')}
@@ -161,8 +180,8 @@ export default function OAuthConsent() {
                 }
               >
                 {/* 头部：应用 → 链接 → 站点Logo */}
-                <div className='text-center py-8'>
-                  <div className='flex items-center justify-center gap-6 mb-6'>
+                <div className='text-center py-6 sm:py-8 px-3 sm:px-0'>
+                  <div className='flex items-center justify-center gap-4 sm:gap-6 mb-4 sm:mb-6'>
                     {/* 应用图标 */}
                     <Popover
                       content={
@@ -231,25 +250,29 @@ export default function OAuthConsent() {
                 <Divider margin='0' />
 
                 {/* 用户信息 */}
-                <div className='px-5 py-3'>
-                  <div className='flex items-start justify-between'>
-                    <div className='flex items-start gap-3'>
-                      <div className='flex-1 min-w-0'>
-                        <Text className='block'>
-                          <Text strong>{info?.client?.name || info?.client?.id}</Text>
-                          {' '}{t('由')}{' '}
-                          <Text strong>{info?.client?.domain || t('未知域')}</Text>
-                        </Text>
-                        <Text type='tertiary' size='small' className='block mt-1'>
-                          {t('想要访问你的')} <Text strong>{info?.user?.name || ''}</Text> {t('账户')}
-                        </Text>
-                      </div>
+                <div className='px-3 sm:px-5 py-3'>
+                  <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3'>
+                    <div className='flex-1 min-w-0'>
+                      <Text className='block text-sm sm:text-base'>
+                        <Text strong>{info?.client?.name || info?.client?.id}</Text>
+                        {' '}{t('由')}{' '}
+                        <Text strong>{info?.client?.domain || t('未知域')}</Text>
+                      </Text>
+                      <Text type='tertiary' size='small' className='block mt-1'>
+                        {t('想要访问你的')} <Text strong>{info?.user?.name || ''}</Text> {t('账户')}
+                      </Text>
                     </div>
-                    <Button size='small' theme='outline' type='tertiary' onClick={() => {
-                      const u = new URL(window.location.origin + '/login');
-                      u.searchParams.set('next', '/oauth/consent' + window.location.search);
-                      window.location.href = u.toString();
-                    }}>
+                    <Button
+                      size='small'
+                      theme='outline'
+                      type='tertiary'
+                      className='w-full sm:w-auto flex-shrink-0'
+                      onClick={() => {
+                        const u = new URL(window.location.origin + '/login');
+                        u.searchParams.set('next', '/oauth/consent' + window.location.search);
+                        window.location.href = u.toString();
+                      }}
+                    >
                       {t('切换账户')}
                     </Button>
                   </div>
@@ -258,7 +281,7 @@ export default function OAuthConsent() {
                 <Divider margin='0' />
 
                 {/* 权限列表 */}
-                <div className='px-5 py-3'>
+                <div className='px-3 sm:px-5 py-3'>
                   <div className='space-y-2'>
                     {info?.scope_info?.length ? (
                       info.scope_info.map((scope) => (
