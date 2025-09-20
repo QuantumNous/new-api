@@ -207,10 +207,6 @@ func xunfeiMakeRequest(textRequest dto.GeneralOpenAIRequest, domain, authUrl, ap
 		return nil, nil, err
 	}
 
-	defer func() {
-		conn.Close()
-	}()
-
 	data := requestOpenAI2Xunfei(textRequest, appId, domain)
 	err = conn.WriteJSON(data)
 	if err != nil {
@@ -220,6 +216,9 @@ func xunfeiMakeRequest(textRequest dto.GeneralOpenAIRequest, domain, authUrl, ap
 	dataChan := make(chan XunfeiChatResponse)
 	stopChan := make(chan bool)
 	go func() {
+		defer func() {
+			conn.Close()
+		}()
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
