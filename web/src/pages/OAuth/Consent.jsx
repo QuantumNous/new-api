@@ -1,17 +1,63 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, Button, Typography, Tag, Space, Divider, Spin, Banner, Descriptions, Avatar, Tooltip } from '@douyinfe/semi-ui';
-import { IconShield, IconTickCircle, IconClose } from '@douyinfe/semi-icons';
+import { Card, Button, Typography, Spin, Banner, Avatar, Divider, Popover } from '@douyinfe/semi-ui';
+import { Link, Dot, Key, User, Mail, Eye, Pencil, Shield } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
-import { API, showError } from '../../helpers';
+import { useTranslation } from 'react-i18next';
+import { API, getLogo } from '../../helpers';
+import { stringToColor } from '../../helpers/render';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 function useQuery() {
   const { search } = useLocation();
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
+// 获取scope对应的图标
+function getScopeIcon(scopeName) {
+  switch (scopeName) {
+    case 'openid':
+      return Key;
+    case 'profile':
+      return User;
+    case 'email':
+      return Mail;
+    case 'api:read':
+      return Eye;
+    case 'api:write':
+      return Pencil;
+    case 'admin':
+      return Shield;
+    default:
+      return Dot;
+  }
+}
+
+// 权限项组件
+function ScopeItem({ name, description }) {
+  const Icon = getScopeIcon(name);
+
+  return (
+    <div className='flex items-start gap-3 py-2'>
+      <div className='w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5'>
+        <Icon size={24} />
+      </div>
+      <div className='flex-1 min-w-0'>
+        <Text strong className='block'>
+          {name}
+        </Text>
+        {description && (
+          <Text type='tertiary' size='small' className='block mt-1'>
+            {description}
+          </Text>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function OAuthConsent() {
+  const { t } = useTranslation();
   const query = useQuery();
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState(null);
@@ -57,143 +103,215 @@ export default function OAuthConsent() {
     })();
   }, [params]);
 
-  const onApprove = () => {
+  const handleAction = (action) => {
     const u = new URL(window.location.origin + '/api/oauth/authorize');
     Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
-    u.searchParams.set('approve', '1');
+    u.searchParams.set(action, '1');
     window.location.href = u.toString();
   };
-  const onDeny = () => {
-    const u = new URL(window.location.origin + '/api/oauth/authorize');
-    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
-    u.searchParams.set('deny', '1');
-    window.location.href = u.toString();
-  };
-
-  const renderScope = () => {
-    if (!info?.scope_info?.length) return (
-      <div style={{ marginTop: 6 }}>
-        {info?.scope_list?.map((s) => (
-          <Tag key={s} style={{ marginRight: 6, marginBottom: 6 }}>{s}</Tag>
-        ))}
-      </div>
-    );
-    return (
-      <div style={{ marginTop: 6 }}>
-        {info.scope_info.map((s) => (
-          <Tag key={s.Name} style={{ marginRight: 6, marginBottom: 6 }}>
-            <Tooltip content={s.Description || s.Name}>{s.Name}</Tooltip>
-          </Tag>
-        ))}
-      </div>
-    );
-  };
-
-  const displayClient = () => (
-    <div>
-      <Space align='center' style={{ marginBottom: 6 }}>
-        <Avatar size='small' style={{ backgroundColor: 'var(--semi-color-tertiary)' }}>
-          {String(info?.client?.name || info?.client?.id || 'A').slice(0, 1).toUpperCase()}
-        </Avatar>
-        <Title heading={5} style={{ margin: 0 }}>{info?.client?.name || info?.client?.id}</Title>
-        {info?.verified && <Tag type='solid' color='green'>已验证</Tag>}
-        {info?.client?.type === 'public' && <Tag>公开客户端</Tag>}
-        {info?.client?.type === 'confidential' && <Tag color='blue'>机密客户端</Tag>}
-      </Space>
-      {info?.client?.desc && (
-        <Paragraph type='tertiary' style={{ marginTop: 0 }}>{info.client.desc}</Paragraph>
-      )}
-      <Descriptions size='small' style={{ marginTop: 8 }} data={[{
-        key: '回调域名', value: info?.redirect_host || '-',
-      }, {
-        key: '申请方域', value: info?.client?.domain || '-',
-      }, {
-        key: '需要PKCE', value: info?.require_pkce ? '是' : '否',
-      }]} />
-    </div>
-  );
-
-  const displayUser = () => (
-    <Space style={{ marginTop: 8 }}>
-      <Avatar size='small'>{String(info?.user?.name || 'U').slice(0,1).toUpperCase()}</Avatar>
-      <Text>{info?.user?.name || '当前用户'}</Text>
-      {info?.user?.email && <Text type='tertiary'>({info.user.email})</Text>}
-      <Button size='small' theme='borderless' onClick={() => {
-        const u = new URL(window.location.origin + '/login');
-        u.searchParams.set('next', '/oauth/consent' + window.location.search);
-        window.location.href = u.toString();
-      }}>切换账户</Button>
-    </Space>
-  );
 
   return (
-    <div style={{ maxWidth: 840, margin: '24px auto 48px', padding: '0 16px' }}>
-      <Card style={{ borderRadius: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <IconShield size='extra-large' />
-          <div>
-            <Title heading={4} style={{ margin: 0 }}>应用请求访问你的账户</Title>
-            <Paragraph type='tertiary' style={{ margin: 0 }}>请确认是否授权下列权限给第三方应用。</Paragraph>
-          </div>
-        </div>
-
+    <div className='min-h-screen flex items-center justify-center px-4'>
+      <div className='w-full max-w-lg'>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <Spin />
-          </div>
+          <Card className='text-center py-8'>
+            <Spin size='large' />
+            <Text type='tertiary' className='block mt-4'>{t('加载授权信息中...')}</Text>
+          </Card>
         ) : error ? (
-          <Banner type='warning' description={error === 'login_required' ? '请先登录后再继续授权。' : '暂时无法加载授权信息'} />
+          <Card>
+            <Banner
+              type='warning'
+              description={error === 'login_required' ? t('请先登录后再继续授权。') : t('暂时无法加载授权信息')}
+            />
+          </Card>
         ) : (
           info && (
-            <div>
-              <Divider margin='12px' />
-              <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: 16 }}>
-                <div>
-                  {displayClient()}
-                  {displayUser()}
-                  <div style={{ marginTop: 16 }}>
-                    <Text type='tertiary'>请求的权限范围</Text>
-                    {renderScope()}
-                  </div>
-                  <div style={{ marginTop: 16 }}>
-                    <Text type='tertiary'>回调地址</Text>
-                    <Paragraph copyable style={{ marginTop: 4 }}>{info?.redirect_uri}</Paragraph>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12 }}>
-                    <Text type='tertiary'>安全提示</Text>
-                    <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
-                      <li>仅在信任的网络环境中授权。</li>
-                      <li>确认回调域名与申请方一致{info?.verified ? '（已验证）' : '（未验证）'}。</li>
-                      <li>你可以随时在账户设置中撤销授权。</li>
-                    </ul>
-                    <div style={{ marginTop: 12 }}>
-                      <Descriptions size='small' data={[{
-                        key: 'Issuer', value: window.location.origin,
-                      }, {
-                        key: 'Client ID', value: info?.client?.id || '-',
-                      }, {
-                        key: '需要PKCE', value: info?.require_pkce ? '是' : '否',
-                      }]} />
+            <>
+              <Card
+                className='!rounded-2xl border-0'
+                footer={
+                  <div className='space-y-3'>
+                    <div className='flex gap-2'>
+                      <Button
+                        theme='outline'
+                        onClick={() => handleAction('deny')}
+                        className='w-full'
+                      >
+                        {t('取消')}
+                      </Button>
+                      <Button
+                        type='primary'
+                        theme='solid'
+                        onClick={() => handleAction('approve')}
+                        className='w-full'
+                      >
+                        {t('授权')} {info?.user?.name || t('用户')}
+                      </Button>
+                    </div>
+                    <div className='text-center'>
+                      <Text type='tertiary' size='small' className='block'>
+                        {t('授权后将重定向到')}
+                      </Text>
+                      <Text type='tertiary' size='small' className='block'>
+                        {info?.redirect_uri?.length > 60 ? info.redirect_uri.slice(0, 60) + '...' : info?.redirect_uri}
+                      </Text>
                     </div>
                   </div>
+                }
+              >
+                {/* 头部：应用 → 链接 → 站点Logo */}
+                <div className='text-center py-8'>
+                  <div className='flex items-center justify-center gap-6 mb-6'>
+                    {/* 应用图标 */}
+                    <Popover
+                      content={
+                        <div className='max-w-xs p-2'>
+                          <Text strong className='block text-sm mb-1'>
+                            {info?.client?.name || info?.client?.id}
+                          </Text>
+                          {info?.client?.desc && (
+                            <Text type='tertiary' size='small' className='block'>
+                              {info.client.desc}
+                            </Text>
+                          )}
+                          {info?.client?.domain && (
+                            <Text type='tertiary' size='small' className='block mt-1'>
+                              {t('域名')}: {info.client.domain}
+                            </Text>
+                          )}
+                        </div>
+                      }
+                      trigger='hover'
+                      position='top'
+                    >
+                      <Avatar
+                        size={36}
+                        style={{
+                          backgroundColor: stringToColor(info?.client?.name || info?.client?.id || 'A'),
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {String(info?.client?.name || info?.client?.id || 'A').slice(0, 1).toUpperCase()}
+                      </Avatar>
+                    </Popover>
+                    {/* 链接图标 */}
+                    <div className='w-10 h-10 rounded-full flex items-center justify-center'>
+                      <Link size={16} />
+                    </div>
+                    {/* 站点Logo */}
+                    <div className='w-12 h-12 rounded-full overflow-hidden flex items-center justify-center'>
+                      <img
+                        src={getLogo()}
+                        alt='Site Logo'
+                        className='w-full h-full object-cover'
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                      <div
+                        className='w-full h-full rounded-full flex items-center justify-center'
+                        style={{
+                          backgroundColor: stringToColor(window.location.hostname || 'S'),
+                          display: 'none'
+                        }}
+                      >
+                        <Text className='font-bold text-lg'>
+                          {window.location.hostname.charAt(0).toUpperCase()}
+                        </Text>
+                      </div>
+                    </div>
+                  </div>
+                  <Title heading={4}>
+                    {t('授权')} {info?.client?.name || info?.client?.id}
+                  </Title>
                 </div>
-              </div>
 
-              <Divider />
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingBottom: 8 }}>
-                <Button icon={<IconClose />} onClick={onDeny} theme='borderless'>
-                  拒绝
-                </Button>
-                <Button icon={<IconTickCircle />} type='primary' onClick={onApprove}>
-                  授权
-                </Button>
-              </div>
-            </div>
+                <Divider margin='0' />
+
+                {/* 用户信息 */}
+                <div className='px-5 py-3'>
+                  <div className='flex items-start justify-between'>
+                    <div className='flex items-start gap-3'>
+                      <div className='flex-1 min-w-0'>
+                        <Text className='block'>
+                          <Text strong>{info?.client?.name || info?.client?.id}</Text>
+                          {' '}{t('由')}{' '}
+                          <Text strong>{info?.client?.domain || t('未知域')}</Text>
+                        </Text>
+                        <Text type='tertiary' size='small' className='block mt-1'>
+                          {t('想要访问你的')} <Text strong>{info?.user?.name || ''}</Text> {t('账户')}
+                        </Text>
+                      </div>
+                    </div>
+                    <Button size='small' theme='outline' type='tertiary' onClick={() => {
+                      const u = new URL(window.location.origin + '/login');
+                      u.searchParams.set('next', '/oauth/consent' + window.location.search);
+                      window.location.href = u.toString();
+                    }}>
+                      {t('切换账户')}
+                    </Button>
+                  </div>
+                </div>
+
+                <Divider margin='0' />
+
+                {/* 权限列表 */}
+                <div className='px-5 py-3'>
+                  <div className='space-y-2'>
+                    {info?.scope_info?.length ? (
+                      info.scope_info.map((scope) => (
+                        <ScopeItem
+                          key={scope.Name}
+                          name={scope.Name}
+                          description={scope.Description}
+                        />
+                      ))
+                    ) : (
+                      <div className='space-y-1'>
+                        {info?.scope_list?.map((name) => (
+                          <ScopeItem key={name} name={name} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Meta信息Card */}
+              <Card bordered={false}>
+                <div className='text-center'>
+                  <div className='flex flex-wrap justify-center gap-x-2 gap-y-1 items-center'>
+                    <Text size='small'>{t('客户端ID')}: {info?.client?.id?.slice(-8) || 'N/A'}</Text>
+                    <Dot size={16} />
+                    <Text size='small'>{t('类型')}: {info?.client?.type === 'public' ? t('公开应用') : t('机密应用')}</Text>
+                    {info?.response_type && (
+                      <>
+                        <Dot size={16} />
+                        <Text size='small'>{t('授权类型')}: {info.response_type === 'code' ? t('授权码') : info.response_type}</Text>
+                      </>
+                    )}
+                    {info?.require_pkce && (
+                      <>
+                        <Dot size={16} />
+                        <Text size='small'>PKCE: {t('已启用')}</Text>
+                      </>
+                    )}
+                  </div>
+                  {info?.state && (
+                    <div className='mt-2'>
+                      <Text type='tertiary' size='small' className='font-mono'>
+                        State: {info.state}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </>
           )
         )}
-      </Card>
+      </div>
     </div>
   );
 }

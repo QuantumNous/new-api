@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Table, Button, Space, Tag, Typography, Popconfirm, Toast, Form, TextArea, Divider, Input } from '@douyinfe/semi-ui';
-import { IconRefresh, IconDelete, IconPlay } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess } from '../../../helpers';
+import { RefreshCw, Trash2, PlayCircle } from 'lucide-react';
+import { API, showError, showSuccess } from '../../../../helpers';
 
 const { Text } = Typography;
 
@@ -93,7 +93,7 @@ export default function JWKSManagerModal({ visible, onClose }) {
         <Space>
           {!r.current && (
             <Popconfirm title={`确定删除密钥 ${r.kid} ？`} content='删除后使用该 kid 签发的旧令牌仍可被验证（外部 JWKS 缓存可能仍保留）' okText='删除' onConfirm={() => del(r.kid)}>
-              <Button icon={<IconDelete />} size='small' theme='borderless'>删除</Button>
+              <Button icon={<Trash2 size={14} />} size='small' theme='borderless'>删除</Button>
             </Popconfirm>
           )}
         </Space>
@@ -110,8 +110,8 @@ export default function JWKSManagerModal({ visible, onClose }) {
       style={{ top: 48 }}
     >
       <Space style={{ marginBottom: 8 }}>
-        <Button icon={<IconRefresh />} onClick={load} loading={loading}>刷新</Button>
-        <Button icon={<IconPlay />} type='primary' onClick={rotate} loading={loading}>轮换密钥</Button>
+        <Button icon={<RefreshCw size={16} />} onClick={load} loading={loading}>刷新</Button>
+        <Button icon={<PlayCircle size={16} />} type='primary' onClick={rotate} loading={loading}>轮换密钥</Button>
         <Button onClick={()=>setShowImport(!showImport)}>导入 PEM 私钥</Button>
         <Button onClick={()=>setShowGenerate(!showGenerate)}>生成 PEM 文件</Button>
         <Button onClick={onClose}>关闭</Button>

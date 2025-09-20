@@ -18,17 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin, Space, Button } from '@douyinfe/semi-ui';
+import { Spin } from '@douyinfe/semi-ui';
 import { API, showError } from '../../helpers';
-import OAuth2ServerSettings from '../../pages/Setting/OAuth2/OAuth2ServerSettings';
-import OAuth2ClientSettings from '../../pages/Setting/OAuth2/OAuth2ClientSettings';
-// import OAuth2Tools from '../../pages/Setting/OAuth2/OAuth2Tools';
-import OAuth2ToolsModal from '../../components/modals/oauth2/OAuth2ToolsModal';
-import OAuth2QuickStartModal from '../../components/modals/oauth2/OAuth2QuickStartModal';
-import JWKSManagerModal from '../../components/modals/oauth2/JWKSManagerModal';
+import { useTranslation } from 'react-i18next';
+import OAuth2ServerSettings from './oauth2/OAuth2ServerSettings';
+import OAuth2ClientSettings from './oauth2/OAuth2ClientSettings';
 
 const OAuth2Setting = () => {
-  // 原样保存后端 Option 键值（字符串），避免类型转换造成子组件解析错误
+  const { t } = useTranslation();
   const [options, setOptions] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -47,7 +44,7 @@ const OAuth2Setting = () => {
         showError(message);
       }
     } catch (error) {
-      showError('获取OAuth2设置失败');
+      showError(t('获取OAuth2设置失败'));
     } finally {
       setLoading(false);
     }
@@ -61,33 +58,17 @@ const OAuth2Setting = () => {
     getOptions();
   }, []);
 
-  const [qsVisible, setQsVisible] = useState(false);
-  const [jwksVisible, setJwksVisible] = useState(false);
-  const [toolsVisible, setToolsVisible] = useState(false);
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        marginTop: '10px',
-      }}
-    >
-      <Card>
-        <Space>
-          <Button type='primary' onClick={()=>setQsVisible(true)}>一键初始化向导</Button>
-          <Button onClick={()=>setJwksVisible(true)}>JWKS 管理</Button>
-          <Button onClick={()=>setToolsVisible(true)}>调试助手</Button>
-          <Button onClick={()=>window.open('/oauth-demo.html','_blank')}>前端 Demo</Button>
-        </Space>
-      </Card>
-      <OAuth2QuickStartModal visible={qsVisible} onClose={()=>setQsVisible(false)} onDone={refresh} />
-      <JWKSManagerModal visible={jwksVisible} onClose={()=>setJwksVisible(false)} />
-      <OAuth2ToolsModal visible={toolsVisible} onClose={()=>setToolsVisible(false)} />
-      <OAuth2ServerSettings options={options} refresh={refresh} onOpenJWKS={()=>setJwksVisible(true)} />
+    <Spin spinning={loading} size='large'>
+      {/* 服务器配置 */}
+      <OAuth2ServerSettings 
+        options={options} 
+        refresh={refresh}
+      />
+
+      {/* 客户端管理 */}
       <OAuth2ClientSettings />
-    </div>
+    </Spin>
   );
 };
 

@@ -30,8 +30,8 @@ import {
   Divider,
   Button,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess } from '../../../helpers';
+import { Plus, Trash2 } from 'lucide-react';
+import { API, showError, showSuccess } from '../../../../helpers';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -388,7 +388,7 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
                         theme="borderless"
                         type="danger"
                         size="small"
-                        icon={<IconDelete />}
+                        icon={<Trash2 size={14} />}
                         onClick={() => removeRedirectUri(index)}
                       />
                     )}
@@ -400,7 +400,7 @@ const EditOAuth2ClientModal = ({ visible, client, onCancel, onSuccess }) => {
                 theme="borderless"
                 type="primary"
                 size="small"
-                icon={<IconPlus />}
+                icon={<Plus size={14} />}
                 onClick={addRedirectUri}
                 style={{ marginTop: 8 }}
               >

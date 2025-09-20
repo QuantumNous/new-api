@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Button, Space, Select, Typography, Divider, Toast, TextArea } from '@douyinfe/semi-ui';
-import { API } from '../../../helpers';
+import { API } from '../../../../helpers';
 
 const { Text } = Typography;
 
