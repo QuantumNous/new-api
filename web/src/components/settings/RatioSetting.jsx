@@ -51,39 +51,72 @@ const RatioSetting = () => {
   const [loading, setLoading] = useState(false);
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
-    const { success, message, data } = res.data;
-    if (success) {
+    try {
+      // 分别获取分组数据和其他配置数据
+      const [optionsRes, groupOptionsRes] = await Promise.all([
+        API.get('/api/option/'),
+        API.get('/api/user_group/options')
+      ]);
+
       let newInputs = {};
-      data.forEach((item) => {
-        if (
-          item.key === 'ModelRatio' ||
-          item.key === 'GroupRatio' ||
-          item.key === 'GroupGroupRatio' ||
-          item.key === 'AutoGroups' ||
-          item.key === 'UserUsableGroups' ||
-          item.key === 'CompletionRatio' ||
-          item.key === 'ModelPrice' ||
-          item.key === 'CacheRatio' ||
-          item.key === 'ImageRatio' ||
-          item.key === 'AudioRatio' ||
-          item.key === 'AudioCompletionRatio'
-        ) {
+
+      // 处理普通配置数据
+      if (optionsRes.data.success) {
+        optionsRes.data.data.forEach((item) => {
+          // 跳过分组相关的配置，这些将从UserGroup API获取
+          if (['GroupRatio', 'UserUsableGroups'].includes(item.key)) {
+            return;
+          }
+
+          if (
+            item.key === 'ModelRatio' ||
+            item.key === 'GroupGroupRatio' ||
+            item.key === 'AutoGroups' ||
+            item.key === 'CompletionRatio' ||
+            item.key === 'ModelPrice' ||
+            item.key === 'CacheRatio' ||
+            item.key === 'ImageRatio' ||
+            item.key === 'AudioRatio' ||
+            item.key === 'AudioCompletionRatio'
+          ) {
+            try {
+              item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+            } catch (e) {
+              // 如果后端返回的不是合法 JSON，直接展示
+            }
+          }
+          if (['DefaultUseAutoGroup', 'ExposeRatioEnabled'].includes(item.key)) {
+            newInputs[item.key] = toBoolean(item.value);
+          } else {
+            newInputs[item.key] = item.value;
+          }
+        });
+      }
+
+      // 处理分组数据
+      if (groupOptionsRes.data.success) {
+        const groupData = groupOptionsRes.data.data;
+        // 格式化分组数据为JSON字符串
+        if (groupData.GroupRatio) {
           try {
-            item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+            newInputs.GroupRatio = JSON.stringify(JSON.parse(groupData.GroupRatio), null, 2);
           } catch (e) {
-            // 如果后端返回的不是合法 JSON，直接展示
+            newInputs.GroupRatio = groupData.GroupRatio;
           }
         }
-        if (['DefaultUseAutoGroup', 'ExposeRatioEnabled'].includes(item.key)) {
-          newInputs[item.key] = toBoolean(item.value);
-        } else {
-          newInputs[item.key] = item.value;
+        if (groupData.UserUsableGroups) {
+          try {
+            newInputs.UserUsableGroups = JSON.stringify(JSON.parse(groupData.UserUsableGroups), null, 2);
+          } catch (e) {
+            newInputs.UserUsableGroups = groupData.UserUsableGroups;
+          }
         }
-      });
+      }
+
       setInputs(newInputs);
-    } else {
-      showError(message);
+    } catch (error) {
+      showError('获取配置数据失败');
+      console.error('获取配置数据失败:', error);
     }
   };
 

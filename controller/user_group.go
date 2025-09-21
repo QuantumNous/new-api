@@ -302,6 +302,8 @@ func syncGroupToTopupRatio(groupName string, ratio float64, add bool) error {
 	return common.UpdateTopupGroupRatioByJSONString(string(jsonBytes))
 }
 
+
+
 // MigrateUserGroupData 迁移用户分组数据
 func MigrateUserGroupData(c *gin.Context) {
 	if err := service.MigrateUserGroupsFromOptions(); err != nil {
