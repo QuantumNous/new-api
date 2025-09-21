@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"one-api/dto"
-	"one-api/setting"
+	"one-api/setting/system_setting"
 	"time"
 )
 
@@ -56,11 +56,11 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	var req *http.Request
 	var resp *http.Response
 
-	if setting.EnableWorker() {
+	if system_setting.EnableWorker() {
 		// 构建worker请求数据
 		workerReq := &WorkerRequest{
 			URL:    webhookURL,
-			Key:    setting.WorkerValidKey,
+			Key:    system_setting.WorkerValidKey,
 			Method: http.MethodPost,
 			Headers: map[string]string{
 				"Content-Type": "application/json",
