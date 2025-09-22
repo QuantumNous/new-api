@@ -45,9 +45,11 @@ const SecretDisplayModal = ({ visible, onClose, secret }) => {
         )}
         className='mb-5 !rounded-lg'
       />
-      <Text code copyable>
-        {secret}
-      </Text>
+      <div className='flex justify-center items-center'>
+        <Text code copyable>
+          {secret}
+        </Text>
+      </div>
     </Modal>
   );
 };

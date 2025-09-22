@@ -343,13 +343,12 @@ export default function OAuth2ClientSettings() {
               <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
             }
             title={t('暂无OAuth2客户端')}
-            description={t('还没有创建任何客户端，点击下方按钮创建第一个客户端')}
+            description={t(
+              '还没有创建任何客户端，点击下方按钮创建第一个客户端',
+            )}
             style={{ padding: 30 }}
           >
-            <Button
-              type='primary'
-              onClick={() => setShowCreateModal(true)}
-            >
+            <Button type='primary' onClick={() => setShowCreateModal(true)}>
               {t('创建第一个客户端')}
             </Button>
           </Empty>

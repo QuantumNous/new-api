@@ -220,7 +220,7 @@ export default function OAuth2ServerSettings(props) {
           >
             <div className='flex items-center'>
               <Server size={18} className='mr-2' />
-              <Text strong>{t('OAuth2 & SSO 管理')}</Text>
+              <Text strong>{t('OAuth2 服务端管理')}</Text>
               {isEnabled ? (
                 serverInfo ? (
                   <Badge

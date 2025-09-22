@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useEffect, useState } from 'react';
 import {
-  Modal,
   Table,
   Button,
   Space,
@@ -27,19 +26,28 @@ import {
   Popconfirm,
   Toast,
   Form,
-  TextArea,
-  Divider,
-  Input,
+  Card,
+  Tabs,
+  TabPane,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
+import ResponsiveModal from '../../../common/ui/ResponsiveModal';
 
 const { Text } = Typography;
+
+// 操作模式枚举
+const OPERATION_MODES = {
+  VIEW: 'view',
+  IMPORT: 'import',
+  GENERATE: 'generate',
+};
 
 export default function JWKSManagerModal({ visible, onClose }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [keys, setKeys] = useState([]);
+  const [activeTab, setActiveTab] = useState(OPERATION_MODES.VIEW);
 
   const load = async () => {
     setLoading(true);
@@ -84,9 +92,32 @@ export default function JWKSManagerModal({ visible, onClose }) {
     }
   };
 
+  // Import PEM state
+  const [pem, setPem] = useState('');
+  const [customKid, setCustomKid] = useState('');
+
+  // Generate PEM file state
+  const [genPath, setGenPath] = useState('/etc/new-api/oauth2-private.pem');
+  const [genKid, setGenKid] = useState('');
+
+  // 重置表单数据
+  const resetForms = () => {
+    setPem('');
+    setCustomKid('');
+    setGenKid('');
+  };
+
   useEffect(() => {
-    if (visible) load();
+    if (visible) {
+      load();
+      // 重置到主视图
+      setActiveTab(OPERATION_MODES.VIEW);
+    } else {
+      // 模态框关闭时重置表单数据
+      resetForms();
+    }
   }, [visible]);
+
   useEffect(() => {
     if (!visible) return;
     (async () => {
@@ -98,10 +129,7 @@ export default function JWKSManagerModal({ visible, onClose }) {
     })();
   }, [visible]);
 
-  // Import PEM state
-  const [showImport, setShowImport] = useState(false);
-  const [pem, setPem] = useState('');
-  const [customKid, setCustomKid] = useState('');
+  // 导入 PEM 私钥
   const importPem = async () => {
     if (!pem.trim()) return Toast.warning(t('请粘贴 PEM 私钥'));
     setLoading(true);
@@ -114,9 +142,8 @@ export default function JWKSManagerModal({ visible, onClose }) {
         Toast.success(
           t('已导入私钥并切换到 kid={{kid}}', { kid: res.data.kid }),
         );
-        setPem('');
-        setCustomKid('');
-        setShowImport(false);
+        resetForms();
+        setActiveTab(OPERATION_MODES.VIEW);
         await load();
       } else {
         Toast.error(res?.data?.message || t('导入失败'));
@@ -128,10 +155,7 @@ export default function JWKSManagerModal({ visible, onClose }) {
     }
   };
 
-  // Generate PEM file state
-  const [showGenerate, setShowGenerate] = useState(false);
-  const [genPath, setGenPath] = useState('/etc/new-api/oauth2-private.pem');
-  const [genKid, setGenKid] = useState('');
+  // 生成 PEM 文件
   const generatePemFile = async () => {
     if (!genPath.trim()) return Toast.warning(t('请填写保存路径'));
     setLoading(true);
@@ -142,6 +166,8 @@ export default function JWKSManagerModal({ visible, onClose }) {
       });
       if (res?.data?.success) {
         Toast.success(t('已生成并生效：{{path}}', { path: res.data.path }));
+        resetForms();
+        setActiveTab(OPERATION_MODES.VIEW);
         await load();
       } else {
         Toast.error(res?.data?.message || t('生成失败'));
@@ -172,7 +198,13 @@ export default function JWKSManagerModal({ visible, onClose }) {
       title: t('状态'),
       dataIndex: 'current',
       render: (cur) =>
-        cur ? <Tag color='green'>{t('当前')}</Tag> : <Tag>{t('历史')}</Tag>,
+        cur ? (
+          <Tag color='green' shape='circle'>
+            {t('当前')}
+          </Tag>
+        ) : (
+          <Tag shape='circle'>{t('历史')}</Tag>
+        ),
     },
     {
       title: t('操作'),
@@ -187,7 +219,7 @@ export default function JWKSManagerModal({ visible, onClose }) {
               okText={t('删除')}
               onConfirm={() => del(r.kid)}
             >
-              <Button size='small' theme='borderless'>
+              <Button size='small' type='danger'>
                 {t('删除')}
               </Button>
             </Popconfirm>
@@ -197,109 +229,68 @@ export default function JWKSManagerModal({ visible, onClose }) {
     },
   ];
 
-  return (
-    <Modal
-      visible={visible}
-      title={t('JWKS 管理')}
-      onCancel={onClose}
-      footer={null}
-      width={820}
-      style={{ top: 48 }}
-    >
-      <Space style={{ marginBottom: 8 }}>
-        <Button onClick={load} loading={loading}>
+  // 头部操作按钮 - 根据当前标签页动态生成
+  const getHeaderActions = () => {
+    if (activeTab === OPERATION_MODES.VIEW) {
+      return [
+        <Button key='refresh' onClick={load} loading={loading} size='small'>
           {t('刷新')}
-        </Button>
-        <Button type='primary' onClick={rotate} loading={loading}>
+        </Button>,
+        <Button
+          key='rotate'
+          type='primary'
+          onClick={rotate}
+          loading={loading}
+          size='small'
+        >
           {t('轮换密钥')}
-        </Button>
-        <Button onClick={() => setShowImport(!showImport)}>
-          {t('导入 PEM 私钥')}
-        </Button>
-        <Button onClick={() => setShowGenerate(!showGenerate)}>
-          {t('生成 PEM 文件')}
-        </Button>
-        <Button onClick={onClose}>{t('关闭')}</Button>
-      </Space>
-      {showGenerate && (
-        <div
-          style={{
-            border: '1px solid var(--semi-color-border)',
-            borderRadius: 6,
-            padding: 12,
-            marginBottom: 12,
-          }}
+        </Button>,
+      ];
+    }
+
+    if (activeTab === OPERATION_MODES.IMPORT) {
+      return [
+        <Button
+          key='import'
+          type='primary'
+          onClick={importPem}
+          loading={loading}
+          size='small'
         >
-          <Form labelPosition='left' labelWidth={120}>
-            <Form.Input
-              field='path'
-              label={t('保存路径')}
-              value={genPath}
-              onChange={setGenPath}
-              placeholder='/secure/path/oauth2-private.pem'
-            />
-            <Form.Input
-              field='genKid'
-              label={t('自定义 KID')}
-              value={genKid}
-              onChange={setGenKid}
-              placeholder={t('可留空自动生成')}
-            />
-          </Form>
-          <div style={{ marginTop: 8 }}>
-            <Button type='primary' onClick={generatePemFile} loading={loading}>
-              {t('生成并生效')}
-            </Button>
-          </div>
-          <Divider margin='12px' />
-          <Text type='tertiary'>
-            {t(
-              '建议：仅在合规要求下使用文件私钥。请确保目录权限安全（建议 0600），并妥善备份。',
-            )}
-          </Text>
-        </div>
-      )}
-      {showImport && (
-        <div
-          style={{
-            border: '1px solid var(--semi-color-border)',
-            borderRadius: 6,
-            padding: 12,
-            marginBottom: 12,
-          }}
+          {t('导入并生效')}
+        </Button>,
+      ];
+    }
+
+    if (activeTab === OPERATION_MODES.GENERATE) {
+      return [
+        <Button
+          key='generate'
+          type='primary'
+          onClick={generatePemFile}
+          loading={loading}
+          size='small'
         >
-          <Form labelPosition='left' labelWidth={120}>
-            <Form.Input
-              field='kid'
-              label={t('自定义 KID')}
-              placeholder={t('可留空自动生成')}
-              value={customKid}
-              onChange={setCustomKid}
-            />
-            <Form.TextArea
-              field='pem'
-              label={t('PEM 私钥')}
-              value={pem}
-              onChange={setPem}
-              rows={6}
-              placeholder={
-                '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'
-              }
-            />
-          </Form>
-          <div style={{ marginTop: 8 }}>
-            <Button type='primary' onClick={importPem} loading={loading}>
-              {t('导入并生效')}
-            </Button>
-          </div>
-          <Divider margin='12px' />
-          <Text type='tertiary'>
-            {t(
-              '建议：优先使用内存签名密钥与 JWKS 轮换；仅在有合规要求时导入外部私钥。',
-            )}
-          </Text>
-        </div>
-      )}
+          {t('生成并生效')}
+        </Button>,
+      ];
+    }
+
+    return [];
+  };
+
+  // 渲染密钥列表视图
+  const renderKeysView = () => (
+    <Card
+      className='!rounded-lg'
+      title={
+        <Text className='text-blue-700 dark:text-blue-300'>
+          {t(
+            '提示：当前密钥用于签发 JWT 令牌。建议定期轮换密钥以提升安全性。只有历史密钥可以删除。',
+          )}
+        </Text>
+      }
+    >
       <Table
         dataSource={keys}
         columns={columns}
@@ -308,6 +299,100 @@ export default function JWKSManagerModal({ visible, onClose }) {
         pagination={false}
         empty={<Text type='tertiary'>{t('暂无密钥')}</Text>}
       />
-    </Modal>
+    </Card>
+  );
+
+  // 渲染导入 PEM 私钥视图
+  const renderImportView = () => (
+    <Card
+      className='!rounded-lg'
+      title={
+        <Text className='text-yellow-700 dark:text-yellow-300'>
+          {t(
+            '建议：优先使用内存签名密钥与 JWKS 轮换；仅在有合规要求时导入外部私钥。请确保私钥来源可信。',
+          )}
+        </Text>
+      }
+    >
+      <Form labelPosition='left' labelWidth={120}>
+        <Form.Input
+          field='kid'
+          label={t('自定义 KID')}
+          placeholder={t('可留空自动生成')}
+          value={customKid}
+          onChange={setCustomKid}
+        />
+        <Form.TextArea
+          field='pem'
+          label={t('PEM 私钥')}
+          value={pem}
+          onChange={setPem}
+          rows={8}
+          placeholder={
+            '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'
+          }
+        />
+      </Form>
+    </Card>
+  );
+
+  // 渲染生成 PEM 文件视图
+  const renderGenerateView = () => (
+    <Card
+      className='!rounded-lg'
+      title={
+        <Text className='text-orange-700 dark:text-orange-300'>
+          {t(
+            '建议：仅在合规要求下使用文件私钥。请确保目录权限安全（建议 0600），并妥善备份。',
+          )}
+        </Text>
+      }
+    >
+      <Form labelPosition='left' labelWidth={120}>
+        <Form.Input
+          field='path'
+          label={t('保存路径')}
+          value={genPath}
+          onChange={setGenPath}
+          placeholder='/secure/path/oauth2-private.pem'
+        />
+        <Form.Input
+          field='genKid'
+          label={t('自定义 KID')}
+          value={genKid}
+          onChange={setGenKid}
+          placeholder={t('可留空自动生成')}
+        />
+      </Form>
+    </Card>
+  );
+
+  return (
+    <ResponsiveModal
+      visible={visible}
+      title={t('JWKS 管理')}
+      headerActions={getHeaderActions()}
+      onCancel={onClose}
+      footer={null}
+      width={{ mobile: '95%', desktop: 800 }}
+    >
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        type='card'
+        size='medium'
+        className='!-mt-2'
+      >
+        <TabPane tab={t('密钥列表')} itemKey={OPERATION_MODES.VIEW}>
+          {renderKeysView()}
+        </TabPane>
+        <TabPane tab={t('导入 PEM 私钥')} itemKey={OPERATION_MODES.IMPORT}>
+          {renderImportView()}
+        </TabPane>
+        <TabPane tab={t('生成 PEM 文件')} itemKey={OPERATION_MODES.GENERATE}>
+          {renderGenerateView()}
+        </TabPane>
+      </Tabs>
+    </ResponsiveModal>
   );
 }
