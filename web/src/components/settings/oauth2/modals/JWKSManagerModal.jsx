@@ -232,6 +232,7 @@ export default function JWKSManagerModal({ visible, onClose }) {
   // 头部操作按钮 - 根据当前标签页动态生成
   const getHeaderActions = () => {
     if (activeTab === OPERATION_MODES.VIEW) {
+      const hasKeys = Array.isArray(keys) && keys.length > 0;
       return [
         <Button key='refresh' onClick={load} loading={loading} size='small'>
           {t('刷新')}
@@ -243,7 +244,7 @@ export default function JWKSManagerModal({ visible, onClose }) {
           loading={loading}
           size='small'
         >
-          {t('轮换密钥')}
+          {hasKeys ? t('轮换密钥') : t('初始化密钥')}
         </Button>,
       ];
     }

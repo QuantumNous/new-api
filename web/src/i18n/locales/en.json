@@ -2241,6 +2241,7 @@
   "确定删除密钥 {{kid}} ？": "Confirm delete key {{kid}}?",
   "删除后使用该 kid 签发的旧令牌仍可被验证（外部 JWKS 缓存可能仍保留）": "Tokens issued with this kid may still be verifiable (external JWKS caches may retain the key)",
   "轮换密钥": "Rotate key",
+  "初始化密钥": "Initialize key",
   "导入并生效": "Import and apply",
   "生成并生效": "Generate and apply",
   "提示：当前密钥用于签发 JWT 令牌。建议定期轮换密钥以提升安全性。只有历史密钥可以删除。": "Tip: The current key is used to sign JWT tokens. Rotate keys regularly for security. Only historical keys can be deleted.",

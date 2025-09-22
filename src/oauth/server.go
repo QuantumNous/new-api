@@ -142,14 +142,20 @@ func RotateSigningKey(newKid string) (string, error) {
 	}
 	signingKeys[newKid] = key
 	keyMeta[newKid] = time.Now().Unix()
-	// add to jwks set
-	pubJWK, err := jwk.FromRaw(&key.PublicKey)
-	if err == nil {
-		_ = pubJWK.Set(jwk.KeyIDKey, newKid)
-		_ = pubJWK.Set(jwk.AlgorithmKey, "RS256")
-		_ = pubJWK.Set(jwk.KeyUsageKey, "sig")
-		_ = simpleJWKSSet.AddKey(pubJWK)
-	}
+    // add to jwks set (handle first-time init when JWKS is nil)
+    pubJWK, err := jwk.FromRaw(&key.PublicKey)
+    if err == nil {
+        _ = pubJWK.Set(jwk.KeyIDKey, newKid)
+        _ = pubJWK.Set(jwk.AlgorithmKey, "RS256")
+        _ = pubJWK.Set(jwk.KeyUsageKey, "sig")
+        if simpleJWKSSet == nil {
+            jwks := jwk.NewSet()
+            _ = jwks.AddKey(pubJWK)
+            simpleJWKSSet = jwks
+        } else {
+            _ = simpleJWKSSet.AddKey(pubJWK)
+        }
+    }
 	currentKeyID = newKid
 	enforceKeyRetention()
 	return newKid, nil
@@ -179,14 +185,20 @@ func GenerateAndPersistKey(path string, kid string, overwrite bool) (string, err
 	// rotate in memory
 	signingKeys[kid] = key
 	keyMeta[kid] = time.Now().Unix()
-	// add to jwks
-	pubJWK, err := jwk.FromRaw(&key.PublicKey)
-	if err == nil {
-		_ = pubJWK.Set(jwk.KeyIDKey, kid)
-		_ = pubJWK.Set(jwk.AlgorithmKey, "RS256")
-		_ = pubJWK.Set(jwk.KeyUsageKey, "sig")
-		_ = simpleJWKSSet.AddKey(pubJWK)
-	}
+    // add to jwks (handle first-time init when JWKS is nil)
+    pubJWK, err := jwk.FromRaw(&key.PublicKey)
+    if err == nil {
+        _ = pubJWK.Set(jwk.KeyIDKey, kid)
+        _ = pubJWK.Set(jwk.AlgorithmKey, "RS256")
+        _ = pubJWK.Set(jwk.KeyUsageKey, "sig")
+        if simpleJWKSSet == nil {
+            jwks := jwk.NewSet()
+            _ = jwks.AddKey(pubJWK)
+            simpleJWKSSet = jwks
+        } else {
+            _ = simpleJWKSSet.AddKey(pubJWK)
+        }
+    }
 	currentKeyID = kid
 	enforceKeyRetention()
 	return kid, nil
@@ -299,13 +311,19 @@ func ImportPEMKey(pemText string, kid string) (string, error) {
 			}
 			signingKeys[kid] = key
 			keyMeta[kid] = time.Now().Unix()
-			pubJWK, err := jwk.FromRaw(&key.PublicKey)
-			if err == nil {
-				_ = pubJWK.Set(jwk.KeyIDKey, kid)
-				_ = pubJWK.Set(jwk.AlgorithmKey, "RS256")
-				_ = pubJWK.Set(jwk.KeyUsageKey, "sig")
-				_ = simpleJWKSSet.AddKey(pubJWK)
-			}
+            pubJWK, err := jwk.FromRaw(&key.PublicKey)
+            if err == nil {
+                _ = pubJWK.Set(jwk.KeyIDKey, kid)
+                _ = pubJWK.Set(jwk.AlgorithmKey, "RS256")
+                _ = pubJWK.Set(jwk.KeyUsageKey, "sig")
+                if simpleJWKSSet == nil {
+                    jwks := jwk.NewSet()
+                    _ = jwks.AddKey(pubJWK)
+                    simpleJWKSSet = jwks
+                } else {
+                    _ = simpleJWKSSet.AddKey(pubJWK)
+                }
+            }
 			currentKeyID = kid
 			enforceKeyRetention()
 			return kid, nil
