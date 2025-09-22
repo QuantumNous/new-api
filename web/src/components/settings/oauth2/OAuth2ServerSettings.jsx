@@ -272,25 +272,11 @@ export default function OAuth2ServerSettings(props) {
           {!keysReady && isEnabled && (
             <Banner
               type='warning'
-              description={
-                <div>
-                  <div>
-                    ⚠️ 尚未准备签名密钥，建议立即初始化或轮换以发布 JWKS。
-                  </div>
-                  <div>签名密钥用于 JWT 令牌的安全签发。</div>
-                </div>
-              }
-              actions={
-                <Button
-                  size='small'
-                  type='primary'
-                  onClick={() => setJwksVisible(true)}
-                  loading={keysLoading}
-                >
-                  打开密钥管理
-                </Button>
-              }
-              style={{ marginBottom: 16 }}
+              className='!rounded-lg'
+              closeIcon={null}
+              description={t(
+                '尚未准备签名密钥，建议立即初始化或轮换以发布 JWKS。签名密钥用于 JWT 令牌的安全签发。',
+              )}
             />
           )}
 
