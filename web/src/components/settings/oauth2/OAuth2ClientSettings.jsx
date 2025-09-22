@@ -37,8 +37,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../helpers';
-import CreateOAuth2ClientModal from './modals/CreateOAuth2ClientModal';
-import EditOAuth2ClientModal from './modals/EditOAuth2ClientModal';
+import OAuth2ClientModal from './modals/OAuth2ClientModal';
 import SecretDisplayModal from './modals/SecretDisplayModal';
 import ServerInfoModal from './modals/ServerInfoModal';
 import JWKSInfoModal from './modals/JWKSInfoModal';
@@ -52,8 +51,7 @@ export default function OAuth2ClientSettings() {
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [showSecretModal, setShowSecretModal] = useState(false);
   const [currentSecret, setCurrentSecret] = useState('');
@@ -228,7 +226,7 @@ export default function OAuth2ClientSettings() {
             size='small'
             onClick={() => {
               setEditingClient(record);
-              setShowEditModal(true);
+              setShowModal(true);
             }}
           >
             {t('编辑')}
@@ -306,7 +304,10 @@ export default function OAuth2ClientSettings() {
             </Button>
             <Button
               type='primary'
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                setEditingClient(null);
+                setShowModal(true);
+              }}
               size='small'
             >
               {t('创建客户端')}
@@ -348,33 +349,29 @@ export default function OAuth2ClientSettings() {
             )}
             style={{ padding: 30 }}
           >
-            <Button type='primary' onClick={() => setShowCreateModal(true)}>
+            <Button
+              type='primary'
+              onClick={() => {
+                setEditingClient(null);
+                setShowModal(true);
+              }}
+            >
               {t('创建第一个客户端')}
             </Button>
           </Empty>
         }
       />
 
-      {/* 创建客户端模态框 */}
-      <CreateOAuth2ClientModal
-        visible={showCreateModal}
-        onCancel={() => setShowCreateModal(false)}
-        onSuccess={() => {
-          setShowCreateModal(false);
-          loadClients();
-        }}
-      />
-
-      {/* 编辑客户端模态框 */}
-      <EditOAuth2ClientModal
-        visible={showEditModal}
+      {/* OAuth2 客户端模态框 */}
+      <OAuth2ClientModal
+        visible={showModal}
         client={editingClient}
         onCancel={() => {
-          setShowEditModal(false);
+          setShowModal(false);
           setEditingClient(null);
         }}
         onSuccess={() => {
-          setShowEditModal(false);
+          setShowModal(false);
           setEditingClient(null);
           loadClients();
         }}
