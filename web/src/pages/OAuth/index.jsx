@@ -149,18 +149,16 @@ export default function OAuthConsent() {
             </Text>
           </Card>
         ) : error ? (
-          <Card>
-            <Banner
-              type='warning'
-              closeIcon={null}
-              className='!rounded-lg'
-              description={
-                error === 'login_required'
-                  ? t('请先登录后再继续授权。')
-                  : t('暂时无法加载授权信息')
-              }
-            />
-          </Card>
+          <Banner
+            type='warning'
+            closeIcon={null}
+            className='!rounded-lg'
+            description={
+              error === 'login_required'
+                ? t('请先登录后再继续授权。')
+                : t('暂时无法加载授权信息')
+            }
+          />
         ) : (
           info && (
             <>
@@ -247,7 +245,7 @@ export default function OAuthConsent() {
                     </Popover>
                     {/* 链接图标 */}
                     <div className='w-10 h-10 rounded-full flex items-center justify-center'>
-                      <Link size={16} />
+                      <Link size={20} />
                     </div>
                     {/* 站点Logo */}
                     <div className='w-12 h-12 rounded-full overflow-hidden flex items-center justify-center'>

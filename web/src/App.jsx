@@ -44,7 +44,7 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import Playground from './pages/Playground';
 import OAuth2Callback from './components/auth/OAuth2Callback';
-import OAuthConsent from './pages/OAuth/Consent';
+import OAuthConsent from './pages/OAuth';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
