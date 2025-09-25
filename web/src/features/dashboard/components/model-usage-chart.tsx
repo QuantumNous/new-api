@@ -1,13 +1,15 @@
 import { useMemo } from 'react'
-import type { TrendDataPoint } from '@/types/api'
+import type { ModelUsageData } from '@/types/api'
 import {
-  Bar,
-  BarChart,
+  PieChart,
+  Pie,
+  Cell,
   ResponsiveContainer,
-  XAxis,
-  YAxis,
   Tooltip,
+  Legend,
 } from 'recharts'
+import { modelToColor } from '@/lib/colors'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -17,8 +19,8 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-interface OverviewProps {
-  data: TrendDataPoint[]
+interface ModelUsageChartProps {
+  data: ModelUsageData[]
   loading?: boolean
   error?: string | null
   title?: string
@@ -27,18 +29,12 @@ interface OverviewProps {
 
 interface ChartDataPoint {
   name: string
+  value: number
   quota: number
   tokens: number
   count: number
-  timestamp: number
-}
-
-const formatTimestamp = (timestamp: number): string => {
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })
+  percentage: number
+  color: string
 }
 
 const formatValue = (
@@ -61,36 +57,40 @@ const formatValue = (
   }
 }
 
-export function Overview({
+export function ModelUsageChart({
   data = [],
   loading = false,
   error = null,
-  title = 'Usage Overview',
-  description = 'Quota usage over time',
-}: OverviewProps) {
+  title = 'Model Usage Distribution',
+  description = 'Quota usage by model',
+}: ModelUsageChartProps) {
   const chartData = useMemo((): ChartDataPoint[] => {
     if (!data || data.length === 0) return []
 
-    return data
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map((item) => ({
-        name: formatTimestamp(item.timestamp),
-        quota: item.quota,
-        tokens: item.tokens,
-        count: item.count,
-        timestamp: item.timestamp,
-      }))
+    // 只取前12个模型，避免图表过于拥挤
+    const topModels = data.slice(0, 12)
+
+    return topModels.map((item) => ({
+      name: item.model,
+      value: item.quota,
+      quota: item.quota,
+      tokens: item.tokens,
+      count: item.count,
+      percentage: item.percentage,
+      color: modelToColor(item.model),
+    }))
   }, [data])
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       return (
-        <div className='bg-background border-border rounded-lg border p-3 shadow-lg'>
-          <p className='mb-2 text-sm font-medium'>{label}</p>
+        <div className='bg-background border-border min-w-[200px] rounded-lg border p-3 shadow-lg'>
+          <p className='mb-2 text-sm font-medium'>{data.name}</p>
           <div className='space-y-1 text-xs'>
             <p className='text-primary'>
-              Quota: {formatValue(data.quota, 'quota')}
+              Quota: {formatValue(data.quota, 'quota')} (
+              {data.percentage.toFixed(1)}%)
             </p>
             <p className='text-blue-600'>
               Tokens: {formatValue(data.tokens, 'tokens')}
@@ -103,6 +103,29 @@ export function Overview({
       )
     }
     return null
+  }
+
+  const CustomLegend = ({ payload }: any) => {
+    if (!payload || payload.length === 0) return null
+
+    return (
+      <div className='mt-4 flex flex-wrap justify-center gap-2'>
+        {payload.map((entry: any, index: number) => (
+          <Badge
+            key={index}
+            variant='outline'
+            className='text-xs'
+            style={{ borderColor: entry.color }}
+          >
+            <div
+              className='mr-1 h-2 w-2 rounded-full'
+              style={{ backgroundColor: entry.color }}
+            />
+            {entry.value}
+          </Badge>
+        ))}
+      </div>
+    )
   }
 
   if (loading) {
@@ -148,8 +171,10 @@ export function Overview({
         <CardContent>
           <div className='text-muted-foreground flex h-[350px] items-center justify-center'>
             <div className='text-center'>
-              <p className='text-sm font-medium'>No data available</p>
-              <p className='mt-1 text-xs'>Try adjusting your time range</p>
+              <p className='text-sm font-medium'>No model usage data</p>
+              <p className='mt-1 text-xs'>
+                Start making API calls to see usage
+              </p>
             </div>
           </div>
         </CardContent>
@@ -158,33 +183,33 @@ export function Overview({
   }
 
   return (
-    <ResponsiveContainer width='100%' height={350}>
-      <BarChart
-        data={chartData}
-        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-      >
-        <XAxis
-          dataKey='name'
-          stroke='hsl(var(--muted-foreground))'
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis
-          stroke='hsl(var(--muted-foreground))'
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => formatValue(value, 'quota')}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        <Bar
-          dataKey='quota'
-          fill='hsl(var(--primary))'
-          radius={[4, 4, 0, 0]}
-          name='Quota'
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width='100%' height={350}>
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx='50%'
+              cy='50%'
+              labelLine={false}
+              outerRadius={100}
+              fill='#8884d8'
+              dataKey='value'
+              label={({ percentage }) => `${percentage.toFixed(1)}%`}
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+            <Legend content={<CustomLegend />} />
+          </PieChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   )
 }

@@ -40,4 +40,69 @@ export type LoginTwoFAData = { require_2fa: true }
 export type LoginSuccessData = UserBasic
 export type LoginResponse = ApiResponse<LoginTwoFAData | LoginSuccessData>
 export type Verify2FAResponse = ApiResponse<UserBasic>
+// Dashboard 相关数据类型
+export interface QuotaDataItem {
+  count: number
+  model_name: string
+  quota: number
+  created_at: number
+  tokens?: number
+}
+
+export type QuotaDataResponse = ApiResponse<QuotaDataItem[]>
+
+// 统计数据接口
+export interface DashboardStats {
+  totalQuota: number
+  totalTokens: number
+  totalRequests: number
+  avgQuotaPerRequest: number
+}
+
+// 图表趋势数据
+export interface TrendDataPoint {
+  timestamp: number
+  quota: number
+  tokens: number
+  count: number
+}
+
+// 模型使用分布数据
+export interface ModelUsageData {
+  model: string
+  quota: number
+  tokens: number
+  count: number
+  percentage: number
+}
+
+// 模型详细信息
+export interface ModelInfo {
+  id: number
+  model_name: string
+  business_group: string
+  quota_used: number
+  quota_failed: number
+  success_rate: number
+  avg_quota_per_request: number
+  avg_tokens_per_request: number
+  operations: string[]
+}
+
+// 模型监控统计数据
+export interface ModelMonitoringStats {
+  total_models: number
+  active_models: number
+  total_requests: number
+  avg_success_rate: number
+}
+
+// 模型监控数据响应
+export interface ModelMonitoringData {
+  stats: ModelMonitoringStats
+  models: ModelInfo[]
+}
+
+export type ModelMonitoringResponse = ApiResponse<ModelMonitoringData>
+
 export type SelfResponse = ApiResponse<UserSelf>
