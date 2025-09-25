@@ -7,7 +7,7 @@ import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { IconFacebook, IconGithub } from '@/assets/brand-icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { sleep, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -21,13 +21,8 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 
 const formSchema = z.object({
-  email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email' : undefined),
-  }),
-  password: z
-    .string()
-    .min(1, 'Please enter your password')
-    .min(7, 'Password must be at least 7 characters long'),
+  username: z.string().min(1, 'Please enter your username or email'),
+  password: z.string().min(1, 'Please enter your password'),
 })
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
@@ -45,40 +40,29 @@ export function UserAuthForm({
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { username: '', password: '' },
   })
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
-
-    // Mock successful authentication
-    const mockUser = {
-      accountNo: 'ACC001',
-      email: data.email,
-      role: ['user'],
-      exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
+    try {
+      const res = await auth.login({
+        username: data.username,
+        password: data.password,
+      })
+      if (res.require2FA) {
+        toast.success('请输入两步验证码')
+        navigate({ to: '/otp', replace: true })
+        return
+      }
+      toast.success(`Welcome back, ${data.username}!`)
+      const targetPath = redirectTo || '/'
+      navigate({ to: targetPath, replace: true })
+    } catch (e: any) {
+      toast.error(e?.message || 'Sign in failed')
+    } finally {
+      setIsLoading(false)
     }
-
-    toast.promise(sleep(2000), {
-      loading: 'Signing in...',
-      success: () => {
-        setIsLoading(false)
-
-        // Set user and access token
-        auth.setUser(mockUser)
-        auth.setAccessToken('mock-access-token')
-
-        // Redirect to the stored location or default to dashboard
-        const targetPath = redirectTo || '/'
-        navigate({ to: targetPath, replace: true })
-
-        return `Welcome back, ${data.email}!`
-      },
-      error: 'Error',
-    })
   }
 
   return (
@@ -90,12 +74,12 @@ export function UserAuthForm({
       >
         <FormField
           control={form.control}
-          name='email'
+          name='username'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>Username or Email</FormLabel>
               <FormControl>
-                <Input placeholder='name@example.com' {...field} />
+                <Input placeholder='your username or email' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

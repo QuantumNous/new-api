@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { showSubmittedData } from '@/lib/show-submitted-data'
+import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,14 +42,19 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
 
   const otp = form.watch('otp')
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsLoading(true)
-    showSubmittedData(data)
+  const { auth } = useAuthStore()
 
-    setTimeout(() => {
-      setIsLoading(false)
+  async function onSubmit(data: z.infer<typeof formSchema>) {
+    setIsLoading(true)
+    try {
+      await auth.verify2FA(data.otp)
+      toast.success('登录成功')
       navigate({ to: '/' })
-    }, 1000)
+    } catch (e: any) {
+      toast.error(e?.message || '验证失败，请重试')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
