@@ -36,7 +36,11 @@ export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
 
   if (user) {
-    return <Navigate to='/console' replace />;
+    // 优先使用登录页上的 next 参数（仅允许站内相对路径）
+    const sp = new URLSearchParams(window.location.search);
+    const next = sp.get('next');
+    const isSafeInternalPath = next && next.startsWith('/') && !next.startsWith('//');
+    return <Navigate to={isSafeInternalPath ? next : '/console'} replace />;
   }
 
   return children;

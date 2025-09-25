@@ -176,7 +176,11 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          // 优先跳回 next（仅允许相对路径）
+          const sp = new URLSearchParams(window.location.search);
+          const next = sp.get('next');
+          const isSafeInternalPath = next && next.startsWith('/') && !next.startsWith('//');
+          navigate(isSafeInternalPath ? next : '/console');
         } else {
           showError(message);
         }
@@ -286,7 +290,10 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    const sp = new URLSearchParams(window.location.search);
+    const next = sp.get('next');
+    const isSafeInternalPath = next && next.startsWith('/') && !next.startsWith('//');
+    navigate(isSafeInternalPath ? next : '/console');
   };
 
   // 返回登录页面

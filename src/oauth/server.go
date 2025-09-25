@@ -846,18 +846,17 @@ func HandleAuthorizeRequest(c *gin.Context) {
 	// 检查用户会话（要求已登录）
 	sess := sessions.Default(c)
 	uidVal := sess.Get("id")
-	if uidVal == nil {
-		if mode == "prepare" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "login_required"})
-			return
-		}
-		// 重定向到前端登录后回到同意页
-		consentPath := "/oauth/consent?" + c.Request.URL.RawQuery
-		loginPath := "/login?next=" + url.QueryEscape(consentPath)
-		writeNoStore(c)
-		c.Redirect(http.StatusFound, loginPath)
-		return
-	}
+    if uidVal == nil {
+        if mode == "prepare" {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "login_required"})
+            return
+        }
+        // 直接跳转到同意页，由前端在需要时引导登录，避免已登录用户被/login重定向到/console
+        consentPath := "/oauth/consent?" + c.Request.URL.RawQuery
+        writeNoStore(c)
+        c.Redirect(http.StatusFound, consentPath)
+        return
+    }
 	userID, _ := uidVal.(int)
 	if userID == 0 {
 		// 某些 session 库会将数字解码为 int64
