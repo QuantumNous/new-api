@@ -1999,7 +1999,6 @@
   "查看渠道密钥": "Afficher la clé du canal",
   "渠道密钥信息": "Informations sur la clé du canal",
   "密钥获取成功": "Acquisition de la clé réussie",
-  "模型补全倍率（仅对自定义模型有效）": "Ratio d'achèvement de modèle (uniquement efficace pour les modèles personnalisés)",
   "图片倍率": "Ratio d'image",
   "音频倍率": "Ratio audio",
   "音频补全倍率": "Ratio d'achèvement audio",
@@ -2126,5 +2125,12 @@
   "域名黑名单": "Liste noire de domaines",
   "白名单": "Liste blanche",
   "黑名单": "Liste noire",
-  "切换语言": "Changer de langue"
+  "切换语言": "Changer de langue",
+  "定价": "Tarification",
+  "语言": "Langue",
+  "关闭侧边栏": "Fermer la barre latérale",
+  "common.changeLanguage": "Changer de langue",
+  "closeSidebar": "Fermer la barre latérale",
+  "pricing": "Tarification",
+  "language": "Langue"
 }

@@ -1999,7 +1999,6 @@
   "查看渠道密钥": "View channel key",
   "渠道密钥信息": "Channel key information",
   "密钥获取成功": "Key acquisition successful",
-  "模型补全倍率（仅对自定义模型有效）": "Model completion ratio (only effective for custom models)",
   "图片倍率": "Image ratio",
   "音频倍率": "Audio ratio",
   "音频补全倍率": "Audio completion ratio",
@@ -2125,5 +2124,6 @@
   "域名IP过滤详细说明": "⚠️ This is an experimental option. A domain may resolve to multiple IPv4/IPv6 addresses. If enabled, ensure the IP filter list covers these addresses, otherwise access may fail.",
   "域名黑名单": "Domain Blacklist",
   "白名单": "Whitelist",
-  "黑名单": "Blacklist"
+  "黑名单": "Blacklist",
+  "common.changeLanguage": "Change Language"
 }
