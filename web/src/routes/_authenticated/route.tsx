@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStoredUser } from '@/lib/auth'
@@ -11,9 +12,10 @@ export const Route = createFileRoute('/_authenticated')({
     }
   },
   component: () => {
-    // 进入后尝试刷新一次会话信息（静默失败）
     const { auth } = useAuthStore()
-    auth.fetchSelf().catch(() => {})
+    useEffect(() => {
+      auth.fetchSelf().catch(() => {})
+    }, [])
     return <AuthenticatedLayout />
   },
 })

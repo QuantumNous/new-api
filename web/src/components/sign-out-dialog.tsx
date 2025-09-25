@@ -12,9 +12,9 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const location = useLocation()
   const { auth } = useAuthStore()
 
-  const handleSignOut = () => {
-    auth.logout()
-    // Preserve current location for redirect after sign-in
+  const handleSignOut = async () => {
+    await auth.logout()
+    onOpenChange(false)
     const currentPath = location.href
     navigate({
       to: '/sign-in',
