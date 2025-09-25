@@ -772,11 +772,12 @@ type OpenAIResponsesRequest struct {
 	Instructions       json.RawMessage `json:"instructions,omitempty"`
 	MaxOutputTokens    uint            `json:"max_output_tokens,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
-	ParallelToolCalls  bool            `json:"parallel_tool_calls,omitempty"`
+	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
 	ServiceTier        string          `json:"service_tier,omitempty"`
-	Store              bool            `json:"store,omitempty"`
+	Store              json.RawMessage `json:"store,omitempty"`
+	PromptCacheKey     json.RawMessage `json:"prompt_cache_key,omitempty"`
 	Stream             bool            `json:"stream,omitempty"`
 	Temperature        float64         `json:"temperature,omitempty"`
 	Text               json.RawMessage `json:"text,omitempty"`

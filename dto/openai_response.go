@@ -6,6 +6,10 @@ import (
 	"one-api/types"
 )
 
+const (
+	ResponsesOutputTypeImageGenerationCall = "image_generation_call"
+)
+
 type SimpleResponse struct {
 	Usage `json:"usage"`
 	Error any `json:"error"`
@@ -273,6 +277,42 @@ func (o *OpenAIResponsesResponse) GetOpenAIError() *types.OpenAIError {
 	return GetOpenAIError(o.Error)
 }
 
+func (o *OpenAIResponsesResponse) HasImageGenerationCall() bool {
+	if len(o.Output) == 0 {
+		return false
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return true
+		}
+	}
+	return false
+}
+
+func (o *OpenAIResponsesResponse) GetQuality() string {
+	if len(o.Output) == 0 {
+		return ""
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Quality
+		}
+	}
+	return ""
+}
+
+func (o *OpenAIResponsesResponse) GetSize() string {
+	if len(o.Output) == 0 {
+		return ""
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Size
+		}
+	}
+	return ""
+}
+
 type IncompleteDetails struct {
 	Reasoning string `json:"reasoning"`
 }
@@ -283,6 +323,8 @@ type ResponsesOutput struct {
 	Status  string                   `json:"status"`
 	Role    string                   `json:"role"`
 	Content []ResponsesOutputContent `json:"content"`
+	Quality string                   `json:"quality"`
+	Size    string                   `json:"size"`
 }
 
 type ResponsesOutputContent struct {

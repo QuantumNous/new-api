@@ -33,6 +33,12 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	if responsesResponse.HasImageGenerationCall() {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", responsesResponse.GetQuality())
+		c.Set("image_generation_call_size", responsesResponse.GetSize())
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
@@ -80,18 +86,25 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sendResponsesStreamData(c, streamResponse, data)
 			switch streamResponse.Type {
 			case "response.completed":
-				if streamResponse.Response != nil && streamResponse.Response.Usage != nil {
-					if streamResponse.Response.Usage.InputTokens != 0 {
-						usage.PromptTokens = streamResponse.Response.Usage.InputTokens
+				if streamResponse.Response != nil {
+					if streamResponse.Response.Usage != nil {
+						if streamResponse.Response.Usage.InputTokens != 0 {
+							usage.PromptTokens = streamResponse.Response.Usage.InputTokens
+						}
+						if streamResponse.Response.Usage.OutputTokens != 0 {
+							usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
+						}
+						if streamResponse.Response.Usage.TotalTokens != 0 {
+							usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
+						}
+						if streamResponse.Response.Usage.InputTokensDetails != nil {
+							usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
+						}
 					}
-					if streamResponse.Response.Usage.OutputTokens != 0 {
-						usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
-					}
-					if streamResponse.Response.Usage.TotalTokens != 0 {
-						usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
-					}
-					if streamResponse.Response.Usage.InputTokensDetails != nil {
-						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
+					if streamResponse.Response.HasImageGenerationCall() {
+						c.Set("image_generation_call", true)
+						c.Set("image_generation_call_quality", streamResponse.Response.GetQuality())
+						c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 					}
 				}
 			case "response.output_text.delta":

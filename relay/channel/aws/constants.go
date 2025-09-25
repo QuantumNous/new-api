@@ -1,5 +1,7 @@
 package aws
 
+import "strings"
+
 var awsModelIDMap = map[string]string{
 	"claude-instant-1.2":         "anthropic.claude-instant-v1",
 	"claude-2.0":                 "anthropic.claude-v2",
@@ -14,6 +16,11 @@ var awsModelIDMap = map[string]string{
 	"claude-sonnet-4-20250514":   "anthropic.claude-sonnet-4-20250514-v1:0",
 	"claude-opus-4-20250514":     "anthropic.claude-opus-4-20250514-v1:0",
 	"claude-opus-4-1-20250805":   "anthropic.claude-opus-4-1-20250805-v1:0",
+	// Nova models
+	"nova-micro-v1:0":   "amazon.nova-micro-v1:0",
+	"nova-lite-v1:0":    "amazon.nova-lite-v1:0",
+	"nova-pro-v1:0":     "amazon.nova-pro-v1:0",
+	"nova-premier-v1:0": "amazon.nova-premier-v1:0",
 }
 
 var awsModelCanCrossRegionMap = map[string]map[string]bool{
@@ -58,7 +65,27 @@ var awsModelCanCrossRegionMap = map[string]map[string]bool{
 	"anthropic.claude-opus-4-1-20250805-v1:0": {
 		"us": true,
 	},
-}
+	// Nova models - all support three major regions
+	"amazon.nova-micro-v1:0": {
+		"us":   true,
+		"eu":   true,
+		"apac": true,
+	},
+	"amazon.nova-lite-v1:0": {
+		"us":   true,
+		"eu":   true,
+		"apac": true,
+	},
+	"amazon.nova-pro-v1:0": {
+		"us":   true,
+		"eu":   true,
+		"apac": true,
+	},
+	"amazon.nova-premier-v1:0": {
+		"us":   true,
+		"eu":   true,
+		"apac": true,
+	}}
 
 var awsRegionCrossModelPrefixMap = map[string]string{
 	"us": "us",
@@ -67,3 +94,8 @@ var awsRegionCrossModelPrefixMap = map[string]string{
 }
 
 var ChannelName = "aws"
+
+// 判断是否为Nova模型
+func isNovaModel(modelId string) bool {
+	return strings.HasPrefix(modelId, "nova-")
+}

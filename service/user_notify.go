@@ -7,7 +7,7 @@ import (
 	"one-api/common"
 	"one-api/dto"
 	"one-api/model"
-	"one-api/setting"
+	"one-api/setting/system_setting"
 	"strings"
 )
 
@@ -91,11 +91,11 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 	var resp *http.Response
 	var err error
 
-	if setting.EnableWorker() {
+	if system_setting.EnableWorker() {
 		// 使用worker发送请求
 		workerReq := &WorkerRequest{
 			URL:    finalURL,
-			Key:    setting.WorkerValidKey,
+			Key:    system_setting.WorkerValidKey,
 			Method: http.MethodGet,
 			Headers: map[string]string{
 				"User-Agent": "OneAPI-Bark-Notify/1.0",
@@ -113,6 +113,12 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 			return fmt.Errorf("bark request failed with status code: %d", resp.StatusCode)
 		}
 	} else {
+		// SSRF防护：验证Bark URL（非Worker模式）
+		fetchSetting := system_setting.GetFetchSetting()
+		if err := common.ValidateURLWithFetchSetting(finalURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+			return fmt.Errorf("request reject: %v", err)
+		}
+
 		// 直接发送请求
 		req, err = http.NewRequest(http.MethodGet, finalURL, nil)
 		if err != nil {

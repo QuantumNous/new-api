@@ -90,6 +90,11 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 		requestPath = "/v1/embeddings" // 修改请求路径
 	}
 
+	// VolcEngine 图像生成模型
+	if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+		requestPath = "/v1/images/generations"
+	}
+
 	c.Request = &http.Request{
 		Method: "POST",
 		URL:    &url.URL{Path: requestPath}, // 使用动态路径
@@ -107,6 +112,21 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 				testModel = "gpt-4o-mini"
 			}
 		}
+	}
+
+	// 重新检查模型类型并更新请求路径
+	if strings.Contains(strings.ToLower(testModel), "embedding") ||
+		strings.HasPrefix(testModel, "m3e") ||
+		strings.Contains(testModel, "bge-") ||
+		strings.Contains(testModel, "embed") ||
+		channel.Type == constant.ChannelTypeMokaAI {
+		requestPath = "/v1/embeddings"
+		c.Request.URL.Path = requestPath
+	}
+
+	if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+		requestPath = "/v1/images/generations"
+		c.Request.URL.Path = requestPath
 	}
 
 	cache, err := model.GetUserCache(1)
@@ -139,6 +159,9 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 	relayFormat := types.RelayFormatOpenAI
 	if c.Request.URL.Path == "/v1/embeddings" {
 		relayFormat = types.RelayFormatEmbedding
+	}
+	if c.Request.URL.Path == "/v1/images/generations" {
+		relayFormat = types.RelayFormatOpenAIImage
 	}
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
@@ -201,6 +224,22 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 		}
 		// 调用专门用于 Embedding 的转换函数
 		convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, embeddingRequest)
+	} else if info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		// 创建一个 ImageRequest
+		prompt := "cat"
+		if request.Prompt != nil {
+			if promptStr, ok := request.Prompt.(string); ok && promptStr != "" {
+				prompt = promptStr
+			}
+		}
+		imageRequest := dto.ImageRequest{
+			Prompt: prompt,
+			Model:  request.Model,
+			N:      uint(request.N),
+			Size:   request.Size,
+		}
+		// 调用专门用于图像生成的转换函数
+		convertedRequest, err = adaptor.ConvertImageRequest(c, info, imageRequest)
 	} else {
 		// 对其他所有请求类型（如 Chat），保持原有逻辑
 		convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, request)
@@ -235,7 +274,7 @@ func testChannel(channel *model.Channel, testModel string) testResult {
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(httpResp, true)
+			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			return testResult{
 				context:     c,
 				localErr:    err,

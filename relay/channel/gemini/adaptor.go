@@ -215,8 +215,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeGemini {
-		if strings.HasSuffix(info.RequestURLPath, ":embedContent") ||
-			strings.HasSuffix(info.RequestURLPath, ":batchEmbedContents") {
+		if strings.Contains(info.RequestURLPath, ":embedContent") ||
+			strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
 			return NativeGeminiEmbeddingHandler(c, resp, info)
 		}
 		if info.IsStream {

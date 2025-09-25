@@ -8,6 +8,7 @@ var ModelList = []string{
 	"Doubao-lite-32k",
 	"Doubao-lite-4k",
 	"Doubao-embedding",
+	"doubao-seedream-4-0-250828",
 }
 
 var ChannelName = "volcengine"

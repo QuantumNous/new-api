@@ -9,6 +9,8 @@ import (
 	"one-api/model"
 	"one-api/service"
 	"one-api/setting"
+	"one-api/setting/operation_setting"
+	"one-api/setting/system_setting"
 	"strconv"
 	"sync"
 	"time"
@@ -18,6 +20,44 @@ import (
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
+
+func GetTopUpInfo(c *gin.Context) {
+	// 获取支付方式
+	payMethods := operation_setting.PayMethods
+
+	// 如果启用了 Stripe 支付，添加到支付方法列表
+	if setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "" {
+		// 检查是否已经包含 Stripe
+		hasStripe := false
+		for _, method := range payMethods {
+			if method["type"] == "stripe" {
+				hasStripe = true
+				break
+			}
+		}
+
+		if !hasStripe {
+			stripeMethod := map[string]string{
+				"name":      "Stripe",
+				"type":      "stripe",
+				"color":     "rgba(var(--semi-purple-5), 1)",
+				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+			}
+			payMethods = append(payMethods, stripeMethod)
+		}
+	}
+
+	data := gin.H{
+		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
+		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
+		"pay_methods":         payMethods,
+		"min_topup":           operation_setting.MinTopUp,
+		"stripe_min_topup":    setting.StripeMinTopUp,
+		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
+	}
+	common.ApiSuccess(c, data)
+}
 
 type EpayRequest struct {
 	Amount        int64  `json:"amount"`
@@ -31,13 +71,13 @@ type AmountRequest struct {
 }
 
 func GetEpayClient() *epay.Client {
-	if setting.PayAddress == "" || setting.EpayId == "" || setting.EpayKey == "" {
+	if operation_setting.PayAddress == "" || operation_setting.EpayId == "" || operation_setting.EpayKey == "" {
 		return nil
 	}
 	withUrl, err := epay.NewClient(&epay.Config{
-		PartnerID: setting.EpayId,
-		Key:       setting.EpayKey,
-	}, setting.PayAddress)
+		PartnerID: operation_setting.EpayId,
+		Key:       operation_setting.EpayKey,
+	}, operation_setting.PayAddress)
 	if err != nil {
 		return nil
 	}
@@ -58,15 +98,23 @@ func getPayMoney(amount int64, group string) float64 {
 	}
 
 	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
-	dPrice := decimal.NewFromFloat(setting.Price)
+	dPrice := decimal.NewFromFloat(operation_setting.Price)
+	// apply optional preset discount by the original request amount (if configured), default 1.0
+	discount := 1.0
+	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
+		if ds > 0 {
+			discount = ds
+		}
+	}
+	dDiscount := decimal.NewFromFloat(discount)
 
-	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio)
+	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
 
 	return payMoney.InexactFloat64()
 }
 
 func getMinTopup() int64 {
-	minTopup := setting.MinTopUp
+	minTopup := operation_setting.MinTopUp
 	if !common.DisplayInCurrencyEnabled {
 		dMinTopup := decimal.NewFromInt(int64(minTopup))
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
@@ -99,13 +147,13 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
-	if !setting.ContainsPayMethod(req.PaymentMethod) {
+	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
 		c.JSON(200, gin.H{"message": "error", "data": "支付方式不存在"})
 		return
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(setting.ServerAddress + "/console/log")
+	returnUrl, _ := url.Parse(system_setting.ServerAddress + "/console/log")
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
