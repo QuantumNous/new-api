@@ -1,0 +1,29 @@
+name: Close inactive issues/PR
+
+on:
+  schedule:
+  - cron: '38 18 * * *'
+
+jobs:
+  stale:
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+    - uses: actions/stale@v5
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        days-before-issue-stale: 120
+        days-before-issue-close: 120
+        stale-issue-label: "stale"
+        stale-issue-message: "This issue is stale because it has been open for 120 days with no activity."
+        close-issue-message: "This issue was closed because it has been inactive for 120 days since being marked as stale."
+        days-before-pr-stale: 120
+        days-before-pr-close: 120
+        stale-pr-label: "stale"
+        stale-pr-message: "This PR is stale because it has been open for 120 days with no activity."
+        close-pr-message: "This PR was closed because it has been inactive for 120 days since being marked as stale."
+        operations-per-run: 0
