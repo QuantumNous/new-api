@@ -2127,11 +2127,13 @@
   "白名单": "Liste blanche",
   "黑名单": "Liste noire",
   "切换语言": "Changer de langue",
-  "common.changeLanguage": "Changer de langue",
   "closeSidebar": "Fermer la barre latérale",
   "pricing": "Tarification",
   "language": "Langue",
   "关闭侧边栏": "Fermer la barre latérale",
   "定价": "Tarification",
-  "语言": "Langue"
+  "语言": "Langue",
+  "common": {
+    "changeLanguage": "Changer de langue"
+  }
 }
