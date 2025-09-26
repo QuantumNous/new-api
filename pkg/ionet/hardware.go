@@ -3,6 +3,7 @@ package ionet
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // GetAvailableReplicas retrieves available replicas per location for specified hardware
@@ -99,66 +100,77 @@ func (c *Client) GetMaxGPUsPerContainer() (*MaxGPUResponse, error) {
 	return &wrapped.Data, nil
 }
 
-// ListHardwareTypes retrieves available hardware types (if supported by the API)
-func (c *Client) ListHardwareTypes() ([]HardwareType, error) {
-	resp, err := c.makeRequest("GET", "/hardware/types", nil)
+// ListHardwareTypes retrieves available hardware types using the max GPUs endpoint
+func (c *Client) ListHardwareTypes() ([]HardwareType, int, error) {
+	maxGPUResp, err := c.GetMaxGPUsPerContainer()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list hardware types: %w", err)
+		return nil, 0, fmt.Errorf("failed to list hardware types: %w", err)
 	}
 
-	// API returns wrapped structure:
-	// { "data": { "hardware": [ { "hardware_id": 203, "hardware_name": "H100 PCIe", "brand_name": "NVIDIA", "max_gpus_per_container": 8, "available": 24 } ], "total": 32 } }
-	var wrapped struct {
-		Data struct {
-			Hardware []struct {
-				MaxGPUsPerContainer int    `json:"max_gpus_per_container"`
-				Available           int    `json:"available"`
-				HardwareID          int    `json:"hardware_id"`
-				HardwareName        string `json:"hardware_name"`
-				BrandName           string `json:"brand_name"`
-			} `json:"hardware"`
-			Total int `json:"total"`
-		} `json:"data"`
-	}
+	mapped := make([]HardwareType, 0, len(maxGPUResp.Hardware))
+	for _, hw := range maxGPUResp.Hardware {
+		name := strings.TrimSpace(hw.HardwareName)
+		if name == "" {
+			name = fmt.Sprintf("Hardware %d", hw.HardwareID)
+		}
 
-	if err := json.Unmarshal(resp.Body, &wrapped); err != nil {
-		return nil, fmt.Errorf("failed to parse hardware types: %w", err)
-	}
-
-	// Map to []HardwareType with best-effort field alignment
-	mapped := make([]HardwareType, 0, len(wrapped.Data.Hardware))
-	for _, hw := range wrapped.Data.Hardware {
 		mapped = append(mapped, HardwareType{
-			ID:         hw.HardwareID,
-			Name:       hw.HardwareName,
-			GPUType:    "", // unknown in this response; leave empty
-			GPUMemory:  0,  // unknown
-			MaxGPUs:    hw.MaxGPUsPerContainer,
-			CPU:        "", // unknown
-			Memory:     0,  // unknown
-			Storage:    0,  // unknown
-			HourlyRate: 0,  // unknown
-			Available:  hw.Available > 0,
+			ID:             hw.HardwareID,
+			Name:           name,
+			GPUType:        "",
+			GPUMemory:      0,
+			MaxGPUs:        hw.MaxGPUsPerContainer,
+			CPU:            "",
+			Memory:         0,
+			Storage:        0,
+			HourlyRate:     0,
+			Available:      hw.Available > 0,
+			BrandName:      strings.TrimSpace(hw.BrandName),
+			AvailableCount: hw.Available,
 		})
 	}
 
-	return mapped, nil
+	totalAvailable := maxGPUResp.Total
+	if totalAvailable == 0 {
+		sum := 0
+		for _, hw := range maxGPUResp.Hardware {
+			sum += hw.Available
+		}
+		totalAvailable = sum
+	}
+
+	return mapped, totalAvailable, nil
 }
 
 // ListLocations retrieves available deployment locations (if supported by the API)
-func (c *Client) ListLocations() ([]Location, error) {
+func (c *Client) ListLocations() (*LocationsResponse, error) {
 	resp, err := c.makeRequest("GET", "/locations", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list locations: %w", err)
 	}
 
-	// API response format not documented, assuming direct format
-	var locations []Location
-	if err := json.Unmarshal(resp.Body, &locations); err != nil {
-		return nil, fmt.Errorf("failed to parse locations: %w", err)
+	var wrapped struct {
+		Data LocationsResponse `json:"data"`
 	}
 
-	return locations, nil
+	if err := json.Unmarshal(resp.Body, &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse locations response: %w", err)
+	}
+
+	for i := range wrapped.Data.Locations {
+		location := &wrapped.Data.Locations[i]
+		location.ISO2 = strings.ToUpper(strings.TrimSpace(location.ISO2))
+	}
+
+	if wrapped.Data.Total == 0 {
+		total := 0
+		for _, location := range wrapped.Data.Locations {
+			total += location.Available
+		}
+		wrapped.Data.Total = total
+	}
+
+	return &wrapped.Data, nil
 }
 
 // GetHardwareType retrieves details about a specific hardware type

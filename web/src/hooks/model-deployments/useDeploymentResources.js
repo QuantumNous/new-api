@@ -23,7 +23,9 @@ import { showError } from '../../helpers';
 
 export const useDeploymentResources = () => {
   const [hardwareTypes, setHardwareTypes] = useState([]);
+  const [hardwareTotalAvailable, setHardwareTotalAvailable] = useState(0);
   const [locations, setLocations] = useState([]);
+  const [locationsTotalAvailable, setLocationsTotalAvailable] = useState(0);
   const [availableReplicas, setAvailableReplicas] = useState([]);
   const [priceEstimation, setPriceEstimation] = useState(null);
 
@@ -37,15 +39,46 @@ export const useDeploymentResources = () => {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
       if (response.data.success) {
-        const hardware = response.data.data.hardware_types || [];
-        setHardwareTypes(hardware);
-        return hardware;
+        const { hardware_types: hardwareList = [], total_available } = response.data.data || {};
+        const normalizedHardware = hardwareList.map((hardware) => {
+          const availableCountValue = Number(hardware.available_count);
+          const availableCount = Number.isNaN(availableCountValue) ? 0 : availableCountValue;
+          const availableBool =
+            typeof hardware.available === 'boolean'
+              ? hardware.available
+              : availableCount > 0;
+
+          return {
+            ...hardware,
+            available: availableBool,
+            available_count: availableCount,
+          };
+        });
+
+        const providedTotal = Number(total_available);
+        const fallbackTotal = normalizedHardware.reduce(
+          (acc, item) => acc + (Number.isNaN(item.available_count) ? 0 : item.available_count),
+          0,
+        );
+        const hasProvidedTotal =
+          total_available !== undefined &&
+          total_available !== null &&
+          total_available !== '' &&
+          !Number.isNaN(providedTotal);
+
+        setHardwareTypes(normalizedHardware);
+        setHardwareTotalAvailable(
+          hasProvidedTotal ? providedTotal : fallbackTotal,
+        );
+        return normalizedHardware;
       } else {
         showError('获取硬件类型失败: ' + response.data.message);
+        setHardwareTotalAvailable(0);
         return [];
       }
     } catch (error) {
       showError('获取硬件类型失败: ' + error.message);
+      setHardwareTotalAvailable(0);
       return [];
     } finally {
       setLoadingHardware(false);
@@ -57,15 +90,42 @@ export const useDeploymentResources = () => {
       setLoadingLocations(true);
       const response = await API.get('/api/deployments/locations');
       if (response.data.success) {
-        const locationsList = response.data.data.locations || [];
-        setLocations(locationsList);
-        return locationsList;
+        const { locations: locationsList = [], total } = response.data.data || {};
+        const normalizedLocations = locationsList.map((location) => {
+          const iso2 = (location.iso2 || '').toString().toUpperCase();
+          const availableValue = Number(location.available);
+          const available = Number.isNaN(availableValue) ? 0 : availableValue;
+
+          return {
+            ...location,
+            iso2,
+            available,
+          };
+        });
+        const providedTotal = Number(total);
+        const fallbackTotal = normalizedLocations.reduce(
+          (acc, item) => acc + (Number.isNaN(item.available) ? 0 : item.available),
+          0,
+        );
+        const hasProvidedTotal =
+          total !== undefined &&
+          total !== null &&
+          total !== '' &&
+          !Number.isNaN(providedTotal);
+
+        setLocations(normalizedLocations);
+        setLocationsTotalAvailable(
+          hasProvidedTotal ? providedTotal : fallbackTotal,
+        );
+        return normalizedLocations;
       } else {
         showError('获取部署位置失败: ' + response.data.message);
+        setLocationsTotalAvailable(0);
         return [];
       }
     } catch (error) {
       showError('获取部署位置失败: ' + error.message);
+      setLocationsTotalAvailable(0);
       return [];
     } finally {
       setLoadingLocations(false);
@@ -177,7 +237,9 @@ export const useDeploymentResources = () => {
   return {
     // Data
     hardwareTypes,
+    hardwareTotalAvailable,
     locations,
+    locationsTotalAvailable,
     availableReplicas,
     priceEstimation,
 

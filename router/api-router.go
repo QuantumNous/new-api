@@ -260,6 +260,8 @@ func SetApiRouter(router *gin.Engine) {
 			// Individual deployment operations
 			deploymentsRoute.GET("/:id", controller.GetDeployment)
 			deploymentsRoute.GET("/:id/logs", controller.GetDeploymentLogs)
+			deploymentsRoute.GET("/:id/containers", controller.ListDeploymentContainers)
+			deploymentsRoute.GET("/:id/containers/:container_id", controller.GetContainerDetails)
 			deploymentsRoute.PUT("/:id", controller.UpdateDeployment)
 			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)

@@ -22,7 +22,6 @@ import CardPro from '../../common/ui/CardPro';
 import DeploymentsTable from './DeploymentsTable';
 import DeploymentsActions from './DeploymentsActions';
 import DeploymentsFilters from './DeploymentsFilters';
-import DeploymentsTabs from './DeploymentsTabs';
 import EditDeploymentModal from './modals/EditDeploymentModal';
 import CreateDeploymentModal from './modals/CreateDeploymentModal';
 import ColumnSelectorModal from './modals/ColumnSelectorModal';
@@ -104,7 +103,6 @@ const DeploymentsPage = () => {
       {/* Main Content */}
       <CardPro
         type='type3'
-        tabsArea={<DeploymentsTabs {...deploymentsData} />}
         actionsArea={<DeploymentsActions
           selectedKeys={selectedKeys}
           setSelectedKeys={setSelectedKeys}

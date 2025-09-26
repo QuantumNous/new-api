@@ -70,27 +70,20 @@ func (c *DefaultHTTPClient) Do(req *HTTPRequest) (*HTTPResponse, error) {
 	}, nil
 }
 
-// NewEnterpriseClient creates a new IO.NET API client
+// NewEnterpriseClient creates a new IO.NET API client targeting the enterprise API base URL.
 func NewEnterpriseClient(apiKey string) *Client {
-	return &Client{
-		BaseURL:    DefaultEnterpriseBaseURL,
-		APIKey:     apiKey,
-		HTTPClient: NewDefaultHTTPClient(DefaultTimeout),
-	}
+	return NewClientWithConfig(apiKey, DefaultEnterpriseBaseURL, nil)
 }
 
+// NewClient creates a new IO.NET API client targeting the public API base URL.
 func NewClient(apiKey string) *Client {
-	return &Client{
-		BaseURL:    DefaultBaseURL,
-		APIKey:     apiKey,
-		HTTPClient: NewDefaultHTTPClient(DefaultTimeout),
-	}
+	return NewClientWithConfig(apiKey, DefaultBaseURL, nil)
 }
 
 // NewClientWithConfig creates a new IO.NET API client with custom configuration
 func NewClientWithConfig(apiKey, baseURL string, httpClient HTTPClient) *Client {
 	if baseURL == "" {
-		baseURL = DefaultEnterpriseBaseURL
+		baseURL = DefaultBaseURL
 	}
 	if httpClient == nil {
 		httpClient = NewDefaultHTTPClient(DefaultTimeout)

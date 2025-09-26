@@ -8,7 +8,7 @@ import (
 
 func main() {
 	// Initialize the client with your API key
-	client := ionet.NewEnterpriseClient("io-v2-xxx")
+	client := ionet.NewEnterpriseClient("io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjYxYWZjNDk5LWQ5ZjItNDY0Ni05NTQ4LWMwZjU1NTdjMjMwOSIsImV4cCI6NDkxMDY2NzAwMH0.d2lIcDmjPADQv4TaTutXL2QAqmSm7b5Nn445uRqurLKx7xO93lrQlq3Kfzro_J2jaJVi8N3K55yrMh8wZYl9xw")
 
 	fmt.Println("=== IO.NET Deployment API Examples ===\n")
 
@@ -25,7 +25,7 @@ func main() {
 	} else {
 		fmt.Printf("Found %d total deployments (showing page 1, 20 per page)\n",
 			deployments.Total)
-		for i, d := range deployments.Clusters {
+		for i, d := range deployments.Deployments {
 			fmt.Printf("  [%d] %s (%s) - %s %s - %.1f%% complete\n",
 				i+1, d.Name, d.ID, d.BrandName, d.HardwareName, d.CompletedPercent)
 			fmt.Printf("      Status: %s, Served: %s, Remaining: %s\n",
@@ -34,8 +34,8 @@ func main() {
 		fmt.Printf("Available statuses: %v\n\n", deployments.Statuses)
 
 		// Example: Update cluster name for the first deployment
-		if len(deployments.Clusters) > 0 {
-			firstCluster := deployments.Clusters[0]
+		if len(deployments.Deployments) > 0 {
+			firstCluster := deployments.Deployments[0]
 			fmt.Printf("1a. Updating cluster name for: %s (ID: %s)\n", firstCluster.Name, firstCluster.ID)
 
 			newName := fmt.Sprintf("updated-%s", firstCluster.Name)
@@ -70,8 +70,8 @@ func main() {
 		if err != nil {
 			log.Printf("    Error filtering deployments: %v\n", err)
 		} else {
-			fmt.Printf("    Found %d %s deployments\n", len(filteredDeployments.Clusters), status)
-			for _, d := range filteredDeployments.Clusters {
+			fmt.Printf("    Found %d %s deployments\n", len(filteredDeployments.Deployments), status)
+			for _, d := range filteredDeployments.Deployments {
 				fmt.Printf("      - %s: %s %s (%d GPUs) - %.1f%% complete\n",
 					d.Name, d.BrandName, d.HardwareName, d.HardwareQuantity, d.CompletedPercent)
 				fmt.Printf("        Served: %s, Remaining: %s\n", d.Served, d.Remaining)
@@ -81,8 +81,8 @@ func main() {
 	}
 
 	// Example 3: Get specific deployment details
-	if len(deployments.Clusters) > 0 {
-		deploymentID := deployments.Clusters[0].ID
+	if len(deployments.Deployments) > 0 {
+		deploymentID := deployments.Deployments[0].ID
 		fmt.Printf("3. Getting details for deployment: %s\n", deploymentID)
 
 		details, err := client.GetDeployment(deploymentID)
@@ -180,8 +180,8 @@ func main() {
 
 	// Example 6: Dedicated cluster name update example
 	fmt.Println("6. Cluster name update operations:")
-	if len(deployments.Clusters) > 0 {
-		testCluster := deployments.Clusters[0]
+	if len(deployments.Deployments) > 0 {
+		testCluster := deployments.Deployments[0]
 		originalName := testCluster.Name
 
 		fmt.Printf("Original cluster: %s (ID: %s)\n", originalName, testCluster.ID)

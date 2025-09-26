@@ -58,79 +58,83 @@ import {
   FaInfoCircle
 } from 'react-icons/fa';
 
-// Status color mapping with enhanced styling and icons
-const getStatusConfig = (status) => {
-  const statusConfig = {
-    'running': { 
-      color: 'green', 
-      bgColor: 'bg-green-50', 
-      textColor: 'text-green-700',
-      borderColor: 'border-green-200',
-      label: '运行中',
-      icon: <FaCheckCircle className="text-green-500" />
-    },
-    'completed': { 
-      color: 'green', 
-      bgColor: 'bg-green-50', 
-      textColor: 'text-green-700',
-      borderColor: 'border-green-200',
-      label: '已完成',
-      icon: <FaCheckCircle className="text-green-600" />
-    },
-    'deployment requested': {
-      color: 'blue',
-      bgColor: 'bg-blue-50',
-      textColor: 'text-blue-700',
-      borderColor: 'border-blue-200', 
-      label: '部署请求中',
-      icon: <FaSpinner className="text-blue-500 animate-spin" />
-    },
-    'termination requested': {
-      color: 'orange',
-      bgColor: 'bg-orange-50',
-      textColor: 'text-orange-700',
-      borderColor: 'border-orange-200',
-      label: '终止请求中', 
-      icon: <FaClock className="text-orange-500" />
-    },
-    'destroyed': { 
-      color: 'red', 
-      bgColor: 'bg-red-50', 
-      textColor: 'text-red-700',
-      borderColor: 'border-red-200',
-      label: '已销毁',
-      icon: <FaBan className="text-red-500" />
-    },
-    'failed': { 
-      color: 'red', 
-      bgColor: 'bg-red-50', 
-      textColor: 'text-red-700',
-      borderColor: 'border-red-200',
-      label: '失败',
-      icon: <FaExclamationCircle className="text-red-500" />
-    }
-  };
-  return statusConfig[status] || {
+const normalizeStatus = (status) =>
+  typeof status === 'string' ? status.trim().toLowerCase() : '';
+
+const STATUS_TAG_CONFIG = {
+  running: {
+    color: 'green',
+    label: '运行中',
+    icon: <FaPlay size={12} className='text-green-600' />,
+  },
+  deploying: {
+    color: 'blue',
+    label: '部署中',
+    icon: <FaSpinner size={12} className='text-blue-600' />,
+  },
+  pending: {
+    color: 'orange',
+    label: '待部署',
+    icon: <FaClock size={12} className='text-orange-600' />,
+  },
+  stopped: {
     color: 'grey',
-    bgColor: 'bg-gray-50',
-    textColor: 'text-gray-700',
-    borderColor: 'border-gray-200',
-    label: status,
-    icon: <FaClock className="text-gray-500" />
-  };
+    label: '已停止',
+    icon: <FaStop size={12} className='text-gray-500' />,
+  },
+  error: {
+    color: 'red',
+    label: '错误',
+    icon: <FaExclamationCircle size={12} className='text-red-500' />,
+  },
+  failed: {
+    color: 'red',
+    label: '失败',
+    icon: <FaExclamationCircle size={12} className='text-red-500' />,
+  },
+  destroyed: {
+    color: 'red',
+    label: '已销毁',
+    icon: <FaBan size={12} className='text-red-500' />,
+  },
+  completed: {
+    color: 'green',
+    label: '已完成',
+    icon: <FaCheckCircle size={12} className='text-green-600' />,
+  },
+  'deployment requested': {
+    color: 'blue',
+    label: '部署请求中',
+    icon: <FaSpinner size={12} className='text-blue-600' />,
+  },
+  'termination requested': {
+    color: 'orange',
+    label: '终止请求中',
+    icon: <FaClock size={12} className='text-orange-600' />,
+  },
 };
 
-// Render deployment status with enhanced styling
+const DEFAULT_STATUS_CONFIG = {
+  color: 'grey',
+  label: null,
+  icon: <FaInfoCircle size={12} className='text-gray-500' />,
+};
+
 const renderStatus = (status, t) => {
-  const config = getStatusConfig(status);
-  
+  const normalizedStatus = normalizeStatus(status);
+  const config = STATUS_TAG_CONFIG[normalizedStatus] || DEFAULT_STATUS_CONFIG;
+  const statusText = typeof status === 'string' ? status : '';
+  const labelText = config.label ? t(config.label) : statusText || t('未知状态');
+
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${config.bgColor} ${config.borderColor}`}>
-      <span className="flex items-center justify-center">{config.icon}</span>
-      <span className={`text-xs font-medium ${config.textColor}`}>
-        {t(config.label)}
-      </span>
-    </div>
+    <Tag
+      color={config.color}
+      shape='circle'
+      size='small'
+      prefixIcon={config.icon}
+    >
+      {labelText}
+    </Tag>
   );
 };
 
@@ -253,13 +257,10 @@ const renderResourceConfig = (resource, t) => {
 
 // Render instance count with status indicator
 const renderInstanceCount = (count, record, t) => {
-  const { status } = record;
-  let countColor = 'grey';
-  
-  if (status === 'running') countColor = 'green';
-  else if (status === 'deployment requested') countColor = 'blue';
-  else if (status === 'failed') countColor = 'red';
-  
+  const normalizedStatus = normalizeStatus(record?.status);
+  const statusConfig = STATUS_TAG_CONFIG[normalizedStatus];
+  const countColor = statusConfig?.color ?? 'grey';
+
   return (
     <Tag color={countColor} size="small" shape='circle'>
       {count || 0} {t('个实例')}

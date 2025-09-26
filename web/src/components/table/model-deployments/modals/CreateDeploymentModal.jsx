@@ -53,7 +53,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
   // Resource data states
   const [hardwareTypes, setHardwareTypes] = useState([]);
+  const [hardwareTotalAvailable, setHardwareTotalAvailable] = useState(null);
   const [locations, setLocations] = useState([]);
+  const [locationTotalAvailable, setLocationTotalAvailable] = useState(null);
   const [availableReplicas, setAvailableReplicas] = useState([]);
   const [priceEstimation, setPriceEstimation] = useState(null);
 
@@ -117,6 +119,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     setReplicaCount(1);
     setPriceEstimation(null);
     setAvailableReplicas([]);
+    setLocationTotalAvailable(null);
+    setHardwareTotalAvailable(null);
     setEnvVariables([{ key: '', value: '' }]);
     setSecretEnvVariables([{ key: '', value: '' }]);
     setEntrypoint(['']);
@@ -129,7 +133,38 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
       if (response.data.success) {
-        setHardwareTypes(response.data.data.hardware_types || []);
+        const { hardware_types: hardwareList = [], total_available } = response.data.data || {};
+
+        const normalizedHardware = hardwareList.map((hardware) => {
+          const availableCountValue = Number(hardware.available_count);
+          const availableCount = Number.isNaN(availableCountValue) ? 0 : availableCountValue;
+          const availableBool =
+            typeof hardware.available === 'boolean'
+              ? hardware.available
+              : availableCount > 0;
+
+          return {
+            ...hardware,
+            available: availableBool,
+            available_count: availableCount,
+          };
+        });
+
+        const providedTotal = Number(total_available);
+        const fallbackTotal = normalizedHardware.reduce(
+          (acc, item) => acc + (Number.isNaN(item.available_count) ? 0 : item.available_count),
+          0,
+        );
+        const hasProvidedTotal =
+          total_available !== undefined &&
+          total_available !== null &&
+          total_available !== '' &&
+          !Number.isNaN(providedTotal);
+
+        setHardwareTypes(normalizedHardware);
+        setHardwareTotalAvailable(
+          hasProvidedTotal ? providedTotal : fallbackTotal,
+        );
       } else {
         showError(t('获取硬件类型失败: ') + response.data.message);
       }
@@ -145,7 +180,35 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       setLoadingLocations(true);
       const response = await API.get('/api/deployments/locations');
       if (response.data.success) {
-        setLocations(response.data.data.locations || []);
+        const { locations: locationsList = [], total } = response.data.data || {};
+
+        const normalizedLocations = locationsList.map((location) => {
+          const iso2 = (location.iso2 || '').toString().toUpperCase();
+          const availableValue = Number(location.available);
+          const available = Number.isNaN(availableValue) ? 0 : availableValue;
+
+          return {
+            ...location,
+            iso2,
+            available,
+          };
+        });
+
+        const providedTotal = Number(total);
+        const fallbackTotal = normalizedLocations.reduce(
+          (acc, item) => acc + (Number.isNaN(item.available) ? 0 : item.available),
+          0
+        );
+        const hasProvidedTotal =
+          total !== undefined &&
+          total !== null &&
+          total !== '' &&
+          !Number.isNaN(providedTotal);
+
+        setLocations(normalizedLocations);
+        setLocationTotalAvailable(
+          hasProvidedTotal ? providedTotal : fallbackTotal,
+        );
       } else {
         showError(t('获取部署位置失败: ') + response.data.message);
       }
@@ -324,11 +387,21 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
   // Get available replicas for selected locations
   const getAvailableReplicasForLocations = () => {
-    if (!selectedLocationIds.length || !availableReplicas.length) return 0;
-    
-    return availableReplicas
-      .filter(replica => selectedLocationIds.includes(replica.location_id))
-      .reduce((total, replica) => total + replica.available_count, 0);
+    if (!selectedLocationIds.length) return 0;
+
+    if (availableReplicas.length > 0) {
+      return availableReplicas
+        .filter((replica) => selectedLocationIds.includes(replica.location_id))
+        .reduce((total, replica) => total + replica.available_count, 0);
+    }
+
+    return locations
+      .filter((location) => selectedLocationIds.includes(location.id))
+      .reduce(
+        (total, location) =>
+          total + (typeof location.available === 'number' ? location.available : 0),
+        0,
+      );
   };
 
   const maxAvailableReplicas = getAvailableReplicasForLocations();
@@ -378,18 +451,35 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 rules={[{ required: true, message: t('请选择硬件类型') }]}
                 onChange={(value) => setSelectedHardwareId(value)}
               >
-                {hardwareTypes.map(hardware => (
-                  <Option key={hardware.id} value={hardware.id}>
-                    <div>
-                      <Text strong>{hardware.name}</Text>
-                      <br />
-                      <Text size="small" type="tertiary">
-                        {t('最大GPU数')}: {hardware.max_gpus}
-                        {hardware.available && <Tag color="green" size="small" style={{ marginLeft: 8 }}>可用</Tag>}
-                      </Text>
-                    </div>
-                  </Option>
-                ))}
+                {hardwareTypes.map((hardware) => {
+                  const displayName = hardware.brand_name
+                    ? `${hardware.brand_name} ${hardware.name}`.trim()
+                    : hardware.name;
+                  const availableCount = typeof hardware.available_count === 'number'
+                    ? hardware.available_count
+                    : 0;
+                  const hasAvailability = availableCount > 0;
+
+                  return (
+                    <Option key={hardware.id} value={hardware.id}>
+                      <div>
+                        <Text strong>{displayName}</Text>
+                        <br />
+                        <Space spacing={4} align="center">
+                          <Text size="small" type="tertiary">
+                            {t('最大GPU数')}: {hardware.max_gpus}
+                          </Text>
+                          <Tag
+                            color={hasAvailability ? 'green' : 'red'}
+                            size="small"
+                          >
+                            {t('可用数量')}: {availableCount}
+                          </Tag>
+                        </Space>
+                      </div>
+                    </Option>
+                  );
+                })}
               </Form.Select>
             </Col>
             <Col span={12}>
@@ -405,6 +495,12 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             </Col>
           </Row>
 
+          {typeof hardwareTotalAvailable === 'number' && (
+            <Text size="small" type="tertiary">
+              {t('全部硬件总可用资源')}: {hardwareTotalAvailable}
+            </Text>
+          )}
+
           <Form.Select
             field="location_ids"
             label={
@@ -419,20 +515,47 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             rules={[{ required: true, message: t('请选择至少一个部署位置') }]}
             onChange={(value) => setSelectedLocationIds(value)}
           >
-            {locations.map(location => {
-              const availableCount = availableReplicas.find(
-                r => r.location_id === location.id
-              )?.available_count || 0;
-              
+            {locations.map((location) => {
+              const replicaEntry = availableReplicas.find(
+                (r) => r.location_id === location.id,
+              );
+              const hasReplicaData = availableReplicas.length > 0;
+              const availableCount = hasReplicaData
+                ? replicaEntry?.available_count ?? 0
+                : typeof location.available === 'number'
+                  ? location.available
+                  : 0;
+              const locationLabel =
+                location.region ||
+                location.country ||
+                (location.iso2 ? location.iso2.toUpperCase() : '') ||
+                location.code ||
+                '';
+              const disableOption = hasReplicaData
+                ? availableCount === 0
+                : typeof location.available === 'number'
+                  ? location.available === 0
+                  : false;
+
               return (
-                <Option key={location.id} value={location.id} disabled={availableCount === 0}>
+                <Option
+                  key={location.id}
+                  value={location.id}
+                  disabled={disableOption}
+                >
                   <div>
                     <Text strong>{location.name}</Text>
-                    <Text size="small" type="tertiary" style={{ marginLeft: 8 }}>
-                      ({location.region || location.country})
-                    </Text>
+                    {locationLabel && (
+                      <Text
+                        size="small"
+                        type="tertiary"
+                        style={{ marginLeft: 8 }}
+                      >
+                        ({locationLabel})
+                      </Text>
+                    )}
                     <br />
-                    <Text size="small" type={availableCount > 0 ? "success" : "danger"}>
+                    <Text size="small" type={availableCount > 0 ? 'success' : 'danger'}>
                       {t('可用数量')}: {availableCount}
                     </Text>
                   </div>
@@ -440,6 +563,12 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               );
             })}
           </Form.Select>
+
+          {typeof locationTotalAvailable === 'number' && (
+            <Text size="small" type="tertiary">
+              {t('全部地区总可用资源')}: {locationTotalAvailable}
+            </Text>
+          )}
 
           <Row gutter={16}>
             <Col span={8}>

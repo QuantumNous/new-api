@@ -36,14 +36,14 @@ import {
 } from '@douyinfe/semi-ui';
 import { 
   FaDownload, 
-  FaRefresh, 
-  FaPlay, 
-  FaStop, 
   FaCopy,
   FaSearch,
   FaFilter,
   FaClock,
-  FaTerminal
+  FaTerminal,
+  FaServer,
+  FaInfoCircle,
+  FaLink
 } from 'react-icons/fa';
 import { IconRefresh, IconDownload } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess, timestamp2string } from '../../../../helpers';
@@ -57,6 +57,8 @@ const LogLevelColors = {
   DEBUG: 'grey',
   TRACE: 'purple'
 };
+
+const ALL_CONTAINERS = '__all__';
 
 const ViewLogsModal = ({ 
   visible, 
@@ -72,6 +74,11 @@ const ViewLogsModal = ({
   const [following, setFollowing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [nextCursor, setNextCursor] = useState('');
+  const [containers, setContainers] = useState([]);
+  const [containersLoading, setContainersLoading] = useState(false);
+  const [selectedContainerId, setSelectedContainerId] = useState(ALL_CONTAINERS);
+  const [containerDetails, setContainerDetails] = useState(null);
+  const [containerDetailsLoading, setContainerDetailsLoading] = useState(false);
   
   const logContainerRef = useRef(null);
   const autoRefreshRef = useRef(null);
@@ -83,7 +90,7 @@ const ViewLogsModal = ({
     }
   };
 
-  const fetchLogs = async (cursor = '', append = false) => {
+  const fetchLogs = async (cursor = '', append = false, containerIdOverride = undefined) => {
     if (!deployment?.id) return;
     
     setLoading(true);
@@ -92,9 +99,12 @@ const ViewLogsModal = ({
         limit: '100'
       });
       
+      const containerId = typeof containerIdOverride === 'string' ? containerIdOverride : selectedContainerId;
+
       if (cursor) params.append('cursor', cursor);
       if (levelFilter) params.append('level', levelFilter);
       if (following) params.append('follow', 'true');
+      if (containerId && containerId !== ALL_CONTAINERS) params.append('container_id', containerId);
       
       const response = await API.get(`/api/deployments/${deployment.id}/logs?${params}`);
       
@@ -122,6 +132,103 @@ const ViewLogsModal = ({
     }
   };
 
+  const fetchContainers = async () => {
+    if (!deployment?.id) return;
+
+    setContainersLoading(true);
+    try {
+      const response = await API.get(`/api/deployments/${deployment.id}/containers`);
+
+      if (response.data.success) {
+        const list = response.data.data?.containers || [];
+        setContainers(list);
+
+        setSelectedContainerId((current) => {
+          if (current !== ALL_CONTAINERS && list.some(item => item.container_id === current)) {
+            return current;
+          }
+
+          return list.length > 0 ? list[0].container_id : ALL_CONTAINERS;
+        });
+
+        if (list.length === 0) {
+          setContainerDetails(null);
+        }
+      }
+    } catch (error) {
+      showError(t('获取容器列表失败') + ': ' + (error.response?.data?.message || error.message));
+    } finally {
+      setContainersLoading(false);
+    }
+  };
+
+  const fetchContainerDetails = async (containerId) => {
+    if (!deployment?.id || !containerId || containerId === ALL_CONTAINERS) {
+      setContainerDetails(null);
+      return;
+    }
+
+    setContainerDetailsLoading(true);
+    try {
+      const response = await API.get(`/api/deployments/${deployment.id}/containers/${containerId}`);
+
+      if (response.data.success) {
+        setContainerDetails(response.data.data || null);
+      }
+    } catch (error) {
+      showError(t('获取容器详情失败') + ': ' + (error.response?.data?.message || error.message));
+    } finally {
+      setContainerDetailsLoading(false);
+    }
+  };
+
+  const handleContainerChange = (value) => {
+    const newValue = value || ALL_CONTAINERS;
+    setSelectedContainerId(newValue);
+    setNextCursor('');
+    setHasMore(true);
+    setLogs([]);
+  };
+
+  const refreshContainerDetails = () => {
+    if (selectedContainerId && selectedContainerId !== ALL_CONTAINERS) {
+      fetchContainerDetails(selectedContainerId);
+    }
+  };
+
+  const renderContainerStatusTag = (status) => {
+    if (!status) {
+      return (
+        <Tag color="grey" size="small">
+          {t('未知状态')}
+        </Tag>
+      );
+    }
+
+    const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+    const statusMap = {
+      running: { color: 'green', label: '运行中' },
+      pending: { color: 'orange', label: '准备中' },
+      deployed: { color: 'blue', label: '已部署' },
+      failed: { color: 'red', label: '失败' },
+      destroyed: { color: 'red', label: '已销毁' },
+      stopping: { color: 'orange', label: '停止中' },
+      terminated: { color: 'grey', label: '已终止' },
+    };
+
+    const config = statusMap[normalized] || { color: 'grey', label: status };
+
+    return (
+      <Tag color={config.color} size="small">
+        {t(config.label)}
+      </Tag>
+    );
+  };
+
+  const currentContainer = selectedContainerId !== ALL_CONTAINERS
+    ? containers.find((ctr) => ctr.container_id === selectedContainerId)
+    : null;
+
   const loadMoreLogs = () => {
     if (hasMore && nextCursor && !loading) {
       fetchLogs(nextCursor, true);
@@ -129,6 +236,9 @@ const ViewLogsModal = ({
   };
 
   const refreshLogs = () => {
+    if (selectedContainerId && selectedContainerId !== ALL_CONTAINERS) {
+      fetchContainerDetails(selectedContainerId);
+    }
     fetchLogs();
   };
 
@@ -141,7 +251,13 @@ const ViewLogsModal = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `deployment-${deployment.id}-logs.txt`;
+    const safeContainerId = selectedContainerId && selectedContainerId !== ALL_CONTAINERS
+      ? selectedContainerId.replace(/[^a-zA-Z0-9_-]/g, '-')
+      : '';
+    const fileName = safeContainerId
+      ? `deployment-${deployment.id}-container-${safeContainerId}-logs.txt`
+      : `deployment-${deployment.id}-logs.txt`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -177,7 +293,25 @@ const ViewLogsModal = ({
         clearInterval(autoRefreshRef.current);
       }
     };
-  }, [autoRefresh, visible]);
+  }, [autoRefresh, visible, selectedContainerId, levelFilter, following]);
+
+  useEffect(() => {
+    if (visible && deployment?.id) {
+      fetchContainers();
+    } else if (!visible) {
+      setContainers([]);
+      setSelectedContainerId(ALL_CONTAINERS);
+      setContainerDetails(null);
+      setNextCursor('');
+      setHasMore(true);
+    }
+  }, [visible, deployment?.id]);
+
+  useEffect(() => {
+    if (visible && deployment?.id) {
+      fetchContainerDetails(selectedContainerId);
+    }
+  }, [visible, deployment?.id, selectedContainerId]);
 
   // Initial load and cleanup
   useEffect(() => {
@@ -190,7 +324,7 @@ const ViewLogsModal = ({
         clearInterval(autoRefreshRef.current);
       }
     };
-  }, [visible, deployment?.id, levelFilter]);
+  }, [visible, deployment?.id, levelFilter, selectedContainerId, following]);
 
   // Filter logs based on search term
   const filteredLogs = logs.filter(log =>
@@ -256,6 +390,31 @@ const ViewLogsModal = ({
         <Card className="mb-4 border-0 shadow-sm">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <Space wrap>
+              <Select
+                prefix={<FaServer />}
+                placeholder={t('选择容器')}
+                value={selectedContainerId}
+                onChange={handleContainerChange}
+                style={{ width: 240 }}
+                size="small"
+                loading={containersLoading}
+              >
+                <Select.Option value={ALL_CONTAINERS}>
+                  {t('全部容器')}
+                </Select.Option>
+                {containers.map((ctr) => (
+                  <Select.Option key={ctr.container_id} value={ctr.container_id}>
+                    <div className="flex flex-col">
+                      <span className="font-mono text-xs">{ctr.container_id}</span>
+                      <span className="text-xs text-gray-500">
+                        {ctr.brand_name || 'IO.NET'}
+                        {ctr.hardware ? ` · ${ctr.hardware}` : ''}
+                      </span>
+                    </div>
+                  </Select.Option>
+                ))}
+              </Select>
+
               <Input
                 prefix={<FaSearch />}
                 placeholder={t('搜索日志内容')}
@@ -357,6 +516,109 @@ const ViewLogsModal = ({
               {t('状态')}: {deployment?.status || 'unknown'}
             </Text>
           </div>
+
+          {selectedContainerId !== ALL_CONTAINERS && (
+            <>
+              <Divider margin="12px" />
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Space>
+                    <Tag color="blue" size="small">
+                      {t('容器')}
+                    </Tag>
+                    <Text className="font-mono text-xs">
+                      {selectedContainerId}
+                    </Text>
+                    {renderContainerStatusTag(containerDetails?.status || currentContainer?.status)}
+                  </Space>
+
+                  <Space>
+                    {containerDetails?.public_url && (
+                      <Tooltip content={containerDetails.public_url}>
+                        <Button
+                          icon={<FaLink />}
+                          size="small"
+                          theme="borderless"
+                          onClick={() => window.open(containerDetails.public_url, '_blank')}
+                        />
+                      </Tooltip>
+                    )}
+                    <Tooltip content={t('刷新容器信息')}>
+                      <Button
+                        icon={<IconRefresh />}
+                        onClick={refreshContainerDetails}
+                        size="small"
+                        theme="borderless"
+                        loading={containerDetailsLoading}
+                      />
+                    </Tooltip>
+                  </Space>
+                </div>
+
+                {containerDetailsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Spin tip={t('加载容器详情中...')} />
+                  </div>
+                ) : containerDetails ? (
+                  <div className="grid gap-4 md:grid-cols-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <FaInfoCircle className="text-blue-500" />
+                      <Text type="secondary">{t('硬件')}</Text>
+                      <Text>
+                        {containerDetails?.brand_name || currentContainer?.brand_name || t('未知品牌')}
+                        {(containerDetails?.hardware || currentContainer?.hardware) ? ` · ${containerDetails?.hardware || currentContainer?.hardware}` : ''}
+                      </Text>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FaServer className="text-purple-500" />
+                      <Text type="secondary">{t('GPU/容器')}</Text>
+                      <Text>{containerDetails?.gpus_per_container ?? currentContainer?.gpus_per_container ?? 0}</Text>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FaClock className="text-orange-500" />
+                      <Text type="secondary">{t('创建时间')}</Text>
+                      <Text>
+                        {containerDetails?.created_at
+                          ? timestamp2string(containerDetails.created_at)
+                          : currentContainer?.created_at
+                            ? timestamp2string(currentContainer.created_at)
+                            : t('未知')}
+                      </Text>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FaInfoCircle className="text-green-500" />
+                      <Text type="secondary">{t('运行时长')}</Text>
+                      <Text>{containerDetails?.uptime_percent ?? currentContainer?.uptime_percent ?? 0}%</Text>
+                    </div>
+                  </div>
+                ) : (
+                  <Text size="small" type="secondary">
+                    {t('暂无容器详情')}
+                  </Text>
+                )}
+
+                {containerDetails?.events && containerDetails.events.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <Text size="small" type="secondary">
+                      {t('最近事件')}
+                    </Text>
+                    <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
+                      {containerDetails.events.slice(0, 5).map((event, index) => (
+                        <div key={`${event.time}-${index}`} className="flex gap-3 text-xs font-mono">
+                          <span className="text-gray-500">
+                            {event.time ? timestamp2string(event.time) : '--'}
+                          </span>
+                          <span className="text-gray-700 break-all flex-1">
+                            {event.message}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </Card>
 
         {/* Log Content */}

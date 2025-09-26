@@ -297,29 +297,38 @@ type GetLogsOptions struct {
 
 // HardwareType represents a hardware type available for deployment
 type HardwareType struct {
-	ID          int     `json:"id"`
-	Name        string  `json:"name"`
-	Description string  `json:"description,omitempty"`
-	GPUType     string  `json:"gpu_type"`
-	GPUMemory   int     `json:"gpu_memory"` // in GB
-	MaxGPUs     int     `json:"max_gpus"`
-	CPU         string  `json:"cpu,omitempty"`
-	Memory      int     `json:"memory,omitempty"`  // in GB
-	Storage     int     `json:"storage,omitempty"` // in GB
-	HourlyRate  float64 `json:"hourly_rate"`
-	Available   bool    `json:"available"`
+	ID             int     `json:"id"`
+	Name           string  `json:"name"`
+	Description    string  `json:"description,omitempty"`
+	GPUType        string  `json:"gpu_type"`
+	GPUMemory      int     `json:"gpu_memory"` // in GB
+	MaxGPUs        int     `json:"max_gpus"`
+	CPU            string  `json:"cpu,omitempty"`
+	Memory         int     `json:"memory,omitempty"`  // in GB
+	Storage        int     `json:"storage,omitempty"` // in GB
+	HourlyRate     float64 `json:"hourly_rate"`
+	Available      bool    `json:"available"`
+	BrandName      string  `json:"brand_name,omitempty"`
+	AvailableCount int     `json:"available_count,omitempty"`
 }
 
 // Location represents a deployment location
 type Location struct {
 	ID          int     `json:"id"`
 	Name        string  `json:"name"`
-	Region      string  `json:"region"`
-	Country     string  `json:"country"`
+	ISO2        string  `json:"iso2,omitempty"`
+	Region      string  `json:"region,omitempty"`
+	Country     string  `json:"country,omitempty"`
 	Latitude    float64 `json:"latitude,omitempty"`
 	Longitude   float64 `json:"longitude,omitempty"`
-	Available   bool    `json:"available"`
+	Available   int     `json:"available,omitempty"`
 	Description string  `json:"description,omitempty"`
+}
+
+// LocationsResponse represents the list of locations and aggregated metadata.
+type LocationsResponse struct {
+	Locations []Location `json:"locations"`
+	Total     int        `json:"total"`
 }
 
 // LocationAvailability represents real-time availability for a location
