@@ -9,6 +9,7 @@ import { SignedIn, useAuth, UserButton } from '@clerk/clerk-react'
 import { ExternalLink, Loader2 } from 'lucide-react'
 import { ClerkLogo } from '@/assets/clerk-logo'
 import { Button } from '@/components/ui/button'
+import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { LearnMore } from '@/components/learn-more'
@@ -50,6 +51,7 @@ function UserManagement() {
           <Header fixed>
             <Search />
             <div className='ms-auto flex items-center space-x-4'>
+              <LanguageSwitch />
               <ThemeSwitch />
               <UserButton />
             </div>

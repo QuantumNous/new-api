@@ -1,0 +1,63 @@
+{
+  "app": {
+    "title": "Shadcn 管理台",
+    "sign_out": "退出登录",
+    "sign_in": "登录",
+    "download": "下载"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "welcome_back": "欢迎回来，{{name}}",
+    "overview_subtitle": "你的 API 使用概览",
+    "advanced_search": "高级搜索",
+    "export": "导出",
+    "analytics": "分析",
+    "models": "模型",
+    "monitoring": "模型观测",
+    "admin": "管理",
+    "coming_soon": "即将推出",
+    "admin_features": "管理功能"
+  },
+  "sidebar": {
+    "general": "通用",
+    "dashboard": "仪表盘",
+    "tasks": "任务",
+    "apps": "应用",
+    "chats": "聊天",
+    "users": "用户",
+    "secured_by_clerk": "Clerk 认证",
+    "sign_in": "登录",
+    "sign_up": "注册",
+    "user_management": "用户管理",
+    "pages": "页面",
+    "auth": "认证",
+    "sign_in_2col": "登录（两列）",
+    "forgot_password": "忘记密码",
+    "otp": "验证码",
+    "errors": "错误页",
+    "unauthorized": "未认证",
+    "forbidden": "无权限",
+    "not_found": "未找到",
+    "internal_server_error": "服务器错误",
+    "maintenance_error": "维护中",
+    "other": "其他",
+    "settings": "设置",
+    "profile": "资料",
+    "account": "账号",
+    "appearance": "外观",
+    "notifications": "通知",
+    "display": "显示",
+    "help_center": "帮助中心"
+  },
+  "common": {
+    "table": {
+      "rows_per_page": "每页行数",
+      "page_of": "第 {{page}} / 共 {{total}} 页",
+      "go_first": "跳到第一页",
+      "go_prev": "上一页",
+      "go_page": "跳到第 {{page}} 页",
+      "go_next": "下一页",
+      "go_last": "跳到最后一页"
+    }
+  }
+}

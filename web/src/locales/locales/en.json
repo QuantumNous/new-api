@@ -1,0 +1,63 @@
+{
+  "app": {
+    "title": "Shadcn Admin",
+    "sign_out": "Sign out",
+    "sign_in": "Sign in",
+    "download": "Download"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome_back": "Welcome back, {{name}}",
+    "overview_subtitle": "Overview of your API usage",
+    "advanced_search": "Advanced Search",
+    "export": "Export",
+    "analytics": "Analytics",
+    "models": "Models",
+    "monitoring": "Monitoring",
+    "admin": "Admin",
+    "coming_soon": "Coming Soon",
+    "admin_features": "Admin Features"
+  },
+  "sidebar": {
+    "general": "General",
+    "dashboard": "Dashboard",
+    "tasks": "Tasks",
+    "apps": "Apps",
+    "chats": "Chats",
+    "users": "Users",
+    "secured_by_clerk": "Secured by Clerk",
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up",
+    "user_management": "User Management",
+    "pages": "Pages",
+    "auth": "Auth",
+    "sign_in_2col": "Sign In (2 Col)",
+    "forgot_password": "Forgot Password",
+    "otp": "OTP",
+    "errors": "Errors",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Forbidden",
+    "not_found": "Not Found",
+    "internal_server_error": "Internal Server Error",
+    "maintenance_error": "Maintenance Error",
+    "other": "Other",
+    "settings": "Settings",
+    "profile": "Profile",
+    "account": "Account",
+    "appearance": "Appearance",
+    "notifications": "Notifications",
+    "display": "Display",
+    "help_center": "Help Center"
+  },
+  "common": {
+    "table": {
+      "rows_per_page": "Rows per page",
+      "page_of": "Page {{page}} of {{total}}",
+      "go_first": "Go to first page",
+      "go_prev": "Go to previous page",
+      "go_page": "Go to page {{page}}",
+      "go_next": "Go to next page",
+      "go_last": "Go to last page"
+    }
+  }
+}

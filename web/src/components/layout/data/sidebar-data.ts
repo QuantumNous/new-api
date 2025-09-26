@@ -50,48 +50,48 @@ export const sidebarData: SidebarData = {
   ],
   navGroups: [
     {
-      title: 'General',
+      title: 'sidebar.general',
       items: [
         {
-          title: 'Dashboard',
+          title: 'sidebar.dashboard',
           url: '/',
           icon: LayoutDashboard,
         },
         {
-          title: 'Tasks',
+          title: 'sidebar.tasks',
           url: '/tasks',
           icon: ListTodo,
         },
         {
-          title: 'Apps',
+          title: 'sidebar.apps',
           url: '/apps',
           icon: Package,
         },
         {
-          title: 'Chats',
+          title: 'sidebar.chats',
           url: '/chats',
           badge: '3',
           icon: MessagesSquare,
         },
         {
-          title: 'Users',
+          title: 'sidebar.users',
           url: '/users',
           icon: Users,
         },
         {
-          title: 'Secured by Clerk',
+          title: 'sidebar.secured_by_clerk',
           icon: ClerkLogo,
           items: [
             {
-              title: 'Sign In',
+              title: 'sidebar.sign_in',
               url: '/clerk/sign-in',
             },
             {
-              title: 'Sign Up',
+              title: 'sidebar.sign_up',
               url: '/clerk/sign-up',
             },
             {
-              title: 'User Management',
+              title: 'sidebar.user_management',
               url: '/clerk/user-management',
             },
           ],
@@ -99,60 +99,60 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
-      title: 'Pages',
+      title: 'sidebar.pages',
       items: [
         {
-          title: 'Auth',
+          title: 'sidebar.auth',
           icon: ShieldCheck,
           items: [
             {
-              title: 'Sign In',
+              title: 'sidebar.sign_in',
               url: '/sign-in',
             },
             {
-              title: 'Sign In (2 Col)',
+              title: 'sidebar.sign_in_2col',
               url: '/sign-in-2',
             },
             {
-              title: 'Sign Up',
+              title: 'sidebar.sign_up',
               url: '/sign-up',
             },
             {
-              title: 'Forgot Password',
+              title: 'sidebar.forgot_password',
               url: '/forgot-password',
             },
             {
-              title: 'OTP',
+              title: 'sidebar.otp',
               url: '/otp',
             },
           ],
         },
         {
-          title: 'Errors',
+          title: 'sidebar.errors',
           icon: Bug,
           items: [
             {
-              title: 'Unauthorized',
+              title: 'sidebar.unauthorized',
               url: '/errors/unauthorized',
               icon: Lock,
             },
             {
-              title: 'Forbidden',
+              title: 'sidebar.forbidden',
               url: '/errors/forbidden',
               icon: UserX,
             },
             {
-              title: 'Not Found',
+              title: 'sidebar.not_found',
               url: '/errors/not-found',
               icon: FileX,
             },
             {
-              title: 'Internal Server Error',
+              title: 'sidebar.internal_server_error',
               url: '/errors/internal-server-error',
               icon: ServerOff,
             },
             {
-              title: 'Maintenance Error',
+              title: 'sidebar.maintenance_error',
               url: '/errors/maintenance-error',
               icon: Construction,
             },
@@ -161,41 +161,41 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
-      title: 'Other',
+      title: 'sidebar.other',
       items: [
         {
-          title: 'Settings',
+          title: 'sidebar.settings',
           icon: Settings,
           items: [
             {
-              title: 'Profile',
+              title: 'sidebar.profile',
               url: '/settings',
               icon: UserCog,
             },
             {
-              title: 'Account',
+              title: 'sidebar.account',
               url: '/settings/account',
               icon: Wrench,
             },
             {
-              title: 'Appearance',
+              title: 'sidebar.appearance',
               url: '/settings/appearance',
               icon: Palette,
             },
             {
-              title: 'Notifications',
+              title: 'sidebar.notifications',
               url: '/settings/notifications',
               icon: Bell,
             },
             {
-              title: 'Display',
+              title: 'sidebar.display',
               url: '/settings/display',
               icon: Monitor,
             },
           ],
         },
         {
-          title: 'Help Center',
+          title: 'sidebar.help_center',
           url: '/help-center',
           icon: HelpCircle,
         },

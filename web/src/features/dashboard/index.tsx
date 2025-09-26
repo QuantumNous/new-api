@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { format } from 'date-fns'
 import { CalendarIcon, DownloadIcon, RefreshCcw, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -35,6 +37,7 @@ import { useModelMonitoring } from './hooks/use-model-monitoring'
 import { useUserStats } from './hooks/use-user-stats'
 
 export function Dashboard() {
+  const { t } = useTranslation()
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
     to: new Date(),
@@ -110,6 +113,7 @@ export function Dashboard() {
       <Header>
         <GlobalSearch />
         <div className='ms-auto flex items-center space-x-4'>
+          <LanguageSwitch />
           <ThemeSwitch />
           <ConfigDrawer />
           <ProfileDropdown />
@@ -160,11 +164,11 @@ export function Dashboard() {
             </Button>
             <Button variant='outline' onClick={openSearchDialog}>
               <Search className='mr-2 h-4 w-4' />
-              Advanced Search
+              {t('dashboard.advanced_search')}
             </Button>
             <Button onClick={handleExport}>
               <DownloadIcon className='mr-2 h-4 w-4' />
-              Export
+              {t('dashboard.export')}
             </Button>
           </div>
         </div>
@@ -172,10 +176,16 @@ export function Dashboard() {
         <Tabs defaultValue='overview' className='space-y-4'>
           <TabsList>
             <TabsTrigger value='overview'>Overview</TabsTrigger>
-            <TabsTrigger value='analytics'>Analytics</TabsTrigger>
-            <TabsTrigger value='models'>Models</TabsTrigger>
-            <TabsTrigger value='monitoring'>模型观测</TabsTrigger>
-            {isAdmin && <TabsTrigger value='admin'>Admin</TabsTrigger>}
+            <TabsTrigger value='analytics'>
+              {t('dashboard.analytics')}
+            </TabsTrigger>
+            <TabsTrigger value='models'>{t('dashboard.models')}</TabsTrigger>
+            <TabsTrigger value='monitoring'>
+              {t('dashboard.monitoring')}
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value='admin'>{t('dashboard.admin')}</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value='overview' className='space-y-4'>
@@ -216,7 +226,9 @@ export function Dashboard() {
               <CardContent>
                 <div className='text-muted-foreground flex h-[400px] items-center justify-center'>
                   <div className='text-center'>
-                    <p className='text-lg font-medium'>Coming Soon</p>
+                    <p className='text-lg font-medium'>
+                      {t('dashboard.coming_soon')}
+                    </p>
                     <p className='mt-2 text-sm'>
                       Advanced analytics features are in development
                     </p>
