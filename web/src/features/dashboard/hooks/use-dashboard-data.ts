@@ -6,7 +6,7 @@ import type {
   TrendDataPoint,
   ModelUsageData,
 } from '@/types/api'
-import { getStoredUser } from '@/lib/auth'
+import { isAdmin } from '@/lib/auth'
 import { get } from '@/lib/http'
 
 export interface DashboardFilters {
@@ -27,11 +27,6 @@ const DEFAULT_FILTERS: DashboardFilters = {
   startTimestamp: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // 7 days ago
   endTimestamp: Math.floor(Date.now() / 1000),
   defaultTime: 'day',
-}
-
-function isAdmin(): boolean {
-  const user = getStoredUser()
-  return !!(user && (user as any).role >= 10)
 }
 
 function processQuotaData(data: QuotaDataItem[]): ProcessedDashboardData {

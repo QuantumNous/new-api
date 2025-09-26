@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { SelfResponse, UserSelf } from '@/types/api'
 import { getStoredUser } from '@/lib/auth'
+import { formatBalance, calculateUsagePercentage } from '@/lib/formatters'
 import { get } from '@/lib/http'
 
 export interface UserStatsData {
@@ -10,22 +11,6 @@ export interface UserStatsData {
   balanceFormatted: string
   isLoading: boolean
   error: string | null
-}
-
-const formatBalance = (quota: number, usedQuota: number): string => {
-  const remaining = Math.max(0, quota - usedQuota)
-  if (remaining >= 1000000) {
-    return `$${(remaining / 1000000).toFixed(1)}M`
-  } else if (remaining >= 1000) {
-    return `$${(remaining / 1000).toFixed(1)}K`
-  } else {
-    return `$${remaining.toFixed(2)}`
-  }
-}
-
-const calculateUsagePercentage = (quota: number, usedQuota: number): number => {
-  if (quota <= 0) return 0
-  return Math.min(100, (usedQuota / quota) * 100)
 }
 
 export function useUserStats() {

@@ -29,3 +29,12 @@ export function getStoredUserId(): number | undefined {
 export function clearStoredUser() {
   setStoredUser(null)
 }
+
+/**
+ * 检查当前用户是否为管理员
+ * @returns 是否为管理员
+ */
+export function isAdmin(): boolean {
+  const user = getStoredUser()
+  return !!(user && (user as any).role >= 10)
+}

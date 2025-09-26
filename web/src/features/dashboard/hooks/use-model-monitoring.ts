@@ -7,7 +7,7 @@ import {
   QuotaDataItem,
 } from '@/types/api'
 import { toast } from 'sonner'
-import { getStoredUser } from '@/lib/auth'
+import { isAdmin } from '@/lib/auth'
 import { get } from '@/lib/http'
 
 export interface ModelMonitoringFilters {
@@ -20,11 +20,6 @@ export interface ModelMonitoringFilters {
 const initialFilters: ModelMonitoringFilters = {
   startTimestamp: Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000), // 7 days ago
   endTimestamp: Math.floor(Date.now() / 1000),
-}
-
-function isAdmin(): boolean {
-  const user = getStoredUser()
-  return !!(user && (user as any).role >= 10)
 }
 
 // 处理原始数据生成模型监控数据

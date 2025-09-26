@@ -1,120 +1,35 @@
-import type { DashboardStats } from '@/types/api'
+import type { DashboardStats, UserSelf } from '@/types/api'
 import {
-  TrendingUp,
-  TrendingDown,
   DollarSign,
   Activity,
   Users,
   Zap,
+  Wallet,
+  BarChart3,
+  Clock,
+  Timer,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { useTranslation } from 'react-i18next'
+import { formatCurrency, formatNumber } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface StatsCardsProps {
   stats: DashboardStats
+  userStats?: UserSelf | null
   loading?: boolean
   error?: string | null
   className?: string
 }
 
-interface StatCardProps {
-  title: string
-  value: string
-  description?: string
-  icon: React.ReactNode
-  trend?: {
-    value: number
-    isPositive: boolean
-    period: string
-  }
-  loading?: boolean
-}
-
-const formatCurrency = (value: number): string => {
-  if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(1)}M`
-  } else if (value >= 1000) {
-    return `$${(value / 1000).toFixed(1)}K`
-  } else {
-    return `$${value.toFixed(2)}`
-  }
-}
-
-const formatNumber = (value: number): string => {
-  if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(1)}M`
-  } else if (value >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`
-  } else {
-    return value.toString()
-  }
-}
-
-function StatCard({
-  title,
-  value,
-  description,
-  icon,
-  trend,
-  loading,
-}: StatCardProps) {
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-          <Skeleton className='h-4 w-24' />
-          <Skeleton className='h-4 w-4' />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className='mb-2 h-8 w-20' />
-          <Skeleton className='h-3 w-32' />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-        <CardTitle className='text-sm font-medium'>{title}</CardTitle>
-        <div className='text-muted-foreground'>{icon}</div>
-      </CardHeader>
-      <CardContent>
-        <div className='text-2xl font-bold'>{value}</div>
-        {description && (
-          <p className='text-muted-foreground mt-1 text-xs'>{description}</p>
-        )}
-        {trend && (
-          <div className='mt-2 flex items-center'>
-            <Badge
-              variant={trend.isPositive ? 'default' : 'secondary'}
-              className='text-xs'
-            >
-              {trend.isPositive ? (
-                <TrendingUp className='mr-1 h-3 w-3' />
-              ) : (
-                <TrendingDown className='mr-1 h-3 w-3' />
-              )}
-              {trend.isPositive ? '+' : ''}
-              {trend.value.toFixed(1)}%
-            </Badge>
-            <span className='text-muted-foreground ml-2 text-xs'>
-              {trend.period}
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
 export function StatsCards({
   stats,
+  userStats,
   loading = false,
   error = null,
   className,
 }: StatsCardsProps) {
+  const { t } = useTranslation()
   if (error) {
     return (
       <div
@@ -124,7 +39,9 @@ export function StatsCards({
           <Card key={index}>
             <CardContent className='flex h-32 items-center justify-center'>
               <div className='text-muted-foreground text-center'>
-                <p className='text-sm font-medium'>Error loading stats</p>
+                <p className='text-sm font-medium'>
+                  {t('dashboard.error_loading_stats')}
+                </p>
                 <p className='mt-1 text-xs'>{error}</p>
               </div>
             </CardContent>
@@ -134,67 +51,145 @@ export function StatsCards({
     )
   }
 
-  const cards = [
+  // 计算性能指标
+  const calculateRPM = () => {
+    const timeSpanMinutes = 7 * 24 * 60 // 7天转换为分钟
+    return stats.totalRequests > 0
+      ? (stats.totalRequests / timeSpanMinutes).toFixed(3)
+      : '0'
+  }
+
+  const calculateTPM = () => {
+    const timeSpanMinutes = 7 * 24 * 60 // 7天转换为分钟
+    return stats.totalTokens > 0
+      ? (stats.totalTokens / timeSpanMinutes).toFixed(3)
+      : '0'
+  }
+
+  const cardGroups = [
     {
-      title: 'Total Quota Used',
-      value: formatCurrency(stats.totalQuota),
-      description: 'Cumulative quota consumption',
-      icon: <DollarSign className='h-4 w-4' />,
-      trend: {
-        value: 12.5, // 这里可以从历史数据计算
-        isPositive: true,
-        period: 'from last month',
-      },
+      title: t('dashboard.stats.account_data'),
+      icon: <Wallet className='text-muted-foreground h-4 w-4' />,
+      items: [
+        {
+          label: t('dashboard.stats.current_balance'),
+          value: formatCurrency(userStats?.quota || 0),
+          icon: <DollarSign className='text-muted-foreground h-4 w-4' />,
+        },
+        {
+          label: t('dashboard.stats.historical_consumption'),
+          value: formatCurrency(userStats?.used_quota || 0),
+          icon: <BarChart3 className='text-muted-foreground h-4 w-4' />,
+        },
+      ],
     },
     {
-      title: 'Total Tokens',
-      value: formatNumber(stats.totalTokens),
-      description: 'Tokens processed',
-      icon: <Zap className='h-4 w-4' />,
-      trend: {
-        value: 8.3,
-        isPositive: true,
-        period: 'from last month',
-      },
+      title: t('dashboard.stats.usage_statistics'),
+      icon: <Activity className='text-muted-foreground h-4 w-4' />,
+      items: [
+        {
+          label: t('dashboard.stats.request_count'),
+          value: formatNumber(userStats?.request_count || 0),
+          icon: <Users className='text-muted-foreground h-4 w-4' />,
+        },
+        {
+          label: t('dashboard.stats.statistical_count'),
+          value: formatNumber(stats.totalRequests),
+          icon: <Activity className='text-muted-foreground h-4 w-4' />,
+        },
+      ],
     },
     {
-      title: 'Total Requests',
-      value: formatNumber(stats.totalRequests),
-      description: 'API calls made',
-      icon: <Activity className='h-4 w-4' />,
-      trend: {
-        value: 15.2,
-        isPositive: true,
-        period: 'from last month',
-      },
+      title: t('dashboard.stats.resource_consumption'),
+      icon: <Zap className='text-muted-foreground h-4 w-4' />,
+      items: [
+        {
+          label: t('dashboard.stats.statistical_quota'),
+          value: formatCurrency(stats.totalQuota),
+          icon: <DollarSign className='text-muted-foreground h-4 w-4' />,
+        },
+        {
+          label: t('dashboard.stats.statistical_tokens'),
+          value: formatNumber(stats.totalTokens),
+          icon: <Zap className='text-muted-foreground h-4 w-4' />,
+        },
+      ],
     },
     {
-      title: 'Avg Cost/Request',
-      value: formatCurrency(stats.avgQuotaPerRequest),
-      description: 'Average quota per request',
-      icon: <Users className='h-4 w-4' />,
-      trend: {
-        value: 2.1,
-        isPositive: false,
-        period: 'from last month',
-      },
+      title: t('dashboard.stats.performance_metrics'),
+      icon: <Clock className='text-muted-foreground h-4 w-4' />,
+      items: [
+        {
+          label: t('dashboard.stats.average_rpm'),
+          value: calculateRPM(),
+          icon: <Clock className='text-muted-foreground h-4 w-4' />,
+        },
+        {
+          label: t('dashboard.stats.average_tpm'),
+          value: calculateTPM(),
+          icon: <Timer className='text-muted-foreground h-4 w-4' />,
+        },
+      ],
     },
   ]
+
+  if (loading) {
+    return (
+      <div
+        className={`grid gap-4 md:grid-cols-2 lg:grid-cols-4 ${className || ''}`}
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className='pb-3'>
+              <div className='flex items-center justify-between'>
+                <Skeleton className='h-5 w-24' />
+                <Skeleton className='h-5 w-5 rounded-full' />
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {Array.from({ length: 2 }).map((_, j) => (
+                <div key={j} className='flex items-center justify-between'>
+                  <div className='flex items-center space-x-2'>
+                    <Skeleton className='h-4 w-4 rounded-full' />
+                    <Skeleton className='h-4 w-16' />
+                  </div>
+                  <Skeleton className='h-6 w-20' />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div
       className={`grid gap-4 md:grid-cols-2 lg:grid-cols-4 ${className || ''}`}
     >
-      {cards.map((card, index) => (
-        <StatCard
-          key={index}
-          title={card.title}
-          value={card.value}
-          description={card.description}
-          icon={card.icon}
-          trend={card.trend}
-          loading={loading}
-        />
+      {cardGroups.map((group, index) => (
+        <Card key={index}>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>{group.title}</CardTitle>
+            {group.icon}
+          </CardHeader>
+          <CardContent className='space-y-3'>
+            {group.items.map((item, itemIndex) => (
+              <div
+                key={itemIndex}
+                className='flex items-center justify-between'
+              >
+                <div className='flex items-center space-x-2'>
+                  {item.icon}
+                  <span className='text-muted-foreground text-sm'>
+                    {item.label}
+                  </span>
+                </div>
+                <span className='text-xl font-bold'>{item.value}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ))}
     </div>
   )

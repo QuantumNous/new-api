@@ -35,6 +35,11 @@ export {
   formatPrice,
   formatApiCalls,
   truncateText,
+  formatCurrency,
+  formatChartTimestamp,
+  formatValue,
+  formatBalance,
+  calculateUsagePercentage,
 } from './formatters'
 
 // 验证工具
@@ -89,6 +94,7 @@ export {
   getStoredUser,
   getStoredUserId,
   clearStoredUser,
+  isAdmin,
 } from './auth'
 
 // Cookie相关

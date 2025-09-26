@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { ModelUsageData } from '@/types/api'
+import { useTranslation } from 'react-i18next'
 import {
   PieChart,
   Pie,
@@ -9,6 +10,7 @@ import {
   Legend,
 } from 'recharts'
 import { modelToColor } from '@/lib/colors'
+import { formatValue } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -37,33 +39,18 @@ interface ChartDataPoint {
   color: string
 }
 
-const formatValue = (
-  value: number,
-  type: 'quota' | 'tokens' | 'count'
-): string => {
-  switch (type) {
-    case 'quota':
-      if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`
-      if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`
-      return `$${value.toFixed(2)}`
-    case 'tokens':
-      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-      if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
-      return value.toString()
-    case 'count':
-      return value.toString()
-    default:
-      return value.toString()
-  }
-}
-
 export function ModelUsageChart({
   data = [],
   loading = false,
   error = null,
-  title = 'Model Usage Distribution',
-  description = 'Quota usage by model',
+  title,
+  description,
 }: ModelUsageChartProps) {
+  const { t } = useTranslation()
+
+  const defaultTitle = title || t('dashboard.model_usage.title')
+  const defaultDescription =
+    description || t('dashboard.model_usage.description')
   const chartData = useMemo((): ChartDataPoint[] => {
     if (!data || data.length === 0) return []
 
@@ -89,14 +76,16 @@ export function ModelUsageChart({
           <p className='mb-2 text-sm font-medium'>{data.name}</p>
           <div className='space-y-1 text-xs'>
             <p className='text-primary'>
-              Quota: {formatValue(data.quota, 'quota')} (
-              {data.percentage.toFixed(1)}%)
+              {t('dashboard.model_usage.quota')}:{' '}
+              {formatValue(data.quota, 'quota')} ({data.percentage.toFixed(1)}%)
             </p>
             <p className='text-blue-600'>
-              Tokens: {formatValue(data.tokens, 'tokens')}
+              {t('dashboard.model_usage.tokens')}:{' '}
+              {formatValue(data.tokens, 'tokens')}
             </p>
             <p className='text-green-600'>
-              Requests: {formatValue(data.count, 'count')}
+              {t('dashboard.model_usage.requests')}:{' '}
+              {formatValue(data.count, 'count')}
             </p>
           </div>
         </div>
@@ -132,8 +121,10 @@ export function ModelUsageChart({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+          <CardTitle>{defaultTitle}</CardTitle>
+          {defaultDescription && (
+            <CardDescription>{defaultDescription}</CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <Skeleton className='h-[350px] w-full' />
@@ -146,13 +137,17 @@ export function ModelUsageChart({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+          <CardTitle>{defaultTitle}</CardTitle>
+          {defaultDescription && (
+            <CardDescription>{defaultDescription}</CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <div className='text-muted-foreground flex h-[350px] items-center justify-center'>
             <div className='text-center'>
-              <p className='text-sm font-medium'>Failed to load data</p>
+              <p className='text-sm font-medium'>
+                {t('dashboard.model_usage.failed_to_load')}
+              </p>
               <p className='mt-1 text-xs'>{error}</p>
             </div>
           </div>
@@ -165,15 +160,19 @@ export function ModelUsageChart({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+          <CardTitle>{defaultTitle}</CardTitle>
+          {defaultDescription && (
+            <CardDescription>{defaultDescription}</CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <div className='text-muted-foreground flex h-[350px] items-center justify-center'>
             <div className='text-center'>
-              <p className='text-sm font-medium'>No model usage data</p>
+              <p className='text-sm font-medium'>
+                {t('dashboard.model_usage.no_data')}
+              </p>
               <p className='mt-1 text-xs'>
-                Start making API calls to see usage
+                {t('dashboard.model_usage.start_making_calls')}
               </p>
             </div>
           </div>
@@ -185,8 +184,10 @@ export function ModelUsageChart({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
+        <CardTitle>{defaultTitle}</CardTitle>
+        {defaultDescription && (
+          <CardDescription>{defaultDescription}</CardDescription>
+        )}
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width='100%' height={350}>

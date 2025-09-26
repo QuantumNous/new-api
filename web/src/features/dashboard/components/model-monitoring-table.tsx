@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { stringToColor } from '@/lib/colors'
 import { formatQuota, formatNumber, formatTokens } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
@@ -61,6 +62,7 @@ export function ModelMonitoringTable({
   onBusinessGroupChange,
   onRefresh,
 }: ModelMonitoringTableProps) {
+  const { t } = useTranslation()
   const [currentPage, setCurrentPage] = useState(1)
 
   // 分页逻辑
@@ -94,7 +96,7 @@ export function ModelMonitoringTable({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>模型列表</CardTitle>
+          <CardTitle>{t('dashboard.monitoring.model_list')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
@@ -120,16 +122,18 @@ export function ModelMonitoringTable({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>模型列表</CardTitle>
+          <CardTitle>{t('dashboard.monitoring.model_list')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className='py-8 text-center'>
             <AlertCircle className='mx-auto mb-4 h-12 w-12 text-red-500' />
-            <p className='text-lg font-medium'>加载失败</p>
+            <p className='text-lg font-medium'>
+              {t('dashboard.monitoring.load_failed')}
+            </p>
             <p className='text-muted-foreground mt-2'>{error}</p>
             <Button onClick={onRefresh} className='mt-4'>
               <RefreshCcw className='mr-2 h-4 w-4' />
-              重试
+              {t('common.retry')}
             </Button>
           </div>
         </CardContent>
@@ -141,12 +145,12 @@ export function ModelMonitoringTable({
     <Card>
       <CardHeader>
         <div className='flex items-center justify-between'>
-          <CardTitle>模型列表</CardTitle>
+          <CardTitle>{t('dashboard.monitoring.model_list')}</CardTitle>
           <div className='flex items-center space-x-2'>
             <div className='flex items-center space-x-2'>
               <Search className='text-muted-foreground h-4 w-4' />
               <Input
-                placeholder='搜索模型Code...'
+                placeholder={t('dashboard.monitoring.search_model_placeholder')}
                 value={searchTerm}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className='w-64'
@@ -154,10 +158,14 @@ export function ModelMonitoringTable({
             </div>
             <Select value={businessGroup} onValueChange={onBusinessGroupChange}>
               <SelectTrigger className='w-40'>
-                <SelectValue placeholder='业务空间' />
+                <SelectValue
+                  placeholder={t('dashboard.monitoring.business_space')}
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='all'>全部空间</SelectItem>
+                <SelectItem value='all'>
+                  {t('dashboard.monitoring.all_spaces')}
+                </SelectItem>
                 {businessGroups.map((group) => (
                   <SelectItem key={group} value={group}>
                     {group}
@@ -174,7 +182,7 @@ export function ModelMonitoringTable({
       <CardContent>
         {models.length === 0 ? (
           <div className='text-muted-foreground py-8 text-center'>
-            <p>没有找到匹配的模型</p>
+            <p>{t('dashboard.monitoring.no_matching_models')}</p>
           </div>
         ) : (
           <>
@@ -183,14 +191,30 @@ export function ModelMonitoringTable({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>模型Code</TableHead>
-                    <TableHead>业务空间</TableHead>
-                    <TableHead className='text-right'>调用总数</TableHead>
-                    <TableHead className='text-right'>调用失败数</TableHead>
-                    <TableHead className='text-right'>失败率</TableHead>
-                    <TableHead className='text-right'>平均调用耗费</TableHead>
-                    <TableHead className='text-right'>平均调用Token</TableHead>
-                    <TableHead className='text-right'>操作</TableHead>
+                    <TableHead>
+                      {t('dashboard.monitoring.model_code')}
+                    </TableHead>
+                    <TableHead>
+                      {t('dashboard.monitoring.business_space')}
+                    </TableHead>
+                    <TableHead className='text-right'>
+                      {t('dashboard.monitoring.total_calls')}
+                    </TableHead>
+                    <TableHead className='text-right'>
+                      {t('dashboard.monitoring.failed_calls')}
+                    </TableHead>
+                    <TableHead className='text-right'>
+                      {t('dashboard.monitoring.failure_rate')}
+                    </TableHead>
+                    <TableHead className='text-right'>
+                      {t('dashboard.monitoring.avg_cost')}
+                    </TableHead>
+                    <TableHead className='text-right'>
+                      {t('dashboard.monitoring.avg_tokens')}
+                    </TableHead>
+                    <TableHead className='text-right'>
+                      {t('dashboard.monitoring.actions')}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -250,9 +274,15 @@ export function ModelMonitoringTable({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align='end'>
-                            <DropdownMenuItem>监控</DropdownMenuItem>
-                            <DropdownMenuItem>详情</DropdownMenuItem>
-                            <DropdownMenuItem>设置</DropdownMenuItem>
+                            <DropdownMenuItem>
+                              {t('dashboard.monitoring.monitor')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              {t('dashboard.monitoring.details')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              {t('dashboard.monitoring.settings')}
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -266,8 +296,11 @@ export function ModelMonitoringTable({
             {totalPages > 1 && (
               <div className='mt-4 flex items-center justify-between'>
                 <div className='text-muted-foreground text-sm'>
-                  显示第 {startIndex + 1} 条 - 第{' '}
-                  {Math.min(endIndex, models.length)} 条，共 {models.length} 条
+                  {t('dashboard.monitoring.pagination_info', {
+                    start: startIndex + 1,
+                    end: Math.min(endIndex, models.length),
+                    total: models.length,
+                  })}
                 </div>
                 <div className='flex items-center space-x-2'>
                   <Button
@@ -277,7 +310,7 @@ export function ModelMonitoringTable({
                     disabled={currentPage === 1}
                   >
                     <ChevronLeft className='h-4 w-4' />
-                    上一页
+                    {t('common.previous')}
                   </Button>
                   <div className='flex items-center space-x-1'>
                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -313,7 +346,7 @@ export function ModelMonitoringTable({
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
                   >
-                    下一页
+                    {t('common.next')}
                     <ChevronRight className='h-4 w-4' />
                   </Button>
                 </div>

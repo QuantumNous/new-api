@@ -275,3 +275,78 @@ export function truncateText(text: string, maxWidth: number = 200): string {
   if (text.length <= maxChars) return text
   return text.slice(0, maxChars - 3) + '...'
 }
+
+/**
+ * 格式化货币（通用版本）
+ * @param value 数值
+ * @returns 格式化的货币字符串
+ */
+export function formatCurrency(value: number): string {
+  if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(1)}M`
+  } else if (value >= 1000) {
+    return `$${(value / 1000).toFixed(1)}K`
+  } else {
+    return `$${value.toFixed(2)}`
+  }
+}
+
+/**
+ * 格式化时间戳为图表标签
+ * @param timestamp 时间戳（秒）
+ * @returns 格式化的时间字符串
+ */
+export function formatChartTimestamp(timestamp: number): string {
+  const date = new Date(timestamp * 1000)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/**
+ * 通用数值格式化函数（支持不同类型）
+ * @param value 数值
+ * @param type 类型：quota（配额）、tokens（令牌）、count（计数）
+ * @returns 格式化的字符串
+ */
+export function formatValue(
+  value: number,
+  type: 'quota' | 'tokens' | 'count'
+): string {
+  switch (type) {
+    case 'quota':
+      return formatCurrency(value)
+    case 'tokens':
+      return formatTokens(value)
+    case 'count':
+      return formatNumber(value)
+    default:
+      return value.toString()
+  }
+}
+
+/**
+ * 格式化余额（配额减去已使用）
+ * @param quota 总配额
+ * @param usedQuota 已使用配额
+ * @returns 格式化的余额字符串
+ */
+export function formatBalance(quota: number, usedQuota: number): string {
+  const remaining = Math.max(0, quota - usedQuota)
+  return formatCurrency(remaining)
+}
+
+/**
+ * 计算配额使用百分比
+ * @param quota 总配额
+ * @param usedQuota 已使用配额
+ * @returns 使用百分比（0-100）
+ */
+export function calculateUsagePercentage(
+  quota: number,
+  usedQuota: number
+): number {
+  if (quota <= 0) return 0
+  return Math.min(100, (usedQuota / quota) * 100)
+}

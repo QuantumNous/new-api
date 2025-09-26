@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarIcon, Search, RotateCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getStoredUser } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -38,19 +39,6 @@ import {
 } from '@/components/ui/select'
 import type { DashboardFilters } from '../hooks/use-dashboard-data'
 
-const searchSchema = z
-  .object({
-    startDate: z.date(),
-    endDate: z.date(),
-    username: z.string().optional(),
-    timeGranularity: z.enum(['hour', 'day', 'week']),
-    modelFilter: z.string().optional(),
-  })
-  .refine((data) => data.endDate >= data.startDate, {
-    message: 'End date must be after start date',
-    path: ['endDate'],
-  })
-
 interface DashboardSearchDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -64,9 +52,23 @@ export function DashboardSearchDialog({
   onSearch,
   currentFilters,
 }: DashboardSearchDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const user = getStoredUser()
   const isAdmin = user && (user as any).role >= 10
+
+  const searchSchema = z
+    .object({
+      startDate: z.date(),
+      endDate: z.date(),
+      username: z.string().optional(),
+      timeGranularity: z.enum(['hour', 'day', 'week']),
+      modelFilter: z.string().optional(),
+    })
+    .refine((data) => data.endDate >= data.startDate, {
+      message: t('dashboard.search.end_date_after_start'),
+      path: ['endDate'],
+    })
 
   const form = useForm<z.infer<typeof searchSchema>>({
     resolver: zodResolver(searchSchema),
@@ -123,9 +125,9 @@ export function DashboardSearchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>Advanced Dashboard Search</DialogTitle>
+          <DialogTitle>{t('dashboard.search.title')}</DialogTitle>
           <DialogDescription>
-            Search and filter your usage data with advanced criteria
+            {t('dashboard.search.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -142,7 +144,7 @@ export function DashboardSearchDialog({
                 size='sm'
                 onClick={() => handleQuickTimeRange(1)}
               >
-                Last 24h
+                {t('dashboard.search.last_24h')}
               </Button>
               <Button
                 type='button'
@@ -150,7 +152,7 @@ export function DashboardSearchDialog({
                 size='sm'
                 onClick={() => handleQuickTimeRange(7)}
               >
-                Last 7 days
+                {t('dashboard.search.last_7_days')}
               </Button>
               <Button
                 type='button'
@@ -158,7 +160,7 @@ export function DashboardSearchDialog({
                 size='sm'
                 onClick={() => handleQuickTimeRange(30)}
               >
-                Last 30 days
+                {t('dashboard.search.last_30_days')}
               </Button>
               <Button
                 type='button'
@@ -166,7 +168,7 @@ export function DashboardSearchDialog({
                 size='sm'
                 onClick={() => handleQuickTimeRange(90)}
               >
-                Last 90 days
+                {t('dashboard.search.last_90_days')}
               </Button>
             </div>
 
@@ -177,7 +179,7 @@ export function DashboardSearchDialog({
                 name='startDate'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Start Date</FormLabel>
+                    <FormLabel>{t('dashboard.search.start_date')}</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -191,7 +193,7 @@ export function DashboardSearchDialog({
                             {field.value ? (
                               format(field.value, 'PPP')
                             ) : (
-                              <span>Pick a date</span>
+                              <span>{t('dashboard.search.pick_date')}</span>
                             )}
                             <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                           </Button>
@@ -219,7 +221,7 @@ export function DashboardSearchDialog({
                 name='endDate'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>End Date</FormLabel>
+                    <FormLabel>{t('dashboard.search.end_date')}</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -233,7 +235,7 @@ export function DashboardSearchDialog({
                             {field.value ? (
                               format(field.value, 'PPP')
                             ) : (
-                              <span>Pick a date</span>
+                              <span>{t('dashboard.search.pick_date')}</span>
                             )}
                             <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                           </Button>
@@ -263,20 +265,32 @@ export function DashboardSearchDialog({
               name='timeGranularity'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Time Granularity</FormLabel>
+                  <FormLabel>
+                    {t('dashboard.search.time_granularity')}
+                  </FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder='Select time granularity' />
+                        <SelectValue
+                          placeholder={t(
+                            'dashboard.search.select_time_granularity'
+                          )}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value='hour'>Hourly</SelectItem>
-                      <SelectItem value='day'>Daily</SelectItem>
-                      <SelectItem value='week'>Weekly</SelectItem>
+                      <SelectItem value='hour'>
+                        {t('dashboard.search.hourly')}
+                      </SelectItem>
+                      <SelectItem value='day'>
+                        {t('dashboard.search.daily')}
+                      </SelectItem>
+                      <SelectItem value='week'>
+                        {t('dashboard.search.weekly')}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -291,10 +305,12 @@ export function DashboardSearchDialog({
                 name='username'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Filter by Username (Admin)</FormLabel>
+                    <FormLabel>
+                      {t('dashboard.search.filter_by_username')}
+                    </FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='Enter username to filter (optional)'
+                        placeholder={t('dashboard.search.username_placeholder')}
                         {...field}
                       />
                     </FormControl>
@@ -310,10 +326,12 @@ export function DashboardSearchDialog({
               name='modelFilter'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Model Filter</FormLabel>
+                  <FormLabel>{t('dashboard.search.model_filter')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder='Filter by model name (optional)'
+                      placeholder={t(
+                        'dashboard.search.model_filter_placeholder'
+                      )}
                       {...field}
                     />
                   </FormControl>
@@ -331,22 +349,14 @@ export function DashboardSearchDialog({
                 disabled={loading}
               >
                 <RotateCcw className='mr-2 h-4 w-4' />
-                Reset
+                {t('dashboard.search.reset')}
               </Button>
-              <div className='space-x-2'>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => onOpenChange(false)}
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-                <Button type='submit' disabled={loading}>
-                  <Search className='mr-2 h-4 w-4' />
-                  {loading ? 'Searching...' : 'Search'}
-                </Button>
-              </div>
+              <Button type='submit' disabled={loading}>
+                <Search className='mr-2 h-4 w-4' />
+                {loading
+                  ? t('dashboard.search.searching')
+                  : t('dashboard.search.search')}
+              </Button>
             </div>
           </form>
         </Form>
