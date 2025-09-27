@@ -24,7 +24,6 @@ import { useTranslation } from 'react-i18next';
 import GroupRatioSettings from '../../pages/Setting/Ratio/GroupRatioSettings';
 import ModelRatioSettings from '../../pages/Setting/Ratio/ModelRatioSettings';
 import ModelSettingsVisualEditor from '../../pages/Setting/Ratio/ModelSettingsVisualEditor';
-import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync';
 
 import { API, showError, toBoolean } from '../../helpers';
@@ -46,6 +45,7 @@ const RatioSetting = () => {
     DefaultUseAutoGroup: false,
     ExposeRatioEnabled: false,
     UserUsableGroups: '',
+    USDExchangeRate: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -118,7 +118,11 @@ const RatioSetting = () => {
             <ModelSettingsVisualEditor options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('未设置倍率模型')} itemKey='unset_models'>
-            <ModelRatioNotSetEditor options={inputs} refresh={onRefresh} />
+            <ModelSettingsVisualEditor
+              options={inputs}
+              mode={"unset_models"}
+              refresh={onRefresh}
+            />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('上游倍率同步')} itemKey='upstream_sync'>
             <UpstreamRatioSync options={inputs} refresh={onRefresh} />
