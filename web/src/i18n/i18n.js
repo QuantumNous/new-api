@@ -22,6 +22,7 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enTranslation from './locales/en.json';
+import frTranslation from './locales/fr.json';
 import zhTranslation from './locales/zh.json';
 
 i18n
@@ -35,6 +36,9 @@ i18n
       },
       zh: {
         translation: zhTranslation,
+      },
+      fr: {
+        translation: frTranslation,
       },
     },
     fallbackLng: 'zh',
