@@ -36,8 +36,9 @@ import {
 } from 'lucide-react';
 import {
   TASK_ACTION_FIRST_TAIL_GENERATE,
-  TASK_ACTION_GENERATE, TASK_ACTION_REFERENCE_GENERATE,
-  TASK_ACTION_TEXT_GENERATE
+  TASK_ACTION_GENERATE,
+  TASK_ACTION_REFERENCE_GENERATE,
+  TASK_ACTION_TEXT_GENERATE,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 

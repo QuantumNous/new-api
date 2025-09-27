@@ -87,22 +87,7 @@ const REGION_EXAMPLE = {
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
-  1,
-  4,
-  14,
-  34,
-  17,
-  26,
-  24,
-  47,
-  25,
-  20,
-  23,
-  31,
-  35,
-  40,
-  42,
-  48,
+  1, 4, 14, 34, 17, 26, 24, 47, 25, 20, 23, 31, 35, 40, 42, 48,
 ]);
 
 function type2secretPrompt(type) {
@@ -826,7 +811,9 @@ const EditChannelModal = (props) => {
               delete localInputs.key;
             }
           } else {
-            localInputs.key = batch ? JSON.stringify(keys) : JSON.stringify(keys[0]);
+            localInputs.key = batch
+              ? JSON.stringify(keys)
+              : JSON.stringify(keys[0]);
           }
         }
       }
@@ -1226,7 +1213,10 @@ const EditChannelModal = (props) => {
                       value={inputs.vertex_key_type || 'json'}
                       onChange={(value) => {
                         // 更新设置中的 vertex_key_type
-                        handleChannelOtherSettingsChange('vertex_key_type', value);
+                        handleChannelOtherSettingsChange(
+                          'vertex_key_type',
+                          value,
+                        );
                         // 切换为 api_key 时，关闭批量与手动/文件切换，并清理已选文件
                         if (value === 'api_key') {
                           setBatch(false);
@@ -1246,7 +1236,8 @@ const EditChannelModal = (props) => {
                     />
                   )}
                   {batch ? (
-                    inputs.type === 41 && (inputs.vertex_key_type || 'json') === 'json' ? (
+                    inputs.type === 41 &&
+                    (inputs.vertex_key_type || 'json') === 'json' ? (
                       <Form.Upload
                         field='vertex_files'
                         label={t('密钥文件 (.json)')}
@@ -1310,7 +1301,8 @@ const EditChannelModal = (props) => {
                     )
                   ) : (
                     <>
-                      {inputs.type === 41 && (inputs.vertex_key_type || 'json') === 'json' ? (
+                      {inputs.type === 41 &&
+                      (inputs.vertex_key_type || 'json') === 'json' ? (
                         <>
                           {!batch && (
                             <div className='flex items-center justify-between mb-3'>

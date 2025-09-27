@@ -128,7 +128,7 @@ export const useSidebar = () => {
 
   // 刷新用户配置的方法（供外部调用）
   const refreshUserConfig = async () => {
-     if (Object.keys(adminConfig).length > 0) {
+    if (Object.keys(adminConfig).length > 0) {
       await loadUserConfig();
     }
 
@@ -155,7 +155,10 @@ export const useSidebar = () => {
     sidebarEventTarget.addEventListener(SIDEBAR_REFRESH_EVENT, handleRefresh);
 
     return () => {
-      sidebarEventTarget.removeEventListener(SIDEBAR_REFRESH_EVENT, handleRefresh);
+      sidebarEventTarget.removeEventListener(
+        SIDEBAR_REFRESH_EVENT,
+        handleRefresh,
+      );
     };
   }, [adminConfig]);
 

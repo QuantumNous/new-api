@@ -131,12 +131,10 @@ export const buildApiPayload = (
     seed: 'seed',
   };
 
-
   Object.entries(parameterMappings).forEach(([key, param]) => {
     const enabled = parameterEnabled[key];
     const value = inputs[param];
     const hasValue = value !== undefined && value !== null;
-
 
     if (enabled && hasValue) {
       payload[param] = value;
