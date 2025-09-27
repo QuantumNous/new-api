@@ -251,6 +251,7 @@ type GeminiChatTool struct {
 	GoogleSearchRetrieval any `json:"googleSearchRetrieval,omitempty"`
 	CodeExecution         any `json:"codeExecution,omitempty"`
 	FunctionDeclarations  any `json:"functionDeclarations,omitempty"`
+	URLContext            any `json:"urlContext,omitempty"`
 }
 
 type GeminiChatGenerationConfig struct {

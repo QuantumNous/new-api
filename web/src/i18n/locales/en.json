@@ -837,6 +837,7 @@
   "确定要充值 $": "Confirm to top up $",
   "微信/支付宝 实付金额：": "WeChat/Alipay actual payment amount:",
   "Stripe 实付金额：": "Stripe actual payment amount:",
+  "允许在 Stripe 支付中输入促销码": "Allow entering promotion codes during Stripe checkout",
   "支付中...": "Paying",
   "支付宝": "Alipay",
   "收益统计": "Income statistics",
