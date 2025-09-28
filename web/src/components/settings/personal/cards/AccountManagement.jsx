@@ -59,6 +59,8 @@ const AccountManagement = ({
   setShowChangePasswordModal,
   setShowAccountDeleteModal,
 }) => {
+  const wechatEnabled = Boolean(status.wechat_login);
+  const isWeChatBound = Boolean(userState.user?.wechat_id);
   const renderAccountInfo = (accountId, label) => {
     if (!accountId || accountId === '') {
       return <span className='text-gray-500'>{t('未绑定')}</span>;
@@ -82,6 +84,27 @@ const AccountManagement = ({
         </span>
       </Popover>
     );
+  };
+
+  const getBindingStatusText = (enabled, bound) => {
+    if (!enabled) {
+      return t('未启用');
+    }
+    return bound ? t('已绑定') : t('未绑定');
+  };
+
+  const getBindingButtonText = (enabled, bound) => {
+    if (bound) {
+      return t('修改绑定');
+    }
+    return enabled ? t('绑定') : t('未启用');
+  };
+
+  const renderProviderBinding = (enabled, accountId, label) => {
+    if (!enabled) {
+      return <span className='text-gray-500'>{t('未启用')}</span>;
+    }
+    return renderAccountInfo(accountId, label);
   };
   return (
     <Card className='!rounded-2xl'>
@@ -165,9 +188,7 @@ const AccountManagement = ({
                         {t('微信')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {userState.user && userState.user.wechat_id !== ''
-                          ? t('已绑定')
-                          : t('未绑定')}
+                        {getBindingStatusText(wechatEnabled, isWeChatBound)}
                       </div>
                     </div>
                   </div>
@@ -176,14 +197,10 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
-                      disabled={!status.wechat_login}
+                      disabled={!wechatEnabled}
                       onClick={() => setShowWeChatBindModal(true)}
                     >
-                      {userState.user && userState.user.wechat_id !== ''
-                        ? t('修改绑定')
-                        : status.wechat_login
-                          ? t('绑定')
-                          : t('未启用')}
+                      {getBindingButtonText(wechatEnabled, isWeChatBound)}
                     </Button>
                   </div>
                 </div>
@@ -204,7 +221,8 @@ const AccountManagement = ({
                         {t('GitHub')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {renderAccountInfo(
+                        {renderProviderBinding(
+                          status.github_oauth,
                           userState.user?.github_id,
                           t('GitHub ID'),
                         )}
@@ -245,7 +263,8 @@ const AccountManagement = ({
                         {t('OIDC')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {renderAccountInfo(
+                        {renderProviderBinding(
+                          status.oidc_enabled,
                           userState.user?.oidc_id,
                           t('OIDC ID'),
                         )}
@@ -289,7 +308,8 @@ const AccountManagement = ({
                         {t('Telegram')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {renderAccountInfo(
+                        {renderProviderBinding(
+                          status.telegram_oauth,
                           userState.user?.telegram_id,
                           t('Telegram ID'),
                         )}
@@ -334,7 +354,8 @@ const AccountManagement = ({
                         {t('LinuxDO')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {renderAccountInfo(
+                        {renderProviderBinding(
+                          status.linuxdo_oauth,
                           userState.user?.linux_do_id,
                           t('LinuxDO ID'),
                         )}
