@@ -111,7 +111,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       }
     } catch (error) {
       console.error(error);
-      showError(t('获取密钥状态失败'));
+      showError(t('modals.multiKey.getKeyStatusFailed'));
     } finally {
       setLoading(false);
     }
@@ -130,14 +130,14 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       });
 
       if (res.data.success) {
-        showSuccess(t('密钥已禁用'));
+        showSuccess(t('modals.multiKey.keyDisabled'));
         await loadKeyStatus(currentPage, pageSize); // Reload current page
         onRefresh && onRefresh(); // Refresh parent component
       } else {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(t('禁用密钥失败'));
+      showError(t('modals.multiKey.disableKeyFailed'));
     } finally {
       setOperationLoading((prev) => ({ ...prev, [operationId]: false }));
     }
@@ -156,14 +156,14 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       });
 
       if (res.data.success) {
-        showSuccess(t('密钥已启用'));
+        showSuccess(t('modals.multiKey.keyEnabled'));
         await loadKeyStatus(currentPage, pageSize); // Reload current page
         onRefresh && onRefresh(); // Refresh parent component
       } else {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(t('启用密钥失败'));
+      showError(t('modals.multiKey.enableKeyFailed'));
     } finally {
       setOperationLoading((prev) => ({ ...prev, [operationId]: false }));
     }
@@ -180,7 +180,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       });
 
       if (res.data.success) {
-        showSuccess(res.data.message || t('已启用所有密钥'));
+        showSuccess(res.data.message || t('modals.multiKey.allKeysEnabled'));
         // Reset to first page after bulk operation
         setCurrentPage(1);
         await loadKeyStatus(1, pageSize);
@@ -189,7 +189,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(t('启用所有密钥失败'));
+      showError(t('modals.multiKey.enableAllKeysFailed'));
     } finally {
       setOperationLoading((prev) => ({ ...prev, enable_all: false }));
     }
@@ -206,7 +206,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       });
 
       if (res.data.success) {
-        showSuccess(res.data.message || t('已禁用所有密钥'));
+        showSuccess(res.data.message || t('modals.multiKey.allKeysDisabled'));
         // Reset to first page after bulk operation
         setCurrentPage(1);
         await loadKeyStatus(1, pageSize);
@@ -215,7 +215,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(t('禁用所有密钥失败'));
+      showError(t('modals.multiKey.disableAllKeysFailed'));
     } finally {
       setOperationLoading((prev) => ({ ...prev, disable_all: false }));
     }
@@ -241,7 +241,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(t('删除禁用密钥失败'));
+      showError(t('modals.multiKey.deleteDisabledKeysFailed'));
     } finally {
       setOperationLoading((prev) => ({ ...prev, delete_disabled: false }));
     }
@@ -260,14 +260,14 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       });
 
       if (res.data.success) {
-        showSuccess(t('密钥已删除'));
+        showSuccess(t('modals.multiKey.keyDeleted'));
         await loadKeyStatus(currentPage, pageSize); // Reload current page
         onRefresh && onRefresh(); // Refresh parent component
       } else {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(t('删除密钥失败'));
+      showError(t('modals.multiKey.deleteKeyFailed'));
     } finally {
       setOperationLoading((prev) => ({ ...prev, [operationId]: false }));
     }
@@ -331,19 +331,19 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       case 1:
         return (
           <Tag color='green' shape='circle' size='small'>
-            {t('已启用')}
+            {t('modals.multiKey.stats.enabled')}
           </Tag>
         );
       case 2:
         return (
           <Tag color='red' shape='circle' size='small'>
-            {t('已禁用')}
+            {t('modals.multiKey.stats.manualDisabled')}
           </Tag>
         );
       case 3:
         return (
           <Tag color='orange' shape='circle' size='small'>
-            {t('自动禁用')}
+            {t('modals.multiKey.stats.autoDisabled')}
           </Tag>
         );
       default:
@@ -358,7 +358,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   // Table columns definition
   const columns = [
     {
-      title: t('索引'),
+      title: t('modals.multiKey.columns.index'),
       dataIndex: 'index',
       render: (text) => `#${text}`,
     },
@@ -372,12 +372,12 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
     //   ),
     // },
     {
-      title: t('状态'),
+      title: t('modals.multiKey.columns.status'),
       dataIndex: 'status',
       render: (status) => renderStatusTag(status),
     },
     {
-      title: t('禁用原因'),
+      title: t('modals.multiKey.columns.disableReason'),
       dataIndex: 'reason',
       render: (reason, record) => {
         if (record.status === 1 || !reason) {
@@ -393,7 +393,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       },
     },
     {
-      title: t('禁用时间'),
+      title: t('modals.multiKey.columns.disableTime'),
       dataIndex: 'disabled_time',
       render: (time, record) => {
         if (record.status === 1 || !time) {
@@ -407,7 +407,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       },
     },
     {
-      title: t('操作'),
+      title: t('modals.multiKey.columns.actions'),
       key: 'action',
       fixed: 'right',
       width: 150,
@@ -420,7 +420,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               loading={operationLoading[`disable_${record.index}`]}
               onClick={() => handleDisableKey(record.index)}
             >
-              {t('禁用')}
+              {t('modals.multiKey.actions.disable')}
             </Button>
           ) : (
             <Button
@@ -429,12 +429,12 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               loading={operationLoading[`enable_${record.index}`]}
               onClick={() => handleEnableKey(record.index)}
             >
-              {t('启用')}
+              {t('modals.multiKey.actions.enable')}
             </Button>
           )}
           <Popconfirm
-            title={t('确定要删除此密钥吗？')}
-            content={t('此操作不可撤销，将永久删除该密钥')}
+            title={t('modals.multiKey.confirmDeleteKeyTitle')}
+            content={t('modals.multiKey.confirmDeleteKeyContent')}
             onConfirm={() => handleDeleteKey(record.index)}
             okType={'danger'}
             position={'topRight'}
@@ -444,7 +444,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               size='small'
               loading={operationLoading[`delete_${record.index}`]}
             >
-              {t('删除')}
+              {t('modals.multiKey.actions.delete')}
             </Button>
           </Popconfirm>
         </Space>
@@ -456,20 +456,20 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
     <Modal
       title={
         <Space>
-          <Text>{t('多密钥管理')}</Text>
+          <Text>{t('modals.multiKey.title')}</Text>
           {channel?.name && (
             <Tag size='small' shape='circle' color='white'>
               {channel.name}
             </Tag>
           )}
           <Tag size='small' shape='circle' color='white'>
-            {t('总密钥数')}: {total}
+            {t('modals.multiKey.totalKeys')}: {total}
           </Tag>
           {channel?.channel_info?.multi_key_mode && (
             <Tag size='small' shape='circle' color='white'>
               {channel.channel_info.multi_key_mode === 'random'
-                ? t('随机模式')
-                : t('轮询模式')}
+                ? t('modals.multiKey.randomMode')
+                : t('modals.multiKey.pollingMode')}
             </Tag>
           )}
         </Space>
@@ -500,7 +500,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               >
                 <div className='flex items-center gap-2 mb-2'>
                   <Badge dot type='success' />
-                  <Text type='tertiary'>{t('已启用')}</Text>
+                  <Text type='tertiary'>{t('modals.multiKey.stats.enabled')}</Text>
                 </div>
                 <div className='flex items-end gap-2 mb-2'>
                   <Text
@@ -534,7 +534,9 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               >
                 <div className='flex items-center gap-2 mb-2'>
                   <Badge dot type='danger' />
-                  <Text type='tertiary'>{t('手动禁用')}</Text>
+                  <Text type='tertiary'>
+                    {t('modals.multiKey.stats.manualDisabled')}
+                  </Text>
                 </div>
                 <div className='flex items-end gap-2 mb-2'>
                   <Text
@@ -568,7 +570,9 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               >
                 <div className='flex items-center gap-2 mb-2'>
                   <Badge dot type='warning' />
-                  <Text type='tertiary'>{t('自动禁用')}</Text>
+                  <Text type='tertiary'>
+                    {t('modals.multiKey.stats.autoDisabled')}
+                  </Text>
                 </div>
                 <div className='flex items-end gap-2 mb-2'>
                   <Text
@@ -608,19 +612,19 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                             value={statusFilter}
                             onChange={handleStatusFilterChange}
                             size='small'
-                            placeholder={t('全部状态')}
+                            placeholder={t('modals.multiKey.filters.allStatus')}
                           >
                             <Select.Option value={null}>
-                              {t('全部状态')}
+                              {t('modals.multiKey.filters.allStatus')}
                             </Select.Option>
                             <Select.Option value={1}>
-                              {t('已启用')}
+                              {t('modals.multiKey.filters.enabled')}
                             </Select.Option>
                             <Select.Option value={2}>
-                              {t('手动禁用')}
+                              {t('modals.multiKey.filters.manualDisabled')}
                             </Select.Option>
                             <Select.Option value={3}>
-                              {t('自动禁用')}
+                              {t('modals.multiKey.filters.autoDisabled')}
                             </Select.Option>
                           </Select>
                         </Col>
@@ -637,11 +641,11 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                           onClick={() => loadKeyStatus(currentPage, pageSize)}
                           loading={loading}
                         >
-                          {t('刷新')}
+                          {t('modals.multiKey.actions.refresh')}
                         </Button>
                         {manualDisabledCount + autoDisabledCount > 0 && (
                           <Popconfirm
-                            title={t('确定要启用所有密钥吗？')}
+                            title={t('modals.multiKey.confirmEnableAllTitle')}
                             onConfirm={handleEnableAll}
                             position={'topRight'}
                           >
@@ -650,13 +654,13 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                               type='primary'
                               loading={operationLoading.enable_all}
                             >
-                              {t('启用全部')}
+                              {t('modals.multiKey.actions.enableAll')}
                             </Button>
                           </Popconfirm>
                         )}
                         {enabledCount > 0 && (
                           <Popconfirm
-                            title={t('确定要禁用所有的密钥吗？')}
+                            title={t('modals.multiKey.confirmDisableAllTitle')}
                             onConfirm={handleDisableAll}
                             okType={'danger'}
                             position={'topRight'}
@@ -666,14 +670,16 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                               type='danger'
                               loading={operationLoading.disable_all}
                             >
-                              {t('禁用全部')}
+                              {t('modals.multiKey.actions.disableAll')}
                             </Button>
                           </Popconfirm>
                         )}
                         <Popconfirm
-                          title={t('确定要删除所有已自动禁用的密钥吗？')}
+                          title={t(
+                            'modals.multiKey.confirmDeleteAutoDisabledTitle',
+                          )}
                           content={t(
-                            '此操作不可撤销，将永久删除已自动禁用的密钥',
+                            'modals.multiKey.confirmDeleteAutoDisabledContent',
                           )}
                           onConfirm={handleDeleteDisabledKeys}
                           okType={'danger'}
@@ -684,7 +690,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                             type='warning'
                             loading={operationLoading.delete_disabled}
                           >
-                            {t('删除自动禁用密钥')}
+                            {t('modals.multiKey.deleteAutoDisabledKeys')}
                           </Button>
                         </Popconfirm>
                       </Space>
@@ -725,8 +731,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                         style={{ width: 140, height: 140 }}
                       />
                     }
-                    title={t('暂无密钥数据')}
-                    description={t('请检查渠道配置或刷新重试')}
+                    title={t('modals.multiKey.noKeyDataTitle')}
+                    description={t('modals.multiKey.noKeyDataDescription')}
                     style={{ padding: 30 }}
                   />
                 }
