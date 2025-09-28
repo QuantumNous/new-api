@@ -164,7 +164,7 @@ const EditTagModal = (props) => {
     let data = { tag };
     if (formVals.model_mapping) {
       if (!verifyJSON(formVals.model_mapping)) {
-        showInfo('模型映射必须是合法的 JSON 格式！');
+        showInfo(t('modals.tags.errors.invalidJson'));
         setLoading(false);
         return;
       }
@@ -183,7 +183,7 @@ const EditTagModal = (props) => {
       data.models === undefined &&
       data.new_tag === undefined
     ) {
-      showWarning('没有任何修改！');
+      showWarning(t('modals.tags.warnings.noChanges'));
       setLoading(false);
       return;
     }
@@ -195,7 +195,7 @@ const EditTagModal = (props) => {
     try {
       const res = await API.put('/api/channel/tag', data);
       if (res?.data?.success) {
-        showSuccess('标签更新成功！');
+        showSuccess(t('modals.tags.success.update'));
         refresh();
         handleClose();
       }
@@ -273,7 +273,7 @@ const EditTagModal = (props) => {
         localModels.push(model);
         localModelOptions.push({
           key: model,
-          text: model,
+          label: model,
           value: model,
         });
         addedModels.push(model);
@@ -286,13 +286,13 @@ const EditTagModal = (props) => {
 
     if (addedModels.length > 0) {
       showSuccess(
-        t('已新增 {{count}} 个模型：{{list}}', {
+        t('modals.tags.addedModels', {
           count: addedModels.length,
           list: addedModels.join(', '),
         }),
       );
     } else {
-      showInfo(t('未发现新增模型'));
+      showInfo(t('modals.tags.noNewModels'));
     }
   };
 
@@ -302,10 +302,10 @@ const EditTagModal = (props) => {
       title={
         <Space>
           <Tag color='blue' shape='circle'>
-            {t('编辑')}
+            {t('modals.tags.edit')}
           </Tag>
           <Title heading={4} className='m-0'>
-            {t('编辑标签')}
+            {t('modals.tags.title')}
           </Title>
         </Space>
       }
@@ -322,7 +322,7 @@ const EditTagModal = (props) => {
               loading={loading}
               icon={<IconSave />}
             >
-              {t('保存')}
+              {t('modals.tags.save')}
             </Button>
             <Button
               theme='light'
@@ -330,7 +330,7 @@ const EditTagModal = (props) => {
               onClick={handleClose}
               icon={<IconClose />}
             >
-              {t('取消')}
+              {t('modals.tags.cancel')}
             </Button>
           </Space>
         </div>
@@ -353,24 +353,24 @@ const EditTagModal = (props) => {
                     <IconBookmark size={16} />
                   </Avatar>
                   <div>
-                    <Text className='text-lg font-medium'>{t('标签信息')}</Text>
+                    <Text className='text-lg font-medium'>{t('modals.tags.tagInfo')}</Text>
                     <div className='text-xs text-gray-600'>
-                      {t('标签的基本配置')}
+                      {t('modals.tags.tagInfoDescription')}
                     </div>
                   </div>
                 </div>
 
                 <Banner
                   type='warning'
-                  description={t('所有编辑均为覆盖操作，留空则不更改')}
+                  description={t('modals.tags.editWarning')}
                   className='!rounded-lg mb-4'
                 />
 
                 <div className='space-y-4'>
                   <Form.Input
                     field='new_tag'
-                    label={t('标签名称')}
-                    placeholder={t('请输入新标签，留空则解散标签')}
+                    label={t('modals.tags.tagName')}
+                    placeholder={t('modals.tags.tagNamePlaceholder')}
                     onChange={(value) => handleInputChange('new_tag', value)}
                   />
                 </div>
@@ -387,9 +387,9 @@ const EditTagModal = (props) => {
                     <IconCode size={16} />
                   </Avatar>
                   <div>
-                    <Text className='text-lg font-medium'>{t('模型配置')}</Text>
+                    <Text className='text-lg font-medium'>{t('modals.tags.modelConfig')}</Text>
                     <div className='text-xs text-gray-600'>
-                      {t('模型选择和映射设置')}
+                      {t('modals.tags.modelConfigDescription')}
                     </div>
                   </div>
                 </div>
@@ -397,15 +397,13 @@ const EditTagModal = (props) => {
                 <div className='space-y-4'>
                   <Banner
                     type='info'
-                    description={t(
-                      '当前模型列表为该标签下所有渠道模型列表最长的一个，并非所有渠道的并集，请注意可能导致某些渠道模型丢失。',
-                    )}
+                    description={t('modals.tags.modelListWarning')}
                     className='!rounded-lg mb-4'
                   />
                   <Form.Select
                     field='models'
-                    label={t('模型')}
-                    placeholder={t('请选择该渠道所支持的模型，留空则不更改')}
+                    label={t('modals.tags.models')}
+                    placeholder={t('modals.tags.modelsPlaceholder')}
                     multiple
                     filter={selectFilter}
                     autoClearSearchValue={false}
@@ -417,8 +415,8 @@ const EditTagModal = (props) => {
 
                   <Form.Input
                     field='custom_model'
-                    label={t('自定义模型名称')}
-                    placeholder={t('输入自定义模型名称')}
+                    label={t('modals.tags.customModelName')}
+                    placeholder={t('modals.tags.customModelNamePlaceholder')}
                     onChange={(value) => setCustomModel(value.trim())}
                     suffix={
                       <Button
@@ -426,17 +424,15 @@ const EditTagModal = (props) => {
                         type='primary'
                         onClick={addCustomModels}
                       >
-                        {t('填入')}
+                        {t('modals.tags.add')}
                       </Button>
                     }
                   />
 
                   <Form.TextArea
                     field='model_mapping'
-                    label={t('模型重定向')}
-                    placeholder={t(
-                      '此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，留空则不更改',
-                    )}
+                    label={t('modals.tags.modelMapping')}
+                    placeholder={t('modals.tags.modelMappingPlaceholder')}
                     autosize
                     onChange={(value) =>
                       handleInputChange('model_mapping', value)
@@ -452,7 +448,7 @@ const EditTagModal = (props) => {
                             )
                           }
                         >
-                          {t('填入模板')}
+                          {t('modals.tags.fillTemplate')}
                         </Text>
                         <Text
                           className='!text-semi-color-primary cursor-pointer'
@@ -463,13 +459,13 @@ const EditTagModal = (props) => {
                             )
                           }
                         >
-                          {t('清空重定向')}
+                          {t('modals.tags.clearMapping')}
                         </Text>
                         <Text
                           className='!text-semi-color-primary cursor-pointer'
                           onClick={() => handleInputChange('model_mapping', '')}
                         >
-                          {t('不更改')}
+                          {t('modals.tags.doNotChange')}
                         </Text>
                       </Space>
                     }
@@ -484,9 +480,9 @@ const EditTagModal = (props) => {
                     <IconUser size={16} />
                   </Avatar>
                   <div>
-                    <Text className='text-lg font-medium'>{t('分组设置')}</Text>
+                    <Text className='text-lg font-medium'>{t('modals.tags.groupSettings')}</Text>
                     <div className='text-xs text-gray-600'>
-                      {t('用户分组配置')}
+                      {t('modals.tags.groupSettingsDescription')}
                     </div>
                   </div>
                 </div>
@@ -494,13 +490,11 @@ const EditTagModal = (props) => {
                 <div className='space-y-4'>
                   <Form.Select
                     field='groups'
-                    label={t('分组')}
-                    placeholder={t('请选择可以使用该渠道的分组，留空则不更改')}
+                    label={t('modals.tags.groups')}
+                    placeholder={t('modals.tags.groupsPlaceholder')}
                     multiple
                     allowAdditions
-                    additionLabel={t(
-                      '请在系统设置页面编辑分组倍率以添加新的分组：',
-                    )}
+                    additionLabel={t('modals.tags.addGroupInfo')}
                     optionList={groupOptions}
                     style={{ width: '100%' }}
                     onChange={(value) => handleInputChange('groups', value)}
