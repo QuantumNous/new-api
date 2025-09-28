@@ -87,10 +87,13 @@ const AccountManagement = ({
   };
 
   const getBindingStatusText = (enabled, bound) => {
+    if (bound) {
+      return t('已绑定');
+    }
     if (!enabled) {
       return t('未启用');
     }
-    return bound ? t('已绑定') : t('未绑定');
+    return t('未绑定');
   };
 
   const getBindingButtonText = (enabled, bound) => {
@@ -101,9 +104,16 @@ const AccountManagement = ({
   };
 
   const renderProviderBinding = (enabled, accountId, label) => {
+    const hasAccountId = Boolean(accountId && accountId !== '');
+
+    if (hasAccountId) {
+      return renderAccountInfo(accountId, label);
+    }
+
     if (!enabled) {
       return <span className='text-gray-500'>{t('未启用')}</span>;
     }
+
     return renderAccountInfo(accountId, label);
   };
   return (
