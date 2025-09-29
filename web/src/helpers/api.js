@@ -264,7 +264,19 @@ export async function onLinuxDOOAuthClicked(linuxdo_client_id) {
     `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
   );
 }
-
+export async function onNodeLocAuthClicked(nodeloc_client_id) {
+  const state = await getOAuthState();
+  if (!state) return;
+  
+  // Get server address from status API to ensure redirect_uri matches backend
+  const statusRes = await API.get('/api/status');
+  const serverAddress = statusRes.data?.server_address || `${window.location.protocol}//${window.location.host}`;
+  const redirectUri = `${serverAddress}/oauth/nodeloc`;
+  
+  window.location.href = 
+    `https://conn.nodeloc.cc/oauth2/auth?response_type=code&client_id=${nodeloc_client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid%20profile&state=${state}`
+  ;
+}
 let channelModels = undefined;
 export async function loadChannelModels() {
   const res = await API.get('/api/models');
