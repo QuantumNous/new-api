@@ -501,7 +501,6 @@ func GetCompletionRatio(name string) float64 {
 }
 
 func getHardcodedCompletionModelRatio(name string) (float64, bool) {
-	lowercaseName := strings.ToLower(name)
 
 	isReservedModel := strings.HasSuffix(name, "-all") || strings.HasSuffix(name, "-gizmo-*")
 	if isReservedModel {
@@ -594,9 +593,6 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 	}
 	// hint 只给官方上4倍率，由于开源模型供应商自行定价，不对其进行补全倍率进行强制对齐
-	if lowercaseName == "deepseek-chat" || lowercaseName == "deepseek-reasoner" {
-		return 4, true
-	}
 	if strings.HasPrefix(name, "ERNIE-Speed-") {
 		return 2, true
 	} else if strings.HasPrefix(name, "ERNIE-Lite-") {

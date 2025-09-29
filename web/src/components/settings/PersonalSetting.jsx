@@ -26,6 +26,7 @@ import {
   showInfo,
   showSuccess,
   setStatusData,
+  setUserData,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { Modal } from '@douyinfe/semi-ui';
@@ -165,6 +166,7 @@ const PersonalSetting = () => {
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
+      setUserData(data);
     } else {
       showError(message);
     }

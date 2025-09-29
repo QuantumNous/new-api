@@ -65,7 +65,7 @@ func TelegramBind(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(302, "/setting")
+	c.Redirect(302, "/console/personal")
 }
 
 func TelegramLogin(c *gin.Context) {
