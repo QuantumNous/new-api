@@ -2130,5 +2130,8 @@
   "域名IP过滤详细说明": "⚠️ This is an experimental option. A domain may resolve to multiple IPv4/IPv6 addresses. If enabled, ensure the IP filter list covers these addresses, otherwise access may fail.",
   "域名黑名单": "Domain Blacklist",
   "白名单": "Whitelist",
-  "黑名单": "Blacklist"
+  "黑名单": "Blacklist",
+  "common": {
+    "changeLanguage": "Change Language"
+  }
 }

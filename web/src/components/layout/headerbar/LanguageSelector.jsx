@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Dropdown } from '@douyinfe/semi-ui';
 import { Languages } from 'lucide-react';
-import { CN, GB } from 'country-flag-icons/react/3x2';
+import { CN, GB, FR } from 'country-flag-icons/react/3x2';
 
 const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
   return (
@@ -42,12 +42,19 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
             <GB title='English' className='!w-5 !h-auto' />
             <span>English</span>
           </Dropdown.Item>
+          <Dropdown.Item
+            onClick={() => onLanguageChange('fr')}
+            className={`!flex !items-center !gap-2 !px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'fr' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
+          >
+            <FR title='Français' className='!w-5 !h-auto' />
+            <span>Français</span>
+          </Dropdown.Item>
         </Dropdown.Menu>
       }
     >
       <Button
         icon={<Languages size={18} />}
-        aria-label={t('切换语言')}
+        aria-label={t('common.changeLanguage')}
         theme='borderless'
         type='tertiary'
         className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 !rounded-full !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'

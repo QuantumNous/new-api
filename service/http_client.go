@@ -110,6 +110,6 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		return client, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported proxy scheme: %s", parsedURL.Scheme)
+		return nil, fmt.Errorf("unsupported proxy scheme: %s, must be http, https, socks5 or socks5h", parsedURL.Scheme)
 	}
 }
