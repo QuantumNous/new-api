@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { CopyIcon, CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useCountdown } from '@/hooks/use-countdown'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -27,6 +29,11 @@ function ResetPasswordConfirm() {
   const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const {
+    secondsLeft,
+    isActive,
+    start: startCountdown,
+  } = useCountdown({ initialSeconds: 30 })
 
   const isValidResetLink = search?.email && search?.token
 
@@ -35,22 +42,25 @@ function ResetPasswordConfirm() {
       toast.error('Invalid reset link, please request a new password reset')
       return
     }
+    startCountdown()
     setLoading(true)
     try {
-      const res = await api.post('/api/user/reset', {
-        email: search.email,
-        token: search.token,
-      })
+      const res = await api.post(
+        '/api/user/reset',
+        {
+          email: search.email,
+          token: search.token,
+        },
+        { skipBusinessError: true } as any
+      )
       if (res?.data?.success) {
         const password = res.data.data
         setNewPassword(password)
         await navigator.clipboard.writeText(password)
         toast.success(`Password reset and copied to clipboard: ${password}`)
-      } else {
-        toast.error(res?.data?.message || 'Reset failed')
       }
     } catch {
-      toast.error('Reset failed')
+      // Errors handled by global interceptor
     } finally {
       setLoading(false)
     }
@@ -65,15 +75,8 @@ function ResetPasswordConfirm() {
     }
   }
 
-  useEffect(() => {
-    if (!isValidResetLink) {
-      toast.error('Invalid reset link')
-      setTimeout(() => navigate({ to: '/sign-in', replace: true }), 2000)
-    }
-  }, [isValidResetLink, navigate])
-
   return (
-    <div className='flex min-h-[calc(100vh-4rem)] items-center justify-center'>
+    <div className='flex min-h-[calc(100vh-4rem)] items-center justify-center p-4'>
       <Card className='w-full max-w-md'>
         <CardHeader>
           <CardTitle>Password Reset Confirmation</CardTitle>
@@ -85,9 +88,11 @@ function ResetPasswordConfirm() {
         </CardHeader>
         <CardContent className='space-y-4'>
           {!isValidResetLink && (
-            <div className='bg-destructive/10 text-destructive rounded-lg p-3 text-sm'>
-              Invalid reset link, please request a new password reset
-            </div>
+            <Alert variant='destructive'>
+              <AlertDescription>
+                Invalid reset link, please request a new password reset
+              </AlertDescription>
+            </Alert>
           )}
           <div className='space-y-2'>
             <Label htmlFor='email'>Email</Label>
@@ -134,9 +139,15 @@ function ResetPasswordConfirm() {
                 ? () => navigate({ to: '/sign-in', replace: true })
                 : handleSubmit
             }
-            disabled={loading || !!newPassword || !isValidResetLink}
+            disabled={
+              newPassword ? false : loading || isActive || !isValidResetLink
+            }
           >
-            {newPassword ? 'Return to Login' : 'Confirm Reset Password'}
+            {newPassword
+              ? 'Return to Login'
+              : isActive
+                ? `Retry (${secondsLeft}s)`
+                : 'Confirm Reset Password'}
           </Button>
           {!newPassword && (
             <Button

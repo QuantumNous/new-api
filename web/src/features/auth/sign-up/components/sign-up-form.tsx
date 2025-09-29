@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -41,12 +42,14 @@ export function SignUpForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
-  // removed unused pair; countdown/disableButton covers UX needs
   const [status, setStatus] = useState<any>(null)
   const [code, setCode] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
-  const [disableButton, setDisableButton] = useState(false)
-  const [countdown, setCountdown] = useState(30)
+  const {
+    secondsLeft,
+    isActive,
+    start: startCountdown,
+  } = useCountdown({ initialSeconds: 30 })
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,7 +61,6 @@ export function SignUpForm({
     },
   })
 
-  // Watch email to update the disabled state reactively when typing
   const emailValue = form.watch('email')
 
   if (!status) {
@@ -67,21 +69,9 @@ export function SignUpForm({
       .catch(() => {})
   }
 
-  useEffect(() => {
-    let timer: any
-    if (disableButton && countdown > 0) {
-      timer = setTimeout(() => setCountdown((v) => v - 1), 1000)
-    } else if (disableButton && countdown === 0) {
-      setDisableButton(false)
-      setCountdown(30)
-    }
-    return () => clearTimeout(timer)
-  }, [disableButton, countdown])
-
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      // Align with old frontend: when email verification is enabled, email & code are required
       if (status?.email_verification) {
         if (!data.email) {
           toast.error('Please enter your email')
@@ -194,7 +184,7 @@ export function SignUpForm({
               <Button
                 variant='outline'
                 type='button'
-                disabled={isLoading || disableButton || !emailValue}
+                disabled={isLoading || isActive || !emailValue}
                 onClick={async () => {
                   try {
                     if (status?.turnstile_check && !turnstileToken) {
@@ -208,7 +198,7 @@ export function SignUpForm({
                       turnstileToken
                     )
                     if (r?.success) {
-                      setDisableButton(true)
+                      startCountdown()
                       toast.success('Verification email sent')
                     }
                   } catch {
@@ -216,7 +206,7 @@ export function SignUpForm({
                   }
                 }}
               >
-                {disableButton ? `Resend (${countdown}s)` : 'Send code'}
+                {isActive ? `Resend (${secondsLeft}s)` : 'Send code'}
               </Button>
             </div>
             {status?.turnstile_check && status?.turnstile_site_key && (

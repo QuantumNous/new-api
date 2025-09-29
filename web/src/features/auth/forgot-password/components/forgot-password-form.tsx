@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -29,10 +29,14 @@ export function ForgotPasswordForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
-  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [status, setStatus] = useState<any>(null)
   const [turnstileToken, setTurnstileToken] = useState('')
+  const {
+    secondsLeft,
+    isActive,
+    start: startCountdown,
+  } = useCountdown({ initialSeconds: 30 })
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,10 +52,16 @@ export function ForgotPasswordForm({
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      await sendPasswordResetEmail(data.email, turnstileToken)
-      form.reset()
-      toast.success(`Email sent to ${data.email}`)
-      navigate({ to: '/otp' })
+      if (status?.turnstile_check && !turnstileToken) {
+        toast.info('Please wait a moment, human check is initializing...')
+        return
+      }
+      const r = await sendPasswordResetEmail(data.email, turnstileToken)
+      if (r?.success) {
+        form.reset()
+        startCountdown()
+        toast.success('Reset email sent, please check your inbox')
+      }
     } catch (e) {
       // handled by global interceptor
     } finally {
@@ -79,8 +89,8 @@ export function ForgotPasswordForm({
             </FormItem>
           )}
         />
-        <Button className='mt-2' disabled={isLoading}>
-          Continue
+        <Button className='mt-2' disabled={isLoading || isActive}>
+          {isActive ? `Resend (${secondsLeft}s)` : 'Send reset email'}
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
         {status?.turnstile_check && status?.turnstile_site_key && (
