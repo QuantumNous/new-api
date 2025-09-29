@@ -142,7 +142,7 @@ export function UserAuthForm({
             <FormItem className='relative'>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='********' {...field} />
+                <PasswordInput placeholder='Enter password' {...field} />
               </FormControl>
               <FormMessage />
               <Link
