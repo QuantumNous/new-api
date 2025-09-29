@@ -125,6 +125,8 @@ func InitDB() (err error) {
 		}
 		if common.UsingMySQL {
 			_, _ = sqlDB.Exec("ALTER TABLE channels MODIFY model_mapping TEXT;") // TODO: delete this line when most users have upgraded
+			// 修复usage字段长度限制问题，从TEXT改为LONGTEXT
+			_, _ = sqlDB.Exec("ALTER TABLE logs MODIFY usage LONGTEXT;")
 		}
 		common.SysLog("database migration started")
 		err = migrateDB()

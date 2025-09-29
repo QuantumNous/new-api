@@ -38,7 +38,7 @@ type Log struct {
 	ChannelName      string `json:"channel_name" gorm:"->"`
 	TokenId          int    `json:"token_id" gorm:"default:0;index"`
 	Group            string `json:"group" gorm:"index"`
-	Usage            string `json:"usage" gorm:"type:text;"`
+	Usage            string `json:"usage" gorm:"type:longtext;"`
 	Other            string `json:"other"`
 }
 
