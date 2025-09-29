@@ -12,6 +12,6 @@ jobs:
       - uses: TG908/fork-sync@v1.6.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          owner: ZhaoUncle # fork 的上游仓库 user
+          owner: QuantumNous # fork 的上游仓库 user
           head: main # fork 的上游仓库 branch
           base: main # 本地仓库 branch
