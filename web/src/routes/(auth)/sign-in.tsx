@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { getSelf } from '@/features/auth/api'
 import { SignIn } from '@/features/auth/sign-in'
 
 const searchSchema = z.object({
@@ -9,4 +11,19 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/(auth)/sign-in')({
   component: SignIn,
   validateSearch: searchSchema,
+  beforeLoad: async ({ search }) => {
+    const { auth } = useAuthStore.getState()
+    // If already authed in store, redirect away from sign-in
+    if (auth.user || auth.accessToken) {
+      throw redirect({ to: search?.redirect || '/' })
+    }
+    // Try to hydrate from server session silently
+    try {
+      const self = await getSelf()
+      if (self?.success) {
+        auth.setUser(self.data as any)
+        throw redirect({ to: search?.redirect || '/' })
+      }
+    } catch {}
+  },
 })
