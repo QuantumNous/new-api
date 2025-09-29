@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { showSubmittedData } from '@/lib/show-submitted-data'
+import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,19 +14,19 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
   InputOTPSeparator,
 } from '@/components/ui/input-otp'
+import { login2fa, getSelf } from '@/features/auth/api'
 
 const formSchema = z.object({
-  otp: z
-    .string()
-    .min(6, 'Please enter the 6-digit code.')
-    .max(6, 'Please enter the 6-digit code.'),
+  otp: z.string().min(1, 'Please enter a code.'),
 })
 
 type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
@@ -33,6 +34,7 @@ type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
 export function OtpForm({ className, ...props }: OtpFormProps) {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
+  const [useBackupCode, setUseBackupCode] = useState(false)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -41,21 +43,60 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
 
   const otp = form.watch('otp')
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsLoading(true)
-    showSubmittedData(data)
+  async function onSubmit(data: z.infer<typeof formSchema>) {
+    // Validate based on mode
+    if (useBackupCode) {
+      if (data.otp.length !== 8) {
+        toast.error('Backup code must be 8 characters')
+        return
+      }
+    } else {
+      if (!/^\d{6}$/.test(data.otp)) {
+        toast.error('Verification code must be 6 digits')
+        return
+      }
+    }
 
-    setTimeout(() => {
+    setIsLoading(true)
+    try {
+      const res = await login2fa({ code: data.otp })
+      if (!res.success) {
+        toast.error(res.message || 'Invalid code')
+        return
+      }
+      // fetch user info
+      const self = await getSelf()
+      if (self?.success) {
+        useAuthStore.getState().auth.setUser(self.data as any)
+        try {
+          if (typeof window !== 'undefined' && (self as any).data?.id) {
+            window.localStorage.setItem('uid', String((self as any).data.id))
+          }
+        } catch {}
+      }
+      navigate({ to: '/', replace: true })
+      toast.success('Signed in')
+    } catch (e) {
+      toast.error('Verification failed')
+    } finally {
       setIsLoading(false)
-      navigate({ to: '/' })
-    }, 1000)
+    }
+  }
+
+  function handleToggleMode() {
+    setUseBackupCode(!useBackupCode)
+    form.setValue('otp', '')
+  }
+
+  function handleBackToLogin() {
+    navigate({ to: '/sign-in', replace: true })
   }
 
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-2', className)}
+        className={cn('grid gap-4', className)}
         {...props}
       >
         <FormField
@@ -63,36 +104,77 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           name='otp'
           render={({ field }) => (
             <FormItem>
-              <FormLabel className='sr-only'>One-Time Password</FormLabel>
+              <FormLabel>
+                {useBackupCode ? 'Backup Code' : 'Verification Code'}
+              </FormLabel>
               <FormControl>
-                <InputOTP
-                  maxLength={6}
-                  {...field}
-                  containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                  </InputOTPGroup>
-                  <InputOTPSeparator />
-                  <InputOTPGroup>
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                  </InputOTPGroup>
-                  <InputOTPSeparator />
-                  <InputOTPGroup>
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
+                {useBackupCode ? (
+                  <Input
+                    placeholder='Enter 8-character backup code'
+                    {...field}
+                    maxLength={8}
+                    autoComplete='off'
+                  />
+                ) : (
+                  <InputOTP
+                    maxLength={6}
+                    {...field}
+                    containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                    </InputOTPGroup>
+                    <InputOTPSeparator />
+                    <InputOTPGroup>
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                    </InputOTPGroup>
+                    <InputOTPSeparator />
+                    <InputOTPGroup>
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                )}
               </FormControl>
+              <FormDescription className='text-muted-foreground text-xs'>
+                {useBackupCode
+                  ? 'Each backup code can only be used once.'
+                  : 'Verification code updates every 30 seconds.'}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button className='mt-2' disabled={otp.length < 6 || isLoading}>
-          Verify
+        <Button
+          className='w-full'
+          disabled={
+            (useBackupCode ? otp.length < 8 : otp.length < 6) || isLoading
+          }
+        >
+          Verify and Sign In
         </Button>
+        <div className='flex items-center justify-center gap-4 text-sm'>
+          <Button
+            type='button'
+            variant='link'
+            size='sm'
+            className='text-primary'
+            onClick={handleToggleMode}
+          >
+            {useBackupCode ? 'Use authenticator code' : 'Use backup code'}
+          </Button>
+          <Button
+            type='button'
+            variant='link'
+            size='sm'
+            className='text-primary'
+            onClick={handleBackToLogin}
+          >
+            Back to login
+          </Button>
+        </div>
       </form>
     </Form>
   )
