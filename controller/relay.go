@@ -423,6 +423,9 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 }
 
 func shouldRetry(c *gin.Context, openaiErr *dto.OpenAIErrorWithStatusCode, retryTimes int) bool {
+	if openaiErr.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
 	if openaiErr == nil {
 		return false
 	}
