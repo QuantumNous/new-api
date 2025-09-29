@@ -10,6 +10,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { handleServerError } from '@/lib/handle-server-error'
+import { getStatus } from '@/features/auth/api'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
@@ -86,6 +87,38 @@ declare module '@tanstack/react-router' {
 
 // Render the app
 const rootElement = document.getElementById('root')!
+// Set document.title from cached status, then refresh from network
+;(function initSystemTitle() {
+  try {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    const apply = (name: string) => {
+      document.title = name
+      const metaTitle = document.querySelector(
+        'meta[name="title"]'
+      ) as HTMLMetaElement | null
+      if (metaTitle) metaTitle.setAttribute('content', name)
+    }
+    // Cache-first
+    try {
+      const saved = localStorage.getItem('status')
+      if (saved) {
+        const s = JSON.parse(saved)
+        if (s?.system_name) apply(s.system_name)
+      }
+    } catch {}
+    // Background refresh
+    getStatus()
+      .then((s) => {
+        if (s?.system_name) {
+          apply(s.system_name)
+          try {
+            localStorage.setItem('status', JSON.stringify(s))
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  } catch {}
+})()
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
