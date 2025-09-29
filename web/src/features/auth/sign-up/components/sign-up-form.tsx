@@ -219,25 +219,6 @@ export function SignUpForm({
             )}
           </>
         )}
-        {!status?.email_verification && (
-          <FormField
-            control={form.control}
-            name='email'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email (optional)</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder='name@example.com'
-                    type='email'
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
         <Button className='mt-2' disabled={isLoading}>
           Create account
         </Button>

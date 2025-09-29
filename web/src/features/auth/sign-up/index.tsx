@@ -33,7 +33,7 @@ export function SignUp() {
           <SignUpForm />
         </CardContent>
         <CardFooter>
-          <p className='text-muted-foreground px-8 text-center text-sm'>
+          <p className='text-muted-foreground px-8 text-center text-xs'>
             By creating an account, you agree to our{' '}
             <a
               href='/terms'

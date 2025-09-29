@@ -45,7 +45,10 @@ export async function logout() {
 }
 
 export async function getSelf() {
-  const res = await api.get<UserSelfResponse>('/api/user/self')
+  const res = await api.get<UserSelfResponse>('/api/user/self', {
+    // Avoid global 401 toast during guards/preloads
+    skipErrorHandler: true as any,
+  } as any)
   return res.data
 }
 
