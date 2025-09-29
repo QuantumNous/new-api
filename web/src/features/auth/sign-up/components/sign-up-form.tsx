@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
@@ -42,6 +43,7 @@ export function SignUpForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
+  const [isSendingCode, setIsSendingCode] = useState(false)
   const [status, setStatus] = useState<any>(null)
   const [code, setCode] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -184,9 +186,10 @@ export function SignUpForm({
               <Button
                 variant='outline'
                 type='button'
-                disabled={isLoading || isActive || !emailValue}
+                disabled={isLoading || isSendingCode || isActive || !emailValue}
                 onClick={async () => {
                   try {
+                    setIsSendingCode(true)
                     if (status?.turnstile_check && !turnstileToken) {
                       toast.info(
                         'Please wait a moment, human check is initializing...'
@@ -203,10 +206,18 @@ export function SignUpForm({
                     }
                   } catch {
                     // Errors are handled by global interceptor
+                  } finally {
+                    setIsSendingCode(false)
                   }
                 }}
               >
-                {isActive ? `Resend (${secondsLeft}s)` : 'Send code'}
+                {isActive ? (
+                  `Resend (${secondsLeft}s)`
+                ) : isSendingCode ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  'Send code'
+                )}
               </Button>
             </div>
             {status?.turnstile_check && status?.turnstile_site_key && (
@@ -220,6 +231,7 @@ export function SignUpForm({
           </>
         )}
         <Button className='mt-2' disabled={isLoading}>
+          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Create account
         </Button>
       </form>

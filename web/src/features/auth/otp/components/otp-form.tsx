@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
@@ -153,6 +154,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
             (useBackupCode ? otp.length < 8 : otp.length < 6) || isLoading
           }
         >
+          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Verify and Sign In
         </Button>
         <div className='flex items-center justify-center gap-4 text-sm'>
