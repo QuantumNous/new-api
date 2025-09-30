@@ -189,13 +189,8 @@ func PasskeyStatus(c *gin.Context) {
 	}
 
 	data := gin.H{
-		"enabled":         true,
-		"last_used_at":    credential.LastUsedAt,
-		"backup_eligible": credential.BackupEligible,
-		"backup_state":    credential.BackupState,
-	}
-	if credential != nil {
-		data["credential_aaguid"] = fmt.Sprintf("%x", credential.AAGUID)
+		"enabled":      true,
+		"last_used_at": credential.LastUsedAt,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -278,14 +273,14 @@ func PasskeyLoginFinish(c *gin.Context) {
 			return nil, errors.New("该用户已被禁用")
 		}
 
-		// 验证用户句柄（如果提供的话）
 		if len(userHandle) > 0 {
-			if userID, parseErr := strconv.Atoi(string(userHandle)); parseErr == nil {
-				if userID != user.Id {
-					return nil, errors.New("用户句柄与凭证不匹配")
-				}
+			userID, parseErr := strconv.Atoi(string(userHandle))
+			if parseErr != nil {
+				// 记录异常但继续验证，因为某些客户端可能使用非数字格式
+				common.SysLog(fmt.Sprintf("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
+			} else if userID != user.Id {
+				return nil, errors.New("用户句柄与凭证不匹配")
 			}
-			// 如果解析失败，不做严格验证，因为某些情况下userHandle可能为空或格式不同
 		}
 
 		return passkeysvc.NewWebAuthnUser(user, credential), nil

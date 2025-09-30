@@ -159,7 +159,7 @@ const searchUsers = async (
       return;
     }
     try {
-      const res = await API.delete(`/api/user/${user.id}/passkey`);
+      const res = await API.delete(`/api/user/${user.id}/reset_passkey`);
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('Passkey 已重置'));

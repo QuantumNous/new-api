@@ -26,7 +26,9 @@ import {
   Progress,
   Popover,
   Typography,
+  Dropdown,
 } from '@douyinfe/semi-ui';
+import { IconMore } from '@douyinfe/semi-icons';
 import { renderGroup, renderNumber, renderQuota } from '../../../helpers';
 
 /**
@@ -213,6 +215,28 @@ const renderOperations = (
     return <></>;
   }
 
+  const moreMenu = [
+    {
+      node: 'item',
+      name: t('重置 Passkey'),
+      onClick: () => showResetPasskeyModal(record),
+    },
+    {
+      node: 'item',
+      name: t('重置 2FA'),
+      onClick: () => showResetTwoFAModal(record),
+    },
+    {
+      node: 'divider',
+    },
+    {
+      node: 'item',
+      name: t('注销'),
+      type: 'danger',
+      onClick: () => showDeleteModal(record),
+    },
+  ];
+
   return (
     <Space>
       {record.status === 1 ? (
@@ -255,27 +279,17 @@ const renderOperations = (
       >
         {t('降级')}
       </Button>
-      <Button
-        type='warning'
-        size='small'
-        onClick={() => showResetPasskeyModal(record)}
+      <Dropdown
+        menu={moreMenu}
+        trigger='click'
+        position='bottomRight'
       >
-        {t('重置 Passkey')}
-      </Button>
-      <Button
-        type='warning'
-        size='small'
-        onClick={() => showResetTwoFAModal(record)}
-      >
-        {t('重置 2FA')}
-      </Button>
-      <Button
-        type='danger'
-        size='small'
-        onClick={() => showDeleteModal(record)}
-      >
-        {t('注销')}
-      </Button>
+        <Button
+          type='tertiary'
+          size='small'
+          icon={<IconMore />}
+        />
+      </Dropdown>
     </Space>
   );
 };

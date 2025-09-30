@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,10 +22,10 @@ var (
 type PasskeyCredential struct {
 	ID              int            `json:"id" gorm:"primaryKey"`
 	UserID          int            `json:"user_id" gorm:"uniqueIndex;not null"`
-	CredentialID    []byte         `json:"credential_id" gorm:"type:blob;uniqueIndex;not null"`
-	PublicKey       []byte         `json:"public_key" gorm:"type:blob;not null"`
+	CredentialID    string         `json:"credential_id" gorm:"type:varchar(512);uniqueIndex;not null"` // base64 encoded
+	PublicKey       string         `json:"public_key" gorm:"type:text;not null"`                        // base64 encoded
 	AttestationType string         `json:"attestation_type" gorm:"type:varchar(255)"`
-	AAGUID          []byte         `json:"aaguid" gorm:"type:blob"`
+	AAGUID          string         `json:"aaguid" gorm:"type:varchar(512)"` // base64 encoded
 	SignCount       uint32         `json:"sign_count" gorm:"default:0"`
 	CloneWarning    bool           `json:"clone_warning"`
 	UserPresent     bool           `json:"user_present"`
@@ -78,14 +79,18 @@ func (p *PasskeyCredential) ToWebAuthnCredential() webauthn.Credential {
 		BackupState:    p.BackupState,
 	}
 
+	credID, _ := base64.StdEncoding.DecodeString(p.CredentialID)
+	pubKey, _ := base64.StdEncoding.DecodeString(p.PublicKey)
+	aaguid, _ := base64.StdEncoding.DecodeString(p.AAGUID)
+
 	return webauthn.Credential{
-		ID:              p.CredentialID,
-		PublicKey:       p.PublicKey,
+		ID:              credID,
+		PublicKey:       pubKey,
 		AttestationType: p.AttestationType,
 		Transport:       p.TransportList(),
 		Flags:           flags,
 		Authenticator: webauthn.Authenticator{
-			AAGUID:       p.AAGUID,
+			AAGUID:       aaguid,
 			SignCount:    p.SignCount,
 			CloneWarning: p.CloneWarning,
 			Attachment:   protocol.AuthenticatorAttachment(p.Attachment),
@@ -99,10 +104,10 @@ func NewPasskeyCredentialFromWebAuthn(userID int, credential *webauthn.Credentia
 	}
 	passkey := &PasskeyCredential{
 		UserID:          userID,
-		CredentialID:    credential.ID,
-		PublicKey:       credential.PublicKey,
+		CredentialID:    base64.StdEncoding.EncodeToString(credential.ID),
+		PublicKey:       base64.StdEncoding.EncodeToString(credential.PublicKey),
 		AttestationType: credential.AttestationType,
-		AAGUID:          credential.Authenticator.AAGUID,
+		AAGUID:          base64.StdEncoding.EncodeToString(credential.Authenticator.AAGUID),
 		SignCount:       credential.Authenticator.SignCount,
 		CloneWarning:    credential.Authenticator.CloneWarning,
 		UserPresent:     credential.Flags.UserPresent,
@@ -119,10 +124,10 @@ func (p *PasskeyCredential) ApplyValidatedCredential(credential *webauthn.Creden
 	if credential == nil || p == nil {
 		return
 	}
-	p.CredentialID = credential.ID
-	p.PublicKey = credential.PublicKey
+	p.CredentialID = base64.StdEncoding.EncodeToString(credential.ID)
+	p.PublicKey = base64.StdEncoding.EncodeToString(credential.PublicKey)
 	p.AttestationType = credential.AttestationType
-	p.AAGUID = credential.Authenticator.AAGUID
+	p.AAGUID = base64.StdEncoding.EncodeToString(credential.Authenticator.AAGUID)
 	p.SignCount = credential.Authenticator.SignCount
 	p.CloneWarning = credential.Authenticator.CloneWarning
 	p.UserPresent = credential.Flags.UserPresent
@@ -157,8 +162,9 @@ func GetPasskeyByCredentialID(credentialID []byte) (*PasskeyCredential, error) {
 		return nil, ErrFriendlyPasskeyNotFound
 	}
 
+	credIDStr := base64.StdEncoding.EncodeToString(credentialID)
 	var credential PasskeyCredential
-	if err := DB.Where("credential_id = ?", credentialID).First(&credential).Error; err != nil {
+	if err := DB.Where("credential_id = ?", credIDStr).First(&credential).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			common.SysLog(fmt.Sprintf("GetPasskeyByCredentialID: passkey not found for credential ID length %d", len(credentialID)))
 			return nil, ErrFriendlyPasskeyNotFound
