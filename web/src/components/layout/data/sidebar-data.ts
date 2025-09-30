@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Lock,
   Bell,
-  Package,
   Palette,
   ServerOff,
   Settings,
@@ -16,13 +15,11 @@ import {
   UserCog,
   UserX,
   Users,
-  MessagesSquare,
   ShieldCheck,
   AudioWaveform,
   Command,
   GalleryVerticalEnd,
 } from 'lucide-react'
-// Removed Clerk section
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
