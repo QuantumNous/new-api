@@ -1404,6 +1404,7 @@
   "Claude思考适配 BudgetTokens = MaxTokens * BudgetTokens 百分比": "Adaptation de la pensée Claude BudgetTokens = MaxTokens * BudgetTokens pourcentage",
   "思考适配 BudgetTokens 百分比": "Adaptation de la pensée BudgetTokens pourcentage",
   "0.1-1之间的小数": "Décimal entre 0,1 et 1",
+  "0.1以上的小数": "Décimal supérieur à 0,1",
   "模型相关设置": "Paramètres liés au modèle",
   "收起侧边栏": "Réduire la barre latérale",
   "展开侧边栏": "Développer la barre latérale",

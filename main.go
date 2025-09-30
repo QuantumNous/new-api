@@ -185,8 +185,9 @@ func InitResources() error {
 	// This is a placeholder function for future resource initialization
 	err := godotenv.Load(".env")
 	if err != nil {
-		common.SysLog("未找到 .env 文件，使用默认环境变量，如果需要，请创建 .env 文件并设置相关变量")
-		common.SysLog("No .env file found, using default environment variables. If needed, please create a .env file and set the relevant variables.")
+		if common.DebugEnabled {
+			common.SysLog("No .env file found, using default environment variables. If needed, please create a .env file and set the relevant variables.")
+		}
 	}
 
 	// 加载环境变量

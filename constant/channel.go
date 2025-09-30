@@ -50,7 +50,9 @@ const (
 	ChannelTypeKling          = 50
 	ChannelTypeJimeng         = 51
 	ChannelTypeVidu           = 52
+	ChannelTypeSubmodel       = 53
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+
 
 )
 
@@ -108,4 +110,5 @@ var ChannelBaseURLs = []string{
 	"https://api.klingai.com",                   //50
 	"https://visual.volcengineapi.com",          //51
 	"https://api.vidu.cn",                       //52
+	"https://llm.submodel.ai",                   //53
 }

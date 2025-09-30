@@ -40,7 +40,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
-  const isLoading = useMinimumLoadingTime(loading);
+  const isLoading = useMinimumLoadingTime(loading, 200);
 
   const systemName = getSystemName();
   const logo = getLogo();

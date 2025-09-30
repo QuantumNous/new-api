@@ -141,6 +141,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-3-7-sonnet-20250219":                1.5,
 	"claude-3-7-sonnet-20250219-thinking":       1.5,
 	"claude-sonnet-4-20250514":                  1.5,
+	"claude-sonnet-4-5-20250929":                1.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
@@ -251,6 +252,17 @@ var defaultModelRatio = map[string]float64{
 	"grok-vision-beta":      2.5,
 	"grok-3-fast-beta":      2.5,
 	"grok-3-mini-fast-beta": 0.3,
+    // submodel
+	"NousResearch/Hermes-4-405B-FP8":               0.8,
+	"Qwen/Qwen3-235B-A22B-Thinking-2507":           0.6,
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8":      0.8,
+	"Qwen/Qwen3-235B-A22B-Instruct-2507":           0.3,
+	"zai-org/GLM-4.5-FP8":                          0.8,
+	"openai/gpt-oss-120b":                          0.5,
+	"deepseek-ai/DeepSeek-R1-0528":                 0.8,
+	"deepseek-ai/DeepSeek-R1":                      0.8,
+	"deepseek-ai/DeepSeek-V3-0324":                 0.8,
+	"deepseek-ai/DeepSeek-V3.1":                    0.8,
 }
 
 var defaultModelPrice = map[string]float64{
