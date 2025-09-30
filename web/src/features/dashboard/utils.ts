@@ -1,3 +1,5 @@
+import type { TimeGranularity } from '@/lib/time'
+
 /**
  * 清理过滤器对象，移除空值
  */
@@ -32,14 +34,30 @@ export function cleanFilters<T extends Record<string, any>>(
 export function buildQueryParams(
   timeRange: { start_timestamp: number; end_timestamp: number },
   filters?: {
-    model_name?: string
-    token_name?: string
+    time_granularity?: TimeGranularity
+    username?: string
     [key: string]: any
   }
-) {
-  return {
-    ...timeRange,
-    ...(filters?.model_name && { model_name: filters.model_name }),
-    ...(filters?.token_name && { token_name: filters.token_name }),
+): {
+  start_timestamp: number
+  end_timestamp: number
+  default_time?: string
+  username?: string
+} {
+  const params: {
+    start_timestamp: number
+    end_timestamp: number
+    default_time?: string
+    username?: string
+  } = { ...timeRange }
+
+  if (filters?.time_granularity) {
+    params.default_time = filters.time_granularity
   }
+
+  if (filters?.username) {
+    params.username = filters.username
+  }
+
+  return params
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Wallet, TrendingUp, Activity } from 'lucide-react'
 import { formatCurrencyUSD, formatNumber } from '@/lib/format'
 import { getSelf, getStatus } from '@/features/auth/api'
+import { createSummaryCardsConfig } from '@/features/dashboard/constants'
 import { StatCard } from './ui/stat-card'
 
 export function SummaryCards() {
@@ -40,30 +40,14 @@ export function SummaryCards() {
     }
   }, [self, status])
 
-  const items = [
-    {
-      title: totals.currency ? 'Current Balance (USD)' : 'Current Balance',
-      value: totals.currency
-        ? formatCurrencyUSD(totals.remain)
-        : formatNumber(totals.remain),
-      desc: totals.currency ? 'Remaining quota (USD)' : 'Remaining quota units',
-      icon: Wallet,
-    },
-    {
-      title: totals.currency ? 'Historical Usage (USD)' : 'Historical Usage',
-      value: totals.currency
-        ? formatCurrencyUSD(totals.used)
-        : formatNumber(totals.used),
-      desc: totals.currency ? 'Total consumed (USD)' : 'Total consumed quota',
-      icon: TrendingUp,
-    },
-    {
-      title: 'Request Count',
-      value: formatNumber(totals.requestCount),
-      desc: 'Total requests made',
-      icon: Activity,
-    },
-  ]
+  const items = createSummaryCardsConfig(totals).map((config) => ({
+    title: config.title,
+    value: config.formatAsCurrency
+      ? formatCurrencyUSD(config.value)
+      : formatNumber(config.value),
+    desc: config.description,
+    icon: config.icon,
+  }))
 
   return (
     <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>

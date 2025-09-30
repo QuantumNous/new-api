@@ -1,15 +1,19 @@
+import { Route } from 'lucide-react'
 import { getColorClass } from '@/lib/colors'
-import { useStatus } from '@/hooks/use-status'
+import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
 import { InfoPanel } from './ui/info-panel'
 
 export function ApiInfoPanel() {
-  const { status } = useStatus()
-  const enabled = status?.api_info_enabled
-  const list = enabled ? status?.api_info || [] : []
+  const { items: list } = useApiInfo()
 
   return (
     <InfoPanel
-      title='API Info'
+      title={
+        <span className='flex items-center gap-2'>
+          <Route className='h-5 w-5' />
+          API Info
+        </span>
+      }
       items={list}
       emptyMessage='No API routes configured.'
       renderItem={(it: any, idx: number) => (

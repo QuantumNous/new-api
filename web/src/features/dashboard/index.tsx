@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -10,26 +10,31 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { AnnouncementsPanel } from './components/announcements-panel'
 import { ApiInfoPanel } from './components/api-info-panel'
 import { FAQPanel } from './components/faq-panel'
-import { LogStatCards, type LogStatFilters } from './components/log-stat-cards'
-import {
-  ModelsFilter,
-  type ModelFilterValues,
-} from './components/models-filter'
+import { LogStatCards } from './components/log-stat-cards'
+import { ModelCharts } from './components/model-charts'
+import { ModelsFilter } from './components/models-filter'
 import { SummaryCards } from './components/summary-cards'
 import { UptimePanel } from './components/uptime-panel'
-import { UsageChart, type UsageChartFilters } from './components/usage-chart'
+import { type DashboardFilters } from './types'
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview')
-  const [modelFilters, setModelFilters] = useState<LogStatFilters>({})
+  const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
+  const [modelData, setModelData] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(false)
 
-  const handleFilterChange = (filters: ModelFilterValues) => {
-    setModelFilters(filters as LogStatFilters)
-  }
+  const handleFilterChange = useCallback((filters: DashboardFilters) => {
+    setModelFilters(filters)
+  }, [])
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     setModelFilters({})
-  }
+  }, [])
+
+  const handleDataUpdate = useCallback((data: any[], loading: boolean) => {
+    setModelData(data)
+    setDataLoading(loading)
+  }, [])
 
   return (
     <>
@@ -76,13 +81,20 @@ export function Dashboard() {
               <ApiInfoPanel />
               <AnnouncementsPanel />
               <FAQPanel />
+              <UptimePanel />
             </div>
           </TabsContent>
           <TabsContent value='models' className='space-y-4'>
-            <LogStatCards filters={modelFilters} />
-            <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
-              <UsageChart filters={modelFilters as UsageChartFilters} />
-              <UptimePanel />
+            <LogStatCards
+              filters={modelFilters}
+              onDataUpdate={handleDataUpdate}
+            />
+            <div className='grid grid-cols-1 gap-4'>
+              <ModelCharts
+                data={modelData}
+                loading={dataLoading}
+                timeGranularity={modelFilters.time_granularity || 'day'}
+              />
             </div>
           </TabsContent>
         </Tabs>

@@ -1,19 +1,5 @@
 import { api } from '@/lib/api'
 
-export interface OpenAISubscriptionResponse {
-  object: string
-  has_payment_method: boolean
-  soft_limit_usd: number
-  hard_limit_usd: number
-  system_hard_limit_usd: number
-  access_until: number
-}
-
-export interface OpenAIUsageResponse {
-  object: string
-  total_usage: number
-}
-
 export interface QuotaDataItem {
   id?: number
   user_id?: number
@@ -37,48 +23,36 @@ export interface UptimeGroupResult {
   monitors: UptimeMonitor[]
 }
 
-export async function getLogsSelfStat(params: {
-  start_timestamp: number
-  end_timestamp: number
-  type?: number
-  token_name?: string
-  model_name?: string
-  channel?: number
-  group?: string
-}) {
-  const res = await api.get<{
-    success: boolean
-    data: { quota: number; rpm: number; tpm: number; count?: number }
-  }>('/api/log/self/stat', { params })
-  return res.data
-}
-
-export async function getSubscription() {
-  const res = await api.get<OpenAISubscriptionResponse>(
-    '/dashboard/billing/subscription',
-    { skipBusinessError: true as any } as any
-  )
-  return res.data
-}
-
-export async function getUsage() {
-  const res = await api.get<OpenAIUsageResponse>('/dashboard/billing/usage', {
-    skipBusinessError: true as any,
-  } as any)
-  return res.data
-}
-
+/**
+ * 获取用户额度数据
+ * 管理员可以通过 username 参数查看其他用户数据
+ */
 export async function getUserQuotaDates(params: {
   start_timestamp: number
   end_timestamp: number
-  model_name?: string
-  token_name?: string
+  default_time?: string
+  username?: string
 }) {
+  const endpoint = params.username ? '/api/data' : '/api/data/self'
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
-    '/api/data/self',
+    endpoint,
     { params }
   )
   return res.data
+}
+
+/**
+ * 计算统计数据（从原始数据中聚合）
+ */
+export function calculateDashboardStats(data: QuotaDataItem[]) {
+  return data.reduce(
+    (acc, item) => ({
+      totalQuota: acc.totalQuota + (Number(item.quota) || 0),
+      totalCount: acc.totalCount + (Number(item.count) || 0),
+      totalTokens: acc.totalTokens + (Number(item.token_used) || 0),
+    }),
+    { totalQuota: 0, totalCount: 0, totalTokens: 0 }
+  )
 }
 
 export async function getUptimeStatus() {

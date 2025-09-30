@@ -1,14 +1,18 @@
-import { useStatus } from '@/hooks/use-status'
+import { HelpCircle } from 'lucide-react'
+import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
 import { InfoPanel } from './ui/info-panel'
 
 export function FAQPanel() {
-  const { status } = useStatus()
-  const enabled = status?.faq_enabled
-  const list = enabled ? status?.faq || [] : []
+  const { items: list } = useFAQ()
 
   return (
     <InfoPanel
-      title='FAQ'
+      title={
+        <span className='flex items-center gap-2'>
+          <HelpCircle className='h-5 w-5' />
+          FAQ
+        </span>
+      }
       items={list}
       emptyMessage='No FAQ entries.'
       renderItem={(it: any, idx: number) => (

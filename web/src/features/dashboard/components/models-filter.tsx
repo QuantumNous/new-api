@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
-import { getNormalizedDateRange } from '@/lib/time'
+import { getNormalizedDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,39 +14,53 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { DatePicker } from '@/components/date-picker'
+import { getSelf } from '@/features/auth/api'
+import {
+  type DashboardFilters,
+  TIME_GRANULARITY_OPTIONS,
+  TIME_RANGE_PRESETS,
+  EMPTY_DASHBOARD_FILTERS,
+} from '@/features/dashboard/types'
 import { cleanFilters } from '@/features/dashboard/utils'
 
-export interface ModelFilterValues {
-  start_timestamp?: Date
-  end_timestamp?: Date
-  model_name?: string
-  token_name?: string
-}
-
 interface ModelsFilterProps {
-  onFilterChange: (filters: ModelFilterValues) => void
+  onFilterChange: (filters: DashboardFilters) => void
   onReset: () => void
 }
 
-const EMPTY_FILTERS: ModelFilterValues = {
-  start_timestamp: undefined,
-  end_timestamp: undefined,
-  model_name: '',
-  token_name: '',
-}
-
-const TIME_RANGES = [
-  { label: '1D', days: 1 },
-  { label: '7D', days: 7 },
-  { label: '14D', days: 14 },
-  { label: '29D', days: 29 },
-] as const
-
 export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
+  const [self, setSelf] = useState<any>(null)
+
+  // Load user data to check if admin
+  useEffect(() => {
+    getSelf()
+      .then((res) => {
+        setSelf(res?.data || null)
+      })
+      .catch(() => {})
+  }, [])
+
+  const isAdmin = self?.role && self.role >= 10
+
   const [open, setOpen] = useState(false)
-  const [filters, setFilters] = useState<ModelFilterValues>(EMPTY_FILTERS)
-  const [selectedRange, setSelectedRange] = useState<number | null>(null)
+  const [filters, setFilters] = useState<DashboardFilters>(() => {
+    // 默认使用最近 14 天
+    const { start, end } = getNormalizedDateRange(14)
+    return {
+      ...EMPTY_DASHBOARD_FILTERS,
+      start_timestamp: start,
+      end_timestamp: end,
+    }
+  })
+  const [selectedRange, setSelectedRange] = useState<number | null>(14)
 
   const handleApply = () => {
     onFilterChange(cleanFilters(filters))
@@ -54,14 +68,19 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
   }
 
   const handleReset = () => {
-    setFilters(EMPTY_FILTERS)
-    setSelectedRange(null)
+    const { start, end } = getNormalizedDateRange(14)
+    setFilters({
+      ...EMPTY_DASHBOARD_FILTERS,
+      start_timestamp: start,
+      end_timestamp: end,
+    })
+    setSelectedRange(14)
     onReset()
     setOpen(false)
   }
 
   const handleChange = (
-    field: keyof ModelFilterValues,
+    field: keyof DashboardFilters,
     value: Date | string | undefined
   ) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
@@ -89,9 +108,9 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
       </DialogTrigger>
       <DialogContent className='sm:max-w-[425px]'>
         <DialogHeader>
-          <DialogTitle>Filter Models Data</DialogTitle>
+          <DialogTitle>Filter Time Range</DialogTitle>
           <DialogDescription>
-            Set filters to narrow down your model statistics and usage data.
+            Select a time range to filter your dashboard statistics.
           </DialogDescription>
         </DialogHeader>
         <div className='grid gap-4 py-4'>
@@ -102,7 +121,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
               Quick Range
             </Label>
             <div className='flex gap-2'>
-              {TIME_RANGES.map((range) => (
+              {TIME_RANGE_PRESETS.map((range) => (
                 <Button
                   key={range.days}
                   type='button'
@@ -151,24 +170,37 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
           </div>
 
           <div className='grid gap-2'>
-            <Label htmlFor='model_name'>Model Name</Label>
-            <Input
-              id='model_name'
-              placeholder='e.g. gpt-4'
-              value={filters.model_name}
-              onChange={(e) => handleChange('model_name', e.target.value)}
-            />
+            <Label htmlFor='time_granularity'>Time Granularity</Label>
+            <Select
+              value={filters.time_granularity}
+              onValueChange={(value) =>
+                handleChange('time_granularity', value as TimeGranularity)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder='Select time granularity' />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_GRANULARITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className='grid gap-2'>
-            <Label htmlFor='token_name'>Token Name</Label>
-            <Input
-              id='token_name'
-              placeholder='Optional'
-              value={filters.token_name}
-              onChange={(e) => handleChange('token_name', e.target.value)}
-            />
-          </div>
+          {isAdmin && (
+            <div className='grid gap-2'>
+              <Label htmlFor='username'>Username</Label>
+              <Input
+                id='username'
+                placeholder='Optional (admin only)'
+                value={filters.username}
+                onChange={(e) => handleChange('username', e.target.value)}
+              />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button onClick={handleReset} variant='outline' type='button'>

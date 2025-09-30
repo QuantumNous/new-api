@@ -1,30 +1,34 @@
 import { useEffect, useState } from 'react'
-import { Hash, Coins, Layers, Gauge, Zap } from 'lucide-react'
 import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
-import { getLogsSelfStat } from '@/features/dashboard/api'
+import {
+  getUserQuotaDates,
+  calculateDashboardStats,
+  type QuotaDataItem,
+} from '@/features/dashboard/api'
+import { MODEL_STAT_CARDS_CONFIG } from '@/features/dashboard/constants'
+import { type DashboardFilters } from '@/features/dashboard/types'
 import { buildQueryParams } from '@/features/dashboard/utils'
 import { StatCard } from './ui/stat-card'
 
-export interface LogStatFilters {
-  start_timestamp?: Date
-  end_timestamp?: Date
-  model_name?: string
-  token_name?: string
+interface LogStatCardsProps {
+  filters?: DashboardFilters
+  onDataUpdate?: (data: QuotaDataItem[], loading: boolean) => void
 }
 
-export function LogStatCards({ filters }: { filters?: LogStatFilters }) {
-  const [stat, setStat] = useState<{
-    quota: number
-    rpm: number
-    tpm: number
-    count?: number
+export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
+  const [stats, setStats] = useState<{
+    totalQuota: number
+    totalCount: number
+    totalTokens: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let mounted = true
     setLoading(true)
+    onDataUpdate?.([], true) // 通知父组件开始加载
+
     const timeRange = computeTimeRange(
       30,
       filters?.start_timestamp,
@@ -32,60 +36,38 @@ export function LogStatCards({ filters }: { filters?: LogStatFilters }) {
     )
     const params = buildQueryParams(timeRange, filters)
 
-    getLogsSelfStat(params)
+    getUserQuotaDates(params)
       .then((res) => {
         if (!mounted) return
-        setStat(res?.data || null)
+        const data = res?.data || []
+        const calculatedStats = calculateDashboardStats(data)
+        setStats(calculatedStats)
+        onDataUpdate?.(data, false) // 通知父组件数据已加载
       })
-      .catch(() => setStat(null))
+      .catch(() => {
+        setStats(null)
+        onDataUpdate?.([], false)
+      })
       .finally(() => mounted && setLoading(false))
 
     return () => {
       mounted = false
     }
-  }, [filters])
+  }, [filters, onDataUpdate])
 
-  // rpm 实际是总次数，tpm 实际是总 tokens
-  const count = stat?.rpm ?? 0
-  const totalTokens = stat?.tpm ?? 0
-  const quota = stat?.quota ?? 0
+  // 构造数据适配器，将新的数据格式转换为配置期望的格式
+  const adaptedStats = {
+    rpm: stats?.totalCount ?? 0, // 总次数
+    quota: stats?.totalQuota ?? 0, // 总额度
+    tpm: stats?.totalTokens ?? 0, // 总 tokens
+  }
 
-  // 计算平均值（按30天）
-  const avgRpm = count > 0 ? Math.round(count / 30) : 0
-  const avgTpm = totalTokens > 0 ? Math.round(totalTokens / 30) : 0
-
-  const items = [
-    {
-      title: 'Total Count',
-      value: formatNumber(count),
-      desc: 'Statistical count',
-      icon: Hash,
-    },
-    {
-      title: 'Total Quota',
-      value: formatNumber(quota),
-      desc: 'Statistical quota',
-      icon: Coins,
-    },
-    {
-      title: 'Total Tokens',
-      value: formatNumber(totalTokens),
-      desc: 'Statistical tokens',
-      icon: Layers,
-    },
-    {
-      title: 'Average RPM',
-      value: formatNumber(avgRpm),
-      desc: 'Requests per minute',
-      icon: Gauge,
-    },
-    {
-      title: 'Average TPM',
-      value: formatNumber(avgTpm),
-      desc: 'Tokens per minute',
-      icon: Zap,
-    },
-  ]
+  const items = MODEL_STAT_CARDS_CONFIG.map((config) => ({
+    title: config.title,
+    value: formatNumber(config.getValue(adaptedStats, 30)),
+    desc: config.description,
+    icon: config.icon,
+  }))
 
   return (
     <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>

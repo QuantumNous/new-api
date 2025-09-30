@@ -3,17 +3,15 @@
  */
 
 /**
+ * 时间粒度类型
+ */
+export type TimeGranularity = 'hour' | 'day' | 'week'
+
+/**
  * Convert Date object to Unix timestamp (seconds)
  */
 export function dateToUnixTimestamp(date: Date): number {
   return Math.floor(date.getTime() / 1000)
-}
-
-/**
- * Convert Unix timestamp (seconds) to Date object
- */
-export function unixTimestampToDate(timestamp: number): Date {
-  return new Date(timestamp * 1000)
 }
 
 /**
@@ -23,16 +21,6 @@ export function unixTimestampToDate(timestamp: number): Date {
 export function toStartOfDay(tsSec: number): number {
   const d = new Date(tsSec * 1000)
   d.setHours(0, 0, 0, 0)
-  return Math.floor(d.getTime() / 1000)
-}
-
-/**
- * Get end of day for a Unix timestamp (seconds)
- * Sets time to 23:59:59.999
- */
-export function toEndOfDay(tsSec: number): number {
-  const d = new Date(tsSec * 1000)
-  d.setHours(23, 59, 59, 999)
   return Math.floor(d.getTime() / 1000)
 }
 
@@ -57,22 +45,6 @@ export function getEndOfDay(date: Date = new Date()): Date {
 }
 
 /**
- * Calculate date range from current date
- * @param days Number of days to go back
- * @param fromDate Starting point (defaults to now)
- * @returns Object with start and end dates
- */
-export function getDateRangeFromNow(
-  days: number,
-  fromDate: Date = new Date()
-): { start: Date; end: Date } {
-  const end = new Date(fromDate)
-  const start = new Date(fromDate)
-  start.setDate(end.getDate() - days)
-  return { start, end }
-}
-
-/**
  * Calculate date range with start and end of day normalization
  * @param days Number of days to go back
  * @param fromDate Starting point (defaults to now)
@@ -82,10 +54,13 @@ export function getNormalizedDateRange(
   days: number,
   fromDate: Date = new Date()
 ): { start: Date; end: Date } {
-  const { start: rawStart, end: rawEnd } = getDateRangeFromNow(days, fromDate)
+  const end = new Date(fromDate)
+  const start = new Date(fromDate)
+  start.setDate(end.getDate() - days)
+
   return {
-    start: getStartOfDay(rawStart),
-    end: getEndOfDay(rawEnd),
+    start: getStartOfDay(start),
+    end: getEndOfDay(end),
   }
 }
 
@@ -138,21 +113,6 @@ export function formatDate(tsSec: number): string {
 }
 
 /**
- * Format Unix timestamp (seconds) to localized date and time string
- */
-export function formatDateTime(tsSec: number): string {
-  const d = new Date(tsSec * 1000)
-  return d.toLocaleString()
-}
-
-/**
- * Format Date object to localized date string
- */
-export function formatDateObject(date: Date): string {
-  return date.toLocaleDateString()
-}
-
-/**
  * Format Date object to localized date and time string
  */
 export function formatDateTimeObject(date: Date): string {
@@ -160,39 +120,31 @@ export function formatDateTimeObject(date: Date): string {
 }
 
 /**
- * Check if a date is today
+ * Format timestamp for chart display based on time granularity
+ * @param timestamp Unix timestamp in seconds
+ * @param granularity Time granularity: 'hour', 'day', or 'week'
+ * @returns Formatted string suitable for chart axis
  */
-export function isToday(date: Date): boolean {
-  const today = new Date()
-  return (
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear()
-  )
-}
+export function formatChartTime(
+  timestamp: number,
+  granularity: TimeGranularity = 'day'
+): string {
+  const date = new Date(timestamp * 1000)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
 
-/**
- * Check if a date is within the last N days
- */
-export function isWithinDays(date: Date, days: number): boolean {
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const daysDiff = diff / (1000 * 60 * 60 * 24)
-  return daysDiff >= 0 && daysDiff <= days
-}
+  let result = `${month}-${day}`
 
-/**
- * Add days to a date
- */
-export function addDays(date: Date, days: number): Date {
-  const result = new Date(date)
-  result.setDate(result.getDate() + days)
+  if (granularity === 'hour') {
+    result += ` ${hour}:00`
+  } else if (granularity === 'week') {
+    // Add week end date (6 days later)
+    const weekEnd = new Date(timestamp * 1000 + 6 * 24 * 60 * 60 * 1000)
+    const endMonth = String(weekEnd.getMonth() + 1).padStart(2, '0')
+    const endDay = String(weekEnd.getDate()).padStart(2, '0')
+    result += ` - ${endMonth}-${endDay}`
+  }
+
   return result
-}
-
-/**
- * Subtract days from a date
- */
-export function subtractDays(date: Date, days: number): Date {
-  return addDays(date, -days)
 }

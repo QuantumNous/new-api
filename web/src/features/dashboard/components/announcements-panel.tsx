@@ -1,15 +1,19 @@
+import { Megaphone } from 'lucide-react'
 import { formatDateTimeObject } from '@/lib/time'
-import { useStatus } from '@/hooks/use-status'
+import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { InfoPanel } from './ui/info-panel'
 
 export function AnnouncementsPanel() {
-  const { status } = useStatus()
-  const enabled = status?.announcements_enabled
-  const list = enabled ? status?.announcements || [] : []
+  const { items: list } = useAnnouncements()
 
   return (
     <InfoPanel
-      title='Announcements'
+      title={
+        <span className='flex items-center gap-2'>
+          <Megaphone className='h-5 w-5' />
+          Announcements
+        </span>
+      }
       items={list}
       emptyMessage='No announcements.'
       renderItem={(it: any, idx: number) => (

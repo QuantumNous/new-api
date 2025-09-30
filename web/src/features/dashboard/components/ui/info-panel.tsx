@@ -1,9 +1,10 @@
 import { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { CardState } from './card-state'
 
 interface InfoPanelProps {
-  title: string
+  title: ReactNode
   items: any[]
   emptyMessage?: string
   loading?: boolean
@@ -19,6 +20,22 @@ export function InfoPanel({
   height = 'h-64',
   renderItem,
 }: InfoPanelProps) {
+  if (loading) {
+    return (
+      <CardState title={title} height={height}>
+        Loading...
+      </CardState>
+    )
+  }
+
+  if (!items.length) {
+    return (
+      <CardState title={title} height={height}>
+        {emptyMessage}
+      </CardState>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -27,15 +44,7 @@ export function InfoPanel({
       <CardContent>
         <ScrollArea className={height}>
           <div className='space-y-2 pe-4'>
-            {loading && (
-              <div className='text-muted-foreground text-sm'>Loading...</div>
-            )}
-            {!loading && items.map((item, idx) => renderItem(item, idx))}
-            {!loading && !items.length && (
-              <div className='text-muted-foreground text-sm'>
-                {emptyMessage}
-              </div>
-            )}
+            {items.map((item, idx) => renderItem(item, idx))}
           </div>
         </ScrollArea>
       </CardContent>
