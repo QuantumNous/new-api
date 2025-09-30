@@ -280,7 +280,12 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
 		LastMessagesType: LastMessageTypeNone,
 	}
+	// 检查URL query参数中的beta=true
 	if c.Query("beta") == "true" {
+		info.IsClaudeBetaQuery = true
+	}
+	// 检查渠道设置中的UseBetaQuery
+	if info.ChannelMeta.ChannelSetting.UseBetaQuery {
 		info.IsClaudeBetaQuery = true
 	}
 	return info
