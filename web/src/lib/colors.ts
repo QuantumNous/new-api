@@ -16,28 +16,28 @@ export type SemanticColor =
   | 'violet'
   | 'grey'
 
-export const colorToClassName: Record<SemanticColor, string> = {
-  blue: 'text-blue-500',
-  green: 'text-green-500',
-  cyan: 'text-cyan-500',
-  purple: 'text-purple-500',
-  pink: 'text-pink-500',
-  red: 'text-red-500',
-  orange: 'text-orange-500',
-  amber: 'text-amber-500',
-  yellow: 'text-yellow-500',
-  lime: 'text-lime-500',
-  'light-green': 'text-green-400',
-  teal: 'text-teal-500',
-  'light-blue': 'text-sky-500',
-  indigo: 'text-indigo-500',
-  violet: 'text-violet-500',
-  grey: 'text-gray-500',
+export const colorToBgClass: Record<SemanticColor, string> = {
+  blue: 'bg-blue-500',
+  green: 'bg-green-500',
+  cyan: 'bg-cyan-500',
+  purple: 'bg-purple-500',
+  pink: 'bg-pink-500',
+  red: 'bg-red-500',
+  orange: 'bg-orange-500',
+  amber: 'bg-amber-500',
+  yellow: 'bg-yellow-500',
+  lime: 'bg-lime-500',
+  'light-green': 'bg-green-400',
+  teal: 'bg-teal-500',
+  'light-blue': 'bg-sky-500',
+  indigo: 'bg-indigo-500',
+  violet: 'bg-violet-500',
+  grey: 'bg-gray-500',
 }
 
-export function getColorClass(color?: string): string {
-  if (!color) return colorToClassName.blue
-  return (colorToClassName as any)[color] || colorToClassName.blue
+export function getBgColorClass(color?: string): string {
+  if (!color) return colorToBgClass.blue
+  return (colorToBgClass as any)[color] || colorToBgClass.blue
 }
 
 /**

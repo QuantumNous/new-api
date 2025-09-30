@@ -1,10 +1,50 @@
+import { useState, useEffect, useCallback } from 'react'
 import { Route } from 'lucide-react'
-import { getColorClass } from '@/lib/colors'
 import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
+import type { PingStatusMap, ApiInfoItem } from '@/features/dashboard/types'
+import {
+  testUrlLatency,
+  copyToClipboard,
+  getDefaultPingStatus,
+} from '@/features/dashboard/utils/api-info'
+import { ApiInfoItemComponent } from './api-info-item'
 import { InfoPanel } from './ui/info-panel'
 
 export function ApiInfoPanel() {
   const { items: list } = useApiInfo()
+  const [pingStatus, setPingStatus] = useState<PingStatusMap>({})
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+
+  // 测速函数
+  const handleTest = useCallback(async (url: string) => {
+    setPingStatus((prev) => ({
+      ...prev,
+      [url]: { latency: null, testing: true, error: false },
+    }))
+
+    const result = await testUrlLatency(url)
+    setPingStatus((prev) => ({ ...prev, [url]: result }))
+  }, [])
+
+  // 复制 URL
+  const handleCopy = useCallback(async (url: string) => {
+    const success = await copyToClipboard(url)
+    if (success) {
+      setCopiedUrl(url)
+      setTimeout(() => setCopiedUrl(null), 2000)
+    }
+  }, [])
+
+  // 自动测速
+  useEffect(() => {
+    if (list && list.length > 0) {
+      list.forEach((item: ApiInfoItem) => {
+        if (item.url) {
+          handleTest(item.url)
+        }
+      })
+    }
+  }, [list, handleTest])
 
   return (
     <InfoPanel
@@ -16,29 +56,15 @@ export function ApiInfoPanel() {
       }
       items={list}
       emptyMessage='No API routes configured.'
-      renderItem={(it: any, idx: number) => (
-        <div
+      renderItem={(item: ApiInfoItem, idx: number) => (
+        <ApiInfoItemComponent
           key={idx}
-          className='flex items-center justify-between gap-4 text-sm'
-        >
-          <div className='min-w-0 flex-1 truncate'>
-            <div className='flex items-center gap-2 truncate'>
-              <span className={getColorClass(it.color)}>●</span>
-              <span className='truncate'>{it.route}</span>
-            </div>
-            <div className='text-muted-foreground truncate'>
-              {it.description}
-            </div>
-          </div>
-          <a
-            href={it.url}
-            target='_blank'
-            rel='noreferrer'
-            className='text-primary underline-offset-4 hover:underline'
-          >
-            Visit
-          </a>
-        </div>
+          item={item}
+          status={pingStatus[item.url] || getDefaultPingStatus()}
+          isCopied={copiedUrl === item.url}
+          onTest={handleTest}
+          onCopy={handleCopy}
+        />
       )}
     />
   )

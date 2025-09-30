@@ -41,3 +41,29 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
   time_granularity: 'hour',
   username: '',
 }
+
+/**
+ * API Info 相关类型
+ */
+export interface ApiInfoItem {
+  url: string
+  route: string
+  description: string
+  color: string
+}
+
+export interface PingStatus {
+  latency: number | null
+  testing: boolean
+  error: boolean
+}
+
+export type PingStatusMap = Record<string, PingStatus>
+
+/**
+ * 延迟等级常量
+ */
+export const LATENCY_THRESHOLDS = {
+  EXCELLENT: 200, // < 200ms 优秀
+  GOOD: 500, // < 500ms 良好
+} as const
