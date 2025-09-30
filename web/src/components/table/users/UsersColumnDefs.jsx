@@ -204,6 +204,8 @@ const renderOperations = (
     showDemoteModal,
     showEnableDisableModal,
     showDeleteModal,
+    showResetPasskeyModal,
+    showResetTwoFAModal,
     t,
   },
 ) => {
@@ -254,6 +256,20 @@ const renderOperations = (
         {t('降级')}
       </Button>
       <Button
+        type='warning'
+        size='small'
+        onClick={() => showResetPasskeyModal(record)}
+      >
+        {t('重置 Passkey')}
+      </Button>
+      <Button
+        type='warning'
+        size='small'
+        onClick={() => showResetTwoFAModal(record)}
+      >
+        {t('重置 2FA')}
+      </Button>
+      <Button
         type='danger'
         size='small'
         onClick={() => showDeleteModal(record)}
@@ -275,6 +291,8 @@ export const getUsersColumns = ({
   showDemoteModal,
   showEnableDisableModal,
   showDeleteModal,
+  showResetPasskeyModal,
+  showResetTwoFAModal,
 }) => {
   return [
     {
@@ -329,6 +347,8 @@ export const getUsersColumns = ({
           showDemoteModal,
           showEnableDisableModal,
           showDeleteModal,
+          showResetPasskeyModal,
+          showResetTwoFAModal,
           t,
         }),
     },

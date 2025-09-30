@@ -42,6 +42,8 @@ func GetStatus(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
+	passkeySetting := system_setting.GetPasskeySettings()
+
 	data := gin.H{
 		"version":                     common.Version,
 		"start_time":                  common.StartTime,
@@ -94,6 +96,13 @@ func GetStatus(c *gin.Context) {
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
 		"oidc_authorization_endpoint": system_setting.GetOIDCSettings().AuthorizationEndpoint,
+		"passkey_login":               passkeySetting.Enabled,
+		"passkey_display_name":        passkeySetting.RPDisplayName,
+		"passkey_rp_id":               passkeySetting.RPID,
+		"passkey_origins":             passkeySetting.Origins,
+		"passkey_allow_insecure":      passkeySetting.AllowInsecureOrigin,
+		"passkey_user_verification":   passkeySetting.UserVerification,
+		"passkey_attachment":          passkeySetting.AttachmentPreference,
 		"setup":                       constant.Setup,
 	}
 

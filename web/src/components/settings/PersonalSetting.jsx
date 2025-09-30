@@ -26,6 +26,9 @@ import {
   showInfo,
   showSuccess,
   setStatusData,
+  prepareCredentialCreationOptions,
+  buildRegistrationResult,
+  isPasskeySupported,
   setUserData,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
@@ -67,6 +70,10 @@ const PersonalSetting = () => {
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [systemToken, setSystemToken] = useState('');
+  const [passkeyStatus, setPasskeyStatus] = useState({ enabled: false });
+  const [passkeyRegisterLoading, setPasskeyRegisterLoading] = useState(false);
+  const [passkeyDeleteLoading, setPasskeyDeleteLoading] = useState(false);
+  const [passkeySupported, setPasskeySupported] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({
     warningType: 'email',
     warningThreshold: 100000,
@@ -113,6 +120,10 @@ const PersonalSetting = () => {
     })();
 
     getUserData();
+
+    isPasskeySupported()
+      .then(setPasskeySupported)
+      .catch(() => setPasskeySupported(false));
   }, []);
 
   useEffect(() => {
@@ -161,12 +172,90 @@ const PersonalSetting = () => {
     }
   };
 
+  const loadPasskeyStatus = async () => {
+    try {
+      const res = await API.get('/api/user/passkey');
+      const { success, data, message } = res.data;
+      if (success) {
+        setPasskeyStatus({
+          enabled: data?.enabled || false,
+          last_used_at: data?.last_used_at || null,
+          backup_eligible: data?.backup_eligible || false,
+          backup_state: data?.backup_state || false,
+        });
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      // 忽略错误，保留默认状态
+    }
+  };
+
+  const handleRegisterPasskey = async () => {
+    if (!passkeySupported || !window.PublicKeyCredential) {
+      showInfo(t('当前设备不支持 Passkey'));
+      return;
+    }
+    setPasskeyRegisterLoading(true);
+    try {
+      const beginRes = await API.post('/api/user/passkey/register/begin');
+      const { success, message, data } = beginRes.data;
+      if (!success) {
+        showError(message || t('无法发起 Passkey 注册'));
+        return;
+      }
+
+      const publicKey = prepareCredentialCreationOptions(data?.options || data?.publicKey || data);
+      const credential = await navigator.credentials.create({ publicKey });
+      const payload = buildRegistrationResult(credential);
+      if (!payload) {
+        showError(t('Passkey 注册失败，请重试'));
+        return;
+      }
+
+      const finishRes = await API.post('/api/user/passkey/register/finish', payload);
+      if (finishRes.data.success) {
+        showSuccess(t('Passkey 注册成功'));
+        await loadPasskeyStatus();
+      } else {
+        showError(finishRes.data.message || t('Passkey 注册失败，请重试'));
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        showInfo(t('已取消 Passkey 注册'));
+      } else {
+        showError(t('Passkey 注册失败，请重试'));
+      }
+    } finally {
+      setPasskeyRegisterLoading(false);
+    }
+  };
+
+  const handleRemovePasskey = async () => {
+    setPasskeyDeleteLoading(true);
+    try {
+      const res = await API.delete('/api/user/passkey');
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('Passkey 已解绑'));
+        await loadPasskeyStatus();
+      } else {
+        showError(message || t('操作失败，请重试'));
+      }
+    } catch (error) {
+      showError(t('操作失败，请重试'));
+    } finally {
+      setPasskeyDeleteLoading(false);
+    }
+  };
+
   const getUserData = async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
       setUserData(data);
+      await loadPasskeyStatus();
     } else {
       showError(message);
     }
@@ -354,6 +443,12 @@ const PersonalSetting = () => {
               handleSystemTokenClick={handleSystemTokenClick}
               setShowChangePasswordModal={setShowChangePasswordModal}
               setShowAccountDeleteModal={setShowAccountDeleteModal}
+              passkeyStatus={passkeyStatus}
+              passkeySupported={passkeySupported}
+              passkeyRegisterLoading={passkeyRegisterLoading}
+              passkeyDeleteLoading={passkeyDeleteLoading}
+              onPasskeyRegister={handleRegisterPasskey}
+              onPasskeyDelete={handleRemovePasskey}
             />
 
             {/* 右侧：其他设置 */}

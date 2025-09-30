@@ -384,40 +384,13 @@ func GetChannel(c *gin.Context) {
 	return
 }
 
-// GetChannelKey 验证2FA后获取渠道密钥
+// GetChannelKey 获取渠道密钥（需要通过安全验证中间件）
+// 此函数依赖 SecureVerificationRequired 中间件，确保用户已通过安全验证
 func GetChannelKey(c *gin.Context) {
-	type GetChannelKeyRequest struct {
-		Code string `json:"code" binding:"required"`
-	}
-
-	var req GetChannelKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiError(c, fmt.Errorf("参数错误: %v", err))
-		return
-	}
-
 	userId := c.GetInt("id")
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiError(c, fmt.Errorf("渠道ID格式错误: %v", err))
-		return
-	}
-
-	// 获取2FA记录并验证
-	twoFA, err := model.GetTwoFAByUserId(userId)
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("获取2FA信息失败: %v", err))
-		return
-	}
-
-	if twoFA == nil || !twoFA.IsEnabled {
-		common.ApiError(c, fmt.Errorf("用户未启用2FA，无法查看密钥"))
-		return
-	}
-
-	// 统一的2FA验证逻辑
-	if !validateTwoFactorAuth(twoFA, req.Code) {
-		common.ApiError(c, fmt.Errorf("验证码或备用码错误，请重试"))
 		return
 	}
 
@@ -436,10 +409,10 @@ func GetChannelKey(c *gin.Context) {
 	// 记录操作日志
 	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId))
 
-	// 统一的成功响应格式
+	// 返回渠道密钥
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "验证成功",
+		"message": "获取成功",
 		"data": map[string]interface{}{
 			"key": channel.Key,
 		},
