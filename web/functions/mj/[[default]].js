@@ -1,17 +1,20 @@
 // functions/Pages_Functions.js
-// 该函数会将所有请求转发到 http://166.108.203.60:3000/
+// 该函数会将所有请求转发到环境变量 `TARGET_URL` 指定的地址
 
 export async function onRequest(context) {
-  // 从上下文中获取原始请求
-  const { request } = context;
+  // 从上下文中获取原始请求和环境变量
+  const { request, env } = context;
 
-  // 解析原始请求的 URL，以获取路径和查询参数
-  const url = new URL(request.url);
+    // 解析原始请求的 URL，以获取路径和查询参数
+    const url = new URL(request.url);
   const path = url.pathname;
   const search = url.search;
 
+  // 从环境变量中获取目标 URL，如果未设置则提供一个默认值
+  const target = env.TARGET_URL || 'http://172.0.0.1';
+
   // 构建目标 URL
-  const targetUrl = `http://166.108.203.60:3000${path}${search}`;
+  const targetUrl = `${target}${path}${search}`;
 
   // 创建一个新的请求以转发到目标地址
   // 复制原始请求的方法、头部和主体
