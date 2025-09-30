@@ -25,6 +25,7 @@ import {
   Table,
   Tag,
   Typography,
+  Select,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
@@ -45,6 +46,8 @@ const ModelTestModal = ({
   testChannel,
   modelTablePage,
   setModelTablePage,
+  selectedEndpointType,
+  setSelectedEndpointType,
   allSelectingRef,
   isMobile,
   t,
@@ -58,6 +61,17 @@ const ModelTestModal = ({
           model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
         )
     : [];
+
+  const endpointTypeOptions = [
+    { value: '', label: t('自动检测') },
+    { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
+    { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
+    { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
+    { value: 'gemini', label: 'Gemini (/v1beta/models/{model}:generateContent)' },
+    { value: 'jina-rerank', label: 'Jina Rerank (/rerank)' },
+    { value: 'image-generation', label: t('图像生成') + ' (/v1/images/generations)' },
+    { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+  ];
 
   const handleCopySelected = () => {
     if (selectedModelKeys.length === 0) {
@@ -152,7 +166,7 @@ const ModelTestModal = ({
         return (
           <Button
             type='tertiary'
-            onClick={() => testChannel(currentTestChannel, record.model)}
+            onClick={() => testChannel(currentTestChannel, record.model, selectedEndpointType)}
             loading={isTesting}
             size='small'
           >
@@ -228,6 +242,18 @@ const ModelTestModal = ({
     >
       {hasChannel && (
         <div className='model-test-scroll'>
+          {/* 端点类型选择器 */}
+          <div className='flex items-center gap-2 w-full mb-2'>
+            <Typography.Text strong>{t('端点类型')}:</Typography.Text>
+            <Select
+              value={selectedEndpointType}
+              onChange={setSelectedEndpointType}
+              optionList={endpointTypeOptions}
+              className='!w-full'
+              placeholder={t('选择端点类型')}
+            />
+          </div>
+
           {/* 搜索与操作按钮 */}
           <div className='flex items-center justify-end gap-2 w-full mb-2'>
             <Input

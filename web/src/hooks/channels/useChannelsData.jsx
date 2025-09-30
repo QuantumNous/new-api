@@ -80,6 +80,7 @@ export const useChannelsData = () => {
   const [selectedModelKeys, setSelectedModelKeys] = useState([]);
   const [isBatchTesting, setIsBatchTesting] = useState(false);
   const [modelTablePage, setModelTablePage] = useState(1);
+  const [selectedEndpointType, setSelectedEndpointType] = useState('');
   
   // 使用 ref 来避免闭包问题，类似旧版实现
   const shouldStopBatchTestingRef = useRef(false);
@@ -691,7 +692,7 @@ export const useChannelsData = () => {
   };
 
   // Test channel - 单个模型测试，参考旧版实现
-  const testChannel = async (record, model) => {
+  const testChannel = async (record, model, endpointType = '') => {
     const testKey = `${record.id}-${model}`;
 
     // 检查是否应该停止批量测试
@@ -703,7 +704,11 @@ export const useChannelsData = () => {
     setTestingModels(prev => new Set([...prev, model]));
 
     try {
-      const res = await API.get(`/api/channel/test/${record.id}?model=${model}`);
+      let url = `/api/channel/test/${record.id}?model=${model}`;
+      if (endpointType) {
+        url += `&endpoint_type=${endpointType}`;
+      }
+      const res = await API.get(url);
 
       // 检查是否在请求期间被停止
       if (shouldStopBatchTestingRef.current && isBatchTesting) {
@@ -820,7 +825,7 @@ export const useChannelsData = () => {
           .replace('${total}', models.length)
         );
 
-        const batchPromises = batch.map(model => testChannel(currentTestChannel, model));
+        const batchPromises = batch.map(model => testChannel(currentTestChannel, model, selectedEndpointType));
         const batchResults = await Promise.allSettled(batchPromises);
         results.push(...batchResults);
 
@@ -902,6 +907,7 @@ export const useChannelsData = () => {
     setTestingModels(new Set());
     setSelectedModelKeys([]);
     setModelTablePage(1);
+    setSelectedEndpointType('');
     // 可选择性保留测试结果，这里不清空以便用户查看
   };
 
@@ -989,6 +995,8 @@ export const useChannelsData = () => {
     isBatchTesting,
     modelTablePage,
     setModelTablePage,
+    selectedEndpointType,
+    setSelectedEndpointType,
     allSelectingRef,
 
     // Multi-key management states
