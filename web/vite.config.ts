@@ -26,6 +26,10 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      '/dashboard': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
       '/mj': {
         target: 'http://localhost:3000',
         changeOrigin: true,
