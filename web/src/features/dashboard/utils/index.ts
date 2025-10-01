@@ -12,3 +12,6 @@ export {
 
 // 图表数据处理工具
 export { processChartData } from './charts'
+
+// 文本处理工具
+export { getPreviewText } from './text'

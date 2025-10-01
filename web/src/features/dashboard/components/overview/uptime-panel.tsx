@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Activity, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import { getUptimeStatus } from '@/features/dashboard/api'
-import { CardState } from '../ui/card-state'
+import { PanelWrapper } from '../ui/panel-wrapper'
 
 function StatusDot({ status }: { status: number }) {
   const color =
     status === 1
-      ? 'bg-green-500'
+      ? 'bg-emerald-500'
       : status === 0
-        ? 'bg-yellow-500'
-        : 'bg-red-500'
+        ? 'bg-amber-500'
+        : 'bg-rose-500'
   return <span className={cn('inline-block h-2 w-2 rounded-full', color)} />
 }
 
@@ -52,69 +53,71 @@ export function UptimePanel() {
     return cleanup
   }, [])
 
-  const title = (
-    <span className='flex items-center gap-2'>
-      <Activity className='h-5 w-5' />
-      Uptime
-    </span>
-  )
-
-  if (loading) {
-    return <CardState title={title} loading={true} />
-  }
-
-  if (!groups.length) {
-    return <CardState title={title}>No uptime groups configured.</CardState>
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <div className='flex items-center justify-between'>
-          <CardTitle>{title}</CardTitle>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={fetchData}
-            disabled={refreshing}
-            className='h-8 w-8 p-0'
-          >
-            <RotateCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className='h-80'>
-          <div className='space-y-3 pe-4'>
-            {groups.map((g) => (
-              <div key={g.categoryName} className='space-y-2'>
-                <div className='text-sm font-medium'>{g.categoryName}</div>
-                <div className='space-y-1'>
-                  {g.monitors?.map((m: any) => (
-                    <div
-                      key={m.name}
-                      className='flex items-center justify-between text-sm'
-                    >
-                      <div className='flex items-center gap-2'>
-                        <StatusDot status={m.status} />
-                        <span className='truncate'>{m.name}</span>
-                        {m.group && (
-                          <span className='text-muted-foreground text-xs'>
-                            ({m.group})
+    <PanelWrapper
+      title={
+        <span className='flex items-center gap-2'>
+          <Activity className='h-5 w-5' />
+          Uptime
+        </span>
+      }
+      loading={loading}
+      empty={!groups.length}
+      emptyMessage='No uptime monitoring configured'
+      height='h-80'
+      headerActions={
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={fetchData}
+          disabled={refreshing}
+          className='h-8 w-8 p-0'
+        >
+          <RotateCw
+            className={cn('h-4 w-4', refreshing && 'animate-spin')}
+            aria-label='Refresh'
+          />
+        </Button>
+      }
+    >
+      <ScrollArea className='h-80'>
+        <div className='space-y-4 pe-4'>
+          {groups.map((group, groupIdx) => (
+            <div key={group.categoryName}>
+              <div className='mb-3 flex items-center gap-2'>
+                <h4 className='text-sm font-semibold'>{group.categoryName}</h4>
+                <Badge variant='secondary' className='h-5 text-xs'>
+                  {group.monitors?.length || 0}
+                </Badge>
+              </div>
+              <div className='space-y-0'>
+                {group.monitors?.map((monitor: any, monitorIdx: number) => (
+                  <div key={monitor.name}>
+                    <div className='group hover:bg-accent/50 -mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 transition-colors'>
+                      <div className='flex min-w-0 items-center gap-2.5'>
+                        <StatusDot status={monitor.status} />
+                        <span className='truncate text-sm'>{monitor.name}</span>
+                        {monitor.group && (
+                          <span className='text-muted-foreground shrink-0 text-xs'>
+                            ({monitor.group})
                           </span>
                         )}
                       </div>
-                      <div className='text-muted-foreground'>
-                        {((m.uptime ?? 0) * 100).toFixed(2)}%
-                      </div>
+                      <span className='text-muted-foreground shrink-0 text-sm font-medium tabular-nums'>
+                        {((monitor.uptime ?? 0) * 100).toFixed(2)}%
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    {monitorIdx < (group.monitors?.length || 0) - 1 && (
+                      <Separator className='my-0' />
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+              {groupIdx < groups.length - 1 && <Separator className='my-4' />}
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </PanelWrapper>
   )
 }

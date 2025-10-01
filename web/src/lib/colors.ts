@@ -65,3 +65,32 @@ export const CHART_COLORS = [
 export function getChartColor(index: number): string {
   return CHART_COLORS[index % CHART_COLORS.length]
 }
+
+/**
+ * Announcement status types
+ */
+export type AnnouncementType =
+  | 'default'
+  | 'ongoing'
+  | 'success'
+  | 'warning'
+  | 'error'
+
+/**
+ * Announcement status color mapping
+ */
+export const ANNOUNCEMENT_TYPE_COLORS: Record<AnnouncementType, string> = {
+  default: 'bg-gray-500',
+  ongoing: 'bg-blue-500',
+  success: 'bg-green-500',
+  warning: 'bg-orange-500',
+  error: 'bg-red-500',
+}
+
+/**
+ * Get announcement status color class
+ */
+export function getAnnouncementColorClass(type?: string): string {
+  const validType = (type || 'default') as AnnouncementType
+  return ANNOUNCEMENT_TYPE_COLORS[validType] || ANNOUNCEMENT_TYPE_COLORS.default
+}

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Route } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
 import type { PingStatusMap, ApiInfoItem } from '@/features/dashboard/types'
 import {
@@ -7,7 +8,7 @@ import {
   copyToClipboard,
   getDefaultPingStatus,
 } from '@/features/dashboard/utils/api-info'
-import { InfoPanel } from '../ui/info-panel'
+import { PanelWrapper } from '../ui/panel-wrapper'
 import { ApiInfoItemComponent } from './api-info-item'
 
 export function ApiInfoPanel() {
@@ -35,38 +36,33 @@ export function ApiInfoPanel() {
     }
   }, [])
 
-  // 自动测速
-  useEffect(() => {
-    if (list && list.length > 0) {
-      list.forEach((item: ApiInfoItem) => {
-        if (item.url) {
-          handleTest(item.url)
-        }
-      })
-    }
-  }, [list, handleTest])
-
   return (
-    <InfoPanel
+    <PanelWrapper
       title={
         <span className='flex items-center gap-2'>
           <Route className='h-5 w-5' />
           API Info
         </span>
       }
-      items={list}
       loading={loading}
-      emptyMessage='No API routes configured.'
-      renderItem={(item: ApiInfoItem, idx: number) => (
-        <ApiInfoItemComponent
-          key={idx}
-          item={item}
-          status={pingStatus[item.url] || getDefaultPingStatus()}
-          isCopied={copiedUrl === item.url}
-          onTest={handleTest}
-          onCopy={handleCopy}
-        />
-      )}
-    />
+      empty={!list.length}
+      emptyMessage='No API routes configured'
+      height='h-64'
+    >
+      <ScrollArea className='h-64'>
+        <div className='space-y-0 pe-4'>
+          {list.map((item: ApiInfoItem, idx: number) => (
+            <ApiInfoItemComponent
+              key={idx}
+              item={item}
+              status={pingStatus[item.url] || getDefaultPingStatus()}
+              isCopied={copiedUrl === item.url}
+              onTest={handleTest}
+              onCopy={handleCopy}
+            />
+          ))}
+        </div>
+      </ScrollArea>
+    </PanelWrapper>
   )
 }
