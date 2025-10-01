@@ -115,7 +115,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				if streamResponse.Item != nil {
 					switch streamResponse.Item.Type {
 					case dto.BuildInCallWebSearchCall:
-						info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview].CallCount++
+						if info != nil && info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools != nil {
+							if webSearchTool, exists := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool != nil {
+								webSearchTool.CallCount++
+							}
+						}
 					}
 				}
 			}
