@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { getSelf, wechatLoginByCode } from '@/features/auth/api'
+import { getSelf } from '@/lib/api'
+import { wechatLoginByCode } from '@/features/auth/api'
 
 export const Route = createFileRoute('/(auth)/oauth')({
   component: () => {

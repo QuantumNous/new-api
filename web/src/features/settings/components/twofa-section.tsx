@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   get2FAStatus,
   setup2FA,
   enable2FA,
   disable2FA,
   regenerate2FABackupCodes,
-} from '@/features/auth/api'
+} from '@/lib/api'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 export function TwoFASection() {
   const [loading, setLoading] = useState(false)

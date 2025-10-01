@@ -1,8 +1,9 @@
-import { Zap, ExternalLink, Copy, Check, Gauge } from 'lucide-react'
+import { Zap, ExternalLink, Gauge } from 'lucide-react'
 import { getBgColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/copy-button'
 import type { ApiInfoItem, PingStatus } from '@/features/dashboard/types'
 import {
   getLatencyColorClass,
@@ -12,17 +13,13 @@ import {
 interface ApiInfoItemProps {
   item: ApiInfoItem
   status: PingStatus
-  isCopied: boolean
   onTest: (url: string) => void
-  onCopy: (url: string) => void
 }
 
 export function ApiInfoItemComponent({
   item,
   status,
-  isCopied,
   onTest,
-  onCopy,
 }: ApiInfoItemProps) {
   return (
     <div className='group relative flex items-center justify-between gap-3 py-2.5 text-sm'>
@@ -108,19 +105,15 @@ export function ApiInfoItemComponent({
             <Gauge className='h-3.5 w-3.5' />
           </Button>
 
-          <Button
+          <CopyButton
+            value={item.url}
             variant='ghost'
             size='sm'
-            onClick={() => onCopy(item.url)}
             className='hover:bg-accent h-7 w-7 p-0 transition-all'
-            title='Copy URL'
-          >
-            {isCopied ? (
-              <Check className='h-3.5 w-3.5 text-green-600' />
-            ) : (
-              <Copy className='h-3.5 w-3.5' />
-            )}
-          </Button>
+            iconClassName='h-3.5 w-3.5'
+            tooltip='Copy URL'
+            aria-label='Copy URL'
+          />
 
           <Button
             variant='ghost'

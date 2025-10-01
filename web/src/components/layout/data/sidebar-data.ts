@@ -27,8 +27,8 @@ export const sidebarData: SidebarData = {
           icon: LayoutDashboard,
         },
         {
-          title: 'API Key',
-          url: '/api-key',
+          title: 'API Keys',
+          url: '/keys',
           icon: Key,
         },
         {

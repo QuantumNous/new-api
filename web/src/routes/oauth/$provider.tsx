@@ -7,8 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { api } from '@/lib/api'
-import { getSelf } from '@/features/auth/api'
+import { api, getSelf } from '@/lib/api'
 
 export const Route = createFileRoute('/oauth/$provider')({
   component: () => {

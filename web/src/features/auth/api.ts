@@ -1,5 +1,9 @@
 import { api } from '@/lib/api'
 
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
 export interface LoginPayload {
   username: string
   password: string
@@ -16,12 +20,24 @@ export interface TwoFAPayload {
   code: string
 }
 
-export interface UserSelfResponse {
-  success: boolean
-  message: string
-  data?: any
+export interface RegisterPayload {
+  username: string
+  password: string
+  email?: string
+  verification_code?: string
+  aff?: string
+  turnstile?: string
 }
 
+// ============================================================================
+// Authentication APIs
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Login & Logout
+// ----------------------------------------------------------------------------
+
+// User login with username and password
 export async function login(payload: LoginPayload) {
   const turnstile = payload.turnstile ?? ''
   const res = await api.post<LoginResponse>(
@@ -34,24 +50,23 @@ export async function login(payload: LoginPayload) {
   return res.data
 }
 
+// Two-factor authentication login
 export async function login2fa(payload: TwoFAPayload) {
   const res = await api.post<LoginResponse>('/api/user/login/2fa', payload)
   return res.data
 }
 
+// User logout
 export async function logout() {
   const res = await api.get('/api/user/logout')
   return res.data
 }
 
-export async function getSelf() {
-  const res = await api.get<UserSelfResponse>('/api/user/self', {
-    // Avoid global 401 toast during guards/preloads
-    skipErrorHandler: true as any,
-  } as any)
-  return res.data
-}
+// ----------------------------------------------------------------------------
+// Password Management
+// ----------------------------------------------------------------------------
 
+// Send password reset email
 export async function sendPasswordResetEmail(
   email: string,
   turnstile?: string
@@ -62,11 +77,17 @@ export async function sendPasswordResetEmail(
   return res.data
 }
 
+// ----------------------------------------------------------------------------
+// OAuth
+// ----------------------------------------------------------------------------
+
+// Start GitHub OAuth flow
 export async function githubOAuthStart(clientId: string, state: string) {
   const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&state=${state}&scope=user:email`
   window.open(url)
 }
 
+// Get OAuth state for CSRF protection
 export async function getOAuthState(): Promise<string> {
   const aff =
     typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
@@ -75,20 +96,17 @@ export async function getOAuthState(): Promise<string> {
   return ''
 }
 
-export async function getStatus() {
-  const res = await api.get('/api/status')
-  return res.data?.data as any
+// WeChat login by authorization code
+export async function wechatLoginByCode(code: string) {
+  const res = await api.get('/api/oauth/wechat', { params: { code } })
+  return res.data
 }
 
-export interface RegisterPayload {
-  username: string
-  password: string
-  email?: string
-  verification_code?: string
-  aff?: string
-  turnstile?: string
-}
+// ----------------------------------------------------------------------------
+// Registration
+// ----------------------------------------------------------------------------
 
+// User registration
 export async function register(payload: RegisterPayload) {
   const res = await api.post(`/api/user/register`, payload, {
     params: { turnstile: payload.turnstile ?? '' },
@@ -96,6 +114,7 @@ export async function register(payload: RegisterPayload) {
   return res.data
 }
 
+// Send email verification code
 export async function sendEmailVerification(email: string, turnstile?: string) {
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
@@ -103,36 +122,10 @@ export async function sendEmailVerification(email: string, turnstile?: string) {
   return res.data
 }
 
+// Bind email to OAuth account
 export async function bindEmail(email: string, code: string) {
   const res = await api.get('/api/oauth/email/bind', {
     params: { email, code },
   })
-  return res.data
-}
-
-export async function wechatLoginByCode(code: string) {
-  const res = await api.get('/api/oauth/wechat', { params: { code } })
-  return res.data
-}
-
-// 2FA management
-export async function get2FAStatus() {
-  const res = await api.get('/api/user/2fa/status')
-  return res.data
-}
-export async function setup2FA() {
-  const res = await api.post('/api/user/2fa/setup')
-  return res.data
-}
-export async function enable2FA(code: string) {
-  const res = await api.post('/api/user/2fa/enable', { code })
-  return res.data
-}
-export async function disable2FA(code: string) {
-  const res = await api.post('/api/user/2fa/disable', { code })
-  return res.data
-}
-export async function regenerate2FABackupCodes(code: string) {
-  const res = await api.post('/api/user/2fa/backup_codes', { code })
   return res.data
 }

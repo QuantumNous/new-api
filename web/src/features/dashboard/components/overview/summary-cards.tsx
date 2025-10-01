@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getSelf, getStatus } from '@/lib/api'
 import { formatCurrencyUSD, formatNumber } from '@/lib/format'
-import { getSelf, getStatus } from '@/features/auth/api'
 import { createSummaryCardsConfig } from '@/features/dashboard/constants'
 import { StatCard } from '../ui/stat-card'
 

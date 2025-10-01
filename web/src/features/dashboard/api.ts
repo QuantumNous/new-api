@@ -1,5 +1,9 @@
 import { api } from '@/lib/api'
 
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
 export interface QuotaDataItem {
   id?: number
   user_id?: number
@@ -23,10 +27,16 @@ export interface UptimeGroupResult {
   monitors: UptimeMonitor[]
 }
 
-/**
- * 获取用户额度数据
- * 管理员可以通过 username 参数查看其他用户数据
- */
+// ============================================================================
+// Dashboard APIs
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Quota & Usage Data
+// ----------------------------------------------------------------------------
+
+// Get user quota data within a time range
+// Admin users can specify 'username' to view other users' data
 export async function getUserQuotaDates(params: {
   start_timestamp: number
   end_timestamp: number
@@ -41,20 +51,11 @@ export async function getUserQuotaDates(params: {
   return res.data
 }
 
-/**
- * 计算统计数据（从原始数据中聚合）
- */
-export function calculateDashboardStats(data: QuotaDataItem[]) {
-  return data.reduce(
-    (acc, item) => ({
-      totalQuota: acc.totalQuota + (Number(item.quota) || 0),
-      totalCount: acc.totalCount + (Number(item.count) || 0),
-      totalTokens: acc.totalTokens + (Number(item.token_used) || 0),
-    }),
-    { totalQuota: 0, totalCount: 0, totalTokens: 0 }
-  )
-}
+// ----------------------------------------------------------------------------
+// System Monitoring
+// ----------------------------------------------------------------------------
 
+// Get uptime monitoring status for all services
 export async function getUptimeStatus() {
   const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
     '/api/uptime/status'

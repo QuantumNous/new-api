@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Turnstile } from '@/components/turnstile'
-import { sendPasswordResetEmail, getStatus } from '@/features/auth/api'
+import { sendPasswordResetEmail } from '@/features/auth/api'
 
 const formSchema = z.object({
   email: z.email({

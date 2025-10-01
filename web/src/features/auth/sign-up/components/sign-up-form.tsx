@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { register, sendEmailVerification, getStatus } from '@/features/auth/api'
+import { register, sendEmailVerification } from '@/features/auth/api'
 
 const formSchema = z
   .object({

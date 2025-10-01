@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getStatus } from '@/features/auth/api'
+import { getStatus } from '@/lib/api'
 
 export function useStatus() {
   const [status, setStatus] = useState<any>(() => {

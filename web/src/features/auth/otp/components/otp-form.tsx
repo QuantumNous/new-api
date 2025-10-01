@@ -6,6 +6,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { getSelf } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,7 +25,7 @@ import {
   InputOTPSlot,
   InputOTPSeparator,
 } from '@/components/ui/input-otp'
-import { login2fa, getSelf } from '@/features/auth/api'
+import { login2fa } from '@/features/auth/api'
 
 const formSchema = z.object({
   otp: z.string().min(1, 'Please enter a code.'),

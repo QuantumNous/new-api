@@ -43,19 +43,6 @@ export function openExternalSpeedTest(url: string): void {
 }
 
 /**
- * 复制文本到剪贴板
- */
-export async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch (error) {
-    console.error('Failed to copy text:', error)
-    return false
-  }
-}
-
-/**
  * 获取默认的 Ping 状态
  */
 export function getDefaultPingStatus(): PingStatus {

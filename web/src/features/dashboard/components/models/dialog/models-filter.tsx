@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
+import { getSelf } from '@/lib/api'
 import { getNormalizedDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -22,7 +23,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DatePicker } from '@/components/date-picker'
-import { getSelf } from '@/features/auth/api'
 import {
   type DashboardFilters,
   TIME_GRANULARITY_OPTIONS,
