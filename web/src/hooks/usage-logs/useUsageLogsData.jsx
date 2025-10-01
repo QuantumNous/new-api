@@ -549,6 +549,56 @@ export const useLogsData = () => {
     }
   };
 
+  // Download logs function
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadLogs = async () => {
+    if (downloading) {
+      return;
+    }
+    setDownloading(true);
+
+    try {
+      const {
+        username,
+        token_name,
+        model_name,
+        start_timestamp,
+        end_timestamp,
+        channel,
+        group,
+        logType: formLogType,
+      } = getFormValues();
+
+      const currentLogType = formLogType !== undefined ? formLogType : logType;
+      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+      let url = '';
+      if (isAdminUser) {
+        url = `/api/log/download?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&format=csv`;
+      } else {
+        url = `/api/log/self/download?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&format=csv`;
+      }
+
+      url = encodeURI(url);
+
+      // Create a temporary link element to trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showSuccess(t('日志下载已开始'));
+    } catch (error) {
+      showError(t('下载失败：') + error.message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   // Initialize data
   useEffect(() => {
     const localPageSize =
@@ -613,6 +663,10 @@ export const useLogsData = () => {
     setShowUserInfoModal,
     userInfoData,
     showUserInfoFunc,
+
+    // Download
+    downloading,
+    downloadLogs,
 
     // Functions
     loadLogs,
