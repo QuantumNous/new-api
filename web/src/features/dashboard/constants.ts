@@ -10,39 +10,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-/**
- * 统一的图表样式配置
- */
-export const CHART_STYLES = {
-  tooltip: {
-    contentStyle: {
-      backgroundColor: 'hsl(var(--card))',
-      border: '1px solid hsl(var(--border))',
-      borderRadius: '8px',
-      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-    },
-    labelStyle: {
-      color: 'hsl(var(--foreground))',
-      fontWeight: 'bold',
-    },
-  },
-  axis: {
-    tick: {
-      fontSize: 12,
-      fill: 'hsl(var(--muted-foreground))',
-    },
-    stroke: 'hsl(var(--border))',
-  },
-  grid: {
-    strokeDasharray: '3 3',
-    stroke: 'hsl(var(--border))',
-    strokeOpacity: 0.3,
-  },
-  legend: {
-    wrapperStyle: { paddingTop: '20px' },
-  },
-} as const
-
 interface StatCardConfig {
   key: string
   title: string
@@ -81,9 +48,12 @@ export const MODEL_STAT_CARDS_CONFIG: StatCardConfig[] = [
     title: 'Average RPM',
     description: 'Requests per minute',
     icon: Gauge,
-    getValue: (stat, days = 30) => {
+    getValue: (stat, timeRangeMinutes = 1) => {
       const count = stat?.rpm ?? 0
-      return count > 0 ? Math.round(count / days) : 0
+      const result = count / timeRangeMinutes
+      return isNaN(result) || !isFinite(result)
+        ? 0
+        : Math.round(result * 1000) / 1000
     },
   },
   {
@@ -91,9 +61,12 @@ export const MODEL_STAT_CARDS_CONFIG: StatCardConfig[] = [
     title: 'Average TPM',
     description: 'Tokens per minute',
     icon: Zap,
-    getValue: (stat, days = 30) => {
+    getValue: (stat, timeRangeMinutes = 1) => {
       const tokens = stat?.tpm ?? 0
-      return tokens > 0 ? Math.round(tokens / days) : 0
+      const result = tokens / timeRangeMinutes
+      return isNaN(result) || !isFinite(result)
+        ? 0
+        : Math.round(result * 1000) / 1000
     },
   },
 ]

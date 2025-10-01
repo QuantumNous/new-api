@@ -6,12 +6,12 @@ import { useStatus } from '@/hooks/use-status'
 export function useStatusData<T = any>(
   enabledKey: string,
   dataKey: string
-): { items: T[]; enabled: boolean; loading: boolean } {
+): { items: T[]; loading: boolean } {
   const { status, loading } = useStatus()
   const enabled = status?.[enabledKey] ?? false
   const items = enabled ? status?.[dataKey] || [] : []
 
-  return { items, enabled, loading }
+  return { items, loading }
 }
 
 /**

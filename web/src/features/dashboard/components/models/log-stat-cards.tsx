@@ -24,6 +24,8 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
   } | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
+
   useEffect(() => {
     let mounted = true
     setLoading(true)
@@ -35,6 +37,11 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
       filters?.end_timestamp
     )
     const params = buildQueryParams(timeRange, filters)
+
+    // 计算时间范围（分钟数）
+    const timeDiffMinutes =
+      (timeRange.end_timestamp - timeRange.start_timestamp) / 60000
+    setTimeRangeMinutes(timeDiffMinutes)
 
     getUserQuotaDates(params)
       .then((res) => {
@@ -64,7 +71,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
 
   const items = MODEL_STAT_CARDS_CONFIG.map((config) => ({
     title: config.title,
-    value: formatNumber(config.getValue(adaptedStats, 30)),
+    value: formatNumber(config.getValue(adaptedStats, timeRangeMinutes)),
     desc: config.description,
     icon: config.icon,
   }))

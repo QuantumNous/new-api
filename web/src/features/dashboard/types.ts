@@ -61,14 +61,6 @@ export interface PingStatus {
 export type PingStatusMap = Record<string, PingStatus>
 
 /**
- * 延迟等级常量
- */
-export const LATENCY_THRESHOLDS = {
-  EXCELLENT: 200, // < 200ms 优秀
-  GOOD: 500, // < 500ms 良好
-} as const
-
-/**
  * 图表数据类型定义
  */
 export interface ChartDataPoint {
