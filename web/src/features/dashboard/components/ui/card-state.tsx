@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface CardStateProps {
   /**
@@ -39,9 +40,7 @@ export function CardState({
       )}
       <CardContent>
         {loading ? (
-          <div
-            className={`bg-muted w-full animate-pulse rounded-md ${height}`}
-          />
+          <Skeleton className={`w-full ${height}`} />
         ) : (
           <div
             className={`text-muted-foreground flex items-center justify-center ${height}`}

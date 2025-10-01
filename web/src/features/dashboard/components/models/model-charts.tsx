@@ -6,7 +6,6 @@ import {
   Activity,
 } from 'lucide-react'
 import type { TimeGranularity } from '@/lib/time'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { QuotaDataItem } from '@/features/dashboard/api'
 import { processChartData } from '@/features/dashboard/utils'
 import { CardState } from '../ui/card-state'
@@ -35,79 +34,73 @@ export function ModelCharts({
     [data, timeGranularity]
   )
 
+  const isEmpty = !data || data.length === 0
+
+  // Loading state
   if (loading) {
     return (
       <div className='col-span-full space-y-4'>
-        {/* Quota Distribution Skeleton */}
-        <Card>
-          <CardHeader>
-            <CardTitle className='flex items-center gap-2'>
+        <CardState
+          title={
+            <span className='flex items-center gap-2'>
               <Coins className='h-5 w-5' />
               Quota Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='bg-muted h-96 w-full animate-pulse rounded-md' />
-          </CardContent>
-        </Card>
+            </span>
+          }
+          height='h-96'
+          loading={true}
+        />
 
-        {/* Call Trend Skeleton */}
-        <Card>
-          <CardHeader>
-            <CardTitle className='flex items-center gap-2'>
-              <Activity className='h-5 w-5' />
-              Call Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='bg-muted h-96 w-full animate-pulse rounded-md' />
-          </CardContent>
-        </Card>
-
-        {/* Call Proportion and Top Models Skeleton */}
         <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-          <Card>
-            <CardHeader>
-              <CardTitle className='flex items-center gap-2'>
+          <CardState
+            title={
+              <span className='flex items-center gap-2'>
                 <PieChartIcon className='h-5 w-5' />
                 Call Proportion
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className='bg-muted h-96 w-full animate-pulse rounded-md' />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className='flex items-center gap-2'>
+              </span>
+            }
+            height='h-96'
+            loading={true}
+          />
+          <CardState
+            title={
+              <span className='flex items-center gap-2'>
                 <TrendingUp className='h-5 w-5' />
                 Top Models
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className='bg-muted h-96 w-full animate-pulse rounded-md' />
-            </CardContent>
-          </Card>
+              </span>
+            }
+            height='h-96'
+            loading={true}
+          />
         </div>
 
-        {/* Total Calls Trend Skeleton */}
-        <Card>
-          <CardHeader>
-            <CardTitle className='flex items-center gap-2'>
+        <CardState
+          title={
+            <span className='flex items-center gap-2'>
+              <Activity className='h-5 w-5' />
+              Call Trend
+            </span>
+          }
+          height='h-96'
+          loading={true}
+        />
+
+        <CardState
+          title={
+            <span className='flex items-center gap-2'>
               <TrendingUp className='h-5 w-5' />
               Total Calls Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='bg-muted h-96 w-full animate-pulse rounded-md' />
-          </CardContent>
-        </Card>
+            </span>
+          }
+          height='h-96'
+          loading={true}
+        />
       </div>
     )
   }
 
-  if (!data || data.length === 0) {
+  // Empty state
+  if (isEmpty) {
     return (
       <CardState
         title={
@@ -123,6 +116,7 @@ export function ModelCharts({
     )
   }
 
+  // Normal state - render charts
   return (
     <div className='col-span-full space-y-4'>
       {/* 消耗分布 */}
