@@ -7,6 +7,7 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	UseBetaQuery           bool   `json:"use_beta_query,omitempty"` // 为Claude渠道请求添加?beta=true参数
 }
 
 type VertexKeyType string

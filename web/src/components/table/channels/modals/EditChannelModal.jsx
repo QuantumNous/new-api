@@ -164,6 +164,7 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    use_beta_query: false,
     settings: '',
     // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
     vertex_key_type: 'json',
@@ -248,6 +249,7 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
+    use_beta_query: false,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -426,6 +428,7 @@ const EditChannelModal = (props) => {
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
+          data.use_beta_query = parsedSettings.use_beta_query || false;
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -434,6 +437,7 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
+          data.use_beta_query = false;
         }
       } else {
         data.force_format = false;
@@ -442,6 +446,7 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
+        data.use_beta_query = false;
       }
 
       if (data.settings) {
@@ -494,6 +499,7 @@ const EditChannelModal = (props) => {
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
+        use_beta_query: data.use_beta_query || false,
       });
       // console.log(data);
     } else {
@@ -732,6 +738,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
+      use_beta_query: false,
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -897,6 +904,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
+      use_beta_query: localInputs.use_beta_query || false,
     };
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
@@ -922,6 +930,7 @@ const EditChannelModal = (props) => {
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
+    delete localInputs.use_beta_query;
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
@@ -2487,6 +2496,21 @@ const EditChannelModal = (props) => {
                       '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
                     )}
                   />
+
+                  {(inputs.type === 14 || inputs.type === 33) && (
+                    <Form.Switch
+                      field='use_beta_query'
+                      label={t('启用 Beta API')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('use_beta_query', value)
+                      }
+                      extraText={t(
+                        '为 Claude 渠道的 /v1/messages 请求添加 ?beta=true 参数，用于访问 Claude 的 Beta 功能',
+                      )}
+                    />
+                  )}
                 </Card>
               </div>
             </Spin>
