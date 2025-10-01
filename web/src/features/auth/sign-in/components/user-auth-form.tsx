@@ -7,6 +7,7 @@ import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { IconGithub } from '@/assets/brand-icons'
 import { useAuthStore } from '@/stores/auth-store'
+import { getSelf, getStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,13 +21,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import {
-  getOAuthState,
-  getStatus,
-  getSelf,
-  login,
-  wechatLoginByCode,
-} from '@/features/auth/api'
+import { getOAuthState, login, wechatLoginByCode } from '@/features/auth/api'
 
 const formSchema = z.object({
   username: z.string().min(1, 'Please enter your username or email'),

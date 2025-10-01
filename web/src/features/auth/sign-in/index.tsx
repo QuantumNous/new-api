@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
+import { getStatus } from '@/lib/api'
 import {
   Card,
   CardContent,
@@ -8,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { getStatus } from '../api'
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
 

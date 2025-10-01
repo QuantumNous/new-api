@@ -1,13 +1,10 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { getStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Turnstile } from '@/components/turnstile'
-import {
-  bindEmail,
-  sendEmailVerification,
-  getStatus,
-} from '@/features/auth/api'
+import { bindEmail, sendEmailVerification } from '@/features/auth/api'
 
 export function EmailBindSection() {
   const [email, setEmail] = useState('')
