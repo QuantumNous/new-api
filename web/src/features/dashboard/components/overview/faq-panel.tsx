@@ -5,6 +5,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { Markdown } from '@/components/ui/markdown'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
 import { PanelWrapper } from '../ui/panel-wrapper'
@@ -30,14 +31,14 @@ export function FAQPanel() {
           {list.map((item: any, idx: number) => (
             <AccordionItem key={idx} value={`item-${idx}`}>
               <AccordionTrigger className='text-start hover:no-underline'>
-                <span className='text-sm leading-relaxed font-semibold [overflow-wrap:anywhere] break-words break-all'>
+                <Markdown className='text-sm leading-relaxed font-semibold'>
                   {item.question}
-                </span>
+                </Markdown>
               </AccordionTrigger>
               <AccordionContent>
-                <p className='text-muted-foreground text-sm leading-relaxed [overflow-wrap:anywhere] break-words break-all whitespace-pre-wrap'>
+                <Markdown className='text-muted-foreground'>
                   {item.answer}
-                </p>
+                </Markdown>
               </AccordionContent>
             </AccordionItem>
           ))}

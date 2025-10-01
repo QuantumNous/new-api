@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Markdown } from '@/components/ui/markdown'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface AnnouncementDetailModalProps {
@@ -36,17 +37,15 @@ export function AnnouncementDetailModal({
             {announcement?.content && (
               <div>
                 <h4 className='mb-2 font-medium'>Content</h4>
-                <p className='text-sm leading-relaxed [overflow-wrap:anywhere] break-words break-all whitespace-pre-wrap'>
-                  {announcement.content}
-                </p>
+                <Markdown>{announcement.content}</Markdown>
               </div>
             )}
             {announcement?.extra && (
               <div>
                 <h4 className='mb-2 font-medium'>Additional Information</h4>
-                <p className='text-muted-foreground text-sm leading-relaxed [overflow-wrap:anywhere] break-words break-all whitespace-pre-wrap'>
+                <Markdown className='text-muted-foreground'>
                   {announcement.extra}
-                </p>
+                </Markdown>
               </div>
             )}
           </div>
