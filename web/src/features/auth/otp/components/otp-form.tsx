@@ -75,7 +75,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           }
         } catch {}
       }
-      navigate({ to: '/', replace: true })
+      navigate({ to: '/dashboard', replace: true })
       toast.success('Signed in')
     } catch (e) {
       toast.error('Verification failed')

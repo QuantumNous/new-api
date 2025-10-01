@@ -24,7 +24,7 @@ export const Route = createFileRoute('/(auth)/oauth')({
           const res = await getSelf()
           if (res?.success) {
             useAuthStore.getState().auth.setUser(res.data as any)
-            const target = search?.redirect || '/'
+            const target = search?.redirect || '/dashboard'
             navigate({ to: target, replace: true })
             return
           }

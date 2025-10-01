@@ -104,7 +104,7 @@ export function UserAuthForm({
           }
         } catch {}
         // we will set user via guard later after navigation, just redirect now
-        const targetPath = redirectTo || '/'
+        const targetPath = redirectTo || '/dashboard'
         navigate({ to: targetPath, replace: true })
         toast.success(`Welcome back!`)
       }
@@ -300,7 +300,10 @@ export function UserAuthForm({
                         } catch {}
                         const self = await getSelf()
                         if (self?.success) auth.setUser(self.data as any)
-                        navigate({ to: redirectTo || '/', replace: true })
+                        navigate({
+                          to: redirectTo || '/dashboard',
+                          replace: true,
+                        })
                         toast.success('Signed in via WeChat')
                       } else {
                         toast.error(res?.message || 'Login failed')

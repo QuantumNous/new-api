@@ -14,7 +14,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
     const { auth } = useAuthStore.getState()
     // If already authed in store, redirect away from sign-in
     if (auth.user || auth.accessToken) {
-      throw redirect({ to: search?.redirect || '/' })
+      throw redirect({ to: search?.redirect || '/dashboard' })
     }
   },
 })

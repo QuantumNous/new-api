@@ -55,7 +55,7 @@ export const Route = createFileRoute('/oauth/$provider')({
                 }
               } catch {}
             }
-            const to = search?.redirect || '/'
+            const to = search?.redirect || '/dashboard'
             navigate({ to, replace: true })
             toast.success('Signed in successfully!')
             return
