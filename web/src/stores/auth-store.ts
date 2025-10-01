@@ -1,7 +1,4 @@
 import { create } from 'zustand'
-import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
-
-const ACCESS_TOKEN = 'thisisjustarandomstring'
 
 interface AuthUser {
   accountNo: string
@@ -14,38 +11,50 @@ interface AuthState {
   auth: {
     user: AuthUser | null
     setUser: (user: AuthUser | null) => void
-    accessToken: string
-    setAccessToken: (accessToken: string) => void
-    resetAccessToken: () => void
     reset: () => void
   }
 }
 
 export const useAuthStore = create<AuthState>()((set) => {
-  const cookieState = getCookie(ACCESS_TOKEN)
-  const initToken = cookieState ? JSON.parse(cookieState) : ''
+  // 从 localStorage 恢复 user 信息
+  const initUser = (() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = window.localStorage.getItem('user')
+        return saved ? JSON.parse(saved) : null
+      }
+    } catch {
+      // 解析失败时清除脏数据
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('user')
+      }
+    }
+    return null
+  })()
+
   return {
     auth: {
-      user: null,
+      user: initUser,
       setUser: (user) =>
-        set((state) => ({ ...state, auth: { ...state.auth, user } })),
-      accessToken: initToken,
-      setAccessToken: (accessToken) =>
         set((state) => {
-          setCookie(ACCESS_TOKEN, JSON.stringify(accessToken))
-          return { ...state, auth: { ...state.auth, accessToken } }
-        }),
-      resetAccessToken: () =>
-        set((state) => {
-          removeCookie(ACCESS_TOKEN)
-          return { ...state, auth: { ...state.auth, accessToken: '' } }
+          // 持久化 user 到 localStorage
+          if (typeof window !== 'undefined') {
+            if (user) {
+              window.localStorage.setItem('user', JSON.stringify(user))
+            } else {
+              window.localStorage.removeItem('user')
+            }
+          }
+          return { ...state, auth: { ...state.auth, user } }
         }),
       reset: () =>
         set((state) => {
-          removeCookie(ACCESS_TOKEN)
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem('user')
+          }
           return {
             ...state,
-            auth: { ...state.auth, user: null, accessToken: '' },
+            auth: { ...state.auth, user: null },
           }
         }),
     },

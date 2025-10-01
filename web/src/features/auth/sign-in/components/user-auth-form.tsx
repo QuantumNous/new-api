@@ -92,7 +92,6 @@ export function UserAuthForm({
           }
         } catch {}
         // fetch self info after login success (session cookie)
-        auth.resetAccessToken()
         try {
           const self = await getSelf()
           if (

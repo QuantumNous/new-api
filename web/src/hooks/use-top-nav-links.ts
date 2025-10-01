@@ -51,7 +51,7 @@ export function useTopNavLinks(): TopNavLink[] {
   // 文档链接（可能是外链）
   const docsLink: string | undefined = status?.docs_link
 
-  const isAuthed = !!auth?.user || !!auth?.accessToken
+  const isAuthed = !!auth?.user
 
   const links: TopNavLink[] = []
 
