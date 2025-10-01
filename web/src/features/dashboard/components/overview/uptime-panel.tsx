@@ -60,7 +60,7 @@ export function UptimePanel() {
   )
 
   if (loading) {
-    return <CardState title={title}>Loading uptime status...</CardState>
+    return <CardState title={title} loading={true} />
   }
 
   if (!groups.length) {

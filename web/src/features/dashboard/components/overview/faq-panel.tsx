@@ -3,7 +3,7 @@ import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
 import { InfoPanel } from '../ui/info-panel'
 
 export function FAQPanel() {
-  const { items: list } = useFAQ()
+  const { items: list, loading } = useFAQ()
 
   return (
     <InfoPanel
@@ -14,6 +14,7 @@ export function FAQPanel() {
         </span>
       }
       items={list}
+      loading={loading}
       emptyMessage='No FAQ entries.'
       renderItem={(it: any, idx: number) => (
         <div key={idx} className='space-y-1'>

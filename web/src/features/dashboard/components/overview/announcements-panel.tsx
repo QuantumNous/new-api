@@ -4,7 +4,7 @@ import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { InfoPanel } from '../ui/info-panel'
 
 export function AnnouncementsPanel() {
-  const { items: list } = useAnnouncements()
+  const { items: list, loading } = useAnnouncements()
 
   return (
     <InfoPanel
@@ -15,6 +15,7 @@ export function AnnouncementsPanel() {
         </span>
       }
       items={list}
+      loading={loading}
       emptyMessage='No announcements.'
       renderItem={(it: any, idx: number) => (
         <div key={idx} className='space-y-0.5'>

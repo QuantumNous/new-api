@@ -11,7 +11,7 @@ import { InfoPanel } from '../ui/info-panel'
 import { ApiInfoItemComponent } from './api-info-item'
 
 export function ApiInfoPanel() {
-  const { items: list } = useApiInfo()
+  const { items: list, loading } = useApiInfo()
   const [pingStatus, setPingStatus] = useState<PingStatusMap>({})
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
 
@@ -55,6 +55,7 @@ export function ApiInfoPanel() {
         </span>
       }
       items={list}
+      loading={loading}
       emptyMessage='No API routes configured.'
       renderItem={(item: ApiInfoItem, idx: number) => (
         <ApiInfoItemComponent

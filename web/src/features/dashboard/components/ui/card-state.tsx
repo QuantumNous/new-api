@@ -13,7 +13,11 @@ interface CardStateProps {
   /**
    * 状态内容（加载提示、空状态文本等）
    */
-  children: ReactNode
+  children?: ReactNode
+  /**
+   * 是否显示骨架屏加载状态
+   */
+  loading?: boolean
 }
 
 /**
@@ -24,6 +28,7 @@ export function CardState({
   title,
   height = 'h-80',
   children,
+  loading = false,
 }: CardStateProps) {
   return (
     <Card>
@@ -33,11 +38,17 @@ export function CardState({
         </CardHeader>
       )}
       <CardContent>
-        <div
-          className={`text-muted-foreground flex items-center justify-center ${height}`}
-        >
-          {children}
-        </div>
+        {loading ? (
+          <div
+            className={`bg-muted w-full animate-pulse rounded-md ${height}`}
+          />
+        ) : (
+          <div
+            className={`text-muted-foreground flex items-center justify-center ${height}`}
+          >
+            {children}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

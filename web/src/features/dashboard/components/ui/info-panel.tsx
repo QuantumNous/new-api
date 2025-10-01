@@ -21,11 +21,7 @@ export function InfoPanel({
   renderItem,
 }: InfoPanelProps) {
   if (loading) {
-    return (
-      <CardState title={title} height={height}>
-        Loading...
-      </CardState>
-    )
+    return <CardState title={title} height={height} loading={true} />
   }
 
   if (!items.length) {
