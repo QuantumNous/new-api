@@ -10,6 +10,18 @@ export function sleep(ms: number = 1000) {
 }
 
 /**
+ * 清理 CSS 变量名，替换特殊字符
+ * 用于将模型名称（如 gpt-3.5-turbo）转换为有效的 CSS 变量名（gpt-3-5-turbo）
+ * @param name - 原始名称
+ * @returns 清理后的 CSS 变量名
+ */
+export function sanitizeCssVariableName(name: string): string {
+  // 将点号、空格、斜杠替换为连字符
+  // 移除其他不允许在 CSS 变量名中的特殊字符
+  return name.replace(/[.\s\/]/g, '-').replace(/[^\w-]/g, '')
+}
+
+/**
  * Generates page numbers for pagination with ellipsis
  * @param currentPage - Current page number (1-based)
  * @param totalPages - Total number of pages

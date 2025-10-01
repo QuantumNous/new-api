@@ -7,8 +7,8 @@ import {
   copyToClipboard,
   getDefaultPingStatus,
 } from '@/features/dashboard/utils/api-info'
+import { InfoPanel } from '../ui/info-panel'
 import { ApiInfoItemComponent } from './api-info-item'
-import { InfoPanel } from './ui/info-panel'
 
 export function ApiInfoPanel() {
   const { items: list } = useApiInfo()

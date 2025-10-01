@@ -1,7 +1,7 @@
 import { Megaphone } from 'lucide-react'
 import { formatDateTimeObject } from '@/lib/time'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
-import { InfoPanel } from './ui/info-panel'
+import { InfoPanel } from '../ui/info-panel'
 
 export function AnnouncementsPanel() {
   const { items: list } = useAnnouncements()

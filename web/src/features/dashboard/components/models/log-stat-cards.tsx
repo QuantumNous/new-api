@@ -9,7 +9,7 @@ import {
 import { MODEL_STAT_CARDS_CONFIG } from '@/features/dashboard/constants'
 import { type DashboardFilters } from '@/features/dashboard/types'
 import { buildQueryParams } from '@/features/dashboard/utils'
-import { StatCard } from './ui/stat-card'
+import { StatCard } from '../ui/stat-card'
 
 interface LogStatCardsProps {
   filters?: DashboardFilters

@@ -67,3 +67,40 @@ export const LATENCY_THRESHOLDS = {
   EXCELLENT: 200, // < 200ms 优秀
   GOOD: 500, // < 500ms 良好
 } as const
+
+/**
+ * 图表数据类型定义
+ */
+export interface ChartDataPoint {
+  time: string
+  [key: string]: number | string
+}
+
+export interface PieDataPoint {
+  name: string
+  value: number
+  fill: string
+}
+
+export interface RankDataPoint {
+  model: string
+  count: number
+  quota: number
+  tokens: number
+}
+
+export interface TotalTrendDataPoint {
+  time: string
+  calls: number
+  quota: number
+}
+
+export interface ProcessedChartData {
+  uniqueModels: string[]
+  distributionData: ChartDataPoint[]
+  trendData: ChartDataPoint[]
+  pieData: PieDataPoint[]
+  rankData: RankDataPoint[]
+  totalTrendData: TotalTrendDataPoint[]
+  chartConfig: any // ChartConfig from @/components/ui/chart
+}

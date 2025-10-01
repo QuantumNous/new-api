@@ -1,6 +1,6 @@
 import { HelpCircle } from 'lucide-react'
 import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
-import { InfoPanel } from './ui/info-panel'
+import { InfoPanel } from '../ui/info-panel'
 
 export function FAQPanel() {
   const { items: list } = useFAQ()

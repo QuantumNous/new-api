@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getUptimeStatus } from '@/features/dashboard/api'
-import { CardState } from './ui/card-state'
+import { CardState } from '../ui/card-state'
 
 function StatusDot({ status }: { status: number }) {
   const color =

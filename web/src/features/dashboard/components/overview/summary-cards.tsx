@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatCurrencyUSD, formatNumber } from '@/lib/format'
 import { getSelf, getStatus } from '@/features/auth/api'
 import { createSummaryCardsConfig } from '@/features/dashboard/constants'
-import { StatCard } from './ui/stat-card'
+import { StatCard } from '../ui/stat-card'
 
 export function SummaryCards() {
   const [self, setSelf] = useState<any>(null)
