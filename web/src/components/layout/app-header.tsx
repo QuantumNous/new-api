@@ -1,3 +1,4 @@
+import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
@@ -84,9 +85,12 @@ export function AppHeader({
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
+  // 从后端状态生成的链接
+  const dynamicLinks = useTopNavLinks()
+  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
   // 如果提供了 leftContent，使用它；否则根据 showTopNav 决定是否显示导航
   const leftSection =
-    leftContent || (showTopNav ? <TopNav links={navLinks} /> : null)
+    leftContent || (showTopNav ? <TopNav links={links} /> : null)
 
   return (
     <Header fixed={fixed}>

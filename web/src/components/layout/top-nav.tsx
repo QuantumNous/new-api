@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -13,12 +14,23 @@ type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: {
     title: string
     href: string
-    isActive: boolean
+    isActive?: boolean
     disabled?: boolean
+    external?: boolean
   }[]
 }
 
 export function TopNav({ className, links, ...props }: TopNavProps) {
+  const normalized = useMemo(
+    () =>
+      links.map((l) => ({
+        isActive: false,
+        disabled: false,
+        external: false,
+        ...l,
+      })),
+    [links]
+  )
   return (
     <>
       <div className='lg:hidden'>
@@ -29,15 +41,26 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side='bottom' align='start'>
-            {links.map(({ title, href, isActive, disabled }) => (
+            {normalized.map(({ title, href, isActive, disabled, external }) => (
               <DropdownMenuItem key={`${title}-${href}`} asChild>
-                <Link
-                  to={href}
-                  className={!isActive ? 'text-muted-foreground' : ''}
-                  disabled={disabled}
-                >
-                  {title}
-                </Link>
+                {external ? (
+                  <a
+                    href={href}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className={!isActive ? 'text-muted-foreground' : ''}
+                  >
+                    {title}
+                  </a>
+                ) : (
+                  <Link
+                    to={href}
+                    className={!isActive ? 'text-muted-foreground' : ''}
+                    disabled={disabled}
+                  >
+                    {title}
+                  </Link>
+                )}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -51,16 +74,28 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         )}
         {...props}
       >
-        {links.map(({ title, href, isActive, disabled }) => (
-          <Link
-            key={`${title}-${href}`}
-            to={href}
-            disabled={disabled}
-            className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-          >
-            {title}
-          </Link>
-        ))}
+        {normalized.map(({ title, href, isActive, disabled, external }) =>
+          external ? (
+            <a
+              key={`${title}-${href}`}
+              href={href}
+              target='_blank'
+              rel='noopener noreferrer'
+              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+            >
+              {title}
+            </a>
+          ) : (
+            <Link
+              key={`${title}-${href}`}
+              to={href}
+              disabled={disabled}
+              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+            >
+              {title}
+            </Link>
+          )
+        )}
       </nav>
     </>
   )
