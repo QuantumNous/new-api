@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
 import { getLogStats, getUserLogStats } from '../api'
+import { DEFAULT_LOG_STATS } from '../constants'
 import { formatLogQuota } from '../lib/format'
 import { buildApiParams } from '../lib/utils'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
 
 export function CommonLogsStats() {
-  const { user } = useAuthStore((state) => state.auth)
-  const isAdmin = user?.role === 100
+  const isAdmin = useIsAdmin()
   const searchParams = route.useSearch()
 
   const { data: stats, isLoading } = useQuery({
@@ -29,11 +29,9 @@ export function CommonLogsStats() {
         ? await getLogStats(params)
         : await getUserLogStats(params)
 
-      if (!result.success) {
-        return { quota: 0, rpm: 0, tpm: 0 }
-      }
-
-      return result.data || { quota: 0, rpm: 0, tpm: 0 }
+      return result.success
+        ? result.data || DEFAULT_LOG_STATS
+        : DEFAULT_LOG_STATS
     },
     placeholderData: (previousData) => previousData,
   })

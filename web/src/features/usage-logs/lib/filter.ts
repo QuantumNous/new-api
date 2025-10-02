@@ -1,38 +1,14 @@
 /**
  * Utility functions for usage logs filters
  */
-import type { LogCategory } from '../components/usage-logs-tabs'
-
-// ============================================================================
-// Type Definitions
-// ============================================================================
-
-// Common filters (shared across all log types)
-export interface CommonFilters {
-  startTime?: Date
-  endTime?: Date
-  channel?: string
-}
-
-// Common logs specific filters
-export interface CommonLogFilters extends CommonFilters {
-  model?: string
-  token?: string
-  group?: string
-  username?: string
-}
-
-// Drawing logs specific filters
-export interface DrawingLogFilters extends CommonFilters {
-  mjId?: string
-}
-
-// Task logs specific filters
-export interface TaskLogFilters extends CommonFilters {
-  taskId?: string
-}
-
-export type LogFilters = CommonLogFilters | DrawingLogFilters | TaskLogFilters
+import { LOG_CATEGORY_LABELS } from '../constants'
+import type {
+  LogCategory,
+  LogFilters,
+  CommonLogFilters,
+  DrawingLogFilters,
+  TaskLogFilters,
+} from '../types'
 
 // ============================================================================
 // Filter Building Functions
@@ -85,10 +61,5 @@ export function buildSearchParams(
  * Get log category display name
  */
 export function getLogCategoryLabel(category: LogCategory): string {
-  const labels: Record<LogCategory, string> = {
-    common: 'Common',
-    drawing: 'Drawing',
-    task: 'Task',
-  }
-  return labels[category]
+  return LOG_CATEGORY_LABELS[category]
 }

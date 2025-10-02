@@ -1,5 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
-import { Route, Info, Zap } from 'lucide-react'
+import { Route, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { LOG_TYPES } from '../../constants'
 import type { UsageLog } from '../../data/schema'
 import {
   formatTokens,
@@ -25,79 +24,13 @@ import {
   formatLogQuota,
   formatTimestampToDate,
 } from '../../lib/format'
-import { isDisplayableLogType, isTimingLogType } from '../../lib/utils'
+import {
+  isDisplayableLogType,
+  isTimingLogType,
+  getLogTypeConfig,
+} from '../../lib/utils'
 import { useUsageLogsContext } from '../usage-logs-provider'
-
-/**
- * Get log type configuration by type number
- */
-const getLogTypeConfig = (type: number) => {
-  return LOG_TYPES.find((t) => t.value === type) || LOG_TYPES[0]
-}
-
-/**
- * Check if log uses per-call billing (按次付费)
- */
-const isPerCallBilling = (modelPrice: number | undefined): boolean => {
-  return (modelPrice ?? 0) > 0
-}
-
-/**
- * Cache tooltip component for token display
- */
-const CacheTooltip = ({
-  tokens,
-  label,
-  color,
-}: {
-  tokens: number
-  label: string
-  color: string
-}) =>
-  tokens > 0 ? (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Zap className={`size-3 flex-shrink-0 ${color}`} />
-        </TooltipTrigger>
-        <TooltipContent side='top'>
-          <p className='text-xs'>
-            {label}: {formatTokens(tokens)}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : null
-
-/**
- * Render a simple status badge cell with auto-color and copy
- */
-const renderBadgeCell = (value: string | null, className?: string) => {
-  if (!value) return null
-
-  return (
-    <StatusBadge
-      label={value}
-      autoColor={value}
-      copyText={value}
-      size='sm'
-      className={className}
-    />
-  )
-}
-
-/**
- * Render a model badge with consistent styling
- */
-const renderModelBadge = (modelName: string) => (
-  <StatusBadge
-    label={modelName}
-    autoColor={modelName}
-    copyText={modelName}
-    size='sm'
-    className='truncate font-mono'
-  />
-)
+import { isPerCallBilling, renderBadge, CacheTooltip } from './column-helpers'
 
 export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const columns: ColumnDef<UsageLog>[] = [
@@ -244,7 +177,9 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isDisplayableLogType(log.type)) return null
 
         const tokenName = row.getValue('token_name') as string
-        return renderBadgeCell(tokenName, 'truncate')
+        return tokenName
+          ? renderBadge(tokenName, { className: 'truncate' })
+          : null
       },
     },
 
@@ -259,7 +194,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isDisplayableLogType(log.type)) return null
 
         const group = row.getValue('group') as string
-        return renderBadgeCell(group)
+        return group ? renderBadge(group) : null
       },
     },
 
@@ -276,7 +211,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const modelInfo = formatModelName(log)
 
         if (!modelInfo.isMapped) {
-          return renderModelBadge(modelInfo.name)
+          return renderBadge(modelInfo.name, { mono: true })
         }
 
         // Model is mapped - show popover
@@ -289,7 +224,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 className='h-auto p-0 hover:bg-transparent'
               >
                 <div className='flex items-center gap-1'>
-                  {renderModelBadge(modelInfo.name)}
+                  {renderBadge(modelInfo.name, { mono: true })}
                   <Route className='text-muted-foreground size-3' />
                 </div>
               </Button>
@@ -298,11 +233,11 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <div className='space-y-2'>
                 <div className='flex items-start justify-between gap-4'>
                   <span className='text-sm font-medium'>Request Model:</span>
-                  {renderModelBadge(modelInfo.name)}
+                  {renderBadge(modelInfo.name, { mono: true })}
                 </div>
                 <div className='flex items-start justify-between gap-4'>
                   <span className='text-sm font-medium'>Actual Model:</span>
-                  {renderModelBadge(modelInfo.actualModel || '')}
+                  {renderBadge(modelInfo.actualModel || '', { mono: true })}
                 </div>
               </div>
             </PopoverContent>
@@ -478,7 +413,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isTimingLogType(log.type)) return null
 
         const ip = row.getValue('ip') as string
-        return renderBadgeCell(ip, 'font-mono')
+        return ip ? renderBadge(ip, { mono: true }) : null
       },
     },
 

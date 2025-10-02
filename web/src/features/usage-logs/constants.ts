@@ -1,6 +1,29 @@
 /**
  * Shared constants for usage logs feature
  */
+import type { StatusBadgeProps } from '@/components/status-badge'
+import type { LogStatistics, LogCategory } from './types'
+
+// ============================================================================
+// Default Values
+// ============================================================================
+
+/**
+ * Default log statistics when no data is available
+ */
+export const DEFAULT_LOG_STATS: LogStatistics = {
+  quota: 0,
+  rpm: 0,
+  tpm: 0,
+}
+
+/**
+ * Default empty logs data
+ */
+export const DEFAULT_LOGS_DATA = {
+  items: [],
+  total: 0,
+}
 
 // ============================================================================
 // Log Type Enum
@@ -140,3 +163,119 @@ export const TASK_PLATFORMS = {
   LUMA: 'luma',
   VIGGLE: 'viggle',
 } as const
+
+// ============================================================================
+// Status Mappings
+// ============================================================================
+
+/**
+ * Status mapping configuration type
+ */
+export interface StatusMapping {
+  label: string
+  variant: StatusBadgeProps['variant']
+}
+
+/**
+ * Midjourney task type mappings
+ */
+export const MJ_TASK_TYPE_MAPPINGS: Record<string, StatusMapping> = {
+  [MJ_TASK_TYPES.IMAGINE]: { label: 'Draw', variant: 'blue' },
+  [MJ_TASK_TYPES.UPSCALE]: { label: 'Upscale', variant: 'orange' },
+  [MJ_TASK_TYPES.VIDEO]: { label: 'Video', variant: 'orange' },
+  [MJ_TASK_TYPES.EDITS]: { label: 'Edit', variant: 'orange' },
+  [MJ_TASK_TYPES.VARIATION]: { label: 'Vary', variant: 'violet' },
+  [MJ_TASK_TYPES.HIGH_VARIATION]: { label: 'Vary (Strong)', variant: 'violet' },
+  [MJ_TASK_TYPES.LOW_VARIATION]: { label: 'Vary (Subtle)', variant: 'violet' },
+  [MJ_TASK_TYPES.PAN]: { label: 'Pan', variant: 'cyan' },
+  [MJ_TASK_TYPES.DESCRIBE]: { label: 'Describe', variant: 'yellow' },
+  [MJ_TASK_TYPES.BLEND]: { label: 'Blend', variant: 'lime' },
+  [MJ_TASK_TYPES.UPLOAD]: { label: 'Upload', variant: 'blue' },
+  [MJ_TASK_TYPES.SHORTEN]: { label: 'Shorten', variant: 'pink' },
+  [MJ_TASK_TYPES.REROLL]: { label: 'Reroll', variant: 'indigo' },
+  [MJ_TASK_TYPES.INPAINT]: { label: 'Inpaint', variant: 'teal' },
+  [MJ_TASK_TYPES.SWAP_FACE]: { label: 'Swap Face', variant: 'purple' },
+  [MJ_TASK_TYPES.ZOOM]: { label: 'Zoom', variant: 'green' },
+  [MJ_TASK_TYPES.CUSTOM_ZOOM]: { label: 'Custom Zoom', variant: 'green' },
+}
+
+/**
+ * Midjourney task status mappings
+ */
+export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
+  [MJ_TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
+  [MJ_TASK_STATUS.NOT_START]: { label: 'Not Started', variant: 'neutral' },
+  [MJ_TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'yellow' },
+  [MJ_TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'blue' },
+  [MJ_TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'red' },
+  [MJ_TASK_STATUS.MODAL]: { label: 'Waiting', variant: 'amber' },
+}
+
+/**
+ * Task action type mappings
+ */
+export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
+  [TASK_ACTIONS.MUSIC]: { label: 'Generate Music', variant: 'neutral' },
+  [TASK_ACTIONS.LYRICS]: { label: 'Generate Lyrics', variant: 'pink' },
+  [TASK_ACTIONS.GENERATE]: { label: 'Image to Video', variant: 'blue' },
+  [TASK_ACTIONS.TEXT_GENERATE]: { label: 'Text to Video', variant: 'blue' },
+  [TASK_ACTIONS.FIRST_TAIL_GENERATE]: {
+    label: 'First/Last Frame to Video',
+    variant: 'blue',
+  },
+  [TASK_ACTIONS.REFERENCE_GENERATE]: {
+    label: 'Reference Video',
+    variant: 'blue',
+  },
+}
+
+/**
+ * Task status mappings
+ */
+export const TASK_STATUS_MAPPINGS: Record<string, StatusMapping> = {
+  [TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
+  [TASK_STATUS.NOT_START]: { label: 'Not Started', variant: 'neutral' },
+  [TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'yellow' },
+  [TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'blue' },
+  [TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'red' },
+  [TASK_STATUS.QUEUED]: { label: 'Queued', variant: 'orange' },
+  [TASK_STATUS.UNKNOWN]: { label: 'Unknown', variant: 'neutral' },
+}
+
+/**
+ * Task platform mappings
+ */
+export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
+  [TASK_PLATFORMS.SUNO]: { label: 'suno', variant: 'green' },
+  [TASK_PLATFORMS.KLING]: { label: 'kling', variant: 'blue' },
+  [TASK_PLATFORMS.RUNWAY]: { label: 'runway', variant: 'violet' },
+  [TASK_PLATFORMS.LUMA]: { label: 'luma', variant: 'orange' },
+  [TASK_PLATFORMS.VIGGLE]: { label: 'viggle', variant: 'pink' },
+}
+
+// ============================================================================
+// Log Category Labels
+// ============================================================================
+
+/**
+ * Log category display labels
+ */
+export const LOG_CATEGORY_LABELS: Record<LogCategory, string> = {
+  common: 'Common',
+  drawing: 'Drawing',
+  task: 'Task',
+}
+
+// ============================================================================
+// Log Type Checkers (Constants)
+// ============================================================================
+
+/**
+ * Log types that are displayable (have detailed info)
+ */
+export const DISPLAYABLE_LOG_TYPES = [0, 2, 5] as const
+
+/**
+ * Log types that show timing info
+ */
+export const TIMING_LOG_TYPES = [2, 5] as const

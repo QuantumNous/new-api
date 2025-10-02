@@ -13,84 +13,86 @@ import type {
 } from './types'
 
 // ============================================================================
-// Log Management APIs
+// Generic API Helpers
 // ============================================================================
 
 /**
- * Get paginated logs list (admin)
+ * Build API path based on admin status
  */
-export async function getAllLogs(
-  params: GetLogsParams = {}
+function buildApiPath(endpoint: string, isAdmin: boolean): string {
+  return isAdmin ? endpoint : `${endpoint}/self`
+}
+
+/**
+ * Generic function to fetch logs with pagination
+ */
+async function fetchLogs<T extends Record<string, any>>(
+  endpoint: string,
+  params: T,
+  isAdmin: boolean
 ): Promise<GetLogsResponse> {
   const queryParams = buildQueryParams({
-    p: params.p || 1,
-    page_size: params.page_size || 10,
+    p: (params as any).p || 1,
+    page_size: (params as any).page_size || 10,
     ...params,
   })
-
-  const res = await api.get(`/api/log/?${queryParams.toString()}`)
+  const path = buildApiPath(endpoint, isAdmin)
+  const res = await api.get(`${path}?${queryParams}`)
   return res.data
 }
 
 /**
- * Get user's own logs
+ * Generic function to search logs
  */
-export async function getUserLogs(
+async function searchLogs(
+  endpoint: string,
+  keyword: string,
+  isAdmin: boolean
+): Promise<{ success: boolean; message?: string; data?: UsageLog[] }> {
+  const path = buildApiPath(endpoint, isAdmin)
+  const res = await api.get(
+    `${path}/search?keyword=${encodeURIComponent(keyword)}`
+  )
+  return res.data
+}
+
+/**
+ * Generic function to get log statistics
+ */
+async function fetchLogStats<T extends Record<string, any>>(
+  endpoint: string,
+  params: T,
+  isAdmin: boolean
+): Promise<GetLogStatsResponse> {
+  const queryParams = buildQueryParams(params)
+  const path = buildApiPath(endpoint, isAdmin)
+  const res = await api.get(`${path}/stat?${queryParams}`)
+  return res.data
+}
+
+// ============================================================================
+// Log Management APIs
+// ============================================================================
+
+export const getAllLogs = (params: GetLogsParams = {}) =>
+  fetchLogs('/api/log/', params, true)
+
+export const getUserLogs = (
   params: Omit<GetLogsParams, 'username' | 'channel'> = {}
-): Promise<GetLogsResponse> {
-  const queryParams = buildQueryParams({
-    p: params.p || 1,
-    page_size: params.page_size || 10,
-    ...params,
-  })
+) => fetchLogs('/api/log/', params, false)
 
-  const res = await api.get(`/api/log/self/?${queryParams.toString()}`)
-  return res.data
-}
+export const searchAllLogs = (params: SearchLogsParams) =>
+  searchLogs('/api/log', params.keyword || '', true)
 
-// Search logs by keyword (admin)
-export async function searchAllLogs(
-  params: SearchLogsParams
-): Promise<{ success: boolean; message?: string; data?: UsageLog[] }> {
-  const { keyword = '' } = params
-  const res = await api.get(
-    `/api/log/search?keyword=${encodeURIComponent(keyword)}`
-  )
-  return res.data
-}
+export const searchUserLogs = (params: SearchLogsParams) =>
+  searchLogs('/api/log', params.keyword || '', false)
 
-// Search user's own logs
-export async function searchUserLogs(
-  params: SearchLogsParams
-): Promise<{ success: boolean; message?: string; data?: UsageLog[] }> {
-  const { keyword = '' } = params
-  const res = await api.get(
-    `/api/log/self/search?keyword=${encodeURIComponent(keyword)}`
-  )
-  return res.data
-}
+export const getLogStats = (params: GetLogStatsParams = {}) =>
+  fetchLogStats('/api/log', params, true)
 
-/**
- * Get log statistics (admin)
- */
-export async function getLogStats(
-  params: GetLogStatsParams = {}
-): Promise<GetLogStatsResponse> {
-  const queryParams = buildQueryParams(params)
-  const res = await api.get(`/api/log/stat?${queryParams.toString()}`)
-  return res.data
-}
-
-/**
- * Get user's own log statistics
- */
-export async function getUserLogStats(
+export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
-): Promise<GetLogStatsResponse> {
-  const queryParams = buildQueryParams(params)
-  const res = await api.get(`/api/log/self/stat?${queryParams.toString()}`)
-  return res.data
-}
+) => fetchLogStats('/api/log', params, false)
 
 /**
  * Get logs by API key
@@ -128,50 +130,18 @@ export async function getUserInfo(
 // Midjourney (Drawing) Logs API
 // ============================================================================
 
-/**
- * Get all Midjourney logs (admin only)
- */
-export async function getAllMidjourneyLogs(
-  params: GetMidjourneyLogsParams
-): Promise<GetLogsResponse> {
-  const queryParams = buildQueryParams(params)
-  const res = await api.get(`/api/mj/?${queryParams}`)
-  return res.data
-}
+export const getAllMidjourneyLogs = (params: GetMidjourneyLogsParams) =>
+  fetchLogs('/api/mj/', params, true)
 
-/**
- * Get user's own Midjourney logs
- */
-export async function getUserMidjourneyLogs(
-  params: GetMidjourneyLogsParams
-): Promise<GetLogsResponse> {
-  const queryParams = buildQueryParams(params)
-  const res = await api.get(`/api/mj/self/?${queryParams}`)
-  return res.data
-}
+export const getUserMidjourneyLogs = (params: GetMidjourneyLogsParams) =>
+  fetchLogs('/api/mj/', params, false)
 
 // ============================================================================
 // Task Logs API
 // ============================================================================
 
-/**
- * Get all task logs (admin only)
- */
-export async function getAllTaskLogs(
-  params: GetTaskLogsParams
-): Promise<GetLogsResponse> {
-  const queryParams = buildQueryParams(params)
-  const res = await api.get(`/api/task/?${queryParams}`)
-  return res.data
-}
+export const getAllTaskLogs = (params: GetTaskLogsParams) =>
+  fetchLogs('/api/task/', params, true)
 
-/**
- * Get user's own task logs
- */
-export async function getUserTaskLogs(
-  params: GetTaskLogsParams
-): Promise<GetLogsResponse> {
-  const queryParams = buildQueryParams(params)
-  const res = await api.get(`/api/task/self?${queryParams}`)
-  return res.data
-}
+export const getUserTaskLogs = (params: GetTaskLogsParams) =>
+  fetchLogs('/api/task/', params, false)

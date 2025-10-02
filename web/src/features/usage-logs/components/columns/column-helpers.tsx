@@ -1,11 +1,89 @@
 import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Clock } from 'lucide-react'
+import { Clock, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { formatTimestampToDate, formatDuration } from '../../lib/format'
+import {
+  formatTimestampToDate,
+  formatDuration,
+  formatTokens,
+} from '../../lib/format'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+
+/**
+ * Column helper functions and utilities for usage logs tables
+ * This module provides reusable column definitions and rendering utilities
+ */
+
+// ============================================================================
+// Column Rendering Utilities
+// ============================================================================
+
+/**
+ * Check if log uses per-call billing
+ */
+export function isPerCallBilling(modelPrice?: number): boolean {
+  return (modelPrice ?? 0) > 0
+}
+
+/**
+ * Render a status badge with consistent styling
+ */
+export function renderBadge(
+  value: string,
+  options?: { className?: string; mono?: boolean }
+) {
+  return (
+    <StatusBadge
+      label={value}
+      autoColor={value}
+      copyText={value}
+      size='sm'
+      className={options?.mono ? 'truncate font-mono' : options?.className}
+    />
+  )
+}
+
+/**
+ * Cache tooltip component for token display
+ */
+export function CacheTooltip({
+  tokens,
+  label,
+  color,
+}: {
+  tokens: number
+  label: string
+  color: string
+}) {
+  if (tokens <= 0) return null
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Zap className={`size-3 flex-shrink-0 ${color}`} />
+        </TooltipTrigger>
+        <TooltipContent side='top'>
+          <p className='text-xs'>
+            {label}: {formatTokens(tokens)}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+// ============================================================================
+// Column Definition Factories
+// ============================================================================
 
 /**
  * Create a timestamp column

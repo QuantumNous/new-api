@@ -4,6 +4,57 @@
 import type { UsageLog } from './data/schema'
 
 // ============================================================================
+// Log Category Types
+// ============================================================================
+
+/**
+ * Log category for different log types
+ */
+export type LogCategory = 'common' | 'drawing' | 'task'
+
+// ============================================================================
+// Filter Types
+// ============================================================================
+
+/**
+ * Common filters (shared across all log types)
+ */
+export interface CommonFilters {
+  startTime?: Date
+  endTime?: Date
+  channel?: string
+}
+
+/**
+ * Common logs specific filters
+ */
+export interface CommonLogFilters extends CommonFilters {
+  model?: string
+  token?: string
+  group?: string
+  username?: string
+}
+
+/**
+ * Drawing logs specific filters
+ */
+export interface DrawingLogFilters extends CommonFilters {
+  mjId?: string
+}
+
+/**
+ * Task logs specific filters
+ */
+export interface TaskLogFilters extends CommonFilters {
+  taskId?: string
+}
+
+/**
+ * Union type for all log filters
+ */
+export type LogFilters = CommonLogFilters | DrawingLogFilters | TaskLogFilters
+
+// ============================================================================
 // Common Logs Additional Types
 // ============================================================================
 
@@ -188,6 +239,22 @@ export interface GetTaskLogsParams {
   task_id?: string
   start_timestamp?: number
   end_timestamp?: number
+}
+
+// ============================================================================
+// Fetch Logs Configuration
+// ============================================================================
+
+/**
+ * Configuration for fetching logs by category
+ */
+export interface FetchLogsConfig {
+  logCategory: LogCategory
+  isAdmin: boolean
+  page: number
+  pageSize: number
+  searchParams: Record<string, any>
+  columnFilters: Array<{ id: string; value: any }>
 }
 
 // ============================================================================

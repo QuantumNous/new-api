@@ -1,6 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-
-export type LogCategory = 'common' | 'drawing' | 'task'
+import type { LogCategory } from '../types'
 
 interface UsageLogsTabsProps {
   value: LogCategory

@@ -22,24 +22,14 @@ export function parseLogOther(other: string): LogOtherData | null {
 export function formatLogQuota(quota: number): string {
   const dollars = quota / 500000
 
-  // For very large amounts, use compact notation
-  if (dollars >= 1000) {
-    return `$${(dollars / 1000).toFixed(1)}k`
-  }
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`
+  if (dollars >= 0.01) return `$${dollars.toFixed(4)}`
 
-  // For amounts >= $0.01, use 4 decimal places
-  if (dollars >= 0.01) {
-    return `$${dollars.toFixed(4)}`
-  }
-
-  // For very small amounts, use 6 decimal places to show precise costs
-  // If result is 0 but quota > 0, show minimum representable value
+  // For very small amounts, use 6 decimal places
   const result = dollars.toFixed(6)
-  if (parseFloat(result) === 0 && quota > 0) {
-    return `$${(0.000001).toFixed(6)}`
-  }
-
-  return `$${result}`
+  return parseFloat(result) === 0 && quota > 0
+    ? `$${(0.000001).toFixed(6)}`
+    : `$${result}`
 }
 
 /**
@@ -136,7 +126,5 @@ export function formatDuration(
       ? (finishTime - submitTime) / 1000
       : finishTime - submitTime
 
-  const variant = durationSec > 60 ? ('red' as const) : ('green' as const)
-
-  return { durationSec, variant }
+  return { durationSec, variant: durationSec > 60 ? 'red' : 'green' }
 }

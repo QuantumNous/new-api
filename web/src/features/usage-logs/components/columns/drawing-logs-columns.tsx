@@ -2,8 +2,7 @@ import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/status-badge'
-import { MJ_TASK_TYPES, MJ_TASK_STATUS } from '../../constants'
-import { createStatusMapper } from '../../lib/status'
+import { mjTaskTypeMapper, mjStatusMapper } from '../../lib/mappers'
 import type { MidjourneyLog } from '../../types'
 import { ImageDialog } from '../dialogs/image-dialog'
 import { PromptDialog } from '../dialogs/prompt-dialog'
@@ -14,37 +13,6 @@ import {
   createProgressColumn,
   createFailReasonColumn,
 } from './column-helpers'
-
-// Task type mappings
-const taskTypeMapper = createStatusMapper({
-  [MJ_TASK_TYPES.IMAGINE]: { label: 'Draw', variant: 'blue' },
-  [MJ_TASK_TYPES.UPSCALE]: { label: 'Upscale', variant: 'orange' },
-  [MJ_TASK_TYPES.VIDEO]: { label: 'Video', variant: 'orange' },
-  [MJ_TASK_TYPES.EDITS]: { label: 'Edit', variant: 'orange' },
-  [MJ_TASK_TYPES.VARIATION]: { label: 'Vary', variant: 'violet' },
-  [MJ_TASK_TYPES.HIGH_VARIATION]: { label: 'Vary (Strong)', variant: 'violet' },
-  [MJ_TASK_TYPES.LOW_VARIATION]: { label: 'Vary (Subtle)', variant: 'violet' },
-  [MJ_TASK_TYPES.PAN]: { label: 'Pan', variant: 'cyan' },
-  [MJ_TASK_TYPES.DESCRIBE]: { label: 'Describe', variant: 'yellow' },
-  [MJ_TASK_TYPES.BLEND]: { label: 'Blend', variant: 'lime' },
-  [MJ_TASK_TYPES.UPLOAD]: { label: 'Upload', variant: 'blue' },
-  [MJ_TASK_TYPES.SHORTEN]: { label: 'Shorten', variant: 'pink' },
-  [MJ_TASK_TYPES.REROLL]: { label: 'Reroll', variant: 'indigo' },
-  [MJ_TASK_TYPES.INPAINT]: { label: 'Inpaint', variant: 'teal' },
-  [MJ_TASK_TYPES.SWAP_FACE]: { label: 'Swap Face', variant: 'purple' },
-  [MJ_TASK_TYPES.ZOOM]: { label: 'Zoom', variant: 'green' },
-  [MJ_TASK_TYPES.CUSTOM_ZOOM]: { label: 'Custom Zoom', variant: 'green' },
-})
-
-// Task status mappings
-const statusMapper = createStatusMapper({
-  [MJ_TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
-  [MJ_TASK_STATUS.NOT_START]: { label: 'Not Started', variant: 'neutral' },
-  [MJ_TASK_STATUS.SUBMITTED]: { label: 'Queued', variant: 'yellow' },
-  [MJ_TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'blue' },
-  [MJ_TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'red' },
-  [MJ_TASK_STATUS.MODAL]: { label: 'Waiting', variant: 'amber' },
-})
 
 export function getDrawingLogsColumns(
   isAdmin: boolean
@@ -74,8 +42,8 @@ export function getDrawingLogsColumns(
         const action = row.getValue('action') as string
         return (
           <StatusBadge
-            label={taskTypeMapper.getLabel(action)}
-            variant={taskTypeMapper.getVariant(action)}
+            label={mjTaskTypeMapper.getLabel(action)}
+            variant={mjTaskTypeMapper.getVariant(action)}
             size='sm'
             copyable={false}
           />
@@ -108,8 +76,8 @@ export function getDrawingLogsColumns(
         const status = row.getValue('status') as string
         return (
           <StatusBadge
-            label={statusMapper.getLabel(status)}
-            variant={statusMapper.getVariant(status)}
+            label={mjStatusMapper.getLabel(status)}
+            variant={mjStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
             showDot

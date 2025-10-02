@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
 import { getNormalizedDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -18,16 +17,15 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { TIME_RANGE_PRESETS } from '../../constants'
-import {
-  buildSearchParams,
-  getLogCategoryLabel,
-  type LogFilters,
-  type CommonLogFilters,
-  type DrawingLogFilters,
-  type TaskLogFilters,
-} from '../../lib/filter'
+import { buildSearchParams, getLogCategoryLabel } from '../../lib/filter'
 import { getDefaultTimeRange } from '../../lib/utils'
-import type { LogCategory } from '../usage-logs-tabs'
+import type {
+  LogCategory,
+  LogFilters,
+  CommonLogFilters,
+  DrawingLogFilters,
+  TaskLogFilters,
+} from '../../types'
 import { FilterInput, SectionDivider } from './filter-components'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
@@ -47,8 +45,7 @@ export function UsageLogsFilterDialog({
 }: UsageLogsFilterDialogProps) {
   const navigate = useNavigate()
   const searchParams = route.useSearch()
-  const { user } = useAuthStore((state) => state.auth)
-  const isAdmin = (user?.role ?? 0) >= ROLE.ADMIN
+  const isAdmin = useIsAdmin()
   const [internalOpen, setInternalOpen] = useState(false)
 
   const open = controlledOpen ?? internalOpen
@@ -60,18 +57,25 @@ export function UsageLogsFilterDialog({
   })
   const [selectedRange, setSelectedRange] = useState<number | null>(null)
 
-  // Reset category-specific filters when log category changes
+  // Sync filters from URL
   useEffect(() => {
-    setFilters((prev) => ({
-      startTime: prev.startTime,
-      endTime: prev.endTime,
-      channel: prev.channel,
-    }))
-  }, [logCategory])
+    const urlFilters: Partial<LogFilters> = {}
+
+    if (searchParams.startTime)
+      urlFilters.startTime = new Date(searchParams.startTime)
+    if (searchParams.endTime)
+      urlFilters.endTime = new Date(searchParams.endTime)
+    if (searchParams.channel) urlFilters.channel = String(searchParams.channel)
+
+    if (Object.keys(urlFilters).length > 0) {
+      setFilters((prev: LogFilters) => ({ ...prev, ...urlFilters }))
+      setSelectedRange(null)
+    }
+  }, [searchParams.startTime, searchParams.endTime, searchParams.channel])
 
   const handleChange = useCallback(
     (field: string, value: Date | string | undefined) => {
-      setFilters((prev) => ({ ...prev, [field]: value }))
+      setFilters((prev: LogFilters) => ({ ...prev, [field]: value }))
       if (field === 'startTime' || field === 'endTime') {
         setSelectedRange(null)
       }
@@ -81,29 +85,34 @@ export function UsageLogsFilterDialog({
 
   const handleQuickRange = useCallback((days: number) => {
     const { start, end } = getNormalizedDateRange(days)
-    setFilters((prev) => ({ ...prev, startTime: start, endTime: end }))
+    setFilters((prev: LogFilters) => ({
+      ...prev,
+      startTime: start,
+      endTime: end,
+    }))
     setSelectedRange(days)
   }, [])
 
+  // Common navigation helper
+  const navigateWithFilters = useCallback(
+    (params: Record<string, any>) => {
+      navigate({
+        to: '/usage-logs',
+        search: {
+          ...params,
+          tab: searchParams.tab, // Preserve tab parameter
+        },
+      })
+    },
+    [navigate, searchParams.tab]
+  )
+
   const handleApply = useCallback(() => {
     const filterParams = buildSearchParams(filters, logCategory)
-    navigate({
-      to: '/usage-logs',
-      search: {
-        ...filterParams,
-        tab: searchParams.tab, // Preserve tab parameter
-      },
-    })
+    navigateWithFilters(filterParams)
     onFilterChange?.(filters)
     setOpen(false)
-  }, [
-    filters,
-    logCategory,
-    navigate,
-    onFilterChange,
-    setOpen,
-    searchParams.tab,
-  ])
+  }, [filters, logCategory, navigateWithFilters, onFilterChange, setOpen])
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
@@ -112,16 +121,14 @@ export function UsageLogsFilterDialog({
     setFilters(resetFilters)
     setSelectedRange(null)
 
-    navigate({
-      to: '/usage-logs',
-      search: {
-        tab: searchParams.tab, // Preserve tab parameter
-      },
+    navigateWithFilters({
+      startTime: start.getTime(),
+      endTime: end.getTime(),
     })
 
     onFilterChange?.(resetFilters)
     setOpen(false)
-  }, [navigate, onFilterChange, setOpen, searchParams.tab])
+  }, [navigateWithFilters, onFilterChange, setOpen])
 
   // Render category-specific filters
   const renderCategoryFilters = () => {

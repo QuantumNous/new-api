@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import type { LogCategory } from './usage-logs-tabs'
+import type { LogCategory } from '../types'
 
 interface UsageLogsContextValue {
   refreshTrigger: number

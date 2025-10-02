@@ -14,7 +14,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -25,27 +25,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import {
-  getAllLogs,
-  getUserLogs,
-  getAllMidjourneyLogs,
-  getUserMidjourneyLogs,
-  getAllTaskLogs,
-  getUserTaskLogs,
-} from '../api'
-import { LOG_TYPE_FILTERS } from '../constants'
-import { buildApiParams, buildBaseParams } from '../lib/utils'
-import { getCommonLogsColumns } from './columns/common-logs-columns'
-import { getDrawingLogsColumns } from './columns/drawing-logs-columns'
-import { getTaskLogsColumns } from './columns/task-logs-columns'
+import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
+import { getColumnsByCategory } from '../lib/columns'
+import { fetchLogsByCategory } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
 import { UsageLogsTabs } from './usage-logs-tabs'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
 
 export function UsageLogsTable() {
-  const { user } = useAuthStore((state) => state.auth)
-  const isAdmin = user?.role === 100
+  const isAdmin = useIsAdmin()
   const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
   const navigate = route.useNavigate()
   const searchParams = route.useSearch()
@@ -102,83 +91,29 @@ export function UsageLogsTable() {
       refreshTrigger,
     ],
     queryFn: async () => {
-      let result
-
-      switch (logCategory) {
-        case 'common': {
-          const params = buildApiParams({
-            page: pagination.pageIndex + 1,
-            pageSize: pagination.pageSize,
-            searchParams,
-            columnFilters,
-            isAdmin,
-          })
-
-          result = isAdmin
-            ? await getAllLogs(params)
-            : await getUserLogs(params)
-          break
-        }
-        case 'drawing': {
-          const baseParams = buildBaseParams({
-            page: pagination.pageIndex + 1,
-            pageSize: pagination.pageSize,
-            searchParams,
-          })
-
-          result = isAdmin
-            ? await getAllMidjourneyLogs({
-                ...baseParams,
-                mj_id: searchParams.filter,
-              })
-            : await getUserMidjourneyLogs({
-                ...baseParams,
-                mj_id: searchParams.filter,
-              })
-          break
-        }
-        case 'task': {
-          const baseParams = buildBaseParams({
-            page: pagination.pageIndex + 1,
-            pageSize: pagination.pageSize,
-            searchParams,
-          })
-
-          result = isAdmin
-            ? await getAllTaskLogs({
-                ...baseParams,
-                task_id: searchParams.filter,
-              })
-            : await getUserTaskLogs({
-                ...baseParams,
-                task_id: searchParams.filter,
-              })
-          break
-        }
-      }
+      const result = await fetchLogsByCategory({
+        logCategory,
+        isAdmin,
+        page: pagination.pageIndex + 1,
+        pageSize: pagination.pageSize,
+        searchParams,
+        columnFilters,
+      })
 
       if (!result?.success) {
         toast.error(result?.message || 'Failed to load logs')
-        return { items: [], total: 0 }
+        return DEFAULT_LOGS_DATA
       }
 
-      return {
-        items: result.data?.items || [],
-        total: result.data?.total || 0,
-      }
+      return result.data || DEFAULT_LOGS_DATA
     },
     placeholderData: (previousData) => previousData,
   })
 
   const logs = data?.items || []
 
-  // Use different column definitions based on log category
-  const columns =
-    logCategory === 'common'
-      ? getCommonLogsColumns(isAdmin)
-      : logCategory === 'drawing'
-        ? getDrawingLogsColumns(isAdmin)
-        : getTaskLogsColumns(isAdmin)
+  // Get column definitions based on log category
+  const columns = getColumnsByCategory(logCategory, isAdmin)
 
   const table = useReactTable({
     data: logs as any, // Different log types have different schemas

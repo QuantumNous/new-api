@@ -26,7 +26,7 @@ function UsageLogsContent() {
   // Sync tab state with URL parameter
   useEffect(() => {
     if (searchParams.tab && searchParams.tab !== logCategory) {
-      setLogCategory(searchParams.tab)
+      setLogCategory(searchParams.tab as typeof logCategory)
     }
   }, [searchParams.tab, logCategory, setLogCategory])
 
