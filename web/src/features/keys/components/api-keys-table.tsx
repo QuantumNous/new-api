@@ -152,7 +152,6 @@ export function ApiKeysTable() {
             options: apiKeyStatuses.map((s) => ({
               label: s.label,
               value: String(s.value),
-              icon: s.icon,
             })),
           },
         ]}

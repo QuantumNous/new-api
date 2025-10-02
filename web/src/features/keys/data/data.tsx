@@ -1,28 +1,34 @@
-import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react'
+import { type StatusBadgeProps } from '@/components/status-badge'
 
-export const apiKeyStatuses = [
-  {
+export const apiKeyStatusConfig: Record<
+  number,
+  Pick<StatusBadgeProps, 'variant' | 'showDot'> & { label: string }
+> = {
+  1: {
     label: 'Enabled',
-    value: 1 as const,
-    icon: CheckCircle,
-    color: 'success' as const,
+    variant: 'success',
+    showDot: true,
   },
-  {
+  2: {
     label: 'Disabled',
-    value: 2 as const,
-    icon: XCircle,
-    color: 'danger' as const,
+    variant: 'neutral',
+    showDot: true,
   },
-  {
+  3: {
     label: 'Expired',
-    value: 3 as const,
-    icon: Clock,
-    color: 'warning' as const,
+    variant: 'warning',
+    showDot: true,
   },
-  {
+  4: {
     label: 'Exhausted',
-    value: 4 as const,
-    icon: AlertCircle,
-    color: 'secondary' as const,
+    variant: 'danger',
+    showDot: true,
   },
-]
+}
+
+export const apiKeyStatuses = Object.entries(apiKeyStatusConfig).map(
+  ([value, config]) => ({
+    label: config.label,
+    value: Number(value),
+  })
+)

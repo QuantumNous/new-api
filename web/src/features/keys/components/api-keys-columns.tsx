@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/tooltip'
 import { CopyButton } from '@/components/copy-button'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { apiKeyStatuses } from '../data/data'
+import { StatusBadge } from '@/components/status-badge'
+import { apiKeyStatusConfig } from '../data/data'
 import { type ApiKey } from '../data/schema'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -62,26 +63,19 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       <DataTableColumnHeader column={column} title='Status' />
     ),
     cell: ({ row }) => {
-      const status = apiKeyStatuses.find(
-        (s) => s.value === row.getValue('status')
-      )
+      const statusValue = row.getValue('status') as number
+      const statusConfig = apiKeyStatusConfig[statusValue]
 
-      if (!status) {
+      if (!statusConfig) {
         return null
       }
 
-      const colorMap = {
-        success: 'default',
-        danger: 'destructive',
-        warning: 'secondary',
-        secondary: 'outline',
-      } as const
-
       return (
-        <Badge variant={colorMap[status.color]}>
-          {status.icon && <status.icon className='mr-1 size-3' />}
-          {status.label}
-        </Badge>
+        <StatusBadge
+          label={statusConfig.label}
+          variant={statusConfig.variant}
+          showDot={statusConfig.showDot}
+        />
       )
     },
     filterFn: (row, id, value) => {

@@ -1,10 +1,10 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
-import { callTypes, roles } from '../data/data'
+import { StatusBadge } from '@/components/status-badge'
+import { roles, userStatuses } from '../data/data'
 import { type User } from '../data/schema'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -88,12 +88,20 @@ export const usersColumns: ColumnDef<User>[] = [
     ),
     cell: ({ row }) => {
       const { status } = row.original
-      const badgeColor = callTypes.get(status)
+      const statusConfig = userStatuses[status]
+
+      if (!statusConfig) {
+        return null
+      }
+
       return (
         <div className='flex space-x-2'>
-          <Badge variant='outline' className={cn('capitalize', badgeColor)}>
-            {row.getValue('status')}
-          </Badge>
+          <StatusBadge
+            label={status}
+            variant={statusConfig.variant}
+            icon={statusConfig.icon}
+            showDot={statusConfig.showDot}
+          />
         </div>
       )
     },
