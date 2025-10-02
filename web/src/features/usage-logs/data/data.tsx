@@ -11,6 +11,14 @@ export const logTypes = [
 ] as const
 
 /**
+ * Log types for DataTableToolbar filters (exclude 'All')
+ */
+export const logTypeFilters = logTypes.slice(1).map((type) => ({
+  label: type.label,
+  value: String(type.value),
+}))
+
+/**
  * Quick time range presets for filter dialog
  */
 export const TIME_RANGE_PRESETS = [

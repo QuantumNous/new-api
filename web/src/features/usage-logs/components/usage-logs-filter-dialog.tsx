@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Search, RotateCcw, Calendar, Filter } from 'lucide-react'
+import { Search, RotateCcw, Calendar } from 'lucide-react'
 import { getSelf } from '@/lib/api'
 import { getNormalizedDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,26 +12,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { DatePicker } from '@/components/date-picker'
-import { logTypes, TIME_RANGE_PRESETS } from '../data/data'
+import { DateTimePicker } from '@/components/datetime-picker'
+import { TIME_RANGE_PRESETS } from '../data/data'
 import { getDefaultTimeRange } from '../lib/utils'
 
 interface LogFilters {
   startTime?: Date
   endTime?: Date
-  type?: string
   model?: string
   token?: string
   group?: string
@@ -41,15 +31,22 @@ interface LogFilters {
 }
 
 interface UsageLogsFilterDialogProps {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   onFilterChange?: (filters: LogFilters) => void
 }
 
 export function UsageLogsFilterDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
   onFilterChange,
 }: UsageLogsFilterDialogProps) {
   const navigate = useNavigate()
   const [self, setSelf] = useState<any>(null)
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+
+  const open = controlledOpen ?? internalOpen
+  const setOpen = controlledOnOpenChange ?? setInternalOpen
 
   // Load user data to check if admin
   useEffect(() => {
@@ -80,9 +77,6 @@ export function UsageLogsFilterDialog({
     }
     if (filters.endTime) {
       searchParams.endTime = filters.endTime.getTime()
-    }
-    if (filters.type) {
-      searchParams.type = [filters.type]
     }
     if (filters.model) {
       searchParams.model = filters.model
@@ -155,28 +149,8 @@ export function UsageLogsFilterDialog({
     setSelectedRange(days)
   }
 
-  // Count active filters
-  const activeFilterCount = Object.entries(filters).filter(([key, value]) => {
-    if (key === 'startTime' || key === 'endTime') return false // Don't count time as filter
-    return value !== undefined && value !== ''
-  }).length
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant='outline' size='sm' className='relative'>
-          <Filter className='mr-2 h-4 w-4' />
-          Filter
-          {activeFilterCount > 0 && (
-            <Badge
-              variant='destructive'
-              className='absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs'
-            >
-              {activeFilterCount}
-            </Badge>
-          )}
-        </Button>
-      </DialogTrigger>
       <DialogContent className='sm:max-w-[550px]'>
         <DialogHeader>
           <DialogTitle>Filter Usage Logs</DialogTitle>
@@ -227,22 +201,26 @@ export function UsageLogsFilterDialog({
             </div>
 
             {/* 自定义时间范围 */}
-            <div className='grid grid-cols-2 gap-4'>
+            <div className='grid gap-4'>
               <div className='grid gap-2'>
                 <Label htmlFor='start_time'>Start Time</Label>
-                <DatePicker
-                  selected={filters.startTime}
-                  onSelect={(date) => handleChange('startTime', date)}
-                  placeholder='Select start date'
+                <DateTimePicker
+                  value={filters.startTime}
+                  onChange={(date) =>
+                    handleChange('startTime', date || undefined)
+                  }
+                  placeholder='Select start time'
                 />
               </div>
 
               <div className='grid gap-2'>
                 <Label htmlFor='end_time'>End Time</Label>
-                <DatePicker
-                  selected={filters.endTime}
-                  onSelect={(date) => handleChange('endTime', date)}
-                  placeholder='Select end date'
+                <DateTimePicker
+                  value={filters.endTime}
+                  onChange={(date) =>
+                    handleChange('endTime', date || undefined)
+                  }
+                  placeholder='Select end time'
                 />
               </div>
             </div>
@@ -256,29 +234,6 @@ export function UsageLogsFilterDialog({
                   Log Filters
                 </span>
               </div>
-            </div>
-
-            {/* 日志类型 */}
-            <div className='grid gap-2'>
-              <Label htmlFor='type'>Log Type</Label>
-              <Select
-                value={filters.type}
-                onValueChange={(value) =>
-                  handleChange('type', value === 'all' ? undefined : value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder='All types' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='all'>All Types</SelectItem>
-                  {logTypes.slice(1).map((type) => (
-                    <SelectItem key={type.value} value={String(type.value)}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             {/* 模型名称 */}

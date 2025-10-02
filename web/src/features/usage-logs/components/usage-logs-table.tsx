@@ -24,11 +24,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DataTablePagination } from '@/components/data-table'
+import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import { getAllLogs, getUserLogs } from '../api'
+import { logTypeFilters } from '../data/data'
 import { buildApiParams } from '../lib/utils'
 import { getUsageLogsColumns } from './usage-logs-columns'
-import { UsageLogsFilterDialog } from './usage-logs-filter-dialog'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
@@ -153,12 +153,17 @@ export function UsageLogsTable() {
 
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <div className='flex items-center justify-between'>
-        <div className='text-muted-foreground text-sm'>
-          {data?.total || 0} log(s) found
-        </div>
-        <UsageLogsFilterDialog />
-      </div>
+      <DataTableToolbar
+        table={table}
+        searchPlaceholder='Filter logs...'
+        filters={[
+          {
+            columnId: 'type',
+            title: 'Log Type',
+            options: logTypeFilters,
+          },
+        ]}
+      />
       <div className='overflow-hidden rounded-md border'>
         <Table>
           <TableHeader>

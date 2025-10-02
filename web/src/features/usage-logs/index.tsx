@@ -1,5 +1,6 @@
 import { AppHeader } from '@/components/layout/app-header'
 import { Main } from '@/components/layout/main'
+import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
 import { UsageLogsProvider } from './components/usage-logs-provider'
 import { UsageLogsTable } from './components/usage-logs-table'
 
@@ -17,6 +18,7 @@ export function UsageLogs() {
               errors, and more
             </p>
           </div>
+          <UsageLogsPrimaryButtons />
         </div>
         <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
           <UsageLogsTable />
