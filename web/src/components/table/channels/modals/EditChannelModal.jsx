@@ -68,6 +68,8 @@ import {
   IconCode,
   IconGlobe,
   IconBolt,
+  IconChevronUp,
+  IconChevronDown,
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
@@ -169,6 +171,10 @@ const EditChannelModal = (props) => {
     vertex_key_type: 'json',
     // 企业账户设置
     is_enterprise_account: false,
+    // 字段透传控制默认值
+    allow_service_tier: false,
+    disable_store: false,  // false = 允许透传（默认开启）
+    allow_safety_identifier: false,
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -202,6 +208,27 @@ const EditChannelModal = (props) => {
     keyData: '',
   });
 
+  // 专门的2FA验证状态（用于TwoFactorAuthModal）
+  const [show2FAVerifyModal, setShow2FAVerifyModal] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // 表单块导航相关状态
+  const formSectionRefs = useRef({
+    basicInfo: null,
+    apiConfig: null,
+    modelConfig: null,
+    advancedSettings: null,
+    channelExtraSettings: null,
+  });
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const formSections = ['basicInfo', 'apiConfig', 'modelConfig', 'advancedSettings', 'channelExtraSettings'];
+  const formContainerRef = useRef(null);
+
+  // 2FA状态更新辅助函数
+  const updateTwoFAState = (updates) => {
+    setTwoFAState((prev) => ({ ...prev, ...updates }));
+  };
   // 使用通用安全验证 Hook
   const {
     isModalVisible,
@@ -239,6 +266,44 @@ const EditChannelModal = (props) => {
       showModal: false,
       keyData: '',
     });
+  };
+
+  // 重置2FA验证状态
+  const reset2FAVerifyState = () => {
+    setShow2FAVerifyModal(false);
+    setVerifyCode('');
+    setVerifyLoading(false);
+  };
+
+  // 表单导航功能
+  const scrollToSection = (sectionKey) => {
+    const sectionElement = formSectionRefs.current[sectionKey];
+    if (sectionElement) {
+      sectionElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      });
+    }
+  };
+
+  const navigateToSection = (direction) => {
+    const availableSections = formSections.filter(section => {
+      if (section === 'apiConfig') {
+        return showApiConfigCard;
+      }
+      return true;
+    });
+
+    let newIndex;
+    if (direction === 'up') {
+      newIndex = currentSectionIndex > 0 ? currentSectionIndex - 1 : availableSections.length - 1;
+    } else {
+      newIndex = currentSectionIndex < availableSections.length - 1 ? currentSectionIndex + 1 : 0;
+    }
+    
+    setCurrentSectionIndex(newIndex);
+    scrollToSection(availableSections[newIndex]);
   };
 
   // 渠道额外设置状态
@@ -453,17 +518,27 @@ const EditChannelModal = (props) => {
           data.vertex_key_type = parsedSettings.vertex_key_type || 'json';
           // 读取企业账户设置
           data.is_enterprise_account = parsedSettings.openrouter_enterprise === true;
+          // 读取字段透传控制设置
+          data.allow_service_tier = parsedSettings.allow_service_tier || false;
+          data.disable_store = parsedSettings.disable_store || false;
+          data.allow_safety_identifier = parsedSettings.allow_safety_identifier || false;
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
           data.region = '';
           data.vertex_key_type = 'json';
           data.is_enterprise_account = false;
+          data.allow_service_tier = false;
+          data.disable_store = false;
+          data.allow_safety_identifier = false;
         }
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
         data.vertex_key_type = 'json';
         data.is_enterprise_account = false;
+        data.allow_service_tier = false;
+        data.disable_store = false;
+        data.allow_safety_identifier = false;
       }
 
       if (
@@ -715,6 +790,8 @@ const EditChannelModal = (props) => {
       fetchModelGroups();
       // 重置手动输入模式状态
       setUseManualInput(false);
+      // 重置导航状态
+      setCurrentSectionIndex(0);
     } else {
       // 统一的模态框关闭重置逻辑
       resetModalState();
@@ -900,20 +977,32 @@ const EditChannelModal = (props) => {
     };
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
-    // 处理type === 20的企业账户设置
-    if (localInputs.type === 20) {
-      let settings = {};
-      if (localInputs.settings) {
-        try {
-          settings = JSON.parse(localInputs.settings);
-        } catch (error) {
-          console.error('解析settings失败:', error);
-        }
+    // 处理 settings 字段（包括企业账户设置和字段透传控制）
+    let settings = {};
+    if (localInputs.settings) {
+      try {
+        settings = JSON.parse(localInputs.settings);
+      } catch (error) {
+        console.error('解析settings失败:', error);
       }
-      // 设置企业账户标识，无论是true还是false都要传到后端
-      settings.openrouter_enterprise = localInputs.is_enterprise_account === true;
-      localInputs.settings = JSON.stringify(settings);
     }
+
+    // type === 20: 设置企业账户标识，无论是true还是false都要传到后端
+    if (localInputs.type === 20) {
+      settings.openrouter_enterprise = localInputs.is_enterprise_account === true;
+    }
+
+    // type === 1 (OpenAI) 或 type === 14 (Claude): 设置字段透传控制（显式保存布尔值）
+    if (localInputs.type === 1 || localInputs.type === 14) {
+      settings.allow_service_tier = localInputs.allow_service_tier === true;
+      // 仅 OpenAI 渠道需要 store 和 safety_identifier
+      if (localInputs.type === 1) {
+        settings.disable_store = localInputs.disable_store === true;
+        settings.allow_safety_identifier = localInputs.allow_safety_identifier === true;
+      }
+    }
+
+    localInputs.settings = JSON.stringify(settings);
 
     // 清理不需要发送到后端的字段
     delete localInputs.force_format;
@@ -925,6 +1014,10 @@ const EditChannelModal = (props) => {
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
+    // 清理字段透传控制的临时字段
+    delete localInputs.allow_service_tier;
+    delete localInputs.disable_store;
+    delete localInputs.allow_safety_identifier;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -1240,7 +1333,41 @@ const EditChannelModal = (props) => {
         visible={props.visible}
         width={isMobile ? '100%' : 600}
         footer={
-          <div className='flex justify-end bg-white'>
+          <div className='flex justify-between items-center bg-white'>
+            <div className='flex gap-2'>
+              <Button
+                size='small'
+                type='tertiary'
+                icon={<IconChevronUp />}
+                onClick={() => navigateToSection('up')}
+                style={{ 
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={t('上一个表单块')}
+              />
+              <Button
+                size='small'
+                type='tertiary'
+                icon={<IconChevronDown />}
+                onClick={() => navigateToSection('down')}
+                style={{ 
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={t('下一个表单块')}
+              />
+            </div>
             <Space>
               <Button
                 theme='solid'
@@ -1271,10 +1398,14 @@ const EditChannelModal = (props) => {
         >
           {() => (
             <Spin spinning={loading}>
-              <div className='p-2'>
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Basic Info */}
-                  <div className='flex items-center mb-2'>
+              <div 
+                className='p-2' 
+                ref={formContainerRef}
+              >
+                <div ref={el => formSectionRefs.current.basicInfo = el}>
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                    {/* Header: Basic Info */}
+                    <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
                       color='blue'
@@ -1748,13 +1879,15 @@ const EditChannelModal = (props) => {
                       }
                     />
                   )}
-                </Card>
+                  </Card>
+                </div>
 
                 {/* API Configuration Card */}
                 {showApiConfigCard && (
-                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                    {/* Header: API Config */}
-                    <div className='flex items-center mb-2'>
+                  <div ref={el => formSectionRefs.current.apiConfig = el}>
+                    <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                      {/* Header: API Config */}
+                      <div className='flex items-center mb-2'>
                       <Avatar
                         size='small'
                         color='green'
@@ -1965,13 +2098,15 @@ const EditChannelModal = (props) => {
                           />
                         </div>
                     )}
-                  </Card>
+                    </Card>
+                  </div>
                 )}
 
                 {/* Model Configuration Card */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Model Config */}
-                  <div className='flex items-center mb-2'>
+                <div ref={el => formSectionRefs.current.modelConfig = el}>
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                    {/* Header: Model Config */}
+                    <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
                       color='purple'
@@ -2166,12 +2301,14 @@ const EditChannelModal = (props) => {
                     formApi={formApiRef.current}
                     extraText={t('键为请求中的模型名称，值为要替换的模型名称')}
                   />
-                </Card>
+                  </Card>
+                </div>
 
                 {/* Advanced Settings Card */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Advanced Settings */}
-                  <div className='flex items-center mb-2'>
+                <div ref={el => formSectionRefs.current.advancedSettings = el}>
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                    {/* Header: Advanced Settings */}
+                    <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
                       color='orange'
@@ -2384,12 +2521,84 @@ const EditChannelModal = (props) => {
                       '键为原状态码，值为要复写的状态码，仅影响本地判断',
                     )}
                   />
-                </Card>
+
+                  {/* 字段透传控制 - OpenAI 渠道 */}
+                  {inputs.type === 1 && (
+                    <>
+                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                        {t('字段透传控制')}
+                      </div>
+
+                      <Form.Switch
+                        field='allow_service_tier'
+                        label={t('允许 service_tier 透传')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange('allow_service_tier', value)
+                        }
+                        extraText={t(
+                          'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
+                        )}
+                      />
+
+                      <Form.Switch
+                        field='disable_store'
+                        label={t('禁用 store 透传')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange('disable_store', value)
+                        }
+                        extraText={t(
+                          'store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用',
+                        )}
+                      />
+
+                      <Form.Switch
+                        field='allow_safety_identifier'
+                        label={t('允许 safety_identifier 透传')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange('allow_safety_identifier', value)
+                        }
+                        extraText={t(
+                          'safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私',
+                        )}
+                      />
+                    </>
+                  )}
+
+                  {/* 字段透传控制 - Claude 渠道 */}
+                  {(inputs.type === 14) && (
+                    <>
+                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                        {t('字段透传控制')}
+                      </div>
+
+                      <Form.Switch
+                        field='allow_service_tier'
+                        label={t('允许 service_tier 透传')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange('allow_service_tier', value)
+                        }
+                        extraText={t(
+                          'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
+                        )}
+                      />
+                    </>
+                  )}
+                  </Card>
+                </div>
 
                 {/* Channel Extra Settings Card */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Channel Extra Settings */}
-                  <div className='flex items-center mb-2'>
+                <div ref={el => formSectionRefs.current.channelExtraSettings = el}>
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                    {/* Header: Channel Extra Settings */}
+                    <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
                       color='violet'
@@ -2487,7 +2696,8 @@ const EditChannelModal = (props) => {
                       '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
                     )}
                   />
-                </Card>
+                  </Card>
+                </div>
               </div>
             </Spin>
           )}

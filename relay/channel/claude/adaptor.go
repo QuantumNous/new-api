@@ -64,6 +64,15 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return baseURL, nil
 }
 
+func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
+	// common headers operation
+	anthropicBeta := c.Request.Header.Get("anthropic-beta")
+	if anthropicBeta != "" {
+		req.Set("anthropic-beta", anthropicBeta)
+	}
+	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("x-api-key", info.ApiKey)
@@ -72,11 +81,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		anthropicVersion = "2023-06-01"
 	}
 	req.Set("anthropic-version", anthropicVersion)
-	anthropicBeta := c.Request.Header.Get("anthropic-beta")
-	if anthropicBeta != "" {
-		req.Set("anthropic-beta", anthropicBeta)
-	}
-	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
+	CommonClaudeHeadersOperation(c, req, info)
 	return nil
 }
 

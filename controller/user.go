@@ -1102,6 +1102,9 @@ type UpdateUserSettingRequest struct {
 	WebhookSecret              string  `json:"webhook_secret,omitempty"`
 	NotificationEmail          string  `json:"notification_email,omitempty"`
 	BarkUrl                    string  `json:"bark_url,omitempty"`
+	GotifyUrl                  string  `json:"gotify_url,omitempty"`
+	GotifyToken                string  `json:"gotify_token,omitempty"`
+	GotifyPriority             int     `json:"gotify_priority,omitempty"`
 	AcceptUnsetModelRatioModel bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                bool    `json:"record_ip_log"`
 }
@@ -1117,7 +1120,7 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 验证预警类型
-	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark {
+	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark && req.QuotaWarningType != dto.NotifyTypeGotify {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的预警类型",
@@ -1192,6 +1195,40 @@ func UpdateUserSetting(c *gin.Context) {
 		}
 	}
 
+	// 如果是Gotify类型，验证Gotify URL和Token
+	if req.QuotaWarningType == dto.NotifyTypeGotify {
+		if req.GotifyUrl == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Gotify服务器地址不能为空",
+			})
+			return
+		}
+		if req.GotifyToken == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Gotify令牌不能为空",
+			})
+			return
+		}
+		// 验证URL格式
+		if _, err := url.ParseRequestURI(req.GotifyUrl); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无效的Gotify服务器地址",
+			})
+			return
+		}
+		// 检查是否是HTTP或HTTPS
+		if !strings.HasPrefix(req.GotifyUrl, "https://") && !strings.HasPrefix(req.GotifyUrl, "http://") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Gotify服务器地址必须以http://或https://开头",
+			})
+			return
+		}
+	}
+
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
@@ -1223,6 +1260,18 @@ func UpdateUserSetting(c *gin.Context) {
 	// 如果是Bark类型，添加Bark URL到设置中
 	if req.QuotaWarningType == dto.NotifyTypeBark {
 		settings.BarkUrl = req.BarkUrl
+	}
+
+	// 如果是Gotify类型，添加Gotify配置到设置中
+	if req.QuotaWarningType == dto.NotifyTypeGotify {
+		settings.GotifyUrl = req.GotifyUrl
+		settings.GotifyToken = req.GotifyToken
+		// Gotify优先级范围0-10，超出范围则使用默认值5
+		if req.GotifyPriority < 0 || req.GotifyPriority > 10 {
+			settings.GotifyPriority = 5
+		} else {
+			settings.GotifyPriority = req.GotifyPriority
+		}
 	}
 
 	// 更新用户设置

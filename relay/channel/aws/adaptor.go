@@ -7,7 +7,6 @@ import (
 	"one-api/dto"
 	"one-api/relay/channel/claude"
 	relaycommon "one-api/relay/common"
-	"one-api/setting/model_setting"
 	"one-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -52,11 +51,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
-	anthropicBeta := c.Request.Header.Get("anthropic-beta")
-	if anthropicBeta != "" {
-		req.Set("anthropic-beta", anthropicBeta)
-	}
-	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
+	claude.CommonClaudeHeadersOperation(c, req, info)
 	return nil
 }
 

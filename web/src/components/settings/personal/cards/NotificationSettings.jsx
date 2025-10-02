@@ -400,6 +400,7 @@ const NotificationSettings = ({
                   <Radio value='email'>{t('邮件通知')}</Radio>
                   <Radio value='webhook'>{t('Webhook通知')}</Radio>
                   <Radio value='bark'>{t('Bark通知')}</Radio>
+                  <Radio value='gotify'>{t('Gotify通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
@@ -589,7 +590,108 @@ const NotificationSettings = ({
                             rel='noopener noreferrer'
                             className='text-blue-500 hover:text-blue-600 font-medium'
                           >
-                            Bark 官方文档
+                            Bark {t('官方文档')}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Gotify推送设置 */}
+                {notificationSettings.warningType === 'gotify' && (
+                  <>
+                    <Form.Input
+                      field='gotifyUrl'
+                      label={t('Gotify服务器地址')}
+                      placeholder={t(
+                        '请输入Gotify服务器地址，例如: https://gotify.example.com',
+                      )}
+                      onChange={(val) => handleFormChange('gotifyUrl', val)}
+                      prefix={<IconLink />}
+                      extraText={t(
+                        '支持HTTP和HTTPS，填写Gotify服务器的完整URL地址',
+                      )}
+                      showClear
+                      rules={[
+                        {
+                          required:
+                            notificationSettings.warningType === 'gotify',
+                          message: t('请输入Gotify服务器地址'),
+                        },
+                        {
+                          pattern: /^https?:\/\/.+/,
+                          message: t('Gotify服务器地址必须以http://或https://开头'),
+                        },
+                      ]}
+                    />
+
+                    <Form.Input
+                      field='gotifyToken'
+                      label={t('Gotify应用令牌')}
+                      placeholder={t('请输入Gotify应用令牌')}
+                      onChange={(val) => handleFormChange('gotifyToken', val)}
+                      prefix={<IconKey />}
+                      extraText={t(
+                        '在Gotify服务器创建应用后获得的令牌，用于发送通知',
+                      )}
+                      showClear
+                      rules={[
+                        {
+                          required:
+                            notificationSettings.warningType === 'gotify',
+                          message: t('请输入Gotify应用令牌'),
+                        },
+                      ]}
+                    />
+
+                    <Form.AutoComplete
+                      field='gotifyPriority'
+                      label={t('消息优先级')}
+                      placeholder={t('请选择消息优先级')}
+                      data={[
+                        { value: 0, label: t('0 - 最低') },
+                        { value: 2, label: t('2 - 低') },
+                        { value: 5, label: t('5 - 正常（默认）') },
+                        { value: 8, label: t('8 - 高') },
+                        { value: 10, label: t('10 - 最高') },
+                      ]}
+                      onChange={(val) =>
+                        handleFormChange('gotifyPriority', val)
+                      }
+                      prefix={<IconBell />}
+                      extraText={t('消息优先级，范围0-10，默认为5')}
+                      style={{ width: '100%', maxWidth: '300px' }}
+                    />
+
+                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
+                      <div className='text-sm text-gray-700 mb-3'>
+                        <strong>{t('配置说明')}</strong>
+                      </div>
+                      <div className='text-xs text-gray-500 space-y-2'>
+                        <div>
+                          1. {t('在Gotify服务器的应用管理中创建新应用')}
+                        </div>
+                        <div>
+                          2.{' '}
+                          {t(
+                            '复制应用的令牌（Token）并填写到上方的应用令牌字段',
+                          )}
+                        </div>
+                        <div>
+                          3. {t('填写Gotify服务器的完整URL地址')}
+                        </div>
+                        <div className='mt-3 pt-3 border-t border-gray-200'>
+                          <span className='text-gray-400'>
+                            {t('更多信息请参考')}
+                          </span>{' '}
+                          <a
+                            href='https://gotify.net/'
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='text-blue-500 hover:text-blue-600 font-medium'
+                          >
+                            Gotify {t('官方文档')}
                           </a>
                         </div>
                       </div>
