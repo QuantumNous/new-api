@@ -182,3 +182,31 @@ export async function deleteHistoryLogs(
   )
   return res.data
 }
+
+// ============================================================================
+// User Information API
+// ============================================================================
+
+export interface UserInfo {
+  id: number
+  username: string
+  display_name?: string
+  quota: number
+  used_quota: number
+  request_count: number
+  group?: string
+  aff_code?: string
+  aff_count?: number
+  aff_quota?: number
+  remark?: string
+}
+
+/**
+ * Get user information by user ID (admin only)
+ */
+export async function getUserInfo(
+  userId: number
+): Promise<{ success: boolean; message?: string; data?: UserInfo }> {
+  const res = await api.get(`/api/user/${userId}`)
+  return res.data
+}

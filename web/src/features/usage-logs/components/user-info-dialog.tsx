@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
 import { formatQuota, formatCompactNumber } from '@/lib/format'
 import {
   Dialog,
@@ -11,20 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-
-interface UserInfo {
-  id: number
-  username: string
-  display_name?: string
-  quota: number
-  used_quota: number
-  request_count: number
-  group?: string
-  aff_code?: string
-  aff_count?: number
-  aff_quota?: number
-  remark?: string
-}
+import { getUserInfo, type UserInfo } from '../api'
 
 interface UserInfoDialogProps {
   userId: number | null
@@ -49,11 +35,11 @@ export function UserInfoDialog({
   const fetchUserInfo = async (id: number) => {
     setIsLoading(true)
     try {
-      const res = await api.get(`/api/user/${id}`)
-      if (res.data.success) {
-        setUserInfo(res.data.data)
+      const result = await getUserInfo(id)
+      if (result.success) {
+        setUserInfo(result.data || null)
       } else {
-        toast.error(res.data.message || 'Failed to fetch user information')
+        toast.error(result.message || 'Failed to fetch user information')
       }
     } catch (error) {
       console.error('Failed to fetch user info:', error)

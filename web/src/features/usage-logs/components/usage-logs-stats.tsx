@@ -41,9 +41,9 @@ export function UsageLogsStats() {
   if (isLoading) {
     return (
       <div className='flex items-center gap-2'>
-        <Skeleton className='h-9 w-[140px]' />
-        <Skeleton className='h-9 w-[80px]' />
-        <Skeleton className='h-9 w-[80px]' />
+        <Skeleton className='h-6 w-[126px] rounded-md' />
+        <Skeleton className='h-6 w-[58px] rounded-md' />
+        <Skeleton className='h-6 w-[58px] rounded-md' />
       </div>
     )
   }
