@@ -363,7 +363,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}()
 
 	if len(respBody) == 0 {
-		respBody, err = json.Marshal(dto.TaskResponse[any]{
+		respBody, err = common.MarshalWithoutHTMLEscape(dto.TaskResponse[any]{
 			Code: "success",
 			Data: TaskModel2Dto(originTask),
 		})
