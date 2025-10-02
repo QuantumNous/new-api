@@ -94,33 +94,35 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       const maskedKey = `sk-${apiKey.key.slice(0, 4)}${'*'.repeat(10)}${apiKey.key.slice(-4)}`
 
       return (
-        <div className='flex items-center gap-1'>
+        <div className='relative w-[200px] rounded-md'>
           <Input
             value={isVisible ? fullKey : maskedKey}
             readOnly
-            className='h-8 w-[200px] font-mono text-xs'
+            className='h-8 w-full pr-[72px] font-mono text-xs'
           />
-          <Button
-            variant='ghost'
-            size='icon'
-            className='size-8'
-            onClick={() =>
-              setVisibleKeys((prev) => ({ ...prev, [apiKey.id]: !isVisible }))
-            }
-          >
-            {isVisible ? (
-              <EyeOff className='size-4' />
-            ) : (
-              <Eye className='size-4' />
-            )}
-          </Button>
-          <CopyButton
-            value={fullKey}
-            className='size-8'
-            iconClassName='size-4'
-            tooltip='Copy API key'
-            aria-label='Copy API key'
-          />
+          <div className='absolute end-1 top-1/2 flex -translate-y-1/2 items-center gap-1'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-6 rounded-md'
+              onClick={() =>
+                setVisibleKeys((prev) => ({ ...prev, [apiKey.id]: !isVisible }))
+              }
+            >
+              {isVisible ? (
+                <EyeOff className='size-4' />
+              ) : (
+                <Eye className='size-4' />
+              )}
+            </Button>
+            <CopyButton
+              value={fullKey}
+              className='size-6'
+              iconClassName='size-4'
+              tooltip='Copy API key'
+              aria-label='Copy API key'
+            />
+          </div>
         </div>
       )
     },
