@@ -36,12 +36,21 @@ function UsageLogsContent() {
 
       <Main>
         <div className='mb-2'>
-          <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2'>
-            <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+          <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+            <div className='flex w-full items-center justify-between sm:w-auto sm:justify-start'>
               <h2 className='text-2xl font-bold tracking-tight'>Usage Logs</h2>
-              {logCategory === 'common' && <CommonLogsStats />}
+              <div className='sm:hidden'>
+                <UsageLogsPrimaryButtons />
+              </div>
             </div>
-            <UsageLogsPrimaryButtons />
+            {logCategory === 'common' && (
+              <div className='order-last sm:order-none'>
+                <CommonLogsStats />
+              </div>
+            )}
+            <div className='hidden sm:ml-auto sm:block'>
+              <UsageLogsPrimaryButtons />
+            </div>
           </div>
           <p className='text-muted-foreground'>
             View and manage your API usage logs
