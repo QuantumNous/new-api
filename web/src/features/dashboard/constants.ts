@@ -10,6 +10,11 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+/**
+ * Dashboard filter settings
+ */
+export const DEFAULT_TIME_RANGE_DAYS = 14
+
 interface StatCardConfig {
   key: string
   title: string
