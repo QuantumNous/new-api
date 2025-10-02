@@ -1,17 +1,21 @@
 import { AppHeader } from '@/components/layout/app-header'
 import { Main } from '@/components/layout/main'
+import { CommonLogsStats } from './components/common-logs-stats'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
 import {
   UsageLogsProvider,
   useUsageLogsContext,
 } from './components/usage-logs-provider'
-import { UsageLogsStats } from './components/usage-logs-stats'
 import { UsageLogsTable } from './components/usage-logs-table'
 
 function UsageLogsContent() {
-  const { selectedUserId, userInfoDialogOpen, setUserInfoDialogOpen } =
-    useUsageLogsContext()
+  const {
+    selectedUserId,
+    userInfoDialogOpen,
+    setUserInfoDialogOpen,
+    logCategory,
+  } = useUsageLogsContext()
 
   return (
     <>
@@ -22,7 +26,7 @@ function UsageLogsContent() {
           <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2'>
             <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
               <h2 className='text-2xl font-bold tracking-tight'>Usage Logs</h2>
-              <UsageLogsStats />
+              {logCategory === 'common' && <CommonLogsStats />}
             </div>
             <UsageLogsPrimaryButtons />
           </div>

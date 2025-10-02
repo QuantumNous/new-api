@@ -9,7 +9,7 @@ import { buildApiParams } from '../lib/utils'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
 
-export function UsageLogsStats() {
+export function CommonLogsStats() {
   const { user } = useAuthStore((state) => state.auth)
   const isAdmin = user?.role === 100
   const searchParams = route.useSearch()
