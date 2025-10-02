@@ -52,7 +52,46 @@ export function buildQueryParams(params: Record<string, any>): URLSearchParams {
 }
 
 /**
- * Build API params from search params and column filters
+ * Build base parameters with time range (common for all log types)
+ */
+export function buildBaseParams(config: {
+  page: number
+  pageSize: number
+  searchParams: Record<string, any>
+}): {
+  p: number
+  page_size: number
+  channel_id?: string
+  start_timestamp?: number
+  end_timestamp?: number
+} {
+  const { page, pageSize, searchParams } = config
+
+  // Use default time range if not provided
+  const hasTimeParams = searchParams.startTime || searchParams.endTime
+  const defaultTimeRange = !hasTimeParams ? getDefaultTimeRange() : null
+
+  return {
+    p: page,
+    page_size: pageSize,
+    ...(searchParams.channel && {
+      channel_id: searchParams.channel.toString(),
+    }),
+    start_timestamp: searchParams.startTime
+      ? timestampToSeconds(searchParams.startTime)
+      : defaultTimeRange
+        ? timestampToSeconds(defaultTimeRange.start.getTime())
+        : undefined,
+    end_timestamp: searchParams.endTime
+      ? timestampToSeconds(searchParams.endTime)
+      : defaultTimeRange
+        ? timestampToSeconds(defaultTimeRange.end.getTime())
+        : undefined,
+  }
+}
+
+/**
+ * Build API params from search params and column filters (for common logs)
  */
 export function buildApiParams(config: {
   page: number
@@ -67,6 +106,10 @@ export function buildApiParams(config: {
   const processType = (value: any) =>
     Array.isArray(value) && value.length === 1 ? Number(value[0]) : 0
 
+  // Use default time range if not provided
+  const hasTimeParams = searchParams.startTime || searchParams.endTime
+  const defaultTimeRange = !hasTimeParams ? getDefaultTimeRange() : null
+
   // Build base params from search params
   const params: GetLogsParams = {
     p: page,
@@ -79,12 +122,16 @@ export function buildApiParams(config: {
       searchParams.channel && { channel: Number(searchParams.channel) || 0 }),
     ...(isAdmin &&
       searchParams.username && { username: String(searchParams.username) }),
-    ...(searchParams.startTime && {
-      start_timestamp: timestampToSeconds(searchParams.startTime),
-    }),
-    ...(searchParams.endTime && {
-      end_timestamp: timestampToSeconds(searchParams.endTime),
-    }),
+    start_timestamp: searchParams.startTime
+      ? timestampToSeconds(searchParams.startTime)
+      : defaultTimeRange
+        ? timestampToSeconds(defaultTimeRange.start.getTime())
+        : undefined,
+    end_timestamp: searchParams.endTime
+      ? timestampToSeconds(searchParams.endTime)
+      : defaultTimeRange
+        ? timestampToSeconds(defaultTimeRange.end.getTime())
+        : undefined,
   }
 
   // Override with column filters if present

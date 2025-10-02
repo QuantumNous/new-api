@@ -1,14 +1,16 @@
+import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
+import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS, TASK_PLATFORMS } from '../../constants'
 import { createStatusMapper } from '../../lib/status'
 import type { TaskLog } from '../../types'
+import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 import {
   createTimestampColumn,
   createDurationColumn,
   createChannelColumn,
   createProgressColumn,
-  createFailReasonColumn,
 } from './column-helpers'
 
 // Task action mappings
@@ -135,40 +137,68 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             variant={statusMapper.getVariant(status)}
             size='sm'
             copyable={false}
+            showDot
           />
         )
       },
     },
 
     createProgressColumn<TaskLog>(),
-    createFailReasonColumn<TaskLog>(),
 
-    // Result URL
+    // Result/Fail Reason - Combined column
     {
-      id: 'result_url',
-      header: 'Result',
+      accessorKey: 'fail_reason',
+      header: 'Details',
       cell: ({ row }) => {
         const log = row.original
-        // Parse data field to get result URL
-        let resultUrl = ''
-        try {
-          const data = log.data ? JSON.parse(log.data) : null
-          resultUrl = data?.video_url || data?.audio_url || data?.url || ''
-        } catch {
-          // Ignore parse error
+        const failReason = row.getValue('fail_reason') as string
+        const status = log.status
+        const [dialogOpen, setDialogOpen] = useState(false)
+
+        // For video generation tasks that succeeded, fail_reason contains the result URL
+        const isVideoTask =
+          log.action === TASK_ACTIONS.GENERATE ||
+          log.action === TASK_ACTIONS.TEXT_GENERATE ||
+          log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
+          log.action === TASK_ACTIONS.REFERENCE_GENERATE
+        const isSuccess = status === TASK_STATUS.SUCCESS
+        const isUrl = failReason?.startsWith('http')
+
+        // If success and is a URL, show as result link
+        if (isSuccess && isVideoTask && isUrl) {
+          return (
+            <a
+              href={failReason}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-primary text-sm hover:underline'
+            >
+              View Result
+            </a>
+          )
         }
 
-        if (!resultUrl) return <span className='text-muted-foreground'>-</span>
+        // Otherwise, show fail reason (if any) using the existing dialog
+        if (!failReason) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
 
         return (
-          <a
-            href={resultUrl}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-primary text-sm hover:underline'
-          >
-            View
-          </a>
+          <>
+            <Button
+              variant='ghost'
+              className='h-auto max-w-[200px] justify-start overflow-hidden p-0 text-left text-sm font-normal text-red-600 hover:underline'
+              onClick={() => setDialogOpen(true)}
+              title='Click to view full error message'
+            >
+              <span className='truncate'>{failReason}</span>
+            </Button>
+            <FailReasonDialog
+              failReason={failReason}
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+            />
+          </>
         )
       },
     }

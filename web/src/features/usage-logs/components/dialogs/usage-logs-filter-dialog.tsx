@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
@@ -30,6 +30,8 @@ import { getDefaultTimeRange } from '../../lib/utils'
 import type { LogCategory } from '../usage-logs-tabs'
 import { FilterInput, SectionDivider } from './filter-components'
 
+const route = getRouteApi('/_authenticated/usage-logs/')
+
 interface UsageLogsFilterDialogProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -44,6 +46,7 @@ export function UsageLogsFilterDialog({
   logCategory,
 }: UsageLogsFilterDialogProps) {
   const navigate = useNavigate()
+  const searchParams = route.useSearch()
   const { user } = useAuthStore((state) => state.auth)
   const isAdmin = (user?.role ?? 0) >= ROLE.ADMIN
   const [internalOpen, setInternalOpen] = useState(false)
@@ -83,11 +86,24 @@ export function UsageLogsFilterDialog({
   }, [])
 
   const handleApply = useCallback(() => {
-    const searchParams = buildSearchParams(filters, logCategory)
-    navigate({ to: '/usage-logs', search: searchParams })
+    const filterParams = buildSearchParams(filters, logCategory)
+    navigate({
+      to: '/usage-logs',
+      search: {
+        ...filterParams,
+        tab: searchParams.tab, // Preserve tab parameter
+      },
+    })
     onFilterChange?.(filters)
     setOpen(false)
-  }, [filters, logCategory, navigate, onFilterChange, setOpen])
+  }, [
+    filters,
+    logCategory,
+    navigate,
+    onFilterChange,
+    setOpen,
+    searchParams.tab,
+  ])
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
@@ -98,12 +114,14 @@ export function UsageLogsFilterDialog({
 
     navigate({
       to: '/usage-logs',
-      search: { startTime: start.getTime(), endTime: end.getTime() },
+      search: {
+        tab: searchParams.tab, // Preserve tab parameter
+      },
     })
 
     onFilterChange?.(resetFilters)
     setOpen(false)
-  }, [navigate, onFilterChange, setOpen])
+  }, [navigate, onFilterChange, setOpen, searchParams.tab])
 
   // Render category-specific filters
   const renderCategoryFilters = () => {

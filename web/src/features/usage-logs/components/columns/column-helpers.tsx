@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { formatTimestampToDate, formatDuration } from '../../lib/format'
+import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 
 /**
  * Create a timestamp column
@@ -107,16 +110,28 @@ export function createFailReasonColumn<T>(config?: {
     header: 'Fail Reason',
     cell: ({ row }) => {
       const failReason = row.getValue(accessorKey) as string
+      const [dialogOpen, setDialogOpen] = useState(false)
+
       if (!failReason) {
         return <span className='text-muted-foreground text-sm'>-</span>
       }
+
       return (
-        <div
-          className='max-w-[200px] truncate text-sm text-red-600'
-          title={failReason}
-        >
-          {failReason}
-        </div>
+        <>
+          <Button
+            variant='ghost'
+            className='h-auto max-w-[200px] justify-start overflow-hidden p-0 text-left text-sm font-normal text-red-600 hover:underline'
+            onClick={() => setDialogOpen(true)}
+            title='Click to view full error message'
+          >
+            <span className='truncate'>{failReason}</span>
+          </Button>
+          <FailReasonDialog
+            failReason={failReason}
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+          />
+        </>
       )
     },
   }

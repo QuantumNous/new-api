@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import { getRouteApi } from '@tanstack/react-router'
 import { AppHeader } from '@/components/layout/app-header'
 import { Main } from '@/components/layout/main'
 import { CommonLogsStats } from './components/common-logs-stats'
@@ -9,13 +11,24 @@ import {
 } from './components/usage-logs-provider'
 import { UsageLogsTable } from './components/usage-logs-table'
 
+const route = getRouteApi('/_authenticated/usage-logs/')
+
 function UsageLogsContent() {
+  const searchParams = route.useSearch()
   const {
     selectedUserId,
     userInfoDialogOpen,
     setUserInfoDialogOpen,
     logCategory,
+    setLogCategory,
   } = useUsageLogsContext()
+
+  // Sync tab state with URL parameter
+  useEffect(() => {
+    if (searchParams.tab && searchParams.tab !== logCategory) {
+      setLogCategory(searchParams.tab)
+    }
+  }, [searchParams.tab, logCategory, setLogCategory])
 
   return (
     <>
@@ -31,8 +44,7 @@ function UsageLogsContent() {
             <UsageLogsPrimaryButtons />
           </div>
           <p className='text-muted-foreground'>
-            View and manage your API usage logs, including consumption, errors,
-            and more
+            View and manage your API usage logs
           </p>
         </div>
         <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>

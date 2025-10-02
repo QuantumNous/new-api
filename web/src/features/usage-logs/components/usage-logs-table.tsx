@@ -34,7 +34,7 @@ import {
   getUserTaskLogs,
 } from '../api'
 import { LOG_TYPE_FILTERS } from '../constants'
-import { buildApiParams } from '../lib/utils'
+import { buildApiParams, buildBaseParams } from '../lib/utils'
 import { getCommonLogsColumns } from './columns/common-logs-columns'
 import { getDrawingLogsColumns } from './columns/drawing-logs-columns'
 import { getTaskLogsColumns } from './columns/task-logs-columns'
@@ -47,6 +47,8 @@ export function UsageLogsTable() {
   const { user } = useAuthStore((state) => state.auth)
   const isAdmin = user?.role === 100
   const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
+  const navigate = route.useNavigate()
+  const searchParams = route.useSearch()
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -86,9 +88,6 @@ export function UsageLogsTable() {
     ],
   })
 
-  // Get search params from URL
-  const searchParams = route.useSearch()
-
   // Fetch data with React Query
   const { data, isLoading } = useQuery({
     queryKey: [
@@ -103,15 +102,8 @@ export function UsageLogsTable() {
       refreshTrigger,
     ],
     queryFn: async () => {
-      const baseParams = {
-        p: pagination.pageIndex + 1,
-        page_size: pagination.pageSize,
-        channel_id: searchParams.channel?.toString(),
-        start_timestamp: searchParams.startTime,
-        end_timestamp: searchParams.endTime,
-      }
-
       let result
+
       switch (logCategory) {
         case 'common': {
           const params = buildApiParams({
@@ -121,12 +113,19 @@ export function UsageLogsTable() {
             columnFilters,
             isAdmin,
           })
+
           result = isAdmin
             ? await getAllLogs(params)
             : await getUserLogs(params)
           break
         }
-        case 'drawing':
+        case 'drawing': {
+          const baseParams = buildBaseParams({
+            page: pagination.pageIndex + 1,
+            pageSize: pagination.pageSize,
+            searchParams,
+          })
+
           result = isAdmin
             ? await getAllMidjourneyLogs({
                 ...baseParams,
@@ -137,7 +136,14 @@ export function UsageLogsTable() {
                 mj_id: searchParams.filter,
               })
           break
-        case 'task':
+        }
+        case 'task': {
+          const baseParams = buildBaseParams({
+            page: pagination.pageIndex + 1,
+            pageSize: pagination.pageSize,
+            searchParams,
+          })
+
           result = isAdmin
             ? await getAllTaskLogs({
                 ...baseParams,
@@ -148,6 +154,7 @@ export function UsageLogsTable() {
                 task_id: searchParams.filter,
               })
           break
+        }
       }
 
       if (!result?.success) {
@@ -204,6 +211,17 @@ export function UsageLogsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  // Handle tab change with URL update
+  const handleTabChange = (category: typeof logCategory) => {
+    setLogCategory(category)
+    navigate({
+      search: {
+        ...searchParams,
+        tab: category,
+      },
+    })
+  }
+
   // Different filters for different log categories
   const filters =
     logCategory === 'common'
@@ -221,7 +239,7 @@ export function UsageLogsTable() {
       <DataTableToolbar
         table={table}
         customSearch={
-          <UsageLogsTabs value={logCategory} onValueChange={setLogCategory} />
+          <UsageLogsTabs value={logCategory} onValueChange={handleTabChange} />
         }
         filters={filters}
       />
