@@ -164,7 +164,7 @@ export function StatusBadge({
         />
       )}
       {Icon && <Icon className='h-3 w-3' />}
-      <span className='capitalize'>{label}</span>
+      <span>{label}</span>
     </span>
   )
 }
