@@ -36,6 +36,13 @@ const getLogTypeConfig = (type: number) => {
 }
 
 /**
+ * Check if log uses per-call billing (按次付费)
+ */
+const isPerCallBilling = (modelPrice: number | undefined): boolean => {
+  return (modelPrice ?? 0) > 0
+}
+
+/**
  * Cache tooltip component for token display
  */
 const CacheTooltip = ({
@@ -65,13 +72,7 @@ const CacheTooltip = ({
 /**
  * Render a simple status badge cell with auto-color and copy
  */
-const renderBadgeCell = (
-  value: string | null,
-  config?: {
-    className?: string
-    maxWidth?: string
-  }
-) => {
+const renderBadgeCell = (value: string | null, className?: string) => {
   if (!value) return null
 
   return (
@@ -80,10 +81,23 @@ const renderBadgeCell = (
       autoColor={value}
       copyText={value}
       size='sm'
-      className={config?.className}
+      className={className}
     />
   )
 }
+
+/**
+ * Render a model badge with consistent styling
+ */
+const renderModelBadge = (modelName: string) => (
+  <StatusBadge
+    label={modelName}
+    autoColor={modelName}
+    copyText={modelName}
+    size='sm'
+    className='truncate font-mono'
+  />
+)
 
 export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const columns: ColumnDef<UsageLog>[] = [
@@ -209,7 +223,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               >
                 {username.charAt(0).toUpperCase()}
               </button>
-              <span className='max-w-[100px] truncate'>{username}</span>
+              <span className='truncate'>{username}</span>
             </div>
           )
         },
@@ -230,9 +244,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isDisplayableLogType(log.type)) return null
 
         const tokenName = row.getValue('token_name') as string
-        return renderBadgeCell(tokenName, {
-          className: 'max-w-[120px] truncate',
-        })
+        return renderBadgeCell(tokenName, 'truncate')
       },
     },
 
@@ -259,22 +271,12 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isDisplayableLogType(log.type)) {
-          return null
-        }
+        if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
 
         if (!modelInfo.isMapped) {
-          return (
-            <StatusBadge
-              label={modelInfo.name}
-              autoColor={modelInfo.name}
-              copyText={modelInfo.name}
-              size='sm'
-              className='max-w-[150px] truncate font-mono'
-            />
-          )
+          return renderModelBadge(modelInfo.name)
         }
 
         // Model is mapped - show popover
@@ -287,13 +289,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 className='h-auto p-0 hover:bg-transparent'
               >
                 <div className='flex items-center gap-1'>
-                  <StatusBadge
-                    label={modelInfo.name}
-                    autoColor={modelInfo.name}
-                    copyText={modelInfo.name}
-                    size='sm'
-                    className='max-w-[150px] truncate font-mono'
-                  />
+                  {renderModelBadge(modelInfo.name)}
                   <Route className='text-muted-foreground size-3' />
                 </div>
               </Button>
@@ -302,23 +298,11 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <div className='space-y-2'>
                 <div className='flex items-start justify-between gap-4'>
                   <span className='text-sm font-medium'>Request Model:</span>
-                  <StatusBadge
-                    label={modelInfo.name}
-                    autoColor={modelInfo.name}
-                    copyText={modelInfo.name}
-                    size='sm'
-                    className='font-mono'
-                  />
+                  {renderModelBadge(modelInfo.name)}
                 </div>
                 <div className='flex items-start justify-between gap-4'>
                   <span className='text-sm font-medium'>Actual Model:</span>
-                  <StatusBadge
-                    label={modelInfo.actualModel || ''}
-                    autoColor={modelInfo.actualModel}
-                    copyText={modelInfo.actualModel}
-                    size='sm'
-                    className='font-mono'
-                  />
+                  {renderModelBadge(modelInfo.actualModel || '')}
                 </div>
               </div>
             </PopoverContent>
@@ -378,13 +362,17 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isDisplayableLogType(log.type)) {
-          return null
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+
+        // For per-call billing, tokens are not relevant
+        if (isPerCallBilling(other?.model_price)) {
+          return <span className='text-muted-foreground'>-</span>
         }
 
         const promptTokens = log.prompt_tokens || 0
         const completionTokens = log.completion_tokens || 0
-        const other = parseLogOther(log.other)
         const cacheReadTokens = other?.cache_tokens || 0
         const cacheWriteTokens = other?.cache_creation_tokens || 0
 
@@ -409,32 +397,28 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         // Horizontal layout with unified badge
         return (
           <div className='bg-muted/50 divide-border inline-flex items-center divide-x overflow-hidden rounded-md text-sm'>
-            {promptTokens > 0 && (
-              <div className='flex items-center gap-1.5 px-3 py-1'>
-                <span className='text-muted-foreground text-xs'>In:</span>
-                <span className='font-mono font-medium'>
-                  {formatTokens(promptTokens)}
-                </span>
-                <CacheTooltip
-                  tokens={cacheReadTokens}
-                  label='Cache Read'
-                  color='fill-amber-500 text-amber-500'
-                />
-              </div>
-            )}
-            {completionTokens > 0 && (
-              <div className='flex items-center gap-1.5 px-3 py-1'>
-                <span className='text-muted-foreground text-xs'>Out:</span>
-                <span className='font-mono font-medium'>
-                  {formatTokens(completionTokens)}
-                </span>
-                <CacheTooltip
-                  tokens={cacheWriteTokens}
-                  label='Cache Write'
-                  color='fill-blue-500 text-blue-500'
-                />
-              </div>
-            )}
+            <div className='flex items-center gap-1.5 px-3 py-1'>
+              <span className='text-muted-foreground text-xs'>In:</span>
+              <span className='font-mono font-medium'>
+                {formatTokens(promptTokens)}
+              </span>
+              <CacheTooltip
+                tokens={cacheReadTokens}
+                label='Cache Read'
+                color='fill-amber-500 text-amber-500'
+              />
+            </div>
+            <div className='flex items-center gap-1.5 px-3 py-1'>
+              <span className='text-muted-foreground text-xs'>Out:</span>
+              <span className='font-mono font-medium'>
+                {formatTokens(completionTokens)}
+              </span>
+              <CacheTooltip
+                tokens={cacheWriteTokens}
+                label='Cache Write'
+                color='fill-blue-500 text-blue-500'
+              />
+            </div>
           </div>
         )
       },
@@ -448,15 +432,23 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isDisplayableLogType(log.type)) {
-          return null
-        }
+        if (!isDisplayableLogType(log.type)) return null
 
         const quota = row.getValue('quota') as number
+        const other = parseLogOther(log.other)
+        const groupRatio = other?.group_ratio
+
         return (
-          <span className='font-mono text-sm font-medium'>
-            {formatLogQuota(quota)}
-          </span>
+          <div className='flex flex-col'>
+            <span className='font-mono text-sm font-medium'>
+              {formatLogQuota(quota)}
+            </span>
+            {groupRatio && groupRatio !== 1 && (
+              <span className='text-muted-foreground text-xs'>
+                Group: {groupRatio}x
+              </span>
+            )}
+          </div>
         )
       },
     },
@@ -473,7 +465,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <Info className='text-muted-foreground size-3' />
               </TooltipTrigger>
               <TooltipContent>
-                <span className='max-w-xs'>
+                <span>
                   IP is only recorded when user enables IP logging in settings
                 </span>
               </TooltipContent>
@@ -486,7 +478,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!isTimingLogType(log.type)) return null
 
         const ip = row.getValue('ip') as string
-        return renderBadgeCell(ip, { className: 'font-mono' })
+        return renderBadgeCell(ip, 'font-mono')
       },
     },
 
@@ -498,21 +490,22 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const log = row.original
         const content = row.getValue('content') as string
 
+        // For non-consume logs, show content
         if (log.type !== 2) {
-          return <div className='max-w-[200px] truncate text-sm'>{content}</div>
+          return <div className='truncate text-sm'>{content}</div>
         }
 
-        // For consume logs, show pricing info (only group ratio)
+        // For consume logs, show billing type
         const other = parseLogOther(log.other)
-        if (!other || !other.group_ratio || other.group_ratio === 1) {
-          return <div className='max-w-[200px] truncate text-sm'>{content}</div>
-        }
+        const isPerCall = isPerCallBilling(other?.model_price)
 
         return (
-          <div className='max-w-[200px] text-sm'>
-            <span className='text-muted-foreground'>Group: </span>
-            <span className='font-mono'>{other.group_ratio}x</span>
-          </div>
+          <StatusBadge
+            label={isPerCall ? 'Per-call' : 'Per-token'}
+            variant={isPerCall ? 'teal' : 'violet'}
+            size='sm'
+            copyable={false}
+          />
         )
       },
     }
