@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { UsageLogsFilterDialog } from './usage-logs-filter-dialog'
+import { UsageLogsFilterDialog } from './dialogs/usage-logs-filter-dialog'
+import { useUsageLogsContext } from './usage-logs-provider'
 
 export function UsageLogsPrimaryButtons() {
   const [filterDialogOpen, setFilterDialogOpen] = useState(false)
+  const { logCategory } = useUsageLogsContext()
 
   return (
     <div className='flex gap-2'>
@@ -19,6 +21,7 @@ export function UsageLogsPrimaryButtons() {
       <UsageLogsFilterDialog
         open={filterDialogOpen}
         onOpenChange={setFilterDialogOpen}
+        logCategory={logCategory}
       />
     </div>
   )

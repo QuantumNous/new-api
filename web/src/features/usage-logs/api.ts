@@ -1,55 +1,16 @@
 import { api } from '@/lib/api'
-import type { UsageLog, LogStatistics } from './data/schema'
+import type { UsageLog } from './data/schema'
 import { buildQueryParams } from './lib/utils'
-
-// ============================================================================
-// Type Definitions
-// ============================================================================
-
-export interface GetLogsParams {
-  p?: number
-  page_size?: number
-  type?: number
-  username?: string
-  token_name?: string
-  model_name?: string
-  start_timestamp?: number
-  end_timestamp?: number
-  channel?: number
-  group?: string
-}
-
-export interface GetLogsResponse {
-  success: boolean
-  message?: string
-  data?: {
-    items: UsageLog[]
-    total: number
-    page: number
-    page_size: number
-  }
-}
-
-export interface SearchLogsParams {
-  keyword: string
-}
-
-export interface GetLogStatsParams {
-  type?: number
-  username?: string
-  token_name?: string
-  model_name?: string
-  start_timestamp?: number
-  end_timestamp?: number
-  channel?: number
-  group?: string
-}
-
-export interface GetLogStatsResponse {
-  success: boolean
-  message?: string
-  data?: LogStatistics
-}
+import type {
+  GetLogsParams,
+  GetLogsResponse,
+  SearchLogsParams,
+  GetLogStatsParams,
+  GetLogStatsResponse,
+  GetMidjourneyLogsParams,
+  GetTaskLogsParams,
+  UserInfo,
+} from './types'
 
 // ============================================================================
 // Log Management APIs
@@ -64,14 +25,7 @@ export async function getAllLogs(
   const queryParams = buildQueryParams({
     p: params.p || 1,
     page_size: params.page_size || 10,
-    type: params.type,
-    username: params.username,
-    token_name: params.token_name,
-    model_name: params.model_name,
-    start_timestamp: params.start_timestamp,
-    end_timestamp: params.end_timestamp,
-    channel: params.channel,
-    group: params.group,
+    ...params,
   })
 
   const res = await api.get(`/api/log/?${queryParams.toString()}`)
@@ -87,12 +41,7 @@ export async function getUserLogs(
   const queryParams = buildQueryParams({
     p: params.p || 1,
     page_size: params.page_size || 10,
-    type: params.type,
-    token_name: params.token_name,
-    model_name: params.model_name,
-    start_timestamp: params.start_timestamp,
-    end_timestamp: params.end_timestamp,
-    group: params.group,
+    ...params,
   })
 
   const res = await api.get(`/api/log/self/?${queryParams.toString()}`)
@@ -127,17 +76,7 @@ export async function searchUserLogs(
 export async function getLogStats(
   params: GetLogStatsParams = {}
 ): Promise<GetLogStatsResponse> {
-  const queryParams = buildQueryParams({
-    type: params.type,
-    username: params.username,
-    token_name: params.token_name,
-    model_name: params.model_name,
-    start_timestamp: params.start_timestamp,
-    end_timestamp: params.end_timestamp,
-    channel: params.channel,
-    group: params.group,
-  })
-
+  const queryParams = buildQueryParams(params)
   const res = await api.get(`/api/log/stat?${queryParams.toString()}`)
   return res.data
 }
@@ -148,15 +87,7 @@ export async function getLogStats(
 export async function getUserLogStats(
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ): Promise<GetLogStatsResponse> {
-  const queryParams = buildQueryParams({
-    type: params.type,
-    token_name: params.token_name,
-    model_name: params.model_name,
-    start_timestamp: params.start_timestamp,
-    end_timestamp: params.end_timestamp,
-    group: params.group,
-  })
-
+  const queryParams = buildQueryParams(params)
   const res = await api.get(`/api/log/self/stat?${queryParams.toString()}`)
   return res.data
 }
@@ -183,24 +114,6 @@ export async function deleteHistoryLogs(
   return res.data
 }
 
-// ============================================================================
-// User Information API
-// ============================================================================
-
-export interface UserInfo {
-  id: number
-  username: string
-  display_name?: string
-  quota: number
-  used_quota: number
-  request_count: number
-  group?: string
-  aff_code?: string
-  aff_count?: number
-  aff_quota?: number
-  remark?: string
-}
-
 /**
  * Get user information by user ID (admin only)
  */
@@ -208,5 +121,57 @@ export async function getUserInfo(
   userId: number
 ): Promise<{ success: boolean; message?: string; data?: UserInfo }> {
   const res = await api.get(`/api/user/${userId}`)
+  return res.data
+}
+
+// ============================================================================
+// Midjourney (Drawing) Logs API
+// ============================================================================
+
+/**
+ * Get all Midjourney logs (admin only)
+ */
+export async function getAllMidjourneyLogs(
+  params: GetMidjourneyLogsParams
+): Promise<GetLogsResponse> {
+  const queryParams = buildQueryParams(params)
+  const res = await api.get(`/api/mj/?${queryParams}`)
+  return res.data
+}
+
+/**
+ * Get user's own Midjourney logs
+ */
+export async function getUserMidjourneyLogs(
+  params: GetMidjourneyLogsParams
+): Promise<GetLogsResponse> {
+  const queryParams = buildQueryParams(params)
+  const res = await api.get(`/api/mj/self/?${queryParams}`)
+  return res.data
+}
+
+// ============================================================================
+// Task Logs API
+// ============================================================================
+
+/**
+ * Get all task logs (admin only)
+ */
+export async function getAllTaskLogs(
+  params: GetTaskLogsParams
+): Promise<GetLogsResponse> {
+  const queryParams = buildQueryParams(params)
+  const res = await api.get(`/api/task/?${queryParams}`)
+  return res.data
+}
+
+/**
+ * Get user's own task logs
+ */
+export async function getUserTaskLogs(
+  params: GetTaskLogsParams
+): Promise<GetLogsResponse> {
+  const queryParams = buildQueryParams(params)
+  const res = await api.get(`/api/task/self?${queryParams}`)
   return res.data
 }

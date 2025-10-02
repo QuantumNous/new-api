@@ -126,7 +126,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
           Filter
         </Button>
       </DialogTrigger>
-      <DialogContent className='sm:max-w-[550px]'>
+      <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>Filter Dashboard Models</DialogTitle>
           <DialogDescription>

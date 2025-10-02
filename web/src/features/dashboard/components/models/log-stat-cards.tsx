@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
-import { getUserQuotaDates, type QuotaDataItem } from '@/features/dashboard/api'
+import { getUserQuotaDates } from '@/features/dashboard/api'
 import { MODEL_STAT_CARDS_CONFIG } from '@/features/dashboard/constants'
 import {
   buildQueryParams,
   calculateDashboardStats,
 } from '@/features/dashboard/lib'
+import type { QuotaDataItem } from '@/features/dashboard/types'
 import { type DashboardFilters } from '@/features/dashboard/types'
 import { StatCard } from '../ui/stat-card'
 

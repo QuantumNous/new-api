@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
 import type { TimeGranularity } from '@/lib/time'
-import type { QuotaDataItem } from '@/features/dashboard/api'
 import { processChartData } from '@/features/dashboard/lib'
+import type { QuotaDataItem } from '@/features/dashboard/types'
 import {
   QuotaDistributionChart,
   CallProportionChart,
   TopModelsChart,
   CallTrendChart,
   TotalCallsTrendChart,
-} from './chart'
+} from './charts'
 
 interface ModelChartsProps {
   data: QuotaDataItem[]

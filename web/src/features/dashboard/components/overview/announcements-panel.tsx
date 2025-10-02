@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { getPreviewText } from '@/features/dashboard/lib'
 import { PanelWrapper } from '../ui/panel-wrapper'
-import { AnnouncementDetailModal } from './dialog/announcement-detail'
+import { AnnouncementDetailModal } from './dialogs/announcement-detail'
 
 function AnnouncementStatusDot({ type }: { type?: string }) {
   return (

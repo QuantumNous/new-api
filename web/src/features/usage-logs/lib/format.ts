@@ -1,4 +1,6 @@
-import type { UsageLog, LogOtherData } from '../data/schema'
+import type { StatusBadgeProps } from '@/components/status-badge'
+import type { UsageLog } from '../data/schema'
+import type { LogOtherData } from '../types'
 
 /**
  * Parse the 'other' field from JSON string to object
@@ -92,4 +94,49 @@ export function formatModelName(log: UsageLog): {
     isMapped,
     actualModel: isMapped ? other.upstream_model_name : undefined,
   }
+}
+
+/**
+ * Format timestamp to readable date string
+ * @param timestamp - Timestamp in seconds or milliseconds
+ * @param unit - Unit of the timestamp ('seconds' or 'milliseconds')
+ */
+export function formatTimestampToDate(
+  timestamp?: number,
+  unit: 'seconds' | 'milliseconds' = 'milliseconds'
+): string {
+  if (!timestamp) return '-'
+  const date = new Date(unit === 'seconds' ? timestamp * 1000 : timestamp)
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
+}
+
+/**
+ * Calculate duration and return formatted result with color variant
+ * @param submitTime - Submit timestamp
+ * @param finishTime - Finish timestamp
+ * @param unit - Unit of the timestamps ('seconds' or 'milliseconds')
+ */
+export function formatDuration(
+  submitTime?: number,
+  finishTime?: number,
+  unit: 'seconds' | 'milliseconds' = 'milliseconds'
+): { durationSec: number; variant: StatusBadgeProps['variant'] } | null {
+  if (!submitTime || !finishTime) return null
+
+  const durationSec =
+    unit === 'milliseconds'
+      ? (finishTime - submitTime) / 1000
+      : finishTime - submitTime
+
+  const variant = durationSec > 60 ? ('red' as const) : ('green' as const)
+
+  return { durationSec, variant }
 }

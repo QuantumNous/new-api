@@ -25,18 +25,28 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { getAllLogs, getUserLogs } from '../api'
-import { logTypeFilters } from '../data/data'
+import {
+  getAllLogs,
+  getUserLogs,
+  getAllMidjourneyLogs,
+  getUserMidjourneyLogs,
+  getAllTaskLogs,
+  getUserTaskLogs,
+} from '../api'
+import { LOG_TYPE_FILTERS } from '../constants'
 import { buildApiParams } from '../lib/utils'
-import { getUsageLogsColumns } from './usage-logs-columns'
+import { getCommonLogsColumns } from './columns/common-logs-columns'
+import { getDrawingLogsColumns } from './columns/drawing-logs-columns'
+import { getTaskLogsColumns } from './columns/task-logs-columns'
 import { useUsageLogsContext } from './usage-logs-provider'
+import { UsageLogsTabs } from './usage-logs-tabs'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
 
 export function UsageLogsTable() {
   const { user } = useAuthStore((state) => state.auth)
   const isAdmin = user?.role === 100
-  const { refreshTrigger } = useUsageLogsContext()
+  const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -82,30 +92,66 @@ export function UsageLogsTable() {
   // Fetch data with React Query
   const { data, isLoading } = useQuery({
     queryKey: [
-      'usage-logs',
+      'logs',
+      logCategory,
       isAdmin,
       pagination.pageIndex + 1,
       pagination.pageSize,
       columnFilters,
       globalFilter,
-      searchParams, // Add search params to query key so it refetches when filters change
+      searchParams,
       refreshTrigger,
     ],
     queryFn: async () => {
-      const params = buildApiParams({
-        page: pagination.pageIndex + 1,
-        pageSize: pagination.pageSize,
-        searchParams,
-        columnFilters,
-        isAdmin,
-      })
+      const baseParams = {
+        p: pagination.pageIndex + 1,
+        page_size: pagination.pageSize,
+        channel_id: searchParams.channel?.toString(),
+        start_timestamp: searchParams.startTime,
+        end_timestamp: searchParams.endTime,
+      }
 
-      const result = isAdmin
-        ? await getAllLogs(params)
-        : await getUserLogs(params)
+      let result
+      switch (logCategory) {
+        case 'common': {
+          const params = buildApiParams({
+            page: pagination.pageIndex + 1,
+            pageSize: pagination.pageSize,
+            searchParams,
+            columnFilters,
+            isAdmin,
+          })
+          result = isAdmin
+            ? await getAllLogs(params)
+            : await getUserLogs(params)
+          break
+        }
+        case 'drawing':
+          result = isAdmin
+            ? await getAllMidjourneyLogs({
+                ...baseParams,
+                mj_id: searchParams.filter,
+              })
+            : await getUserMidjourneyLogs({
+                ...baseParams,
+                mj_id: searchParams.filter,
+              })
+          break
+        case 'task':
+          result = isAdmin
+            ? await getAllTaskLogs({
+                ...baseParams,
+                task_id: searchParams.filter,
+              })
+            : await getUserTaskLogs({
+                ...baseParams,
+                task_id: searchParams.filter,
+              })
+          break
+      }
 
-      if (!result.success) {
-        toast.error(result.message || 'Failed to load logs')
+      if (!result?.success) {
+        toast.error(result?.message || 'Failed to load logs')
         return { items: [], total: 0 }
       }
 
@@ -118,11 +164,18 @@ export function UsageLogsTable() {
   })
 
   const logs = data?.items || []
-  const columns = getUsageLogsColumns(isAdmin)
+
+  // Use different column definitions based on log category
+  const columns =
+    logCategory === 'common'
+      ? getCommonLogsColumns(isAdmin)
+      : logCategory === 'drawing'
+        ? getDrawingLogsColumns(isAdmin)
+        : getTaskLogsColumns(isAdmin)
 
   const table = useReactTable({
-    data: logs,
-    columns,
+    data: logs as any, // Different log types have different schemas
+    columns: columns as any,
     state: {
       sorting,
       columnVisibility,
@@ -151,18 +204,26 @@ export function UsageLogsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  // Different filters for different log categories
+  const filters =
+    logCategory === 'common'
+      ? [
+          {
+            columnId: 'type',
+            title: 'Log Type',
+            options: LOG_TYPE_FILTERS,
+          },
+        ]
+      : []
+
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter logs...'
-        filters={[
-          {
-            columnId: 'type',
-            title: 'Log Type',
-            options: logTypeFilters,
-          },
-        ]}
+        customSearch={
+          <UsageLogsTabs value={logCategory} onValueChange={setLogCategory} />
+        }
+        filters={filters}
       />
       <div className='overflow-hidden rounded-md border'>
         <Table>

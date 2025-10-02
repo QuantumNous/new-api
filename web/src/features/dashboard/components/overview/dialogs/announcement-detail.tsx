@@ -22,7 +22,7 @@ export function AnnouncementDetailModal({
 }: AnnouncementDetailModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-[600px]'>
+      <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>Announcement Details</DialogTitle>
           {announcement?.publishDate && (

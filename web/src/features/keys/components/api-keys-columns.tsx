@@ -75,6 +75,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
           label={statusConfig.label}
           variant={statusConfig.variant}
           showDot={statusConfig.showDot}
+          copyable={false}
         />
       )
     },
@@ -184,10 +185,10 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
               <Badge variant='secondary'>Auto</Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p className='max-w-xs text-xs'>
+              <span className='text-xs'>
                 Automatically selects the best available group with circuit
                 breaker mechanism
-              </p>
+              </span>
             </TooltipContent>
           </Tooltip>
         )

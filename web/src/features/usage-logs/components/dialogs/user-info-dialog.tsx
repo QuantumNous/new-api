@@ -10,7 +10,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { getUserInfo, type UserInfo } from '../api'
+import { getUserInfo } from '../../api'
+import type { UserInfo } from '../../types'
 
 interface UserInfoDialogProps {
   userId: number | null
@@ -64,7 +65,7 @@ export function UserInfoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-[550px]'>
+      <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>User Information</DialogTitle>
           <DialogDescription>

@@ -1,4 +1,4 @@
-import type { QuotaDataItem } from '@/features/dashboard/api'
+import type { QuotaDataItem } from '@/features/dashboard/types'
 
 /**
  * Calculate aggregated statistics from quota data

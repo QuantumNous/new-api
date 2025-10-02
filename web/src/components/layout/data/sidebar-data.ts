@@ -32,7 +32,7 @@ export const sidebarData: SidebarData = {
           icon: Key,
         },
         {
-          title: 'Logs',
+          title: 'Usage Logs',
           url: '/usage-logs',
           icon: FileText,
         },

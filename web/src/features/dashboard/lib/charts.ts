@@ -2,7 +2,7 @@ import { getChartColor } from '@/lib/colors'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { sanitizeCssVariableName } from '@/lib/utils'
 import type { ChartConfig } from '@/components/ui/chart'
-import type { QuotaDataItem } from '@/features/dashboard/api'
+import type { QuotaDataItem } from '@/features/dashboard/types'
 import type { ProcessedChartData } from '@/features/dashboard/types'
 
 /**

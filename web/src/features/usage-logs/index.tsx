@@ -1,5 +1,6 @@
 import { AppHeader } from '@/components/layout/app-header'
 import { Main } from '@/components/layout/main'
+import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
 import {
   UsageLogsProvider,
@@ -7,7 +8,6 @@ import {
 } from './components/usage-logs-provider'
 import { UsageLogsStats } from './components/usage-logs-stats'
 import { UsageLogsTable } from './components/usage-logs-table'
-import { UserInfoDialog } from './components/user-info-dialog'
 
 function UsageLogsContent() {
   const { selectedUserId, userInfoDialogOpen, setUserInfoDialogOpen } =

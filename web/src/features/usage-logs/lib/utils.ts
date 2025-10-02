@@ -1,7 +1,7 @@
 /**
  * Utility functions for usage logs feature
  */
-import type { GetLogsParams } from '../api'
+import type { GetLogsParams } from '../types'
 
 /**
  * Check if log type is displayable (has detailed info)
@@ -62,55 +62,55 @@ export function buildApiParams(config: {
   isAdmin: boolean
 }): GetLogsParams {
   const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
+
+  // Helper to process type parameter
+  const processType = (value: any) =>
+    Array.isArray(value) && value.length === 1 ? Number(value[0]) : 0
+
+  // Build base params from search params
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
+    ...(searchParams.type && { type: processType(searchParams.type) }),
+    ...(searchParams.model && { model_name: String(searchParams.model) }),
+    ...(searchParams.token && { token_name: String(searchParams.token) }),
+    ...(searchParams.group && { group: String(searchParams.group) }),
+    ...(isAdmin &&
+      searchParams.channel && { channel: Number(searchParams.channel) || 0 }),
+    ...(isAdmin &&
+      searchParams.username && { username: String(searchParams.username) }),
+    ...(searchParams.startTime && {
+      start_timestamp: timestampToSeconds(searchParams.startTime),
+    }),
+    ...(searchParams.endTime && {
+      end_timestamp: timestampToSeconds(searchParams.endTime),
+    }),
   }
 
-  // Add search params (from filter dialog)
-  if (searchParams.type && Array.isArray(searchParams.type)) {
-    params.type =
-      searchParams.type.length === 1 ? Number(searchParams.type[0]) : 0
-  }
-  if (searchParams.model) {
-    params.model_name = String(searchParams.model)
-  }
-  if (searchParams.token) {
-    params.token_name = String(searchParams.token)
-  }
-  if (searchParams.group) {
-    params.group = String(searchParams.group)
-  }
-  if (isAdmin && searchParams.channel) {
-    params.channel = Number(searchParams.channel) || 0
-  }
-  if (isAdmin && searchParams.username) {
-    params.username = String(searchParams.username)
-  }
-  if (searchParams.startTime) {
-    params.start_timestamp = timestampToSeconds(searchParams.startTime)
-  }
-  if (searchParams.endTime) {
-    params.end_timestamp = timestampToSeconds(searchParams.endTime)
-  }
-
-  // Add column filters (from table filters if any)
+  // Override with column filters if present
   columnFilters.forEach((filter) => {
-    const value = filter.value
-    if (value !== undefined && value !== null && value !== '') {
-      if (filter.id === 'type' && Array.isArray(value)) {
-        params.type = value.length === 1 ? Number(value[0]) : 0
-      } else if (filter.id === 'model_name') {
+    const { id, value } = filter
+    if (value === undefined || value === null || value === '') return
+
+    switch (id) {
+      case 'type':
+        params.type = processType(value)
+        break
+      case 'model_name':
         params.model_name = String(value)
-      } else if (filter.id === 'token_name') {
+        break
+      case 'token_name':
         params.token_name = String(value)
-      } else if (filter.id === 'group') {
+        break
+      case 'group':
         params.group = String(value)
-      } else if (isAdmin && filter.id === 'channel') {
-        params.channel = Number(value) || 0
-      } else if (isAdmin && filter.id === 'username') {
-        params.username = String(value)
-      }
+        break
+      case 'channel':
+        if (isAdmin) params.channel = Number(value) || 0
+        break
+      case 'username':
+        if (isAdmin) params.username = String(value)
+        break
     }
   })
 

@@ -18,6 +18,8 @@ type DataTableToolbarProps<TData> = {
       icon?: React.ComponentType<{ className?: string }>
     }[]
   }[]
+  /** Custom search component to replace the default input */
+  customSearch?: React.ReactNode
 }
 
 export function DataTableToolbar<TData>({
@@ -25,6 +27,7 @@ export function DataTableToolbar<TData>({
   searchPlaceholder = 'Filter...',
   searchKey,
   filters = [],
+  customSearch,
 }: DataTableToolbarProps<TData>) {
   const isFiltered =
     table.getState().columnFilters.length > 0 || table.getState().globalFilter
@@ -32,7 +35,9 @@ export function DataTableToolbar<TData>({
   return (
     <div className='flex items-center justify-between'>
       <div className='flex flex-1 flex-col-reverse items-start gap-y-2 sm:flex-row sm:items-center sm:space-x-2'>
-        {searchKey ? (
+        {customSearch !== undefined ? (
+          customSearch
+        ) : searchKey ? (
           <Input
             placeholder={searchPlaceholder}
             value={

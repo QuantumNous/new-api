@@ -1,6 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { Route, Info, Zap } from 'lucide-react'
-import { formatTimestamp } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -15,8 +14,8 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { logTypes } from '../data/data'
-import type { UsageLog } from '../data/schema'
+import { LOG_TYPES } from '../../constants'
+import type { UsageLog } from '../../data/schema'
 import {
   formatTokens,
   formatUseTime,
@@ -24,15 +23,16 @@ import {
   formatModelName,
   parseLogOther,
   formatLogQuota,
-} from '../lib/format'
-import { isDisplayableLogType, isTimingLogType } from '../lib/utils'
-import { useUsageLogsContext } from './usage-logs-provider'
+  formatTimestampToDate,
+} from '../../lib/format'
+import { isDisplayableLogType, isTimingLogType } from '../../lib/utils'
+import { useUsageLogsContext } from '../usage-logs-provider'
 
 /**
  * Get log type configuration by type number
  */
 const getLogTypeConfig = (type: number) => {
-  return logTypes.find((t) => t.value === type) || logTypes[0]
+  return LOG_TYPES.find((t) => t.value === type) || LOG_TYPES[0]
 }
 
 /**
@@ -99,7 +99,7 @@ const renderModelBadge = (modelName: string) => (
   />
 )
 
-export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
+export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const columns: ColumnDef<UsageLog>[] = [
     // Time column
     {
@@ -110,8 +110,8 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       cell: ({ row }) => {
         const timestamp = row.getValue('created_at') as number
         return (
-          <div className='text-muted-foreground min-w-[140px] text-sm'>
-            {formatTimestamp(timestamp)}
+          <div className='min-w-[140px] font-mono text-sm'>
+            {formatTimestampToDate(timestamp)}
           </div>
         )
       },
