@@ -27,13 +27,6 @@ import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 // ============================================================================
 
 /**
- * Check if log uses per-call billing
- */
-export function isPerCallBilling(modelPrice?: number): boolean {
-  return (modelPrice ?? 0) > 0
-}
-
-/**
  * Render a status badge with consistent styling
  */
 export function renderBadge(

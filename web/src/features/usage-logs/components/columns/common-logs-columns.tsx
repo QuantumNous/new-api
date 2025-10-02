@@ -28,9 +28,10 @@ import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
+  isPerCallBilling,
 } from '../../lib/utils'
 import { useUsageLogsContext } from '../usage-logs-provider'
-import { isPerCallBilling, renderBadge, CacheTooltip } from './column-helpers'
+import { renderBadge, CacheTooltip } from './column-helpers'
 
 export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const columns: ColumnDef<UsageLog>[] = [

@@ -42,6 +42,13 @@ export function getLogTypeConfig(type: number) {
 }
 
 /**
+ * Check if log uses per-call billing
+ */
+export function isPerCallBilling(modelPrice?: number): boolean {
+  return (modelPrice ?? 0) > 0
+}
+
+/**
  * Get default time range (today 00:00:00 to now + 1 hour)
  */
 export function getDefaultTimeRange(): { start: Date; end: Date } {

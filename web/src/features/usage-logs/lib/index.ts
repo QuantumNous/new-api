@@ -22,6 +22,7 @@ export {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
+  isPerCallBilling,
   getDefaultTimeRange,
   buildQueryParams,
   buildBaseParams,
