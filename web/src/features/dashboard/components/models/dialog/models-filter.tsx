@@ -23,13 +23,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DatePicker } from '@/components/date-picker'
+import { cleanFilters } from '@/features/dashboard/lib'
 import {
   type DashboardFilters,
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
   EMPTY_DASHBOARD_FILTERS,
 } from '@/features/dashboard/types'
-import { cleanFilters } from '@/features/dashboard/utils'
 
 interface ModelsFilterProps {
   onFilterChange: (filters: DashboardFilters) => void

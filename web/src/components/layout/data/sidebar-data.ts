@@ -33,7 +33,7 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Logs',
-          url: '/logs',
+          url: '/usage-logs',
           icon: FileText,
         },
         {

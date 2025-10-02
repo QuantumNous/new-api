@@ -2,11 +2,11 @@ import { useState, useCallback } from 'react'
 import { Route } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
-import type { PingStatusMap, ApiInfoItem } from '@/features/dashboard/types'
 import {
   testUrlLatency,
   getDefaultPingStatus,
-} from '@/features/dashboard/utils/api-info'
+} from '@/features/dashboard/lib/api-info'
+import type { PingStatusMap, ApiInfoItem } from '@/features/dashboard/types'
 import { PanelWrapper } from '../ui/panel-wrapper'
 import { ApiInfoItemComponent } from './api-info-item'
 

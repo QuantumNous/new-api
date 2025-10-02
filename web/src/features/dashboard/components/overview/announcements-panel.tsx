@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
-import { getPreviewText } from '@/features/dashboard/utils'
+import { getPreviewText } from '@/features/dashboard/lib'
 import { PanelWrapper } from '../ui/panel-wrapper'
 import { AnnouncementDetailModal } from './dialog/announcement-detail'
 

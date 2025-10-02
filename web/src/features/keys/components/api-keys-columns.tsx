@@ -200,7 +200,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     ),
     cell: ({ row }) => {
       return (
-        <div className='text-muted-foreground text-xs'>
+        <div className='text-muted-foreground'>
           {formatTimestamp(row.getValue('created_time'))}
         </div>
       )
@@ -218,7 +218,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       }
       const isExpired = expiredTime * 1000 < Date.now()
       return (
-        <div className={`text-xs ${isExpired ? 'text-destructive' : ''}`}>
+        <div className={`${isExpired ? 'text-destructive' : ''}`}>
           {formatTimestamp(expiredTime)}
         </div>
       )

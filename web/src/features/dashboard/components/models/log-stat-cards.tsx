@@ -3,11 +3,11 @@ import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { getUserQuotaDates, type QuotaDataItem } from '@/features/dashboard/api'
 import { MODEL_STAT_CARDS_CONFIG } from '@/features/dashboard/constants'
-import { type DashboardFilters } from '@/features/dashboard/types'
 import {
   buildQueryParams,
   calculateDashboardStats,
-} from '@/features/dashboard/utils'
+} from '@/features/dashboard/lib'
+import { type DashboardFilters } from '@/features/dashboard/types'
 import { StatCard } from '../ui/stat-card'
 
 interface LogStatCardsProps {

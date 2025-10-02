@@ -94,3 +94,46 @@ export function getAnnouncementColorClass(type?: string): string {
   const validType = (type || 'default') as AnnouncementType
   return ANNOUNCEMENT_TYPE_COLORS[validType] || ANNOUNCEMENT_TYPE_COLORS.default
 }
+
+/**
+ * Semantic colors for tags and badges
+ */
+const TAG_COLORS = [
+  'amber',
+  'blue',
+  'cyan',
+  'green',
+  'grey',
+  'indigo',
+  'light-blue',
+  'lime',
+  'orange',
+  'pink',
+  'purple',
+  'red',
+  'teal',
+  'violet',
+  'yellow',
+] as const
+
+/**
+ * Convert string to a stable semantic color
+ * Used for model tags, group badges, user avatars, etc.
+ * Same string always returns the same color
+ *
+ * @param str - Input string (model name, group name, username, etc.)
+ * @returns Semantic color name from TAG_COLORS
+ *
+ * @example
+ * stringToColor('gpt-4') // 'blue'
+ * stringToColor('claude-3') // 'purple'
+ * stringToColor('default') // 'green'
+ */
+export function stringToColor(str: string): SemanticColor {
+  let sum = 0
+  for (let i = 0; i < str.length; i++) {
+    sum += str.charCodeAt(i)
+  }
+  const index = sum % TAG_COLORS.length
+  return TAG_COLORS[index]
+}

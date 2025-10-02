@@ -4,11 +4,11 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/copy-button'
-import type { ApiInfoItem, PingStatus } from '@/features/dashboard/types'
 import {
   getLatencyColorClass,
   openExternalSpeedTest,
-} from '@/features/dashboard/utils/api-info'
+} from '@/features/dashboard/lib/api-info'
+import type { ApiInfoItem, PingStatus } from '@/features/dashboard/types'
 
 interface ApiInfoItemProps {
   item: ApiInfoItem

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { TimeGranularity } from '@/lib/time'
 import type { QuotaDataItem } from '@/features/dashboard/api'
-import { processChartData } from '@/features/dashboard/utils'
+import { processChartData } from '@/features/dashboard/lib'
 import {
   QuotaDistributionChart,
   CallProportionChart,
