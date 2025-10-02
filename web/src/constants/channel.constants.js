@@ -164,6 +164,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'SubModel',
   },
+  {
+    value: 54,
+    color: 'blue',
+    label: '豆包视频',
+  },
 ];
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

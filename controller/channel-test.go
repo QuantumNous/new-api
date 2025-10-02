@@ -70,6 +70,12 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 			newAPIError: nil,
 		}
 	}
+	if channel.Type == constant.ChannelTypeDoubaoVideo {
+		return testResult{
+			localErr:    errors.New("doubao video channel test is not supported"),
+			newAPIError: nil,
+		}
+	}
 	if channel.Type == constant.ChannelTypeVidu {
 		return testResult{
 			localErr:    errors.New("vidu channel test is not supported"),
