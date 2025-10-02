@@ -9,6 +9,7 @@ import (
 	"time"
 	"encoding/csv"
 	"bytes"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -182,6 +183,7 @@ func DownloadAllLogs(c *gin.Context) {
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
 	format := c.DefaultQuery("format", "csv") // 支持csv格式
+	columns := c.Query("columns") // 获取列选择参数
 
 	// 获取所有匹配的日志数据（不分页）
 	logs, err := model.GetAllLogsForDownload(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
@@ -191,7 +193,7 @@ func DownloadAllLogs(c *gin.Context) {
 	}
 
 	if format == "csv" {
-		generateCSVResponse(c, logs, "all_logs")
+		generateCSVResponse(c, logs, "all_logs", columns)
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -210,6 +212,7 @@ func DownloadUserLogs(c *gin.Context) {
 	modelName := c.Query("model_name")
 	group := c.Query("group")
 	format := c.DefaultQuery("format", "csv")
+	columns := c.Query("columns") // 获取列选择参数
 
 	// 获取用户的所有匹配日志数据（不分页）
 	logs, err := model.GetUserLogsForDownload(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group)
@@ -219,7 +222,7 @@ func DownloadUserLogs(c *gin.Context) {
 	}
 
 	if format == "csv" {
-		generateCSVResponse(c, logs, fmt.Sprintf("user_%d_logs", userId))
+		generateCSVResponse(c, logs, fmt.Sprintf("user_%d_logs", userId), columns)
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -229,16 +232,62 @@ func DownloadUserLogs(c *gin.Context) {
 }
 
 // generateCSVResponse 生成CSV响应
-func generateCSVResponse(c *gin.Context, logs []*model.Log, filename string) {
+func generateCSVResponse(c *gin.Context, logs []*model.Log, filename string, columns string) {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 
-	// 写入CSV头部
-	headers := []string{
-		"ID", "用户ID", "用户名", "创建时间", "类型", "内容", "令牌名称",
-		"模型名称", "配额", "提示词Token", "完成Token", "使用时间(秒)",
-		"是否流式", "渠道ID", "渠道名称", "令牌ID", "用户组", "IP地址", "其他信息",
+	// 定义完整的列映射，包括所有可能的列
+	allColumns := map[string]string{
+		"time":       "创建时间",
+		"channel":    "渠道ID",
+		"username":   "用户名",
+		"token":      "令牌名称",
+		"group":      "用户组",
+		"type":       "类型",
+		"model":      "模型名称",
+		"use_time":   "使用时间(秒)",
+		"prompt":     "提示词Token",
+		"completion": "完成Token",
+		"cost":       "配额",
+		"usd_cost":   "花费($)",
+		"retry":      "渠道名称",
+		"ip":         "IP地址",
+		"details":    "其他信息",
 	}
+
+	// 默认列（如果没有指定列）
+	defaultColumns := []string{"time", "channel", "username", "token", "group", "type", "model", "use_time", "prompt", "completion", "cost", "usd_cost", "retry", "ip", "details"}
+
+	// 解析选中的列
+	var selectedColumns []string
+	if columns != "" {
+		selectedColumns = strings.Split(columns, ",")
+	} else {
+		selectedColumns = defaultColumns
+	}
+
+	// 过滤出有效的列
+	var validColumns []string
+	var headers []string
+	for _, col := range selectedColumns {
+		col = strings.TrimSpace(col)
+		if headerName, exists := allColumns[col]; exists {
+			validColumns = append(validColumns, col)
+			headers = append(headers, headerName)
+		}
+	}
+
+	// 如果没有有效列，使用默认列
+	if len(validColumns) == 0 {
+		for _, col := range defaultColumns {
+			if headerName, exists := allColumns[col]; exists {
+				validColumns = append(validColumns, col)
+				headers = append(headers, headerName)
+			}
+		}
+	}
+
+	// 写入CSV头部
 	if err := writer.Write(headers); err != nil {
 		common.ApiError(c, err)
 		return
@@ -246,33 +295,45 @@ func generateCSVResponse(c *gin.Context, logs []*model.Log, filename string) {
 
 	// 写入数据行
 	for _, log := range logs {
-		// 转换时间戳为可读格式
-		createdTime := time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05")
+		var row []string
 
-		// 转换日志类型为可读文本
-		logTypeStr := getLogTypeString(log.Type)
-
-		row := []string{
-			strconv.Itoa(log.Id),
-			strconv.Itoa(log.UserId),
-			log.Username,
-			createdTime,
-			logTypeStr,
-			log.Content,
-			log.TokenName,
-			log.ModelName,
-			strconv.Itoa(log.Quota),
-			strconv.Itoa(log.PromptTokens),
-			strconv.Itoa(log.CompletionTokens),
-			strconv.Itoa(log.UseTime),
-			strconv.FormatBool(log.IsStream),
-			strconv.Itoa(log.ChannelId),
-			log.ChannelName,
-			strconv.Itoa(log.TokenId),
-			log.Group,
-			log.Ip,
-			log.Other,
+		for _, col := range validColumns {
+			switch col {
+			case "time":
+				row = append(row, time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"))
+			case "channel":
+				row = append(row, strconv.Itoa(log.ChannelId))
+			case "username":
+				row = append(row, log.Username)
+			case "token":
+				row = append(row, log.TokenName)
+			case "group":
+				row = append(row, log.Group)
+			case "type":
+				row = append(row, getLogTypeString(log.Type))
+			case "model":
+				row = append(row, log.ModelName)
+			case "use_time":
+				row = append(row, strconv.Itoa(log.UseTime))
+			case "prompt":
+				row = append(row, strconv.Itoa(log.PromptTokens))
+			case "completion":
+				row = append(row, strconv.Itoa(log.CompletionTokens))
+			case "cost":
+				row = append(row, strconv.Itoa(log.Quota))
+			case "usd_cost":
+				// 计算美元花费：配额除以QuotaPerUnit
+				usdCost := float64(log.Quota) / common.QuotaPerUnit
+				row = append(row, fmt.Sprintf("%.6f", usdCost))
+			case "retry":
+				row = append(row, log.ChannelName)
+			case "ip":
+				row = append(row, log.Ip)
+			case "details":
+				row = append(row, log.Other)
+			}
 		}
+
 		if err := writer.Write(row); err != nil {
 			common.ApiError(c, err)
 			return

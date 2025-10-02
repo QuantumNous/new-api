@@ -574,22 +574,47 @@ export const useLogsData = () => {
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
+      // 构建列选择参数
+      const visibleColumnKeys = Object.keys(visibleColumns).filter(key => visibleColumns[key]);
+      const columnsParam = visibleColumnKeys.join(',');
+
       let url = '';
       if (isAdminUser) {
-        url = `/api/log/download?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&format=csv`;
+        url = `/api/log/download?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&format=csv&columns=${columnsParam}`;
       } else {
-        url = `/api/log/self/download?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&format=csv`;
+        url = `/api/log/self/download?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&format=csv&columns=${columnsParam}`;
       }
 
       url = encodeURI(url);
 
-      // Create a temporary link element to trigger download
+      // Use axios instance with proper configuration for authentication
+      const response = await API.get(url, {
+        responseType: 'blob', // Important for file download
+      });
+
+      // Get filename from Content-Disposition header if available
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'logs.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=([^;]+)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+
+      // Convert response to blob and download
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+
       const link = document.createElement('a');
-      link.href = url;
-      link.download = '';
+      link.href = downloadUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      // Clean up the object URL
+      window.URL.revokeObjectURL(downloadUrl);
 
       showSuccess(t('日志下载已开始'));
     } catch (error) {

@@ -25,7 +25,7 @@ COPY --from=builder /build/dist ./web/dist
 RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -o one-api
 
 FROM alpine
-
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk upgrade --no-cache \
     && apk add --no-cache ca-certificates tzdata ffmpeg \
     && update-ca-certificates
