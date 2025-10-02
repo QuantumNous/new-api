@@ -183,7 +183,10 @@ export const useSidebar = () => {
     sidebarEventTarget.addEventListener(SIDEBAR_REFRESH_EVENT, handleRefresh);
 
     return () => {
-      sidebarEventTarget.removeEventListener(SIDEBAR_REFRESH_EVENT, handleRefresh);
+      sidebarEventTarget.removeEventListener(
+        SIDEBAR_REFRESH_EVENT,
+        handleRefresh,
+      );
     };
   }, [adminConfig]);
 

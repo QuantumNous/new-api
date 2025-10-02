@@ -1,6 +1,10 @@
 <p align="right">
-   <a href="./README.md">中文</a> | <a href="./README.en.md">English</a> | <strong>Français</strong>
+   <a href="./README.md">中文</a> | <a href="./README.en.md">English</a> | <strong>Français</strong> | <a href="./README.ja.md">日本語</a>
 </p>
+
+> [!NOTE]
+> **MT (Traduction Automatique)**: Ce document est traduit automatiquement. Pour les informations les plus précises, veuillez vous référer à la [version chinoise](./README.md).
+
 <div align="center">
 
 ![new-api](/web/public/logo.png)
@@ -75,7 +79,7 @@ New API offre un large éventail de fonctionnalités, veuillez vous référer à
 
 1. 🎨 Nouvelle interface utilisateur
 2. 🌍 Prise en charge multilingue
-3. 💰 Fonctionnalité de recharge en ligne (YiPay)
+3. 💰 Fonctionnalité de recharge en ligne, prend actuellement en charge EPay et Stripe
 4. 🔍 Prise en charge de la recherche de quotas d'utilisation avec des clés (fonctionne avec [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool))
 5. 🔄 Compatible avec la base de données originale de One API
 6. 💵 Prise en charge de la tarification des modèles de paiement à l'utilisation
@@ -96,7 +100,11 @@ New API offre un large éventail de fonctionnalités, veuillez vous référer à
         - Ajouter le suffixe `-thinking` pour activer le mode de pensée (par exemple : `claude-3-7-sonnet-20250219-thinking`)
 16. 🔄 Fonctionnalité de la pensée au contenu
 17. 🔄 Limitation du débit du modèle pour les utilisateurs
-18. 💰 Prise en charge de la facturation du cache, qui permet de facturer à un ratio défini lorsque le cache est atteint :
+18. 🔄 Fonctionnalité de conversion de format de requête, prenant en charge les trois conversions de format suivantes :
+    1. OpenAI Chat Completions => Claude Messages
+    2. Claude Messages => OpenAI Chat Completions (peut être utilisé pour Claude Code pour appeler des modèles tiers)
+    3. OpenAI Chat Completions => Gemini Chat
+19. 💰 Prise en charge de la facturation du cache, qui permet de facturer à un ratio défini lorsque le cache est atteint :
     1. Définir l'option `Ratio de cache d'invite` dans `Paramètres système->Paramètres de fonctionnement`
     2. Définir le `Ratio de cache d'invite` dans le canal, plage de 0 à 1, par exemple, le définir sur 0,5 signifie facturer à 50 % lorsque le cache est atteint
     3. Canaux pris en charge :
@@ -115,7 +123,9 @@ Cette version prend en charge plusieurs modèles, veuillez vous référer à [Do
 4. Canaux personnalisés, prenant en charge la saisie complète de l'adresse d'appel
 5. Modèles Rerank ([Cohere](https://cohere.ai/) et [Jina](https://jina.ai/)), [Documentation de l'API](https://docs.newapi.pro/api/jinaai-rerank)
 6. Format de messages Claude, [Documentation de l'API](https://docs.newapi.pro/api/anthropic-chat)
-7. Dify, ne prend actuellement en charge que chatflow
+7. Format Google Gemini, [Documentation de l'API](https://docs.newapi.pro/api/google-gemini-chat/)
+8. Dify, ne prend actuellement en charge que chatflow
+9. Pour plus d'interfaces, veuillez vous référer à la [Documentation de l'API](https://docs.newapi.pro/api)
 
 ## Configuration des variables d'environnement
 
@@ -192,7 +202,8 @@ Pour une documentation détaillée de l'API, veuillez vous référer à [Documen
 - [API d'image](https://docs.newapi.pro/api/openai-image)
 - [API de rerank](https://docs.newapi.pro/api/jinaai-rerank)
 - [API en temps réel](https://docs.newapi.pro/api/openai-realtime)
-- [API de discussion Claude (messages)](https://docs.newapi.pro/api/anthropic-chat)
+- [API de discussion Claude](https://docs.newapi.pro/api/anthropic-chat)
+- [API de discussion Google Gemini](https://docs.newapi.pro/api/google-gemini-chat)
 
 ## Projets connexes
 - [One API](https://github.com/songquanpeng/one-api) : Projet original

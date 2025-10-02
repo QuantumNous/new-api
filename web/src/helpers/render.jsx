@@ -1074,7 +1074,7 @@ export function renderModelPrice(
       (completionTokens / 1000000) * completionRatioPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
       (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
-      (imageGenerationCallPrice * groupRatio);
+      imageGenerationCallPrice * groupRatio;
 
     return (
       <>

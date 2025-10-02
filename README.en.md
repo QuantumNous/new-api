@@ -1,6 +1,10 @@
 <p align="right">
-   <a href="./README.md">中文</a> | <strong>English</strong> | <a href="./README.fr.md">Français</a>
+   <a href="./README.md">中文</a> | <strong>English</strong> | <a href="./README.fr.md">Français</a> | <a href="./README.ja.md">日本語</a>
 </p>
+
+> [!NOTE]
+> **MT (Machine Translation)**: This document is machine translated. For the most accurate information, please refer to the [Chinese version](./README.md).
+
 <div align="center">
 
 ![new-api](/web/public/logo.png)
@@ -75,7 +79,7 @@ New API offers a wide range of features, please refer to [Features Introduction]
 
 1. 🎨 Brand new UI interface
 2. 🌍 Multi-language support
-3. 💰 Online recharge functionality (YiPay)
+3. 💰 Online recharge functionality, currently supports EPay and Stripe
 4. 🔍 Support for querying usage quotas with keys (works with [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool))
 5. 🔄 Compatible with the original One API database
 6. 💵 Support for pay-per-use model pricing
@@ -96,7 +100,11 @@ New API offers a wide range of features, please refer to [Features Introduction]
         - Add `-thinking` suffix to enable thinking mode (e.g.: `claude-3-7-sonnet-20250219-thinking`)
 16. 🔄 Thinking-to-content functionality
 17. 🔄 Model rate limiting for users
-18. 💰 Cache billing support, which allows billing at a set ratio when cache is hit:
+18. 🔄 Request format conversion functionality, supporting the following three format conversions:
+    1. OpenAI Chat Completions => Claude Messages
+    2. Claude Messages => OpenAI Chat Completions (can be used for Claude Code to call third-party models)
+    3. OpenAI Chat Completions => Gemini Chat
+19. 💰 Cache billing support, which allows billing at a set ratio when cache is hit:
     1. Set the `Prompt Cache Ratio` option in `System Settings-Operation Settings`
     2. Set `Prompt Cache Ratio` in the channel, range 0-1, e.g., setting to 0.5 means billing at 50% when cache is hit
     3. Supported channels:
@@ -115,7 +123,9 @@ This version supports multiple models, please refer to [API Documentation-Relay 
 4. Custom channels, supporting full call address input
 5. Rerank models ([Cohere](https://cohere.ai/) and [Jina](https://jina.ai/)), [API Documentation](https://docs.newapi.pro/api/jinaai-rerank)
 6. Claude Messages format, [API Documentation](https://docs.newapi.pro/api/anthropic-chat)
-7. Dify, currently only supports chatflow
+7. Google Gemini format, [API Documentation](https://docs.newapi.pro/api/google-gemini-chat/)
+8. Dify, currently only supports chatflow
+9. For more interfaces, please refer to [API Documentation](https://docs.newapi.pro/api)
 
 ## Environment Variable Configuration
 
@@ -192,7 +202,8 @@ For detailed API documentation, please refer to [API Documentation](https://docs
 - [Image API](https://docs.newapi.pro/api/openai-image)
 - [Rerank API](https://docs.newapi.pro/api/jinaai-rerank)
 - [Realtime API](https://docs.newapi.pro/api/openai-realtime)
-- [Claude Chat API (messages)](https://docs.newapi.pro/api/anthropic-chat)
+- [Claude Chat API](https://docs.newapi.pro/api/anthropic-chat)
+- [Google Gemini Chat API](https://docs.newapi.pro/api/google-gemini-chat)
 
 ## Related Projects
 - [One API](https://github.com/songquanpeng/one-api): Original project
