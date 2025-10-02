@@ -87,9 +87,3 @@ export interface LogStatistics {
   rpm: number
   tpm: number
 }
-
-// Expanded row data for detail view
-export interface ExpandedRowData {
-  key: string
-  value: string | number | React.ReactNode
-}

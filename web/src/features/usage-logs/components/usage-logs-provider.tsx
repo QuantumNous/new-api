@@ -3,9 +3,10 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 interface UsageLogsContextValue {
   refreshTrigger: number
   triggerRefresh: () => void
-  expandedRows: Set<number>
-  toggleExpandRow: (id: number) => void
-  isRowExpanded: (id: number) => boolean
+  selectedUserId: number | null
+  setSelectedUserId: (userId: number | null) => void
+  userInfoDialogOpen: boolean
+  setUserInfoDialogOpen: (open: boolean) => void
 }
 
 const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
@@ -14,26 +15,11 @@ const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
 
 export function UsageLogsProvider({ children }: { children: ReactNode }) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
+  const [userInfoDialogOpen, setUserInfoDialogOpen] = useState(false)
 
   const triggerRefresh = () => {
     setRefreshTrigger((prev) => prev + 1)
-  }
-
-  const toggleExpandRow = (id: number) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const isRowExpanded = (id: number) => {
-    return expandedRows.has(id)
   }
 
   return (
@@ -41,9 +27,10 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
       value={{
         refreshTrigger,
         triggerRefresh,
-        expandedRows,
-        toggleExpandRow,
-        isRowExpanded,
+        selectedUserId,
+        setSelectedUserId,
+        userInfoDialogOpen,
+        setUserInfoDialogOpen,
       }}
     >
       {children}

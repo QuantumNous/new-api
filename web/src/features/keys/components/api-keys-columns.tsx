@@ -220,7 +220,9 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       }
       const isExpired = expiredTime * 1000 < Date.now()
       return (
-        <div className={`${isExpired ? 'text-destructive' : ''}`}>
+        <div
+          className={`${isExpired ? 'text-destructive' : 'text-muted-foreground'}`}
+        >
           {formatTimestamp(expiredTime)}
         </div>
       )

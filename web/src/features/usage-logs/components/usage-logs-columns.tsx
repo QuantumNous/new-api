@@ -18,21 +18,71 @@ import { StatusBadge } from '@/components/status-badge'
 import { logTypes } from '../data/data'
 import type { UsageLog } from '../data/schema'
 import {
-  formatQuota,
   formatTokens,
   formatUseTime,
-  getUseTimeColor,
-  getFirstResponseTimeColor,
+  getTimeColor,
   formatModelName,
   parseLogOther,
+  formatLogQuota,
 } from '../lib/format'
 import { isDisplayableLogType, isTimingLogType } from '../lib/utils'
+import { useUsageLogsContext } from './usage-logs-provider'
 
 /**
  * Get log type configuration by type number
  */
 const getLogTypeConfig = (type: number) => {
   return logTypes.find((t) => t.value === type) || logTypes[0]
+}
+
+/**
+ * Cache tooltip component for token display
+ */
+const CacheTooltip = ({
+  tokens,
+  label,
+  color,
+}: {
+  tokens: number
+  label: string
+  color: string
+}) =>
+  tokens > 0 ? (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Zap className={`size-3 flex-shrink-0 ${color}`} />
+        </TooltipTrigger>
+        <TooltipContent side='top'>
+          <p className='text-xs'>
+            {label}: {formatTokens(tokens)}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  ) : null
+
+/**
+ * Render a simple status badge cell with auto-color and copy
+ */
+const renderBadgeCell = (
+  value: string | null,
+  config?: {
+    className?: string
+    maxWidth?: string
+  }
+) => {
+  if (!value) return null
+
+  return (
+    <StatusBadge
+      label={value}
+      autoColor={value}
+      copyText={value}
+      size='sm'
+      className={config?.className}
+    />
+  )
 }
 
 export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
@@ -46,7 +96,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       cell: ({ row }) => {
         const timestamp = row.getValue('created_at') as number
         return (
-          <div className='min-w-[140px] text-sm'>
+          <div className='text-muted-foreground min-w-[140px] text-sm'>
             {formatTimestamp(timestamp)}
           </div>
         )
@@ -139,15 +189,26 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title='User' />
         ),
-        cell: ({ row }) => {
+        cell: function UsernameCell({ row }) {
+          const { setSelectedUserId, setUserInfoDialogOpen } =
+            useUsageLogsContext()
+          const log = row.original
           const username = row.getValue('username') as string
           if (!username) return null
 
           return (
             <div className='flex items-center gap-2'>
-              <div className='bg-primary/10 flex size-6 items-center justify-center rounded-full text-xs font-medium'>
+              <button
+                type='button'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedUserId(log.user_id)
+                  setUserInfoDialogOpen(true)
+                }}
+                className='bg-primary/10 hover:bg-primary/20 flex size-6 cursor-pointer items-center justify-center rounded-full text-xs font-medium transition-colors'
+              >
                 {username.charAt(0).toUpperCase()}
-              </div>
+              </button>
               <span className='max-w-[100px] truncate'>{username}</span>
             </div>
           )
@@ -166,22 +227,12 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isDisplayableLogType(log.type)) {
-          return null
-        }
+        if (!isDisplayableLogType(log.type)) return null
 
         const tokenName = row.getValue('token_name') as string
-        if (!tokenName) return null
-
-        return (
-          <StatusBadge
-            label={tokenName}
-            autoColor={tokenName}
-            copyText={tokenName}
-            size='sm'
-            className='max-w-[120px] truncate'
-          />
-        )
+        return renderBadgeCell(tokenName, {
+          className: 'max-w-[120px] truncate',
+        })
       },
     },
 
@@ -193,21 +244,10 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isDisplayableLogType(log.type)) {
-          return null
-        }
+        if (!isDisplayableLogType(log.type)) return null
 
         const group = row.getValue('group') as string
-        if (!group) return null
-
-        return (
-          <StatusBadge
-            label={group}
-            autoColor={group}
-            copyText={group}
-            size='sm'
-          />
-        )
+        return renderBadgeCell(group)
       },
     },
 
@@ -307,14 +347,14 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <div className='flex items-center gap-1'>
             <StatusBadge
               label={formatUseTime(useTime)}
-              variant={getUseTimeColor(useTime)}
+              variant={getTimeColor(useTime)}
               size='sm'
               copyable={false}
             />
             {log.is_stream && frt && (
               <StatusBadge
                 label={formatUseTime(frt / 1000)}
-                variant={getFirstResponseTimeColor(frt)}
+                variant={getTimeColor(frt / 1000)}
                 size='sm'
                 copyable={false}
               />
@@ -375,20 +415,11 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <span className='font-mono font-medium'>
                   {formatTokens(promptTokens)}
                 </span>
-                {cacheReadTokens > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Zap className='size-3 flex-shrink-0 fill-amber-500 text-amber-500' />
-                      </TooltipTrigger>
-                      <TooltipContent side='top'>
-                        <p className='text-xs'>
-                          Cache Read: {formatTokens(cacheReadTokens)}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                <CacheTooltip
+                  tokens={cacheReadTokens}
+                  label='Cache Read'
+                  color='fill-amber-500 text-amber-500'
+                />
               </div>
             )}
             {completionTokens > 0 && (
@@ -397,20 +428,11 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <span className='font-mono font-medium'>
                   {formatTokens(completionTokens)}
                 </span>
-                {cacheWriteTokens > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Zap className='size-3 flex-shrink-0 fill-blue-500 text-blue-500' />
-                      </TooltipTrigger>
-                      <TooltipContent side='top'>
-                        <p className='text-xs'>
-                          Cache Write: {formatTokens(cacheWriteTokens)}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                <CacheTooltip
+                  tokens={cacheWriteTokens}
+                  label='Cache Write'
+                  color='fill-blue-500 text-blue-500'
+                />
               </div>
             )}
           </div>
@@ -433,7 +455,7 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const quota = row.getValue('quota') as number
         return (
           <span className='font-mono text-sm font-medium'>
-            {formatQuota(quota)}
+            {formatLogQuota(quota)}
           </span>
         )
       },
@@ -451,9 +473,9 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <Info className='text-muted-foreground size-3' />
               </TooltipTrigger>
               <TooltipContent>
-                <p className='max-w-xs'>
+                <span className='max-w-xs'>
                   IP is only recorded when user enables IP logging in settings
-                </p>
+                </span>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -461,22 +483,10 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isTimingLogType(log.type)) {
-          return null
-        }
+        if (!isTimingLogType(log.type)) return null
 
         const ip = row.getValue('ip') as string
-        if (!ip) return null
-
-        return (
-          <StatusBadge
-            label={ip}
-            autoColor={ip}
-            copyText={ip}
-            size='sm'
-            className='font-mono'
-          />
-        )
+        return renderBadgeCell(ip, { className: 'font-mono' })
       },
     },
 
@@ -499,10 +509,9 @@ export function getUsageLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         }
 
         return (
-          <div className='max-w-[200px]'>
-            <div className='text-muted-foreground text-sm'>
-              Group: {other.group_ratio}x
-            </div>
+          <div className='max-w-[200px] text-sm'>
+            <span className='text-muted-foreground'>Group: </span>
+            <span className='font-mono'>{other.group_ratio}x</span>
           </div>
         )
       },
