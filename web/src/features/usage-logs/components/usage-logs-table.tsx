@@ -78,7 +78,7 @@ export function UsageLogsTable() {
   })
 
   // Fetch data with React Query
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'logs',
       logCategory,
@@ -107,13 +107,23 @@ export function UsageLogsTable() {
 
       return result.data || DEFAULT_LOGS_DATA
     },
-    placeholderData: (previousData) => previousData,
+    // Only use placeholder data if the log category hasn't changed
+    // This prevents showing incompatible data structures during tab switches
+    placeholderData: (previousData, previousQuery) => {
+      if (previousQuery?.queryKey[1] === logCategory) {
+        return previousData
+      }
+      return undefined
+    },
   })
 
   const logs = data?.items || []
 
   // Get column definitions based on log category
   const columns = getColumnsByCategory(logCategory, isAdmin)
+
+  // Show loading state when switching tabs or initial load
+  const isLoadingData = isLoading || (isFetching && !data)
 
   const table = useReactTable({
     data: logs as any, // Different log types have different schemas
@@ -199,7 +209,7 @@ export function UsageLogsTable() {
             ))}
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoadingData ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
