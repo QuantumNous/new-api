@@ -455,6 +455,18 @@ export const getLogsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.USD_COST,
+      title: t('花费($)'),
+      dataIndex: 'quota',
+      render: (text, record, index) => {
+        return record.type === 0 || record.type === 2 || record.type === 5 ? (
+          <>{'$' + (text / 500000).toFixed(6)}</>
+        ) : (
+          <></>
+        );
+      },
+    },
+    {
       key: COLUMN_KEYS.IP,
       title: (
         <div className='flex items-center gap-1'>

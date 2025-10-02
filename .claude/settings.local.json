@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build -o new-api main.go)",
+      "Bash(go mod tidy)",
+      "mcp__sequential_thinking__sequentialthinking"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
