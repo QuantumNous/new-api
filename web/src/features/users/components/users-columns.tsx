@@ -1,10 +1,17 @@
 import { type ColumnDef } from '@tanstack/react-table'
-import { cn } from '@/lib/utils'
+import { formatQuota } from '@/lib/format'
+import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Progress } from '@/components/ui/progress'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
-import { roles, userStatuses } from '../data/data'
+import { userStatuses, userRoles } from '../data/data'
 import { type User } from '../data/schema'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -22,9 +29,6 @@ export const usersColumns: ColumnDef<User>[] = [
         className='translate-y-[2px]'
       />
     ),
-    meta: {
-      className: cn('sticky md:table-cell start-0 z-10 rounded-tl-[inherit]'),
-    },
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
@@ -37,49 +41,59 @@ export const usersColumns: ColumnDef<User>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: 'id',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='ID' />
+    ),
+    cell: ({ row }) => {
+      return <div className='w-[60px]'>{row.getValue('id')}</div>
+    },
+  },
+  {
     accessorKey: 'username',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Username' />
     ),
-    cell: ({ row }) => (
-      <LongText className='max-w-36 ps-3'>{row.getValue('username')}</LongText>
-    ),
-    meta: {
-      className: cn(
-        'drop-shadow-[0_1px_2px_rgb(0_0_0_/_0.1)] dark:drop-shadow-[0_1px_2px_rgb(255_255_255_/_0.1)]',
-        'sticky start-6 @4xl/content:table-cell @4xl/content:drop-shadow-none'
-      ),
+    cell: ({ row }) => {
+      const username = row.getValue('username') as string
+      const remark = row.original.remark
+
+      return (
+        <div className='flex items-center gap-2'>
+          <LongText className='max-w-[120px] font-medium'>{username}</LongText>
+          {remark && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant='outline'
+                  className='cursor-help gap-1 text-xs font-normal'
+                >
+                  <div className='h-2 w-2 rounded-full bg-green-500' />
+                  <LongText className='max-w-[80px]'>{remark}</LongText>
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className='text-xs'>{remark}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )
     },
     enableHiding: false,
   },
   {
-    id: 'fullName',
+    accessorKey: 'display_name',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Name' />
+      <DataTableColumnHeader column={column} title='Display Name' />
     ),
     cell: ({ row }) => {
-      const { firstName, lastName } = row.original
-      const fullName = `${firstName} ${lastName}`
-      return <LongText className='max-w-36'>{fullName}</LongText>
+      return (
+        <LongText className='max-w-[150px]'>
+          {row.getValue('display_name') || '-'}
+        </LongText>
+      )
     },
-    meta: { className: 'w-36' },
-  },
-  {
-    accessorKey: 'email',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Email' />
-    ),
-    cell: ({ row }) => (
-      <div className='w-fit text-nowrap'>{row.getValue('email')}</div>
-    ),
-  },
-  {
-    accessorKey: 'phoneNumber',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Phone Number' />
-    ),
-    cell: ({ row }) => <div>{row.getValue('phoneNumber')}</div>,
-    enableSorting: false,
   },
   {
     accessorKey: 'status',
@@ -87,29 +101,96 @@ export const usersColumns: ColumnDef<User>[] = [
       <DataTableColumnHeader column={column} title='Status' />
     ),
     cell: ({ row }) => {
-      const { status } = row.original
-      const statusConfig = userStatuses[status]
+      const statusValue = row.getValue('status') as number
+      const statusConfig =
+        userStatuses[statusValue as keyof typeof userStatuses]
+      const requestCount = row.original.request_count
 
       if (!statusConfig) {
         return null
       }
 
       return (
-        <div className='flex space-x-2'>
-          <StatusBadge
-            label={status}
-            variant={statusConfig.variant}
-            icon={statusConfig.icon}
-            showDot={statusConfig.showDot}
-          />
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='cursor-help'>
+              <StatusBadge
+                label={statusConfig.label}
+                variant={statusConfig.variant}
+                showDot={statusConfig.showDot}
+                copyable={false}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className='text-xs'>Requests: {requestCount.toLocaleString()}</p>
+          </TooltipContent>
+        </Tooltip>
       )
     },
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
+      return value.includes(String(row.getValue(id)))
     },
-    enableHiding: false,
     enableSorting: false,
+  },
+  {
+    id: 'quota',
+    accessorKey: 'quota',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Quota' />
+    ),
+    cell: ({ row }) => {
+      const user = row.original
+      const quota = user.quota
+      const usedQuota = user.used_quota
+      const remainingQuota = quota
+      const totalQuota = usedQuota + remainingQuota
+      const percentage =
+        totalQuota > 0 ? (remainingQuota / totalQuota) * 100 : 0
+
+      if (totalQuota === 0) {
+        return <Badge variant='outline'>No Quota</Badge>
+      }
+
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-[150px] cursor-help space-y-1'>
+              <div className='flex justify-between text-xs'>
+                <span>{formatQuota(remainingQuota)}</span>
+                <span className='text-muted-foreground'>
+                  {formatQuota(totalQuota)}
+                </span>
+              </div>
+              <Progress value={percentage} className='h-2' />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className='space-y-1 text-xs'>
+              <div>Used: {formatQuota(usedQuota)}</div>
+              <div>Remaining: {formatQuota(remainingQuota)}</div>
+              <div>Total: {formatQuota(totalQuota)}</div>
+              <div>Usage: {percentage.toFixed(1)}%</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      )
+    },
+  },
+  {
+    accessorKey: 'group',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Group' />
+    ),
+    cell: ({ row }) => {
+      const group = row.getValue('group') as string
+      return <Badge variant='outline'>{group || 'default'}</Badge>
+    },
+    filterFn: (row, id, value) => {
+      const group = String(row.getValue(id) || 'default').toLowerCase()
+      const searchValue = String(value).toLowerCase()
+      return group.includes(searchValue)
+    },
   },
   {
     accessorKey: 'role',
@@ -117,30 +198,82 @@ export const usersColumns: ColumnDef<User>[] = [
       <DataTableColumnHeader column={column} title='Role' />
     ),
     cell: ({ row }) => {
-      const { role } = row.original
-      const userType = roles.find(({ value }) => value === role)
+      const roleValue = row.getValue('role') as number
+      const roleConfig = userRoles[roleValue as keyof typeof userRoles]
 
-      if (!userType) {
+      if (!roleConfig) {
         return null
       }
 
       return (
         <div className='flex items-center gap-x-2'>
-          {userType.icon && (
-            <userType.icon size={16} className='text-muted-foreground' />
+          {roleConfig.icon && (
+            <roleConfig.icon size={16} className='text-muted-foreground' />
           )}
-          <span className='text-sm capitalize'>{row.getValue('role')}</span>
+          <span className='text-sm'>{roleConfig.label}</span>
         </div>
       )
     },
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
+      return value.includes(String(row.getValue(id)))
     },
     enableSorting: false,
-    enableHiding: false,
+  },
+  {
+    id: 'invite_info',
+    header: 'Invite Info',
+    cell: ({ row }) => {
+      const user = row.original
+      const affCount = user.aff_count || 0
+      const affHistoryQuota = user.aff_history_quota || 0
+      const inviterId = user.inviter_id || 0
+
+      return (
+        <div className='flex flex-wrap items-center gap-1'>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant='secondary' className='cursor-help text-xs'>
+                Invited: {affCount}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className='text-xs'>Number of users invited</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant='secondary' className='cursor-help text-xs'>
+                Revenue: {formatQuota(affHistoryQuota)}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className='text-xs'>Total invitation revenue</p>
+            </TooltipContent>
+          </Tooltip>
+          {inviterId > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant='outline' className='cursor-help text-xs'>
+                  Inviter: {inviterId}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className='text-xs'>Invited by user ID {inviterId}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {inviterId === 0 && (
+            <Badge variant='outline' className='text-xs'>
+              No Inviter
+            </Badge>
+          )}
+        </div>
+      )
+    },
+    enableSorting: false,
   },
   {
     id: 'actions',
-    cell: DataTableRowActions,
+    cell: ({ row }) => <DataTableRowActions row={row} />,
   },
 ]

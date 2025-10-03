@@ -1,31 +1,39 @@
 import { z } from 'zod'
 
-const userStatusSchema = z.union([
-  z.literal('active'),
-  z.literal('inactive'),
-  z.literal('invited'),
-  z.literal('suspended'),
-])
+// User status: 1 = enabled, 2 = disabled, 3+ = other states
+export const userStatusSchema = z.number()
 export type UserStatus = z.infer<typeof userStatusSchema>
 
-const userRoleSchema = z.union([
-  z.literal('superadmin'),
-  z.literal('admin'),
-  z.literal('cashier'),
-  z.literal('manager'),
-])
+// User role: 1 = common user, 10 = admin, 100 = root
+export const userRoleSchema = z.number()
+export type UserRole = z.infer<typeof userRoleSchema>
 
-const userSchema = z.object({
-  id: z.string(),
-  firstName: z.string(),
-  lastName: z.string(),
+export const userSchema = z.object({
+  id: z.number(),
   username: z.string(),
-  email: z.string(),
-  phoneNumber: z.string(),
+  display_name: z.string(),
+  password: z.string().optional(),
+  github_id: z.string().optional(),
+  oidc_id: z.string().optional(),
+  wechat_id: z.string().optional(),
+  telegram_id: z.string().optional(),
+  email: z.string().optional(),
+  quota: z.number(),
+  used_quota: z.number(),
+  request_count: z.number(),
+  group: z.string(),
+  aff_code: z.string().optional(),
+  aff_count: z.number().optional(),
+  aff_quota: z.number().optional(),
+  aff_history_quota: z.number().optional(),
+  inviter_id: z.number().optional(),
+  linux_do_id: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  created_at: z.number().optional(),
+  updated_at: z.number().optional(),
+  deleted_at: z.number().nullable().optional(),
+  remark: z.string().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
