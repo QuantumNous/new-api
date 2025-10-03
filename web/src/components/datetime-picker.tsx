@@ -25,10 +25,12 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(value)
+  const [month, setMonth] = React.useState<Date | undefined>(value)
   const [time, setTime] = React.useState<string>('00:00')
 
   React.useEffect(() => {
     setDate(value)
+    setMonth(value)
     if (value) {
       const hours = value.getHours().toString().padStart(2, '0')
       const minutes = value.getMinutes().toString().padStart(2, '0')
@@ -39,12 +41,15 @@ export function DateTimePicker({
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
       const [hours, minutes] = time.split(':').map(Number)
-      selectedDate.setHours(hours, minutes, 0, 0)
-      setDate(selectedDate)
-      onChange?.(selectedDate)
+      const newDate = new Date(selectedDate)
+      newDate.setHours(hours, minutes, 0, 0)
+      setDate(newDate)
+      setMonth(newDate)
+      onChange?.(newDate)
       setOpen(false)
     } else {
       setDate(undefined)
+      setMonth(undefined)
       onChange?.(undefined)
     }
   }
@@ -64,6 +69,7 @@ export function DateTimePicker({
 
   const handleClear = () => {
     setDate(undefined)
+    setMonth(undefined)
     setTime('00:00')
     onChange?.(undefined)
   }
@@ -87,6 +93,8 @@ export function DateTimePicker({
           <Calendar
             mode='single'
             selected={date}
+            month={month}
+            onMonthChange={setMonth}
             captionLayout='dropdown'
             onSelect={handleDateSelect}
           />
