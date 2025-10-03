@@ -35,7 +35,6 @@ export function Wallet() {
   const {
     affiliateLink,
     loading: affiliateLoading,
-    copyAffiliateLink,
     transferQuota,
     transferring,
   } = useAffiliate()
@@ -190,7 +189,6 @@ export function Wallet() {
             <AffiliateRewardsCard
               user={user}
               affiliateLink={affiliateLink}
-              onCopyLink={copyAffiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
               loading={affiliateLoading}
             />

@@ -1,15 +1,14 @@
-import { Copy } from 'lucide-react'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CopyButton } from '@/components/copy-button'
 import type { UserWalletData } from '../types'
 
 interface AffiliateRewardsCardProps {
   user: UserWalletData | null
   affiliateLink: string
-  onCopyLink: () => void
   onTransfer: () => void
   loading?: boolean
 }
@@ -17,7 +16,6 @@ interface AffiliateRewardsCardProps {
 export function AffiliateRewardsCard({
   user,
   affiliateLink,
-  onCopyLink,
   onTransfer,
   loading,
 }: AffiliateRewardsCardProps) {
@@ -95,14 +93,14 @@ export function AffiliateRewardsCard({
               readOnly
               className='border-muted bg-muted/30 font-mono text-sm'
             />
-            <Button
-              onClick={onCopyLink}
+            <CopyButton
+              value={affiliateLink}
               variant='outline'
-              size='icon'
-              className='shrink-0'
-            >
-              <Copy className='h-4 w-4' />
-            </Button>
+              className='size-9'
+              iconClassName='size-4'
+              tooltip='Copy referral link'
+              aria-label='Copy referral link'
+            />
           </div>
         </div>
 
