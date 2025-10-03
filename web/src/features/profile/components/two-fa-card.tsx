@@ -1,0 +1,141 @@
+import { Shield, AlertTriangle, RefreshCw } from 'lucide-react'
+import { useDialogs } from '@/hooks/use-dialogs'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useTwoFA } from '../hooks'
+import { TwoFABackupDialog } from './dialogs/two-fa-backup-dialog'
+import { TwoFADisableDialog } from './dialogs/two-fa-disable-dialog'
+import { TwoFASetupDialog } from './dialogs/two-fa-setup-dialog'
+
+// ============================================================================
+// Two-Factor Authentication Card Component
+// ============================================================================
+
+interface TwoFACardProps {
+  loading: boolean
+}
+
+type DialogKey = 'setup' | 'disable' | 'backup'
+
+export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
+  const { status, loading, refetch } = useTwoFA(!pageLoading)
+  const dialogs = useDialogs<DialogKey>()
+
+  if (pageLoading || loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className='h-6 w-48' />
+          <Skeleton className='mt-2 h-4 w-64' />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className='h-20 w-full' />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <h3 className='text-xl font-semibold tracking-tight'>
+            Two-Factor Authentication
+          </h3>
+          <p className='text-muted-foreground mt-2 text-sm'>
+            Add an extra layer of security to your account
+          </p>
+        </CardHeader>
+
+        <CardContent>
+          <div className='space-y-6'>
+            {/* Status Section */}
+            <div className='flex items-start justify-between'>
+              <div className='flex items-start gap-4'>
+                <div className='bg-muted rounded-md p-2'>
+                  <Shield className='h-5 w-5' />
+                </div>
+                <div className='space-y-1'>
+                  <div className='flex items-center gap-2'>
+                    <p className='font-medium'>Two-Step Verification</p>
+                    {status.enabled ? (
+                      <Badge
+                        variant='outline'
+                        className='border-green-500 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400'
+                      >
+                        Enabled
+                      </Badge>
+                    ) : (
+                      <Badge variant='secondary'>Disabled</Badge>
+                    )}
+                    {status.locked && (
+                      <Badge variant='destructive'>Locked</Badge>
+                    )}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {status.enabled
+                      ? `Backup codes remaining: ${status.backup_codes_remaining}`
+                      : 'Add an extra layer of security to your account'}
+                  </p>
+                </div>
+              </div>
+
+              {!status.enabled && (
+                <Button onClick={() => dialogs.open('setup')}>Enable</Button>
+              )}
+            </div>
+
+            {/* Actions Section - Only show when enabled */}
+            {status.enabled && (
+              <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row'>
+                <Button
+                  variant='outline'
+                  className='flex-1'
+                  onClick={() => dialogs.open('backup')}
+                >
+                  <RefreshCw className='mr-2 h-4 w-4' />
+                  Regenerate Backup Codes
+                </Button>
+                <Button
+                  variant='destructive'
+                  className='flex-1'
+                  onClick={() => dialogs.open('disable')}
+                >
+                  <AlertTriangle className='mr-2 h-4 w-4' />
+                  Disable 2FA
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dialogs */}
+      <TwoFASetupDialog
+        open={dialogs.isOpen('setup')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('setup') : dialogs.close('setup')
+        }
+        onSuccess={refetch}
+      />
+
+      <TwoFADisableDialog
+        open={dialogs.isOpen('disable')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('disable') : dialogs.close('disable')
+        }
+        onSuccess={refetch}
+      />
+
+      <TwoFABackupDialog
+        open={dialogs.isOpen('backup')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('backup') : dialogs.close('backup')
+        }
+        onSuccess={refetch}
+      />
+    </>
+  )
+}

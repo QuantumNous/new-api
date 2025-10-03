@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -10,6 +11,7 @@ import {
 
 interface CopyButtonProps {
   value: string
+  children?: ReactNode
   className?: string
   iconClassName?: string
   variant?: 'ghost' | 'outline' | 'default' | 'secondary' | 'destructive'
@@ -21,6 +23,7 @@ interface CopyButtonProps {
 
 export function CopyButton({
   value,
+  children,
   className,
   iconClassName,
   variant = 'ghost',
@@ -45,6 +48,7 @@ export function CopyButton({
       ) : (
         <Copy className={cn(iconClassName)} />
       )}
+      {children}
     </Button>
   )
 

@@ -13,6 +13,7 @@ import {
   Palette,
   Bell,
   Monitor,
+  User,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -40,6 +41,11 @@ export const sidebarData: SidebarData = {
           title: 'Wallet',
           url: '/wallet',
           icon: Wallet,
+        },
+        {
+          title: 'Profile',
+          url: '/profile',
+          icon: User,
         },
       ],
     },

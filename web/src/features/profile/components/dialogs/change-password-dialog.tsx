@@ -1,0 +1,173 @@
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { updateUserProfile } from '../../api'
+
+// ============================================================================
+// Change Password Dialog Component
+// ============================================================================
+
+interface ChangePasswordDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  username: string
+}
+
+export function ChangePasswordDialog({
+  open,
+  onOpenChange,
+  username,
+}: ChangePasswordDialogProps) {
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({
+    originalPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Validation
+    if (!formData.originalPassword) {
+      toast.error('Please enter your current password')
+      return
+    }
+
+    if (!formData.newPassword) {
+      toast.error('Please enter a new password')
+      return
+    }
+
+    if (formData.newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+
+    if (formData.originalPassword === formData.newPassword) {
+      toast.error('New password must be different from current password')
+      return
+    }
+
+    if (formData.newPassword !== formData.confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await updateUserProfile({
+        original_password: formData.originalPassword,
+        password: formData.newPassword,
+      })
+
+      if (response.success) {
+        toast.success('Password changed successfully')
+        onOpenChange(false)
+        setFormData({
+          originalPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        })
+      } else {
+        toast.error(response.message || 'Failed to change password')
+      }
+    } catch (error) {
+      toast.error('Failed to change password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-md'>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Update your password for account: <strong>{username}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='my-6 space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='currentPassword'>Current Password</Label>
+              <Input
+                id='currentPassword'
+                type='password'
+                value={formData.originalPassword}
+                onChange={(e) =>
+                  handleChange('originalPassword', e.target.value)
+                }
+                disabled={loading}
+                required
+                autoComplete='current-password'
+              />
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='newPassword'>New Password</Label>
+              <Input
+                id='newPassword'
+                type='password'
+                value={formData.newPassword}
+                onChange={(e) => handleChange('newPassword', e.target.value)}
+                disabled={loading}
+                required
+                minLength={8}
+                autoComplete='new-password'
+              />
+              <p className='text-muted-foreground text-xs'>
+                Must be at least 8 characters
+              </p>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='confirmPassword'>Confirm New Password</Label>
+              <Input
+                id='confirmPassword'
+                type='password'
+                value={formData.confirmPassword}
+                onChange={(e) =>
+                  handleChange('confirmPassword', e.target.value)
+                }
+                disabled={loading}
+                required
+                autoComplete='new-password'
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type='submit' disabled={loading}>
+              {loading ? 'Changing...' : 'Change Password'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
