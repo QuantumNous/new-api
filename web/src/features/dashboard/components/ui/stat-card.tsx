@@ -26,8 +26,8 @@ export function StatCard({
       <CardContent>
         {loading ? (
           <>
-            <Skeleton className='h-8 w-24' />
-            <Skeleton className='mt-1 h-3 w-32' />
+            <Skeleton className='h-8 w-28' />
+            <Skeleton className='mt-1 h-4 w-36' />
           </>
         ) : (
           <>

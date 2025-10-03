@@ -83,9 +83,43 @@ export function RechargeFormCard({
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
-        <CardContent className='space-y-6'>
-          <Skeleton className='h-32 w-full' />
-          <Skeleton className='h-20 w-full' />
+        <CardContent className='space-y-8'>
+          <div className='space-y-6'>
+            {/* Preset Amounts Skeleton */}
+            <div className='space-y-3'>
+              <Skeleton className='h-3 w-16' />
+              <div className='grid grid-cols-4 gap-3'>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className='h-[72px] rounded-lg' />
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Amount Input Skeleton */}
+            <div className='space-y-3'>
+              <Skeleton className='h-3 w-28' />
+              <Skeleton className='h-[42px] w-full' />
+            </div>
+
+            {/* Payment Methods Skeleton */}
+            <div className='space-y-3'>
+              <Skeleton className='h-3 w-32' />
+              <div className='flex flex-wrap gap-3'>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className='h-10 w-24 rounded-lg' />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Redemption Code Section Skeleton */}
+          <div className='space-y-3 border-t pt-8'>
+            <Skeleton className='h-3 w-24' />
+            <div className='flex gap-2'>
+              <Skeleton className='h-10 flex-1' />
+              <Skeleton className='h-10 w-20' />
+            </div>
+          </div>
         </CardContent>
       </Card>
     )
