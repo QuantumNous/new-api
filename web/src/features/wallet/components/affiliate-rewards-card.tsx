@@ -28,7 +28,7 @@ export function AffiliateRewardsCard({
         </CardHeader>
         <CardContent className='space-y-8'>
           {/* Statistics Skeleton */}
-          <div className='grid grid-cols-3 gap-6'>
+          <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6'>
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className='space-y-2'>
                 <Skeleton className='h-3 w-16' />
@@ -67,7 +67,7 @@ export function AffiliateRewardsCard({
       </CardHeader>
       <CardContent className='space-y-8'>
         {/* Statistics */}
-        <div className='grid grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6'>
           <div className='space-y-2'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               Pending
