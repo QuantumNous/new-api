@@ -60,6 +60,14 @@ export function parseQuotaFromDollars(dollars: number): number {
   return Math.round(dollars * 500000)
 }
 
+/**
+ * Convert quota units to dollars
+ * Reverse of parseQuotaFromDollars
+ */
+export function quotaUnitsToDollars(units: number): number {
+  return units / 500000
+}
+
 // ============================================================================
 // Timestamp Formatting
 // ============================================================================

@@ -1,54 +1,13 @@
 import { api } from '@/lib/api'
-import type { User } from './data/schema'
-
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface GetUsersParams {
-  p?: number
-  page_size?: number
-}
-
-export interface GetUsersResponse {
-  success: boolean
-  message?: string
-  data?: {
-    items: User[]
-    total: number
-    page: number
-    page_size: number
-  }
-}
-
-export interface SearchUsersParams {
-  keyword?: string
-  group?: string
-  p?: number
-  page_size?: number
-}
-
-export interface UserFormData {
-  id?: number
-  username: string
-  display_name: string
-  password?: string
-  github_id?: string
-  oidc_id?: string
-  wechat_id?: string
-  telegram_id?: string
-  email?: string
-  quota?: number
-  group?: string
-  remark?: string
-}
-
-export type ManageUserAction =
-  | 'promote'
-  | 'demote'
-  | 'enable'
-  | 'disable'
-  | 'delete'
+import type {
+  User,
+  GetUsersParams,
+  GetUsersResponse,
+  SearchUsersParams,
+  UserFormData,
+  ManageUserAction,
+  ApiResponse,
+} from './types'
 
 // ============================================================================
 // User Management APIs
@@ -81,9 +40,7 @@ export async function searchUsers(
 /**
  * Get single user by ID
  */
-export async function getUser(
-  id: number
-): Promise<{ success: boolean; message?: string; data?: User }> {
+export async function getUser(id: number): Promise<ApiResponse<User>> {
   const res = await api.get(`/api/user/${id}`)
   return res.data
 }
@@ -93,7 +50,7 @@ export async function getUser(
  */
 export async function createUser(
   data: UserFormData
-): Promise<{ success: boolean; message?: string; data?: User }> {
+): Promise<ApiResponse<User>> {
   const res = await api.post('/api/user/', data)
   return res.data
 }
@@ -103,7 +60,7 @@ export async function createUser(
  */
 export async function updateUser(
   data: UserFormData & { id: number }
-): Promise<{ success: boolean; message?: string; data?: User }> {
+): Promise<ApiResponse<Partial<User>>> {
   const res = await api.put('/api/user/', data)
   return res.data
 }
@@ -111,9 +68,7 @@ export async function updateUser(
 /**
  * Delete a single user (hard delete)
  */
-export async function deleteUser(
-  id: number
-): Promise<{ success: boolean; message?: string }> {
+export async function deleteUser(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/user/${id}/`)
   return res.data
 }
@@ -124,7 +79,7 @@ export async function deleteUser(
 export async function manageUser(
   id: number,
   action: ManageUserAction
-): Promise<{ success: boolean; message?: string; data?: Partial<User> }> {
+): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post('/api/user/manage', { id, action })
   return res.data
 }
@@ -132,11 +87,7 @@ export async function manageUser(
 /**
  * Get all available groups
  */
-export async function getGroups(): Promise<{
-  success: boolean
-  message?: string
-  data?: string[]
-}> {
+export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group/')
   return res.data
 }

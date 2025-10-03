@@ -11,8 +11,8 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
-import { userStatuses, userRoles } from '../data/data'
-import { type User } from '../data/schema'
+import { USER_STATUSES, USER_ROLES, DEFAULT_GROUP } from '../constants'
+import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export const usersColumns: ColumnDef<User>[] = [
@@ -103,7 +103,7 @@ export const usersColumns: ColumnDef<User>[] = [
     cell: ({ row }) => {
       const statusValue = row.getValue('status') as number
       const statusConfig =
-        userStatuses[statusValue as keyof typeof userStatuses]
+        USER_STATUSES[statusValue as keyof typeof USER_STATUSES]
       const requestCount = row.original.request_count
 
       if (!statusConfig) {
@@ -141,14 +141,12 @@ export const usersColumns: ColumnDef<User>[] = [
     ),
     cell: ({ row }) => {
       const user = row.original
-      const quota = user.quota
-      const usedQuota = user.used_quota
-      const remainingQuota = quota
-      const totalQuota = usedQuota + remainingQuota
-      const percentage =
-        totalQuota > 0 ? (remainingQuota / totalQuota) * 100 : 0
+      const used = user.used_quota
+      const remaining = user.quota
+      const total = used + remaining
+      const percentage = total > 0 ? (remaining / total) * 100 : 0
 
-      if (totalQuota === 0) {
+      if (total === 0) {
         return <Badge variant='outline'>No Quota</Badge>
       }
 
@@ -157,9 +155,9 @@ export const usersColumns: ColumnDef<User>[] = [
           <TooltipTrigger asChild>
             <div className='w-[150px] cursor-help space-y-1'>
               <div className='flex justify-between text-xs'>
-                <span>{formatQuota(remainingQuota)}</span>
+                <span>{formatQuota(remaining)}</span>
                 <span className='text-muted-foreground'>
-                  {formatQuota(totalQuota)}
+                  {formatQuota(total)}
                 </span>
               </div>
               <Progress value={percentage} className='h-2' />
@@ -167,10 +165,10 @@ export const usersColumns: ColumnDef<User>[] = [
           </TooltipTrigger>
           <TooltipContent>
             <div className='space-y-1 text-xs'>
-              <div>Used: {formatQuota(usedQuota)}</div>
-              <div>Remaining: {formatQuota(remainingQuota)}</div>
-              <div>Total: {formatQuota(totalQuota)}</div>
-              <div>Usage: {percentage.toFixed(1)}%</div>
+              <div>Used: {formatQuota(used)}</div>
+              <div>Remaining: {formatQuota(remaining)}</div>
+              <div>Total: {formatQuota(total)}</div>
+              <div>Percentage: {percentage.toFixed(1)}%</div>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -184,10 +182,10 @@ export const usersColumns: ColumnDef<User>[] = [
     ),
     cell: ({ row }) => {
       const group = row.getValue('group') as string
-      return <Badge variant='outline'>{group || 'default'}</Badge>
+      return <Badge variant='outline'>{group || DEFAULT_GROUP}</Badge>
     },
     filterFn: (row, id, value) => {
-      const group = String(row.getValue(id) || 'default').toLowerCase()
+      const group = String(row.getValue(id) || DEFAULT_GROUP).toLowerCase()
       const searchValue = String(value).toLowerCase()
       return group.includes(searchValue)
     },
@@ -199,7 +197,7 @@ export const usersColumns: ColumnDef<User>[] = [
     ),
     cell: ({ row }) => {
       const roleValue = row.getValue('role') as number
-      const roleConfig = userRoles[roleValue as keyof typeof userRoles]
+      const roleConfig = USER_ROLES[roleValue as keyof typeof USER_ROLES]
 
       if (!roleConfig) {
         return null

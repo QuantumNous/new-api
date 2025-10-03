@@ -1,13 +1,16 @@
 import { AppHeader } from '@/components/layout/app-header'
 import { Main } from '@/components/layout/main'
-import { UsersDialogs } from './components/users-dialogs'
+import { UsersDeleteDialog } from './components/users-delete-dialog'
+import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
-import { UsersProvider } from './components/users-provider'
+import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
 
-export function Users() {
+function UsersContent() {
+  const { open, setOpen, currentRow } = useUsers()
+
   return (
-    <UsersProvider>
+    <>
       <AppHeader fixed />
 
       <Main>
@@ -25,7 +28,20 @@ export function Users() {
         </div>
       </Main>
 
-      <UsersDialogs />
+      <UsersMutateDrawer
+        open={open === 'create' || open === 'update'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        currentRow={open === 'update' ? currentRow || undefined : undefined}
+      />
+      <UsersDeleteDialog />
+    </>
+  )
+}
+
+export function Users() {
+  return (
+    <UsersProvider>
+      <UsersContent />
     </UsersProvider>
   )
 }

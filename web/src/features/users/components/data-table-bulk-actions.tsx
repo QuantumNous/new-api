@@ -1,26 +1,17 @@
 import { type Table } from '@tanstack/react-table'
-import { Trash2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { type User } from '../data/schema'
-import { useUsers } from './users-provider'
+import { type User } from '../types'
 
 interface DataTableBulkActionsProps {
   table: Table<User>
 }
 
 export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
-  const { setOpen } = useUsers()
-  const selectedRows = table.getFilteredSelectedRowModel().rows
-  const selectedCount = selectedRows.length
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length
 
   if (selectedCount === 0) {
     return null
-  }
-
-  const handleBatchDelete = () => {
-    // For now, we'll just show single delete dialog for each
-    // In a real implementation, you might want a batch delete API
-    setOpen('batch-delete')
   }
 
   return (
@@ -30,16 +21,6 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
           <span className='text-foreground font-medium'>{selectedCount}</span>
           selected
         </div>
-        <div className='bg-border h-4 w-px' />
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={handleBatchDelete}
-          className='gap-2'
-        >
-          <Trash2 className='h-4 w-4' />
-          Delete
-        </Button>
         <div className='bg-border h-4 w-px' />
         <Button
           variant='ghost'

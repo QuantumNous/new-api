@@ -11,6 +11,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { deleteUser } from '../api'
+import { ERROR_MESSAGES } from '../constants'
+import { getUserActionMessage } from '../lib'
 import { useUsers } from './users-provider'
 
 export function UsersDeleteDialog() {
@@ -24,14 +26,14 @@ export function UsersDeleteDialog() {
     try {
       const result = await deleteUser(currentRow.id)
       if (result.success) {
-        toast.success('User deleted successfully')
+        toast.success(getUserActionMessage('delete'))
         setOpen(null)
         triggerRefresh()
       } else {
-        toast.error(result.message || 'Failed to delete user')
+        toast.error(result.message || ERROR_MESSAGES.DELETE_FAILED)
       }
     } catch (error) {
-      toast.error('An error occurred')
+      toast.error(ERROR_MESSAGES.UNEXPECTED)
     } finally {
       setIsDeleting(false)
     }

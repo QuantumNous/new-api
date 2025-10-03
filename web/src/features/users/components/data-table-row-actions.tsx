@@ -17,8 +17,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { manageUser, type ManageUserAction } from '../api'
-import { type User } from '../data/schema'
+import { manageUser } from '../api'
+import { USER_STATUS, USER_ROLE, ERROR_MESSAGES } from '../constants'
+import { getUserActionMessage } from '../lib'
+import { type User, type ManageUserAction } from '../types'
 import { useUsers } from './users-provider'
 
 interface DataTableRowActionsProps {
@@ -43,36 +45,19 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     try {
       const result = await manageUser(user.id, action)
       if (result.success) {
-        let message = ''
-        switch (action) {
-          case 'enable':
-            message = 'User enabled successfully'
-            break
-          case 'disable':
-            message = 'User disabled successfully'
-            break
-          case 'promote':
-            message = 'User promoted to admin successfully'
-            break
-          case 'demote':
-            message = 'User demoted to regular user successfully'
-            break
-        }
-        toast.success(message)
+        toast.success(getUserActionMessage(action))
         triggerRefresh()
       } else {
         toast.error(result.message || `Failed to ${action} user`)
       }
     } catch (error) {
-      toast.error('An error occurred')
+      toast.error(ERROR_MESSAGES.UNEXPECTED)
     }
   }
 
-  // Check if user is disabled
-  const isDisabled = user.status === 2
-  // Check user role: 1 = user, 10 = admin, 100 = root
-  const isAdmin = user.role >= 10
-  const isRoot = user.role === 100
+  const isDisabled = user.status === USER_STATUS.DISABLED
+  const isAdmin = user.role >= USER_ROLE.ADMIN
+  const isRoot = user.role === USER_ROLE.ROOT
 
   return (
     <DropdownMenu>

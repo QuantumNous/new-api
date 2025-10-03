@@ -25,7 +25,11 @@ import {
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import { getUsers, searchUsers } from '../api'
-import { userStatusOptions, userRoleOptions } from '../data/data'
+import {
+  USER_STATUS,
+  USER_STATUS_OPTIONS,
+  USER_ROLE_OPTIONS,
+} from '../constants'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { usersColumns as columns } from './users-columns'
 import { useUsers } from './users-provider'
@@ -68,31 +72,20 @@ export function UsersTable() {
       refreshTrigger,
     ],
     queryFn: async () => {
-      // If there's a global filter, use search
-      if (globalFilter && globalFilter.trim() !== '') {
-        const result = await searchUsers({
-          keyword: globalFilter,
-          p: pagination.pageIndex + 1,
-          page_size: pagination.pageSize,
-        })
-        if (!result.success) {
-          toast.error(result.message || 'Failed to search users')
-          return { items: [], total: 0 }
-        }
-        return {
-          items: result.data?.items || [],
-          total: result.data?.total || 0,
-        }
-      }
-
-      // Otherwise use pagination
-      const result = await getUsers({
+      const hasFilter = globalFilter?.trim()
+      const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
-      })
+      }
+
+      const result = hasFilter
+        ? await searchUsers({ ...params, keyword: globalFilter })
+        : await getUsers(params)
 
       if (!result.success) {
-        toast.error(result.message || 'Failed to load users')
+        toast.error(
+          result.message || `Failed to ${hasFilter ? 'search' : 'load'} users`
+        )
         return { items: [], total: 0 }
       }
 
@@ -122,15 +115,16 @@ export function UsersTable() {
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     globalFilterFn: (row, _columnId, filterValue) => {
-      const username = String(row.getValue('username')).toLowerCase()
-      const displayName = String(row.original.display_name).toLowerCase()
-      const email = String(row.original.email || '').toLowerCase()
       const searchValue = String(filterValue).toLowerCase()
-
-      return (
-        username.includes(searchValue) ||
-        displayName.includes(searchValue) ||
-        email.includes(searchValue)
+      const fields = [
+        row.getValue('username'),
+        row.original.display_name,
+        row.original.email,
+      ]
+      return fields.some((field) =>
+        String(field || '')
+          .toLowerCase()
+          .includes(searchValue)
       )
     },
     getCoreRowModel: getCoreRowModel(),
@@ -160,12 +154,12 @@ export function UsersTable() {
           {
             columnId: 'status',
             title: 'Status',
-            options: userStatusOptions,
+            options: USER_STATUS_OPTIONS,
           },
           {
             columnId: 'role',
             title: 'Role',
-            options: userRoleOptions,
+            options: USER_ROLE_OPTIONS,
           },
         ]}
       />
@@ -205,7 +199,9 @@ export function UsersTable() {
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
                   className={
-                    row.original.status === 2 ? 'opacity-50' : undefined
+                    row.original.status === USER_STATUS.DISABLED
+                      ? 'opacity-50'
+                      : undefined
                   }
                 >
                   {row.getVisibleCells().map((cell) => (
