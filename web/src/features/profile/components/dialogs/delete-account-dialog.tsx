@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
@@ -133,6 +133,7 @@ export function DeleteAccountDialog({
             onClick={handleDelete}
             disabled={loading || confirmation !== username}
           >
+            {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {loading ? 'Deleting...' : 'Delete Account'}
           </Button>
         </DialogFooter>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Loader2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { setup2FA, enable2FA } from '@/lib/api'
@@ -247,6 +248,7 @@ export function TwoFASetupDialog({
               onClick={handleEnable}
               disabled={initializing || loading || !code}
             >
+              {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {loading ? 'Enabling...' : 'Enable 2FA'}
             </Button>
           )}

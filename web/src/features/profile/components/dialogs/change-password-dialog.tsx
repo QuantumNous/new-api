@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -160,6 +161,7 @@ export function ChangePasswordDialog({
               Cancel
             </Button>
             <Button type='submit' disabled={loading}>
+              {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {loading ? 'Changing...' : 'Change Password'}
             </Button>
           </DialogFooter>

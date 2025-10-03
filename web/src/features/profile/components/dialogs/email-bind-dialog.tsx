@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
@@ -173,6 +174,7 @@ export function EmailBindDialog({
             onClick={handleBind}
             disabled={loading || !email || !code}
           >
+            {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {loading ? 'Binding...' : 'Bind Email'}
           </Button>
         </DialogFooter>

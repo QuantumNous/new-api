@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -88,9 +88,11 @@ export function AccessTokenDialog({
             disabled={generating}
             className='gap-2'
           >
-            <RefreshCw
-              className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`}
-            />
+            {generating ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              <RefreshCw className='h-4 w-4' />
+            )}
             {generating ? 'Generating...' : 'Regenerate'}
           </Button>
         </DialogFooter>
