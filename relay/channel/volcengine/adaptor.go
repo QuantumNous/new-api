@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	channelconstant "one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
 	"one-api/relay/channel/openai"
@@ -188,21 +189,35 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	switch info.RelayMode {
-	case constant.RelayModeChatCompletions:
+	// 支持自定义域名，如果未设置则使用默认域名
+	baseUrl := info.ChannelBaseUrl
+	if baseUrl == "" {
+		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
+	}
+
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
-			return fmt.Sprintf("%s/api/v3/bots/chat/completions", info.ChannelBaseUrl), nil
+			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
 		}
-		return fmt.Sprintf("%s/api/v3/chat/completions", info.ChannelBaseUrl), nil
-	case constant.RelayModeEmbeddings:
-		return fmt.Sprintf("%s/api/v3/embeddings", info.ChannelBaseUrl), nil
-	case constant.RelayModeImagesGenerations:
-		return fmt.Sprintf("%s/api/v3/images/generations", info.ChannelBaseUrl), nil
-	case constant.RelayModeImagesEdits:
-		return fmt.Sprintf("%s/api/v3/images/edits", info.ChannelBaseUrl), nil
-	case constant.RelayModeRerank:
-		return fmt.Sprintf("%s/api/v3/rerank", info.ChannelBaseUrl), nil
+		return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 	default:
+		switch info.RelayMode {
+		case constant.RelayModeChatCompletions:
+			if strings.HasPrefix(info.UpstreamModelName, "bot") {
+				return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
+			}
+			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
+		case constant.RelayModeEmbeddings:
+			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
+		case constant.RelayModeImagesGenerations:
+			return fmt.Sprintf("%s/api/v3/images/generations", baseUrl), nil
+		case constant.RelayModeImagesEdits:
+			return fmt.Sprintf("%s/api/v3/images/edits", baseUrl), nil
+		case constant.RelayModeRerank:
+			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
+		default:
+		}
 	}
 	return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
 }

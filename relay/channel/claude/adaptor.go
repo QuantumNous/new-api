@@ -52,11 +52,25 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseURL := ""
 	if a.RequestMode == RequestModeMessage {
-		return fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl), nil
+		baseURL = fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
 	} else {
-		return fmt.Sprintf("%s/v1/complete", info.ChannelBaseUrl), nil
+		baseURL = fmt.Sprintf("%s/v1/complete", info.ChannelBaseUrl)
 	}
+	if info.IsClaudeBetaQuery {
+		baseURL = baseURL + "?beta=true"
+	}
+	return baseURL, nil
+}
+
+func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
+	// common headers operation
+	anthropicBeta := c.Request.Header.Get("anthropic-beta")
+	if anthropicBeta != "" {
+		req.Set("anthropic-beta", anthropicBeta)
+	}
+	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -67,7 +81,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		anthropicVersion = "2023-06-01"
 	}
 	req.Set("anthropic-version", anthropicVersion)
-	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
+	CommonClaudeHeadersOperation(c, req, info)
 	return nil
 }
 

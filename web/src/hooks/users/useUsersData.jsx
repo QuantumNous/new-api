@@ -86,7 +86,7 @@ export const useUsersData = () => {
   };
 
   // Search users with keyword and group
-  const searchUsers = async (
+const searchUsers = async (
     startIdx,
     pageSize,
     searchKeyword = null,
@@ -152,6 +152,40 @@ export const useUsersData = () => {
     }
 
     setLoading(false);
+  };
+
+  const resetUserPasskey = async (user) => {
+    if (!user) {
+      return;
+    }
+    try {
+      const res = await API.delete(`/api/user/${user.id}/reset_passkey`);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('Passkey 已重置'));
+      } else {
+        showError(message || t('操作失败，请重试'));
+      }
+    } catch (error) {
+      showError(t('操作失败，请重试'));
+    }
+  };
+
+  const resetUserTwoFA = async (user) => {
+    if (!user) {
+      return;
+    }
+    try {
+      const res = await API.delete(`/api/user/${user.id}/2fa`);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('二步验证已重置'));
+      } else {
+        showError(message || t('操作失败，请重试'));
+      }
+    } catch (error) {
+      showError(t('操作失败，请重试'));
+    }
   };
 
   // Handle page change
@@ -271,6 +305,8 @@ export const useUsersData = () => {
     loadUsers,
     searchUsers,
     manageUser,
+    resetUserPasskey,
+    resetUserTwoFA,
     handlePageChange,
     handlePageSizeChange,
     handleRow,

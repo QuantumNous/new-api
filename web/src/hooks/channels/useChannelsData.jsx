@@ -25,13 +25,9 @@ import {
   showInfo,
   showSuccess,
   loadChannelModels,
-  copy,
+  copy
 } from '../../helpers';
-import {
-  CHANNEL_OPTIONS,
-  ITEMS_PER_PAGE,
-  MODEL_TABLE_PAGE_SIZE,
-} from '../../constants';
+import { CHANNEL_OPTIONS, ITEMS_PER_PAGE, MODEL_TABLE_PAGE_SIZE } from '../../constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import { Modal } from '@douyinfe/semi-ui';
@@ -68,7 +64,7 @@ export const useChannelsData = () => {
 
   // Status filter
   const [statusFilter, setStatusFilter] = useState(
-    localStorage.getItem('channel-status-filter') || 'all',
+    localStorage.getItem('channel-status-filter') || 'all'
   );
 
   // Type tabs states
@@ -83,9 +79,11 @@ export const useChannelsData = () => {
   const [testingModels, setTestingModels] = useState(new Set());
   const [selectedModelKeys, setSelectedModelKeys] = useState([]);
   const [isBatchTesting, setIsBatchTesting] = useState(false);
-  const [testQueue, setTestQueue] = useState([]);
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [modelTablePage, setModelTablePage] = useState(1);
+  const [selectedEndpointType, setSelectedEndpointType] = useState('');
+  
+  // 使用 ref 来避免闭包问题，类似旧版实现
+  const shouldStopBatchTestingRef = useRef(false);
 
   // Multi-key management states
   const [showMultiKeyManageModal, setShowMultiKeyManageModal] = useState(false);
@@ -119,12 +117,9 @@ export const useChannelsData = () => {
   // Initialize from localStorage
   useEffect(() => {
     const localIdSort = localStorage.getItem('id-sort') === 'true';
-    const localPageSize =
-      parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
-    const localEnableTagMode =
-      localStorage.getItem('enable-tag-mode') === 'true';
-    const localEnableBatchDelete =
-      localStorage.getItem('enable-batch-delete') === 'true';
+    const localPageSize = parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
+    const localEnableTagMode = localStorage.getItem('enable-tag-mode') === 'true';
+    const localEnableBatchDelete = localStorage.getItem('enable-batch-delete') === 'true';
 
     setIdSort(localIdSort);
     setPageSize(localPageSize);
@@ -182,10 +177,7 @@ export const useChannelsData = () => {
   // Save column preferences
   useEffect(() => {
     if (Object.keys(visibleColumns).length > 0) {
-      localStorage.setItem(
-        'channels-table-columns',
-        JSON.stringify(visibleColumns),
-      );
+      localStorage.setItem('channels-table-columns', JSON.stringify(visibleColumns));
     }
   }, [visibleColumns]);
 
@@ -299,21 +291,14 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword !== '' || searchGroup !== '' || searchModel !== '') {
       setLoading(true);
-      await searchChannels(
-        enableTagMode,
-        typeKey,
-        statusF,
-        page,
-        pageSize,
-        idSort,
-      );
+      await searchChannels(enableTagMode, typeKey, statusF, page, pageSize, idSort);
       setLoading(false);
       return;
     }
 
     const reqId = ++requestCounter.current;
     setLoading(true);
-    const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
+    const typeParam = (typeKey !== 'all') ? `&type=${typeKey}` : '';
     const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
     const res = await API.get(
       `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
@@ -327,10 +312,7 @@ export const useChannelsData = () => {
     if (success) {
       const { items, total, type_counts } = data;
       if (type_counts) {
-        const sumAll = Object.values(type_counts).reduce(
-          (acc, v) => acc + v,
-          0,
-        );
+        const sumAll = Object.values(type_counts).reduce((acc, v) => acc + v, 0);
         setTypeCounts({ ...type_counts, all: sumAll });
       }
       setChannelFormat(items, enableTagMode);
@@ -354,18 +336,11 @@ export const useChannelsData = () => {
     setSearching(true);
     try {
       if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-        await loadChannels(
-          page,
-          pageSz,
-          sortFlag,
-          enableTagMode,
-          typeKey,
-          statusF,
-        );
+        await loadChannels(page, pageSz, sortFlag, enableTagMode, typeKey, statusF);
         return;
       }
 
-      const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
+      const typeParam = (typeKey !== 'all') ? `&type=${typeKey}` : '';
       const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
       const res = await API.get(
         `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
@@ -373,10 +348,7 @@ export const useChannelsData = () => {
       const { success, message, data } = res.data;
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
-        const sumAll = Object.values(type_counts).reduce(
-          (acc, v) => acc + v,
-          0,
-        );
+        const sumAll = Object.values(type_counts).reduce((acc, v) => acc + v, 0);
         setTypeCounts({ ...type_counts, all: sumAll });
         setChannelFormat(items, enableTagMode);
         setChannelCount(total);
@@ -395,14 +367,7 @@ export const useChannelsData = () => {
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
       await loadChannels(page, pageSize, idSort, enableTagMode);
     } else {
-      await searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        page,
-        pageSize,
-        idSort,
-      );
+      await searchChannels(enableTagMode, activeTypeKey, statusFilter, page, pageSize, idSort);
     }
   };
 
@@ -488,16 +453,9 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     setActivePage(page);
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(page, pageSize, idSort, enableTagMode).then(() => {});
+      loadChannels(page, pageSize, idSort, enableTagMode).then(() => { });
     } else {
-      searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        page,
-        pageSize,
-        idSort,
-      );
+      searchChannels(enableTagMode, activeTypeKey, statusFilter, page, pageSize, idSort);
     }
   };
 
@@ -513,14 +471,7 @@ export const useChannelsData = () => {
           showError(reason);
         });
     } else {
-      searchChannels(
-        enableTagMode,
-        activeTypeKey,
-        statusFilter,
-        1,
-        size,
-        idSort,
-      );
+      searchChannels(enableTagMode, activeTypeKey, statusFilter, 1, size, idSort);
     }
   };
 
@@ -551,10 +502,7 @@ export const useChannelsData = () => {
         showError(res?.data?.message || t('渠道复制失败'));
       }
     } catch (error) {
-      showError(
-        t('渠道复制失败: ') +
-          (error?.response?.data?.message || error?.message || error),
-      );
+      showError(t('渠道复制失败: ') + (error?.response?.data?.message || error?.message || error));
     }
   };
 
@@ -593,11 +541,7 @@ export const useChannelsData = () => {
         data.priority = parseInt(data.priority);
         break;
       case 'weight':
-        if (
-          data.weight === undefined ||
-          data.weight < 0 ||
-          data.weight === ''
-        ) {
+        if (data.weight === undefined || data.weight < 0 || data.weight === '') {
           showInfo('权重必须是非负整数！');
           return;
         }
@@ -740,136 +684,231 @@ export const useChannelsData = () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
     if (success) {
-      showSuccess(
-        t('已修复 ${success} 个通道，失败 ${fails} 个通道。')
-          .replace('${success}', data.success)
-          .replace('${fails}', data.fails),
-      );
+      showSuccess(t('已修复 ${success} 个通道，失败 ${fails} 个通道。').replace('${success}', data.success).replace('${fails}', data.fails));
       await refresh();
     } else {
       showError(message);
     }
   };
 
-  // Test channel
-  const testChannel = async (record, model) => {
-    setTestQueue((prev) => [...prev, { channel: record, model }]);
-    if (!isProcessingQueue) {
-      setIsProcessingQueue(true);
+  // Test channel - 单个模型测试，参考旧版实现
+  const testChannel = async (record, model, endpointType = '') => {
+    const testKey = `${record.id}-${model}`;
+
+    // 检查是否应该停止批量测试
+    if (shouldStopBatchTestingRef.current && isBatchTesting) {
+      return Promise.resolve();
     }
-  };
 
-  // Process test queue
-  const processTestQueue = async () => {
-    if (!isProcessingQueue || testQueue.length === 0) return;
-
-    const { channel, model, indexInFiltered } = testQueue[0];
-
-    if (currentTestChannel && currentTestChannel.id === channel.id) {
-      let pageNo;
-      if (indexInFiltered !== undefined) {
-        pageNo = Math.floor(indexInFiltered / MODEL_TABLE_PAGE_SIZE) + 1;
-      } else {
-        const filteredModelsList = currentTestChannel.models
-          .split(',')
-          .filter((m) =>
-            m.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
-          );
-        const modelIdx = filteredModelsList.indexOf(model);
-        pageNo =
-          modelIdx !== -1
-            ? Math.floor(modelIdx / MODEL_TABLE_PAGE_SIZE) + 1
-            : 1;
-      }
-      setModelTablePage(pageNo);
-    }
+    // 添加到正在测试的模型集合
+    setTestingModels(prev => new Set([...prev, model]));
 
     try {
-      setTestingModels((prev) => new Set([...prev, model]));
-      const res = await API.get(
-        `/api/channel/test/${channel.id}?model=${model}`,
-      );
+      let url = `/api/channel/test/${record.id}?model=${model}`;
+      if (endpointType) {
+        url += `&endpoint_type=${endpointType}`;
+      }
+      const res = await API.get(url);
+
+      // 检查是否在请求期间被停止
+      if (shouldStopBatchTestingRef.current && isBatchTesting) {
+        return Promise.resolve();
+      }
+
       const { success, message, time } = res.data;
 
-      setModelTestResults((prev) => ({
+      // 更新测试结果
+      setModelTestResults(prev => ({
         ...prev,
-        [`${channel.id}-${model}`]: { success, time },
+        [testKey]: {
+          success,
+          message,
+          time: time || 0,
+          timestamp: Date.now()
+        }
       }));
 
       if (success) {
-        updateChannelProperty(channel.id, (ch) => {
-          ch.response_time = time * 1000;
-          ch.test_time = Date.now() / 1000;
+        // 更新渠道响应时间
+        updateChannelProperty(record.id, (channel) => {
+          channel.response_time = time * 1000;
+          channel.test_time = Date.now() / 1000;
         });
-        if (!model) {
+
+        if (!model || model === '') {
           showInfo(
             t('通道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。')
-              .replace('${name}', channel.name)
+              .replace('${name}', record.name)
+              .replace('${time.toFixed(2)}', time.toFixed(2)),
+          );
+        } else {
+          showInfo(
+            t('通道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。')
+              .replace('${name}', record.name)
+              .replace('${model}', model)
               .replace('${time.toFixed(2)}', time.toFixed(2)),
           );
         }
       } else {
-        showError(message);
+        showError(`${t('模型')} ${model}: ${message}`);
       }
     } catch (error) {
-      showError(error.message);
+      // 处理网络错误
+      const testKey = `${record.id}-${model}`;
+      setModelTestResults(prev => ({
+        ...prev,
+        [testKey]: {
+          success: false,
+          message: error.message || t('网络错误'),
+          time: 0,
+          timestamp: Date.now()
+        }
+      }));
+      showError(`${t('模型')} ${model}: ${error.message || t('测试失败')}`);
     } finally {
-      setTestingModels((prev) => {
+      // 从正在测试的模型集合中移除
+      setTestingModels(prev => {
         const newSet = new Set(prev);
         newSet.delete(model);
         return newSet;
       });
     }
-
-    setTestQueue((prev) => prev.slice(1));
   };
 
-  // Monitor queue changes
-  useEffect(() => {
-    if (testQueue.length > 0 && isProcessingQueue) {
-      processTestQueue();
-    } else if (testQueue.length === 0 && isProcessingQueue) {
-      setIsProcessingQueue(false);
-      setIsBatchTesting(false);
-    }
-  }, [testQueue, isProcessingQueue]);
-
-  // Batch test models
+  // 批量测试单个渠道的所有模型，参考旧版实现
   const batchTestModels = async () => {
-    if (!currentTestChannel) return;
+    if (!currentTestChannel || !currentTestChannel.models) {
+      showError(t('渠道模型信息不完整'));
+      return;
+    }
+
+    const models = currentTestChannel.models.split(',').filter(model =>
+      model.toLowerCase().includes(modelSearchKeyword.toLowerCase())
+    );
+
+    if (models.length === 0) {
+      showError(t('没有找到匹配的模型'));
+      return;
+    }
 
     setIsBatchTesting(true);
-    setModelTablePage(1);
+    shouldStopBatchTestingRef.current = false; // 重置停止标志
 
-    const filteredModels = currentTestChannel.models
-      .split(',')
-      .filter((model) =>
-        model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
-      );
+    // 清空该渠道之前的测试结果
+    setModelTestResults(prev => {
+      const newResults = { ...prev };
+      models.forEach(model => {
+        const testKey = `${currentTestChannel.id}-${model}`;
+        delete newResults[testKey];
+      });
+      return newResults;
+    });
 
-    setTestQueue(
-      filteredModels.map((model, idx) => ({
-        channel: currentTestChannel,
-        model,
-        indexInFiltered: idx,
-      })),
-    );
-    setIsProcessingQueue(true);
+    try {
+      showInfo(t('开始批量测试 ${count} 个模型，已清空上次结果...').replace('${count}', models.length));
+
+      // 提高并发数量以加快测试速度，参考旧版的并发限制
+      const concurrencyLimit = 5;
+      const results = [];
+
+      for (let i = 0; i < models.length; i += concurrencyLimit) {
+        // 检查是否应该停止
+        if (shouldStopBatchTestingRef.current) {
+          showInfo(t('批量测试已停止'));
+          break;
+        }
+
+        const batch = models.slice(i, i + concurrencyLimit);
+        showInfo(t('正在测试第 ${current} - ${end} 个模型 (共 ${total} 个)')
+          .replace('${current}', i + 1)
+          .replace('${end}', Math.min(i + concurrencyLimit, models.length))
+          .replace('${total}', models.length)
+        );
+
+        const batchPromises = batch.map(model => testChannel(currentTestChannel, model, selectedEndpointType));
+        const batchResults = await Promise.allSettled(batchPromises);
+        results.push(...batchResults);
+
+        // 再次检查是否应该停止
+        if (shouldStopBatchTestingRef.current) {
+          showInfo(t('批量测试已停止'));
+          break;
+        }
+
+        // 短暂延迟避免过于频繁的请求
+        if (i + concurrencyLimit < models.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      if (!shouldStopBatchTestingRef.current) {
+        // 等待一小段时间确保所有结果都已更新
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // 使用当前状态重新计算结果统计
+        setModelTestResults(currentResults => {
+          let successCount = 0;
+          let failCount = 0;
+
+          models.forEach(model => {
+            const testKey = `${currentTestChannel.id}-${model}`;
+            const result = currentResults[testKey];
+            if (result && result.success) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          });
+
+          // 显示完成消息
+          setTimeout(() => {
+            showSuccess(t('批量测试完成！成功: ${success}, 失败: ${fail}, 总计: ${total}')
+              .replace('${success}', successCount)
+              .replace('${fail}', failCount)
+              .replace('${total}', models.length)
+            );
+          }, 100);
+
+          return currentResults; // 不修改状态，只是为了获取最新值
+        });
+      }
+    } catch (error) {
+      showError(t('批量测试过程中发生错误: ') + error.message);
+    } finally {
+      setIsBatchTesting(false);
+    }
+  };
+
+  // 停止批量测试
+  const stopBatchTesting = () => {
+    shouldStopBatchTestingRef.current = true;
+    setIsBatchTesting(false);
+    setTestingModels(new Set());
+    showInfo(t('已停止批量测试'));
+  };
+
+  // 清空测试结果
+  const clearTestResults = () => {
+    setModelTestResults({});
+    showInfo(t('已清空测试结果'));
   };
 
   // Handle close modal
   const handleCloseModal = () => {
+    // 如果正在批量测试，先停止测试
     if (isBatchTesting) {
-      setTestQueue([]);
-      setIsProcessingQueue(false);
-      setIsBatchTesting(false);
-      showSuccess(t('已停止测试'));
-    } else {
-      setShowModelTestModal(false);
-      setModelSearchKeyword('');
-      setSelectedModelKeys([]);
-      setModelTablePage(1);
+      shouldStopBatchTestingRef.current = true;
+      showInfo(t('关闭弹窗，已停止批量测试'));
     }
+
+    setShowModelTestModal(false);
+    setModelSearchKeyword('');
+    setIsBatchTesting(false);
+    setTestingModels(new Set());
+    setSelectedModelKeys([]);
+    setModelTablePage(1);
+    setSelectedEndpointType('');
+    // 可选择性保留测试结果，这里不清空以便用户查看
   };
 
   // Type counts
@@ -956,6 +995,8 @@ export const useChannelsData = () => {
     isBatchTesting,
     modelTablePage,
     setModelTablePage,
+    selectedEndpointType,
+    setSelectedEndpointType,
     allSelectingRef,
 
     // Multi-key management states
@@ -1012,4 +1053,4 @@ export const useChannelsData = () => {
     setCompactMode,
     setActivePage,
   };
-};
+}; 

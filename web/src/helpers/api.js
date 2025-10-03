@@ -118,7 +118,6 @@ export const buildApiPayload = (
     model: inputs.model,
     group: inputs.group,
     messages: processedMessages,
-    group: inputs.group,
     stream: inputs.stream,
   };
 
@@ -133,12 +132,12 @@ export const buildApiPayload = (
   };
 
   Object.entries(parameterMappings).forEach(([key, param]) => {
-    if (
-      parameterEnabled[key] &&
-      inputs[param] !== undefined &&
-      inputs[param] !== null
-    ) {
-      payload[param] = inputs[param];
+    const enabled = parameterEnabled[key];
+    const value = inputs[param];
+    const hasValue = value !== undefined && value !== null;
+
+    if (enabled && hasValue) {
+      payload[param] = value;
     }
   });
 

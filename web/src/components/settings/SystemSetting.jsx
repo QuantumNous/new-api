@@ -30,6 +30,7 @@ import {
   Spin,
   Card,
   Radio,
+  Select,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -45,7 +46,6 @@ import { useTranslation } from 'react-i18next';
 const SystemSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
-    
     PasswordLoginEnabled: '',
     PasswordRegisterEnabled: '',
     EmailVerificationEnabled: '',
@@ -77,6 +77,13 @@ const SystemSetting = () => {
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
+    'passkey.enabled': '',
+    'passkey.rp_display_name': '',
+    'passkey.rp_id': '',
+    'passkey.origins': [],
+    'passkey.allow_insecure_origin': '',
+    'passkey.user_verification': 'preferred',
+    'passkey.attachment_preference': '',
     EmailDomainRestrictionEnabled: '',
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
@@ -173,8 +180,24 @@ const SystemSetting = () => {
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
           case 'oidc.enabled':
+          case 'passkey.enabled':
+          case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
             item.value = toBoolean(item.value);
+            break;
+          case 'passkey.origins':
+            // origins是逗号分隔的字符串，直接使用
+            item.value = item.value || '';
+            break;
+          case 'passkey.rp_display_name':
+          case 'passkey.rp_id':
+          case 'passkey.attachment_preference':
+            // 确保字符串字段不为null/undefined
+            item.value = item.value || '';
+            break;
+          case 'passkey.user_verification':
+            // 确保有默认值
+            item.value = item.value || 'preferred';
             break;
           case 'Price':
           case 'MinTopUp':
@@ -188,7 +211,9 @@ const SystemSetting = () => {
       setInputs(newInputs);
       setOriginInputs(newInputs);
       // 同步模式布尔到本地状态
-      if (typeof newInputs['fetch_setting.domain_filter_mode'] !== 'undefined') {
+      if (
+        typeof newInputs['fetch_setting.domain_filter_mode'] !== 'undefined'
+      ) {
         setDomainFilterMode(!!newInputs['fetch_setting.domain_filter_mode']);
       }
       if (typeof newInputs['fetch_setting.ip_filter_mode'] !== 'undefined') {
@@ -582,6 +607,36 @@ const SystemSetting = () => {
     }
   };
 
+  const submitPasskeySettings = async () => {
+    // 使用formApi直接获取当前表单值
+    const formValues = formApiRef.current?.getValues() || {};
+
+    const options = [];
+
+    options.push({
+      key: 'passkey.rp_display_name',
+      value: formValues['passkey.rp_display_name'] || inputs['passkey.rp_display_name'] || '',
+    });
+    options.push({
+      key: 'passkey.rp_id',
+      value: formValues['passkey.rp_id'] || inputs['passkey.rp_id'] || '',
+    });
+    options.push({
+      key: 'passkey.user_verification',
+      value: formValues['passkey.user_verification'] || inputs['passkey.user_verification'] || 'preferred',
+    });
+    options.push({
+      key: 'passkey.attachment_preference',
+      value: formValues['passkey.attachment_preference'] || inputs['passkey.attachment_preference'] || '',
+    });
+    options.push({
+      key: 'passkey.origins',
+      value: formValues['passkey.origins'] || inputs['passkey.origins'] || '',
+    });
+
+    await updateOptions(options);
+  };
+
   const handleCheckboxChange = async (optionKey, event) => {
     const value = event.target.checked;
 
@@ -695,14 +750,17 @@ const SystemSetting = () => {
                         noLabel
                         extraText={t('SSRF防护开关详细说明')}
                         onChange={(e) =>
-                          handleCheckboxChange('fetch_setting.enable_ssrf_protection', e)
+                          handleCheckboxChange(
+                            'fetch_setting.enable_ssrf_protection',
+                            e,
+                          )
                         }
                       >
                         {t('启用SSRF防护（推荐开启以保护服务器安全）')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
-                  
+
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
@@ -713,14 +771,19 @@ const SystemSetting = () => {
                         noLabel
                         extraText={t('私有IP访问详细说明')}
                         onChange={(e) =>
-                          handleCheckboxChange('fetch_setting.allow_private_ip', e)
+                          handleCheckboxChange(
+                            'fetch_setting.allow_private_ip',
+                            e,
+                          )
                         }
                       >
-                        {t('允许访问私有IP地址（127.0.0.1、192.168.x.x等内网地址）')}
+                        {t(
+                          '允许访问私有IP地址（127.0.0.1、192.168.x.x等内网地址）',
+                        )}
                       </Form.Checkbox>
                     </Col>
                   </Row>
-                  
+
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
@@ -731,7 +794,10 @@ const SystemSetting = () => {
                         noLabel
                         extraText={t('域名IP过滤详细说明')}
                         onChange={(e) =>
-                          handleCheckboxChange('fetch_setting.apply_ip_filter_for_domain', e)
+                          handleCheckboxChange(
+                            'fetch_setting.apply_ip_filter_for_domain',
+                            e,
+                          )
                         }
                         style={{ marginBottom: 8 }}
                       >
@@ -740,17 +806,23 @@ const SystemSetting = () => {
                       <Text strong>
                         {t(domainFilterMode ? '域名白名单' : '域名黑名单')}
                       </Text>
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                        {t('支持通配符格式，如：example.com, *.api.example.com')}
+                      <Text
+                        type='secondary'
+                        style={{ display: 'block', marginBottom: 8 }}
+                      >
+                        {t(
+                          '支持通配符格式，如：example.com, *.api.example.com',
+                        )}
                       </Text>
                       <Radio.Group
                         type='button'
                         value={domainFilterMode ? 'whitelist' : 'blacklist'}
                         onChange={(val) => {
-                          const selected = val && val.target ? val.target.value : val;
+                          const selected =
+                            val && val.target ? val.target.value : val;
                           const isWhitelist = selected === 'whitelist';
                           setDomainFilterMode(isWhitelist);
-                          setInputs(prev => ({
+                          setInputs((prev) => ({
                             ...prev,
                             'fetch_setting.domain_filter_mode': isWhitelist,
                           }));
@@ -765,9 +837,9 @@ const SystemSetting = () => {
                         onChange={(value) => {
                           setDomainList(value);
                           // 触发Form的onChange事件
-                          setInputs(prev => ({
+                          setInputs((prev) => ({
                             ...prev,
-                            'fetch_setting.domain_list': value
+                            'fetch_setting.domain_list': value,
                           }));
                         }}
                         placeholder={t('输入域名后回车，如：example.com')}
@@ -784,17 +856,21 @@ const SystemSetting = () => {
                       <Text strong>
                         {t(ipFilterMode ? 'IP白名单' : 'IP黑名单')}
                       </Text>
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      <Text
+                        type='secondary'
+                        style={{ display: 'block', marginBottom: 8 }}
+                      >
                         {t('支持CIDR格式，如：8.8.8.8, 192.168.1.0/24')}
                       </Text>
                       <Radio.Group
                         type='button'
                         value={ipFilterMode ? 'whitelist' : 'blacklist'}
                         onChange={(val) => {
-                          const selected = val && val.target ? val.target.value : val;
+                          const selected =
+                            val && val.target ? val.target.value : val;
                           const isWhitelist = selected === 'whitelist';
                           setIpFilterMode(isWhitelist);
-                          setInputs(prev => ({
+                          setInputs((prev) => ({
                             ...prev,
                             'fetch_setting.ip_filter_mode': isWhitelist,
                           }));
@@ -809,9 +885,9 @@ const SystemSetting = () => {
                         onChange={(value) => {
                           setIpList(value);
                           // 触发Form的onChange事件
-                          setInputs(prev => ({
+                          setInputs((prev) => ({
                             ...prev,
-                            'fetch_setting.ip_list': value
+                            'fetch_setting.ip_list': value,
                           }));
                         }}
                         placeholder={t('输入IP地址后回车，如：8.8.8.8')}
@@ -826,7 +902,10 @@ const SystemSetting = () => {
                   >
                     <Col xs={24} sm={24} md={24} lg={24} xl={24}>
                       <Text strong>{t('允许的端口')}</Text>
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      <Text
+                        type='secondary'
+                        style={{ display: 'block', marginBottom: 8 }}
+                      >
                         {t('支持单个端口和端口范围，如：80, 443, 8000-8999')}
                       </Text>
                       <TagInput
@@ -834,15 +913,18 @@ const SystemSetting = () => {
                         onChange={(value) => {
                           setAllowedPorts(value);
                           // 触发Form的onChange事件
-                          setInputs(prev => ({
+                          setInputs((prev) => ({
                             ...prev,
-                            'fetch_setting.allowed_ports': value
+                            'fetch_setting.allowed_ports': value,
                           }));
                         }}
                         placeholder={t('输入端口后回车，如：80 或 8000-8999')}
                         style={{ width: '100%' }}
                       />
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      <Text
+                        type='secondary'
+                        style={{ display: 'block', marginBottom: 8 }}
+                      >
                         {t('端口配置详细说明')}
                       </Text>
                     </Col>
@@ -954,6 +1036,116 @@ const SystemSetting = () => {
                       </Form.Checkbox>
                     </Col>
                   </Row>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置 Passkey')}>
+                  <Text>{t('用以支持基于 WebAuthn 的无密码登录注册')}</Text>
+                  <Banner
+                    type='info'
+                    description={t('Passkey 是基于 WebAuthn 标准的无密码身份验证方法，支持指纹、面容、硬件密钥等认证方式')}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Checkbox
+                        field="['passkey.enabled']"
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('passkey.enabled', e)
+                        }
+                      >
+                        {t('允许通过 Passkey 登录 & 认证')}
+                      </Form.Checkbox>
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['passkey.rp_display_name']"
+                        label={t('服务显示名称')}
+                        placeholder={t('默认使用系统名称')}
+                        extraText={t('用户注册时看到的网站名称，比如\'我的网站\'')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['passkey.rp_id']"
+                        label={t('网站域名标识')}
+                        placeholder={t('例如：example.com')}
+                        extraText={t('留空则默认使用服务器地址，注意不能携带http://或者https://')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field="['passkey.user_verification']"
+                        label={t('安全验证级别')}
+                        placeholder={t('是否要求指纹/面容等生物识别')}
+                        optionList={[
+                          { label: t('推荐使用（用户可选）'), value: 'preferred' },
+                          { label: t('强制要求'), value: 'required' },
+                          { label: t('不建议使用'), value: 'discouraged' },
+                        ]}
+                        extraText={t('推荐：用户可以选择是否使用指纹等验证')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field="['passkey.attachment_preference']"
+                        label={t('设备类型偏好')}
+                        placeholder={t('选择支持的认证设备类型')}
+                        optionList={[
+                          { label: t('不限制'), value: '' },
+                          { label: t('本设备内置'), value: 'platform' },
+                          { label: t('外接设备'), value: 'cross-platform' },
+                        ]}
+                        extraText={t('本设备：手机指纹/面容，外接：USB安全密钥')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Checkbox
+                        field="['passkey.allow_insecure_origin']"
+                        noLabel
+                        extraText={t('仅用于开发环境，生产环境应使用 HTTPS')}
+                        onChange={(e) =>
+                          handleCheckboxChange('passkey.allow_insecure_origin', e)
+                        }
+                      >
+                        {t('允许不安全的 Origin（HTTP）')}
+                      </Form.Checkbox>
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field="['passkey.origins']"
+                        label={t('允许的 Origins')}
+                        placeholder={t('填写带https的域名，逗号分隔')}
+                        extraText={t('为空则默认使用服务器地址，多个 Origin 用逗号分隔，例如 https://newapi.pro,https://newapi.com ,注意不能携带[]，需使用https')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitPasskeySettings} style={{ marginTop: 16 }}>
+                    {t('保存 Passkey 设置')}
+                  </Button>
                 </Form.Section>
               </Card>
 

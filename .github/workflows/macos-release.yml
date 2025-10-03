@@ -39,12 +39,12 @@ jobs:
       - name: Build Backend
         run: |
           go mod download
-          go build -ldflags "-X 'one-api/common.Version=$(git describe --tags)'" -o one-api-macos
+          go build -ldflags "-X 'one-api/common.Version=$(git describe --tags)'" -o new-api-macos
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: one-api-macos
+          files: new-api-macos
           draft: true
           generate_release_notes: true
         env:

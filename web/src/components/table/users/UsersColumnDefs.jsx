@@ -26,7 +26,9 @@ import {
   Progress,
   Popover,
   Typography,
+  Dropdown,
 } from '@douyinfe/semi-ui';
+import { IconMore } from '@douyinfe/semi-icons';
 import { renderGroup, renderNumber, renderQuota } from '../../../helpers';
 
 /**
@@ -204,12 +206,36 @@ const renderOperations = (
     showDemoteModal,
     showEnableDisableModal,
     showDeleteModal,
+    showResetPasskeyModal,
+    showResetTwoFAModal,
     t,
   },
 ) => {
   if (record.DeletedAt !== null) {
     return <></>;
   }
+
+  const moreMenu = [
+    {
+      node: 'item',
+      name: t('重置 Passkey'),
+      onClick: () => showResetPasskeyModal(record),
+    },
+    {
+      node: 'item',
+      name: t('重置 2FA'),
+      onClick: () => showResetTwoFAModal(record),
+    },
+    {
+      node: 'divider',
+    },
+    {
+      node: 'item',
+      name: t('注销'),
+      type: 'danger',
+      onClick: () => showDeleteModal(record),
+    },
+  ];
 
   return (
     <Space>
@@ -253,13 +279,17 @@ const renderOperations = (
       >
         {t('降级')}
       </Button>
-      <Button
-        type='danger'
-        size='small'
-        onClick={() => showDeleteModal(record)}
+      <Dropdown
+        menu={moreMenu}
+        trigger='click'
+        position='bottomRight'
       >
-        {t('注销')}
-      </Button>
+        <Button
+          type='tertiary'
+          size='small'
+          icon={<IconMore />}
+        />
+      </Dropdown>
     </Space>
   );
 };
@@ -275,6 +305,8 @@ export const getUsersColumns = ({
   showDemoteModal,
   showEnableDisableModal,
   showDeleteModal,
+  showResetPasskeyModal,
+  showResetTwoFAModal,
 }) => {
   return [
     {
@@ -329,6 +361,8 @@ export const getUsersColumns = ({
           showDemoteModal,
           showEnableDisableModal,
           showDeleteModal,
+          showResetPasskeyModal,
+          showResetTwoFAModal,
           t,
         }),
     },

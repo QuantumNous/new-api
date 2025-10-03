@@ -32,6 +32,9 @@ import {
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  prepareCredentialRequestOptions,
+  buildAssertionResult,
+  isPasskeySupported,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import { Button, Card, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
@@ -39,7 +42,7 @@ import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import TelegramLoginButton from 'react-telegram-login';
 
-import { IconGithubLogo, IconMail, IconLock } from '@douyinfe/semi-icons';
+import { IconGithubLogo, IconMail, IconLock, IconKey } from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
@@ -74,6 +77,8 @@ const LoginForm = () => {
     useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [showTwoFA, setShowTwoFA] = useState(false);
+  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -94,6 +99,12 @@ const LoginForm = () => {
       setTurnstileSiteKey(status.turnstile_site_key);
     }
   }, [status]);
+
+  useEffect(() => {
+    isPasskeySupported()
+      .then(setPasskeySupported)
+      .catch(() => setPasskeySupported(false));
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('expired')) {
@@ -266,6 +277,55 @@ const LoginForm = () => {
     setEmailLoginLoading(false);
   };
 
+  const handlePasskeyLogin = async () => {
+    if (!passkeySupported) {
+      showInfo('当前环境无法使用 Passkey 登录');
+      return;
+    }
+    if (!window.PublicKeyCredential) {
+      showInfo('当前浏览器不支持 Passkey');
+      return;
+    }
+
+    setPasskeyLoading(true);
+    try {
+      const beginRes = await API.post('/api/user/passkey/login/begin');
+      const { success, message, data } = beginRes.data;
+      if (!success) {
+        showError(message || '无法发起 Passkey 登录');
+        return;
+      }
+
+      const publicKeyOptions = prepareCredentialRequestOptions(data?.options || data?.publicKey || data);
+      const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
+      const payload = buildAssertionResult(assertion);
+      if (!payload) {
+        showError('Passkey 验证失败，请重试');
+        return;
+      }
+
+      const finishRes = await API.post('/api/user/passkey/login/finish', payload);
+      const finish = finishRes.data;
+      if (finish.success) {
+        userDispatch({ type: 'login', payload: finish.data });
+        setUserData(finish.data);
+        updateAPI();
+        showSuccess('登录成功！');
+        navigate('/console');
+      } else {
+        showError(finish.message || 'Passkey 登录失败，请重试');
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        showInfo('已取消 Passkey 登录');
+      } else {
+        showError('Passkey 登录失败，请重试');
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
   // 包装的重置密码点击处理
   const handleResetPasswordClick = () => {
     setResetPasswordLoading(true);
@@ -385,6 +445,19 @@ const LoginForm = () => {
                   </div>
                 )}
 
+                {status.passkey_login && passkeySupported && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={<IconKey size='large' />}
+                    onClick={handlePasskeyLogin}
+                    loading={passkeyLoading}
+                  >
+                    <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                  </Button>
+                )}
+
                 <Divider margin='12px' align='center'>
                   {t('或')}
                 </Divider>
@@ -437,6 +510,18 @@ const LoginForm = () => {
               </Title>
             </div>
             <div className='px-2 py-8'>
+              {status.passkey_login && passkeySupported && (
+                <Button
+                  theme='outline'
+                  type='tertiary'
+                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
+                  icon={<IconKey size='large' />}
+                  onClick={handlePasskeyLogin}
+                  loading={passkeyLoading}
+                >
+                  <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                </Button>
+              )}
               <Form className='space-y-3'>
                 <Form.Input
                   field='username'

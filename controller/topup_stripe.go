@@ -225,7 +225,8 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 				Quantity: stripe.Int64(amount),
 			},
 		},
-		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
+		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
+		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
 	}
 
 	if "" == customerId {

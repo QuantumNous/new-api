@@ -337,6 +337,8 @@ export function getChannelIcon(channelType) {
       return <Kling.Color size={iconSize} />;
     case 51: // 即梦 Jimeng
       return <Jimeng.Color size={iconSize} />;
+    case 54: // 豆包视频 Doubao Video
+      return <Doubao.Color size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;
@@ -1072,7 +1074,7 @@ export function renderModelPrice(
       (completionTokens / 1000000) * completionRatioPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
       (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
-      (imageGenerationCallPrice * groupRatio);
+      imageGenerationCallPrice * groupRatio;
 
     return (
       <>
@@ -1200,25 +1202,25 @@ export function renderModelPrice(
               const extraServices = [
                 webSearch && webSearchCallCount > 0
                   ? i18next.t(
-                      ' + Web搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
-                      {
-                        count: webSearchCallCount,
-                        price: webSearchPrice,
-                        ratio: groupRatio,
-                        ratioType: ratioLabel,
-                      },
-                    )
+                    ' + Web搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
+                    {
+                      count: webSearchCallCount,
+                      price: webSearchPrice,
+                      ratio: groupRatio,
+                      ratioType: ratioLabel,
+                    },
+                  )
                   : '',
                 fileSearch && fileSearchCallCount > 0
                   ? i18next.t(
-                      ' + 文件搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
-                      {
-                        count: fileSearchCallCount,
-                        price: fileSearchPrice,
-                        ratio: groupRatio,
-                        ratioType: ratioLabel,
-                      },
-                    )
+                    ' + 文件搜索 {{count}}次 / 1K 次 * ${{price}} * {{ratioType}} {{ratio}}',
+                    {
+                      count: fileSearchCallCount,
+                      price: fileSearchPrice,
+                      ratio: groupRatio,
+                      ratioType: ratioLabel,
+                    },
+                  )
                   : '',
                 imageGenerationCall && imageGenerationCallPrice > 0
                   ? i18next.t(
@@ -1398,10 +1400,10 @@ export function renderAudioModelPrice(
     let audioPrice =
       (audioInputTokens / 1000000) * inputRatioPrice * audioRatio * groupRatio +
       (audioCompletionTokens / 1000000) *
-        inputRatioPrice *
-        audioRatio *
-        audioCompletionRatio *
-        groupRatio;
+      inputRatioPrice *
+      audioRatio *
+      audioCompletionRatio *
+      groupRatio;
     let price = textPrice + audioPrice;
     return (
       <>
@@ -1457,27 +1459,27 @@ export function renderAudioModelPrice(
           <p>
             {cacheTokens > 0
               ? i18next.t(
-                  '文字提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
-                  {
-                    nonCacheInput: inputTokens - cacheTokens,
-                    cacheInput: cacheTokens,
-                    cachePrice: inputRatioPrice * cacheRatio,
-                    price: inputRatioPrice,
-                    completion: completionTokens,
-                    compPrice: completionRatioPrice,
-                    total: textPrice.toFixed(6),
-                  },
-                )
+                '文字提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
+                {
+                  nonCacheInput: inputTokens - cacheTokens,
+                  cacheInput: cacheTokens,
+                  cachePrice: inputRatioPrice * cacheRatio,
+                  price: inputRatioPrice,
+                  completion: completionTokens,
+                  compPrice: completionRatioPrice,
+                  total: textPrice.toFixed(6),
+                },
+              )
               : i18next.t(
-                  '文字提示 {{input}} tokens / 1M tokens * ${{price}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
-                  {
-                    input: inputTokens,
-                    price: inputRatioPrice,
-                    completion: completionTokens,
-                    compPrice: completionRatioPrice,
-                    total: textPrice.toFixed(6),
-                  },
-                )}
+                '文字提示 {{input}} tokens / 1M tokens * ${{price}} + 文字补全 {{completion}} tokens / 1M tokens * ${{compPrice}} = ${{total}}',
+                {
+                  input: inputTokens,
+                  price: inputRatioPrice,
+                  completion: completionTokens,
+                  compPrice: completionRatioPrice,
+                  total: textPrice.toFixed(6),
+                },
+              )}
           </p>
           <p>
             {i18next.t(
@@ -1617,35 +1619,35 @@ export function renderClaudeModelPrice(
           <p>
             {cacheTokens > 0 || cacheCreationTokens > 0
               ? i18next.t(
-                  '提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 缓存创建 {{cacheCreationInput}} tokens / 1M tokens * ${{cacheCreationPrice}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
-                  {
-                    nonCacheInput: nonCachedTokens,
-                    cacheInput: cacheTokens,
-                    cacheRatio: cacheRatio,
-                    cacheCreationInput: cacheCreationTokens,
-                    cacheCreationRatio: cacheCreationRatio,
-                    cachePrice: cacheRatioPrice,
-                    cacheCreationPrice: cacheCreationRatioPrice,
-                    price: inputRatioPrice,
-                    completion: completionTokens,
-                    compPrice: completionRatioPrice,
-                    ratio: groupRatio,
-                    ratioType: ratioLabel,
-                    total: price.toFixed(6),
-                  },
-                )
+                '提示 {{nonCacheInput}} tokens / 1M tokens * ${{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * ${{cachePrice}} + 缓存创建 {{cacheCreationInput}} tokens / 1M tokens * ${{cacheCreationPrice}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
+                {
+                  nonCacheInput: nonCachedTokens,
+                  cacheInput: cacheTokens,
+                  cacheRatio: cacheRatio,
+                  cacheCreationInput: cacheCreationTokens,
+                  cacheCreationRatio: cacheCreationRatio,
+                  cachePrice: cacheRatioPrice,
+                  cacheCreationPrice: cacheCreationRatioPrice,
+                  price: inputRatioPrice,
+                  completion: completionTokens,
+                  compPrice: completionRatioPrice,
+                  ratio: groupRatio,
+                  ratioType: ratioLabel,
+                  total: price.toFixed(6),
+                },
+              )
               : i18next.t(
-                  '提示 {{input}} tokens / 1M tokens * ${{price}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
-                  {
-                    input: inputTokens,
-                    price: inputRatioPrice,
-                    completion: completionTokens,
-                    compPrice: completionRatioPrice,
-                    ratio: groupRatio,
-                    ratioType: ratioLabel,
-                    total: price.toFixed(6),
-                  },
-                )}
+                '提示 {{input}} tokens / 1M tokens * ${{price}} + 补全 {{completion}} tokens / 1M tokens * ${{compPrice}} * {{ratioType}} {{ratio}} = ${{total}}',
+                {
+                  input: inputTokens,
+                  price: inputRatioPrice,
+                  completion: completionTokens,
+                  compPrice: completionRatioPrice,
+                  ratio: groupRatio,
+                  ratioType: ratioLabel,
+                  total: price.toFixed(6),
+                },
+              )}
           </p>
           <p>{i18next.t('仅供参考，以实际扣费为准')}</p>
         </article>

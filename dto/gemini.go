@@ -2,11 +2,12 @@ package dto
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"one-api/logger"
 	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GeminiChatRequest struct {
@@ -14,7 +15,30 @@ type GeminiChatRequest struct {
 	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
 	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
 	Tools              json.RawMessage            `json:"tools,omitempty"`
+	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
 	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
+	CachedContent      string                     `json:"cachedContent,omitempty"`
+}
+
+type ToolConfig struct {
+	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
+	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+}
+
+type FunctionCallingConfig struct {
+	Mode                 FunctionCallingConfigMode `json:"mode,omitempty"`
+	AllowedFunctionNames []string                  `json:"allowedFunctionNames,omitempty"`
+}
+type FunctionCallingConfigMode string
+
+type RetrievalConfig struct {
+	LatLng       *LatLng `json:"latLng,omitempty"`
+	LanguageCode string  `json:"languageCode,omitempty"`
+}
+
+type LatLng struct {
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
 }
 
 func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -228,6 +252,7 @@ type GeminiChatTool struct {
 	GoogleSearchRetrieval any `json:"googleSearchRetrieval,omitempty"`
 	CodeExecution         any `json:"codeExecution,omitempty"`
 	FunctionDeclarations  any `json:"functionDeclarations,omitempty"`
+	URLContext            any `json:"urlContext,omitempty"`
 }
 
 type GeminiChatGenerationConfig struct {
@@ -239,11 +264,20 @@ type GeminiChatGenerationConfig struct {
 	StopSequences      []string              `json:"stopSequences,omitempty"`
 	ResponseMimeType   string                `json:"responseMimeType,omitempty"`
 	ResponseSchema     any                   `json:"responseSchema,omitempty"`
+	ResponseJsonSchema json.RawMessage       `json:"responseJsonSchema,omitempty"`
+	PresencePenalty    *float32              `json:"presencePenalty,omitempty"`
+	FrequencyPenalty   *float32              `json:"frequencyPenalty,omitempty"`
+	ResponseLogprobs   bool                  `json:"responseLogprobs,omitempty"`
+	Logprobs           *int32                `json:"logprobs,omitempty"`
+	MediaResolution    MediaResolution       `json:"mediaResolution,omitempty"`
 	Seed               int64                 `json:"seed,omitempty"`
 	ResponseModalities []string              `json:"responseModalities,omitempty"`
 	ThinkingConfig     *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	SpeechConfig       json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
+	ImageConfig        json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
 }
+
+type MediaResolution string
 
 type GeminiChatCandidate struct {
 	Content       GeminiChatContent        `json:"content"`

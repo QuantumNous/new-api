@@ -7,12 +7,17 @@ import (
 	"net/http"
 	"net/url"
 	"one-api/common"
+	"sync"
 	"time"
 
 	"golang.org/x/net/proxy"
 )
 
-var httpClient *http.Client
+var (
+	httpClient      *http.Client
+	proxyClientLock sync.Mutex
+	proxyClients    = make(map[string]*http.Client)
+)
 
 func InitHttpClient() {
 	if common.RelayTimeout == 0 {
@@ -28,11 +33,30 @@ func GetHttpClient() *http.Client {
 	return httpClient
 }
 
+// ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
+func ResetProxyClientCache() {
+	proxyClientLock.Lock()
+	defer proxyClientLock.Unlock()
+	for _, client := range proxyClients {
+		if transport, ok := client.Transport.(*http.Transport); ok && transport != nil {
+			transport.CloseIdleConnections()
+		}
+	}
+	proxyClients = make(map[string]*http.Client)
+}
+
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
 func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 	if proxyURL == "" {
 		return http.DefaultClient, nil
 	}
+
+	proxyClientLock.Lock()
+	if client, ok := proxyClients[proxyURL]; ok {
+		proxyClientLock.Unlock()
+		return client, nil
+	}
+	proxyClientLock.Unlock()
 
 	parsedURL, err := url.Parse(proxyURL)
 	if err != nil {
@@ -41,11 +65,16 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 
 	switch parsedURL.Scheme {
 	case "http", "https":
-		return &http.Client{
+		client := &http.Client{
 			Transport: &http.Transport{
 				Proxy: http.ProxyURL(parsedURL),
 			},
-		}, nil
+		}
+		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+		proxyClientLock.Lock()
+		proxyClients[proxyURL] = client
+		proxyClientLock.Unlock()
+		return client, nil
 
 	case "socks5", "socks5h":
 		// 获取认证信息
@@ -67,15 +96,20 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			return nil, err
 		}
 
-		return &http.Client{
+		client := &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					return dialer.Dial(network, addr)
 				},
 			},
-		}, nil
+		}
+		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+		proxyClientLock.Lock()
+		proxyClients[proxyURL] = client
+		proxyClientLock.Unlock()
+		return client, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported proxy scheme: %s", parsedURL.Scheme)
+		return nil, fmt.Errorf("unsupported proxy scheme: %s, must be http, https, socks5 or socks5h", parsedURL.Scheme)
 	}
 }

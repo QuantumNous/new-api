@@ -30,7 +30,8 @@ import {
   Space,
   Row,
   Col,
-  Spin, Tooltip
+  Spin,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard, Coins, Wallet, BarChart2, TrendingUp } from 'lucide-react';
@@ -266,7 +267,8 @@ const RechargeCard = ({
                         {payMethods && payMethods.length > 0 ? (
                           <Space wrap>
                             {payMethods.map((payMethod) => {
-                              const minTopupVal = Number(payMethod.min_topup) || 0;
+                              const minTopupVal =
+                                Number(payMethod.min_topup) || 0;
                               const isStripe = payMethod.type === 'stripe';
                               const disabled =
                                 (!enableOnlineTopUp && !isStripe) ||
@@ -280,7 +282,9 @@ const RechargeCard = ({
                                   type='tertiary'
                                   onClick={() => preTopUp(payMethod.type)}
                                   disabled={disabled}
-                                  loading={paymentLoading && payWay === payMethod.type}
+                                  loading={
+                                    paymentLoading && payWay === payMethod.type
+                                  }
                                   icon={
                                     payMethod.type === 'alipay' ? (
                                       <SiAlipay size={18} color='#1677FF' />
@@ -291,7 +295,10 @@ const RechargeCard = ({
                                     ) : (
                                       <CreditCard
                                         size={18}
-                                        color={payMethod.color || 'var(--semi-color-text-2)'}
+                                        color={
+                                          payMethod.color ||
+                                          'var(--semi-color-text-2)'
+                                        }
                                       />
                                     )
                                   }
@@ -301,12 +308,22 @@ const RechargeCard = ({
                                 </Button>
                               );
 
-                              return disabled && minTopupVal > Number(topUpCount || 0) ? (
-                                <Tooltip content={t('此支付方式最低充值金额为') + ' ' + minTopupVal} key={payMethod.type}>
+                              return disabled &&
+                                minTopupVal > Number(topUpCount || 0) ? (
+                                <Tooltip
+                                  content={
+                                    t('此支付方式最低充值金额为') +
+                                    ' ' +
+                                    minTopupVal
+                                  }
+                                  key={payMethod.type}
+                                >
                                   {buttonEl}
                                 </Tooltip>
                               ) : (
-                                <React.Fragment key={payMethod.type}>{buttonEl}</React.Fragment>
+                                <React.Fragment key={payMethod.type}>
+                                  {buttonEl}
+                                </React.Fragment>
                               );
                             })}
                           </Space>
@@ -324,23 +341,27 @@ const RechargeCard = ({
                   <Form.Slot label={t('选择充值额度')}>
                     <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                       {presetAmounts.map((preset, index) => {
-                        const discount = preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                        const discount =
+                          preset.discount ||
+                          topupInfo?.discount?.[preset.value] ||
+                          1.0;
                         const originalPrice = preset.value * priceRatio;
                         const discountedPrice = originalPrice * discount;
                         const hasDiscount = discount < 1.0;
                         const actualPay = discountedPrice;
                         const save = originalPrice - discountedPrice;
-                        
+
                         return (
                           <Card
                             key={index}
                             style={{
                               cursor: 'pointer',
-                              border: selectedPreset === preset.value 
-                                ? '2px solid var(--semi-color-primary)' 
-                                : '1px solid var(--semi-color-border)',
+                              border:
+                                selectedPreset === preset.value
+                                  ? '2px solid var(--semi-color-primary)'
+                                  : '1px solid var(--semi-color-border)',
                               height: '100%',
-                              width: '100%'
+                              width: '100%',
                             }}
                             bodyStyle={{ padding: '12px' }}
                             onClick={() => {
@@ -352,24 +373,35 @@ const RechargeCard = ({
                             }}
                           >
                             <div style={{ textAlign: 'center' }}>
-                              <Typography.Title heading={6} style={{ margin: '0 0 8px 0' }}>
+                              <Typography.Title
+                                heading={6}
+                                style={{ margin: '0 0 8px 0' }}
+                              >
                                 <Coins size={18} />
                                 {formatLargeNumber(preset.value)}
                                 {hasDiscount && (
-                                   <Tag style={{ marginLeft: 4 }} color="green">
-                                   {t('折').includes('off') ?
-                                     ((1 - parseFloat(discount)) * 100).toFixed(1) :
-                                     (discount * 10).toFixed(1)}{t('折')}
-                                 </Tag>
+                                  <Tag style={{ marginLeft: 4 }} color='green'>
+                                    {t('折').includes('off')
+                                      ? (
+                                          (1 - parseFloat(discount)) *
+                                          100
+                                        ).toFixed(1)
+                                      : (discount * 10).toFixed(1)}
+                                    {t('折')}
+                                  </Tag>
                                 )}
                               </Typography.Title>
-                              <div style={{ 
-                                color: 'var(--semi-color-text-2)', 
-                                fontSize: '12px', 
-                                margin: '4px 0' 
-                              }}>
+                              <div
+                                style={{
+                                  color: 'var(--semi-color-text-2)',
+                                  fontSize: '12px',
+                                  margin: '4px 0',
+                                }}
+                              >
                                 {t('实付')} {actualPay.toFixed(2)}，
-                                {hasDiscount ? `${t('节省')} ${save.toFixed(2)}` : `${t('节省')} 0.00`}
+                                {hasDiscount
+                                  ? `${t('节省')} ${save.toFixed(2)}`
+                                  : `${t('节省')} 0.00`}
                               </div>
                             </div>
                           </Card>
