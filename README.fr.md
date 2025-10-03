@@ -208,12 +208,10 @@ Pour une documentation détaillée de l'API, veuillez vous référer à [Documen
 ## Projets connexes
 - [One API](https://github.com/songquanpeng/one-api) : Projet original
 - [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy) : Prise en charge de l'interface Midjourney
-- [chatnio](https://github.com/Deeptrain-Community/chatnio) : Solution B/C unique d'IA de nouvelle génération
 - [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool) : Interroger le quota d'utilisation avec une clé
 
 Autres projets basés sur New API :
 - [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) : Version optimisée hautes performances de New API
-- [VoAPI](https://github.com/VoAPI/VoAPI) : Version embellie du frontend basée sur New API
 
 ## Aide et support
 
