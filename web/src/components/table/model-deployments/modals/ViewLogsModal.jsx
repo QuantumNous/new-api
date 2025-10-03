@@ -32,31 +32,21 @@ import {
   Switch,
   Divider,
   Tooltip,
-  Banner,
+  Radio,
 } from '@douyinfe/semi-ui';
-import { 
-  FaDownload, 
+import {
   FaCopy,
   FaSearch,
-  FaFilter,
   FaClock,
   FaTerminal,
   FaServer,
   FaInfoCircle,
-  FaLink
+  FaLink,
 } from 'react-icons/fa';
 import { IconRefresh, IconDownload } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, timestamp2string } from '../../../../helpers';
+import { API, showError, showSuccess, copy, timestamp2string } from '../../../../helpers';
 
-const { Text, Paragraph } = Typography;
-
-const LogLevelColors = {
-  INFO: 'blue',
-  WARN: 'orange', 
-  ERROR: 'red',
-  DEBUG: 'grey',
-  TRACE: 'purple'
-};
+const { Text } = Typography;
 
 const ALL_CONTAINERS = '__all__';
 
@@ -66,19 +56,18 @@ const ViewLogsModal = ({
   deployment, 
   t 
 }) => {
-  const [logs, setLogs] = useState([]);
+  const [logLines, setLogLines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [levelFilter, setLevelFilter] = useState('');
   const [following, setFollowing] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [nextCursor, setNextCursor] = useState('');
   const [containers, setContainers] = useState([]);
   const [containersLoading, setContainersLoading] = useState(false);
   const [selectedContainerId, setSelectedContainerId] = useState(ALL_CONTAINERS);
   const [containerDetails, setContainerDetails] = useState(null);
   const [containerDetailsLoading, setContainerDetailsLoading] = useState(false);
+  const [streamFilter, setStreamFilter] = useState('stdout');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   
   const logContainerRef = useRef(null);
   const autoRefreshRef = useRef(null);
@@ -90,40 +79,58 @@ const ViewLogsModal = ({
     }
   };
 
-  const fetchLogs = async (cursor = '', append = false, containerIdOverride = undefined) => {
+  const resolveStreamValue = (value) => {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value && typeof value.value === 'string') {
+      return value.value;
+    }
+    if (value && value.target && typeof value.target.value === 'string') {
+      return value.target.value;
+    }
+    return '';
+  };
+
+  const handleStreamChange = (value) => {
+    const next = resolveStreamValue(value) || 'stdout';
+    setStreamFilter(next);
+  };
+
+  const fetchLogs = async (containerIdOverride = undefined) => {
     if (!deployment?.id) return;
-    
+
+    const containerId = typeof containerIdOverride === 'string' ? containerIdOverride : selectedContainerId;
+
+    if (!containerId || containerId === ALL_CONTAINERS) {
+      setLogLines([]);
+      setLastUpdatedAt(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        limit: '100'
-      });
-      
-      const containerId = typeof containerIdOverride === 'string' ? containerIdOverride : selectedContainerId;
+      const params = new URLSearchParams();
+      params.append('container_id', containerId);
 
-      if (cursor) params.append('cursor', cursor);
-      if (levelFilter) params.append('level', levelFilter);
+      const streamValue = resolveStreamValue(streamFilter) || 'stdout';
+      if (streamValue && streamValue !== 'all') {
+        params.append('stream', streamValue);
+      }
       if (following) params.append('follow', 'true');
-      if (containerId && containerId !== ALL_CONTAINERS) params.append('container_id', containerId);
-      
+
       const response = await API.get(`/api/deployments/${deployment.id}/logs?${params}`);
-      
+
       if (response.data.success) {
-        const newLogs = response.data.data.logs || [];
-        
-        if (append) {
-          setLogs(prev => [...prev, ...newLogs]);
-        } else {
-          setLogs(newLogs);
-        }
-        
-        setHasMore(response.data.data.has_more || false);
-        setNextCursor(response.data.data.next_cursor || '');
-        
-        // Scroll to bottom for new logs
-        if (!append || following) {
-          setTimeout(scrollToBottom, 100);
-        }
+        const rawContent = typeof response.data.data === 'string' ? response.data.data : '';
+        const normalized = rawContent.replace(/\r\n?/g, '\n');
+        const lines = normalized ? normalized.split('\n') : [];
+
+        setLogLines(lines);
+        setLastUpdatedAt(new Date());
+
+        setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
       showError(t('获取日志失败') + ': ' + (error.response?.data?.message || error.message));
@@ -185,9 +192,8 @@ const ViewLogsModal = ({
   const handleContainerChange = (value) => {
     const newValue = value || ALL_CONTAINERS;
     setSelectedContainerId(newValue);
-    setNextCursor('');
-    setHasMore(true);
-    setLogs([]);
+    setLogLines([]);
+    setLastUpdatedAt(null);
   };
 
   const refreshContainerDetails = () => {
@@ -229,12 +235,6 @@ const ViewLogsModal = ({
     ? containers.find((ctr) => ctr.container_id === selectedContainerId)
     : null;
 
-  const loadMoreLogs = () => {
-    if (hasMore && nextCursor && !loading) {
-      fetchLogs(nextCursor, true);
-    }
-  };
-
   const refreshLogs = () => {
     if (selectedContainerId && selectedContainerId !== ALL_CONTAINERS) {
       fetchContainerDetails(selectedContainerId);
@@ -243,10 +243,13 @@ const ViewLogsModal = ({
   };
 
   const downloadLogs = () => {
-    const logText = logs.map(log => 
-      `[${timestamp2string(log.timestamp)}] [${log.level}] ${log.source ? `[${log.source}] ` : ''}${log.message}`
-    ).join('\n');
-    
+    const sourceLogs = filteredLogs.length > 0 ? filteredLogs : logLines;
+    if (sourceLogs.length === 0) {
+      showError(t('暂无日志可下载'));
+      return;
+    }
+    const logText = sourceLogs.join('\n');
+
     const blob = new Blob([logText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -266,13 +269,20 @@ const ViewLogsModal = ({
     showSuccess(t('日志已下载'));
   };
 
-  const copyAllLogs = () => {
-    const logText = logs.map(log => 
-      `[${timestamp2string(log.timestamp)}] [${log.level}] ${log.source ? `[${log.source}] ` : ''}${log.message}`
-    ).join('\n');
-    
-    navigator.clipboard.writeText(logText);
-    showSuccess(t('日志已复制到剪贴板'));
+  const copyAllLogs = async () => {
+    const sourceLogs = filteredLogs.length > 0 ? filteredLogs : logLines;
+    if (sourceLogs.length === 0) {
+      showError(t('暂无日志可复制'));
+      return;
+    }
+    const logText = sourceLogs.join('\n');
+
+    const copied = await copy(logText);
+    if (copied) {
+      showSuccess(t('日志已复制到剪贴板'));
+    } else {
+      showError(t('复制失败，请手动选择文本复制'));
+    }
   };
 
   // Auto refresh functionality
@@ -293,7 +303,7 @@ const ViewLogsModal = ({
         clearInterval(autoRefreshRef.current);
       }
     };
-  }, [autoRefresh, visible, selectedContainerId, levelFilter, following]);
+  }, [autoRefresh, visible, selectedContainerId, streamFilter, following]);
 
   useEffect(() => {
     if (visible && deployment?.id) {
@@ -302,10 +312,17 @@ const ViewLogsModal = ({
       setContainers([]);
       setSelectedContainerId(ALL_CONTAINERS);
       setContainerDetails(null);
-      setNextCursor('');
-      setHasMore(true);
+      setStreamFilter('stdout');
+      setLogLines([]);
+      setLastUpdatedAt(null);
     }
   }, [visible, deployment?.id]);
+
+  useEffect(() => {
+    if (visible) {
+      setStreamFilter('stdout');
+    }
+  }, [selectedContainerId, visible]);
 
   useEffect(() => {
     if (visible && deployment?.id) {
@@ -324,47 +341,23 @@ const ViewLogsModal = ({
         clearInterval(autoRefreshRef.current);
       }
     };
-  }, [visible, deployment?.id, levelFilter, selectedContainerId, following]);
+  }, [visible, deployment?.id, streamFilter, selectedContainerId, following]);
 
   // Filter logs based on search term
-  const filteredLogs = logs.filter(log =>
-    !searchTerm || log.message.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const renderLogEntry = (log, index) => {
-    const level = log.level || 'INFO';
-    const color = LogLevelColors[level] || 'grey';
-    
-    return (
-      <div 
-        key={`${log.timestamp}-${index}`} 
-        className="flex items-start gap-2 py-2 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100"
-      >
-        <div className="flex-shrink-0 w-16">
-          <Text type="secondary" size="small" className="text-xs">
-            {new Date(log.timestamp).toLocaleTimeString()}
-          </Text>
-        </div>
-        <div className="flex-shrink-0">
-          <Tag color={color} size="small">
-            {level}
-          </Tag>
-        </div>
-        {log.source && (
-          <div className="flex-shrink-0">
-            <Tag size="small" className="bg-gray-100 text-gray-600">
-              {log.source}
-            </Tag>
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <Text className="break-all whitespace-pre-wrap">
-            {log.message}
-          </Text>
-        </div>
-      </div>
+  const filteredLogs = logLines
+    .map((line) => line ?? '')
+    .filter((line) =>
+      !searchTerm || line.toLowerCase().includes(searchTerm.toLowerCase()),
     );
-  };
+
+  const renderLogEntry = (line, index) => (
+    <div
+      key={`${index}-${line.slice(0, 20)}`}
+      className="py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words"
+    >
+      {line}
+    </div>
+  );
 
   return (
     <Modal
@@ -398,6 +391,7 @@ const ViewLogsModal = ({
                 style={{ width: 240 }}
                 size="small"
                 loading={containersLoading}
+                dropdownStyle={{ maxHeight: 320, overflowY: 'auto' }}
               >
                 <Select.Option value={ALL_CONTAINERS}>
                   {t('全部容器')}
@@ -424,21 +418,20 @@ const ViewLogsModal = ({
                 size="small"
               />
               
-              <Select
-                prefix={<FaFilter />}
-                placeholder={t('日志级别')}
-                value={levelFilter}
-                onChange={setLevelFilter}
-                style={{ width: 120 }}
-                size="small"
-                allowClear
-              >
-                <Select.Option value="INFO">INFO</Select.Option>
-                <Select.Option value="WARN">WARN</Select.Option>
-                <Select.Option value="ERROR">ERROR</Select.Option>
-                <Select.Option value="DEBUG">DEBUG</Select.Option>
-                <Select.Option value="TRACE">TRACE</Select.Option>
-              </Select>
+              <Space align="center" className="ml-2">
+                <Text size="small" type="secondary">
+                  {t('日志流')}
+                </Text>
+                <Radio.Group
+                  type="button"
+                  size="small"
+                  value={streamFilter}
+                  onChange={handleStreamChange}
+                >
+                  <Radio value="stdout">STDOUT</Radio>
+                  <Radio value="stderr">STDERR</Radio>
+                </Radio.Group>
+              </Space>
 
               <div className="flex items-center gap-2">
                 <Switch
@@ -476,7 +469,7 @@ const ViewLogsModal = ({
                   onClick={copyAllLogs}
                   size="small"
                   theme="borderless"
-                  disabled={logs.length === 0}
+                  disabled={logLines.length === 0}
                 />
               </Tooltip>
               
@@ -486,7 +479,7 @@ const ViewLogsModal = ({
                   onClick={downloadLogs}
                   size="small"
                   theme="borderless"
-                  disabled={logs.length === 0}
+                  disabled={logLines.length === 0}
                 />
               </Tooltip>
             </Space>
@@ -497,7 +490,7 @@ const ViewLogsModal = ({
           <div className="flex items-center justify-between">
             <Space size="large">
               <Text size="small" type="secondary">
-                {t('共 {{count}} 条日志', { count: filteredLogs.length })}
+                {t('共 {{count}} 条日志', { count: logLines.length })}
               </Text>
               {searchTerm && (
                 <Text size="small" type="secondary">
@@ -628,7 +621,7 @@ const ViewLogsModal = ({
             className="flex-1 overflow-y-auto bg-white"
             style={{ maxHeight: '400px' }}
           >
-            {loading && logs.length === 0 ? (
+            {loading && logLines.length === 0 ? (
               <div className="flex items-center justify-center p-8">
                 <Spin tip={t('加载日志中...')} />
               </div>
@@ -643,32 +636,18 @@ const ViewLogsModal = ({
             ) : (
               <div>
                 {filteredLogs.map((log, index) => renderLogEntry(log, index))}
-                
-                {/* Load More Button */}
-                {hasMore && !autoRefresh && (
-                  <div className="flex items-center justify-center p-4 border-t">
-                    <Button 
-                      onClick={loadMoreLogs}
-                      loading={loading}
-                      theme="borderless"
-                      size="small"
-                    >
-                      {t('加载更多日志')}
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
           </div>
           
           {/* Footer status */}
-          {logs.length > 0 && (
+          {logLines.length > 0 && (
             <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t text-xs text-gray-500">
               <span>
                 {following ? t('正在跟随最新日志') : t('日志已加载')}
               </span>
               <span>
-                {t('最后更新')}: {new Date().toLocaleTimeString()}
+                {t('最后更新')}: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '--'}
               </span>
             </div>
           )}

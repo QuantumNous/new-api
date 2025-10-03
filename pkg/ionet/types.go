@@ -73,7 +73,7 @@ type DeploymentDetail struct {
 	StartedAt               *time.Time                `json:"started_at,omitempty"`
 	FinishedAt              *time.Time                `json:"finished_at,omitempty"`
 	AmountPaid              float64                   `json:"amount_paid"`
-	CompletedPercent        int                       `json:"completed_percent"`
+	CompletedPercent        float64                   `json:"completed_percent"`
 	TotalGPUs               int                       `json:"total_gpus"`
 	GPUsPerContainer        int                       `json:"gpus_per_container"`
 	TotalContainers         int                       `json:"total_containers"`
@@ -185,11 +185,15 @@ type MaxGPUInfo struct {
 
 // PriceEstimationRequest represents a price estimation request
 type PriceEstimationRequest struct {
-	LocationIDs      []int `json:"location_ids"`
-	HardwareID       int   `json:"hardware_id"`
-	GPUsPerContainer int   `json:"gpus_per_container"`
-	DurationHours    int   `json:"duration_hours"`
-	ReplicaCount     int   `json:"replica_count"`
+	LocationIDs      []int  `json:"location_ids"`
+	HardwareID       int    `json:"hardware_id"`
+	GPUsPerContainer int    `json:"gpus_per_container"`
+	DurationHours    int    `json:"duration_hours"`
+	ReplicaCount     int    `json:"replica_count"`
+	Currency         string `json:"currency"`
+	DurationType     string `json:"duration_type"`
+	DurationQty      int    `json:"duration_qty"`
+	HardwareQty      int    `json:"hardware_qty"`
 }
 
 // PriceEstimationResponse represents the price estimation response
@@ -290,6 +294,7 @@ type GetLogsOptions struct {
 	StartTime *time.Time `json:"start_time,omitempty"`
 	EndTime   *time.Time `json:"end_time,omitempty"`
 	Level     string     `json:"level,omitempty"`  // filter by log level
+	Stream    string     `json:"stream,omitempty"` // filter by stdout/stderr streams
 	Limit     int        `json:"limit,omitempty"`  // max number of log entries
 	Cursor    string     `json:"cursor,omitempty"` // pagination cursor
 	Follow    bool       `json:"follow,omitempty"` // stream logs

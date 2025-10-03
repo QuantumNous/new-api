@@ -28,7 +28,6 @@ const DeploymentsActions = ({
   setShowEdit,
   batchDeleteDeployments,
   batchStartDeployments,
-  batchStopDeployments,
   compactMode,
   setCompactMode,
   showCreateModal,
@@ -53,10 +52,6 @@ const DeploymentsActions = ({
 
   const handleBatchStart = () => {
     batchStartDeployments();
-  };
-
-  const handleBatchStop = () => {
-    batchStopDeployments();
   };
 
   const handleDeselectAll = () => {
@@ -86,16 +81,6 @@ const DeploymentsActions = ({
             size='small'
           >
             {t('批量启动')} ({selectedKeys.length})
-          </Button>
-          
-          <Button
-            type='warning'
-            className='w-full md:w-auto'
-            onClick={handleBatchStop}
-            disabled={selectedKeys.length === 0}
-            size='small'
-          >
-            {t('批量停止')} ({selectedKeys.length})
           </Button>
 
           <Popconfirm

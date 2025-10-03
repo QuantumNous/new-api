@@ -22,16 +22,14 @@ import {
   Modal,
   Typography,
   Card,
-  Space,
-  Divider,
   Tag,
   Progress,
   Descriptions,
   Spin,
   Empty,
   Button,
-  Tooltip,
   Badge,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import { 
   FaInfoCircle, 
@@ -41,8 +39,8 @@ import {
   FaDocker,
   FaMoneyBillWave,
   FaChartLine,
-  FaRefresh,
-  FaCopy
+  FaCopy,
+  FaLink,
 } from 'react-icons/fa';
 import { IconRefresh } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess, timestamp2string } from '../../../../helpers';
@@ -57,6 +55,8 @@ const ViewDetailsModal = ({
 }) => {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [containers, setContainers] = useState([]);
+  const [containersLoading, setContainersLoading] = useState(false);
 
   const fetchDetails = async () => {
     if (!deployment?.id) return;
@@ -74,15 +74,40 @@ const ViewDetailsModal = ({
     }
   };
 
+  const fetchContainers = async () => {
+    if (!deployment?.id) return;
+
+    setContainersLoading(true);
+    try {
+      const response = await API.get(`/api/deployments/${deployment.id}/containers`);
+      if (response.data.success) {
+        setContainers(response.data.data?.containers || []);
+      }
+    } catch (error) {
+      showError(t('获取容器信息失败') + ': ' + (error.response?.data?.message || error.message));
+    } finally {
+      setContainersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (visible && deployment?.id) {
       fetchDetails();
+      fetchContainers();
+    } else if (!visible) {
+      setDetails(null);
+      setContainers([]);
     }
   }, [visible, deployment?.id]);
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(deployment?.id);
     showSuccess(t('ID已复制到剪贴板'));
+  };
+
+  const handleRefresh = () => {
+    fetchDetails();
+    fetchContainers();
   };
 
   const getStatusConfig = (status) => {
@@ -113,8 +138,8 @@ const ViewDetailsModal = ({
         <div className="flex justify-between">
           <Button 
             icon={<IconRefresh />} 
-            onClick={fetchDetails}
-            loading={loading}
+            onClick={handleRefresh}
+            loading={loading || containersLoading}
             theme="borderless"
           >
             {t('刷新')}
@@ -305,6 +330,86 @@ const ViewDetailsModal = ({
               </div>
             </Card>
           )}
+
+          {/* Containers List */}
+          <Card
+            title={
+              <div className="flex items-center gap-2">
+                <FaServer className="text-indigo-500" />
+                <span>{t('容器实例')}</span>
+              </div>
+            }
+            className="border-0 shadow-sm"
+          >
+            {containersLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Spin tip={t('加载容器信息中...')} />
+              </div>
+            ) : containers.length === 0 ? (
+              <Empty description={t('暂无容器信息')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <div className="space-y-3">
+                {containers.map((ctr) => (
+                  <Card
+                    key={ctr.container_id}
+                    className="bg-gray-50 border border-gray-100"
+                    bodyStyle={{ padding: '12px 16px' }}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-col gap-1">
+                        <Text strong className="font-mono text-sm">
+                          {ctr.container_id}
+                        </Text>
+                        <Text size="small" type="secondary">
+                          {t('设备')} {ctr.device_id || '--'} · {t('状态')} {ctr.status || '--'}
+                        </Text>
+                        <Text size="small" type="secondary">
+                          {t('创建时间')}: {ctr.created_at ? timestamp2string(ctr.created_at) : '--'}
+                        </Text>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <Tag color="blue" size="small">
+                          {t('GPU/容器')}: {ctr.gpus_per_container ?? '--'}
+                        </Tag>
+                        {ctr.public_url && (
+                          <Tooltip content={ctr.public_url}>
+                            <Button
+                              icon={<FaLink />}
+                              size="small"
+                              theme="light"
+                              onClick={() => window.open(ctr.public_url, '_blank', 'noopener,noreferrer')}
+                            >
+                              {t('访问容器')}
+                            </Button>
+                          </Tooltip>
+                        )}
+                      </div>
+                    </div>
+
+                    {ctr.events && ctr.events.length > 0 && (
+                      <div className="mt-3 bg-white rounded-md border border-gray-100 p-3">
+                        <Text size="small" type="secondary" className="block mb-2">
+                          {t('最近事件')}
+                        </Text>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {ctr.events.map((event, index) => (
+                            <div key={`${ctr.container_id}-${event.time}-${index}`} className="flex gap-3 text-xs font-mono">
+                              <span className="text-gray-500 min-w-[140px]">
+                                {event.time ? timestamp2string(event.time) : '--'}
+                              </span>
+                              <span className="text-gray-700 break-all flex-1">
+                                {event.message || '--'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
+          </Card>
 
           {/* Location Information */}
           {details.locations && details.locations.length > 0 && (

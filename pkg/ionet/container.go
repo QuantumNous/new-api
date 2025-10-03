@@ -3,6 +3,7 @@ package ionet
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func (c *Client) ListContainers(deploymentID string) (*ContainerList, error) {
 		Data ContainerList `json:"data"`
 	}
 
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
 		return nil, fmt.Errorf("failed to parse containers list: %w", err)
 	}
 
@@ -55,7 +56,7 @@ func (c *Client) GetContainerDetails(deploymentID, containerID string) (*Contain
 
 	// API response format not documented, assuming direct format
 	var container Container
-	if err := json.Unmarshal(resp.Body, &container); err != nil {
+	if err := decodeWithFlexibleTimes(resp.Body, &container); err != nil {
 		return nil, fmt.Errorf("failed to parse container details: %w", err)
 	}
 
@@ -89,29 +90,30 @@ func (c *Client) GetContainerJobs(deploymentID, containerID string) (*ContainerL
 		Data ContainerList `json:"data"`
 	}
 
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
 		return nil, fmt.Errorf("failed to parse container jobs: %w", err)
 	}
 
 	return &apiResp.Data, nil
 }
 
-// GetContainerLogs retrieves logs for containers in a deployment
-func (c *Client) GetContainerLogs(deploymentID, containerID string, opts *GetLogsOptions) (*ContainerLogs, error) {
+// buildLogEndpoint constructs the request path for fetching logs
+func buildLogEndpoint(deploymentID, containerID string, opts *GetLogsOptions) (string, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return "", fmt.Errorf("deployment ID cannot be empty")
 	}
-	// containerID is optional for deployment logs
+	if containerID == "" {
+		return "", fmt.Errorf("container ID cannot be empty")
+	}
 
 	params := make(map[string]interface{})
-
-	if containerID != "" {
-		params["container_id"] = containerID
-	}
 
 	if opts != nil {
 		if opts.Level != "" {
 			params["level"] = opts.Level
+		}
+		if opts.Stream != "" {
+			params["stream"] = opts.Stream
 		}
 		if opts.Limit > 0 {
 			params["limit"] = opts.Limit
@@ -131,22 +133,51 @@ func (c *Client) GetContainerLogs(deploymentID, containerID string, opts *GetLog
 		}
 	}
 
-	endpoint := fmt.Sprintf("/deployment/%s/logs", deploymentID) + buildQueryParams(params)
+	endpoint := fmt.Sprintf("/deployment/%s/log/%s", deploymentID, containerID)
+	endpoint += buildQueryParams(params)
+
+	return endpoint, nil
+}
+
+// GetContainerLogs retrieves logs for containers in a deployment and normalizes them
+func (c *Client) GetContainerLogs(deploymentID, containerID string, opts *GetLogsOptions) (*ContainerLogs, error) {
+	raw, err := c.GetContainerLogsRaw(deploymentID, containerID, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	logs := &ContainerLogs{
+		ContainerID: containerID,
+	}
+
+	if raw == "" {
+		return logs, nil
+	}
+
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	for _, line := range strings.Split(normalized, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		logs.Logs = append(logs.Logs, LogEntry{Message: line})
+	}
+
+	return logs, nil
+}
+
+// GetContainerLogsRaw retrieves the raw text logs for a specific container
+func (c *Client) GetContainerLogsRaw(deploymentID, containerID string, opts *GetLogsOptions) (string, error) {
+	endpoint, err := buildLogEndpoint(deploymentID, containerID, opts)
+	if err != nil {
+		return "", err
+	}
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get container logs: %w", err)
+		return "", fmt.Errorf("failed to get container logs: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs:
-	// For now, we'll assume the API returns logs directly
-	// In production, this might be wrapped in a data object
-	var logs ContainerLogs
-	if err := json.Unmarshal(resp.Body, &logs); err != nil {
-		return nil, fmt.Errorf("failed to parse container logs: %w", err)
-	}
-
-	return &logs, nil
+	return string(resp.Body), nil
 }
 
 // StreamContainerLogs streams real-time logs for a specific container
@@ -175,6 +206,10 @@ func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *Get
 		"cursor": opts.Cursor,
 	}
 
+	if opts.Stream != "" {
+		params["stream"] = opts.Stream
+	}
+
 	if opts.StartTime != nil {
 		params["start_time"] = *opts.StartTime
 	}
@@ -193,7 +228,7 @@ func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *Get
 		}
 
 		var logs ContainerLogs
-		if err := json.Unmarshal(resp.Body, &logs); err != nil {
+		if err := decodeWithFlexibleTimes(resp.Body, &logs); err != nil {
 			return fmt.Errorf("failed to parse container logs: %w", err)
 		}
 

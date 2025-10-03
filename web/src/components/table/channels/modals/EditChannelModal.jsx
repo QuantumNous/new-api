@@ -188,6 +188,8 @@ const EditChannelModal = (props) => {
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
+  const [isIonetChannel, setIsIonetChannel] = useState(false);
+  const [ionetMetadata, setIonetMetadata] = useState(null);
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -198,6 +200,21 @@ const EditChannelModal = (props) => {
   // 专门的2FA验证状态（用于TwoFactorAuthModal）
   const [show2FAVerifyModal, setShow2FAVerifyModal] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
+
+  useEffect(() => {
+    if (!isEdit) {
+      setIsIonetChannel(false);
+      setIonetMetadata(null);
+    }
+  }, [isEdit]);
+
+  const handleOpenIonetDeployment = () => {
+    if (!ionetMetadata?.deployment_id) {
+      return;
+    }
+    const targetUrl = `/console/model-deployments?deployment=${ionetMetadata.deployment_id}`;
+    window.open(targetUrl, '_blank', 'noopener');
+  };
   const [verifyLoading, setVerifyLoading] = useState(false);
 
   // 表单块导航相关状态
@@ -349,7 +366,12 @@ const EditChannelModal = (props) => {
     handleInputChange('settings', settingsJson);
   };
 
+  const isIonetLocked = isIonetChannel && isEdit;
+
   const handleInputChange = (name, value) => {
+    if (isIonetChannel && isEdit && ['type', 'key', 'base_url'].includes(name)) {
+      return;
+    }
     if (formApiRef.current) {
       formApiRef.current.setValue(name, value);
     }
@@ -557,6 +579,25 @@ const EditChannelModal = (props) => {
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
+
+      let parsedIonet = null;
+      if (data.other_info) {
+        try {
+          const maybeMeta = JSON.parse(data.other_info);
+          if (
+            maybeMeta &&
+            typeof maybeMeta === 'object' &&
+            maybeMeta.source === 'ionet'
+          ) {
+            parsedIonet = maybeMeta;
+          }
+        } catch (error) {
+          // ignore parse error
+        }
+      }
+      const managedByIonet = !!parsedIonet;
+      setIsIonetChannel(managedByIonet);
+      setIonetMetadata(parsedIonet);
       // console.log(data);
     } else {
       showError(message);
@@ -1410,6 +1451,29 @@ const EditChannelModal = (props) => {
                     </div>
                   </div>
 
+                  {isIonetChannel && (
+                    <Banner
+                      type='info'
+                      closeIcon={null}
+                      className='mb-4 rounded-xl'
+                      description={t('此渠道由 IO.NET 自动同步，类型、密钥和 API 地址已锁定。')}
+                    >
+                      <Space>
+                        {ionetMetadata?.deployment_id && (
+                          <Button
+                            size='small'
+                            theme='light'
+                            type='primary'
+                            icon={<IconGlobe />}
+                            onClick={handleOpenIonetDeployment}
+                          >
+                            {t('查看关联部署')}
+                          </Button>
+                        )}
+                      </Space>
+                    </Banner>
+                  )}
+
                   <Form.Select
                     field='type'
                     label={t('类型')}
@@ -1423,6 +1487,7 @@ const EditChannelModal = (props) => {
                     onSearch={(value) => setChannelSearchValue(value)}
                     renderOptionItem={renderChannelOption}
                     onChange={(value) => handleInputChange('type', value)}
+                    disabled={isIonetLocked}
                   />
 
                   {inputs.type === 20 && (
@@ -1522,6 +1587,7 @@ const EditChannelModal = (props) => {
                         autosize
                         autoComplete='new-password'
                         onChange={(value) => handleInputChange('key', value)}
+                        disabled={isIonetLocked}
                         extraText={
                           <div className='flex items-center gap-2 flex-wrap'>
                             {isEdit &&
@@ -1936,6 +2002,7 @@ const EditChannelModal = (props) => {
                               handleInputChange('base_url', value)
                             }
                             showClear
+                            disabled={isIonetLocked}
                           />
                         </div>
                         <div>
@@ -1990,6 +2057,7 @@ const EditChannelModal = (props) => {
                               handleInputChange('base_url', value)
                             }
                             showClear
+                            disabled={isIonetLocked}
                           />
                         </div>
                       </>
@@ -2021,6 +2089,7 @@ const EditChannelModal = (props) => {
                               handleInputChange('base_url', value)
                             }
                             showClear
+                            disabled={isIonetLocked}
                             extraText={t(
                               '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
                             )}
@@ -2040,6 +2109,7 @@ const EditChannelModal = (props) => {
                             handleInputChange('base_url', value)
                           }
                           showClear
+                          disabled={isIonetLocked}
                         />
                       </div>
                     )}
@@ -2051,40 +2121,42 @@ const EditChannelModal = (props) => {
                           label={t(
                             '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
                           )}
-                          placeholder={t(
-                            '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
-                          )}
-                          onChange={(value) =>
-                            handleInputChange('base_url', value)
-                          }
-                          showClear
-                        />
-                      </div>
-                    )}
+                      placeholder={t(
+                        '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
+                      )}
+                      onChange={(value) =>
+                        handleInputChange('base_url', value)
+                      }
+                      showClear
+                      disabled={isIonetLocked}
+                    />
+                  </div>
+                )}
 
-                    {inputs.type === 45 && (
-                        <div>
-                          <Form.Select
-                              field='base_url'
-                              label={t('API地址')}
-                              placeholder={t('请选择API地址')}
-                              onChange={(value) =>
-                                  handleInputChange('base_url', value)
-                              }
-                              optionList={[
-                                {
-                                  value: 'https://ark.cn-beijing.volces.com',
-                                  label: 'https://ark.cn-beijing.volces.com'
-                                },
-                                {
-                                  value: 'https://ark.ap-southeast.bytepluses.com',
-                                  label: 'https://ark.ap-southeast.bytepluses.com'
-                                }
-                              ]}
-                              defaultValue='https://ark.cn-beijing.volces.com'
-                          />
-                        </div>
-                    )}
+                {inputs.type === 45 && (
+                    <div>
+                      <Form.Select
+                          field='base_url'
+                          label={t('API地址')}
+                          placeholder={t('请选择API地址')}
+                          onChange={(value) =>
+                              handleInputChange('base_url', value)
+                          }
+                          optionList={[
+                            {
+                              value: 'https://ark.cn-beijing.volces.com',
+                              label: 'https://ark.cn-beijing.volces.com'
+                            },
+                            {
+                              value: 'https://ark.ap-southeast.bytepluses.com',
+                              label: 'https://ark.ap-southeast.bytepluses.com'
+                            }
+                          ]}
+                          defaultValue='https://ark.cn-beijing.volces.com'
+                          disabled={isIonetLocked}
+                      />
+                    </div>
+                )}
                     </Card>
                   </div>
                 )}
@@ -2179,17 +2251,17 @@ const EditChannelModal = (props) => {
                             {t('获取模型列表')}
                           </Button>
                         )}
-                          {inputs.type === 4 && isEdit && (
-                              <Button
-                                  size='small'
-                                  type='primary'
-                                  theme='solid'
-                                  onClick={() => setOllamaModalVisible(true)}
-                                  style={{ backgroundColor: '#1890ff', borderColor: '#1890ff' }}
-                              >
-                                  🦙 {t('Ollama 模型管理')}
-                              </Button>
-                          )}
+                        {inputs.type === 4 && isEdit && (
+                          <Button
+                            size='small'
+                            type='primary'
+                            theme='light'
+                            icon={<IconServer />}
+                            onClick={() => setOllamaModalVisible(true)}
+                          >
+                            {t('Ollama 模型管理')}
+                          </Button>
+                        )}
                         <Button
                           size='small'
                           type='warning'
@@ -2792,6 +2864,16 @@ const EditChannelModal = (props) => {
         onModelsUpdate={() => {
           // 当模型更新后，重新获取模型列表以更新表单
           fetchUpstreamModelList('models');
+        }}
+        onApplyModels={(modelIds) => {
+          if (!Array.isArray(modelIds) || modelIds.length === 0) {
+            return;
+          }
+          handleInputChange('models', modelIds);
+          if (formApiRef.current) {
+            formApiRef.current.setValue('models', modelIds);
+          }
+          showSuccess(t('模型列表已更新'));
         }}
       />
     </>

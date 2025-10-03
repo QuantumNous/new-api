@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Modal,
   Form,
@@ -35,16 +35,32 @@ import {
   Tag,
   Row,
   Col,
-  Alert,
   Tooltip,
-  AutoComplete,
+  Radio,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconMinus, IconHelpCircle, IconRefresh } from '@douyinfe/semi-icons';
+import { IconPlus, IconMinus, IconHelpCircle, IconRefresh, IconCopy } from '@douyinfe/semi-icons';
 import { API } from '../../../../helpers';
-import { showError, showSuccess, showNotice } from '../../../../helpers';
+import { showError, showSuccess, copy } from '../../../../helpers';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
+const RadioGroup = Radio.Group;
+
+const BUILTIN_IMAGE = 'ollama/ollama:latest';
+const DEFAULT_TRAFFIC_PORT = 11434;
+
+const generateRandomKey = () => {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `ionet-${crypto.randomUUID().replace(/-/g, '')}`;
+    }
+  } catch (error) {
+    // ignore
+  }
+  return `ionet-${Math.random().toString(36).slice(2)}${Math.random()
+    .toString(36)
+    .slice(2)}`;
+};
 
 const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const [formApi, setFormApi] = useState(null);
@@ -69,12 +85,30 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const [secretEnvVariables, setSecretEnvVariables] = useState([{ key: '', value: '' }]);
   const [entrypoint, setEntrypoint] = useState(['']);
   const [args, setArgs] = useState(['']);
+  const [imageMode, setImageMode] = useState('builtin');
+  const [autoOllamaKey, setAutoOllamaKey] = useState('');
+  const customSecretEnvRef = useRef(null);
+  const customEnvRef = useRef(null);
+  const customImageRef = useRef('');
+  const customTrafficPortRef = useRef(null);
+  const prevImageModeRef = useRef('builtin');
+  const [formDefaults, setFormDefaults] = useState({
+    resource_private_name: '',
+    image_url: BUILTIN_IMAGE,
+    gpus_per_container: 1,
+    replica_count: 1,
+    duration_hours: 1,
+    traffic_port: DEFAULT_TRAFFIC_PORT,
+    location_ids: [],
+  });
+  const [formKey, setFormKey] = useState(0);
+  const [priceCurrency, setPriceCurrency] = useState('usdc');
 
   // Form values for price calculation
   const [selectedHardwareId, setSelectedHardwareId] = useState(null);
   const [selectedLocationIds, setSelectedLocationIds] = useState([]);
   const [gpusPerContainer, setGpusPerContainer] = useState(1);
-  const [durationHours, setDurationHours] = useState(24);
+  const [durationHours, setDurationHours] = useState(1);
   const [replicaCount, setReplicaCount] = useState(1);
 
   // Load initial data when modal opens
@@ -82,9 +116,6 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     if (visible) {
       loadHardwareTypes();
       loadLocations();
-      if (formApi) {
-        formApi.reset();
-      }
       resetFormState();
     }
   }, [visible]);
@@ -109,24 +140,129 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     } else {
       setPriceEstimation(null);
     }
-  }, [selectedHardwareId, selectedLocationIds, gpusPerContainer, durationHours, replicaCount]);
+  }, [
+    selectedHardwareId,
+    selectedLocationIds,
+    gpusPerContainer,
+    durationHours,
+    replicaCount,
+    priceCurrency,
+  ]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    const prevMode = prevImageModeRef.current;
+    if (prevMode === imageMode) {
+      return;
+    }
+
+    if (imageMode === 'builtin') {
+      if (prevMode === 'custom') {
+        if (formApi) {
+          customImageRef.current = formApi.getValue('image_url') || customImageRef.current;
+          customTrafficPortRef.current = formApi.getValue('traffic_port') ?? customTrafficPortRef.current;
+        }
+        customSecretEnvRef.current = secretEnvVariables.map((item) => ({ ...item }));
+        customEnvRef.current = envVariables.map((item) => ({ ...item }));
+      }
+      const newKey = generateRandomKey();
+      setAutoOllamaKey(newKey);
+      setSecretEnvVariables([{ key: 'OLLAMA_API_KEY', value: newKey }]);
+      setEnvVariables([{ key: '', value: '' }]);
+      if (formApi) {
+        formApi.setValue('image_url', BUILTIN_IMAGE);
+        formApi.setValue('traffic_port', DEFAULT_TRAFFIC_PORT);
+      }
+    } else {
+      const restoredSecrets =
+        customSecretEnvRef.current && customSecretEnvRef.current.length > 0
+          ? customSecretEnvRef.current.map((item) => ({ ...item }))
+          : [{ key: '', value: '' }];
+      const restoredEnv =
+        customEnvRef.current && customEnvRef.current.length > 0
+          ? customEnvRef.current.map((item) => ({ ...item }))
+          : [{ key: '', value: '' }];
+      setSecretEnvVariables(restoredSecrets);
+      setEnvVariables(restoredEnv);
+      if (formApi) {
+        const restoredImage = customImageRef.current || '';
+        formApi.setValue('image_url', restoredImage);
+        if (customTrafficPortRef.current) {
+          formApi.setValue('traffic_port', customTrafficPortRef.current);
+        }
+      }
+    }
+
+    prevImageModeRef.current = imageMode;
+  }, [imageMode, visible, secretEnvVariables, envVariables, formApi]);
+
+  useEffect(() => {
+    if (!visible || !formApi) {
+      return;
+    }
+    if (imageMode === 'builtin') {
+      formApi.setValue('image_url', BUILTIN_IMAGE);
+    }
+  }, [formApi, imageMode, visible]);
+
+  useEffect(() => {
+    if (!formApi) {
+      return;
+    }
+    if (selectedHardwareId !== null && selectedHardwareId !== undefined) {
+      formApi.setValue('hardware_id', selectedHardwareId);
+    }
+  }, [formApi, selectedHardwareId]);
+
+  useEffect(() => {
+    if (!formApi) {
+      return;
+    }
+    formApi.setValue('location_ids', selectedLocationIds);
+  }, [formApi, selectedLocationIds]);
 
   const resetFormState = () => {
+    const randomName = `deployment-${Math.random().toString(36).slice(2, 8)}`;
+    const generatedKey = generateRandomKey();
+
     setSelectedHardwareId(null);
     setSelectedLocationIds([]);
     setGpusPerContainer(1);
-    setDurationHours(24);
+    setDurationHours(1);
     setReplicaCount(1);
     setPriceEstimation(null);
     setAvailableReplicas([]);
     setLocationTotalAvailable(null);
     setHardwareTotalAvailable(null);
     setEnvVariables([{ key: '', value: '' }]);
-    setSecretEnvVariables([{ key: '', value: '' }]);
+    setSecretEnvVariables([{ key: 'OLLAMA_API_KEY', value: generatedKey }]);
     setEntrypoint(['']);
     setArgs(['']);
     setShowAdvanced(false);
+    setImageMode('builtin');
+    setAutoOllamaKey(generatedKey);
+    customSecretEnvRef.current = null;
+    customEnvRef.current = null;
+    customImageRef.current = '';
+    customTrafficPortRef.current = DEFAULT_TRAFFIC_PORT;
+    prevImageModeRef.current = 'builtin';
+    setFormDefaults({
+      resource_private_name: randomName,
+      image_url: BUILTIN_IMAGE,
+      gpus_per_container: 1,
+      replica_count: 1,
+      duration_hours: 1,
+      traffic_port: DEFAULT_TRAFFIC_PORT,
+      location_ids: [],
+    });
+    setFormKey((prev) => prev + 1);
+    setPriceCurrency('usdc');
   };
+
+  const arraysEqual = (a = [], b = []) =>
+    a.length === b.length && a.every((value, index) => value === b[index]);
 
   const loadHardwareTypes = async () => {
     try {
@@ -165,6 +301,15 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         setHardwareTotalAvailable(
           hasProvidedTotal ? providedTotal : fallbackTotal,
         );
+
+        if (normalizedHardware.length > 0 && selectedHardwareId === null) {
+          const preferredHardware =
+            normalizedHardware.find((item) => (item.available_count || 0) > 0) ||
+            normalizedHardware[0];
+          if (preferredHardware) {
+            setSelectedHardwareId(preferredHardware.id);
+          }
+        }
       } else {
         showError(t('获取硬件类型失败: ') + response.data.message);
       }
@@ -226,14 +371,22 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`
       );
       if (response.data.success) {
-        setAvailableReplicas(response.data.data.replicas || []);
+        const replicasList = response.data.data?.replicas || [];
+        setAvailableReplicas(replicasList);
+        const totalAvailableForHardware = replicasList.reduce(
+          (total, replica) => total + (replica.available_count || 0),
+          0,
+        );
+        setLocationTotalAvailable(totalAvailableForHardware);
       } else {
         showError(t('获取可用资源失败: ') + response.data.message);
         setAvailableReplicas([]);
+        setLocationTotalAvailable(null);
       }
     } catch (error) {
       console.error('Load available replicas error:', error);
       setAvailableReplicas([]);
+      setLocationTotalAvailable(null);
     } finally {
       setLoadingReplicas(false);
     }
@@ -248,6 +401,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         gpus_per_container: gpusPerContainer,
         duration_hours: durationHours,
         replica_count: replicaCount,
+        currency: priceCurrency?.toUpperCase?.() || priceCurrency,
+        duration_type: 'hour',
+        duration_qty: durationHours,
+        hardware_qty: gpusPerContainer,
       };
 
       const response = await API.post('/api/deployments/price-estimation', requestData);
@@ -284,9 +441,21 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         }
       });
 
+      if (imageMode === 'builtin') {
+        if (!secretEnvVars.OLLAMA_API_KEY) {
+          const ensuredKey = autoOllamaKey || generateRandomKey();
+          secretEnvVars.OLLAMA_API_KEY = ensuredKey;
+          setAutoOllamaKey(ensuredKey);
+        }
+      }
+
       // Prepare entrypoint and args
       const cleanEntrypoint = entrypoint.filter(item => item.trim() !== '');
       const cleanArgs = args.filter(item => item.trim() !== '');
+
+      const resolvedImage = imageMode === 'builtin' ? BUILTIN_IMAGE : values.image_url;
+      const resolvedTrafficPort =
+        values.traffic_port || (imageMode === 'builtin' ? DEFAULT_TRAFFIC_PORT : undefined);
 
       const requestData = {
         resource_private_name: values.resource_private_name,
@@ -300,10 +469,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           secret_env_variables: secretEnvVars,
           entrypoint: cleanEntrypoint.length > 0 ? cleanEntrypoint : undefined,
           args: cleanArgs.length > 0 ? cleanArgs : undefined,
-          traffic_port: values.traffic_port || undefined,
+          traffic_port: resolvedTrafficPort,
         },
         registry_config: {
-          image_url: values.image_url,
+          image_url: resolvedImage,
           registry_username: values.registry_username || undefined,
           registry_secret: values.registry_secret || undefined,
         },
@@ -385,26 +554,102 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     }
   };
 
-  // Get available replicas for selected locations
-  const getAvailableReplicasForLocations = () => {
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    const candidateFromReplicas =
+      selectedHardwareId && availableReplicas.length > 0
+        ? (() => {
+            const sorted = [...availableReplicas].sort(
+              (a, b) => (b.available_count || 0) - (a.available_count || 0),
+            );
+            const positive = sorted.filter((item) => (item.available_count || 0) > 0);
+            const source = positive.length > 0 ? positive : sorted;
+            return source.map((item) => item.location_id);
+          })()
+        : [];
+
+    let preferredIds = candidateFromReplicas;
+
+    if (preferredIds.length === 0) {
+      if (selectedHardwareId && loadingReplicas) {
+        return;
+      }
+
+      if (locations.length > 0) {
+        const availableLocationIds = locations
+          .filter((location) => {
+            const availableValue = Number(location.available);
+            return !Number.isNaN(availableValue) && availableValue > 0;
+          })
+          .map((location) => location.id);
+        preferredIds =
+          availableLocationIds.length > 0
+            ? availableLocationIds
+            : locations.map((location) => location.id);
+      }
+    }
+
+    if (preferredIds.length === 0) {
+      if (selectedLocationIds.length > 0) {
+        setSelectedLocationIds([]);
+        if (formApi) {
+          formApi.setValue('location_ids', []);
+        }
+      }
+      return;
+    }
+
+    const retainedSelection = selectedLocationIds.filter((id) =>
+      preferredIds.includes(id),
+    );
+    const nextSelection =
+      retainedSelection.length > 0 ? retainedSelection : [preferredIds[0]];
+
+    if (!arraysEqual(selectedLocationIds, nextSelection)) {
+      setSelectedLocationIds(nextSelection);
+      if (formApi) {
+        formApi.setValue('location_ids', nextSelection);
+      }
+    }
+  }, [
+    availableReplicas,
+    locations,
+    selectedHardwareId,
+    selectedLocationIds,
+    visible,
+    formApi,
+    loadingReplicas,
+  ]);
+
+  const maxAvailableReplicas = useMemo(() => {
     if (!selectedLocationIds.length) return 0;
 
     if (availableReplicas.length > 0) {
       return availableReplicas
         .filter((replica) => selectedLocationIds.includes(replica.location_id))
-        .reduce((total, replica) => total + replica.available_count, 0);
+        .reduce((total, replica) => total + (replica.available_count || 0), 0);
     }
 
     return locations
       .filter((location) => selectedLocationIds.includes(location.id))
-      .reduce(
-        (total, location) =>
-          total + (typeof location.available === 'number' ? location.available : 0),
-        0,
-      );
-  };
+      .reduce((total, location) => {
+        const availableValue = Number(location.available);
+        return total + (Number.isNaN(availableValue) ? 0 : availableValue);
+      }, 0);
+  }, [availableReplicas, selectedLocationIds, locations]);
 
-  const maxAvailableReplicas = getAvailableReplicasForLocations();
+  useEffect(() => {
+    if (!visible || !formApi) {
+      return;
+    }
+    if (maxAvailableReplicas > 0 && replicaCount > maxAvailableReplicas) {
+      setReplicaCount(maxAvailableReplicas);
+      formApi.setValue('replica_count', maxAvailableReplicas);
+    }
+  }, [maxAvailableReplicas, replicaCount, visible, formApi]);
 
   return (
     <Modal
@@ -419,6 +664,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       style={{ top: 20 }}
     >
       <Form
+        key={formKey}
+        initValues={formDefaults}
         getFormApi={setFormApi}
         onSubmit={handleSubmit}
         style={{ maxHeight: '70vh', overflowY: 'auto' }}
@@ -434,22 +681,82 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             rules={[{ required: true, message: t('请输入容器名称') }]}
           />
 
+          <div className="mt-2">
+            <Text strong>{t('镜像选择')}</Text>
+            <div style={{ marginTop: 8 }}>
+              <RadioGroup
+                type="button"
+                value={imageMode}
+                onChange={(value) => setImageMode(value)}
+              >
+                <Radio value="builtin">{t('内置 Ollama 镜像')}</Radio>
+                <Radio value="custom">{t('自定义镜像')}</Radio>
+              </RadioGroup>
+            </div>
+          </div>
+
           <Form.Input
             field="image_url"
             label={t('镜像地址')}
             placeholder={t('例如：nginx:latest')}
             rules={[{ required: true, message: t('请输入镜像地址') }]}
+            disabled={imageMode === 'builtin'}
+            onChange={(value) => {
+              if (imageMode === 'custom') {
+                customImageRef.current = value;
+              }
+            }}
           />
 
+          {imageMode === 'builtin' && (
+            <Space align="center" spacing={8} className="mt-2">
+              <Text size="small" type="tertiary">
+                {t('系统已为该部署准备 Ollama 镜像与随机 API Key')}
+              </Text>
+              <Input
+                readOnly
+                value={autoOllamaKey}
+                size="small"
+                style={{ width: 220 }}
+              />
+              <Button
+                icon={<IconCopy />}
+                size="small"
+                theme="borderless"
+                onClick={async () => {
+                  if (!autoOllamaKey) {
+                    return;
+                  }
+                  const copied = await copy(autoOllamaKey);
+                  if (copied) {
+                    showSuccess(t('已复制自动生成的 API Key'));
+                  } else {
+                    showError(t('复制失败，请手动选择文本复制'));
+                  }
+                }}
+              >
+                {t('复制')}
+              </Button>
+            </Space>
+          )}
+
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Select
                 field="hardware_id"
                 label={t('硬件类型')}
                 placeholder={t('选择硬件类型')}
                 loading={loadingHardware}
                 rules={[{ required: true, message: t('请选择硬件类型') }]}
-                onChange={(value) => setSelectedHardwareId(value)}
+                onChange={(value) => {
+                  setSelectedHardwareId(value);
+                  setSelectedLocationIds([]);
+                  if (formApi) {
+                    formApi.setValue('location_ids', []);
+                  }
+                }}
+                style={{ width: '100%' }}
+                dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
               >
                 {hardwareTypes.map((hardware) => {
                   const displayName = hardware.brand_name
@@ -482,7 +789,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 })}
               </Form.Select>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.InputNumber
                 field="gpus_per_container"
                 label={t('每容器GPU数量')}
@@ -491,6 +798,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 max={selectedHardwareId ? hardwareTypes.find(h => h.id === selectedHardwareId)?.max_gpus : 8}
                 rules={[{ required: true, message: t('请输入GPU数量') }]}
                 onChange={(value) => setGpusPerContainer(value)}
+                style={{ width: '100%' }}
               />
             </Col>
           </Row>
@@ -514,6 +822,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             loading={loadingLocations}
             rules={[{ required: true, message: t('请选择至少一个部署位置') }]}
             onChange={(value) => setSelectedLocationIds(value)}
+            style={{ width: '100%' }}
+            dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
           >
             {locations.map((location) => {
               const replicaEntry = availableReplicas.find(
@@ -522,9 +832,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               const hasReplicaData = availableReplicas.length > 0;
               const availableCount = hasReplicaData
                 ? replicaEntry?.available_count ?? 0
-                : typeof location.available === 'number'
-                  ? location.available
-                  : 0;
+                : (() => {
+                    const numeric = Number(location.available);
+                    return Number.isNaN(numeric) ? 0 : numeric;
+                  })();
               const locationLabel =
                 location.region ||
                 location.country ||
@@ -571,7 +882,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           )}
 
           <Row gutter={16}>
-            <Col span={8}>
+            <Col xs={24} md={8}>
               <Form.InputNumber
                 field="replica_count"
                 label={t('副本数量')}
@@ -580,6 +891,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 max={maxAvailableReplicas || 100}
                 rules={[{ required: true, message: t('请输入副本数量') }]}
                 onChange={(value) => setReplicaCount(value)}
+                style={{ width: '100%' }}
               />
               {maxAvailableReplicas > 0 && (
                 <Text size="small" type="tertiary">
@@ -587,18 +899,19 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 </Text>
               )}
             </Col>
-            <Col span={8}>
+            <Col xs={24} md={8}>
               <Form.InputNumber
                 field="duration_hours"
                 label={t('运行时长（小时）')}
-                placeholder={24}
+                placeholder={1}
                 min={1}
                 max={8760} // 1 year
                 rules={[{ required: true, message: t('请输入运行时长') }]}
                 onChange={(value) => setDurationHours(value)}
+                style={{ width: '100%' }}
               />
             </Col>
-            <Col span={8}>
+            <Col xs={24} md={8}>
               <Form.InputNumber
                 field="traffic_port"
                 label={
@@ -609,45 +922,68 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                     </Tooltip>
                   </Space>
                 }
-                placeholder={t('例如：8080')}
+                placeholder={DEFAULT_TRAFFIC_PORT}
                 min={1}
                 max={65535}
+                style={{ width: '100%' }}
+                disabled={imageMode === 'builtin'}
               />
             </Col>
           </Row>
         </Card>
 
-        {priceEstimation && (
-          <Card className="mb-4">
-            <Title heading={6}>{t('价格预估')}</Title>
-            <Row gutter={16}>
-              <Col span={8}>
-                <Text strong>{t('总费用')}: </Text>
-                <Text size="large" type="primary">
-                  ${priceEstimation.estimated_cost?.toFixed(4)} {priceEstimation.currency}
+        {priceEstimation && (() => {
+          const currencyLabel = (priceEstimation.currency || priceCurrency || '').toUpperCase();
+          return (
+            <Card className="mb-4">
+              <Title heading={6}>{t('价格预估')}</Title>
+              <Space align="center" spacing={12} className="mb-3 flex flex-wrap">
+                <Text type="secondary" size="small">
+                  {t('计价币种')}
                 </Text>
-              </Col>
-              <Col span={8}>
-                <Text strong>{t('小时费率')}: </Text>
-                <Text>
-                  ${priceEstimation.price_breakdown?.hourly_rate?.toFixed(4)} {priceEstimation.currency}/h
-                </Text>
-              </Col>
-              <Col span={8}>
-                <Text strong>{t('计算成本')}: </Text>
-                <Text>
-                  ${priceEstimation.price_breakdown?.compute_cost?.toFixed(4)} {priceEstimation.currency}
-                </Text>
-              </Col>
-            </Row>
+                <RadioGroup
+                  type="button"
+                  value={priceCurrency}
+                  onChange={(value) => setPriceCurrency(value)}
+                >
+                  <Radio value="usdc">USDC</Radio>
+                  <Radio value="iocoin">IOCOIN</Radio>
+                </RadioGroup>
+                {currencyLabel && (
+                  <Tag size="small" color="blue">
+                    {currencyLabel}
+                  </Tag>
+                )}
+              </Space>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Text strong>{t('总费用')}: </Text>
+                  <Text size="large" type="primary">
+                    {priceEstimation.estimated_cost?.toFixed(4)} {currencyLabel}
+                  </Text>
+                </Col>
+                <Col span={8}>
+                  <Text strong>{t('小时费率')}: </Text>
+                  <Text>
+                    {priceEstimation.price_breakdown?.hourly_rate?.toFixed(4)} {currencyLabel}/h
+                  </Text>
+                </Col>
+                <Col span={8}>
+                  <Text strong>{t('计算成本')}: </Text>
+                  <Text>
+                    {priceEstimation.price_breakdown?.compute_cost?.toFixed(4)} {currencyLabel}
+                  </Text>
+                </Col>
+              </Row>
             {loadingPrice && (
               <div style={{ textAlign: 'center', marginTop: 8 }}>
                 <Spin size="small" />
                 <Text size="small" style={{ marginLeft: 8 }}>{t('价格计算中...')}</Text>
               </div>
             )}
-          </Card>
-        )}
+            </Card>
+          );
+        })()}
 
         <Collapse>
           <Collapse.Panel header={t('高级配置')} itemKey="advanced">
@@ -757,7 +1093,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Button
                         icon={<IconMinus />}
                         onClick={() => handleRemoveEnvVariable(index, 'env')}
-                        disabled={envVariables.length === 1}
+                          disabled={envVariables.length === 1}
                       />
                     </Col>
                   </Row>
@@ -773,32 +1109,38 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
               <div>
                 <Text strong>{t('密钥环境变量')}</Text>
-                {secretEnvVariables.map((env, index) => (
-                  <Row key={index} gutter={8} style={{ marginTop: 8 }}>
-                    <Col span={10}>
-                      <Input
-                        placeholder={t('变量名')}
-                        value={env.key}
-                        onChange={(value) => handleEnvVariableChange(index, 'key', value, 'secret')}
-                      />
-                    </Col>
-                    <Col span={10}>
-                      <Input
-                        placeholder={t('变量值')}
-                        type="password"
-                        value={env.value}
-                        onChange={(value) => handleEnvVariableChange(index, 'value', value, 'secret')}
-                      />
-                    </Col>
-                    <Col span={4}>
-                      <Button
-                        icon={<IconMinus />}
-                        onClick={() => handleRemoveEnvVariable(index, 'secret')}
-                        disabled={secretEnvVariables.length === 1}
-                      />
-                    </Col>
-                  </Row>
-                ))}
+                {secretEnvVariables.map((env, index) => {
+                  const isAutoSecret =
+                    imageMode === 'builtin' && env.key === 'OLLAMA_API_KEY';
+                  return (
+                    <Row key={index} gutter={8} style={{ marginTop: 8 }}>
+                      <Col span={10}>
+                        <Input
+                          placeholder={t('变量名')}
+                          value={env.key}
+                          onChange={(value) => handleEnvVariableChange(index, 'key', value, 'secret')}
+                          disabled={isAutoSecret}
+                        />
+                      </Col>
+                      <Col span={10}>
+                        <Input
+                          placeholder={t('变量值')}
+                          type="password"
+                          value={env.value}
+                          onChange={(value) => handleEnvVariableChange(index, 'value', value, 'secret')}
+                          disabled={isAutoSecret}
+                        />
+                      </Col>
+                      <Col span={4}>
+                        <Button
+                          icon={<IconMinus />}
+                          onClick={() => handleRemoveEnvVariable(index, 'secret')}
+                          disabled={secretEnvVariables.length === 1 || isAutoSecret}
+                        />
+                      </Col>
+                    </Row>
+                  );
+                })}
                 <Button
                   icon={<IconPlus />}
                   onClick={() => handleAddEnvVariable('secret')}

@@ -97,7 +97,6 @@ export const useDeploymentsData = () => {
     () => ({
       id: 'id',
       status: 'status',
-      type: 'type',
       container_name: 'container_name',
       time_remaining: 'time_remaining',
       hardware_info: 'hardware_info',
@@ -125,7 +124,6 @@ export const useDeploymentsData = () => {
     return {
       [COLUMN_KEYS.container_name]: true,
       [COLUMN_KEYS.status]: true,
-      [COLUMN_KEYS.type]: true,
       [COLUMN_KEYS.time_remaining]: true,
       [COLUMN_KEYS.hardware_info]: true,
       [COLUMN_KEYS.created_at]: true,
@@ -270,21 +268,6 @@ export const useDeploymentsData = () => {
     }
   };
 
-  const stopDeployment = async (deploymentId) => {
-    try {
-      const res = await API.post(`/api/deployments/${deploymentId}/stop`);
-      if (res.data.success) {
-        showSuccess(t('部署停止成功'));
-        await refresh();
-      } else {
-        showError(res.data.message);
-      }
-    } catch (error) {
-      console.error(error);
-      showError(t('停止部署失败'));
-    }
-  };
-
   const restartDeployment = async (deploymentId) => {
     try {
       const res = await API.post(`/api/deployments/${deploymentId}/restart`);
@@ -312,6 +295,84 @@ export const useDeploymentsData = () => {
     } catch (error) {
       console.error(error);
       showError(t('删除部署失败'));
+    }
+  };
+
+  const syncDeploymentToChannel = async (deployment) => {
+    if (!deployment?.id) {
+      showError(t('同步渠道失败：缺少部署信息'));
+      return;
+    }
+
+    try {
+      const containersResp = await API.get(`/api/deployments/${deployment.id}/containers`);
+      if (!containersResp.data?.success) {
+        showError(containersResp.data?.message || t('获取容器信息失败'));
+        return;
+      }
+
+      const containers = containersResp.data?.data?.containers || [];
+      const activeContainer = containers.find((ctr) => ctr?.public_url);
+
+      if (!activeContainer?.public_url) {
+        showError(t('未找到可用的容器访问地址'));
+        return;
+      }
+
+      const rawUrl = String(activeContainer.public_url).trim();
+      const baseUrl = rawUrl.replace(/\/+$/, '');
+      if (!baseUrl) {
+        showError(t('容器访问地址无效'));
+        return;
+      }
+
+      const baseName = deployment.container_name || deployment.deployment_name || deployment.name || deployment.id;
+      const safeName = String(baseName || 'ionet').slice(0, 60);
+      const channelName = `[IO.NET] ${safeName}`;
+
+      let randomKey;
+      try {
+        randomKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? `ionet-${crypto.randomUUID().replace(/-/g, '')}`
+          : null;
+      } catch (err) {
+        randomKey = null;
+      }
+      if (!randomKey) {
+        randomKey = `ionet-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+      }
+
+      const otherInfo = {
+        source: 'ionet',
+        deployment_id: deployment.id,
+        deployment_name: safeName,
+        container_id: activeContainer.container_id || null,
+        public_url: baseUrl,
+      };
+
+      const payload = {
+        mode: 'single',
+        channel: {
+          name: channelName,
+          type: 4,
+          key: randomKey,
+          base_url: baseUrl,
+          group: 'default',
+          tag: 'ionet',
+          remark: `[IO.NET] Auto-synced from deployment ${deployment.id}`,
+          other_info: JSON.stringify(otherInfo),
+        },
+      };
+
+      const createResp = await API.post('/api/channel/', payload);
+      if (createResp.data?.success) {
+        showSuccess(t('已同步到渠道'));
+      } else {
+        showError(createResp.data?.message || t('同步渠道失败'));
+      }
+    } catch (error) {
+      console.error(error);
+      showError(t('同步渠道失败'));
     }
   };
 
@@ -369,25 +430,6 @@ export const useDeploymentsData = () => {
     } catch (error) {
       console.error(error);
       showError(t('批量启动失败'));
-    }
-  };
-
-  const batchStopDeployments = async () => {
-    if (selectedKeys.length === 0) return;
-    
-    try {
-      const ids = selectedKeys.map(deployment => deployment.id);
-      const res = await API.post('/api/deployments/batch_stop', { ids });
-      if (res.data.success) {
-        showSuccess(t('批量停止成功'));
-        setSelectedKeys([]);
-        await refresh();
-      } else {
-        showError(res.data.message);
-      }
-    } catch (error) {
-      console.error(error);
-      showError(t('批量停止失败'));
     }
   };
 
@@ -452,15 +494,14 @@ export const useDeploymentsData = () => {
 
     // Deployment operations
     startDeployment,
-    stopDeployment,
     restartDeployment,
     deleteDeployment,
     updateDeploymentName,
+    syncDeploymentToChannel,
 
     // Batch operations
     batchDeleteDeployments,
     batchStartDeployments,
-    batchStopDeployments,
 
     // Translation
     t,

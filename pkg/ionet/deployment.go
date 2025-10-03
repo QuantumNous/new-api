@@ -121,7 +121,7 @@ func (c *Client) GetDeployment(deploymentID string) (*DeploymentDetail, error) {
 		Data DeploymentDetail `json:"data"`
 	}
 
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
 		return nil, fmt.Errorf("failed to parse deployment details: %w", err)
 	}
 
@@ -179,7 +179,7 @@ func (c *Client) ExtendDeployment(deploymentID string, req *ExtendDurationReques
 		Data DeploymentDetail `json:"data"`
 	}
 
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
 		return nil, fmt.Errorf("failed to parse extended deployment details: %w", err)
 	}
 
@@ -222,14 +222,62 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	if req.HardwareID == 0 {
 		return nil, fmt.Errorf("hardware_id is required")
 	}
-	if req.GPUsPerContainer < 1 {
-		return nil, fmt.Errorf("gpus_per_container must be at least 1")
-	}
-	if req.DurationHours < 1 {
-		return nil, fmt.Errorf("duration_hours must be at least 1")
-	}
 	if req.ReplicaCount < 1 {
 		return nil, fmt.Errorf("replica_count must be at least 1")
+	}
+
+	currency := strings.TrimSpace(req.Currency)
+	if currency == "" {
+		currency = "usdc"
+	}
+
+	durationType := strings.TrimSpace(req.DurationType)
+	if durationType == "" {
+		durationType = "hour"
+	}
+	durationType = strings.ToLower(durationType)
+
+	apiDurationType := ""
+
+	durationQty := req.DurationQty
+	if durationQty < 1 {
+		durationQty = req.DurationHours
+	}
+	if durationQty < 1 {
+		return nil, fmt.Errorf("duration_qty must be at least 1")
+	}
+
+	hardwareQty := req.HardwareQty
+	if hardwareQty < 1 {
+		hardwareQty = req.GPUsPerContainer
+	}
+	if hardwareQty < 1 {
+		return nil, fmt.Errorf("hardware_qty must be at least 1")
+	}
+
+	durationHoursForRate := req.DurationHours
+	if durationHoursForRate < 1 {
+		durationHoursForRate = durationQty
+	}
+	switch durationType {
+	case "hour", "hours", "hourly":
+		durationHoursForRate = durationQty
+		apiDurationType = "hourly"
+	case "day", "days", "daily":
+		durationHoursForRate = durationQty * 24
+		apiDurationType = "daily"
+	case "week", "weeks", "weekly":
+		durationHoursForRate = durationQty * 24 * 7
+		apiDurationType = "weekly"
+	case "month", "months", "monthly":
+		durationHoursForRate = durationQty * 24 * 30
+		apiDurationType = "monthly"
+	}
+	if durationHoursForRate < 1 {
+		durationHoursForRate = 1
+	}
+	if apiDurationType == "" {
+		apiDurationType = "hourly"
 	}
 
 	// Build location_ids parameter as array format
@@ -242,9 +290,13 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	params := map[string]interface{}{
 		"location_ids":       locationIDsParam,
 		"hardware_id":        req.HardwareID,
+		"hardware_qty":       hardwareQty,
 		"gpus_per_container": req.GPUsPerContainer,
+		"duration_type":      apiDurationType,
+		"duration_qty":       durationQty,
 		"duration_hours":     req.DurationHours,
 		"replica_count":      req.ReplicaCount,
+		"currency":           currency,
 	}
 
 	endpoint := "/price" + buildQueryParams(params)
@@ -287,14 +339,19 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	}
 
 	// Convert to our internal format
+	durationHoursFloat := float64(durationHoursForRate)
+	if durationHoursFloat <= 0 {
+		durationHoursFloat = 1
+	}
+
 	priceResp := &PriceEstimationResponse{
 		EstimatedCost:   apiResp.Data.TotalCostUSDC,
-		Currency:        "USDC",
+		Currency:        strings.ToUpper(currency),
 		EstimationValid: true,
 		PriceBreakdown: PriceBreakdown{
 			ComputeCost: apiResp.Data.TotalCostUSDC - apiResp.Data.IonetFee - apiResp.Data.CurrencyConversionFee,
 			TotalCost:   apiResp.Data.TotalCostUSDC,
-			HourlyRate:  apiResp.Data.TotalCostUSDC / float64(req.DurationHours),
+			HourlyRate:  apiResp.Data.TotalCostUSDC / durationHoursFloat,
 		},
 	}
 

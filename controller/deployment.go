@@ -576,7 +576,12 @@ func GetDeploymentLogs(c *gin.Context) {
 	}
 
 	containerID := c.Query("container_id")
+	if containerID == "" {
+		common.ApiErrorMsg(c, "container_id parameter is required")
+		return
+	}
 	level := c.Query("level")
+	stream := c.Query("stream")
 	cursor := c.Query("cursor")
 	limitStr := c.Query("limit")
 	follow := c.Query("follow") == "true"
@@ -593,6 +598,7 @@ func GetDeploymentLogs(c *gin.Context) {
 
 	opts := &ionet.GetLogsOptions{
 		Level:  level,
+		Stream: stream,
 		Limit:  limit,
 		Cursor: cursor,
 		Follow: follow,
@@ -609,13 +615,13 @@ func GetDeploymentLogs(c *gin.Context) {
 		}
 	}
 
-	logs, err := client.GetContainerLogs(deploymentID, containerID, opts)
+	rawLogs, err := client.GetContainerLogsRaw(deploymentID, containerID, opts)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	common.ApiSuccess(c, logs)
+	common.ApiSuccess(c, rawLogs)
 }
 
 func ListDeploymentContainers(c *gin.Context) {

@@ -36,6 +36,7 @@ import {
   Row,
   Col,
   Progress,
+  Checkbox,
 } from '@douyinfe/semi-ui';
 import {
   IconClose,
@@ -46,9 +47,120 @@ import {
   IconPlus,
   IconServer,
 } from '@douyinfe/semi-icons';
-import { API, showError, showInfo, showSuccess } from '../../../../helpers';
+import {
+  API,
+  authHeader,
+  getUserIdFromLocalStorage,
+  showError,
+  showInfo,
+  showSuccess,
+} from '../../../../helpers';
 
 const { Text, Title } = Typography;
+
+const CHANNEL_TYPE_OLLAMA = 4;
+
+const parseMaybeJSON = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return null;
+    }
+  }
+  return null;
+};
+
+const resolveOllamaBaseUrl = (info) => {
+  if (!info) {
+    return '';
+  }
+
+  const direct = typeof info.base_url === 'string' ? info.base_url.trim() : '';
+  if (direct) {
+    return direct;
+  }
+
+  const alt =
+    typeof info.ollama_base_url === 'string'
+      ? info.ollama_base_url.trim()
+      : '';
+  if (alt) {
+    return alt;
+  }
+
+  const parsed = parseMaybeJSON(info.other_info);
+  if (parsed && typeof parsed === 'object') {
+    const candidate =
+      (typeof parsed.base_url === 'string' && parsed.base_url.trim()) ||
+      (typeof parsed.public_url === 'string' && parsed.public_url.trim()) ||
+      (typeof parsed.api_url === 'string' && parsed.api_url.trim());
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return '';
+};
+
+const normalizeModels = (items) => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((item) => {
+      if (!item) {
+        return null;
+      }
+
+      if (typeof item === 'string') {
+        return {
+          id: item,
+          owned_by: 'ollama',
+        };
+      }
+
+      if (typeof item === 'object') {
+        const candidateId = item.id || item.ID || item.name || item.model || item.Model;
+        if (!candidateId) {
+          return null;
+        }
+
+        const metadata = item.metadata || item.Metadata;
+        const normalized = {
+          ...item,
+          id: candidateId,
+          owned_by: item.owned_by || item.ownedBy || 'ollama',
+        };
+
+        if (typeof item.size === 'number' && !normalized.size) {
+          normalized.size = item.size;
+        }
+        if (metadata && typeof metadata === 'object') {
+          if (typeof metadata.size === 'number' && !normalized.size) {
+            normalized.size = metadata.size;
+          }
+          if (!normalized.digest && typeof metadata.digest === 'string') {
+            normalized.digest = metadata.digest;
+          }
+          if (!normalized.modified_at && typeof metadata.modified_at === 'string') {
+            normalized.modified_at = metadata.modified_at;
+          }
+          if (metadata.details && !normalized.details) {
+            normalized.details = metadata.details;
+          }
+        }
+
+        return normalized;
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+};
 
 const OllamaModelModal = ({
   visible,
@@ -56,6 +168,7 @@ const OllamaModelModal = ({
   channelId,
   channelInfo,
   onModelsUpdate,
+  onApplyModels,
 }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -66,21 +179,121 @@ const OllamaModelModal = ({
   const [pullLoading, setPullLoading] = useState(false);
   const [pullProgress, setPullProgress] = useState(null);
   const [eventSource, setEventSource] = useState(null);
+  const [selectedModelIds, setSelectedModelIds] = useState([]);
+
+  const handleApplyAllModels = () => {
+    if (!onApplyModels || selectedModelIds.length === 0) {
+      return;
+    }
+    onApplyModels(selectedModelIds);
+  };
+
+  const handleToggleModel = (modelId, checked) => {
+    if (!modelId) {
+      return;
+    }
+    setSelectedModelIds((prev) => {
+      if (checked) {
+        if (prev.includes(modelId)) {
+          return prev;
+        }
+        return [...prev, modelId];
+      }
+      return prev.filter((id) => id !== modelId);
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedModelIds(models.map((item) => item?.id).filter(Boolean));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedModelIds([]);
+  };
 
   // 获取模型列表
   const fetchModels = async () => {
-    if (!channelId) return;
-    
+    const channelType = Number(channelInfo?.type ?? CHANNEL_TYPE_OLLAMA);
+    const shouldTryLiveFetch = channelType === CHANNEL_TYPE_OLLAMA;
+    const resolvedBaseUrl = resolveOllamaBaseUrl(channelInfo);
+
     setLoading(true);
+    let liveFetchSucceeded = false;
+    let fallbackSucceeded = false;
+    let lastError = '';
+    let nextModels = [];
+
     try {
-      const res = await API.get(`/api/channel/fetch_models/${channelId}`);
-      if (res.data.success) {
-        setModels(res.data.data || []);
-      } else {
-        showError(res.data.message || t('获取模型列表失败'));
+      if (shouldTryLiveFetch && resolvedBaseUrl) {
+        try {
+          const payload = {
+            base_url: resolvedBaseUrl,
+            type: CHANNEL_TYPE_OLLAMA,
+            key: channelInfo?.key || '',
+          };
+
+          const res = await API.post('/api/channel/fetch_models', payload, {
+            skipErrorHandler: true,
+          });
+
+          if (res?.data?.success) {
+            nextModels = normalizeModels(res.data.data);
+            liveFetchSucceeded = true;
+          } else if (res?.data?.message) {
+            lastError = res.data.message;
+          }
+        } catch (error) {
+          const message = error?.response?.data?.message || error.message;
+          if (message) {
+            lastError = message;
+          }
+        }
+      } else if (shouldTryLiveFetch && !resolvedBaseUrl && !channelId) {
+        lastError = t('请先填写 Ollama API 地址');
       }
-    } catch (error) {
-      showError(t('获取模型列表失败: {{error}}', { error: error.message }));
+
+      if ((!liveFetchSucceeded || nextModels.length === 0) && channelId) {
+        try {
+          const res = await API.get(`/api/channel/fetch_models/${channelId}`, {
+            skipErrorHandler: true,
+          });
+
+          if (res?.data?.success) {
+            nextModels = normalizeModels(res.data.data);
+            fallbackSucceeded = true;
+            lastError = '';
+          } else if (res?.data?.message) {
+            lastError = res.data.message;
+          }
+        } catch (error) {
+          const message = error?.response?.data?.message || error.message;
+          if (message) {
+            lastError = message;
+          }
+        }
+      }
+
+      if (!liveFetchSucceeded && !fallbackSucceeded && lastError) {
+        showError(`${t('获取模型列表失败')}: ${lastError}`);
+      }
+
+      const normalized = nextModels;
+      setModels(normalized);
+      setFilteredModels(normalized);
+      setSelectedModelIds((prev) => {
+        if (!normalized || normalized.length === 0) {
+          return [];
+        }
+        if (!prev || prev.length === 0) {
+          return normalized.map((item) => item.id).filter(Boolean);
+        }
+        const available = prev.filter((id) =>
+          normalized.some((item) => item.id === id),
+        );
+        return available.length > 0
+          ? available
+          : normalized.map((item) => item.id).filter(Boolean);
+      });
     } finally {
       setLoading(false);
     }
@@ -100,19 +313,33 @@ const OllamaModelModal = ({
       // 关闭之前的连接
       if (eventSource) {
         eventSource.close();
+        setEventSource(null);
       }
 
+      const controller = new AbortController();
+      const closable = {
+        close: () => controller.abort(),
+      };
+      setEventSource(closable);
+
       // 使用 fetch 请求 SSE 流
+      const authHeaders = authHeader();
+      const userId = getUserIdFromLocalStorage();
+      const fetchHeaders = {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        'New-API-User': String(userId),
+        ...authHeaders,
+      };
+
       const response = await fetch('/api/channel/ollama/pull/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
+        headers: fetchHeaders,
         body: JSON.stringify({
           channel_id: channelId,
           model_name: pullModelName.trim(),
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -128,66 +355,85 @@ const OllamaModelModal = ({
         try {
           while (true) {
             const { done, value } = await reader.read();
-            
+
             if (done) break;
-            
+
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
-            
+
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const eventData = line.substring(6);
-                  if (eventData === '[DONE]') {
-                    setPullLoading(false);
-                    setPullProgress(null);
-                    return;
-                  }
-                  
-                  const data = JSON.parse(eventData);
-                  
-                  if (data.status) {
-                    // 处理进度数据
-                    setPullProgress(data);
-                  } else if (data.error) {
-                    // 处理错误
-                    showError(data.error);
-                    setPullProgress(null);
-                    setPullLoading(false);
-                    return;
-                  } else if (data.message) {
-                    // 处理成功消息
-                    showSuccess(data.message);
-                    setPullModelName('');
-                    setPullProgress(null);
-                    setPullLoading(false);
-                    await fetchModels();
-                    if (onModelsUpdate) {
-                      onModelsUpdate();
-                    }
-                    return;
-                  }
-                } catch (e) {
-                  console.error('Failed to parse SSE data:', e);
+              if (!line.startsWith('data: ')) {
+                continue;
+              }
+
+              try {
+                const eventData = line.substring(6);
+                if (eventData === '[DONE]') {
+                  setPullLoading(false);
+                  setPullProgress(null);
+                  setEventSource(null);
+                  return;
                 }
+
+                const data = JSON.parse(eventData);
+
+                if (data.status) {
+                  // 处理进度数据
+                  setPullProgress(data);
+                } else if (data.error) {
+                  // 处理错误
+                  showError(data.error);
+                  setPullProgress(null);
+                  setPullLoading(false);
+                  setEventSource(null);
+                  return;
+                } else if (data.message) {
+                  // 处理成功消息
+                  showSuccess(data.message);
+                  setPullModelName('');
+                  setPullProgress(null);
+                  setPullLoading(false);
+                  setEventSource(null);
+                  await fetchModels();
+                  if (onModelsUpdate) {
+                    onModelsUpdate();
+                  }
+                  return;
+                }
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e);
               }
             }
           }
+          // 正常结束流
+          setPullLoading(false);
+          setPullProgress(null);
+          setEventSource(null);
         } catch (error) {
+          if (error?.name === 'AbortError') {
+            setPullProgress(null);
+            setPullLoading(false);
+            setEventSource(null);
+            return;
+          }
           console.error('Stream processing error:', error);
           showError(t('数据传输中断'));
           setPullProgress(null);
           setPullLoading(false);
+          setEventSource(null);
         }
       };
 
-      processStream();
+      await processStream();
 
     } catch (error) {
-      showError(t('模型拉取失败: {{error}}', { error: error.message }));
+      if (error?.name !== 'AbortError') {
+        showError(t('模型拉取失败: {{error}}', { error: error.message }));
+      }
       setPullLoading(false);
       setPullProgress(null);
+      setEventSource(null);
     }
   };
 
@@ -227,12 +473,32 @@ const OllamaModelModal = ({
     }
   }, [models, searchValue]);
 
+  useEffect(() => {
+    if (!visible) {
+      setSelectedModelIds([]);
+      setPullModelName('');
+      setPullProgress(null);
+      setPullLoading(false);
+    }
+  }, [visible]);
+
   // 组件加载时获取模型列表
   useEffect(() => {
-    if (visible && channelId) {
+    if (!visible) {
+      return;
+    }
+
+    if (channelId || Number(channelInfo?.type) === CHANNEL_TYPE_OLLAMA) {
       fetchModels();
     }
-  }, [visible, channelId]);
+  }, [
+    visible,
+    channelId,
+    channelInfo?.type,
+    channelInfo?.base_url,
+    channelInfo?.other_info,
+    channelInfo?.ollama_base_url,
+  ]);
 
   // 组件卸载时清理 EventSource
   useEffect(() => {
@@ -388,7 +654,7 @@ const OllamaModelModal = ({
                 )}
               </Title>
             </div>
-            <Space>
+            <Space wrap>
               <Input
                 prefix={<IconSearch />}
                 placeholder={t('搜索模型...')}
@@ -398,11 +664,38 @@ const OllamaModelModal = ({
                 showClear
               />
               <Button
+                size='small'
                 theme='borderless'
+                onClick={handleSelectAll}
+                disabled={models.length === 0}
+              >
+                {t('全选')}
+              </Button>
+              <Button
+                size='small'
+                theme='borderless'
+                onClick={handleClearSelection}
+                disabled={selectedModelIds.length === 0}
+              >
+                {t('清空')}
+              </Button>
+              <Button
+                theme='solid'
+                type='primary'
+                icon={<IconPlus />}
+                onClick={handleApplyAllModels}
+                disabled={selectedModelIds.length === 0}
+                size='small'
+              >
+                {t('加入渠道')}
+              </Button>
+              <Button
+                theme='light'
                 type='primary'
                 onClick={fetchModels}
                 loading={loading}
                 icon={<IconRefresh />}
+                size='small'
               >
                 {t('刷新')}
               </Button>
@@ -431,11 +724,15 @@ const OllamaModelModal = ({
                     className='hover:bg-gray-50 rounded-lg p-3 transition-colors'
                   >
                     <div className='flex items-center justify-between w-full'>
-                      <div className='flex items-center flex-1 min-w-0'>
+                      <div className='flex items-center flex-1 min-w-0 gap-3'>
+                        <Checkbox
+                          checked={selectedModelIds.includes(model.id)}
+                          onChange={(checked) => handleToggleModel(model.id, checked)}
+                        />
                         <Avatar
                           size='small'
                           color='blue'
-                          className='mr-3 flex-shrink-0'
+                          className='flex-shrink-0'
                         >
                           {model.id.charAt(0).toUpperCase()}
                         </Avatar>
@@ -455,7 +752,7 @@ const OllamaModelModal = ({
                           </div>
                         </div>
                       </div>
-                      <div className='flex items-center space-x-2 ml-4'>
+                    <div className='flex items-center space-x-2 ml-4'>
                         <Popconfirm
                           title={t('确认删除模型')}
                           content={t('删除后无法恢复，确定要删除模型 "{{name}}" 吗？', { name: model.id })}

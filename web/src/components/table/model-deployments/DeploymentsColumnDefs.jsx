@@ -22,13 +22,12 @@ import {
   Button,
   Dropdown,
   Modal,
-  Space,
-  SplitButtonGroup,
   Tag,
   Tooltip,
   Typography,
   Popconfirm,
   Input,
+  Space
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -36,12 +35,11 @@ import {
   showError,
 } from '../../../helpers';
 import { IconTreeTriangleDown, IconMore } from '@douyinfe/semi-icons';
-import { 
-  FaPlay, 
-  FaStop, 
-  FaRedo, 
-  FaEdit, 
-  FaTrash, 
+import {
+  FaPlay,
+  FaRedo,
+  FaEdit,
+  FaTrash,
   FaServer,
   FaMemory,
   FaMicrochip,
@@ -55,7 +53,8 @@ import {
   FaTerminal,
   FaPlus,
   FaCog,
-  FaInfoCircle
+  FaInfoCircle,
+  FaLink, FaStop,
 } from 'react-icons/fa';
 
 const normalizeStatus = (status) =>
@@ -273,7 +272,6 @@ export const getDeploymentsColumns = ({
   t,
   COLUMN_KEYS,
   startDeployment,
-  stopDeployment,
   restartDeployment,
   deleteDeployment,
   updateDeploymentName,
@@ -287,6 +285,7 @@ export const getDeploymentsColumns = ({
   onExtendDuration,
   onViewDetails,
   onUpdateConfig,
+  onSyncToChannel,
 }) => {
   const columns = [
     {
@@ -312,27 +311,50 @@ export const getDeploymentsColumns = ({
       render: (status) => renderStatus(status, t),
     },
     {
-      title: t('类型'),
-      dataIndex: 'type',
-      key: COLUMN_KEYS.type,
-      width: 100,
-      render: (text) => (
-        <Typography.Text className="text-sm">{text || 'Container'}</Typography.Text>
-      ),
-    },
-    {
       title: t('剩余时间'),
       dataIndex: 'time_remaining',
       key: COLUMN_KEYS.time_remaining,
-      width: 130,
-      render: (text, record) => (
-        <div className="flex flex-col">
-          <Typography.Text className="text-sm font-medium">{text}</Typography.Text>
-          <Typography.Text type="secondary" size="small" className="text-xs">
-            {record.completed_percent}% 完成
-          </Typography.Text>
-        </div>
-      ),
+      minWidth: 180,
+      render: (text, record) => {
+        const rawValue = record?.completed_percent;
+        const parsed = typeof rawValue === 'string'
+          ? parseFloat(rawValue.replace(/[^0-9.+-]/g, ''))
+          : Number(rawValue ?? 0);
+        const percentUsed = Number.isFinite(parsed)
+          ? Math.min(100, Math.max(0, Math.round(parsed)))
+          : null;
+        const timeDisplay = text && String(text).trim() !== '' ? text : t('计算中');
+
+        return (
+          <div className="flex flex-col gap-1">
+            <Typography.Text className="text-sm font-medium">
+              {timeDisplay}
+            </Typography.Text>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {percentUsed !== null && (
+                <Tag
+                  size="small"
+                  color={percentUsed > 80 ? 'red' : percentUsed > 50 ? 'orange' : 'green'}
+                  className="text-xs"
+                  style={{ padding: '2px 6px', lineHeight: '16px' }}
+                >
+                  {t('已用')} {percentUsed}%
+                </Tag>
+              )}
+              {record.compute_minutes_remaining !== undefined && (
+                <Tag
+                  size="small"
+                  type="light"
+                  className="text-xs"
+                  style={{ padding: '2px 6px', lineHeight: '16px' }}
+                >
+                  {t('剩余')} {record.compute_minutes_remaining} {t('分钟')}
+                </Tag>
+              )}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: t('硬件配置'),
@@ -368,6 +390,8 @@ export const getDeploymentsColumns = ({
       width: 120,
       render: (_, record) => {
         const { status, id } = record;
+        const normalizedStatus = normalizeStatus(status);
+        const isEnded = normalizedStatus === 'completed' || normalizedStatus === 'destroyed';
 
         const handleDelete = () => {
           // Use enhanced confirmation dialog
@@ -376,119 +400,166 @@ export const getDeploymentsColumns = ({
 
         // Get primary action based on status
         const getPrimaryAction = () => {
-          switch (status) {
+          switch (normalizedStatus) {
+            case 'running':
+              return {
+                icon: <FaRedo className="text-xs" />,
+                text: t('重启'),
+                onClick: () => restartDeployment(id),
+                type: 'primary',
+                theme: 'solid',
+              };
             case 'failed':
+            case 'error':
               return {
                 icon: <FaPlay className="text-xs" />,
                 text: t('重试'),
                 onClick: () => startDeployment(id),
                 type: 'primary',
-                theme: 'solid'
+                theme: 'solid',
               };
-            case 'running':
+            case 'stopped':
               return {
-                icon: <FaStop className="text-xs" />,
-                text: t('停止'),
-                onClick: () => stopDeployment(id),
-                type: 'warning',
-                theme: 'solid'
+                icon: <FaPlay className="text-xs" />,
+                text: t('启动'),
+                onClick: () => startDeployment(id),
+                type: 'primary',
+                theme: 'solid',
               };
             case 'deployment requested':
+            case 'deploying':
               return {
                 icon: <FaClock className="text-xs" />,
                 text: t('部署中'),
                 onClick: () => {},
                 type: 'secondary',
-                theme: 'outline',
-                disabled: true
+                theme: 'light',
+                disabled: true,
+              };
+            case 'pending':
+              return {
+                icon: <FaClock className="text-xs" />,
+                text: t('待部署'),
+                onClick: () => {},
+                type: 'secondary',
+                theme: 'light',
+                disabled: true,
               };
             case 'termination requested':
               return {
                 icon: <FaClock className="text-xs" />,
                 text: t('终止中'),
                 onClick: () => {},
-                type: 'secondary', 
-                theme: 'outline',
-                disabled: true
+                type: 'secondary',
+                theme: 'light',
+                disabled: true,
               };
             case 'completed':
             case 'destroyed':
             default:
               return {
-                icon: <FaRedo className="text-xs" />,
-                text: t('重启'),
-                onClick: () => restartDeployment(id),
-                type: 'secondary',
-                theme: 'outline'
+                icon: <FaInfoCircle className="text-xs" />,
+                text: t('已结束'),
+                onClick: () => {},
+                type: 'tertiary',
+                theme: 'borderless',
+                disabled: true,
               };
           }
         };
 
         const primaryAction = getPrimaryAction();
-        
+        const primaryTheme = primaryAction.theme || 'solid';
+        const primaryType = primaryAction.type || 'primary';
+
         // All actions dropdown with enhanced operations
-        const allActions = (
-          <Dropdown.Menu>
-            {/* View Actions */}
-            <Dropdown.Item onClick={() => onViewDetails?.(record)} icon={<FaInfoCircle />}>
-              {t('查看详情')}
-            </Dropdown.Item>
-            <Dropdown.Item onClick={() => onViewLogs?.(record)} icon={<FaTerminal />}>
+        const dropdownItems = [
+          <Dropdown.Item key="details" onClick={() => onViewDetails?.(record)} icon={<FaInfoCircle />}>
+            {t('查看详情')}
+          </Dropdown.Item>,
+        ];
+
+        if (!isEnded) {
+          dropdownItems.push(
+            <Dropdown.Item key="logs" onClick={() => onViewLogs?.(record)} icon={<FaTerminal />}>
               {t('查看日志')}
-            </Dropdown.Item>
-            
-            <Dropdown.Divider />
-            
-            {/* Management Actions */}
-            {(status === 'running' || status === 'failed' || status === 'completed') && (
-              <Dropdown.Item onClick={() => restartDeployment(id)} icon={<FaRedo />}>
-                {t('重启')}
-              </Dropdown.Item>
-            )}
-            {status === 'failed' && (
-              <Dropdown.Item onClick={() => startDeployment(id)} icon={<FaPlay />}>
-                {t('重试')}
-              </Dropdown.Item>
-            )}
-            {status === 'running' && (
-              <Dropdown.Item onClick={() => stopDeployment(id)} icon={<FaStop />}>
-                {t('停止')}
-              </Dropdown.Item>
-            )}
-            
-            <Dropdown.Divider />
-            
-            {/* Configuration Actions */}
-            {(status === 'running' || status === 'deployment requested') && (
-              <Dropdown.Item onClick={() => onExtendDuration?.(record)} icon={<FaPlus />}>
-                {t('延长时长')}
-              </Dropdown.Item>
-            )}
-            {status === 'running' && (
-              <Dropdown.Item onClick={() => onUpdateConfig?.(record)} icon={<FaCog />}>
-                {t('更新配置')}
-              </Dropdown.Item>
-            )}
-            
-            <Dropdown.Divider />
-            
-            {/* Dangerous Actions */}
-            <Dropdown.Item
-              type="danger"
-              onClick={handleDelete}
-              icon={<FaTrash />}
-            >
+            </Dropdown.Item>,
+          );
+        }
+
+        const managementItems = [];
+        if (normalizedStatus === 'running') {
+          managementItems.push(
+            <Dropdown.Item key="restart" onClick={() => restartDeployment(id)} icon={<FaRedo />}>
+              {t('重启')}
+            </Dropdown.Item>,
+          );
+          if (onSyncToChannel) {
+            managementItems.push(
+              <Dropdown.Item key="sync-channel" onClick={() => onSyncToChannel(record)} icon={<FaLink />}>
+                {t('同步到渠道')}
+              </Dropdown.Item>,
+            );
+          }
+        }
+        if (normalizedStatus === 'failed' || normalizedStatus === 'error') {
+          managementItems.push(
+            <Dropdown.Item key="retry" onClick={() => startDeployment(id)} icon={<FaPlay />}>
+              {t('重试')}
+            </Dropdown.Item>,
+          );
+        }
+        if (normalizedStatus === 'stopped') {
+          managementItems.push(
+            <Dropdown.Item key="start" onClick={() => startDeployment(id)} icon={<FaPlay />}>
+              {t('启动')}
+            </Dropdown.Item>,
+          );
+        }
+
+        if (managementItems.length > 0) {
+          dropdownItems.push(<Dropdown.Divider key="management-divider" />);
+          dropdownItems.push(...managementItems);
+        }
+
+        const configItems = [];
+        if (!isEnded && (normalizedStatus === 'running' || normalizedStatus === 'deployment requested')) {
+          configItems.push(
+            <Dropdown.Item key="extend" onClick={() => onExtendDuration?.(record)} icon={<FaPlus />}>
+              {t('延长时长')}
+            </Dropdown.Item>,
+          );
+        }
+        if (!isEnded && normalizedStatus === 'running') {
+          configItems.push(
+            <Dropdown.Item key="update-config" onClick={() => onUpdateConfig?.(record)} icon={<FaCog />}>
+              {t('更新配置')}
+            </Dropdown.Item>,
+          );
+        }
+
+        if (configItems.length > 0) {
+          dropdownItems.push(<Dropdown.Divider key="config-divider" />);
+          dropdownItems.push(...configItems);
+        }
+        if (!isEnded) {
+          dropdownItems.push(<Dropdown.Divider key="danger-divider" />);
+          dropdownItems.push(
+            <Dropdown.Item key="delete" type="danger" onClick={handleDelete} icon={<FaTrash />}>
               {t('销毁容器')}
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        );
+            </Dropdown.Item>,
+          );
+        }
+
+        const allActions = <Dropdown.Menu>{dropdownItems}</Dropdown.Menu>;
+        const hasDropdown = dropdownItems.length > 0;
 
         return (
           <div className="flex items-center gap-1">
             <Button
               size="small"
-              theme={primaryAction.theme}
-              type={primaryAction.type}
+              theme={primaryTheme}
+              type={primaryType}
               icon={primaryAction.icon}
               onClick={primaryAction.onClick}
               className="px-2 text-xs"
@@ -497,19 +568,21 @@ export const getDeploymentsColumns = ({
               {primaryAction.text}
             </Button>
             
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              render={allActions}
-            >
-              <Button
-                size="small"
-                theme="outline"
-                type="secondary"
-                icon={<IconMore />}
-                className="px-1"
-              />
-            </Dropdown>
+            {hasDropdown && (
+              <Dropdown
+                trigger="click"
+                position="bottomRight"
+                render={allActions}
+              >
+                <Button
+                  size="small"
+                  theme="light"
+                  type="tertiary"
+                  icon={<IconMore />}
+                  className="px-1"
+                />
+              </Dropdown>
+            )}
           </div>
         );
       },

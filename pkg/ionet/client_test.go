@@ -3,6 +3,7 @@ package ionet
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -134,6 +135,87 @@ func TestClientMakeRequestWithBody(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResp, resp)
+	mockHTTPClient.AssertExpectations(t)
+}
+
+func TestGetPriceEstimationBuildsRequiredQueryParams(t *testing.T) {
+	mockHTTPClient := &MockHTTPClient{}
+	client := NewClientWithConfig("test-key", "https://api.test", mockHTTPClient)
+
+	req := &PriceEstimationRequest{
+		LocationIDs:      []int{1, 2},
+		HardwareID:       42,
+		GPUsPerContainer: 2,
+		DurationHours:    3,
+		ReplicaCount:     1,
+	}
+
+	responseBody := []byte(`{"data":{"replica_count":1,"gpus_per_container":2,"available_replica_count":[1],"discount":0,"ionet_fee":0.1,"ionet_fee_percent":1.5,"currency_conversion_fee":0.2,"currency_conversion_fee_percent":2.0,"total_cost_usdc":12.0}}`)
+
+	mockHTTPClient.On("Do", mock.MatchedBy(func(r *HTTPRequest) bool {
+		if r == nil {
+			return false
+		}
+		parsed, err := url.Parse(r.URL)
+		if err != nil {
+			return false
+		}
+		params := parsed.Query()
+		return r.Method == "GET" &&
+			parsed.Path == "/price" &&
+			params.Get("currency") == "usdc" &&
+			params.Get("duration_type") == "hourly" &&
+			params.Get("duration_qty") == "3" &&
+			params.Get("hardware_qty") == "2" &&
+			params.Get("gpus_per_container") == "2" &&
+			params.Get("duration_hours") == "3" &&
+			params.Get("location_ids") == "[1,2]" &&
+			params.Get("replica_count") == "1"
+	})).Return(&HTTPResponse{StatusCode: 200, Body: responseBody}, nil).Once()
+
+	result, err := client.GetPriceEstimation(req)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 12.0, result.EstimatedCost)
+	assert.Equal(t, "USDC", result.Currency)
+	assert.InDelta(t, 4.0, result.PriceBreakdown.HourlyRate, 1e-9)
+	assert.True(t, result.EstimationValid)
+
+	mockHTTPClient.AssertExpectations(t)
+}
+
+func TestGetPriceEstimationNormalizesDurationType(t *testing.T) {
+	mockHTTPClient := &MockHTTPClient{}
+	client := NewClientWithConfig("test-key", "https://api.test", mockHTTPClient)
+
+	req := &PriceEstimationRequest{
+		LocationIDs:      []int{3},
+		HardwareID:       99,
+		GPUsPerContainer: 1,
+		DurationHours:    0,
+		DurationQty:      2,
+		DurationType:     "Days",
+		ReplicaCount:     2,
+	}
+
+	responseBody := []byte(`{"data":{"replica_count":2,"gpus_per_container":1,"available_replica_count":[2],"discount":0,"ionet_fee":0,"ionet_fee_percent":0,"currency_conversion_fee":0,"currency_conversion_fee_percent":0,"total_cost_usdc":48.0}}`)
+
+	mockHTTPClient.On("Do", mock.MatchedBy(func(r *HTTPRequest) bool {
+		if r == nil {
+			return false
+		}
+		parsed, err := url.Parse(r.URL)
+		if err != nil {
+			return false
+		}
+		params := parsed.Query()
+		return params.Get("duration_type") == "daily" && params.Get("duration_qty") == "2"
+	})).Return(&HTTPResponse{StatusCode: 200, Body: responseBody}, nil).Once()
+
+	result, err := client.GetPriceEstimation(req)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 48.0, result.PriceBreakdown.TotalCost)
 	mockHTTPClient.AssertExpectations(t)
 }
 

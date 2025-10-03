@@ -68,7 +68,7 @@ const DeploymentsFilters = ({
         <div className='flex flex-col sm:flex-row gap-2 flex-1 w-full'>
           <Form.Input
             field='searchKeyword'
-            placeholder={t('搜索部署名称或模型名称')}
+            placeholder={t('搜索部署名称')}
             prefix={<IconSearch />}
             className='flex-1'
             showClear

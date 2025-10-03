@@ -8,8 +8,8 @@ import (
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/model"
-	"one-api/service"
 	"one-api/relay/channel/ollama"
+	"one-api/service"
 	"strconv"
 	"strings"
 
@@ -17,10 +17,11 @@ import (
 )
 
 type OpenAIModel struct {
-	ID         string `json:"id"`
-	Object     string `json:"object"`
-	Created    int64  `json:"created"`
-	OwnedBy    string `json:"owned_by"`
+	ID         string         `json:"id"`
+	Object     string         `json:"object"`
+	Created    int64          `json:"created"`
+	OwnedBy    string         `json:"owned_by"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
 	Permission []struct {
 		ID                 string `json:"id"`
 		Object             string `json:"object"`
@@ -195,17 +196,35 @@ func FetchUpstreamModels(c *gin.Context) {
 			return
 		}
 
-		// 转换为 OpenAI 模型格式
 		result := OpenAIModelsResponse{
 			Data: make([]OpenAIModel, 0, len(models)),
 		}
 
-		for _, modelName := range models {
+		for _, modelInfo := range models {
+			metadata := map[string]any{}
+			if modelInfo.Size > 0 {
+				metadata["size"] = modelInfo.Size
+			}
+			if modelInfo.Digest != "" {
+				metadata["digest"] = modelInfo.Digest
+			}
+			if modelInfo.ModifiedAt != "" {
+				metadata["modified_at"] = modelInfo.ModifiedAt
+			}
+			details := modelInfo.Details
+			if details.ParentModel != "" || details.Format != "" || details.Family != "" || len(details.Families) > 0 || details.ParameterSize != "" || details.QuantizationLevel != "" {
+				metadata["details"] = modelInfo.Details
+			}
+			if len(metadata) == 0 {
+				metadata = nil
+			}
+
 			result.Data = append(result.Data, OpenAIModel{
-				ID:      modelName,
-				Object:  "model",
-				Created: 0,
-				OwnedBy: "ollama",
+				ID:       modelInfo.Name,
+				Object:   "model",
+				Created:  0,
+				OwnedBy:  "ollama",
+				Metadata: metadata,
 			})
 		}
 
@@ -934,6 +953,32 @@ func FetchModels(c *gin.Context) {
 		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
 
+	// remove line breaks and extra spaces.
+	key := strings.TrimSpace(req.Key)
+	key = strings.Split(key, "\n")[0]
+
+	if req.Type == constant.ChannelTypeOllama {
+		models, err := ollama.FetchOllamaModels(baseURL, key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Ollama模型失败: %s", err.Error()),
+			})
+			return
+		}
+
+		names := make([]string, 0, len(models))
+		for _, modelInfo := range models {
+			names = append(names, modelInfo.Name)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    names,
+		})
+		return
+	}
+
 	client := &http.Client{}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 
@@ -946,10 +991,6 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	// remove line breaks and extra spaces.
-	key := strings.TrimSpace(req.Key)
-	// If the key contains a line break, only take the first part.
-	key = strings.Split(key, "\n")[0]
 	request.Header.Set("Authorization", "Bearer "+key)
 
 	response, err := client.Do(request)
