@@ -275,7 +275,9 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 			return nil, errors.New("field prompt is required")
 		}
 	case relayconstant.RelayModeChatCompletions:
-		if len(textRequest.Messages) == 0 {
+		// For FIM (Fill-in-the-middle) requests with prefix/suffix, messages is optional
+		// It will be filled by provider-specific adaptors if needed (e.g., SiliconFlow)。Or it is allowed by model vendor(s) (e.g., DeepSeek)
+		if len(textRequest.Messages) == 0 && textRequest.Prefix == nil && textRequest.Suffix == nil {
 			return nil, errors.New("field messages is required")
 		}
 	case relayconstant.RelayModeEmbeddings:

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,46 +41,19 @@ type testResult struct {
 
 func testChannel(channel *model.Channel, testModel string, endpointType string) testResult {
 	tik := time.Now()
-	if channel.Type == constant.ChannelTypeMidjourney {
-		return testResult{
-			localErr:    errors.New("midjourney channel test is not supported"),
-			newAPIError: nil,
-		}
+	var unsupportedTestChannelTypes = []int{
+		constant.ChannelTypeMidjourney,
+		constant.ChannelTypeMidjourneyPlus,
+		constant.ChannelTypeSunoAPI,
+		constant.ChannelTypeKling,
+		constant.ChannelTypeJimeng,
+		constant.ChannelTypeDoubaoVideo,
+		constant.ChannelTypeVidu,
 	}
-	if channel.Type == constant.ChannelTypeMidjourneyPlus {
+	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {
+		channelTypeName := constant.GetChannelTypeName(channel.Type)
 		return testResult{
-			localErr:    errors.New("midjourney plus channel test is not supported"),
-			newAPIError: nil,
-		}
-	}
-	if channel.Type == constant.ChannelTypeSunoAPI {
-		return testResult{
-			localErr:    errors.New("suno channel test is not supported"),
-			newAPIError: nil,
-		}
-	}
-	if channel.Type == constant.ChannelTypeKling {
-		return testResult{
-			localErr:    errors.New("kling channel test is not supported"),
-			newAPIError: nil,
-		}
-	}
-	if channel.Type == constant.ChannelTypeJimeng {
-		return testResult{
-			localErr:    errors.New("jimeng channel test is not supported"),
-			newAPIError: nil,
-		}
-	}
-	if channel.Type == constant.ChannelTypeDoubaoVideo {
-		return testResult{
-			localErr:    errors.New("doubao video channel test is not supported"),
-			newAPIError: nil,
-		}
-	}
-	if channel.Type == constant.ChannelTypeVidu {
-		return testResult{
-			localErr:    errors.New("vidu channel test is not supported"),
-			newAPIError: nil,
+			localErr: fmt.Errorf("%s channel test is not supported", channelTypeName),
 		}
 	}
 	w := httptest.NewRecorder()
