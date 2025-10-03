@@ -153,7 +153,7 @@ export function Wallet() {
     <>
       <AppHeader fixed />
       <Main>
-        <div className='mb-2'>
+        <div className='mb-6'>
           <h2 className='text-2xl font-bold tracking-tight'>Wallet</h2>
           <p className='text-muted-foreground'>
             Manage your balance and payment methods

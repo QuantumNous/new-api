@@ -149,26 +149,28 @@ export function RechargeFormCard({
               >
                 Custom Amount
               </Label>
-              <Input
-                id='topup-amount'
-                type='number'
-                value={localAmount}
-                onChange={(e) => handleAmountChange(e.target.value)}
-                min={minTopup}
-                placeholder={`Minimum ${minTopup}`}
-                className='text-lg'
-              />
-              <div className='flex items-center justify-between pt-2'>
-                <span className='text-muted-foreground text-sm'>
-                  Amount to pay
-                </span>
-                {calculating ? (
-                  <Skeleton className='h-7 w-20' />
-                ) : (
-                  <span className='text-lg font-semibold'>
-                    ${formatCurrency(paymentAmount)}
+              <div className='relative'>
+                <Input
+                  id='topup-amount'
+                  type='number'
+                  value={localAmount}
+                  onChange={(e) => handleAmountChange(e.target.value)}
+                  min={minTopup}
+                  placeholder={`Minimum ${minTopup}`}
+                  className='pr-32 text-lg'
+                />
+                <div className='absolute end-3 top-1/2 flex -translate-y-1/2 items-center gap-2'>
+                  <span className='text-muted-foreground text-xs'>
+                    Amount to pay:
                   </span>
-                )}
+                  {calculating ? (
+                    <Skeleton className='h-5 w-16' />
+                  ) : (
+                    <span className='text-sm font-semibold'>
+                      ${formatCurrency(paymentAmount)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
