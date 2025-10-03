@@ -1,4 +1,4 @@
-import { Loader2, Zap } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { formatNumber } from '@/lib/format'
 import {
   AlertDialog,
@@ -10,7 +10,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_DISCOUNT_RATE } from '../../constants'
 import { formatCurrency, getPaymentIcon } from '../../lib'
@@ -45,74 +44,65 @@ export function PaymentConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className='max-w-md'>
         <AlertDialogHeader>
-          <AlertDialogTitle className='flex items-center gap-2'>
-            <Zap className='h-5 w-5' />
+          <AlertDialogTitle className='text-xl font-semibold'>
             Confirm Payment
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Please review your payment details before proceeding.
+            Review your payment details
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <Card className='border-muted bg-muted/50 p-4'>
-          <div className='space-y-3'>
-            <div className='flex items-center justify-between'>
-              <span className='text-sm font-medium'>Topup Amount:</span>
-              <span className='text-sm font-semibold'>
-                {formatNumber(topupAmount)}
-              </span>
-            </div>
+        <div className='space-y-4 py-4'>
+          <div className='flex items-center justify-between'>
+            <span className='text-muted-foreground text-sm'>Topup Amount</span>
+            <span className='text-lg font-semibold'>
+              {formatNumber(topupAmount)}
+            </span>
+          </div>
 
-            <div className='flex items-center justify-between'>
-              <span className='text-sm font-medium'>Payment Amount:</span>
-              {calculating ? (
-                <Skeleton className='h-4 w-20' />
-              ) : (
-                <div className='flex items-baseline gap-2'>
-                  <span className='text-destructive text-sm font-bold'>
-                    ${formatCurrency(paymentAmount)}
-                  </span>
-                  {hasDiscount && (
-                    <span className='text-xs text-emerald-600'>
-                      {Math.round(discountRate * 100)}%
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {hasDiscount && !calculating && (
-              <>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground text-xs'>
-                    Original Price:
-                  </span>
-                  <span className='text-muted-foreground text-xs line-through'>
+          <div className='flex items-center justify-between'>
+            <span className='text-muted-foreground text-sm'>You Pay</span>
+            {calculating ? (
+              <Skeleton className='h-6 w-24' />
+            ) : (
+              <div className='flex items-baseline gap-2'>
+                <span className='text-2xl font-semibold'>
+                  ${formatCurrency(paymentAmount)}
+                </span>
+                {hasDiscount && (
+                  <span className='text-muted-foreground text-sm line-through'>
                     ${formatCurrency(originalAmount)}
                   </span>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground text-xs'>
-                    Discount:
-                  </span>
-                  <span className='text-xs text-emerald-600'>
-                    -${formatCurrency(discountAmount)}
-                  </span>
-                </div>
-              </>
+                )}
+              </div>
             )}
+          </div>
 
-            <div className='border-muted flex items-center justify-between border-t pt-3'>
-              <span className='text-sm font-medium'>Payment Method:</span>
+          {hasDiscount && !calculating && (
+            <div className='bg-muted/50 rounded-lg p-3'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>You save</span>
+                <span className='font-semibold text-green-600'>
+                  ${formatCurrency(discountAmount)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className='border-t pt-4'>
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                Payment Method
+              </span>
               <div className='flex items-center gap-2'>
                 {getPaymentIcon(paymentMethod?.type)}
-                <span className='text-sm'>{paymentMethod?.name}</span>
+                <span className='font-medium'>{paymentMethod?.name}</span>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>

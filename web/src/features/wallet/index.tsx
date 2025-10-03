@@ -154,12 +154,15 @@ export function Wallet() {
     <>
       <AppHeader fixed />
       <Main>
-        <div className='mb-4 flex items-center justify-between'>
-          <h1 className='text-2xl font-bold tracking-tight'>Wallet</h1>
+        <div className='mb-2'>
+          <h2 className='text-2xl font-bold tracking-tight'>Wallet</h2>
+          <p className='text-muted-foreground'>
+            Manage your balance and payment methods
+          </p>
         </div>
 
         <div className='grid gap-6 lg:grid-cols-3'>
-          {/* Left Column - Recharge */}
+          {/* Left Column - Stats & Recharge */}
           <div className='space-y-6 lg:col-span-2'>
             <WalletStatsCard user={user} loading={userLoading} />
             <RechargeFormCard

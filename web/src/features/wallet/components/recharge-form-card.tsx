@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Coins, CreditCard, Gift, ExternalLink, Loader2 } from 'lucide-react'
+import { Gift, ExternalLink, Loader2 } from 'lucide-react'
 import { formatNumber } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -81,10 +80,8 @@ export function RechargeFormCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className='flex items-center gap-2'>
-            <CreditCard className='h-5 w-5' />
-            Account Recharge
-          </CardTitle>
+          <Skeleton className='h-6 w-32' />
+          <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
         <CardContent className='space-y-6'>
           <Skeleton className='h-32 w-full' />
@@ -97,46 +94,22 @@ export function RechargeFormCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className='flex items-center gap-2'>
-          <CreditCard className='h-5 w-5' />
-          Account Recharge
-        </CardTitle>
-        <p className='text-muted-foreground text-sm'>
-          Multiple payment methods, safe and convenient
+        <h3 className='text-xl font-semibold tracking-tight'>Add Funds</h3>
+        <p className='text-muted-foreground mt-2 text-sm'>
+          Choose an amount and payment method
         </p>
       </CardHeader>
-      <CardContent className='space-y-6'>
+      <CardContent className='space-y-8'>
         {/* Online Topup Section */}
         {hasOnlineTopup ? (
-          <div className='space-y-4'>
-            {/* Amount Input */}
-            <div className='space-y-2'>
-              <Label htmlFor='topup-amount'>Topup Amount</Label>
-              <Input
-                id='topup-amount'
-                type='number'
-                value={localAmount}
-                onChange={(e) => handleAmountChange(e.target.value)}
-                min={minTopup}
-                placeholder={`Minimum ${minTopup}`}
-              />
-              <div className='flex items-center justify-between text-sm'>
-                <span className='text-muted-foreground'>Payment Amount:</span>
-                {calculating ? (
-                  <Skeleton className='h-4 w-20' />
-                ) : (
-                  <span className='text-destructive font-semibold'>
-                    ${formatCurrency(paymentAmount)}
-                  </span>
-                )}
-              </div>
-            </div>
-
+          <div className='space-y-6'>
             {/* Preset Amounts */}
             {presetAmounts.length > 0 && (
-              <div className='space-y-2'>
-                <Label>Quick Select</Label>
-                <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+              <div className='space-y-3'>
+                <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                  Amount
+                </Label>
+                <div className='grid grid-cols-4 gap-3'>
                   {presetAmounts.map((preset, index) => {
                     const discount =
                       preset.discount ||
@@ -144,38 +117,68 @@ export function RechargeFormCard({
                       1.0
                     const hasDiscount = discount < 1.0
                     return (
-                      <Card
+                      <button
                         key={index}
-                        className={`hover:border-primary cursor-pointer transition-all ${
+                        className={`hover:border-foreground relative rounded-lg border p-4 text-left transition-all ${
                           selectedPreset === preset.value
-                            ? 'border-primary bg-primary/5'
-                            : ''
+                            ? 'border-foreground bg-foreground/5'
+                            : 'border-muted'
                         }`}
                         onClick={() => onSelectPreset(preset)}
                       >
-                        <CardContent className='p-3 text-center'>
-                          <div className='flex items-center justify-center gap-1 text-sm font-semibold'>
-                            <Coins className='h-3.5 w-3.5' />
-                            {formatNumber(preset.value)}
+                        <div className='text-lg font-semibold'>
+                          {formatNumber(preset.value)}
+                        </div>
+                        {hasDiscount && (
+                          <div className='text-muted-foreground mt-1 text-xs'>
+                            {getDiscountLabel(discount)}
                           </div>
-                          {hasDiscount && (
-                            <Badge variant='secondary' className='mt-1 text-xs'>
-                              {getDiscountLabel(discount)}
-                            </Badge>
-                          )}
-                        </CardContent>
-                      </Card>
+                        )}
+                      </button>
                     )
                   })}
                 </div>
               </div>
             )}
 
+            {/* Custom Amount Input */}
+            <div className='space-y-3'>
+              <Label
+                htmlFor='topup-amount'
+                className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+              >
+                Custom Amount
+              </Label>
+              <Input
+                id='topup-amount'
+                type='number'
+                value={localAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+                min={minTopup}
+                placeholder={`Minimum ${minTopup}`}
+                className='text-lg'
+              />
+              <div className='flex items-center justify-between pt-2'>
+                <span className='text-muted-foreground text-sm'>
+                  Amount to pay
+                </span>
+                {calculating ? (
+                  <Skeleton className='h-7 w-20' />
+                ) : (
+                  <span className='text-lg font-semibold'>
+                    ${formatCurrency(paymentAmount)}
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Payment Methods */}
-            <div className='space-y-2'>
-              <Label>Select Payment Method</Label>
+            <div className='space-y-3'>
+              <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                Payment Method
+              </Label>
               {topupInfo?.pay_methods && topupInfo.pay_methods.length > 0 ? (
-                <div className='flex flex-wrap gap-2'>
+                <div className='flex flex-wrap gap-3'>
                   {topupInfo.pay_methods.map((method) => {
                     const minTopup = method.min_topup || 0
                     const disabled = minTopup > topupAmount
@@ -186,7 +189,7 @@ export function RechargeFormCard({
                         variant='outline'
                         onClick={() => onPaymentMethodSelect(method)}
                         disabled={disabled || !!paymentLoading}
-                        className='gap-2'
+                        className='gap-2 rounded-lg'
                       >
                         {paymentLoading === method.type ? (
                           <Loader2 className='h-4 w-4 animate-spin' />
@@ -230,20 +233,25 @@ export function RechargeFormCard({
         )}
 
         {/* Redemption Code Section */}
-        <div className='space-y-2 border-t pt-4'>
-          <Label htmlFor='redemption-code' className='flex items-center gap-2'>
-            <Gift className='h-4 w-4' />
-            Redemption Code
-          </Label>
+        <div className='space-y-3 border-t pt-8'>
+          <div className='flex items-center gap-2'>
+            <Gift className='text-muted-foreground h-4 w-4' />
+            <Label
+              htmlFor='redemption-code'
+              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+            >
+              Have a Code?
+            </Label>
+          </div>
           <div className='flex gap-2'>
             <Input
               id='redemption-code'
               value={redemptionCode}
               onChange={(e) => onRedemptionCodeChange(e.target.value)}
-              placeholder='Enter redemption code'
+              placeholder='Enter your redemption code'
               className='flex-1'
             />
-            <Button onClick={onRedeem} disabled={redeeming}>
+            <Button onClick={onRedeem} disabled={redeeming} variant='outline'>
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               Redeem
             </Button>
@@ -255,7 +263,7 @@ export function RechargeFormCard({
                 href={topupLink}
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-primary inline-flex items-center gap-1 hover:underline'
+                className='inline-flex items-center gap-1 underline-offset-4 hover:underline'
               >
                 Purchase here
                 <ExternalLink className='h-3 w-3' />

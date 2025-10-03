@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Loader2, ArrowRightLeft } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,42 +46,45 @@ export function TransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className='max-w-md'>
         <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <ArrowRightLeft className='h-5 w-5' />
-            Transfer Affiliate Quota
+          <DialogTitle className='text-xl font-semibold'>
+            Transfer Rewards
           </DialogTitle>
           <DialogDescription>
-            Transfer your affiliate rewards to your account balance.
+            Move affiliate rewards to your main balance
           </DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-4 py-4'>
+        <div className='space-y-6 py-4'>
           <div className='space-y-2'>
-            <Label>Available Affiliate Quota</Label>
-            <Input
-              value={formatQuota(availableQuota)}
-              disabled
-              className='font-mono'
-            />
+            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+              Available Rewards
+            </Label>
+            <div className='text-2xl font-semibold'>
+              {formatQuota(availableQuota)}
+            </div>
           </div>
 
-          <div className='space-y-2'>
-            <Label>
-              Transfer Amount · Minimum {formatQuota(QUOTA_PER_DOLLAR)}
+          <div className='space-y-3'>
+            <Label
+              htmlFor='transfer-amount'
+              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+            >
+              Transfer Amount
             </Label>
             <Input
+              id='transfer-amount'
               type='number'
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
               min={QUOTA_PER_DOLLAR}
               max={availableQuota}
               step={QUOTA_PER_DOLLAR}
-              className='font-mono'
+              className='font-mono text-lg'
             />
             <p className='text-muted-foreground text-xs'>
-              Equivalent to {formatQuota(amount)}
+              Minimum: {formatQuota(QUOTA_PER_DOLLAR)}
             </p>
           </div>
         </div>
