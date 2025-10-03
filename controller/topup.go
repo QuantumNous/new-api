@@ -86,8 +86,9 @@ func GetEpayClient() *epay.Client {
 
 func getPayMoney(amount int64, group string) float64 {
 	dAmount := decimal.NewFromInt(amount)
-
-	if !common.DisplayInCurrencyEnabled {
+	// 充值金额以“展示类型”为准：
+	// - USD/CNY: 前端传 amount 为金额单位；TOKENS: 前端传 tokens，需要换成 USD 金额
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		dAmount = dAmount.Div(dQuotaPerUnit)
 	}
@@ -115,7 +116,7 @@ func getPayMoney(amount int64, group string) float64 {
 
 func getMinTopup() int64 {
 	minTopup := operation_setting.MinTopUp
-	if !common.DisplayInCurrencyEnabled {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dMinTopup := decimal.NewFromInt(int64(minTopup))
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		minTopup = int(dMinTopup.Mul(dQuotaPerUnit).IntPart())
@@ -176,7 +177,7 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 	amount := req.Amount
-	if !common.DisplayInCurrencyEnabled {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dAmount := decimal.NewFromInt(int64(amount))
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		amount = dAmount.Div(dQuotaPerUnit).IntPart()

@@ -91,8 +91,7 @@ const REGION_EXAMPLE = {
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 24, 47, 25, 20, 23, 31, 35, 40, 42, 48,
-  43,
+  1, 4, 14, 34, 17, 26, 24, 47, 25, 20, 23, 31, 35, 40, 42, 48, 43,
 ]);
 
 function type2secretPrompt(type) {
@@ -408,7 +407,10 @@ const EditChannelModal = (props) => {
           break;
         case 45:
           localModels = getChannelModels(value);
-          setInputs((prevInputs) => ({ ...prevInputs, base_url: 'https://ark.cn-beijing.volces.com' }));
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://ark.cn-beijing.volces.com',
+          }));
           break;
         default:
           localModels = getChannelModels(value);
@@ -502,7 +504,8 @@ const EditChannelModal = (props) => {
           // 读取 Vertex 密钥格式
           data.vertex_key_type = parsedSettings.vertex_key_type || 'json';
           // 读取企业账户设置
-          data.is_enterprise_account = parsedSettings.openrouter_enterprise === true;
+          data.is_enterprise_account =
+            parsedSettings.openrouter_enterprise === true;
           // 读取字段透传控制设置
           data.allow_service_tier = parsedSettings.allow_service_tier || false;
           data.disable_store = parsedSettings.disable_store || false;
@@ -929,7 +932,10 @@ const EditChannelModal = (props) => {
       showInfo(t('请至少选择一个模型！'));
       return;
     }
-    if (localInputs.type === 45 && (!localInputs.base_url || localInputs.base_url.trim() === '')) {
+    if (
+      localInputs.type === 45 &&
+      (!localInputs.base_url || localInputs.base_url.trim() === '')
+    ) {
       showInfo(t('请输入API地址！'));
       return;
     }
@@ -974,7 +980,8 @@ const EditChannelModal = (props) => {
 
     // type === 20: 设置企业账户标识，无论是true还是false都要传到后端
     if (localInputs.type === 20) {
-      settings.openrouter_enterprise = localInputs.is_enterprise_account === true;
+      settings.openrouter_enterprise =
+        localInputs.is_enterprise_account === true;
     }
 
     // type === 1 (OpenAI) 或 type === 14 (Claude): 设置字段透传控制（显式保存布尔值）
@@ -1433,7 +1440,9 @@ const EditChannelModal = (props) => {
                         setIsEnterpriseAccount(value);
                         handleInputChange('is_enterprise_account', value);
                       }}
-                      extraText={t('企业账户为特殊返回格式，需要特殊处理，如果非企业账户，请勿勾选')}
+                      extraText={t(
+                        '企业账户为特殊返回格式，需要特殊处理，如果非企业账户，请勿勾选',
+                      )}
                       initValue={inputs.is_enterprise_account}
                     />
                   )}
@@ -2061,27 +2070,27 @@ const EditChannelModal = (props) => {
                     )}
 
                     {inputs.type === 45 && (
-                        <div>
-                          <Form.Select
-                              field='base_url'
-                              label={t('API地址')}
-                              placeholder={t('请选择API地址')}
-                              onChange={(value) =>
-                                  handleInputChange('base_url', value)
-                              }
-                              optionList={[
-                                {
-                                  value: 'https://ark.cn-beijing.volces.com',
-                                  label: 'https://ark.cn-beijing.volces.com'
-                                },
-                                {
-                                  value: 'https://ark.ap-southeast.bytepluses.com',
-                                  label: 'https://ark.ap-southeast.bytepluses.com'
-                                }
-                              ]}
-                              defaultValue='https://ark.cn-beijing.volces.com'
-                          />
-                        </div>
+                      <div>
+                        <Form.Select
+                          field='base_url'
+                          label={t('API地址')}
+                          placeholder={t('请选择API地址')}
+                          onChange={(value) =>
+                            handleInputChange('base_url', value)
+                          }
+                          optionList={[
+                            {
+                              value: 'https://ark.cn-beijing.volces.com',
+                              label: 'https://ark.cn-beijing.volces.com',
+                            },
+                            {
+                              value: 'https://ark.ap-southeast.bytepluses.com',
+                              label: 'https://ark.ap-southeast.bytepluses.com',
+                            },
+                          ]}
+                          defaultValue='https://ark.cn-beijing.volces.com'
+                        />
+                      </div>
                     )}
                     </Card>
                   </div>
