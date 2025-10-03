@@ -1,9 +1,9 @@
 import { Shield, AlertTriangle, RefreshCw } from 'lucide-react'
 import { useDialogs } from '@/hooks/use-dialogs'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusBadge } from '@/components/status-badge'
 import { useTwoFA } from '../hooks'
 import { TwoFABackupDialog } from './dialogs/two-fa-backup-dialog'
 import { TwoFADisableDialog } from './dialogs/two-fa-disable-dialog'
@@ -61,17 +61,27 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   <div className='flex items-center gap-2'>
                     <p className='font-medium'>Two-Step Verification</p>
                     {status.enabled ? (
-                      <Badge
-                        variant='outline'
-                        className='border-green-500 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400'
-                      >
-                        Enabled
-                      </Badge>
+                      <StatusBadge
+                        label='Enabled'
+                        variant='success'
+                        showDot
+                        copyable={false}
+                      />
                     ) : (
-                      <Badge variant='secondary'>Disabled</Badge>
+                      <StatusBadge
+                        label='Disabled'
+                        variant='neutral'
+                        showDot
+                        copyable={false}
+                      />
                     )}
                     {status.locked && (
-                      <Badge variant='destructive'>Locked</Badge>
+                      <StatusBadge
+                        label='Locked'
+                        variant='danger'
+                        showDot
+                        copyable={false}
+                      />
                     )}
                   </div>
                   <p className='text-muted-foreground text-sm'>
