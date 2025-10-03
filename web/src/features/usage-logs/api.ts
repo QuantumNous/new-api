@@ -75,11 +75,11 @@ async function fetchLogStats<T extends Record<string, any>>(
 // ============================================================================
 
 export const getAllLogs = (params: GetLogsParams = {}) =>
-  fetchLogs('/api/log/', params, true)
+  fetchLogs('/api/log', params, true)
 
 export const getUserLogs = (
   params: Omit<GetLogsParams, 'username' | 'channel'> = {}
-) => fetchLogs('/api/log/', params, false)
+) => fetchLogs('/api/log', params, false)
 
 export const searchAllLogs = (params: SearchLogsParams) =>
   searchLogs('/api/log', params.keyword || '', true)
@@ -131,17 +131,17 @@ export async function getUserInfo(
 // ============================================================================
 
 export const getAllMidjourneyLogs = (params: GetMidjourneyLogsParams) =>
-  fetchLogs('/api/mj/', params, true)
+  fetchLogs('/api/mj', params, true)
 
 export const getUserMidjourneyLogs = (params: GetMidjourneyLogsParams) =>
-  fetchLogs('/api/mj/', params, false)
+  fetchLogs('/api/mj', params, false)
 
 // ============================================================================
 // Task Logs API
 // ============================================================================
 
 export const getAllTaskLogs = (params: GetTaskLogsParams) =>
-  fetchLogs('/api/task/', params, true)
+  fetchLogs('/api/task', params, true)
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
-  fetchLogs('/api/task/', params, false)
+  fetchLogs('/api/task', params, false)
