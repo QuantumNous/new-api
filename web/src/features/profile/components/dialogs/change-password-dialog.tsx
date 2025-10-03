@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/password-input'
 import { updateUserProfile } from '../../api'
 
 // ============================================================================
@@ -107,9 +107,8 @@ export function ChangePasswordDialog({
           <div className='my-6 space-y-4'>
             <div className='space-y-2'>
               <Label htmlFor='currentPassword'>Current Password</Label>
-              <Input
+              <PasswordInput
                 id='currentPassword'
-                type='password'
                 value={formData.originalPassword}
                 onChange={(e) =>
                   handleChange('originalPassword', e.target.value)
@@ -122,9 +121,8 @@ export function ChangePasswordDialog({
 
             <div className='space-y-2'>
               <Label htmlFor='newPassword'>New Password</Label>
-              <Input
+              <PasswordInput
                 id='newPassword'
-                type='password'
                 value={formData.newPassword}
                 onChange={(e) => handleChange('newPassword', e.target.value)}
                 disabled={loading}
@@ -139,9 +137,8 @@ export function ChangePasswordDialog({
 
             <div className='space-y-2'>
               <Label htmlFor='confirmPassword'>Confirm New Password</Label>
-              <Input
+              <PasswordInput
                 id='confirmPassword'
-                type='password'
                 value={formData.confirmPassword}
                 onChange={(e) =>
                   handleChange('confirmPassword', e.target.value)

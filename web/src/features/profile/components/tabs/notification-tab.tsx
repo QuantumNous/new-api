@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { PasswordInput } from '@/components/password-input'
 import { updateUserSettings } from '../../api'
 import {
   DEFAULT_QUOTA_WARNING_THRESHOLD,
@@ -149,9 +150,8 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           </div>
           <div className='space-y-2'>
             <Label htmlFor='webhookSecret'>Webhook Secret</Label>
-            <Input
+            <PasswordInput
               id='webhookSecret'
-              type='password'
               value={settings.webhook_secret}
               onChange={(e) => updateField('webhook_secret', e.target.value)}
               placeholder='Enter secret key'
