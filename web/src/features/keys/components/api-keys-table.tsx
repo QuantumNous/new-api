@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import { getApiKeys, searchApiKeys } from '../api'
-import { apiKeyStatuses } from '../data/data'
+import { API_KEY_STATUS_OPTIONS, ERROR_MESSAGES } from '../constants'
 import { apiKeysColumns as columns } from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
@@ -65,10 +65,12 @@ export function ApiKeysTable() {
     ],
     queryFn: async () => {
       // If there's a global filter, use search
-      if (globalFilter && globalFilter.trim() !== '') {
+      const hasFilter = globalFilter?.trim()
+
+      if (hasFilter) {
         const result = await searchApiKeys({ keyword: globalFilter })
         if (!result.success) {
-          toast.error(result.message || 'Failed to search API keys')
+          toast.error(result.message || ERROR_MESSAGES.SEARCH_FAILED)
           return { items: [], total: 0 }
         }
         return {
@@ -84,7 +86,7 @@ export function ApiKeysTable() {
       })
 
       if (!result.success) {
-        toast.error(result.message || 'Failed to load API keys')
+        toast.error(result.message || ERROR_MESSAGES.LOAD_FAILED)
         return { items: [], total: 0 }
       }
 
@@ -149,10 +151,7 @@ export function ApiKeysTable() {
           {
             columnId: 'status',
             title: 'Status',
-            options: apiKeyStatuses.map((s) => ({
-              label: s.label,
-              value: String(s.value),
-            })),
+            options: API_KEY_STATUS_OPTIONS,
           },
         ]}
       />

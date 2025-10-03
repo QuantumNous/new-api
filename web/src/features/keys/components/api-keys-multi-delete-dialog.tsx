@@ -3,7 +3,8 @@ import { type Table } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { batchDeleteApiKeys } from '../api'
-import { type ApiKey } from '../data/schema'
+import { ERROR_MESSAGES } from '../constants'
+import { type ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeysMultiDeleteDialogProps<TData> = {
@@ -36,10 +37,10 @@ export function ApiKeysMultiDeleteDialog<TData>({
         triggerRefresh()
         onOpenChange(false)
       } else {
-        toast.error(result.message || 'Failed to delete API keys')
+        toast.error(result.message || ERROR_MESSAGES.BATCH_DELETE_FAILED)
       }
     } catch (error) {
-      toast.error('An error occurred while deleting API keys')
+      toast.error(ERROR_MESSAGES.UNEXPECTED)
     } finally {
       setIsDeleting(false)
     }

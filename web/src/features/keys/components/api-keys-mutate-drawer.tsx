@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
-import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
-import { parseQuotaFromDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -44,7 +42,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { MultiSelect } from '@/components/multi-select'
 import { createApiKey, updateApiKey, getApiKey } from '../api'
-import { type ApiKey } from '../data/schema'
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import {
+  apiKeyFormSchema,
+  type ApiKeyFormValues,
+  API_KEY_FORM_DEFAULT_VALUES,
+  transformFormDataToPayload,
+  transformApiKeyToFormDefaults,
+} from '../lib'
+import { type ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeyMutateDrawerProps = {
@@ -52,19 +58,6 @@ type ApiKeyMutateDrawerProps = {
   onOpenChange: (open: boolean) => void
   currentRow?: ApiKey
 }
-
-const formSchema = z.object({
-  name: z.string().min(1, 'Name is required.'),
-  remain_quota_dollars: z.number().min(0, 'Quota must be positive').optional(),
-  expired_time: z.date().optional(),
-  unlimited_quota: z.boolean(),
-  model_limits: z.array(z.string()),
-  allow_ips: z.string().optional(),
-  group: z.string().optional(),
-  tokenCount: z.number().min(1).optional(),
-})
-
-type ApiKeyForm = z.infer<typeof formSchema>
 
 export function ApiKeysMutateDrawer({
   open,
@@ -102,18 +95,9 @@ export function ApiKeysMutateDrawer({
     groups.unshift({ value: 'auto', label: 'Auto (Circuit Breaker)' })
   }
 
-  const form = useForm<ApiKeyForm>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      remain_quota_dollars: 10,
-      expired_time: undefined,
-      unlimited_quota: true,
-      model_limits: [],
-      allow_ips: '',
-      group: 'auto',
-      tokenCount: 1,
-    },
+  const form = useForm<ApiKeyFormValues>({
+    resolver: zodResolver(apiKeyFormSchema),
+    defaultValues: API_KEY_FORM_DEFAULT_VALUES,
   })
 
   // Load existing data when updating
@@ -122,55 +106,19 @@ export function ApiKeysMutateDrawer({
       // For update, fetch fresh data
       getApiKey(currentRow.id).then((result) => {
         if (result.success && result.data) {
-          const data = result.data
-          form.reset({
-            name: data.name,
-            remain_quota_dollars: data.remain_quota / 500000,
-            expired_time:
-              data.expired_time > 0
-                ? new Date(data.expired_time * 1000)
-                : undefined,
-            unlimited_quota: data.unlimited_quota,
-            model_limits: data.model_limits
-              ? data.model_limits.split(',').filter(Boolean)
-              : [],
-            allow_ips: data.allow_ips || '',
-            group: data.group || 'auto',
-          })
+          form.reset(transformApiKeyToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
-      form.reset({
-        name: '',
-        remain_quota_dollars: 10,
-        expired_time: undefined,
-        unlimited_quota: true,
-        model_limits: [],
-        allow_ips: '',
-        group: 'auto',
-        tokenCount: 1,
-      })
+      form.reset(API_KEY_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form])
 
-  const onSubmit = async (data: ApiKeyForm) => {
+  const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
     try {
-      const basePayload = {
-        name: data.name,
-        remain_quota: data.unlimited_quota
-          ? 0
-          : parseQuotaFromDollars(data.remain_quota_dollars || 0),
-        expired_time: data.expired_time
-          ? Math.floor(data.expired_time.getTime() / 1000)
-          : -1,
-        unlimited_quota: data.unlimited_quota,
-        model_limits_enabled: data.model_limits.length > 0,
-        model_limits: data.model_limits.join(','),
-        allow_ips: data.allow_ips || '',
-        group: data.group || '',
-      }
+      const basePayload = transformFormDataToPayload(data)
 
       if (isUpdate && currentRow) {
         const result = await updateApiKey({
@@ -178,11 +126,11 @@ export function ApiKeysMutateDrawer({
           id: currentRow.id,
         })
         if (result.success) {
-          toast.success('API Key updated successfully')
+          toast.success(SUCCESS_MESSAGES.API_KEY_UPDATED)
           onOpenChange(false)
           triggerRefresh()
         } else {
-          toast.error(result.message || 'Failed to update API Key')
+          toast.error(result.message || ERROR_MESSAGES.UPDATE_FAILED)
         }
       } else {
         // Create mode - handle batch creation
@@ -200,7 +148,7 @@ export function ApiKeysMutateDrawer({
           if (result.success) {
             successCount++
           } else {
-            toast.error(result.message || 'Failed to create API Key')
+            toast.error(result.message || ERROR_MESSAGES.CREATE_FAILED)
             break
           }
         }
@@ -214,7 +162,7 @@ export function ApiKeysMutateDrawer({
         }
       }
     } catch (error) {
-      toast.error('An error occurred')
+      toast.error(ERROR_MESSAGES.UNEXPECTED)
     } finally {
       setIsSubmitting(false)
     }

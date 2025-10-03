@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
-import type { ApiKey } from './data/schema'
 import type {
+  ApiKey,
+  ApiResponse,
   GetApiKeysParams,
   GetApiKeysResponse,
   SearchApiKeysParams,
@@ -32,9 +33,7 @@ export async function searchApiKeys(
 }
 
 // Get single API key by ID
-export async function getApiKey(
-  id: number
-): Promise<{ success: boolean; message?: string; data?: ApiKey }> {
+export async function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   const res = await api.get(`/api/token/${id}`)
   return res.data
 }
@@ -42,7 +41,7 @@ export async function getApiKey(
 // Create a new API key
 export async function createApiKey(
   data: ApiKeyFormData
-): Promise<{ success: boolean; message?: string; data?: ApiKey }> {
+): Promise<ApiResponse<ApiKey>> {
   const res = await api.post('/api/token/', data)
   return res.data
 }
@@ -50,15 +49,13 @@ export async function createApiKey(
 // Update an existing API key
 export async function updateApiKey(
   data: ApiKeyFormData & { id: number }
-): Promise<{ success: boolean; message?: string; data?: ApiKey }> {
+): Promise<ApiResponse<ApiKey>> {
   const res = await api.put('/api/token/', data)
   return res.data
 }
 
 // Delete a single API key
-export async function deleteApiKey(
-  id: number
-): Promise<{ success: boolean; message?: string }> {
+export async function deleteApiKey(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/token/${id}/`)
   return res.data
 }
@@ -66,7 +63,7 @@ export async function deleteApiKey(
 // Batch delete multiple API keys
 export async function batchDeleteApiKeys(
   ids: number[]
-): Promise<{ success: boolean; message?: string; data?: number }> {
+): Promise<ApiResponse<number>> {
   const res = await api.post('/api/token/batch', { ids })
   return res.data
 }
@@ -75,7 +72,7 @@ export async function batchDeleteApiKeys(
 export async function updateApiKeyStatus(
   id: number,
   status: number
-): Promise<{ success: boolean; message?: string; data?: ApiKey }> {
+): Promise<ApiResponse<ApiKey>> {
   const res = await api.put('/api/token/?status_only=true', { id, status })
   return res.data
 }

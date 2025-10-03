@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
 import useDialogState from '@/hooks/use-dialog-state'
-import { type ApiKey } from '../data/schema'
-
-type ApiKeysDialogType = 'create' | 'update' | 'delete' | 'batch-delete'
+import { type ApiKey, type ApiKeysDialogType } from '../types'
 
 type ApiKeysContextType = {
   open: ApiKeysDialogType | null

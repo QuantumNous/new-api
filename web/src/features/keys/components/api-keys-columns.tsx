@@ -14,8 +14,8 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { apiKeyStatusConfig } from '../data/data'
-import { type ApiKey } from '../data/schema'
+import { API_KEY_STATUSES } from '../constants'
+import { type ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -64,7 +64,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     ),
     cell: ({ row }) => {
       const statusValue = row.getValue('status') as number
-      const statusConfig = apiKeyStatusConfig[statusValue]
+      const statusConfig = API_KEY_STATUSES[statusValue]
 
       if (!statusConfig) {
         return null

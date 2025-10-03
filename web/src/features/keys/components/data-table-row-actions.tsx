@@ -12,7 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { updateApiKeyStatus } from '../api'
-import { apiKeySchema } from '../data/schema'
+import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
 type DataTableRowActionsProps<TData> = {
@@ -24,22 +25,26 @@ export function DataTableRowActions<TData>({
 }: DataTableRowActionsProps<TData>) {
   const apiKey = apiKeySchema.parse(row.original)
   const { setOpen, setCurrentRow, triggerRefresh } = useApiKeys()
-  const isEnabled = apiKey.status === 1
+  const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
 
   const handleToggleStatus = async () => {
-    const newStatus = isEnabled ? 2 : 1
-    const action = isEnabled ? 'disable' : 'enable'
+    const newStatus = isEnabled
+      ? API_KEY_STATUS.DISABLED
+      : API_KEY_STATUS.ENABLED
 
     try {
       const result = await updateApiKeyStatus(apiKey.id, newStatus)
       if (result.success) {
-        toast.success(`API Key ${action}d successfully`)
+        const message = isEnabled
+          ? SUCCESS_MESSAGES.API_KEY_DISABLED
+          : SUCCESS_MESSAGES.API_KEY_ENABLED
+        toast.success(message)
         triggerRefresh()
       } else {
-        toast.error(result.message || `Failed to ${action} API Key`)
+        toast.error(result.message || ERROR_MESSAGES.STATUS_UPDATE_FAILED)
       }
     } catch (error) {
-      toast.error(`Failed to ${action} API Key`)
+      toast.error(ERROR_MESSAGES.UNEXPECTED)
     }
   }
 

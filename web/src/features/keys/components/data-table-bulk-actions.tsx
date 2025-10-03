@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/tooltip'
 import { CopyButton } from '@/components/copy-button'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { type ApiKey } from '../data/schema'
+import { type ApiKey } from '../types'
 import { ApiKeysMultiDeleteDialog } from './api-keys-multi-delete-dialog'
 
 type DataTableBulkActionsProps<TData> = {
