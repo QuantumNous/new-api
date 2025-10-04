@@ -37,12 +37,20 @@ export const REDEMPTION_STATUSES: Record<
   },
 } as const
 
-export const REDEMPTION_STATUS_OPTIONS = Object.values(REDEMPTION_STATUSES).map(
-  (config) => ({
+// Virtual status filter value for expired redemption codes
+// Note: "Expired" is not a real DB status, it's computed from expired_time
+export const REDEMPTION_FILTER_EXPIRED = 'expired'
+
+export const REDEMPTION_STATUS_OPTIONS = [
+  ...Object.values(REDEMPTION_STATUSES).map((config) => ({
     label: config.label,
     value: String(config.value),
-  })
-)
+  })),
+  {
+    label: 'Expired',
+    value: REDEMPTION_FILTER_EXPIRED,
+  },
+]
 
 // ============================================================================
 // Validation Constants

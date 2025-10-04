@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { addTimeToDate } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/sheet'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { SUCCESS_MESSAGES } from '../constants'
 import {
   redemptionFormSchema,
   type RedemptionFormValues,
@@ -84,8 +85,6 @@ export function RedemptionsMutateDrawer({
           toast.success(SUCCESS_MESSAGES.REDEMPTION_UPDATED)
           onOpenChange(false)
           triggerRefresh()
-        } else {
-          toast.error(result.message || ERROR_MESSAGES.UPDATE_FAILED)
         }
       } else {
         // Create mode
@@ -99,29 +98,16 @@ export function RedemptionsMutateDrawer({
           )
           onOpenChange(false)
           triggerRefresh()
-        } else {
-          toast.error(result.message || ERROR_MESSAGES.CREATE_FAILED)
         }
       }
-    } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleSetExpiry = (months: number, days: number, hours: number) => {
-    if (months === 0 && days === 0 && hours === 0) {
-      form.setValue('expired_time', undefined)
-      return
-    }
-
-    const now = new Date()
-    now.setMonth(now.getMonth() + months)
-    now.setDate(now.getDate() + days)
-    now.setHours(now.getHours() + hours)
-
-    form.setValue('expired_time', now)
+    const newDate = addTimeToDate(months, days, hours)
+    form.setValue('expired_time', newDate)
   }
 
   return (

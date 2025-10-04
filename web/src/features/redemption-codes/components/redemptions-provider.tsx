@@ -47,7 +47,9 @@ export const useRedemptions = () => {
   const redemptionsContext = React.useContext(RedemptionsContext)
 
   if (!redemptionsContext) {
-    throw new Error('useRedemptions has to be used within <RedemptionsContext>')
+    throw new Error(
+      'useRedemptions has to be used within <RedemptionsProvider>'
+    )
   }
 
   return redemptionsContext

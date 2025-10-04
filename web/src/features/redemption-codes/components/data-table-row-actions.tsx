@@ -12,11 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { updateRedemptionStatus } from '../api'
-import {
-  REDEMPTION_STATUS,
-  ERROR_MESSAGES,
-  SUCCESS_MESSAGES,
-} from '../constants'
+import { REDEMPTION_STATUS, SUCCESS_MESSAGES } from '../constants'
 import { isRedemptionExpired } from '../lib'
 import { redemptionSchema } from '../types'
 import { useRedemptions } from './redemptions-provider'
@@ -42,19 +38,13 @@ export function DataTableRowActions<TData>({
       ? REDEMPTION_STATUS.DISABLED
       : REDEMPTION_STATUS.ENABLED
 
-    try {
-      const result = await updateRedemptionStatus(redemption.id, newStatus)
-      if (result.success) {
-        const message = isEnabled
-          ? SUCCESS_MESSAGES.REDEMPTION_DISABLED
-          : SUCCESS_MESSAGES.REDEMPTION_ENABLED
-        toast.success(message)
-        triggerRefresh()
-      } else {
-        toast.error(result.message || ERROR_MESSAGES.STATUS_UPDATE_FAILED)
-      }
-    } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+    const result = await updateRedemptionStatus(redemption.id, newStatus)
+    if (result.success) {
+      const message = isEnabled
+        ? SUCCESS_MESSAGES.REDEMPTION_DISABLED
+        : SUCCESS_MESSAGES.REDEMPTION_ENABLED
+      toast.success(message)
+      triggerRefresh()
     }
   }
 

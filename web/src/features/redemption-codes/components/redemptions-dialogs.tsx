@@ -4,13 +4,14 @@ import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsDialogs() {
   const { open, setOpen, currentRow } = useRedemptions()
+  const isUpdate = open === 'update'
 
   return (
     <>
       <RedemptionsMutateDrawer
-        open={open === 'create' || open === 'update'}
+        open={open === 'create' || isUpdate}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
-        currentRow={open === 'update' ? currentRow || undefined : undefined}
+        currentRow={isUpdate ? currentRow || undefined : undefined}
       />
       <RedemptionsDeleteDialog />
     </>

@@ -3,7 +3,7 @@
  */
 
 /**
- * 时间粒度类型
+ * Time granularity type
  */
 export type TimeGranularity = 'hour' | 'day' | 'week'
 
@@ -145,6 +145,32 @@ export function formatChartTime(
     const endDay = String(weekEnd.getDate()).padStart(2, '0')
     result += ` - ${endMonth}-${endDay}`
   }
+
+  return result
+}
+
+/**
+ * Add time duration to a date
+ * @param months Number of months to add
+ * @param days Number of days to add
+ * @param hours Number of hours to add
+ * @param baseDate Base date to add time to (defaults to now)
+ * @returns New date with added time, or undefined if all parameters are 0
+ */
+export function addTimeToDate(
+  months: number,
+  days: number,
+  hours: number,
+  baseDate: Date = new Date()
+): Date | undefined {
+  if (months === 0 && days === 0 && hours === 0) {
+    return undefined
+  }
+
+  const result = new Date(baseDate)
+  result.setMonth(result.getMonth() + months)
+  result.setDate(result.getDate() + days)
+  result.setHours(result.getHours() + hours)
 
   return result
 }

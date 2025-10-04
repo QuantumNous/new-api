@@ -12,7 +12,6 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CopyButton } from '@/components/copy-button'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { deleteInvalidRedemptions } from '../api'
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import { type Redemption } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
@@ -50,11 +49,7 @@ export function DataTableBulkActions<TData>({
         table.resetRowSelection()
         triggerRefresh()
         setShowDeleteInvalidConfirm(false)
-      } else {
-        toast.error(result.message || ERROR_MESSAGES.DELETE_INVALID_FAILED)
       }
-    } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
     } finally {
       setIsDeleting(false)
     }

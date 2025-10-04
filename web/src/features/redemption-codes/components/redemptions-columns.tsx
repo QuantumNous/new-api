@@ -17,8 +17,8 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { REDEMPTION_STATUSES } from '../constants'
-import { isRedemptionExpired } from '../lib'
+import { REDEMPTION_STATUSES, REDEMPTION_FILTER_EXPIRED } from '../constants'
+import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -106,7 +106,18 @@ export const redemptionsColumns: ColumnDef<Redemption>[] = [
       )
     },
     filterFn: (row, id, value) => {
-      return value.includes(String(row.getValue(id)))
+      const redemption = row.original
+      const statusValue = row.getValue(id) as number
+
+      // Check if expired status is being filtered
+      if (value.includes(REDEMPTION_FILTER_EXPIRED)) {
+        if (isRedemptionExpired(redemption.expired_time, statusValue)) {
+          return true
+        }
+      }
+
+      // Check regular status
+      return value.includes(String(statusValue))
     },
   },
   {
@@ -178,7 +189,7 @@ export const redemptionsColumns: ColumnDef<Redemption>[] = [
       if (expiredTime === 0) {
         return <Badge variant='outline'>Never</Badge>
       }
-      const isExpired = expiredTime * 1000 < Date.now()
+      const isExpired = isTimestampExpired(expiredTime)
       return (
         <div
           className={`min-w-[140px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}

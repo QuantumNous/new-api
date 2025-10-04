@@ -1,7 +1,7 @@
 import z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
-import { Redemptions } from '@/features/redemptions'
-import { REDEMPTION_STATUS_OPTIONS } from '@/features/redemptions/constants'
+import { Redemptions } from '@/features/redemption-codes'
+import { REDEMPTION_STATUS_OPTIONS } from '@/features/redemption-codes/constants'
 
 const redemptionsSearchSchema = z.object({
   page: z.number().optional().catch(1),

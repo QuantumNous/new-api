@@ -13,7 +13,6 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { toast } from 'sonner'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -25,11 +24,7 @@ import {
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import { getRedemptions, searchRedemptions } from '../api'
-import {
-  REDEMPTION_STATUS,
-  REDEMPTION_STATUS_OPTIONS,
-  ERROR_MESSAGES,
-} from '../constants'
+import { REDEMPTION_STATUS, REDEMPTION_STATUS_OPTIONS } from '../constants'
 import { isRedemptionExpired } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { redemptionsColumns as columns } from './redemptions-columns'
@@ -78,16 +73,6 @@ export function RedemptionsTable() {
       const result = hasFilter
         ? await searchRedemptions({ ...params, keyword: globalFilter })
         : await getRedemptions(params)
-
-      if (!result.success) {
-        toast.error(
-          result.message ||
-            (hasFilter
-              ? ERROR_MESSAGES.SEARCH_FAILED
-              : ERROR_MESSAGES.LOAD_FAILED)
-        )
-        return { items: [], total: 0 }
-      }
 
       return {
         items: result.data?.items || [],

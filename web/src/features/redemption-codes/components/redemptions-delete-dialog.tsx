@@ -11,7 +11,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { deleteRedemption } from '../api'
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { SUCCESS_MESSAGES } from '../constants'
 import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsDeleteDialog() {
@@ -28,11 +28,7 @@ export function RedemptionsDeleteDialog() {
         toast.success(SUCCESS_MESSAGES.REDEMPTION_DELETED)
         setOpen(null)
         triggerRefresh()
-      } else {
-        toast.error(result.message || ERROR_MESSAGES.DELETE_FAILED)
       }
-    } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
     } finally {
       setIsDeleting(false)
     }
