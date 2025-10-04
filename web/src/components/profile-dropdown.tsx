@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { User, Wallet, LogOut } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { getRoleLabel } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog-state'
@@ -73,22 +74,28 @@ export function ProfileDropdown() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link to='/settings'>
+              <Link to='/profile'>
                 Profile
-                <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+                <DropdownMenuShortcut>
+                  <User size={16} />
+                </DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to='/settings'>
-                Billing
-                <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+              <Link to='/wallet'>
+                Wallet
+                <DropdownMenuShortcut>
+                  <Wallet size={16} />
+                </DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setOpen(true)}>
             Sign out
-            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+            <DropdownMenuShortcut>
+              <LogOut size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
