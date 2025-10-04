@@ -8,6 +8,7 @@ interface StatCardProps {
   description: string
   icon: LucideIcon
   loading?: boolean
+  action?: React.ReactNode
 }
 
 export function StatCard({
@@ -16,12 +17,16 @@ export function StatCard({
   description,
   icon: Icon,
   loading = false,
+  action,
 }: StatCardProps) {
   return (
     <Card>
       <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
         <CardTitle className='text-sm font-medium'>{title}</CardTitle>
-        <Icon className='text-muted-foreground h-4 w-4' />
+        <div className='flex items-center gap-2'>
+          {action}
+          <Icon className='text-muted-foreground h-4 w-4' />
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (

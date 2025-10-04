@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
+import { CreditCard } from 'lucide-react'
 import { getSelf, getStatus } from '@/lib/api'
 import { formatCurrencyUSD, formatNumber } from '@/lib/format'
+import { Button } from '@/components/ui/button'
 import { createSummaryCardsConfig } from '@/features/dashboard/constants'
 import { StatCard } from '../ui/stat-card'
 
@@ -40,13 +43,14 @@ export function SummaryCards() {
     }
   }, [self, status])
 
-  const items = createSummaryCardsConfig(totals).map((config) => ({
+  const items = createSummaryCardsConfig(totals).map((config, index) => ({
     title: config.title,
     value: config.formatAsCurrency
       ? formatCurrencyUSD(config.value)
       : formatNumber(config.value),
     desc: config.description,
     icon: config.icon,
+    isBalance: index === 0, // First card is balance
   }))
 
   return (
@@ -59,6 +63,16 @@ export function SummaryCards() {
           description={it.desc}
           icon={it.icon}
           loading={loading}
+          action={
+            it.isBalance ? (
+              <Button variant='outline' size='sm' className='h-7' asChild>
+                <Link to='/wallet'>
+                  <CreditCard className='mr-1.5 h-3.5 w-3.5' />
+                  Recharge
+                </Link>
+              </Button>
+            ) : undefined
+          }
         />
       ))}
     </div>
