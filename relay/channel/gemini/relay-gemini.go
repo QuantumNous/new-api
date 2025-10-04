@@ -910,6 +910,20 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 	return nil
 }
 
+// GeminiChatStreamHandler processes a streaming Gemini chat HTTP response, converts streamed chunks to OpenAI-style
+// streaming messages, forwards them to the client, and accumulates usage metrics.
+//
+// GeminiChatStreamHandler reads Gemini stream chunks, translates them into intermediate OpenAI-style stream
+// responses (including handling tool calls and inline media), sends an initial empty start response when the first
+// chunk arrives, streams subsequent deltas, and sends a final stop and usage response when the stream ends.
+// It tracks prompt/completion/reasoning token counts and accounts for inline images when computing usage.
+//
+// Parameters:
+//   - c: the Gin request context used for writing responses and logging.
+//   - info: relay metadata including upstream model name and token counts.
+//   - resp: the upstream Gemini HTTP response body to consume.
+//
+// Returns the accumulated usage metrics on success, or a NewAPIError when no responses were received from Gemini.
 func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	// responseText := ""
 	id := helper.GetResponseID(c)
@@ -961,9 +975,15 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			// send first response
 			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
 			if response.IsToolCall() {
-				emptyResponse.Choices[0].Delta.ToolCalls = make([]dto.ToolCallResponse, 1)
-				emptyResponse.Choices[0].Delta.ToolCalls[0] = *response.GetFirstToolCall()
-				emptyResponse.Choices[0].Delta.ToolCalls[0].Function.Arguments = ""
+				if len(emptyResponse.Choices) > 0 {
+					toolCalls := response.Choices[0].Delta.ToolCalls
+					copiedToolCalls := make([]dto.ToolCallResponse, len(toolCalls))
+					for idx := range toolCalls {
+						copiedToolCalls[idx] = toolCalls[idx]
+						copiedToolCalls[idx].Function.Arguments = ""
+					}
+					emptyResponse.Choices[0].Delta.ToolCalls = copiedToolCalls
+				}
 				finishReason = constant.FinishReasonToolCalls
 				err = handleStream(c, info, emptyResponse)
 				if err != nil {
