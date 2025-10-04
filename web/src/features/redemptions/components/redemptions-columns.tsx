@@ -9,7 +9,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Progress } from '@/components/ui/progress'
 import {
   Tooltip,
   TooltipContent,
@@ -18,11 +17,12 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { API_KEY_STATUSES } from '../constants'
-import { type ApiKey } from '../types'
+import { REDEMPTION_STATUSES } from '../constants'
+import { isRedemptionExpired } from '../lib'
+import { type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
-export const apiKeysColumns: ColumnDef<ApiKey>[] = [
+export const redemptionsColumns: ColumnDef<Redemption>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -48,13 +48,22 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: 'id',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='ID' />
+    ),
+    cell: ({ row }) => {
+      return <div className='w-[60px]'>{row.getValue('id')}</div>
+    },
+  },
+  {
     accessorKey: 'name',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Name' />
     ),
     cell: ({ row }) => {
       return (
-        <div className='max-w-[200px] truncate font-medium'>
+        <div className='max-w-[150px] truncate font-medium'>
           {row.getValue('name')}
         </div>
       )
@@ -66,8 +75,22 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       <DataTableColumnHeader column={column} title='Status' />
     ),
     cell: ({ row }) => {
+      const redemption = row.original
       const statusValue = row.getValue('status') as number
-      const statusConfig = API_KEY_STATUSES[statusValue]
+
+      // Check if expired
+      if (isRedemptionExpired(redemption.expired_time, statusValue)) {
+        return (
+          <StatusBadge
+            label='Expired'
+            variant='warning'
+            showDot={true}
+            copyable={false}
+          />
+        )
+      }
+
+      const statusConfig = REDEMPTION_STATUSES[statusValue]
 
       if (!statusConfig) {
         return null
@@ -87,13 +110,13 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     },
   },
   {
-    id: 'key',
+    id: 'code',
     accessorKey: 'key',
-    header: 'API Key',
-    cell: function KeyCell({ row }) {
-      const apiKey = row.original
-      const fullKey = `sk-${apiKey.key}`
-      const maskedKey = `sk-${apiKey.key.slice(0, 4)}${'*'.repeat(16)}${apiKey.key.slice(-4)}`
+    header: 'Code',
+    cell: function CodeCell({ row }) {
+      const redemption = row.original
+      const key = redemption.key
+      const maskedKey = `${key.slice(0, 8)}${'*'.repeat(16)}${key.slice(-8)}`
 
       return (
         <div className='flex items-center'>
@@ -105,17 +128,17 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
             </PopoverTrigger>
             <PopoverContent className='w-auto'>
               <div className='space-y-2'>
-                <p className='text-muted-foreground text-xs'>Full API Key:</p>
-                <Input value={fullKey} readOnly className='h-8 font-mono' />
+                <p className='text-muted-foreground text-xs'>Full Code:</p>
+                <Input value={key} readOnly className='h-8 font-mono' />
               </div>
             </PopoverContent>
           </Popover>
           <CopyButton
-            value={fullKey}
+            value={key}
             className='size-7'
             iconClassName='size-3.5'
-            tooltip='Copy API key'
-            aria-label='Copy API key'
+            tooltip='Copy code'
+            aria-label='Copy redemption code'
           />
         </div>
       )
@@ -123,70 +146,13 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     enableSorting: false,
   },
   {
-    id: 'quota',
-    accessorKey: 'remain_quota',
+    accessorKey: 'quota',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Quota' />
     ),
     cell: ({ row }) => {
-      const apiKey = row.original
-      if (apiKey.unlimited_quota) {
-        return <Badge variant='outline'>Unlimited</Badge>
-      }
-
-      const used = apiKey.used_quota
-      const remaining = apiKey.remain_quota
-      const total = used + remaining
-      const percentage = total > 0 ? (remaining / total) * 100 : 0
-
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className='w-[150px] space-y-1'>
-              <div className='flex justify-between text-xs'>
-                <span>{formatQuota(remaining)}</span>
-                <span className='text-muted-foreground'>
-                  {formatQuota(total)}
-                </span>
-              </div>
-              <Progress value={percentage} className='h-2' />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <div className='space-y-1 text-xs'>
-              <div>Used: {formatQuota(used)}</div>
-              <div>Remaining: {formatQuota(remaining)}</div>
-              <div>Total: {formatQuota(total)}</div>
-              <div>Percentage: {percentage.toFixed(1)}%</div>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      )
-    },
-  },
-  {
-    accessorKey: 'group',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Group' />
-    ),
-    cell: ({ row }) => {
-      const group = row.getValue('group') as string
-      if (group === 'auto') {
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant='secondary'>Auto</Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <span className='text-xs'>
-                Automatically selects the best available group with circuit
-                breaker mechanism
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        )
-      }
-      return <Badge variant='outline'>{group || 'Default'}</Badge>
+      const quota = row.getValue('quota') as number
+      return <Badge variant='secondary'>{formatQuota(quota)}</Badge>
     },
   },
   {
@@ -209,7 +175,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     ),
     cell: ({ row }) => {
       const expiredTime = row.getValue('expired_time') as number
-      if (expiredTime === -1) {
+      if (expiredTime === 0) {
         return <Badge variant='outline'>Never</Badge>
       }
       const isExpired = expiredTime * 1000 < Date.now()
@@ -219,6 +185,40 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
         >
           {formatTimestampToDate(expiredTime)}
         </div>
+      )
+    },
+  },
+  {
+    accessorKey: 'used_user_id',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Redeemed By' />
+    ),
+    cell: ({ row }) => {
+      const userId = row.getValue('used_user_id') as number
+      const redemption = row.original
+
+      if (userId === 0) {
+        return <span className='text-muted-foreground text-sm'>-</span>
+      }
+
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant='outline' className='cursor-help'>
+              User {userId}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className='space-y-1 text-xs'>
+              <div>User ID: {userId}</div>
+              {redemption.redeemed_time > 0 && (
+                <div>
+                  Redeemed: {formatTimestampToDate(redemption.redeemed_time)}
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
       )
     },
   },

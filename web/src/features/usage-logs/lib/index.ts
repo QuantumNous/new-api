@@ -2,15 +2,11 @@
  * Central export point for all lib utilities
  */
 
-// Format utilities
+// Format utilities (usage-logs specific)
 export {
   parseLogOther,
-  formatLogQuota,
-  formatTokens,
-  formatUseTime,
   getTimeColor,
   formatModelName,
-  formatTimestampToDate,
   formatDuration,
 } from './format'
 

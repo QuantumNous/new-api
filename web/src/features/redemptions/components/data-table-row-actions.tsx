@@ -1,0 +1,117 @@
+import { DotsHorizontalIcon } from '@radix-ui/react-icons'
+import { type Row } from '@tanstack/react-table'
+import { Trash2, Edit, Power, PowerOff } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { updateRedemptionStatus } from '../api'
+import {
+  REDEMPTION_STATUS,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from '../constants'
+import { isRedemptionExpired } from '../lib'
+import { redemptionSchema } from '../types'
+import { useRedemptions } from './redemptions-provider'
+
+interface DataTableRowActionsProps<TData> {
+  row: Row<TData>
+}
+
+export function DataTableRowActions<TData>({
+  row,
+}: DataTableRowActionsProps<TData>) {
+  const redemption = redemptionSchema.parse(row.original)
+  const { setOpen, setCurrentRow, triggerRefresh } = useRedemptions()
+  const isEnabled = redemption.status === REDEMPTION_STATUS.ENABLED
+  const isUsed = redemption.status === REDEMPTION_STATUS.USED
+  const isExpired = isRedemptionExpired(
+    redemption.expired_time,
+    redemption.status
+  )
+
+  const handleToggleStatus = async () => {
+    const newStatus = isEnabled
+      ? REDEMPTION_STATUS.DISABLED
+      : REDEMPTION_STATUS.ENABLED
+
+    try {
+      const result = await updateRedemptionStatus(redemption.id, newStatus)
+      if (result.success) {
+        const message = isEnabled
+          ? SUCCESS_MESSAGES.REDEMPTION_DISABLED
+          : SUCCESS_MESSAGES.REDEMPTION_ENABLED
+        toast.success(message)
+        triggerRefresh()
+      } else {
+        toast.error(result.message || ERROR_MESSAGES.STATUS_UPDATE_FAILED)
+      }
+    } catch (error) {
+      toast.error(ERROR_MESSAGES.UNEXPECTED)
+    }
+  }
+
+  const canEdit = isEnabled && !isExpired
+  const canToggle = !isUsed && !isExpired
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant='ghost'
+          className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
+        >
+          <DotsHorizontalIcon className='h-4 w-4' />
+          <span className='sr-only'>Open menu</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-[160px]'>
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(redemption)
+            setOpen('update')
+          }}
+          disabled={!canEdit}
+        >
+          <Edit className='mr-2 size-4' />
+          Edit
+        </DropdownMenuItem>
+        {canToggle && (
+          <DropdownMenuItem onClick={handleToggleStatus}>
+            {isEnabled ? (
+              <>
+                <PowerOff className='mr-2 size-4' />
+                Disable
+              </>
+            ) : (
+              <>
+                <Power className='mr-2 size-4' />
+                Enable
+              </>
+            )}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(redemption)
+            setOpen('delete')
+          }}
+          className='text-destructive focus:text-destructive'
+        >
+          Delete
+          <DropdownMenuShortcut>
+            <Trash2 size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

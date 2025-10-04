@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Clock, Zap } from 'lucide-react'
+import { formatTimestampToDate, formatTokens } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -10,11 +11,7 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import {
-  formatTimestampToDate,
-  formatDuration,
-  formatTokens,
-} from '../../lib/format'
+import { formatDuration } from '../../lib/format'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 
 /**

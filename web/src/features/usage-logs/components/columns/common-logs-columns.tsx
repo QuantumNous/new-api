@@ -1,5 +1,11 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { Route, Info } from 'lucide-react'
+import {
+  formatTokens,
+  formatUseTime,
+  formatLogQuota,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -15,15 +21,7 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
-import {
-  formatTokens,
-  formatUseTime,
-  getTimeColor,
-  formatModelName,
-  parseLogOther,
-  formatLogQuota,
-  formatTimestampToDate,
-} from '../../lib/format'
+import { getTimeColor, formatModelName, parseLogOther } from '../../lib/format'
 import {
   isDisplayableLogType,
   isTimingLogType,
