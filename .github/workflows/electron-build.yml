@@ -1,0 +1,104 @@
+name: Build Electron App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build frontend
+        run: |
+          cd web
+          npm install --legacy-peer-deps
+          npm run build
+        env:
+          DISABLE_ESLINT_PLUGIN: 'true'
+          NODE_OPTIONS: '--max_old_space_size=4096'
+
+      - name: Build Go binary (macos/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          go build -ldflags="-s -w" -o new-api
+
+      - name: Build Go binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          go build -ldflags="-s -w" -o new-api.exe
+
+      - name: Install Electron dependencies
+        run: |
+          cd electron
+          npm install
+
+      - name: Build Electron app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd electron
+          npm run build:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false  # Skip code signing
+
+      - name: Build Electron app (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd electron
+          npm run build:win
+
+      - name: Upload artifacts (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            electron/dist/*.dmg
+            electron/dist/*.zip
+
+      - name: Upload artifacts (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            electron/dist/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            macos-build/*
+            windows-build/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

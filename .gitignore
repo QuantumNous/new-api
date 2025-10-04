@@ -12,3 +12,7 @@ one-api
 .DS_Store
 tiktoken_cache
 .eslintcache
+
+electron/node_modules
+electron/dist
+electron/package-lock.json
