@@ -961,9 +961,15 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			// send first response
 			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
 			if response.IsToolCall() {
-				emptyResponse.Choices[0].Delta.ToolCalls = make([]dto.ToolCallResponse, 1)
-				emptyResponse.Choices[0].Delta.ToolCalls[0] = *response.GetFirstToolCall()
-				emptyResponse.Choices[0].Delta.ToolCalls[0].Function.Arguments = ""
+				if len(emptyResponse.Choices) > 0 && len(response.Choices) > 0 {
+					toolCalls := response.Choices[0].Delta.ToolCalls
+					copiedToolCalls := make([]dto.ToolCallResponse, len(toolCalls))
+					for idx := range toolCalls {
+						copiedToolCalls[idx] = toolCalls[idx]
+						copiedToolCalls[idx].Function.Arguments = ""
+					}
+					emptyResponse.Choices[0].Delta.ToolCalls = copiedToolCalls
+				}
 				finishReason = constant.FinishReasonToolCalls
 				err = handleStream(c, info, emptyResponse)
 				if err != nil {
