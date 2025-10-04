@@ -1,6 +1,6 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -49,6 +49,9 @@ export function DataTableRowActions<TData>({
           }}
         >
           Edit
+          <DropdownMenuShortcut>
+            <Edit size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem disabled>Make a copy</DropdownMenuItem>
         <DropdownMenuItem disabled>Favorite</DropdownMenuItem>
@@ -71,6 +74,7 @@ export function DataTableRowActions<TData>({
             setCurrentRow(task)
             setOpen('delete')
           }}
+          className='text-destructive focus:text-destructive'
         >
           Delete
           <DropdownMenuShortcut>

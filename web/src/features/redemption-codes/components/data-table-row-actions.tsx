@@ -70,20 +70,26 @@ export function DataTableRowActions<TData>({
           }}
           disabled={!canEdit}
         >
-          <Edit className='mr-2 size-4' />
           Edit
+          <DropdownMenuShortcut>
+            <Edit size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
         {canToggle && (
           <DropdownMenuItem onClick={handleToggleStatus}>
             {isEnabled ? (
               <>
-                <PowerOff className='mr-2 size-4' />
                 Disable
+                <DropdownMenuShortcut>
+                  <PowerOff size={16} />
+                </DropdownMenuShortcut>
               </>
             ) : (
               <>
-                <Power className='mr-2 size-4' />
                 Enable
+                <DropdownMenuShortcut>
+                  <Power size={16} />
+                </DropdownMenuShortcut>
               </>
             )}
           </DropdownMenuItem>

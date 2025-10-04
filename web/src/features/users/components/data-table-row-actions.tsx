@@ -15,6 +15,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { manageUser } from '../api'
@@ -72,38 +73,48 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-[160px]'>
         <DropdownMenuItem onClick={handleEdit}>
-          <Pencil className='mr-2 h-4 w-4' />
           Edit
+          <DropdownMenuShortcut>
+            <Pencil size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
         {isDisabled ? (
           <DropdownMenuItem onClick={() => handleManage('enable')}>
-            <Power className='mr-2 h-4 w-4' />
             Enable
+            <DropdownMenuShortcut>
+              <Power size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem
             onClick={() => handleManage('disable')}
             disabled={isRoot}
           >
-            <PowerOff className='mr-2 h-4 w-4' />
             Disable
+            <DropdownMenuShortcut>
+              <PowerOff size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
 
         {isAdmin && !isRoot && (
           <DropdownMenuItem onClick={() => handleManage('demote')}>
-            <ArrowDown className='mr-2 h-4 w-4' />
             Demote
+            <DropdownMenuShortcut>
+              <ArrowDown size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
 
         {!isAdmin && (
           <DropdownMenuItem onClick={() => handleManage('promote')}>
-            <ArrowUp className='mr-2 h-4 w-4' />
             Promote
+            <DropdownMenuShortcut>
+              <ArrowUp size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
 
@@ -111,11 +122,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         <DropdownMenuItem
           onClick={handleDelete}
-          className='text-destructive'
+          className='text-destructive focus:text-destructive'
           disabled={isRoot}
         >
-          <Trash2 className='mr-2 h-4 w-4' />
           Delete
+          <DropdownMenuShortcut>
+            <Trash2 size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
