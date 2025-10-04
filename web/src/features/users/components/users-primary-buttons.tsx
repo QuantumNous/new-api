@@ -1,4 +1,4 @@
-import { UserPlus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUsers } from './users-provider'
 
@@ -11,9 +11,10 @@ export function UsersPrimaryButtons() {
   }
 
   return (
-    <Button onClick={handleCreate} size='sm' className='gap-2'>
-      <UserPlus className='h-4 w-4' />
-      Add User
-    </Button>
+    <div className='flex gap-2'>
+      <Button className='space-x-1' onClick={handleCreate}>
+        <span>Add User</span> <Plus size={18} />
+      </Button>
+    </div>
   )
 }
