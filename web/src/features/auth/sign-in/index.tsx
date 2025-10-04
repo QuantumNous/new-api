@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
-import { getStatus } from '@/lib/api'
+import { useStatus } from '@/hooks/use-status'
 import {
   Card,
   CardContent,
@@ -10,17 +9,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
+import { TermsFooter } from '../components/terms-footer'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
-  const [status, setStatus] = useState<any>(null)
-
-  if (!status) {
-    getStatus()
-      .then((s) => setStatus(s))
-      .catch(() => {})
-  }
+  const { status } = useStatus()
 
   return (
     <AuthLayout>
@@ -47,23 +41,7 @@ export function SignIn() {
               </Link>
             </p>
           )}
-          <p className='text-muted-foreground px-8 text-center text-xs'>
-            By clicking sign in, you agree to our{' '}
-            <a
-              href='/terms'
-              className='hover:text-primary underline underline-offset-4'
-            >
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a
-              href='/privacy'
-              className='hover:text-primary underline underline-offset-4'
-            >
-              Privacy Policy
-            </a>
-            .
-          </p>
+          <TermsFooter variant='sign-in' />
         </CardFooter>
       </Card>
     </AuthLayout>

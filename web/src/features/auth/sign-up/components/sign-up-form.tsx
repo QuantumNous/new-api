@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { z } from 'zod'
+import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { useCountdown } from '@/hooks/use-countdown'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -20,42 +18,41 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { register, sendEmailVerification } from '@/features/auth/api'
-
-const formSchema = z
-  .object({
-    username: z.string().min(1, 'Please enter your username'),
-    email: z.string().optional(),
-    password: z
-      .string()
-      .min(1, 'Please enter your password')
-      .min(8, 'Password must be at least 8 characters long')
-      .max(20, 'Password must be at most 20 characters long'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match.",
-    path: ['confirmPassword'],
-  })
+import { register } from '@/features/auth/api'
+import { registerFormSchema } from '@/features/auth/constants'
+import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
+import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { getAffiliateCode } from '@/features/auth/lib/storage'
 
 export function SignUpForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
-  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
-  const [isSendingCode, setIsSendingCode] = useState(false)
-  const [status, setStatus] = useState<any>(null)
-  const [code, setCode] = useState('')
-  const [turnstileToken, setTurnstileToken] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+
+  const { status } = useStatus()
   const {
+    isTurnstileEnabled,
+    turnstileSiteKey,
+    turnstileToken,
+    setTurnstileToken,
+    validateTurnstile,
+  } = useTurnstile()
+  const { redirectToLogin } = useAuthRedirect()
+  const {
+    isSending: isSendingCode,
     secondsLeft,
     isActive,
-    start: startCountdown,
-  } = useCountdown({ initialSeconds: 30 })
+    sendCode,
+  } = useEmailVerification({
+    turnstileToken,
+    validateTurnstile,
+  })
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof registerFormSchema>>({
+    resolver: zodResolver(registerFormSchema),
     defaultValues: {
       username: '',
       email: '',
@@ -65,47 +62,45 @@ export function SignUpForm({
   })
 
   const emailValue = form.watch('email')
+  const emailVerificationRequired = !!status?.email_verification
 
-  if (!status) {
-    getStatus()
-      .then((s) => setStatus(s))
-      .catch(() => {})
-  }
+  async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+    // Validate email verification if required
+    if (emailVerificationRequired) {
+      if (!data.email) {
+        toast.error('Please enter your email')
+        return
+      }
+      if (!verificationCode) {
+        toast.error('Please enter the verification code')
+        return
+      }
+    }
 
-  async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      if (status?.email_verification) {
-        if (!data.email) {
-          toast.error('Please enter your email')
-          setIsLoading(false)
-          return
-        }
-        if (!code) {
-          toast.error('Please enter the verification code')
-          setIsLoading(false)
-          return
-        }
-      }
-      const aff =
-        typeof window !== 'undefined' ? (localStorage.getItem('aff') ?? '') : ''
       const res = await register({
         username: data.username,
         password: data.password,
         email: data.email || undefined,
-        verification_code: code || undefined,
-        aff,
+        verification_code: verificationCode || undefined,
+        aff: getAffiliateCode(),
         turnstile: turnstileToken,
       })
+
       if (res?.success) {
         toast.success('Account created! Please sign in')
-        navigate({ to: '/sign-in', replace: true })
+        redirectToLogin()
       }
-    } catch (e) {
+    } catch (error) {
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
     }
+  }
+
+  async function handleSendVerificationCode() {
+    await sendCode(emailValue || '')
   }
 
   return (
@@ -115,6 +110,7 @@ export function SignUpForm({
         className={cn('grid gap-3', className)}
         {...props}
       >
+        {/* Username Field */}
         <FormField
           control={form.control}
           name='username'
@@ -128,6 +124,8 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        {/* Password Field */}
         <FormField
           control={form.control}
           name='password'
@@ -144,6 +142,8 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        {/* Confirm Password Field */}
         <FormField
           control={form.control}
           name='confirmPassword'
@@ -157,8 +157,11 @@ export function SignUpForm({
             </FormItem>
           )}
         />
-        {status?.email_verification && (
+
+        {/* Email Verification Section */}
+        {emailVerificationRequired && (
           <>
+            {/* Email Field */}
             <FormField
               control={form.control}
               name='email'
@@ -176,41 +179,21 @@ export function SignUpForm({
                 </FormItem>
               )}
             />
+
+            {/* Verification Code Field */}
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
                 <Input
                   placeholder='Verification code'
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
                 />
               </div>
               <Button
                 variant='outline'
                 type='button'
                 disabled={isLoading || isSendingCode || isActive || !emailValue}
-                onClick={async () => {
-                  try {
-                    setIsSendingCode(true)
-                    if (status?.turnstile_check && !turnstileToken) {
-                      toast.info(
-                        'Please wait a moment, human check is initializing...'
-                      )
-                      return
-                    }
-                    const r = await sendEmailVerification(
-                      emailValue!,
-                      turnstileToken
-                    )
-                    if (r?.success) {
-                      startCountdown()
-                      toast.success('Verification email sent')
-                    }
-                  } catch {
-                    // Errors are handled by global interceptor
-                  } finally {
-                    setIsSendingCode(false)
-                  }
-                }}
+                onClick={handleSendVerificationCode}
               >
                 {isActive ? (
                   `Resend (${secondsLeft}s)`
@@ -221,16 +204,20 @@ export function SignUpForm({
                 )}
               </Button>
             </div>
-            {status?.turnstile_check && status?.turnstile_site_key && (
+
+            {/* Turnstile */}
+            {isTurnstileEnabled && (
               <div className='mt-2'>
                 <Turnstile
-                  siteKey={status.turnstile_site_key}
-                  onVerify={(t) => setTurnstileToken(t)}
+                  siteKey={turnstileSiteKey}
+                  onVerify={setTurnstileToken}
                 />
               </div>
             )}
           </>
         )}
+
+        {/* Submit Button */}
         <Button className='mt-2' disabled={isLoading}>
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Create account

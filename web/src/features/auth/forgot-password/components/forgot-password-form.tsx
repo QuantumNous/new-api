@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { z } from 'zod'
+import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
@@ -19,52 +18,49 @@ import {
 import { Input } from '@/components/ui/input'
 import { Turnstile } from '@/components/turnstile'
 import { sendPasswordResetEmail } from '@/features/auth/api'
-
-const formSchema = z.object({
-  email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email' : undefined),
-  }),
-})
+import {
+  forgotPasswordFormSchema,
+  PASSWORD_RESET_COUNTDOWN,
+} from '@/features/auth/constants'
+import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 
 export function ForgotPasswordForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
   const [isLoading, setIsLoading] = useState(false)
-  const [status, setStatus] = useState<any>(null)
-  const [turnstileToken, setTurnstileToken] = useState('')
+
+  const {
+    isTurnstileEnabled,
+    turnstileSiteKey,
+    turnstileToken,
+    setTurnstileToken,
+    validateTurnstile,
+  } = useTurnstile()
   const {
     secondsLeft,
     isActive,
     start: startCountdown,
-  } = useCountdown({ initialSeconds: 30 })
+  } = useCountdown({ initialSeconds: PASSWORD_RESET_COUNTDOWN })
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof forgotPasswordFormSchema>>({
+    resolver: zodResolver(forgotPasswordFormSchema),
     defaultValues: { email: '' },
   })
 
-  if (!status) {
-    getStatus()
-      .then((s) => setStatus(s))
-      .catch(() => {})
-  }
+  async function onSubmit(data: z.infer<typeof forgotPasswordFormSchema>) {
+    if (!validateTurnstile()) return
 
-  async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      if (status?.turnstile_check && !turnstileToken) {
-        toast.info('Please wait a moment, human check is initializing...')
-        return
-      }
-      const r = await sendPasswordResetEmail(data.email, turnstileToken)
-      if (r?.success) {
+      const res = await sendPasswordResetEmail(data.email, turnstileToken)
+      if (res?.success) {
         form.reset()
         startCountdown()
         toast.success('Reset email sent, please check your inbox')
       }
-    } catch (e) {
-      // handled by global interceptor
+    } catch (error) {
+      // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
     }
@@ -90,15 +86,17 @@ export function ForgotPasswordForm({
             </FormItem>
           )}
         />
+
         <Button className='mt-2' disabled={isLoading || isActive}>
           {isActive ? `Resend (${secondsLeft}s)` : 'Send reset email'}
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
-        {status?.turnstile_check && status?.turnstile_site_key && (
+
+        {isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile
-              siteKey={status.turnstile_site_key}
-              onVerify={(t) => setTurnstileToken(t)}
+              siteKey={turnstileSiteKey}
+              onVerify={setTurnstileToken}
             />
           </div>
         )}

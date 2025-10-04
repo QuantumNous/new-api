@@ -27,16 +27,17 @@ export function Otp() {
           <OtpForm />
         </CardContent>
         <CardFooter>
-          <p className='text-muted-foreground px-8 text-center text-sm'>
-            Haven't received it?{' '}
-            <Link
-              to='/sign-in'
-              className='hover:text-primary underline underline-offset-4'
-            >
-              Resend a new code.
-            </Link>
-            .
-          </p>
+          <div className='flex w-full justify-center'>
+            <p className='text-muted-foreground px-8 text-center text-sm'>
+              Session expired?{' '}
+              <Link
+                to='/sign-in'
+                className='hover:text-primary underline underline-offset-4'
+              >
+                Re-login
+              </Link>
+            </p>
+          </div>
         </CardFooter>
       </Card>
     </AuthLayout>

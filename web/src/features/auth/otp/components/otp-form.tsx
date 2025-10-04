@@ -1,12 +1,10 @@
 import { useState } from 'react'
-import { z } from 'zod'
+import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { getSelf } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,34 +24,46 @@ import {
   InputOTPSeparator,
 } from '@/components/ui/input-otp'
 import { login2fa } from '@/features/auth/api'
-
-const formSchema = z.object({
-  otp: z.string().min(1, 'Please enter a code.'),
-})
+import {
+  otpFormSchema,
+  OTP_LENGTH,
+  BACKUP_CODE_LENGTH,
+} from '@/features/auth/constants'
+import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+import { saveUserId } from '@/features/auth/lib/storage'
+import {
+  isValidOTP,
+  isValidBackupCode,
+  formatBackupCode,
+  cleanBackupCode,
+} from '@/features/auth/lib/validation'
+import type { User } from '@/features/users/types'
 
 type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
 
 export function OtpForm({ className, ...props }: OtpFormProps) {
-  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [useBackupCode, setUseBackupCode] = useState(false)
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const { auth } = useAuthStore()
+  const { redirectToLogin } = useAuthRedirect()
+
+  const form = useForm<z.infer<typeof otpFormSchema>>({
+    resolver: zodResolver(otpFormSchema),
     defaultValues: { otp: '' },
   })
 
   const otp = form.watch('otp')
 
-  async function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: z.infer<typeof otpFormSchema>) {
     // Validate based on mode
     if (useBackupCode) {
-      if (data.otp.length !== 8) {
-        toast.error('Backup code must be 8 characters')
+      if (!isValidBackupCode(data.otp)) {
+        toast.error('Backup code must be in format XXXX-XXXX')
         return
       }
     } else {
-      if (!/^\d{6}$/.test(data.otp)) {
+      if (!isValidOTP(data.otp)) {
         toast.error('Verification code must be 6 digits')
         return
       }
@@ -61,25 +71,36 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
 
     setIsLoading(true)
     try {
-      const res = await login2fa({ code: data.otp })
+      // Remove all hyphens from backup code before sending to backend
+      const code = useBackupCode ? cleanBackupCode(data.otp) : data.otp
+      const res = await login2fa({ code })
+
       if (!res.success) {
         toast.error(res.message || 'Invalid code')
         return
       }
-      // fetch user info
-      const self = await getSelf()
-      if (self?.success) {
-        useAuthStore.getState().auth.setUser(self.data as any)
-        try {
-          if (typeof window !== 'undefined' && (self as any).data?.id) {
-            window.localStorage.setItem('uid', String((self as any).data.id))
-          }
-        } catch {}
+
+      // Handle user data from 2FA login response
+      const userData = res.data
+      if (!userData) {
+        throw new Error('No user data received from login')
       }
-      navigate({ to: '/dashboard', replace: true })
+
+      // Update auth store
+      auth.setUser(userData as User)
+
+      // Store user ID in localStorage for compatibility
+      if (userData.id) {
+        saveUserId(userData.id)
+      }
+
       toast.success('Signed in')
-    } catch (e) {
-      toast.error('Verification failed')
+      redirectToLogin() // This will redirect to dashboard via the redirect logic
+    } catch (error) {
+      console.error('2FA verification error:', error)
+      const errorMessage =
+        error instanceof Error ? error.message : 'Verification failed'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -91,8 +112,12 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
   }
 
   function handleBackToLogin() {
-    navigate({ to: '/sign-in', replace: true })
+    redirectToLogin()
   }
+
+  const isFormValid = useBackupCode
+    ? otp.length >= BACKUP_CODE_LENGTH
+    : otp.length >= OTP_LENGTH
 
   return (
     <Form {...form}>
@@ -112,14 +137,19 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
               <FormControl>
                 {useBackupCode ? (
                   <Input
-                    placeholder='Enter 8-character backup code'
+                    placeholder='Enter backup code (e.g., CAWD-OQDV)'
                     {...field}
-                    maxLength={8}
+                    maxLength={BACKUP_CODE_LENGTH}
                     autoComplete='off'
+                    className='font-mono uppercase'
+                    onChange={(e) => {
+                      const formatted = formatBackupCode(e.target.value)
+                      field.onChange(formatted)
+                    }}
                   />
                 ) : (
                   <InputOTP
-                    maxLength={6}
+                    maxLength={OTP_LENGTH}
                     {...field}
                     containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
                   >
@@ -149,15 +179,12 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
             </FormItem>
           )}
         />
-        <Button
-          className='w-full'
-          disabled={
-            (useBackupCode ? otp.length < 8 : otp.length < 6) || isLoading
-          }
-        >
+
+        <Button className='w-full' disabled={!isFormValid || isLoading}>
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Verify and Sign In
         </Button>
+
         <div className='flex items-center justify-center gap-4 text-sm'>
           <Button
             type='button'

@@ -1,33 +1,12 @@
 import { api } from '@/lib/api'
-
-// ============================================================================
-// Type Definitions
-// ============================================================================
-
-export interface LoginPayload {
-  username: string
-  password: string
-  turnstile?: string
-}
-
-export interface LoginResponse {
-  success: boolean
-  message: string
-  data?: { require_2fa?: boolean }
-}
-
-export interface TwoFAPayload {
-  code: string
-}
-
-export interface RegisterPayload {
-  username: string
-  password: string
-  email?: string
-  verification_code?: string
-  aff?: string
-  turnstile?: string
-}
+import type {
+  LoginPayload,
+  LoginResponse,
+  Login2FAResponse,
+  TwoFAPayload,
+  RegisterPayload,
+  ApiResponse,
+} from './types'
 
 // ============================================================================
 // Authentication APIs
@@ -52,12 +31,12 @@ export async function login(payload: LoginPayload) {
 
 // Two-factor authentication login
 export async function login2fa(payload: TwoFAPayload) {
-  const res = await api.post<LoginResponse>('/api/user/login/2fa', payload)
+  const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload)
   return res.data
 }
 
 // User logout
-export async function logout() {
+export async function logout(): Promise<ApiResponse> {
   const res = await api.get('/api/user/logout')
   return res.data
 }
@@ -70,7 +49,7 @@ export async function logout() {
 export async function sendPasswordResetEmail(
   email: string,
   turnstile?: string
-) {
+): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
     params: { email, turnstile },
   })
@@ -97,7 +76,7 @@ export async function getOAuthState(): Promise<string> {
 }
 
 // WeChat login by authorization code
-export async function wechatLoginByCode(code: string) {
+export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
   const res = await api.get('/api/oauth/wechat', { params: { code } })
   return res.data
 }
@@ -107,7 +86,7 @@ export async function wechatLoginByCode(code: string) {
 // ----------------------------------------------------------------------------
 
 // User registration
-export async function register(payload: RegisterPayload) {
+export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   const res = await api.post(`/api/user/register`, payload, {
     params: { turnstile: payload.turnstile ?? '' },
   })
@@ -115,7 +94,10 @@ export async function register(payload: RegisterPayload) {
 }
 
 // Send email verification code
-export async function sendEmailVerification(email: string, turnstile?: string) {
+export async function sendEmailVerification(
+  email: string,
+  turnstile?: string
+): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
   })
@@ -123,7 +105,10 @@ export async function sendEmailVerification(email: string, turnstile?: string) {
 }
 
 // Bind email to OAuth account
-export async function bindEmail(email: string, code: string) {
+export async function bindEmail(
+  email: string,
+  code: string
+): Promise<ApiResponse> {
   const res = await api.get('/api/oauth/email/bind', {
     params: { email, code },
   })
