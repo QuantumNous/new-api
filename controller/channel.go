@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"one-api/common"
 	"one-api/constant"
@@ -11,6 +12,7 @@ import (
 	"one-api/service"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,6 +43,20 @@ type OpenAIModel struct {
 type OpenAIModelsResponse struct {
 	Data    []OpenAIModel `json:"data"`
 	Success bool          `json:"success"`
+}
+
+type AnthropicModel struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	DisplayName string `json:"display_name"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type AnthropicModelsResponse struct {
+	Data    []AnthropicModel `json:"data"`
+	FirstId string           `json:"first_id"`
+	LastId  string           `json:"last_id"`
+	HasMore bool             `json:"has_more"`
 }
 
 func parseStatusFilter(statusParam string) int {
@@ -198,39 +214,99 @@ func FetchUpstreamModels(c *gin.Context) {
 	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
 	var body []byte
 	key := strings.Split(channel.Key, "\n")[0]
-	if channel.Type == constant.ChannelTypeGemini {
+
+	if channel.Type == constant.ChannelTypeAnthropic {
+		// Anthropic 需要特殊的请求头，不使用通用的 GetResponseBody
+		body, err = GetAnthropicResponseBody("GET", url, key)
+	} else if channel.Type == constant.ChannelTypeGemini {
+		// 保持原有的 Gemini 逻辑
 		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key)) // Use AuthHeader since Gemini now forces it
 	} else {
+		// 其他渠道类型
 		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	}
+
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	var result OpenAIModelsResponse
-	if err = json.Unmarshal(body, &result); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": fmt.Sprintf("解析响应失败: %s", err.Error()),
-		})
-		return
-	}
-
-	var ids []string
-	for _, model := range result.Data {
-		id := model.ID
-		if channel.Type == constant.ChannelTypeGemini {
-			id = strings.TrimPrefix(id, "models/")
+	// 根据不同渠道类型解析响应
+	if channel.Type == constant.ChannelTypeAnthropic {
+		var result AnthropicModelsResponse
+		if err = json.Unmarshal(body, &result); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("解析响应失败: %s", err.Error()),
+			})
+			return
 		}
-		ids = append(ids, id)
+
+		var ids []string
+		for _, model := range result.Data {
+			ids = append(ids, model.ID)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    ids,
+		})
+	} else {
+		// 保持原有的解析逻辑，包括 Gemini 等其他所有渠道
+		var result OpenAIModelsResponse
+		if err = json.Unmarshal(body, &result); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("解析响应失败: %s", err.Error()),
+			})
+			return
+		}
+
+		var ids []string
+		for _, model := range result.Data {
+			id := model.ID
+			if channel.Type == constant.ChannelTypeGemini {
+				id = strings.TrimPrefix(id, "models/")
+			}
+			ids = append(ids, id)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    ids,
+		})
+	}
+}
+
+func GetAnthropicResponseBody(method, url, apiKey string) ([]byte, error) {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    ids,
-	})
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Anthropic 特定的请求头
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return ioutil.ReadAll(resp.Body)
 }
 
 func FixChannelsAbilities(c *gin.Context) {
@@ -901,7 +977,17 @@ func FetchModels(c *gin.Context) {
 	}
 
 	client := &http.Client{}
-	url := fmt.Sprintf("%s/v1/models", baseURL)
+
+	// 根据渠道类型构建不同的 URL
+	var url string
+	switch req.Type {
+	case constant.ChannelTypeGemini:
+		url = fmt.Sprintf("%s/v1beta/openai/models", baseURL)
+	case constant.ChannelTypeAli:
+		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
+	default:
+		url = fmt.Sprintf("%s/v1/models", baseURL)
+	}
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -916,7 +1002,15 @@ func FetchModels(c *gin.Context) {
 	key := strings.TrimSpace(req.Key)
 	// If the key contains a line break, only take the first part.
 	key = strings.Split(key, "\n")[0]
-	request.Header.Set("Authorization", "Bearer "+key)
+
+	// 根据渠道类型设置不同的请求头
+	if req.Type == constant.ChannelTypeAnthropic {
+		request.Header.Set("x-api-key", key)
+		request.Header.Set("anthropic-version", "2023-06-01")
+		request.Header.Set("Content-Type", "application/json")
+	} else {
+		request.Header.Set("Authorization", "Bearer "+key)
+	}
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -936,29 +1030,57 @@ func FetchModels(c *gin.Context) {
 	}
 	defer response.Body.Close()
 
-	var result struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
+	// 根据渠道类型使用不同的解析结构
+	if req.Type == constant.ChannelTypeAnthropic {
+		var result AnthropicModelsResponse
+		if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
+		var models []string
+		for _, model := range result.Data {
+			models = append(models, model.ID)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
 		})
-		return
-	}
+	} else {
+		// 原有的处理逻辑（非 Anthropic 渠道）
+		var result struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
 
-	var models []string
-	for _, model := range result.Data {
-		models = append(models, model.ID)
-	}
+		if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    models,
-	})
+		var models []string
+		for _, model := range result.Data {
+			id := model.ID
+			// Gemini 需要去掉 models/ 前缀
+			if req.Type == constant.ChannelTypeGemini {
+				id = strings.TrimPrefix(id, "models/")
+			}
+			models = append(models, id)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+	}
 }
 
 func BatchSetChannelTag(c *gin.Context) {
