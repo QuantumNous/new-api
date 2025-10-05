@@ -38,8 +38,8 @@ type Log struct {
 	ChannelName      string `json:"channel_name" gorm:"->"`
 	TokenId          int    `json:"token_id" gorm:"default:0;index"`
 	Group            string `json:"group" gorm:"index"`
-	Usage            string `json:"usage" gorm:"type:longtext;"`
 	Other            string `json:"other"`
+	common.RequestInfo
 }
 
 const (
@@ -143,7 +143,12 @@ func GetLogTableName(timestamp int64) string {
 // 修改 RecordConsumeLog 函数中的相关部分
 func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int, thinkingTokens int,
 	modelName string, tokenName string, quota int, content string, tokenId int, userQuota int, useTimeSeconds int,
-	isStream bool, group string, other map[string]interface{}, usage string) {
+	isStream bool, group string, other map[string]interface{}) {
+	reqInfo, err := common.LogRequestInfo(c, quota == 0)
+	if err != nil {
+		common.LogError(c, "failed to get request info: "+err.Error())
+	}
+
 	// 如果是压测流量，不记录计费日志
 	if c.GetHeader("X-Test-Traffic") == "true" {
 		common.LogInfo(c, "test traffic detected, skipping consume log")
@@ -165,7 +170,7 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 	}
 
 	otherStr := common.MapToJsonStr(other)
-	usageStr := usage
+
 	log := &Log{
 		UserId:           common.GetOriginUserId(c, userId),
 		RequestID:        c.GetString(common.RequestIdKey),
@@ -184,14 +189,14 @@ func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens in
 		UseTime:          useTimeSeconds,
 		IsStream:         isStream,
 		Group:            group,
-		Usage:            usageStr,
 		Other:            otherStr,
+		RequestInfo:      *reqInfo,
 	}
 	tableName := GetLogTableName(log.CreatedAt)
 	if time.Now().In(common.BeijingLocation).Before(time.Date(2025, 3, 12, 23, 59, 59, 0, common.BeijingLocation)) {
 		tableName = "logs"
 	}
-	err := LOG_DB.Table(tableName).Create(log).Error
+	err = LOG_DB.Table(tableName).Create(log).Error
 
 	if err != nil {
 		common.LogError(c, "failed to record log: "+err.Error())

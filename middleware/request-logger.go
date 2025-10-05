@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"one-api/common"
 	"strings"
 
@@ -45,6 +47,13 @@ func RequestLogger() gin.HandlerFunc {
 		requestId := c.GetString(common.RequestIdKey)
 		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, requestId)
 		ctx = context.WithValue(ctx, "gin_context", c)
+
+		body, _ := io.ReadAll(c.Request.Body)
+		// 恢复请求体
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+		c.Set(common.CtxRequestBody, string(body))
+
+		c.Set(common.CtxRequestHeaders, common.FormatMap(headers))
 
 		common.LogInfo(ctx, logInfo)
 

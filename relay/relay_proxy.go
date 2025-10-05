@@ -155,6 +155,13 @@ func ProxyHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, proxyRequest 
 	// 设置响应状态码
 	c.Writer.WriteHeader(httpResp.StatusCode)
 
+	jsonBytes, err := json.Marshal(httpResp.Header)
+	if err != nil {
+		common.LogError(c, fmt.Sprintf("Failed to marshal response headers: %v", err))
+	}
+
+	c.Set(common.CtxResponseHeaders, string(jsonBytes))
+
 	// 检查是否为流式响应
 	isStream := strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 	relayInfo.IsStream = isStream
@@ -198,6 +205,7 @@ func ProxyHelper(c *gin.Context, relayInfo *relaycommon.RelayInfo, proxyRequest 
 		}
 	}
 
+	c.Set(common.CtxResponseBody, string(responseBodyBytes))
 	// 生成处理后的响应字符串用于配额统计
 	var processedResponseStr string
 	if len(responseBodyBytes) > 0 {

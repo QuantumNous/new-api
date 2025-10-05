@@ -3,13 +3,97 @@ package common
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
+
+type RequestInfo struct {
+	ResponseHeaders string `json:"response_headers" gorm:"type:longtext;"`
+	RequestHeaders  string `json:"request_headers" gorm:"type:longtext;"`
+	RequestBody     string `json:"request_body" gorm:"type:longtext;"`
+	ResponseBody    string `json:"response_body" gorm:"type:longtext;"`
+	IsTruncated     bool   `json:"is_truncated" db:"is_truncated"` // 是否缩略打印请求体和响应体
+}
+
+const (
+	CtxRequestBody     = "ctx_request_body"
+	CtxRequestHeaders  = "ctx_request_headers"
+	CtxResponseHeaders = "ctx_response_headers"
+	CtxResponseBody    = "ctx_response_body"
+)
+
+func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err error) {
+	reqInfo = &RequestInfo{
+		IsTruncated:     isTruncated,
+		RequestBody:     "",
+		RequestHeaders:  "",
+		ResponseHeaders: "",
+		ResponseBody:    "",
+	}
+
+	requestbody, exists := c.Get(CtxRequestBody)
+	if !exists {
+		return reqInfo, errors.New("failed to get request body")
+	}
+	requestheaders, exists := c.Get(CtxRequestHeaders)
+	if !exists {
+		return reqInfo, errors.New("failed to get request body")
+	}
+	responseheaders, exists := c.Get(CtxResponseHeaders)
+	if !exists {
+		return reqInfo, errors.New("failed to get request body")
+	}
+	responsebody, exists := c.Get(CtxResponseBody)
+	if !exists {
+		return reqInfo, errors.New("failed to get request body")
+	}
+	if isTruncated {
+		reqInfo = &RequestInfo{
+			IsTruncated:     true,
+			RequestBody:     TruncatedBody(requestbody.(string), requestheaders.(string)),
+			RequestHeaders:  requestheaders.(string),
+			ResponseHeaders: responseheaders.(string),
+			ResponseBody:    TruncatedBody(responsebody.(string), responseheaders.(string)),
+		}
+	} else {
+		reqInfo = &RequestInfo{
+			IsTruncated:     false,
+			RequestBody:     requestbody.(string),
+			RequestHeaders:  requestheaders.(string),
+			ResponseHeaders: responseheaders.(string),
+			ResponseBody:    responsebody.(string),
+		}
+	}
+
+	return
+}
+
+func TruncatedBody(body string, contentType string) string {
+	if strings.Contains(contentType, "multipart/form-data") {
+		return ParseMultipartFormData([]byte(body), contentType)
+	} else {
+		// 尝试解析为JSON
+		var bodyData interface{}
+		if err := json.Unmarshal([]byte(body), &bodyData); err == nil {
+			// 对JSON数据使用ProcessMapValues处理
+			processedData := ProcessMapValues(bodyData)
+			return FormatValue(processedData)
+		} else {
+			// 对非JSON内容，转为字符串并限制长度
+			bodyStr := string(body)
+			if len(bodyStr) > 1000 {
+				bodyStr = bodyStr[:1000] + fmt.Sprintf("...[truncated, total: %d chars]", len(bodyStr))
+			}
+			return bodyStr
+		}
+	}
+}
 
 // logRequestBody 记录请求体信息
 func LogRequestBody(c *gin.Context) string {
@@ -112,11 +196,11 @@ func FormatMap(m map[string]string) string {
 	if len(m) == 0 {
 		return "{}"
 	}
-	var pairs []string
-	for k, v := range m {
-		pairs = append(pairs, fmt.Sprintf("%s: %s", k, v))
+	data, err := json.Marshal(m)
+	if err != nil {
+		return "{}" // 出错时返回空对象
 	}
-	return "{" + strings.Join(pairs, ", ") + "}"
+	return string(data)
 }
 
 func FormatValue(v interface{}) string {

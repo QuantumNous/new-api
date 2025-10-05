@@ -590,25 +590,25 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	metrics.IncrementInferenceTokens(strconv.Itoa(relayInfo.ChannelId), relayInfo.ChannelName, modelName, relayInfo.Group, strconv.Itoa(relayInfo.UserId), userName, tokenName, float64(thinkingTokens))
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice)
 
-	// 使用 ProcessMapValues 处理整个响应体，保留每一层JSON的value前100个字符
-	var usageFromResponse string
-	if len(responseBodyBytes) > 0 {
-		var responseBody interface{}
-		if err := json.Unmarshal(responseBodyBytes, &responseBody); err == nil {
-			// 使用 ProcessMapValues 处理整个响应体
-			processedResponse := common.ProcessMapValues(responseBody)
-			if processedJSON, err := json.Marshal(processedResponse); err == nil {
-				usageFromResponse = string(processedJSON)
-			} else {
-				usageFromResponse = string(responseBodyBytes)
-			}
-		} else {
-			usageFromResponse = string(responseBodyBytes)
-		}
-	} else {
-		usageFromResponse = ""
-	}
+	// // 使用 ProcessMapValues 处理整个响应体，保留每一层JSON的value前100个字符
+	// var usageFromResponse string
+	// if len(responseBodyBytes) > 0 {
+	// 	var responseBody interface{}
+	// 	if err := json.Unmarshal(responseBodyBytes, &responseBody); err == nil {
+	// 		// 使用 ProcessMapValues 处理整个响应体
+	// 		processedResponse := common.ProcessMapValues(responseBody)
+	// 		if processedJSON, err := json.Marshal(processedResponse); err == nil {
+	// 			usageFromResponse = string(processedJSON)
+	// 		} else {
+	// 			usageFromResponse = string(responseBodyBytes)
+	// 		}
+	// 	} else {
+	// 		usageFromResponse = string(responseBodyBytes)
+	// 	}
+	// } else {
+	// 	usageFromResponse = ""
+	// }
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, relayInfo.ChannelId, promptTokens, completionTokens, thinkingTokens, logModel,
-		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other, usageFromResponse)
+		tokenName, quota, logContent, relayInfo.TokenId, userQuota, int(useTimeSeconds), relayInfo.IsStream, relayInfo.Group, other)
 }
