@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
-import { AppHeader } from '@/components/layout/app-header'
-import { Main } from '@/components/layout/main'
+import { AppHeader, Main } from '@/components/layout'
 import { CommonLogsStats } from './components/common-logs-stats'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'

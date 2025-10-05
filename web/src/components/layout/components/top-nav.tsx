@@ -9,30 +9,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { type TopNavLink } from '../types'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
-  links: {
-    title: string
-    href: string
-    isActive?: boolean
-    disabled?: boolean
-    external?: boolean
-  }[]
+  links: TopNavLink[]
 }
 
+/**
+ * 顶部导航栏组件
+ * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
+ */
 export function TopNav({ className, links, ...props }: TopNavProps) {
-  const normalized = useMemo(
+  // 规范化链接，确保所有可选属性都有默认值
+  const normalizedLinks = useMemo(
     () =>
-      links.map((l) => ({
+      links.map((link) => ({
         isActive: false,
         disabled: false,
         external: false,
-        ...l,
+        ...link,
       })),
     [links]
   )
+
   return (
     <>
+      {/* 移动端下拉菜单 */}
       <div className='lg:hidden'>
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
@@ -41,32 +43,35 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side='bottom' align='start'>
-            {normalized.map(({ title, href, isActive, disabled, external }) => (
-              <DropdownMenuItem key={`${title}-${href}`} asChild>
-                {external ? (
-                  <a
-                    href={href}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className={!isActive ? 'text-muted-foreground' : ''}
-                  >
-                    {title}
-                  </a>
-                ) : (
-                  <Link
-                    to={href}
-                    className={!isActive ? 'text-muted-foreground' : ''}
-                    disabled={disabled}
-                  >
-                    {title}
-                  </Link>
-                )}
-              </DropdownMenuItem>
-            ))}
+            {normalizedLinks.map(
+              ({ title, href, isActive, disabled, external }) => (
+                <DropdownMenuItem key={`${title}-${href}`} asChild>
+                  {external ? (
+                    <a
+                      href={href}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className={!isActive ? 'text-muted-foreground' : ''}
+                    >
+                      {title}
+                    </a>
+                  ) : (
+                    <Link
+                      to={href}
+                      className={!isActive ? 'text-muted-foreground' : ''}
+                      disabled={disabled}
+                    >
+                      {title}
+                    </Link>
+                  )}
+                </DropdownMenuItem>
+              )
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
+      {/* 桌面端水平导航 */}
       <nav
         className={cn(
           'hidden items-center space-x-4 lg:flex lg:space-x-4 xl:space-x-6',
@@ -74,7 +79,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         )}
         {...props}
       >
-        {normalized.map(({ title, href, isActive, disabled, external }) =>
+        {normalizedLinks.map(({ title, href, isActive, disabled, external }) =>
           external ? (
             <a
               key={`${title}-${href}`}

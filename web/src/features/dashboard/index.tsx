@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AppHeader } from '@/components/layout/app-header'
-import { Main } from '@/components/layout/main'
+import { AppHeader, Main } from '@/components/layout'
 import { LogStatCards } from './components/models/log-stat-cards'
 import { ModelCharts } from './components/models/model-charts'
 import { ModelsFilter } from './components/models/models-filter-dialog'

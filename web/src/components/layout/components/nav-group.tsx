@@ -1,11 +1,20 @@
 import { type ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -17,25 +26,21 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { Badge } from '../ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu'
 import {
   type NavCollapsible,
   type NavItem,
   type NavLink,
   type NavGroup as NavGroupProps,
-} from './types'
+} from '../types'
 
+/**
+ * 侧边栏导航组组件
+ * 渲染一组导航项，支持普通链接和可折叠的子菜单
+ */
 export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{title}</SidebarGroupLabel>
@@ -43,14 +48,19 @@ export function NavGroup({ title, items }: NavGroupProps) {
         {items.map((item) => {
           const key = `${item.title}-${item.url}`
 
-          if (!item.items)
+          // 如果没有子项，渲染普通链接
+          if (!item.items) {
             return <SidebarMenuLink key={key} item={item} href={href} />
+          }
 
-          if (state === 'collapsed' && !isMobile)
+          // 在折叠状态且非移动端，渲染下拉菜单
+          if (state === 'collapsed' && !isMobile) {
             return (
               <SidebarMenuCollapsedDropdown key={key} item={item} href={href} />
             )
+          }
 
+          // 渲染可折叠菜单
           return <SidebarMenuCollapsible key={key} item={item} href={href} />
         })}
       </SidebarMenu>
@@ -58,10 +68,16 @@ export function NavGroup({ title, items }: NavGroupProps) {
   )
 }
 
+/**
+ * 导航徽章组件
+ */
 function NavBadge({ children }: { children: ReactNode }) {
   return <Badge className='rounded-full px-1 py-0 text-xs'>{children}</Badge>
 }
 
+/**
+ * 侧边栏菜单链接项
+ */
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   const { setOpenMobile } = useSidebar()
   return (
@@ -81,6 +97,9 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   )
 }
 
+/**
+ * 侧边栏可折叠菜单项
+ */
 function SidebarMenuCollapsible({
   item,
   href,
@@ -127,6 +146,9 @@ function SidebarMenuCollapsible({
   )
 }
 
+/**
+ * 侧边栏折叠时的下拉菜单项
+ */
 function SidebarMenuCollapsedDropdown({
   item,
   href,
@@ -173,12 +195,15 @@ function SidebarMenuCollapsedDropdown({
   )
 }
 
+/**
+ * 检查导航项是否处于激活状态
+ */
 function checkIsActive(href: string, item: NavItem, mainNav = false) {
   return (
-    href === item.url || // /endpint?search=param
-    href.split('?')[0] === item.url || // endpoint
-    !!item?.items?.filter((i) => i.url === href).length || // if child nav is active
-    (mainNav &&
+    href === item.url || // 完全匹配
+    href.split('?')[0] === item.url || // 忽略查询参数匹配
+    !!item?.items?.filter((i) => i.url === href).length || // 子项激活
+    (mainNav && // 主导航匹配（匹配第一级路径）
       href.split('/')[1] !== '' &&
       href.split('/')[1] === item?.url?.split('/')[1])
   )

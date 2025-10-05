@@ -4,31 +4,39 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 type HeaderProps = React.HTMLAttributes<HTMLElement> & {
+  /**
+   * 是否固定在顶部
+   */
   fixed?: boolean
-  ref?: React.Ref<HTMLElement>
 }
 
+/**
+ * 基础 Header 组件
+ * 包含侧边栏触发器和分隔线
+ * - fixed=true 时会固定在顶部，并在滚动时添加阴影效果
+ */
 export function Header({ className, fixed, children, ...props }: HeaderProps) {
-  const [offset, setOffset] = useState(0)
+  const [scrollOffset, setScrollOffset] = useState(0)
 
   useEffect(() => {
-    const onScroll = () => {
-      setOffset(document.body.scrollTop || document.documentElement.scrollTop)
+    const handleScroll = () => {
+      setScrollOffset(
+        document.body.scrollTop || document.documentElement.scrollTop
+      )
     }
 
-    // Add scroll listener to the body
-    document.addEventListener('scroll', onScroll, { passive: true })
-
-    // Clean up the event listener on unmount
-    return () => document.removeEventListener('scroll', onScroll)
+    document.addEventListener('scroll', handleScroll, { passive: true })
+    return () => document.removeEventListener('scroll', handleScroll)
   }, [])
+
+  const shouldShowShadow = scrollOffset > 10 && fixed
 
   return (
     <header
       className={cn(
         'z-50 h-16',
         fixed && 'header-fixed peer/header sticky top-0 w-[inherit]',
-        offset > 10 && fixed ? 'shadow' : 'shadow-none',
+        shouldShowShadow ? 'shadow' : 'shadow-none',
         className
       )}
       {...props}
@@ -36,8 +44,7 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
       <div
         className={cn(
           'relative flex h-full items-center gap-3 p-4 sm:gap-4',
-          offset > 10 &&
-            fixed &&
+          shouldShowShadow &&
             'after:bg-background/20 after:absolute after:inset-0 after:-z-10 after:backdrop-blur-lg'
         )}
       >

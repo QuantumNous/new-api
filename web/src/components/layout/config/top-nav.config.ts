@@ -1,7 +1,10 @@
+import { type TopNavLink } from '../types'
+
 /**
- * 全局顶部导航配置
+ * 默认顶部导航配置
+ * 可在 AppHeader 组件中覆盖
  */
-export const defaultTopNavLinks = [
+export const defaultTopNavLinks: TopNavLink[] = [
   {
     title: 'Home',
     href: '/',

@@ -8,16 +8,29 @@ import {
   Users,
   Ticket,
   Settings,
-  UserCog,
-  Wrench,
-  Palette,
-  Bell,
-  Monitor,
   User,
+  Command,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
-export const sidebarData: SidebarData = {
+/**
+ * 侧边栏配置
+ * - workspaces: 工作区列表，第一个为默认工作区（动态获取系统信息）
+ * - navGroups: 侧边栏导航组
+ */
+export const sidebarConfig: SidebarData = {
+  workspaces: [
+    {
+      name: '', // 动态获取系统名称
+      logo: Command,
+      plan: '', // 动态获取系统版本
+    },
+    {
+      name: 'System Settings',
+      logo: Settings,
+      plan: 'Manage and configure',
+    },
+  ],
   navGroups: [
     {
       title: 'General',
@@ -71,37 +84,6 @@ export const sidebarData: SidebarData = {
           title: 'Redemption Codes',
           url: '/redemption-codes',
           icon: Ticket,
-        },
-        {
-          title: 'Settings',
-          icon: Settings,
-          items: [
-            {
-              title: 'Profile',
-              url: '/settings',
-              icon: UserCog,
-            },
-            {
-              title: 'Account',
-              url: '/settings/account',
-              icon: Wrench,
-            },
-            {
-              title: 'Appearance',
-              url: '/settings/appearance',
-              icon: Palette,
-            },
-            {
-              title: 'Notifications',
-              url: '/settings/notifications',
-              icon: Bell,
-            },
-            {
-              title: 'Display',
-              url: '/settings/display',
-              icon: Monitor,
-            },
-          ],
         },
       ],
     },

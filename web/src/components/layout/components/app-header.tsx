@@ -3,15 +3,17 @@ import { ConfigDrawer } from '@/components/config-drawer'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { defaultTopNavLinks } from './data/top-nav-data'
+import { defaultTopNavLinks } from '../config/top-nav.config'
+import { type TopNavLink } from '../types'
 import { Header } from './header'
 import { TopNav } from './top-nav'
 
 /**
  * 通用的应用程序 Header 组件
+ * 集成了导航栏、搜索、主题切换、配置和个人信息等功能
  *
  * @example
- * // 基础用法 - 默认包含全局导航、搜索、主题切换、配置和个人信息
+ * // 基础用法
  * <AppHeader />
  *
  * @example
@@ -19,29 +21,28 @@ import { TopNav } from './top-nav'
  * <AppHeader navLinks={customLinks} />
  *
  * @example
- * // 不显示导航栏
- * <AppHeader showTopNav={false} />
+ * // 不显示导航栏和搜索框
+ * <AppHeader showTopNav={false} showSearch={false} />
  *
  * @example
- * // 固定在顶部，不显示搜索框
- * <AppHeader fixed showSearch={false} />
+ * // 固定在顶部
+ * <AppHeader fixed />
  *
  * @example
- * // 完全自定义左侧内容
- * <AppHeader leftContent={<CustomComponent />} />
+ * // 完全自定义左侧和右侧内容
+ * <AppHeader
+ *   leftContent={<CustomLeft />}
+ *   rightContent={<CustomRight />}
+ * />
  */
 type AppHeaderProps = {
   /**
-   * 自定义导航链接，不提供则使用默认全局导航
+   * 自定义导航链接，不提供则使用默认全局导航或从后端动态生成
    */
-  navLinks?: {
-    title: string
-    href: string
-    isActive: boolean
-    disabled?: boolean
-  }[]
+  navLinks?: TopNavLink[]
   /**
-   * 是否显示顶部导航栏，默认 true
+   * 是否显示顶部导航栏
+   * @default true
    */
   showTopNav?: boolean
   /**
@@ -49,11 +50,13 @@ type AppHeaderProps = {
    */
   leftContent?: React.ReactNode
   /**
-   * 是否显示搜索框，默认 true
+   * 是否显示搜索框
+   * @default true
    */
   showSearch?: boolean
   /**
-   * 是否固定在顶部，默认 false
+   * 是否固定在顶部
+   * @default false
    */
   fixed?: boolean
   /**
@@ -61,15 +64,18 @@ type AppHeaderProps = {
    */
   rightContent?: React.ReactNode
   /**
-   * 是否显示主题切换，默认 true
+   * 是否显示主题切换
+   * @default true
    */
   showThemeSwitch?: boolean
   /**
-   * 是否显示配置抽屉，默认 true
+   * 是否显示配置抽屉
+   * @default true
    */
   showConfigDrawer?: boolean
   /**
-   * 是否显示个人信息下拉，默认 true
+   * 是否显示个人信息下拉
+   * @default true
    */
   showProfileDropdown?: boolean
 }
@@ -85,19 +91,18 @@ export function AppHeader({
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  // 从后端状态生成的链接
+  // 优先使用从后端生成的动态链接
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-  // 如果提供了 leftContent，使用它；否则根据 showTopNav 决定是否显示导航
+
+  // 决定左侧内容：自定义内容 > 导航栏 > null
   const leftSection =
     leftContent || (showTopNav ? <TopNav links={links} /> : null)
 
   return (
     <Header fixed={fixed}>
       {leftSection}
-      {rightContent ? (
-        rightContent
-      ) : (
+      {rightContent ?? (
         <div className='ms-auto flex items-center space-x-4'>
           {showSearch && <Search />}
           {showThemeSwitch && <ThemeSwitch />}
