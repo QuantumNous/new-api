@@ -151,6 +151,28 @@ func GetAbout(c *gin.Context) {
 	return
 }
 
+func GetUserAgreement(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    common.OptionMap["UserAgreement"],
+	})
+	return
+}
+
+func GetPrivacyPolicy(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    common.OptionMap["PrivacyPolicy"],
+	})
+	return
+}
+
 func GetMidjourney(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()

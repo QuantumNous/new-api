@@ -3,7 +3,20 @@ Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
+published by th  async function handleSubmit(e) {
+    if (password.length < 8) {
+      showError(t('密码长度不能少于 8 位！'));
+      return;
+    }
+    if (password !== password2) {
+      showError(t('两次输入的密码不一致'));
+      return;
+    }
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showError(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    if (username && password) {tware Foundation, either version 3 of the
 License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
@@ -82,6 +95,9 @@ const RegisterForm = () => {
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [hasUserAgreement, setHasUserAgreement] = useState(false);
+  const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -106,6 +122,28 @@ const RegisterForm = () => {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
+    
+    // 检查用户协议和隐私政策是否已设置
+    const checkTermsAvailability = async () => {
+      try {
+        const [userAgreementRes, privacyPolicyRes] = await Promise.all([
+          API.get('/api/user-agreement'),
+          API.get('/api/privacy-policy')
+        ]);
+        
+        if (userAgreementRes.data.success && userAgreementRes.data.data) {
+          setHasUserAgreement(true);
+        }
+        
+        if (privacyPolicyRes.data.success && privacyPolicyRes.data.data) {
+          setHasPrivacyPolicy(true);
+        }
+      } catch (error) {
+        console.error('检查用户协议和隐私政策失败:', error);
+      }
+    };
+    
+    checkTermsAvailability();
   }, [status]);
 
   useEffect(() => {
@@ -505,6 +543,44 @@ const RegisterForm = () => {
                   </>
                 )}
 
+                {(hasUserAgreement || hasPrivacyPolicy) && (
+                  <div className='pt-4'>
+                    <Form.Checkbox
+                      checked={agreedToTerms}
+                      onChange={(checked) => setAgreedToTerms(checked)}
+                    >
+                      <Text size='small' className='text-gray-600'>
+                        {t('我已阅读并同意')}
+                        {hasUserAgreement && (
+                          <>
+                            <a
+                              href='/user-agreement'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-600 hover:text-blue-800 mx-1'
+                            >
+                              {t('用户协议')}
+                            </a>
+                          </>
+                        )}
+                        {hasUserAgreement && hasPrivacyPolicy && t('和')}
+                        {hasPrivacyPolicy && (
+                          <>
+                            <a
+                              href='/privacy-policy'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-600 hover:text-blue-800 mx-1'
+                            >
+                              {t('隐私政策')}
+                            </a>
+                          </>
+                        )}
+                      </Text>
+                    </Form.Checkbox>
+                  </div>
+                )}
+
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
@@ -513,6 +589,7 @@ const RegisterForm = () => {
                     htmlType='submit'
                     onClick={handleSubmit}
                     loading={registerLoading}
+                    disabled={(hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms}
                   >
                     {t('注册')}
                   </Button>
