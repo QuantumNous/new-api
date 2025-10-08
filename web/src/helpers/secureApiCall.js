@@ -37,7 +37,7 @@ export function isVerificationRequiredError(error) {
     const verificationCodes = [
       'VERIFICATION_REQUIRED',
       'VERIFICATION_EXPIRED',
-      'VERIFICATION_INVALID'
+      'VERIFICATION_INVALID',
     ];
 
     return verificationCodes.includes(data.code);
@@ -57,6 +57,6 @@ export function extractVerificationInfo(error) {
   return {
     code: data.code,
     message: data.message || '需要安全验证',
-    required: true
+    required: true,
   };
 }

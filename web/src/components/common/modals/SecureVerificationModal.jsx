@@ -19,7 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Button, Input, Typography, Tabs, TabPane, Space, Spin } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  Button,
+  Input,
+  Typography,
+  Tabs,
+  TabPane,
+  Space,
+  Spin,
+} from '@douyinfe/semi-ui';
 
 /**
  * 通用安全验证模态框组件
@@ -78,9 +87,7 @@ const SecureVerificationModal = ({
         title={title || t('安全验证')}
         visible={visible}
         onCancel={onCancel}
-        footer={
-          <Button onClick={onCancel}>{t('确定')}</Button>
-        }
+        footer={<Button onClick={onCancel}>{t('确定')}</Button>}
         width={500}
         style={{ maxWidth: '90vw' }}
       >
@@ -123,21 +130,21 @@ const SecureVerificationModal = ({
       width={460}
       centered
       style={{
-        maxWidth: 'calc(100vw - 32px)'
+        maxWidth: 'calc(100vw - 32px)',
       }}
       bodyStyle={{
-        padding: '20px 24px'
+        padding: '20px 24px',
       }}
     >
       <div style={{ width: '100%' }}>
         {/* 描述信息 */}
         {description && (
           <Typography.Paragraph
-            type="tertiary"
+            type='tertiary'
             style={{
               margin: '0 0 20px 0',
               fontSize: '14px',
-              lineHeight: '1.6'
+              lineHeight: '1.6',
             }}
           >
             {description}
@@ -153,10 +160,7 @@ const SecureVerificationModal = ({
           style={{ margin: 0 }}
         >
           {has2FA && (
-            <TabPane
-              tab={t('两步验证')}
-              itemKey='2fa'
-            >
+            <TabPane tab={t('两步验证')} itemKey='2fa'>
               <div style={{ paddingTop: '20px' }}>
                 <div style={{ marginBottom: '12px' }}>
                   <Input
@@ -169,8 +173,21 @@ const SecureVerificationModal = ({
                     autoFocus={method === '2fa'}
                     disabled={loading}
                     prefix={
-                      <svg style={{ width: 16, height: 16, marginRight: 8, flexShrink: 0 }} fill='currentColor' viewBox='0 0 20 20'>
-                        <path fillRule='evenodd' d='M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z' clipRule='evenodd' />
+                      <svg
+                        style={{
+                          width: 16,
+                          height: 16,
+                          marginRight: 8,
+                          flexShrink: 0,
+                        }}
+                        fill='currentColor'
+                        viewBox='0 0 20 20'
+                      >
+                        <path
+                          fillRule='evenodd'
+                          d='M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z'
+                          clipRule='evenodd'
+                        />
                       </svg>
                     }
                     style={{ width: '100%' }}
@@ -178,24 +195,26 @@ const SecureVerificationModal = ({
                 </div>
 
                 <Typography.Text
-                  type="tertiary"
-                  size="small"
+                  type='tertiary'
+                  size='small'
                   style={{
                     display: 'block',
                     marginBottom: '20px',
                     fontSize: '13px',
-                    lineHeight: '1.5'
+                    lineHeight: '1.5',
                   }}
                 >
                   {t('从认证器应用中获取验证码，或使用备用码')}
                 </Typography.Text>
 
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '8px',
-                  flexWrap: 'wrap'
-                }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '8px',
+                    flexWrap: 'wrap',
+                  }}
+                >
                   <Button onClick={onCancel} disabled={loading}>
                     {t('取消')}
                   </Button>
@@ -214,31 +233,47 @@ const SecureVerificationModal = ({
           )}
 
           {hasPasskey && passkeySupported && (
-            <TabPane
-              tab={t('Passkey')}
-              itemKey='passkey'
-            >
+            <TabPane tab={t('Passkey')} itemKey='passkey'>
               <div style={{ paddingTop: '20px' }}>
-                <div style={{
-                  textAlign: 'center',
-                  padding: '24px 16px',
-                  marginBottom: '20px'
-                }}>
-                  <div style={{
-                    width: 56,
-                    height: 56,
-                    margin: '0 auto 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '50%',
-                    background: 'var(--semi-color-primary-light-default)',
-                  }}>
-                    <svg style={{ width: 28, height: 28, color: 'var(--semi-color-primary)' }} fill='currentColor' viewBox='0 0 20 20'>
-                      <path fillRule='evenodd' d='M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z' clipRule='evenodd' />
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '24px 16px',
+                    marginBottom: '20px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      margin: '0 auto 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '50%',
+                      background: 'var(--semi-color-primary-light-default)',
+                    }}
+                  >
+                    <svg
+                      style={{
+                        width: 28,
+                        height: 28,
+                        color: 'var(--semi-color-primary)',
+                      }}
+                      fill='currentColor'
+                      viewBox='0 0 20 20'
+                    >
+                      <path
+                        fillRule='evenodd'
+                        d='M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z'
+                        clipRule='evenodd'
+                      />
                     </svg>
                   </div>
-                  <Typography.Title heading={5} style={{ margin: '0 0 8px', fontSize: '16px' }}>
+                  <Typography.Title
+                    heading={5}
+                    style={{ margin: '0 0 8px', fontSize: '16px' }}
+                  >
                     {t('使用 Passkey 验证')}
                   </Typography.Title>
                   <Typography.Text
@@ -247,19 +282,21 @@ const SecureVerificationModal = ({
                       display: 'block',
                       margin: 0,
                       fontSize: '13px',
-                      lineHeight: '1.5'
+                      lineHeight: '1.5',
                     }}
                   >
                     {t('点击验证按钮，使用您的生物特征或安全密钥')}
                   </Typography.Text>
                 </div>
 
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '8px',
-                  flexWrap: 'wrap'
-                }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '8px',
+                    flexWrap: 'wrap',
+                  }}
+                >
                   <Button onClick={onCancel} disabled={loading}>
                     {t('取消')}
                   </Button>

@@ -227,7 +227,7 @@ export default function SettingsChats(props) {
           const isDuplicate = chatConfigs.some(
             (config) =>
               config.name === values.name &&
-              (!isEdit || config.id !== editingConfig.id)
+              (!isEdit || config.id !== editingConfig.id),
           );
 
           if (isDuplicate) {

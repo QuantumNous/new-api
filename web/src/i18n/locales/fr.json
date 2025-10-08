@@ -231,6 +231,7 @@
   "邀请新用户奖励额度": "Quota de bonus de parrainage",
   "新用户使用邀请码奖励额度": "Quota de bonus de code d'invitation pour nouvel utilisateur",
   "保存额度设置": "Enregistrer les paramètres de quota",
+  "分组与模型定价设置": "Paramètres de groupe et de tarification du modèle",
   "倍率设置": "Paramètres de ratio",
   "模型倍率": "Ratio de modèle",
   "为一个 JSON 文本": "Est un texte JSON",
@@ -2238,5 +2239,18 @@
   "配置 Passkey": "Configurer Passkey",
   "重置 2FA": "Réinitialiser 2FA",
   "重置 Passkey": "Réinitialiser le Passkey",
-  "默认使用系统名称": "Le nom du système est utilisé par défaut"
+  "默认使用系统名称": "Le nom du système est utilisé par défaut",
+  "充值账单": "Factures de recharge",
+  "订单号": "N° de commande",
+  "支付金额": "Montant payé",
+  "待支付": "En attente",
+  "加载失败": "Échec du chargement",
+  "加载账单失败": "Échec du chargement des factures",
+  "暂无充值记录": "Aucune recharge",
+  "账单": "Factures",
+  "补单": "Compléter la commande",
+  "补单成功": "Commande complétée avec succès",
+  "补单失败": "Échec de la complétion de la commande",
+  "确认补单": "Confirmer la complétion",
+  "是否将该订单标记为成功并为用户入账？": "Marquer cette commande comme réussie et créditer l'utilisateur ?"
 }

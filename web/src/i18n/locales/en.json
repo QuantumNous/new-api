@@ -232,6 +232,7 @@
   "邀请新用户奖励额度": "Referral bonus quota",
   "新用户使用邀请码奖励额度": "New user invitation code bonus quota",
   "保存额度设置": "Save Quota Settings",
+  "分组与模型定价设置": "Group and Model Pricing Settings",
   "倍率设置": "Ratio Settings",
   "模型倍率": "Model ratio",
   "为一个 JSON 文本": "Is a JSON text",
@@ -1285,7 +1286,6 @@
   "可视化倍率设置": "Visual model ratio settings",
   "确定重置模型倍率吗？": "Confirm to reset model ratio?",
   "模型固定价格": "Model price per call",
-  "模型补全倍率（仅对自定义模型有效）": "Model completion ratio (only effective for custom models)",
   "保存模型倍率设置": "Save model ratio settings",
   "重置模型倍率": "Reset model ratio",
   "一次调用消耗多少刀，优先级大于模型倍率": "How much USD one call costs, priority over model ratio",
@@ -2177,7 +2177,6 @@
   "最后使用时间": "Last used time",
   "备份支持": "Backup support",
   "支持备份": "Supported",
-  "不支持": "Not supported",
   "备份状态": "Backup state",
   "已备份": "Backed up",
   "未备份": "Not backed up",
@@ -2248,5 +2247,18 @@
   "轮询模式必须搭配Redis和内存缓存功能使用，否则性能将大幅降低，并且无法实现轮询功能": "Polling mode must be used with Redis and memory cache functions, otherwise the performance will be significantly reduced and the polling function will not be implemented",
   "common": {
     "changeLanguage": "Change Language"
-  }
+  },
+  "充值账单": "Recharge Bills",
+  "订单号": "Order No.",
+  "支付金额": "Payment Amount",
+  "待支付": "Pending",
+  "加载失败": "Load failed",
+  "加载账单失败": "Failed to load bills",
+  "暂无充值记录": "No recharge records",
+  "账单": "Bills",
+  "补单": "Complete Order",
+  "补单成功": "Order completed successfully",
+  "补单失败": "Failed to complete order",
+  "确认补单": "Confirm Order Completion",
+  "是否将该订单标记为成功并为用户入账？": "Mark this order as successful and credit the user?"
 }

@@ -183,12 +183,13 @@ func RequestEpay(c *gin.Context) {
 		amount = dAmount.Div(dQuotaPerUnit).IntPart()
 	}
 	topUp := &model.TopUp{
-		UserId:     id,
-		Amount:     amount,
-		Money:      payMoney,
-		TradeNo:    tradeNo,
-		CreateTime: time.Now().Unix(),
-		Status:     "pending",
+		UserId:        id,
+		Amount:        amount,
+		Money:         payMoney,
+		TradeNo:       tradeNo,
+		PaymentMethod: req.PaymentMethod,
+		CreateTime:    time.Now().Unix(),
+		Status:        "pending",
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -236,8 +237,8 @@ func EpayNotify(c *gin.Context) {
 		_, err := c.Writer.Write([]byte("fail"))
 		if err != nil {
 			log.Println("易支付回调写入失败")
-			return
 		}
+		return
 	}
 	verifyInfo, err := client.Verify(params)
 	if err == nil && verifyInfo.VerifyStatus {
@@ -312,4 +313,77 @@ func RequestAmount(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"message": "success", "data": strconv.FormatFloat(payMoney, 'f', 2, 64)})
+}
+
+func GetUserTopUps(c *gin.Context) {
+	userId := c.GetInt("id")
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+
+	var (
+		topups []*model.TopUp
+		total  int64
+		err    error
+	)
+	if keyword != "" {
+		topups, total, err = model.SearchUserTopUps(userId, keyword, pageInfo)
+	} else {
+		topups, total, err = model.GetUserTopUps(userId, pageInfo)
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(topups)
+	common.ApiSuccess(c, pageInfo)
+}
+
+// GetAllTopUps 管理员获取全平台充值记录
+func GetAllTopUps(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+
+	var (
+		topups []*model.TopUp
+		total  int64
+		err    error
+	)
+	if keyword != "" {
+		topups, total, err = model.SearchAllTopUps(keyword, pageInfo)
+	} else {
+		topups, total, err = model.GetAllTopUps(pageInfo)
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(topups)
+	common.ApiSuccess(c, pageInfo)
+}
+
+type AdminCompleteTopupRequest struct {
+	TradeNo string `json:"trade_no"`
+}
+
+// AdminCompleteTopUp 管理员补单接口
+func AdminCompleteTopUp(c *gin.Context) {
+	var req AdminCompleteTopupRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.TradeNo == "" {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	// 订单级互斥，防止并发补单
+	LockOrder(req.TradeNo)
+	defer UnlockOrder(req.TradeNo)
+
+	if err := model.ManualCompleteTopUp(req.TradeNo); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }

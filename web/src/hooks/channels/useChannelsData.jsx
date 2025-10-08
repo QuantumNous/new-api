@@ -84,7 +84,7 @@ export const useChannelsData = () => {
   const [selectedModelKeys, setSelectedModelKeys] = useState([]);
   const [isBatchTesting, setIsBatchTesting] = useState(false);
   const [modelTablePage, setModelTablePage] = useState(1);
-const [selectedEndpointType, setSelectedEndpointType] = useState('');
+  const [selectedEndpointType, setSelectedEndpointType] = useState('');
 
   // 使用 ref 来避免闭包问题，类似旧版实现
   const shouldStopBatchTestingRef = useRef(false);

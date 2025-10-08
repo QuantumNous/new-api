@@ -636,9 +636,6 @@ func extractTextFromGeminiParts(parts []dto.GeminiPart) string {
 func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
 	geminiResponse := &dto.GeminiChatResponse{
 		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
-		PromptFeedback: dto.GeminiChatPromptFeedback{
-			SafetyRatings: []dto.GeminiChatSafetyRating{},
-		},
 		UsageMetadata: dto.GeminiUsageMetadata{
 			PromptTokenCount:     openAIResponse.PromptTokens,
 			CandidatesTokenCount: openAIResponse.CompletionTokens,
@@ -735,9 +732,6 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 
 	geminiResponse := &dto.GeminiChatResponse{
 		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
-		PromptFeedback: dto.GeminiChatPromptFeedback{
-			SafetyRatings: []dto.GeminiChatSafetyRating{},
-		},
 		UsageMetadata: dto.GeminiUsageMetadata{
 			PromptTokenCount:     info.PromptTokens,
 			CandidatesTokenCount: 0, // 流式响应中可能没有完整的 usage 信息

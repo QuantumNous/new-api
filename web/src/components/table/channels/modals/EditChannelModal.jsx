@@ -157,7 +157,7 @@ const EditChannelModal = (props) => {
     is_enterprise_account: false,
     // 字段透传控制默认值
     allow_service_tier: false,
-    disable_store: false,  // false = 允许透传（默认开启）
+    disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
   };
   const [batch, setBatch] = useState(false);
@@ -206,7 +206,13 @@ const EditChannelModal = (props) => {
     channelExtraSettings: null,
   });
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
-  const formSections = ['basicInfo', 'apiConfig', 'modelConfig', 'advancedSettings', 'channelExtraSettings'];
+  const formSections = [
+    'basicInfo',
+    'apiConfig',
+    'modelConfig',
+    'advancedSettings',
+    'channelExtraSettings',
+  ];
   const formContainerRef = useRef(null);
 
   // 2FA状态更新辅助函数
@@ -266,13 +272,13 @@ const EditChannelModal = (props) => {
       sectionElement.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
-        inline: 'nearest'
+        inline: 'nearest',
       });
     }
   };
 
   const navigateToSection = (direction) => {
-    const availableSections = formSections.filter(section => {
+    const availableSections = formSections.filter((section) => {
       if (section === 'apiConfig') {
         return showApiConfigCard;
       }
@@ -281,9 +287,15 @@ const EditChannelModal = (props) => {
 
     let newIndex;
     if (direction === 'up') {
-      newIndex = currentSectionIndex > 0 ? currentSectionIndex - 1 : availableSections.length - 1;
+      newIndex =
+        currentSectionIndex > 0
+          ? currentSectionIndex - 1
+          : availableSections.length - 1;
     } else {
-      newIndex = currentSectionIndex < availableSections.length - 1 ? currentSectionIndex + 1 : 0;
+      newIndex =
+        currentSectionIndex < availableSections.length - 1
+          ? currentSectionIndex + 1
+          : 0;
     }
 
     setCurrentSectionIndex(newIndex);
@@ -509,7 +521,8 @@ const EditChannelModal = (props) => {
           // 读取字段透传控制设置
           data.allow_service_tier = parsedSettings.allow_service_tier || false;
           data.disable_store = parsedSettings.disable_store || false;
-          data.allow_safety_identifier = parsedSettings.allow_safety_identifier || false;
+          data.allow_safety_identifier =
+            parsedSettings.allow_safety_identifier || false;
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -686,7 +699,7 @@ const EditChannelModal = (props) => {
           title: t('查看渠道密钥'),
           description: t('为了保护账户安全，请验证您的身份。'),
           preferredMethod: 'passkey', // 优先使用 Passkey
-        }
+        },
       );
 
       // 如果直接返回了结果（已验证），显示密钥
@@ -990,7 +1003,8 @@ const EditChannelModal = (props) => {
       // 仅 OpenAI 渠道需要 store 和 safety_identifier
       if (localInputs.type === 1) {
         settings.disable_store = localInputs.disable_store === true;
-        settings.allow_safety_identifier = localInputs.allow_safety_identifier === true;
+        settings.allow_safety_identifier =
+          localInputs.allow_safety_identifier === true;
       }
     }
 
@@ -1339,7 +1353,7 @@ const EditChannelModal = (props) => {
                   padding: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
                 title={t('上一个表单块')}
               />
@@ -1355,7 +1369,7 @@ const EditChannelModal = (props) => {
                   padding: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
                 title={t('下一个表单块')}
               />
@@ -1390,336 +1404,149 @@ const EditChannelModal = (props) => {
         >
           {() => (
             <Spin spinning={loading}>
-              <div
-                className='p-2'
-                ref={formContainerRef}
-              >
-                <div ref={el => formSectionRefs.current.basicInfo = el}>
+              <div className='p-2' ref={formContainerRef}>
+                <div ref={(el) => (formSectionRefs.current.basicInfo = el)}>
                   <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: Basic Info */}
                     <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='blue'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconServer size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('基本信息')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('渠道的基本配置信息')}
+                      <Avatar
+                        size='small'
+                        color='blue'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconServer size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('基本信息')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('渠道的基本配置信息')}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <Form.Select
-                    field='type'
-                    label={t('类型')}
-                    placeholder={t('请选择渠道类型')}
-                    rules={[{ required: true, message: t('请选择渠道类型') }]}
-                    optionList={channelOptionList}
-                    style={{ width: '100%' }}
-                    filter={selectFilter}
-                    autoClearSearchValue={false}
-                    searchPosition='dropdown'
-                    onSearch={(value) => setChannelSearchValue(value)}
-                    renderOptionItem={renderChannelOption}
-                    onChange={(value) => handleInputChange('type', value)}
-                  />
-
-                  {inputs.type === 20 && (
-                    <Form.Switch
-                      field='is_enterprise_account'
-                      label={t('是否为企业账户')}
-                      checkedText={t('是')}
-                      uncheckedText={t('否')}
-                      onChange={(value) => {
-                        setIsEnterpriseAccount(value);
-                        handleInputChange('is_enterprise_account', value);
-                      }}
-                      extraText={t(
-                        '企业账户为特殊返回格式，需要特殊处理，如果非企业账户，请勿勾选',
-                      )}
-                      initValue={inputs.is_enterprise_account}
-                    />
-                  )}
-
-                  <Form.Input
-                    field='name'
-                    label={t('名称')}
-                    placeholder={t('请为渠道命名')}
-                    rules={[{ required: true, message: t('请为渠道命名') }]}
-                    showClear
-                    onChange={(value) => handleInputChange('name', value)}
-                    autoComplete='new-password'
-                  />
-
-                  {inputs.type === 41 && (
                     <Form.Select
-                      field='vertex_key_type'
-                      label={t('密钥格式')}
-                      placeholder={t('请选择密钥格式')}
-                      optionList={[
-                        { label: 'JSON', value: 'json' },
-                        { label: 'API Key', value: 'api_key' },
-                      ]}
+                      field='type'
+                      label={t('类型')}
+                      placeholder={t('请选择渠道类型')}
+                      rules={[{ required: true, message: t('请选择渠道类型') }]}
+                      optionList={channelOptionList}
                       style={{ width: '100%' }}
-                      value={inputs.vertex_key_type || 'json'}
-                      onChange={(value) => {
-                        // 更新设置中的 vertex_key_type
-                        handleChannelOtherSettingsChange(
-                          'vertex_key_type',
-                          value,
-                        );
-                        // 切换为 api_key 时，关闭批量与手动/文件切换，并清理已选文件
-                        if (value === 'api_key') {
-                          setBatch(false);
-                          setUseManualInput(false);
-                          setVertexKeys([]);
-                          setVertexFileList([]);
-                          if (formApiRef.current) {
-                            formApiRef.current.setValue('vertex_files', []);
-                          }
-                        }
-                      }}
-                      extraText={
-                        inputs.vertex_key_type === 'api_key'
-                          ? t('API Key 模式下不支持批量创建')
-                          : t('JSON 模式支持手动输入或上传服务账号 JSON')
-                      }
+                      filter={selectFilter}
+                      autoClearSearchValue={false}
+                      searchPosition='dropdown'
+                      onSearch={(value) => setChannelSearchValue(value)}
+                      renderOptionItem={renderChannelOption}
+                      onChange={(value) => handleInputChange('type', value)}
                     />
-                  )}
-                  {batch ? (
-                    inputs.type === 41 &&
-                    (inputs.vertex_key_type || 'json') === 'json' ? (
-                      <Form.Upload
-                        field='vertex_files'
-                        label={t('密钥文件 (.json)')}
-                        accept='.json'
-                        multiple
-                        draggable
-                        dragIcon={<IconBolt />}
-                        dragMainText={t('点击上传文件或拖拽文件到这里')}
-                        dragSubText={t('仅支持 JSON 文件，支持多文件')}
-                        style={{ marginTop: 10 }}
-                        uploadTrigger='custom'
-                        beforeUpload={() => false}
-                        onChange={handleVertexUploadChange}
-                        fileList={vertexFileList}
-                        rules={
-                          isEdit
-                            ? []
-                            : [{ required: true, message: t('请上传密钥文件') }]
-                        }
-                        extraText={batchExtra}
-                      />
-                    ) : (
-                      <Form.TextArea
-                        field='key'
-                        label={t('密钥')}
-                        placeholder={t('请输入密钥，一行一个')}
-                        rules={
-                          isEdit
-                            ? []
-                            : [{ required: true, message: t('请输入密钥') }]
-                        }
-                        autosize
-                        autoComplete='new-password'
-                        onChange={(value) => handleInputChange('key', value)}
-                        extraText={
-                          <div className='flex items-center gap-2 flex-wrap'>
-                            {isEdit &&
-                              isMultiKeyChannel &&
-                              keyMode === 'append' && (
-                                <Text type='warning' size='small'>
-                                  {t(
-                                    '追加模式：新密钥将添加到现有密钥列表的末尾',
-                                  )}
-                                </Text>
-                              )}
-                            {isEdit && (
-                              <Button
-                                size='small'
-                                type='primary'
-                                theme='outline'
-                                onClick={handleShow2FAModal}
-                              >
-                                {t('查看密钥')}
-                              </Button>
-                            )}
-                            {batchExtra}
-                          </div>
-                        }
-                        showClear
-                      />
-                    )
-                  ) : (
-                    <>
-                      {inputs.type === 41 &&
-                      (inputs.vertex_key_type || 'json') === 'json' ? (
-                        <>
-                          {!batch && (
-                            <div className='flex items-center justify-between mb-3'>
-                              <Text className='text-sm font-medium'>
-                                {t('密钥输入方式')}
-                              </Text>
-                              <Space>
-                                <Button
-                                  size='small'
-                                  type={
-                                    !useManualInput ? 'primary' : 'tertiary'
-                                  }
-                                  onClick={() => {
-                                    setUseManualInput(false);
-                                    // 切换到文件上传模式时清空手动输入的密钥
-                                    if (formApiRef.current) {
-                                      formApiRef.current.setValue('key', '');
-                                    }
-                                    handleInputChange('key', '');
-                                  }}
-                                >
-                                  {t('文件上传')}
-                                </Button>
-                                <Button
-                                  size='small'
-                                  type={useManualInput ? 'primary' : 'tertiary'}
-                                  onClick={() => {
-                                    setUseManualInput(true);
-                                    // 切换到手动输入模式时清空文件上传相关状态
-                                    setVertexKeys([]);
-                                    setVertexFileList([]);
-                                    if (formApiRef.current) {
-                                      formApiRef.current.setValue(
-                                        'vertex_files',
-                                        [],
-                                      );
-                                    }
-                                    setInputs((prev) => ({
-                                      ...prev,
-                                      vertex_files: [],
-                                    }));
-                                  }}
-                                >
-                                  {t('手动输入')}
-                                </Button>
-                              </Space>
-                            </div>
-                          )}
 
-                          {batch && (
-                            <Banner
-                              type='info'
-                              description={t(
-                                '批量创建模式下仅支持文件上传，不支持手动输入',
-                              )}
-                              className='!rounded-lg mb-3'
-                            />
-                          )}
+                    {inputs.type === 20 && (
+                      <Form.Switch
+                        field='is_enterprise_account'
+                        label={t('是否为企业账户')}
+                        checkedText={t('是')}
+                        uncheckedText={t('否')}
+                        onChange={(value) => {
+                          setIsEnterpriseAccount(value);
+                          handleInputChange('is_enterprise_account', value);
+                        }}
+                        extraText={t(
+                          '企业账户为特殊返回格式，需要特殊处理，如果非企业账户，请勿勾选',
+                        )}
+                        initValue={inputs.is_enterprise_account}
+                      />
+                    )}
 
-                          {useManualInput && !batch ? (
-                            <Form.TextArea
-                              field='key'
-                              label={
-                                isEdit
-                                  ? t('密钥（编辑模式下，保存的密钥不会显示）')
-                                  : t('密钥')
-                              }
-                              placeholder={t(
-                                '请输入 JSON 格式的密钥内容，例如：\n{\n  "type": "service_account",\n  "project_id": "your-project-id",\n  "private_key_id": "...",\n  "private_key": "...",\n  "client_email": "...",\n  "client_id": "...",\n  "auth_uri": "...",\n  "token_uri": "...",\n  "auth_provider_x509_cert_url": "...",\n  "client_x509_cert_url": "..."\n}',
-                              )}
-                              rules={
-                                isEdit
-                                  ? []
-                                  : [
-                                      {
-                                        required: true,
-                                        message: t('请输入密钥'),
-                                      },
-                                    ]
-                              }
-                              autoComplete='new-password'
-                              onChange={(value) =>
-                                handleInputChange('key', value)
-                              }
-                              extraText={
-                                <div className='flex items-center gap-2'>
-                                  <Text type='tertiary' size='small'>
-                                    {t('请输入完整的 JSON 格式密钥内容')}
-                                  </Text>
-                                  {isEdit &&
-                                    isMultiKeyChannel &&
-                                    keyMode === 'append' && (
-                                      <Text type='warning' size='small'>
-                                        {t(
-                                          '追加模式：新密钥将添加到现有密钥列表的末尾',
-                                        )}
-                                      </Text>
-                                    )}
-                                  {isEdit && (
-                                    <Button
-                                      size='small'
-                                      type='primary'
-                                      theme='outline'
-                                      onClick={handleShow2FAModal}
-                                    >
-                                      {t('查看密钥')}
-                                    </Button>
-                                  )}
-                                  {batchExtra}
-                                </div>
-                              }
-                              autosize
-                              showClear
-                            />
-                          ) : (
-                            <Form.Upload
-                              field='vertex_files'
-                              label={t('密钥文件 (.json)')}
-                              accept='.json'
-                              draggable
-                              dragIcon={<IconBolt />}
-                              dragMainText={t('点击上传文件或拖拽文件到这里')}
-                              dragSubText={t('仅支持 JSON 文件')}
-                              style={{ marginTop: 10 }}
-                              uploadTrigger='custom'
-                              beforeUpload={() => false}
-                              onChange={handleVertexUploadChange}
-                              fileList={vertexFileList}
-                              rules={
-                                isEdit
-                                  ? []
-                                  : [
-                                      {
-                                        required: true,
-                                        message: t('请上传密钥文件'),
-                                      },
-                                    ]
-                              }
-                              extraText={batchExtra}
-                            />
-                          )}
-                        </>
-                      ) : (
-                        <Form.Input
-                          field='key'
-                          label={
-                            isEdit
-                              ? t('密钥（编辑模式下，保存的密钥不会显示）')
-                              : t('密钥')
+                    <Form.Input
+                      field='name'
+                      label={t('名称')}
+                      placeholder={t('请为渠道命名')}
+                      rules={[{ required: true, message: t('请为渠道命名') }]}
+                      showClear
+                      onChange={(value) => handleInputChange('name', value)}
+                      autoComplete='new-password'
+                    />
+
+                    {inputs.type === 41 && (
+                      <Form.Select
+                        field='vertex_key_type'
+                        label={t('密钥格式')}
+                        placeholder={t('请选择密钥格式')}
+                        optionList={[
+                          { label: 'JSON', value: 'json' },
+                          { label: 'API Key', value: 'api_key' },
+                        ]}
+                        style={{ width: '100%' }}
+                        value={inputs.vertex_key_type || 'json'}
+                        onChange={(value) => {
+                          // 更新设置中的 vertex_key_type
+                          handleChannelOtherSettingsChange(
+                            'vertex_key_type',
+                            value,
+                          );
+                          // 切换为 api_key 时，关闭批量与手动/文件切换，并清理已选文件
+                          if (value === 'api_key') {
+                            setBatch(false);
+                            setUseManualInput(false);
+                            setVertexKeys([]);
+                            setVertexFileList([]);
+                            if (formApiRef.current) {
+                              formApiRef.current.setValue('vertex_files', []);
+                            }
                           }
-                          placeholder={t(type2secretPrompt(inputs.type))}
+                        }}
+                        extraText={
+                          inputs.vertex_key_type === 'api_key'
+                            ? t('API Key 模式下不支持批量创建')
+                            : t('JSON 模式支持手动输入或上传服务账号 JSON')
+                        }
+                      />
+                    )}
+                    {batch ? (
+                      inputs.type === 41 &&
+                      (inputs.vertex_key_type || 'json') === 'json' ? (
+                        <Form.Upload
+                          field='vertex_files'
+                          label={t('密钥文件 (.json)')}
+                          accept='.json'
+                          multiple
+                          draggable
+                          dragIcon={<IconBolt />}
+                          dragMainText={t('点击上传文件或拖拽文件到这里')}
+                          dragSubText={t('仅支持 JSON 文件，支持多文件')}
+                          style={{ marginTop: 10 }}
+                          uploadTrigger='custom'
+                          beforeUpload={() => false}
+                          onChange={handleVertexUploadChange}
+                          fileList={vertexFileList}
+                          rules={
+                            isEdit
+                              ? []
+                              : [
+                                  {
+                                    required: true,
+                                    message: t('请上传密钥文件'),
+                                  },
+                                ]
+                          }
+                          extraText={batchExtra}
+                        />
+                      ) : (
+                        <Form.TextArea
+                          field='key'
+                          label={t('密钥')}
+                          placeholder={t('请输入密钥，一行一个')}
                           rules={
                             isEdit
                               ? []
                               : [{ required: true, message: t('请输入密钥') }]
                           }
+                          autosize
                           autoComplete='new-password'
                           onChange={(value) => handleInputChange('key', value)}
                           extraText={
-                            <div className='flex items-center gap-2'>
+                            <div className='flex items-center gap-2 flex-wrap'>
                               {isEdit &&
                                 isMultiKeyChannel &&
                                 keyMode === 'append' && (
@@ -1744,743 +1571,912 @@ const EditChannelModal = (props) => {
                           }
                           showClear
                         />
-                      )}
-                    </>
-                  )}
+                      )
+                    ) : (
+                      <>
+                        {inputs.type === 41 &&
+                        (inputs.vertex_key_type || 'json') === 'json' ? (
+                          <>
+                            {!batch && (
+                              <div className='flex items-center justify-between mb-3'>
+                                <Text className='text-sm font-medium'>
+                                  {t('密钥输入方式')}
+                                </Text>
+                                <Space>
+                                  <Button
+                                    size='small'
+                                    type={
+                                      !useManualInput ? 'primary' : 'tertiary'
+                                    }
+                                    onClick={() => {
+                                      setUseManualInput(false);
+                                      // 切换到文件上传模式时清空手动输入的密钥
+                                      if (formApiRef.current) {
+                                        formApiRef.current.setValue('key', '');
+                                      }
+                                      handleInputChange('key', '');
+                                    }}
+                                  >
+                                    {t('文件上传')}
+                                  </Button>
+                                  <Button
+                                    size='small'
+                                    type={
+                                      useManualInput ? 'primary' : 'tertiary'
+                                    }
+                                    onClick={() => {
+                                      setUseManualInput(true);
+                                      // 切换到手动输入模式时清空文件上传相关状态
+                                      setVertexKeys([]);
+                                      setVertexFileList([]);
+                                      if (formApiRef.current) {
+                                        formApiRef.current.setValue(
+                                          'vertex_files',
+                                          [],
+                                        );
+                                      }
+                                      setInputs((prev) => ({
+                                        ...prev,
+                                        vertex_files: [],
+                                      }));
+                                    }}
+                                  >
+                                    {t('手动输入')}
+                                  </Button>
+                                </Space>
+                              </div>
+                            )}
 
-                  {isEdit && isMultiKeyChannel && (
-                    <Form.Select
-                      field='key_mode'
-                      label={t('密钥更新模式')}
-                      placeholder={t('请选择密钥更新模式')}
-                      optionList={[
-                        { label: t('追加到现有密钥'), value: 'append' },
-                        { label: t('覆盖现有密钥'), value: 'replace' },
-                      ]}
-                      style={{ width: '100%' }}
-                      value={keyMode}
-                      onChange={(value) => setKeyMode(value)}
-                      extraText={
-                        <Text type='tertiary' size='small'>
-                          {keyMode === 'replace'
-                            ? t('覆盖模式：将完全替换现有的所有密钥')
-                            : t('追加模式：将新密钥添加到现有密钥列表末尾')}
-                        </Text>
-                      }
-                    />
-                  )}
-                  {batch && multiToSingle && (
-                    <>
+                            {batch && (
+                              <Banner
+                                type='info'
+                                description={t(
+                                  '批量创建模式下仅支持文件上传，不支持手动输入',
+                                )}
+                                className='!rounded-lg mb-3'
+                              />
+                            )}
+
+                            {useManualInput && !batch ? (
+                              <Form.TextArea
+                                field='key'
+                                label={
+                                  isEdit
+                                    ? t(
+                                        '密钥（编辑模式下，保存的密钥不会显示）',
+                                      )
+                                    : t('密钥')
+                                }
+                                placeholder={t(
+                                  '请输入 JSON 格式的密钥内容，例如：\n{\n  "type": "service_account",\n  "project_id": "your-project-id",\n  "private_key_id": "...",\n  "private_key": "...",\n  "client_email": "...",\n  "client_id": "...",\n  "auth_uri": "...",\n  "token_uri": "...",\n  "auth_provider_x509_cert_url": "...",\n  "client_x509_cert_url": "..."\n}',
+                                )}
+                                rules={
+                                  isEdit
+                                    ? []
+                                    : [
+                                        {
+                                          required: true,
+                                          message: t('请输入密钥'),
+                                        },
+                                      ]
+                                }
+                                autoComplete='new-password'
+                                onChange={(value) =>
+                                  handleInputChange('key', value)
+                                }
+                                extraText={
+                                  <div className='flex items-center gap-2'>
+                                    <Text type='tertiary' size='small'>
+                                      {t('请输入完整的 JSON 格式密钥内容')}
+                                    </Text>
+                                    {isEdit &&
+                                      isMultiKeyChannel &&
+                                      keyMode === 'append' && (
+                                        <Text type='warning' size='small'>
+                                          {t(
+                                            '追加模式：新密钥将添加到现有密钥列表的末尾',
+                                          )}
+                                        </Text>
+                                      )}
+                                    {isEdit && (
+                                      <Button
+                                        size='small'
+                                        type='primary'
+                                        theme='outline'
+                                        onClick={handleShow2FAModal}
+                                      >
+                                        {t('查看密钥')}
+                                      </Button>
+                                    )}
+                                    {batchExtra}
+                                  </div>
+                                }
+                                autosize
+                                showClear
+                              />
+                            ) : (
+                              <Form.Upload
+                                field='vertex_files'
+                                label={t('密钥文件 (.json)')}
+                                accept='.json'
+                                draggable
+                                dragIcon={<IconBolt />}
+                                dragMainText={t('点击上传文件或拖拽文件到这里')}
+                                dragSubText={t('仅支持 JSON 文件')}
+                                style={{ marginTop: 10 }}
+                                uploadTrigger='custom'
+                                beforeUpload={() => false}
+                                onChange={handleVertexUploadChange}
+                                fileList={vertexFileList}
+                                rules={
+                                  isEdit
+                                    ? []
+                                    : [
+                                        {
+                                          required: true,
+                                          message: t('请上传密钥文件'),
+                                        },
+                                      ]
+                                }
+                                extraText={batchExtra}
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <Form.Input
+                            field='key'
+                            label={
+                              isEdit
+                                ? t('密钥（编辑模式下，保存的密钥不会显示）')
+                                : t('密钥')
+                            }
+                            placeholder={t(type2secretPrompt(inputs.type))}
+                            rules={
+                              isEdit
+                                ? []
+                                : [{ required: true, message: t('请输入密钥') }]
+                            }
+                            autoComplete='new-password'
+                            onChange={(value) =>
+                              handleInputChange('key', value)
+                            }
+                            extraText={
+                              <div className='flex items-center gap-2'>
+                                {isEdit &&
+                                  isMultiKeyChannel &&
+                                  keyMode === 'append' && (
+                                    <Text type='warning' size='small'>
+                                      {t(
+                                        '追加模式：新密钥将添加到现有密钥列表的末尾',
+                                      )}
+                                    </Text>
+                                  )}
+                                {isEdit && (
+                                  <Button
+                                    size='small'
+                                    type='primary'
+                                    theme='outline'
+                                    onClick={handleShow2FAModal}
+                                  >
+                                    {t('查看密钥')}
+                                  </Button>
+                                )}
+                                {batchExtra}
+                              </div>
+                            }
+                            showClear
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {isEdit && isMultiKeyChannel && (
                       <Form.Select
-                        field='multi_key_mode'
-                        label={t('密钥聚合模式')}
-                        placeholder={t('请选择多密钥使用策略')}
+                        field='key_mode'
+                        label={t('密钥更新模式')}
+                        placeholder={t('请选择密钥更新模式')}
                         optionList={[
-                          { label: t('随机'), value: 'random' },
-                          { label: t('轮询'), value: 'polling' },
+                          { label: t('追加到现有密钥'), value: 'append' },
+                          { label: t('覆盖现有密钥'), value: 'replace' },
                         ]}
                         style={{ width: '100%' }}
-                        value={inputs.multi_key_mode || 'random'}
-                        onChange={(value) => {
-                          setMultiKeyMode(value);
-                          handleInputChange('multi_key_mode', value);
-                        }}
+                        value={keyMode}
+                        onChange={(value) => setKeyMode(value)}
+                        extraText={
+                          <Text type='tertiary' size='small'>
+                            {keyMode === 'replace'
+                              ? t('覆盖模式：将完全替换现有的所有密钥')
+                              : t('追加模式：将新密钥添加到现有密钥列表末尾')}
+                          </Text>
+                        }
                       />
-                      {inputs.multi_key_mode === 'polling' && (
-                        <Banner
-                          type='warning'
-                          description={t(
-                            '轮询模式必须搭配Redis和内存缓存功能使用，否则性能将大幅降低，并且无法实现轮询功能',
-                          )}
-                          className='!rounded-lg mt-2'
+                    )}
+                    {batch && multiToSingle && (
+                      <>
+                        <Form.Select
+                          field='multi_key_mode'
+                          label={t('密钥聚合模式')}
+                          placeholder={t('请选择多密钥使用策略')}
+                          optionList={[
+                            { label: t('随机'), value: 'random' },
+                            { label: t('轮询'), value: 'polling' },
+                          ]}
+                          style={{ width: '100%' }}
+                          value={inputs.multi_key_mode || 'random'}
+                          onChange={(value) => {
+                            setMultiKeyMode(value);
+                            handleInputChange('multi_key_mode', value);
+                          }}
                         />
-                      )}
-                    </>
-                  )}
+                        {inputs.multi_key_mode === 'polling' && (
+                          <Banner
+                            type='warning'
+                            description={t(
+                              '轮询模式必须搭配Redis和内存缓存功能使用，否则性能将大幅降低，并且无法实现轮询功能',
+                            )}
+                            className='!rounded-lg mt-2'
+                          />
+                        )}
+                      </>
+                    )}
 
-                  {inputs.type === 18 && (
-                    <Form.Input
-                      field='other'
-                      label={t('模型版本')}
-                      placeholder={
-                        '请输入星火大模型版本，注意是接口地址中的版本号，例如：v2.1'
-                      }
-                      onChange={(value) => handleInputChange('other', value)}
-                      showClear
-                    />
-                  )}
+                    {inputs.type === 18 && (
+                      <Form.Input
+                        field='other'
+                        label={t('模型版本')}
+                        placeholder={
+                          '请输入星火大模型版本，注意是接口地址中的版本号，例如：v2.1'
+                        }
+                        onChange={(value) => handleInputChange('other', value)}
+                        showClear
+                      />
+                    )}
 
-                  {inputs.type === 41 && (
-                    <JSONEditor
-                      key={`region-${isEdit ? channelId : 'new'}`}
-                      field='other'
-                      label={t('部署地区')}
-                      placeholder={t(
-                        '请输入部署地区，例如：us-central1\n支持使用模型映射格式\n{\n    "default": "us-central1",\n    "claude-3-5-sonnet-20240620": "europe-west1"\n}',
-                      )}
-                      value={inputs.other || ''}
-                      onChange={(value) => handleInputChange('other', value)}
-                      rules={[{ required: true, message: t('请填写部署地区') }]}
-                      template={REGION_EXAMPLE}
-                      templateLabel={t('填入模板')}
-                      editorType='region'
-                      formApi={formApiRef.current}
-                      extraText={t('设置默认地区和特定模型的专用地区')}
-                    />
-                  )}
+                    {inputs.type === 41 && (
+                      <JSONEditor
+                        key={`region-${isEdit ? channelId : 'new'}`}
+                        field='other'
+                        label={t('部署地区')}
+                        placeholder={t(
+                          '请输入部署地区，例如：us-central1\n支持使用模型映射格式\n{\n    "default": "us-central1",\n    "claude-3-5-sonnet-20240620": "europe-west1"\n}',
+                        )}
+                        value={inputs.other || ''}
+                        onChange={(value) => handleInputChange('other', value)}
+                        rules={[
+                          { required: true, message: t('请填写部署地区') },
+                        ]}
+                        template={REGION_EXAMPLE}
+                        templateLabel={t('填入模板')}
+                        editorType='region'
+                        formApi={formApiRef.current}
+                        extraText={t('设置默认地区和特定模型的专用地区')}
+                      />
+                    )}
 
-                  {inputs.type === 21 && (
-                    <Form.Input
-                      field='other'
-                      label={t('知识库 ID')}
-                      placeholder={'请输入知识库 ID，例如：123456'}
-                      onChange={(value) => handleInputChange('other', value)}
-                      showClear
-                    />
-                  )}
+                    {inputs.type === 21 && (
+                      <Form.Input
+                        field='other'
+                        label={t('知识库 ID')}
+                        placeholder={'请输入知识库 ID，例如：123456'}
+                        onChange={(value) => handleInputChange('other', value)}
+                        showClear
+                      />
+                    )}
 
-                  {inputs.type === 39 && (
-                    <Form.Input
-                      field='other'
-                      label='Account ID'
-                      placeholder={
-                        '请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh'
-                      }
-                      onChange={(value) => handleInputChange('other', value)}
-                      showClear
-                    />
-                  )}
+                    {inputs.type === 39 && (
+                      <Form.Input
+                        field='other'
+                        label='Account ID'
+                        placeholder={
+                          '请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh'
+                        }
+                        onChange={(value) => handleInputChange('other', value)}
+                        showClear
+                      />
+                    )}
 
-                  {inputs.type === 49 && (
-                    <Form.Input
-                      field='other'
-                      label={t('智能体ID')}
-                      placeholder={'请输入智能体ID，例如：7342866812345'}
-                      onChange={(value) => handleInputChange('other', value)}
-                      showClear
-                    />
-                  )}
+                    {inputs.type === 49 && (
+                      <Form.Input
+                        field='other'
+                        label={t('智能体ID')}
+                        placeholder={'请输入智能体ID，例如：7342866812345'}
+                        onChange={(value) => handleInputChange('other', value)}
+                        showClear
+                      />
+                    )}
 
-                  {inputs.type === 1 && (
-                    <Form.Input
-                      field='openai_organization'
-                      label={t('组织')}
-                      placeholder={t('请输入组织org-xxx')}
-                      showClear
-                      helpText={t('组织，不填则为默认组织')}
-                      onChange={(value) =>
-                        handleInputChange('openai_organization', value)
-                      }
-                    />
-                  )}
+                    {inputs.type === 1 && (
+                      <Form.Input
+                        field='openai_organization'
+                        label={t('组织')}
+                        placeholder={t('请输入组织org-xxx')}
+                        showClear
+                        helpText={t('组织，不填则为默认组织')}
+                        onChange={(value) =>
+                          handleInputChange('openai_organization', value)
+                        }
+                      />
+                    )}
                   </Card>
                 </div>
 
                 {/* API Configuration Card */}
                 {showApiConfigCard && (
-                  <div ref={el => formSectionRefs.current.apiConfig = el}>
+                  <div ref={(el) => (formSectionRefs.current.apiConfig = el)}>
                     <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                       {/* Header: API Config */}
                       <div className='flex items-center mb-2'>
-                      <Avatar
-                        size='small'
-                        color='green'
-                        className='mr-2 shadow-md'
-                      >
-                        <IconGlobe size={16} />
-                      </Avatar>
-                      <div>
-                        <Text className='text-lg font-medium'>
-                          {t('API 配置')}
-                        </Text>
-                        <div className='text-xs text-gray-600'>
-                          {t('API 地址和相关配置')}
+                        <Avatar
+                          size='small'
+                          color='green'
+                          className='mr-2 shadow-md'
+                        >
+                          <IconGlobe size={16} />
+                        </Avatar>
+                        <div>
+                          <Text className='text-lg font-medium'>
+                            {t('API 配置')}
+                          </Text>
+                          <div className='text-xs text-gray-600'>
+                            {t('API 地址和相关配置')}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {inputs.type === 40 && (
-                      <Banner
-                        type='info'
-                        description={
+                      {inputs.type === 40 && (
+                        <Banner
+                          type='info'
+                          description={
+                            <div>
+                              <Text strong>{t('邀请链接')}:</Text>
+                              <Text
+                                link
+                                underline
+                                className='ml-2 cursor-pointer'
+                                onClick={() =>
+                                  window.open(
+                                    'https://cloud.siliconflow.cn/i/hij0YNTZ',
+                                  )
+                                }
+                              >
+                                https://cloud.siliconflow.cn/i/hij0YNTZ
+                              </Text>
+                            </div>
+                          }
+                          className='!rounded-lg'
+                        />
+                      )}
+
+                      {inputs.type === 3 && (
+                        <>
+                          <Banner
+                            type='warning'
+                            description={t(
+                              '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
+                            )}
+                            className='!rounded-lg'
+                          />
                           <div>
-                            <Text strong>{t('邀请链接')}:</Text>
-                            <Text
-                              link
-                              underline
-                              className='ml-2 cursor-pointer'
-                              onClick={() =>
-                                window.open(
-                                  'https://cloud.siliconflow.cn/i/hij0YNTZ',
+                            <Form.Input
+                              field='base_url'
+                              label='AZURE_OPENAI_ENDPOINT'
+                              placeholder={t(
+                                '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                              showClear
+                            />
+                          </div>
+                          <div>
+                            <Form.Input
+                              field='other'
+                              label={t('默认 API 版本')}
+                              placeholder={t(
+                                '请输入默认 API 版本，例如：2025-04-01-preview',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('other', value)
+                              }
+                              showClear
+                            />
+                          </div>
+                          <div>
+                            <Form.Input
+                              field='azure_responses_version'
+                              label={t(
+                                '默认 Responses API 版本，为空则使用上方版本',
+                              )}
+                              placeholder={t('例如：preview')}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'azure_responses_version',
+                                  value,
                                 )
                               }
-                            >
-                              https://cloud.siliconflow.cn/i/hij0YNTZ
-                            </Text>
+                              showClear
+                            />
                           </div>
-                        }
-                        className='!rounded-lg'
-                      />
-                    )}
+                        </>
+                      )}
 
-                    {inputs.type === 3 && (
-                      <>
+                      {inputs.type === 8 && (
+                        <>
+                          <Banner
+                            type='warning'
+                            description={t(
+                              '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
+                            )}
+                            className='!rounded-lg'
+                          />
+                          <div>
+                            <Form.Input
+                              field='base_url'
+                              label={t('完整的 Base URL，支持变量{model}')}
+                              placeholder={t(
+                                '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                              showClear
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {inputs.type === 37 && (
                         <Banner
                           type='warning'
                           description={t(
-                            '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
+                            'Dify渠道只适配chatflow和agent，并且agent不支持图片！',
                           )}
                           className='!rounded-lg'
                         />
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label='AZURE_OPENAI_ENDPOINT'
-                            placeholder={t(
-                              '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                          />
-                        </div>
-                        <div>
-                          <Form.Input
-                            field='other'
-                            label={t('默认 API 版本')}
-                            placeholder={t(
-                              '请输入默认 API 版本，例如：2025-04-01-preview',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('other', value)
-                            }
-                            showClear
-                          />
-                        </div>
-                        <div>
-                          <Form.Input
-                            field='azure_responses_version'
-                            label={t(
-                              '默认 Responses API 版本，为空则使用上方版本',
-                            )}
-                            placeholder={t('例如：preview')}
-                            onChange={(value) =>
-                              handleChannelOtherSettingsChange(
-                                'azure_responses_version',
-                                value,
-                              )
-                            }
-                            showClear
-                          />
-                        </div>
-                      </>
-                    )}
+                      )}
 
-                    {inputs.type === 8 && (
-                      <>
-                        <Banner
-                          type='warning'
-                          description={t(
-                            '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
-                          )}
-                          className='!rounded-lg'
-                        />
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label={t('完整的 Base URL，支持变量{model}')}
-                            placeholder={t(
-                              '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {inputs.type === 37 && (
-                      <Banner
-                        type='warning'
-                        description={t(
-                          'Dify渠道只适配chatflow和agent，并且agent不支持图片！',
+                      {inputs.type !== 3 &&
+                        inputs.type !== 8 &&
+                        inputs.type !== 22 &&
+                        inputs.type !== 36 &&
+                        inputs.type !== 45 && (
+                          <div>
+                            <Form.Input
+                              field='base_url'
+                              label={t('API地址')}
+                              placeholder={t(
+                                '此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                              showClear
+                              extraText={t(
+                                '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
+                              )}
+                            />
+                          </div>
                         )}
-                        className='!rounded-lg'
-                      />
-                    )}
 
-                    {inputs.type !== 3 &&
-                      inputs.type !== 8 &&
-                      inputs.type !== 22 &&
-                      inputs.type !== 36 &&
-                      inputs.type !== 45 && (
+                      {inputs.type === 22 && (
                         <div>
                           <Form.Input
                             field='base_url'
-                            label={t('API地址')}
+                            label={t('私有部署地址')}
                             placeholder={t(
-                              '此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/',
+                              '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
                             )}
                             onChange={(value) =>
                               handleInputChange('base_url', value)
                             }
                             showClear
-                            extraText={t(
-                              '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
-                            )}
                           />
                         </div>
                       )}
 
-                    {inputs.type === 22 && (
-                      <div>
-                        <Form.Input
-                          field='base_url'
-                          label={t('私有部署地址')}
-                          placeholder={t(
-                            '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
-                          )}
-                          onChange={(value) =>
-                            handleInputChange('base_url', value)
-                          }
-                          showClear
-                        />
-                      </div>
-                    )}
+                      {inputs.type === 36 && (
+                        <div>
+                          <Form.Input
+                            field='base_url'
+                            label={t(
+                              '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
+                            )}
+                            placeholder={t(
+                              '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
+                            )}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            showClear
+                          />
+                        </div>
+                      )}
 
-                    {inputs.type === 36 && (
-                      <div>
-                        <Form.Input
-                          field='base_url'
-                          label={t(
-                            '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
-                          )}
-                          placeholder={t(
-                            '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
-                          )}
-                          onChange={(value) =>
-                            handleInputChange('base_url', value)
-                          }
-                          showClear
-                        />
-                      </div>
-                    )}
-
-                    {inputs.type === 45 && (
-                      <div>
-                        <Form.Select
-                          field='base_url'
-                          label={t('API地址')}
-                          placeholder={t('请选择API地址')}
-                          onChange={(value) =>
-                            handleInputChange('base_url', value)
-                          }
-                          optionList={[
-                            {
-                              value: 'https://ark.cn-beijing.volces.com',
-                              label: 'https://ark.cn-beijing.volces.com',
-                            },
-                            {
-                              value: 'https://ark.ap-southeast.bytepluses.com',
-                              label: 'https://ark.ap-southeast.bytepluses.com',
-                            },
-                          ]}
-                          defaultValue='https://ark.cn-beijing.volces.com'
-                        />
-                      </div>
-                    )}
+                      {inputs.type === 45 && (
+                        <div>
+                          <Form.Select
+                            field='base_url'
+                            label={t('API地址')}
+                            placeholder={t('请选择API地址')}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            optionList={[
+                              {
+                                value: 'https://ark.cn-beijing.volces.com',
+                                label: 'https://ark.cn-beijing.volces.com',
+                              },
+                              {
+                                value:
+                                  'https://ark.ap-southeast.bytepluses.com',
+                                label:
+                                  'https://ark.ap-southeast.bytepluses.com',
+                              },
+                            ]}
+                            defaultValue='https://ark.cn-beijing.volces.com'
+                          />
+                        </div>
+                      )}
                     </Card>
                   </div>
                 )}
 
                 {/* Model Configuration Card */}
-                <div ref={el => formSectionRefs.current.modelConfig = el}>
+                <div ref={(el) => (formSectionRefs.current.modelConfig = el)}>
                   <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: Model Config */}
                     <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='purple'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconCode size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('模型配置')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('模型选择和映射设置')}
+                      <Avatar
+                        size='small'
+                        color='purple'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconCode size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('模型配置')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('模型选择和映射设置')}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <Form.Select
-                    field='models'
-                    label={t('模型')}
-                    placeholder={t('请选择该渠道所支持的模型')}
-                    rules={[{ required: true, message: t('请选择模型') }]}
-                    multiple
-                    filter={selectFilter}
-                    autoClearSearchValue={false}
-                    searchPosition='dropdown'
-                    optionList={modelOptions}
-                    style={{ width: '100%' }}
-                    onChange={(value) => handleInputChange('models', value)}
-                    renderSelectedItem={(optionNode) => {
-                      const modelName = String(optionNode?.value ?? '');
-                      return {
-                        isRenderInTag: true,
-                        content: (
-                          <span
-                            className='cursor-pointer select-none'
-                            role='button'
-                            tabIndex={0}
-                            title={t('点击复制模型名称')}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const ok = await copy(modelName);
-                              if (ok) {
-                                showSuccess(
-                                  t('已复制：{{name}}', { name: modelName }),
-                                );
-                              } else {
+                    <Form.Select
+                      field='models'
+                      label={t('模型')}
+                      placeholder={t('请选择该渠道所支持的模型')}
+                      rules={[{ required: true, message: t('请选择模型') }]}
+                      multiple
+                      filter={selectFilter}
+                      autoClearSearchValue={false}
+                      searchPosition='dropdown'
+                      optionList={modelOptions}
+                      style={{ width: '100%' }}
+                      onChange={(value) => handleInputChange('models', value)}
+                      renderSelectedItem={(optionNode) => {
+                        const modelName = String(optionNode?.value ?? '');
+                        return {
+                          isRenderInTag: true,
+                          content: (
+                            <span
+                              className='cursor-pointer select-none'
+                              role='button'
+                              tabIndex={0}
+                              title={t('点击复制模型名称')}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const ok = await copy(modelName);
+                                if (ok) {
+                                  showSuccess(
+                                    t('已复制：{{name}}', { name: modelName }),
+                                  );
+                                } else {
+                                  showError(t('复制失败'));
+                                }
+                              }}
+                            >
+                              {optionNode.label || modelName}
+                            </span>
+                          ),
+                        };
+                      }}
+                      extraText={
+                        <Space wrap>
+                          <Button
+                            size='small'
+                            type='primary'
+                            onClick={() =>
+                              handleInputChange('models', basicModels)
+                            }
+                          >
+                            {t('填入相关模型')}
+                          </Button>
+                          <Button
+                            size='small'
+                            type='secondary'
+                            onClick={() =>
+                              handleInputChange('models', fullModels)
+                            }
+                          >
+                            {t('填入所有模型')}
+                          </Button>
+                          {MODEL_FETCHABLE_TYPES.has(inputs.type) && (
+                            <Button
+                              size='small'
+                              type='tertiary'
+                              onClick={() => fetchUpstreamModelList('models')}
+                            >
+                              {t('获取模型列表')}
+                            </Button>
+                          )}
+                          <Button
+                            size='small'
+                            type='warning'
+                            onClick={() => handleInputChange('models', [])}
+                          >
+                            {t('清除所有模型')}
+                          </Button>
+                          <Button
+                            size='small'
+                            type='tertiary'
+                            onClick={() => {
+                              if (inputs.models.length === 0) {
+                                showInfo(t('没有模型可以复制'));
+                                return;
+                              }
+                              try {
+                                copy(inputs.models.join(','));
+                                showSuccess(t('模型列表已复制到剪贴板'));
+                              } catch (error) {
                                 showError(t('复制失败'));
                               }
                             }}
                           >
-                            {optionNode.label || modelName}
-                          </span>
-                        ),
-                      };
-                    }}
-                    extraText={
-                      <Space wrap>
+                            {t('复制所有模型')}
+                          </Button>
+                          {modelGroups &&
+                            modelGroups.length > 0 &&
+                            modelGroups.map((group) => (
+                              <Button
+                                key={group.id}
+                                size='small'
+                                type='primary'
+                                onClick={() => {
+                                  let items = [];
+                                  try {
+                                    if (Array.isArray(group.items)) {
+                                      items = group.items;
+                                    } else if (
+                                      typeof group.items === 'string'
+                                    ) {
+                                      const parsed = JSON.parse(
+                                        group.items || '[]',
+                                      );
+                                      if (Array.isArray(parsed)) items = parsed;
+                                    }
+                                  } catch {}
+                                  const current =
+                                    formApiRef.current?.getValue('models') ||
+                                    inputs.models ||
+                                    [];
+                                  const merged = Array.from(
+                                    new Set(
+                                      [...current, ...items]
+                                        .map((m) => (m || '').trim())
+                                        .filter(Boolean),
+                                    ),
+                                  );
+                                  handleInputChange('models', merged);
+                                }}
+                              >
+                                {group.name}
+                              </Button>
+                            ))}
+                        </Space>
+                      }
+                    />
+
+                    <Form.Input
+                      field='custom_model'
+                      label={t('自定义模型名称')}
+                      placeholder={t('输入自定义模型名称')}
+                      onChange={(value) => setCustomModel(value.trim())}
+                      value={customModel}
+                      suffix={
                         <Button
                           size='small'
                           type='primary'
-                          onClick={() =>
-                            handleInputChange('models', basicModels)
-                          }
+                          onClick={addCustomModels}
                         >
-                          {t('填入相关模型')}
+                          {t('填入')}
                         </Button>
-                        <Button
-                          size='small'
-                          type='secondary'
-                          onClick={() =>
-                            handleInputChange('models', fullModels)
-                          }
-                        >
-                          {t('填入所有模型')}
-                        </Button>
-                        {MODEL_FETCHABLE_TYPES.has(inputs.type) && (
-                          <Button
-                            size='small'
-                            type='tertiary'
-                            onClick={() => fetchUpstreamModelList('models')}
-                          >
-                            {t('获取模型列表')}
-                          </Button>
-                        )}
-                        <Button
-                          size='small'
-                          type='warning'
-                          onClick={() => handleInputChange('models', [])}
-                        >
-                          {t('清除所有模型')}
-                        </Button>
-                        <Button
-                          size='small'
-                          type='tertiary'
-                          onClick={() => {
-                            if (inputs.models.length === 0) {
-                              showInfo(t('没有模型可以复制'));
-                              return;
-                            }
-                            try {
-                              copy(inputs.models.join(','));
-                              showSuccess(t('模型列表已复制到剪贴板'));
-                            } catch (error) {
-                              showError(t('复制失败'));
-                            }
-                          }}
-                        >
-                          {t('复制所有模型')}
-                        </Button>
-                        {modelGroups &&
-                          modelGroups.length > 0 &&
-                          modelGroups.map((group) => (
-                            <Button
-                              key={group.id}
-                              size='small'
-                              type='primary'
-                              onClick={() => {
-                                let items = [];
-                                try {
-                                  if (Array.isArray(group.items)) {
-                                    items = group.items;
-                                  } else if (typeof group.items === 'string') {
-                                    const parsed = JSON.parse(
-                                      group.items || '[]',
-                                    );
-                                    if (Array.isArray(parsed)) items = parsed;
-                                  }
-                                } catch {}
-                                const current =
-                                  formApiRef.current?.getValue('models') ||
-                                  inputs.models ||
-                                  [];
-                                const merged = Array.from(
-                                  new Set(
-                                    [...current, ...items]
-                                      .map((m) => (m || '').trim())
-                                      .filter(Boolean),
-                                  ),
-                                );
-                                handleInputChange('models', merged);
-                              }}
-                            >
-                              {group.name}
-                            </Button>
-                          ))}
-                      </Space>
-                    }
-                  />
+                      }
+                    />
 
-                  <Form.Input
-                    field='custom_model'
-                    label={t('自定义模型名称')}
-                    placeholder={t('输入自定义模型名称')}
-                    onChange={(value) => setCustomModel(value.trim())}
-                    value={customModel}
-                    suffix={
-                      <Button
-                        size='small'
-                        type='primary'
-                        onClick={addCustomModels}
-                      >
-                        {t('填入')}
-                      </Button>
-                    }
-                  />
+                    <Form.Input
+                      field='test_model'
+                      label={t('默认测试模型')}
+                      placeholder={t('不填则为模型列表第一个')}
+                      onChange={(value) =>
+                        handleInputChange('test_model', value)
+                      }
+                      showClear
+                    />
 
-                  <Form.Input
-                    field='test_model'
-                    label={t('默认测试模型')}
-                    placeholder={t('不填则为模型列表第一个')}
-                    onChange={(value) => handleInputChange('test_model', value)}
-                    showClear
-                  />
-
-                  <JSONEditor
-                    key={`model_mapping-${isEdit ? channelId : 'new'}`}
-                    field='model_mapping'
-                    label={t('模型重定向')}
-                    placeholder={
-                      t(
-                        '此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，例如：',
-                      ) + `\n${JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2)}`
-                    }
-                    value={inputs.model_mapping || ''}
-                    onChange={(value) =>
-                      handleInputChange('model_mapping', value)
-                    }
-                    template={MODEL_MAPPING_EXAMPLE}
-                    templateLabel={t('填入模板')}
-                    editorType='keyValue'
-                    formApi={formApiRef.current}
-                    extraText={t('键为请求中的模型名称，值为要替换的模型名称')}
-                  />
+                    <JSONEditor
+                      key={`model_mapping-${isEdit ? channelId : 'new'}`}
+                      field='model_mapping'
+                      label={t('模型重定向')}
+                      placeholder={
+                        t(
+                          '此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，例如：',
+                        ) +
+                        `\n${JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2)}`
+                      }
+                      value={inputs.model_mapping || ''}
+                      onChange={(value) =>
+                        handleInputChange('model_mapping', value)
+                      }
+                      template={MODEL_MAPPING_EXAMPLE}
+                      templateLabel={t('填入模板')}
+                      editorType='keyValue'
+                      formApi={formApiRef.current}
+                      extraText={t(
+                        '键为请求中的模型名称，值为要替换的模型名称',
+                      )}
+                    />
                   </Card>
                 </div>
 
                 {/* Advanced Settings Card */}
-                <div ref={el => formSectionRefs.current.advancedSettings = el}>
+                <div
+                  ref={(el) => (formSectionRefs.current.advancedSettings = el)}
+                >
                   <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: Advanced Settings */}
                     <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='orange'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconSetting size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('高级设置')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('渠道的高级配置选项')}
+                      <Avatar
+                        size='small'
+                        color='orange'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconSetting size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('高级设置')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('渠道的高级配置选项')}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <Form.Select
-                    field='groups'
-                    label={t('分组')}
-                    placeholder={t('请选择可以使用该渠道的分组')}
-                    multiple
-                    allowAdditions
-                    additionLabel={t(
-                      '请在系统设置页面编辑分组倍率以添加新的分组：',
-                    )}
-                    optionList={groupOptions}
-                    style={{ width: '100%' }}
-                    onChange={(value) => handleInputChange('groups', value)}
-                  />
+                    <Form.Select
+                      field='groups'
+                      label={t('分组')}
+                      placeholder={t('请选择可以使用该渠道的分组')}
+                      multiple
+                      allowAdditions
+                      additionLabel={t(
+                        '请在系统设置页面编辑分组倍率以添加新的分组：',
+                      )}
+                      optionList={groupOptions}
+                      style={{ width: '100%' }}
+                      onChange={(value) => handleInputChange('groups', value)}
+                    />
 
-                  <Form.Input
-                    field='tag'
-                    label={t('渠道标签')}
-                    placeholder={t('渠道标签')}
-                    showClear
-                    onChange={(value) => handleInputChange('tag', value)}
-                  />
-                  <Form.TextArea
-                    field='remark'
-                    label={t('备注')}
-                    placeholder={t('请输入备注（仅管理员可见）')}
-                    maxLength={255}
-                    showClear
-                    onChange={(value) => handleInputChange('remark', value)}
-                  />
+                    <Form.Input
+                      field='tag'
+                      label={t('渠道标签')}
+                      placeholder={t('渠道标签')}
+                      showClear
+                      onChange={(value) => handleInputChange('tag', value)}
+                    />
+                    <Form.TextArea
+                      field='remark'
+                      label={t('备注')}
+                      placeholder={t('请输入备注（仅管理员可见）')}
+                      maxLength={255}
+                      showClear
+                      onChange={(value) => handleInputChange('remark', value)}
+                    />
 
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.InputNumber
-                        field='priority'
-                        label={t('渠道优先级')}
-                        placeholder={t('渠道优先级')}
-                        min={0}
-                        onNumberChange={(value) =>
-                          handleInputChange('priority', value)
-                        }
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Form.InputNumber
-                        field='weight'
-                        label={t('渠道权重')}
-                        placeholder={t('渠道权重')}
-                        min={0}
-                        onNumberChange={(value) =>
-                          handleInputChange('weight', value)
-                        }
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-                  </Row>
-
-                  <Form.Switch
-                    field='auto_ban'
-                    label={t('是否自动禁用')}
-                    checkedText={t('开')}
-                    uncheckedText={t('关')}
-                    onChange={(value) => setAutoBan(value)}
-                    extraText={t(
-                      '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
-                    )}
-                    initValue={autoBan}
-                  />
-
-                  <Form.TextArea
-                    field='param_override'
-                    label={t('参数覆盖')}
-                    placeholder={
-                      t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
-                      '\n' +
-                      t('旧格式（直接覆盖）：') +
-                      '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
-                      '\n\n' +
-                      t('新格式（支持条件判断与json自定义）：') +
-                      '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
-                    }
-                    autosize
-                    onChange={(value) =>
-                      handleInputChange('param_override', value)
-                    }
-                    extraText={
-                      <div className='flex gap-2 flex-wrap'>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'param_override',
-                              JSON.stringify({ temperature: 0 }, null, 2),
-                            )
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='priority'
+                          label={t('渠道优先级')}
+                          placeholder={t('渠道优先级')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('priority', value)
                           }
-                        >
-                          {t('旧格式模板')}
-                        </Text>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'param_override',
-                              JSON.stringify(
-                                {
-                                  operations: [
-                                    {
-                                      path: 'temperature',
-                                      mode: 'set',
-                                      value: 0.7,
-                                      conditions: [
-                                        {
-                                          path: 'model',
-                                          mode: 'prefix',
-                                          value: 'gpt',
-                                        },
-                                      ],
-                                      logic: 'AND',
-                                    },
-                                  ],
-                                },
-                                null,
-                                2,
-                              ),
-                            )
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='weight'
+                          label={t('渠道权重')}
+                          placeholder={t('渠道权重')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('weight', value)
                           }
-                        >
-                          {t('新格式模板')}
-                        </Text>
-                      </div>
-                    }
-                    showClear
-                  />
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                    </Row>
 
-                  <Form.TextArea
-                    field='header_override'
-                    label={t('请求头覆盖')}
-                    placeholder={
-                      t('此项可选，用于覆盖请求头参数') +
-                      '\n' +
-                      t('格式示例：') +
-                      '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0",\n  "Authorization": "Bearer {api_key}"\n}'
-                    }
-                    autosize
-                    onChange={(value) =>
-                      handleInputChange('header_override', value)
-                    }
-                    extraText={
+                    <Form.Switch
+                      field='auto_ban'
+                      label={t('是否自动禁用')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) => setAutoBan(value)}
+                      extraText={t(
+                        '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
+                      )}
+                      initValue={autoBan}
+                    />
 
-                      <div className='flex flex-col gap-1'>
-                        <div className='flex gap-2 flex-wrap items-center'>
+                    <Form.TextArea
+                      field='param_override'
+                      label={t('参数覆盖')}
+                      placeholder={
+                        t(
+                          '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
+                        ) +
+                        '\n' +
+                        t('旧格式（直接覆盖）：') +
+                        '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
+                        '\n\n' +
+                        t('新格式（支持条件判断与json自定义）：') +
+                        '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
+                      }
+                      autosize
+                      onChange={(value) =>
+                        handleInputChange('param_override', value)
+                      }
+                      extraText={
+                        <div className='flex gap-2 flex-wrap'>
                           <Text
                             className='!text-semi-color-primary cursor-pointer'
                             onClick={() =>
                               handleInputChange(
-                                'header_override',
+                                'param_override',
+                                JSON.stringify({ temperature: 0 }, null, 2),
+                              )
+                            }
+                          >
+                            {t('旧格式模板')}
+                          </Text>
+                          <Text
+                            className='!text-semi-color-primary cursor-pointer'
+                            onClick={() =>
+                              handleInputChange(
+                                'param_override',
                                 JSON.stringify(
                                   {
-                                    'User-Agent':
-                                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
-                                    'Authorization': 'Bearer{api_key}',
+                                    operations: [
+                                      {
+                                        path: 'temperature',
+                                        mode: 'set',
+                                        value: 0.7,
+                                        conditions: [
+                                          {
+                                            path: 'model',
+                                            mode: 'prefix',
+                                            value: 'gpt',
+                                          },
+                                        ],
+                                        logic: 'AND',
+                                      },
+                                    ],
                                   },
                                   null,
                                   2,
@@ -2488,220 +2484,281 @@ const EditChannelModal = (props) => {
                               )
                             }
                           >
-                            {t('填入模板')}
+                            {t('新格式模板')}
                           </Text>
                         </div>
-                        <div>
-                          <Text type='tertiary' size='small'>
-                            {t('支持变量：')}
-                          </Text>
-                          <div className='text-xs text-tertiary ml-2'>
-                            <div>{t('渠道密钥')}: {'{api_key}'}</div>
+                      }
+                      showClear
+                    />
+
+                    <Form.TextArea
+                      field='header_override'
+                      label={t('请求头覆盖')}
+                      placeholder={
+                        t('此项可选，用于覆盖请求头参数') +
+                        '\n' +
+                        t('格式示例：') +
+                        '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0",\n  "Authorization": "Bearer {api_key}"\n}'
+                      }
+                      autosize
+                      onChange={(value) =>
+                        handleInputChange('header_override', value)
+                      }
+                      extraText={
+                        <div className='flex flex-col gap-1'>
+                          <div className='flex gap-2 flex-wrap items-center'>
+                            <Text
+                              className='!text-semi-color-primary cursor-pointer'
+                              onClick={() =>
+                                handleInputChange(
+                                  'header_override',
+                                  JSON.stringify(
+                                    {
+                                      'User-Agent':
+                                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
+                                      Authorization: 'Bearer{api_key}',
+                                    },
+                                    null,
+                                    2,
+                                  ),
+                                )
+                              }
+                            >
+                              {t('填入模板')}
+                            </Text>
+                          </div>
+                          <div>
+                            <Text type='tertiary' size='small'>
+                              {t('支持变量：')}
+                            </Text>
+                            <div className='text-xs text-tertiary ml-2'>
+                              <div>
+                                {t('渠道密钥')}: {'{api_key}'}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    }
-                    showClear
-                  />
+                      }
+                      showClear
+                    />
 
-                  <JSONEditor
-                    key={`status_code_mapping-${isEdit ? channelId : 'new'}`}
-                    field='status_code_mapping'
-                    label={t('状态码复写')}
-                    placeholder={
-                      t(
-                        '此项可选，用于复写返回的状态码，仅影响本地判断，不修改返回到上游的状态码，比如将claude渠道的400错误复写为500（用于重试），请勿滥用该功能，例如：',
-                      ) +
-                      '\n' +
-                      JSON.stringify(STATUS_CODE_MAPPING_EXAMPLE, null, 2)
-                    }
-                    value={inputs.status_code_mapping || ''}
-                    onChange={(value) =>
-                      handleInputChange('status_code_mapping', value)
-                    }
-                    template={STATUS_CODE_MAPPING_EXAMPLE}
-                    templateLabel={t('填入模板')}
-                    editorType='keyValue'
-                    formApi={formApiRef.current}
-                    extraText={t(
-                      '键为原状态码，值为要复写的状态码，仅影响本地判断',
+                    <JSONEditor
+                      key={`status_code_mapping-${isEdit ? channelId : 'new'}`}
+                      field='status_code_mapping'
+                      label={t('状态码复写')}
+                      placeholder={
+                        t(
+                          '此项可选，用于复写返回的状态码，仅影响本地判断，不修改返回到上游的状态码，比如将claude渠道的400错误复写为500（用于重试），请勿滥用该功能，例如：',
+                        ) +
+                        '\n' +
+                        JSON.stringify(STATUS_CODE_MAPPING_EXAMPLE, null, 2)
+                      }
+                      value={inputs.status_code_mapping || ''}
+                      onChange={(value) =>
+                        handleInputChange('status_code_mapping', value)
+                      }
+                      template={STATUS_CODE_MAPPING_EXAMPLE}
+                      templateLabel={t('填入模板')}
+                      editorType='keyValue'
+                      formApi={formApiRef.current}
+                      extraText={t(
+                        '键为原状态码，值为要复写的状态码，仅影响本地判断',
+                      )}
+                    />
+
+                    {/* 字段透传控制 - OpenAI 渠道 */}
+                    {inputs.type === 1 && (
+                      <>
+                        <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                          {t('字段透传控制')}
+                        </div>
+
+                        <Form.Switch
+                          field='allow_service_tier'
+                          label={t('允许 service_tier 透传')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'allow_service_tier',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
+                          )}
+                        />
+
+                        <Form.Switch
+                          field='disable_store'
+                          label={t('禁用 store 透传')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'disable_store',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            'store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用',
+                          )}
+                        />
+
+                        <Form.Switch
+                          field='allow_safety_identifier'
+                          label={t('允许 safety_identifier 透传')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'allow_safety_identifier',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            'safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私',
+                          )}
+                        />
+                      </>
                     )}
-                  />
 
-                  {/* 字段透传控制 - OpenAI 渠道 */}
-                  {inputs.type === 1 && (
-                    <>
-                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
-                        {t('字段透传控制')}
-                      </div>
+                    {/* 字段透传控制 - Claude 渠道 */}
+                    {inputs.type === 14 && (
+                      <>
+                        <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                          {t('字段透传控制')}
+                        </div>
 
-                      <Form.Switch
-                        field='allow_service_tier'
-                        label={t('允许 service_tier 透传')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange('allow_service_tier', value)
-                        }
-                        extraText={t(
-                          'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
-                        )}
-                      />
-
-                      <Form.Switch
-                        field='disable_store'
-                        label={t('禁用 store 透传')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange('disable_store', value)
-                        }
-                        extraText={t(
-                          'store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用',
-                        )}
-                      />
-
-                      <Form.Switch
-                        field='allow_safety_identifier'
-                        label={t('允许 safety_identifier 透传')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange('allow_safety_identifier', value)
-                        }
-                        extraText={t(
-                          'safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私',
-                        )}
-                      />
-                    </>
-                  )}
-
-                  {/* 字段透传控制 - Claude 渠道 */}
-                  {(inputs.type === 14) && (
-                    <>
-                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
-                        {t('字段透传控制')}
-                      </div>
-
-                      <Form.Switch
-                        field='allow_service_tier'
-                        label={t('允许 service_tier 透传')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange('allow_service_tier', value)
-                        }
-                        extraText={t(
-                          'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
-                        )}
-                      />
-                    </>
-                  )}
+                        <Form.Switch
+                          field='allow_service_tier'
+                          label={t('允许 service_tier 透传')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'allow_service_tier',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
+                          )}
+                        />
+                      </>
+                    )}
                   </Card>
                 </div>
 
                 {/* Channel Extra Settings Card */}
-                <div ref={el => formSectionRefs.current.channelExtraSettings = el}>
+                <div
+                  ref={(el) =>
+                    (formSectionRefs.current.channelExtraSettings = el)
+                  }
+                >
                   <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: Channel Extra Settings */}
                     <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='violet'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconBolt size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('渠道额外设置')}
-                      </Text>
+                      <Avatar
+                        size='small'
+                        color='violet'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconBolt size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('渠道额外设置')}
+                        </Text>
+                      </div>
                     </div>
-                  </div>
 
-                  {inputs.type === 1 && (
+                    {inputs.type === 1 && (
+                      <Form.Switch
+                        field='force_format'
+                        label={t('强制格式化')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelSettingsChange('force_format', value)
+                        }
+                        extraText={t(
+                          '强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）',
+                        )}
+                      />
+                    )}
+
                     <Form.Switch
-                      field='force_format'
-                      label={t('强制格式化')}
+                      field='thinking_to_content'
+                      label={t('思考内容转换')}
                       checkedText={t('开')}
                       uncheckedText={t('关')}
                       onChange={(value) =>
-                        handleChannelSettingsChange('force_format', value)
+                        handleChannelSettingsChange(
+                          'thinking_to_content',
+                          value,
+                        )
                       }
                       extraText={t(
-                        '强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）',
+                        '将 reasoning_content 转换为 <think> 标签拼接到内容中',
                       )}
                     />
-                  )}
 
-                  <Form.Switch
-                    field='thinking_to_content'
-                    label={t('思考内容转换')}
-                    checkedText={t('开')}
-                    uncheckedText={t('关')}
-                    onChange={(value) =>
-                      handleChannelSettingsChange('thinking_to_content', value)
-                    }
-                    extraText={t(
-                      '将 reasoning_content 转换为 <think> 标签拼接到内容中',
-                    )}
-                  />
+                    <Form.Switch
+                      field='pass_through_body_enabled'
+                      label={t('透传请求体')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'pass_through_body_enabled',
+                          value,
+                        )
+                      }
+                      extraText={t('启用请求体透传功能')}
+                    />
 
-                  <Form.Switch
-                    field='pass_through_body_enabled'
-                    label={t('透传请求体')}
-                    checkedText={t('开')}
-                    uncheckedText={t('关')}
-                    onChange={(value) =>
-                      handleChannelSettingsChange(
-                        'pass_through_body_enabled',
-                        value,
-                      )
-                    }
-                    extraText={t('启用请求体透传功能')}
-                  />
+                    <Form.Input
+                      field='proxy'
+                      label={t('代理地址')}
+                      placeholder={t('例如: socks5://user:pass@host:port')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('proxy', value)
+                      }
+                      showClear
+                      extraText={t('用于配置网络代理，支持 socks5 协议')}
+                    />
 
-                  <Form.Input
-                    field='proxy'
-                    label={t('代理地址')}
-                    placeholder={t('例如: socks5://user:pass@host:port')}
-                    onChange={(value) =>
-                      handleChannelSettingsChange('proxy', value)
-                    }
-                    showClear
-                    extraText={t('用于配置网络代理，支持 socks5 协议')}
-                  />
-
-                  <Form.TextArea
-                    field='system_prompt'
-                    label={t('系统提示词')}
-                    placeholder={t(
-                      '输入系统提示词，用户的系统提示词将优先于此设置',
-                    )}
-                    onChange={(value) =>
-                      handleChannelSettingsChange('system_prompt', value)
-                    }
-                    autosize
-                    showClear
-                    extraText={t(
-                      '用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置',
-                    )}
-                  />
-                  <Form.Switch
-                    field='system_prompt_override'
-                    label={t('系统提示词拼接')}
-                    checkedText={t('开')}
-                    uncheckedText={t('关')}
-                    onChange={(value) =>
-                      handleChannelSettingsChange(
-                        'system_prompt_override',
-                        value,
-                      )
-                    }
-                    extraText={t(
-                      '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
-                    )}
-                  />
+                    <Form.TextArea
+                      field='system_prompt'
+                      label={t('系统提示词')}
+                      placeholder={t(
+                        '输入系统提示词，用户的系统提示词将优先于此设置',
+                      )}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('system_prompt', value)
+                      }
+                      autosize
+                      showClear
+                      extraText={t(
+                        '用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置',
+                      )}
+                    />
+                    <Form.Switch
+                      field='system_prompt_override'
+                      label={t('系统提示词拼接')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'system_prompt_override',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
+                      )}
+                    />
                   </Card>
                 </div>
               </div>

@@ -615,7 +615,10 @@ const SystemSetting = () => {
 
     options.push({
       key: 'passkey.rp_display_name',
-      value: formValues['passkey.rp_display_name'] || inputs['passkey.rp_display_name'] || '',
+      value:
+        formValues['passkey.rp_display_name'] ||
+        inputs['passkey.rp_display_name'] ||
+        '',
     });
     options.push({
       key: 'passkey.rp_id',
@@ -623,11 +626,17 @@ const SystemSetting = () => {
     });
     options.push({
       key: 'passkey.user_verification',
-      value: formValues['passkey.user_verification'] || inputs['passkey.user_verification'] || 'preferred',
+      value:
+        formValues['passkey.user_verification'] ||
+        inputs['passkey.user_verification'] ||
+        'preferred',
     });
     options.push({
       key: 'passkey.attachment_preference',
-      value: formValues['passkey.attachment_preference'] || inputs['passkey.attachment_preference'] || '',
+      value:
+        formValues['passkey.attachment_preference'] ||
+        inputs['passkey.attachment_preference'] ||
+        '',
     });
     options.push({
       key: 'passkey.origins',
@@ -1044,7 +1053,9 @@ const SystemSetting = () => {
                   <Text>{t('用以支持基于 WebAuthn 的无密码登录注册')}</Text>
                   <Banner
                     type='info'
-                    description={t('Passkey 是基于 WebAuthn 标准的无密码身份验证方法，支持指纹、面容、硬件密钥等认证方式')}
+                    description={t(
+                      'Passkey 是基于 WebAuthn 标准的无密码身份验证方法，支持指纹、面容、硬件密钥等认证方式',
+                    )}
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
                   <Row
@@ -1070,7 +1081,9 @@ const SystemSetting = () => {
                         field="['passkey.rp_display_name']"
                         label={t('服务显示名称')}
                         placeholder={t('默认使用系统名称')}
-                        extraText={t('用户注册时看到的网站名称，比如\'我的网站\'')}
+                        extraText={t(
+                          "用户注册时看到的网站名称，比如'我的网站'",
+                        )}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -1078,7 +1091,9 @@ const SystemSetting = () => {
                         field="['passkey.rp_id']"
                         label={t('网站域名标识')}
                         placeholder={t('例如：example.com')}
-                        extraText={t('留空则默认使用服务器地址，注意不能携带http://或者https://')}
+                        extraText={t(
+                          '留空则默认使用服务器地址，注意不能携带http://或者https://',
+                        )}
                       />
                     </Col>
                   </Row>
@@ -1092,7 +1107,10 @@ const SystemSetting = () => {
                         label={t('安全验证级别')}
                         placeholder={t('是否要求指纹/面容等生物识别')}
                         optionList={[
-                          { label: t('推荐使用（用户可选）'), value: 'preferred' },
+                          {
+                            label: t('推荐使用（用户可选）'),
+                            value: 'preferred',
+                          },
                           { label: t('强制要求'), value: 'required' },
                           { label: t('不建议使用'), value: 'discouraged' },
                         ]}
@@ -1109,7 +1127,9 @@ const SystemSetting = () => {
                           { label: t('本设备内置'), value: 'platform' },
                           { label: t('外接设备'), value: 'cross-platform' },
                         ]}
-                        extraText={t('本设备：手机指纹/面容，外接：USB安全密钥')}
+                        extraText={t(
+                          '本设备：手机指纹/面容，外接：USB安全密钥',
+                        )}
                       />
                     </Col>
                   </Row>
@@ -1123,7 +1143,10 @@ const SystemSetting = () => {
                         noLabel
                         extraText={t('仅用于开发环境，生产环境应使用 HTTPS')}
                         onChange={(e) =>
-                          handleCheckboxChange('passkey.allow_insecure_origin', e)
+                          handleCheckboxChange(
+                            'passkey.allow_insecure_origin',
+                            e,
+                          )
                         }
                       >
                         {t('允许不安全的 Origin（HTTP）')}
@@ -1139,11 +1162,16 @@ const SystemSetting = () => {
                         field="['passkey.origins']"
                         label={t('允许的 Origins')}
                         placeholder={t('填写带https的域名，逗号分隔')}
-                        extraText={t('为空则默认使用服务器地址，多个 Origin 用逗号分隔，例如 https://newapi.pro,https://newapi.com ,注意不能携带[]，需使用https')}
+                        extraText={t(
+                          '为空则默认使用服务器地址，多个 Origin 用逗号分隔，例如 https://newapi.pro,https://newapi.com ,注意不能携带[]，需使用https',
+                        )}
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitPasskeySettings} style={{ marginTop: 16 }}>
+                  <Button
+                    onClick={submitPasskeySettings}
+                    style={{ marginTop: 16 }}
+                  >
                     {t('保存 Passkey 设置')}
                   </Button>
                 </Form.Section>

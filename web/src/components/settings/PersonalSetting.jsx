@@ -155,9 +155,7 @@ const PersonalSetting = () => {
         gotifyUrl: settings.gotify_url || '',
         gotifyToken: settings.gotify_token || '',
         gotifyPriority:
-          settings.gotify_priority !== undefined
-            ? settings.gotify_priority
-            : 5,
+          settings.gotify_priority !== undefined ? settings.gotify_priority : 5,
         acceptUnsetModelRatioModel:
           settings.accept_unset_model_ratio_model || false,
         recordIpLog: settings.record_ip_log || false,
@@ -214,7 +212,9 @@ const PersonalSetting = () => {
         return;
       }
 
-      const publicKey = prepareCredentialCreationOptions(data?.options || data?.publicKey || data);
+      const publicKey = prepareCredentialCreationOptions(
+        data?.options || data?.publicKey || data,
+      );
       const credential = await navigator.credentials.create({ publicKey });
       const payload = buildRegistrationResult(credential);
       if (!payload) {
@@ -222,7 +222,10 @@ const PersonalSetting = () => {
         return;
       }
 
-      const finishRes = await API.post('/api/user/passkey/register/finish', payload);
+      const finishRes = await API.post(
+        '/api/user/passkey/register/finish',
+        payload,
+      );
       if (finishRes.data.success) {
         showSuccess(t('Passkey 注册成功'));
         await loadPasskeyStatus();

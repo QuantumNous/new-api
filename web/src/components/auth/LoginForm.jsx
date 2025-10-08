@@ -42,7 +42,12 @@ import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import TelegramLoginButton from 'react-telegram-login';
 
-import { IconGithubLogo, IconMail, IconLock, IconKey } from '@douyinfe/semi-icons';
+import {
+  IconGithubLogo,
+  IconMail,
+  IconLock,
+  IconKey,
+} from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
@@ -296,15 +301,22 @@ const LoginForm = () => {
         return;
       }
 
-      const publicKeyOptions = prepareCredentialRequestOptions(data?.options || data?.publicKey || data);
-      const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
+      const publicKeyOptions = prepareCredentialRequestOptions(
+        data?.options || data?.publicKey || data,
+      );
+      const assertion = await navigator.credentials.get({
+        publicKey: publicKeyOptions,
+      });
       const payload = buildAssertionResult(assertion);
       if (!payload) {
         showError('Passkey 验证失败，请重试');
         return;
       }
 
-      const finishRes = await API.post('/api/user/passkey/login/finish', payload);
+      const finishRes = await API.post(
+        '/api/user/passkey/login/finish',
+        payload,
+      );
       const finish = finishRes.data;
       if (finish.success) {
         userDispatch({ type: 'login', payload: finish.data });

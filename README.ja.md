@@ -89,22 +89,23 @@ New APIは豊富な機能を提供しています。詳細な機能について�
 10. 🤖 より多くの認証ログイン方法をサポート（LinuxDO、Telegram、OIDC）
 11. 🔄 Rerankモデルをサポート（CohereとJina）、[API ドキュメント](https://docs.newapi.pro/api/jinaai-rerank)
 12. ⚡ OpenAI Realtime APIをサポート（Azureチャネルを含む）、[APIドキュメント](https://docs.newapi.pro/api/openai-realtime)
-13. ⚡ Claude Messages形式をサポート、[APIドキュメント](https://docs.newapi.pro/api/anthropic-chat)
-14. /chat2linkルートを使用してチャット画面に入ることをサポート
-15. 🧠 モデル名のサフィックスを通じてreasoning effortを設定することをサポート：
+13. ⚡ **OpenAI Responses**形式をサポート、[APIドキュメント](https://docs.newapi.pro/api/openai-responses)
+14. ⚡ **Claude Messages**形式をサポート、[APIドキュメント](https://docs.newapi.pro/api/anthropic-chat)
+15. ⚡ **Google Gemini**形式をサポート、[APIドキュメント](https://docs.newapi.pro/api/google-gemini-chat/)
+16. 🧠 モデル名のサフィックスを通じてreasoning effortを設定することをサポート：
     1. OpenAI oシリーズモデル
         - `-high`サフィックスを追加してhigh reasoning effortに設定（例：`o3-mini-high`）
         - `-medium`サフィックスを追加してmedium reasoning effortに設定（例：`o3-mini-medium`）
         - `-low`サフィックスを追加してlow reasoning effortに設定（例：`o3-mini-low`）
     2. Claude思考モデル
         - `-thinking`サフィックスを追加して思考モードを有効にする（例：`claude-3-7-sonnet-20250219-thinking`）
-16. 🔄 思考からコンテンツへの機能
-17. 🔄 ユーザーに対するモデルレート制限機能
-18. 🔄 リクエストフォーマット変換機能、以下の3つのフォーマット変換をサポート：
+17. 🔄 思考からコンテンツへの機能
+18. 🔄 ユーザーに対するモデルレート制限機能
+19. 🔄 リクエストフォーマット変換機能、以下の3つのフォーマット変換をサポート：
     1. OpenAI Chat Completions => Claude Messages
     2. Claude Messages => OpenAI Chat Completions（Claude Codeがサードパーティモデルを呼び出す際に使用可能）
     3. OpenAI Chat Completions => Gemini Chat
-19. 💰 キャッシュ課金サポート、有効にするとキャッシュがヒットした際に設定された比率で課金できます：
+20. 💰 キャッシュ課金サポート、有効にするとキャッシュがヒットした際に設定された比率で課金できます：
     1. `システム設定-運営設定`で`プロンプトキャッシュ倍率`オプションを設定
     2. チャネルで`プロンプトキャッシュ倍率`を設定、範囲は0-1、例えば0.5に設定するとキャッシュがヒットした際に50%で課金
     3. サポートされているチャネル：
@@ -196,7 +197,8 @@ docker run --name new-api -d --restart always -p 3000:3000 -e SQL_DSN="root:1234
 
 詳細なAPIドキュメントについては[APIドキュメント](https://docs.newapi.pro/api)を参照してください：
 
-- [チャットインターフェース（Chat）](https://docs.newapi.pro/api/openai-chat)
+- [チャットインターフェース（Chat Completions）](https://docs.newapi.pro/api/openai-chat)
+- [レスポンスインターフェース（Responses）](https://docs.newapi.pro/api/openai-responses)
 - [画像インターフェース（Image）](https://docs.newapi.pro/api/openai-image)
 - [再ランク付けインターフェース（Rerank）](https://docs.newapi.pro/api/jinaai-rerank)
 - [リアルタイム対話インターフェース（Realtime）](https://docs.newapi.pro/api/openai-realtime)

@@ -621,7 +621,9 @@ const NotificationSettings = ({
                         },
                         {
                           pattern: /^https?:\/\/.+/,
-                          message: t('Gotify服务器地址必须以http://或https://开头'),
+                          message: t(
+                            'Gotify服务器地址必须以http://或https://开头',
+                          ),
                         },
                       ]}
                     />
@@ -678,9 +680,7 @@ const NotificationSettings = ({
                             '复制应用的令牌（Token）并填写到上方的应用令牌字段',
                           )}
                         </div>
-                        <div>
-                          3. {t('填写Gotify服务器的完整URL地址')}
-                        </div>
+                        <div>3. {t('填写Gotify服务器的完整URL地址')}</div>
                         <div className='mt-3 pt-3 border-t border-gray-200'>
                           <span className='text-gray-400'>
                             {t('更多信息请参考')}
