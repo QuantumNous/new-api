@@ -329,6 +329,7 @@ type GeminiImageParameters struct {
 	SampleCount      int    `json:"sampleCount,omitempty"`
 	AspectRatio      string `json:"aspectRatio,omitempty"`
 	PersonGeneration string `json:"personGeneration,omitempty"`
+	ImageSize        string `json:"imageSize,omitempty"`
 }
 
 type GeminiImageResponse struct {

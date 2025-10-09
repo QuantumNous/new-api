@@ -127,6 +127,14 @@ func GetAuthHeader(token string) http.Header {
 	return h
 }
 
+// GetClaudeAuthHeader get claude auth header
+func GetClaudeAuthHeader(token string) http.Header {
+	h := http.Header{}
+	h.Add("x-api-key", token)
+	h.Add("anthropic-version", "2023-06-01")
+	return h
+}
+
 func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {

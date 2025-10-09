@@ -67,8 +67,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			aspectRatio = size
 		} else {
 			switch size {
-			case "1024x1024":
+			case "256x256", "512x512", "1024x1024":
 				aspectRatio = "1:1"
+			case "1536x1024":
+				aspectRatio = "3:2"
+			case "1024x1536":
+				aspectRatio = "2:3"
 			case "1024x1792":
 				aspectRatio = "9:16"
 			case "1792x1024":
@@ -89,6 +93,28 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			AspectRatio:      aspectRatio,
 			PersonGeneration: "allow_adult", // default allow adult
 		},
+	}
+
+	// Set imageSize when quality parameter is specified
+	// Map quality parameter to imageSize (only supported by Standard and Ultra models)
+	// quality values: auto, high, medium, low (for gpt-image-1), hd, standard (for dall-e-3)
+	// imageSize values: 1K (default), 2K
+	// https://ai.google.dev/gemini-api/docs/imagen
+	// https://platform.openai.com/docs/api-reference/images/create
+	if request.Quality != "" {
+		imageSize := "1K" // default
+		switch request.Quality {
+		case "hd", "high":
+			imageSize = "2K"
+		case "2K":
+			imageSize = "2K"
+		case "standard", "medium", "low", "auto", "1K":
+			imageSize = "1K"
+		default:
+			// unknown quality value, default to 1K
+			imageSize = "1K"
+		}
+		geminiRequest.Parameters.ImageSize = imageSize
 	}
 
 	return geminiRequest, nil
