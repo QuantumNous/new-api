@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/bytedance/gopkg/cache/asynccache"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 
 	"fmt"
 	"time"
