@@ -165,6 +165,18 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
+	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") {
+		//curl https://api.openai.com/v1/videos \
+		//  -H "Authorization: Bearer $OPENAI_API_KEY" \
+		//  -F "model=sora-2" \
+		//  -F "prompt=A calico cat playing a piano on stage"
+		//	-F input_reference="@image.jpg"
+		relayMode := relayconstant.RelayModeUnknown
+		if c.Request.Method == http.MethodPost {
+			relayMode = relayconstant.RelayModeVideoSubmit
+			modelRequest.Model = c.PostForm("model")
+		}
+		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
 		relayMode := relayconstant.RelayModeUnknown
 		if c.Request.Method == http.MethodPost {

@@ -29,6 +29,7 @@ import (
 	taskdoubao "one-api/relay/channel/task/doubao"
 	taskjimeng "one-api/relay/channel/task/jimeng"
 	"one-api/relay/channel/task/kling"
+	tasksora "one-api/relay/channel/task/sora"
 	"one-api/relay/channel/task/suno"
 	taskvertex "one-api/relay/channel/task/vertex"
 	taskVidu "one-api/relay/channel/task/vidu"
@@ -137,6 +138,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskVidu.TaskAdaptor{}
 		case constant.ChannelTypeDoubaoVideo:
 			return &taskdoubao.TaskAdaptor{}
+		case constant.ChannelTypeSora:
+			return &tasksora.TaskAdaptor{}
 		}
 	}
 	return nil
