@@ -188,7 +188,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 			
 			triedKeys := make(map[int]bool) // Track tried keys for this channel
-			for j := 0; j < channel.ChannelInfo.MultiKeySize; j++ {
+			for j := 0; j < channel.ChannelInfo.MultiKeySize && j < 20; j++ {
 				if _, ok := triedKeys[keyIdx]; ok {
 					// This key has been tried, get another one
 					key, keyIdx, keyErr = channel.GetNextEnabledKey()
@@ -287,6 +287,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	if strings.Contains(openaiErr.Error(), "no response received") {
+		return false
+	}
+	if strings.Contains(openaiErr.Error(), "no candidates returned") {
 		return false
 	}
 	if types.IsChannelError(openaiErr) {

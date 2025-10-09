@@ -569,6 +569,10 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		}
 		if status == common.ChannelStatusEnabled {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			// If the channel was auto-disabled, re-enable it since at least one key is now enabled.
+			if channel.Status == common.ChannelStatusAutoDisabled {
+				channel.Status = common.ChannelStatusEnabled
+			}
 		} else {
 			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
 			if channel.ChannelInfo.MultiKeyDisabledReason == nil {

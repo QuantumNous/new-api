@@ -474,12 +474,10 @@ const EditTokenModal = (props) => {
                       extraText={renderQuotaWithPrompt(values.remain_quota)}
                       rules={values.unlimited_quota ? [] : [{ required: true, message: t('请输入额度') }]}
                       data={[
-                        { value: 500000, label: '1$' },
-                        { value: 5000000, label: '10$' },
-                        { value: 25000000, label: '50$' },
-                        { value: 50000000, label: '100$' },
-                        { value: 250000000, label: '500$' },
-                        { value: 500000000, label: '1000$' },
+                          { value: 5000000, label: '10$' },
+                          { value: 10000000, label: '20$' },
+                          { value: 15000000, label: '30$' },
+                          { value: 20000000, label: '40$' },
                       ]}
                     />
                   </Col>

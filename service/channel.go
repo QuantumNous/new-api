@@ -17,7 +17,7 @@ func ShouldDisableChannel(channelId int, err *types.NewAPIError) bool {
 		return false
 	}
 	errMsg := strings.ToLower(err.Error())
-	if strings.Contains(errMsg, "deadline exceeded") || strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "connect") || strings.Contains(errMsg, "do request failed") || strings.Contains(errMsg, "provider returned error") || strings.Contains(errMsg, "internal server error") || strings.Contains(errMsg, "no response received") {
+	if strings.Contains(errMsg, "no candidates returned") || strings.Contains(errMsg, "deadline exceeded") || strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "connect") || strings.Contains(errMsg, "do request failed") || strings.Contains(errMsg, "provider returned error") || strings.Contains(errMsg, "internal server error") || strings.Contains(errMsg, "no response received") {
 		return false
 	}
 	if err.StatusCode == 401 {
@@ -25,7 +25,7 @@ func ShouldDisableChannel(channelId int, err *types.NewAPIError) bool {
 	}
 	if err.StatusCode == 429 {
 		// too many requests
-		return true
+		return false
 	}
 	if err.StatusCode == 403 {
 		// forbidden
