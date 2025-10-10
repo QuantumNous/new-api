@@ -45,7 +45,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 		return nil, fmt.Errorf("failed to marshal worker payload: %v", err)
 	}
 
-	return http.Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
+	return GetHttpClient().Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
 }
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {
@@ -64,6 +64,6 @@ func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response,
 		}
 
 		common.SysLog(fmt.Sprintf("downloading from origin: %s, reason: %s", common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
-		return http.Get(originUrl)
+		return GetHttpClient().Get(originUrl)
 	}
 }

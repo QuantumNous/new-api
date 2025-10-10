@@ -32,12 +32,9 @@ type ImageURL struct {
 	URL string `json:"url"`
 }
 
-type responsePayload struct {
-	ID string `json:"id"` // task_id
-}
-
 type responseTask struct {
 	ID                 string `json:"id"`
+	TaskID             string `json:"task_id,omitempty"` //兼容旧接口
 	Object             string `json:"object"`
 	Model              string `json:"model"`
 	Status             string `json:"status"`
@@ -108,18 +105,22 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relayco
 	_ = resp.Body.Close()
 
 	// Parse Sora response
-	var dResp responsePayload
+	var dResp responseTask
 	if err := json.Unmarshal(responseBody, &dResp); err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
 
 	if dResp.ID == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
-		return
+		if dResp.TaskID == "" {
+			taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
+			return
+		}
+		dResp.ID = dResp.TaskID
+		dResp.TaskID = ""
 	}
 
-	c.JSON(http.StatusOK, gin.H{"task_id": dResp.ID})
+	c.JSON(http.StatusOK, dResp)
 	return dResp.ID, responseBody, nil
 }
 

@@ -184,6 +184,9 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 					modelRequest.Model = values[0]
 				}
 			}
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {

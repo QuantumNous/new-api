@@ -37,7 +37,7 @@ import {
   isPasskeySupported,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
-import { Button, Card, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
+import { Button, Card, Checkbox, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import TelegramLoginButton from 'react-telegram-login';
@@ -84,6 +84,9 @@ const LoginForm = () => {
   const [showTwoFA, setShowTwoFA] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [hasUserAgreement, setHasUserAgreement] = useState(false);
+  const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -103,6 +106,10 @@ const LoginForm = () => {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
+    
+    // 从 status 获取用户协议和隐私政策的启用状态
+    setHasUserAgreement(status.user_agreement_enabled || false);
+    setHasPrivacyPolicy(status.privacy_policy_enabled || false);
   }, [status]);
 
   useEffect(() => {
@@ -118,6 +125,10 @@ const LoginForm = () => {
   }, []);
 
   const onWeChatLoginClicked = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     setWechatLoading(true);
     setShowWeChatLoginModal(true);
     setWechatLoading(false);
@@ -157,6 +168,10 @@ const LoginForm = () => {
   }
 
   async function handleSubmit(e) {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     if (turnstileEnabled && turnstileToken === '') {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
@@ -208,6 +223,10 @@ const LoginForm = () => {
 
   // 添加Telegram登录处理函数
   const onTelegramLoginClicked = async (response) => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     const fields = [
       'id',
       'first_name',
@@ -244,6 +263,10 @@ const LoginForm = () => {
 
   // 包装的GitHub登录点击处理
   const handleGitHubClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     setGithubLoading(true);
     try {
       onGitHubOAuthClicked(status.github_client_id);
@@ -255,6 +278,10 @@ const LoginForm = () => {
 
   // 包装的OIDC登录点击处理
   const handleOIDCClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     setOidcLoading(true);
     try {
       onOIDCClicked(status.oidc_authorization_endpoint, status.oidc_client_id);
@@ -266,6 +293,10 @@ const LoginForm = () => {
 
   // 包装的LinuxDO登录点击处理
   const handleLinuxDOClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     setLinuxdoLoading(true);
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id);
@@ -283,6 +314,10 @@ const LoginForm = () => {
   };
 
   const handlePasskeyLogin = async () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
     if (!passkeySupported) {
       showInfo('当前环境无法使用 Passkey 登录');
       return;
@@ -486,6 +521,44 @@ const LoginForm = () => {
                 </Button>
               </div>
 
+              {(hasUserAgreement || hasPrivacyPolicy) && (
+                <div className='mt-6'>
+                  <Checkbox
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  >
+                    <Text size='small' className='text-gray-600'>
+                      {t('我已阅读并同意')}
+                      {hasUserAgreement && (
+                        <>
+                          <a
+                            href='/user-agreement'
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='text-blue-600 hover:text-blue-800 mx-1'
+                          >
+                            {t('用户协议')}
+                          </a>
+                        </>
+                      )}
+                      {hasUserAgreement && hasPrivacyPolicy && t('和')}
+                      {hasPrivacyPolicy && (
+                        <>
+                          <a
+                            href='/privacy-policy'
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='text-blue-600 hover:text-blue-800 mx-1'
+                          >
+                            {t('隐私政策')}
+                          </a>
+                        </>
+                        )}
+                      </Text>
+                    </Checkbox>
+                  </div>
+                )}
+
               {!status.self_use_mode_enabled && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
@@ -554,6 +627,44 @@ const LoginForm = () => {
                   prefix={<IconLock />}
                 />
 
+                {(hasUserAgreement || hasPrivacyPolicy) && (
+                  <div className='pt-4'>
+                    <Checkbox
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    >
+                      <Text size='small' className='text-gray-600'>
+                        {t('我已阅读并同意')}
+                        {hasUserAgreement && (
+                          <>
+                            <a
+                              href='/user-agreement'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-600 hover:text-blue-800 mx-1'
+                            >
+                              {t('用户协议')}
+                            </a>
+                          </>
+                        )}
+                        {hasUserAgreement && hasPrivacyPolicy && t('和')}
+                        {hasPrivacyPolicy && (
+                          <>
+                            <a
+                              href='/privacy-policy'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-600 hover:text-blue-800 mx-1'
+                            >
+                              {t('隐私政策')}
+                            </a>
+                          </>
+                        )}
+                      </Text>
+                    </Checkbox>
+                  </div>
+                )}
+
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
@@ -562,6 +673,7 @@ const LoginForm = () => {
                     htmlType='submit'
                     onClick={handleSubmit}
                     loading={loginLoading}
+                    disabled={(hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms}
                   >
                     {t('继续')}
                   </Button>

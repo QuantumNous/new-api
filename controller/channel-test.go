@@ -59,6 +59,21 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
+	testModel = strings.TrimSpace(testModel)
+	if testModel == "" {
+		if channel.TestModel != nil && *channel.TestModel != "" {
+			testModel = strings.TrimSpace(*channel.TestModel)
+		} else {
+			models := channel.GetModels()
+			if len(models) > 0 {
+				testModel = strings.TrimSpace(models[0])
+			}
+			if testModel == "" {
+				testModel = "gpt-4o-mini"
+			}
+		}
+	}
+
 	requestPath := "/v1/chat/completions"
 
 	// 如果指定了端点类型，使用指定的端点类型
@@ -88,18 +103,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		URL:    &url.URL{Path: requestPath}, // 使用动态路径
 		Body:   nil,
 		Header: make(http.Header),
-	}
-
-	if testModel == "" {
-		if channel.TestModel != nil && *channel.TestModel != "" {
-			testModel = *channel.TestModel
-		} else {
-			if len(channel.GetModels()) > 0 {
-				testModel = channel.GetModels()[0]
-			} else {
-				testModel = "gpt-4o-mini"
-			}
-		}
 	}
 
 	cache, err := model.GetUserCache(1)
