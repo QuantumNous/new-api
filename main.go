@@ -242,6 +242,7 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	server.Use(middleware.RequestLogger())
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysError(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -254,7 +255,7 @@ func main() {
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
-	server.Use(middleware.RequestLogger())
+
 	// 添加流量监控中间件
 	server.Use(middleware.TrafficMonitorMiddleware())
 	middleware.SetUpLogger(server)

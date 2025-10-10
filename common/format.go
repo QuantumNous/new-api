@@ -53,6 +53,11 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 	if !exists {
 		return reqInfo, errors.New("failed to get request body")
 	}
+
+	if strings.Contains(responseheaders.(string), "stream") {
+		isTruncated = false
+	}
+
 	if isTruncated {
 		reqInfo = &RequestInfo{
 			IsTruncated:     true,
@@ -74,6 +79,24 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 	return
 }
 
+// truncateNonJsonBody 截断非JSON内容，保留首尾各1000字符
+func truncateNonJsonBody(bodyStr string) string {
+	const headSize = 1000
+	const tailSize = 1000
+	const minTruncateSize = headSize + tailSize
+
+	if len(bodyStr) <= minTruncateSize {
+		return bodyStr
+	}
+
+	// 直接截取首尾各1000字符
+	headPart := bodyStr[:headSize]
+	tailPart := bodyStr[len(bodyStr)-tailSize:]
+
+	return fmt.Sprintf("%s\n...[truncated, total: %d chars, showing first %d and last %d chars]...\n%s",
+		headPart, len(bodyStr), headSize, tailSize, tailPart)
+}
+
 func TruncatedBody(body string, contentType string) string {
 	if strings.Contains(contentType, "multipart/form-data") {
 		return ParseMultipartFormData([]byte(body), contentType)
@@ -85,12 +108,8 @@ func TruncatedBody(body string, contentType string) string {
 			processedData := ProcessMapValues(bodyData)
 			return FormatValue(processedData)
 		} else {
-			// 对非JSON内容，转为字符串并限制长度
-			bodyStr := string(body)
-			if len(bodyStr) > 1000 {
-				bodyStr = bodyStr[:1000] + fmt.Sprintf("...[truncated, total: %d chars]", len(bodyStr))
-			}
-			return bodyStr
+			// 对非JSON内容，使用新的截断逻辑
+			return truncateNonJsonBody(body)
 		}
 	}
 }
@@ -118,12 +137,8 @@ func LogRequestBody(c *gin.Context) string {
 			processedData := ProcessMapValues(bodyData)
 			return FormatValue(processedData)
 		} else {
-			// 对非JSON内容，转为字符串并限制长度
-			bodyStr := string(body)
-			if len(bodyStr) > 1000 {
-				bodyStr = bodyStr[:1000] + fmt.Sprintf("...[truncated, total: %d chars]", len(bodyStr))
-			}
-			return bodyStr
+			// 对非JSON内容，使用新的截断逻辑
+			return truncateNonJsonBody(string(body))
 		}
 	}
 }
@@ -151,12 +166,8 @@ func LogHttpRequestBody(req *http.Request) string {
 			processedData := ProcessMapValues(bodyData)
 			return FormatValue(processedData)
 		} else {
-			// 对非JSON内容，转为字符串并限制长度
-			bodyStr := string(body)
-			if len(bodyStr) > 1000 {
-				bodyStr = bodyStr[:1000] + fmt.Sprintf("...[truncated, total: %d chars]", len(bodyStr))
-			}
-			return bodyStr
+			// 对非JSON内容，使用新的截断逻辑
+			return truncateNonJsonBody(string(body))
 		}
 	}
 }
