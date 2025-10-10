@@ -174,7 +174,16 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		relayMode := relayconstant.RelayModeUnknown
 		if c.Request.Method == http.MethodPost {
 			relayMode = relayconstant.RelayModeVideoSubmit
-			modelRequest.Model = c.PostForm("model")
+			form, err := common.ParseMultipartFormReusable(c)
+			if err != nil {
+				return nil, false, errors.New("无效的video请求, " + err.Error())
+			}
+			defer form.RemoveAll()
+			if form != nil {
+				if values, ok := form.Value["model"]; ok && len(values) > 0 {
+					modelRequest.Model = values[0]
+				}
+			}
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
