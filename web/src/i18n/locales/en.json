@@ -2280,5 +2280,20 @@
   "填写隐私政策内容后，用户注册时将被要求勾选已阅读隐私政策": "After filling in the privacy policy content, users will be required to check that they have read the privacy policy when registering",
   "管理员设置了外部链接，点击下方按钮访问": "Administrator has set an external link, click the button below to access",
   "访问用户协议": "Access User Agreement",
-  "访问隐私政策": "Access Privacy Policy"
+  "访问隐私政策": "Access Privacy Policy",
+  "修改初始密码": "Change Initial Password",
+  "您使用的是管理员设置的初始密码，为了账户安全，请立即修改密码。": "You are using an initial password set by the administrator. For account security, please change it immediately.",
+  "新密码": "New Password",
+  "请输入新密码（8-20个字符）": "Please enter new password (8-20 characters)",
+  "确认密码": "Confirm Password",
+  "请再次输入新密码": "Please enter new password again",
+  "取消": "Cancel",
+  "确认修改": "Confirm",
+  "请输入新密码和确认密码": "Please enter new password and confirmation",
+  "新密码长度必须在8-20个字符之间": "New password length must be between 8-20 characters",
+  "两次输入的密码不一致": "The two passwords do not match",
+  "新密码不能与原密码相同": "New password cannot be the same as the old password",
+  "密码修改成功，请输入新密码登录": "Password changed successfully, please enter your new password to log in",
+  "密码修改成功，请重新登录": "Password changed successfully, please log in again",
+  "密码修改失败，请重试": "Password change failed, please try again"
 }

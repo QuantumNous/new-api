@@ -94,6 +94,20 @@ func Login(c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	// 检查是否需要修改初始密码
+	if user.IsInitialPassword {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "请立即修改初始密码",
+			"success": true,
+			"data": map[string]interface{}{
+				"require_change_password": true,
+				"user_id":                 user.Id,
+				"username":                user.Username,
+			},
+		})
+		return
+	}
+
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
@@ -206,11 +220,12 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.Username,
-		InviterId:   inviterId,
-		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Username:          user.Username,
+		Password:          user.Password,
+		DisplayName:       user.Username,
+		InviterId:         inviterId,
+		Role:              common.RoleCommonUser, // 明确设置角色为普通用户
+		IsInitialPassword: false,                 // 用户自行注册不标记为初始密码
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
@@ -639,6 +654,10 @@ func UpdateUser(c *gin.Context) {
 		updatedUser.Password = "" // rollback to what it should be
 	}
 	updatePassword := updatedUser.Password != ""
+	// 如果管理员修改了用户密码，标记为初始密码
+	if updatePassword {
+		updatedUser.IsInitialPassword = true
+	}
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
@@ -728,22 +747,36 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
-	cleanUser := model.User{
-		Id:          c.GetInt("id"),
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-	}
+	userId := c.GetInt("id")
+
 	if user.Password == "$I_LOVE_U" {
 		user.Password = "" // rollback to what it should be
-		cleanUser.Password = ""
 	}
-	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
+	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if err := cleanUser.Update(updatePassword); err != nil {
+
+	// 构建更新字段的 map
+	updates := map[string]interface{}{
+		"username":     user.Username,
+		"display_name": user.DisplayName,
+	}
+
+	// 如果正在更新密码，同时清除初始密码标记
+	if updatePassword {
+		hashedPassword, err := common.Password2Hash(user.Password)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		updates["password"] = hashedPassword
+		updates["is_initial_password"] = false // 明确设置为 false
+	}
+
+	// 执行更新
+	if err := model.DB.Model(&model.User{}).Where("id = ?", userId).Updates(updates).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -856,10 +889,11 @@ func CreateUser(c *gin.Context) {
 	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Username:          user.Username,
+		Password:          user.Password,
+		DisplayName:       user.DisplayName,
+		Role:              user.Role, // 保持管理员设置的角色
+		IsInitialPassword: true,      // 管理员创建的用户标记为初始密码
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
@@ -1107,6 +1141,111 @@ type UpdateUserSettingRequest struct {
 	GotifyPriority             int     `json:"gotify_priority,omitempty"`
 	AcceptUnsetModelRatioModel bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                bool    `json:"record_ip_log"`
+}
+
+type ChangeInitialPasswordRequest struct {
+	UserId      int    `json:"user_id"`
+	Username    string `json:"username"`
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+func ChangeInitialPassword(c *gin.Context) {
+	var req ChangeInitialPasswordRequest
+	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+
+	if req.UserId == 0 || req.Username == "" || req.OldPassword == "" || req.NewPassword == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请提供完整的参数",
+		})
+		return
+	}
+
+	// 验证新密码长度
+	if len(req.NewPassword) < 8 || len(req.NewPassword) > 20 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "新密码长度必须在8-20个字符之间",
+		})
+		return
+	}
+
+	// 获取用户
+	user, err := model.GetUserById(req.UserId, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户不存在",
+		})
+		return
+	}
+
+	// 验证用户名匹配
+	if user.Username != req.Username {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户信息不匹配",
+		})
+		return
+	}
+
+	// 验证旧密码
+	if !common.ValidatePasswordAndHash(req.OldPassword, user.Password) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "原密码错误",
+		})
+		return
+	}
+
+	// 验证是否确实需要修改初始密码
+	if !user.IsInitialPassword {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "该用户不需要修改初始密码",
+		})
+		return
+	}
+
+	// 更新密码并清除初始密码标记
+	hashedPassword, err := common.Password2Hash(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "密码加密失败",
+		})
+		return
+	}
+
+	// 使用 map 更新以确保 IsInitialPassword = false 能被正确写入
+	updates := map[string]interface{}{
+		"password":            hashedPassword,
+		"is_initial_password": false,
+	}
+
+	if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "修改密码失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 记录日志
+	model.RecordLog(user.Id, model.LogTypeSystem, "修改初始密码")
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "密码修改成功，请重新登录",
+	})
 }
 
 func UpdateUserSetting(c *gin.Context) {

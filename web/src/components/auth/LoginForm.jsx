@@ -87,6 +87,11 @@ const LoginForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [changePasswordData, setChangePasswordData] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -192,6 +197,18 @@ const LoginForm = () => {
           // 检查是否需要2FA验证
           if (data && data.require_2fa) {
             setShowTwoFA(true);
+            setLoginLoading(false);
+            return;
+          }
+
+          // 检查是否需要修改初始密码
+          if (data && data.require_change_password) {
+            setChangePasswordData({
+              user_id: data.user_id,
+              username: data.username,
+              old_password: password,
+            });
+            setShowChangePasswordModal(true);
             setLoginLoading(false);
             return;
           }
@@ -400,6 +417,73 @@ const LoginForm = () => {
   const handleBackToLogin = () => {
     setShowTwoFA(false);
     setInputs({ username: '', password: '', wechat_verification_code: '' });
+  };
+
+  // 取消修改初始密码
+  const handleCancelChangePassword = () => {
+    setShowChangePasswordModal(false);
+    const savedUsername = changePasswordData?.username || '';
+    setChangePasswordData(null);
+    setNewPassword('');
+    setConfirmPassword('');
+    // 保留用户名，只清空密码字段
+    setInputs({ username: savedUsername, password: '', wechat_verification_code: '' });
+    setSubmitted(false);
+  };
+
+  // 处理初始密码修改
+  const handleChangeInitialPassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      showError(t('请输入新密码和确认密码'));
+      return;
+    }
+
+    if (newPassword.length < 8 || newPassword.length > 20) {
+      showError(t('新密码长度必须在8-20个字符之间'));
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      showError(t('两次输入的密码不一致'));
+      return;
+    }
+
+    if (newPassword === changePasswordData.old_password) {
+      showError(t('新密码不能与原密码相同'));
+      return;
+    }
+
+    setChangePasswordLoading(true);
+    try {
+      const res = await API.post('/api/user/change_initial_password', {
+        user_id: changePasswordData.user_id,
+        username: changePasswordData.username,
+        old_password: changePasswordData.old_password,
+        new_password: newPassword,
+      });
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('密码修改成功，请输入新密码登录'));
+        // 关闭修改密码对话框
+        setShowChangePasswordModal(false);
+        // 保存用户名，用于重新登录
+        const savedUsername = changePasswordData.username;
+        setChangePasswordData(null);
+        // 清空修改密码表单
+        setNewPassword('');
+        setConfirmPassword('');
+        // 保留用户名，只清空密码字段，让用户输入新密码即可
+        setInputs({ username: savedUsername, password: '', wechat_verification_code: '' });
+        // 重置提交状态
+        setSubmitted(false);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('密码修改失败，请重试'));
+    } finally {
+      setChangePasswordLoading(false);
+    }
   };
 
   const renderOAuthOptions = () => {
@@ -613,6 +697,7 @@ const LoginForm = () => {
                   label={t('用户名或邮箱')}
                   placeholder={t('请输入您的用户名或邮箱地址')}
                   name='username'
+                  value={username}
                   onChange={(value) => handleChange('username', value)}
                   prefix={<IconMail />}
                 />
@@ -623,6 +708,7 @@ const LoginForm = () => {
                   placeholder={t('请输入您的密码')}
                   name='password'
                   mode='password'
+                  value={password}
                   onChange={(value) => handleChange('password', value)}
                   prefix={<IconLock />}
                 />
@@ -811,6 +897,68 @@ const LoginForm = () => {
     );
   };
 
+  // 修改初始密码弹窗
+  const renderChangePasswordModal = () => {
+    return (
+      <Modal
+        title={
+          <div className='flex items-center'>
+            <div className='w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center mr-3'>
+              <IconLock className='text-yellow-600 dark:text-yellow-400' />
+            </div>
+            {t('修改初始密码')}
+          </div>
+        }
+        visible={showChangePasswordModal}
+        onCancel={handleCancelChangePassword}
+        footer={
+          <div className='flex justify-end gap-2'>
+            <Button onClick={handleCancelChangePassword}>
+              {t('取消')}
+            </Button>
+            <Button
+              type='primary'
+              onClick={handleChangeInitialPassword}
+              loading={changePasswordLoading}
+            >
+              {t('确认修改')}
+            </Button>
+          </div>
+        }
+        width={450}
+        centered
+      >
+        <div className='py-4'>
+          <div className='mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg'>
+            <Text className='text-sm text-yellow-800 dark:text-yellow-200'>
+              {t('您使用的是管理员设置的初始密码，为了账户安全，请立即修改密码。')}
+            </Text>
+          </div>
+          <Form>
+            <Form.Input
+              field='new_password'
+              label={t('新密码')}
+              placeholder={t('请输入新密码（8-20个字符）')}
+              mode='password'
+              value={newPassword}
+              onChange={(value) => setNewPassword(value)}
+              prefix={<IconLock />}
+            />
+            <Form.Input
+              field='confirm_password'
+              label={t('确认密码')}
+              placeholder={t('请再次输入新密码')}
+              mode='password'
+              value={confirmPassword}
+              onChange={(value) => setConfirmPassword(value)}
+              prefix={<IconLock />}
+            />
+          </Form>
+        </div>
+      </Modal>
+    );
+  };
+
   return (
     <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
       {/* 背景模糊晕染球 */}
@@ -835,6 +983,7 @@ const LoginForm = () => {
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
         {render2FAModal()}
+        {renderChangePasswordModal()}
 
         {turnstileEnabled && (
           <div className='flex justify-center mt-6'>
