@@ -27,10 +27,14 @@ func RequestLogger() gin.HandlerFunc {
 			headers[k] = strings.Join(v, ", ")
 		}
 
+		// 获取 requestId（应该已经在 RequestId 中间件中设置）
+		requestId := c.GetString(common.RequestIdKey)
+
 		// 构建日志信息
-		logInfo := fmt.Sprintf("Request: %s %s\tClient IP: %s\tHeaders: %s\t",
+		logInfo := fmt.Sprintf("Request: %s %s\tRequestID: %s\tClient IP: %s\tHeaders: %s\t",
 			c.Request.Method,
 			c.Request.URL.String(),
+			requestId,
 			c.ClientIP(),
 			common.FormatMap(headers),
 		)
@@ -44,7 +48,6 @@ func RequestLogger() gin.HandlerFunc {
 		}
 
 		// 构建全链路上下文
-		requestId := c.GetString(common.RequestIdKey)
 		ctx := context.WithValue(c.Request.Context(), common.RequestIdKey, requestId)
 		ctx = context.WithValue(ctx, "gin_context", c)
 
