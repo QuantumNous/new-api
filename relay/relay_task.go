@@ -362,20 +362,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		}
 	}()
 
-	if len(respBody) != 0 {
-		return
-	}
-
-	if strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") {
-		respBody = originTask.Data
-		return
-	}
-	respBody, err = json.Marshal(dto.TaskResponse[any]{
-		Code: "success",
-		Data: TaskModel2Dto(originTask),
-	})
-	if err != nil {
-		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+	if len(respBody) == 0 {
+		respBody, err = json.Marshal(dto.TaskResponse[any]{
+			Code: "success",
+			Data: TaskModel2Dto(originTask),
+		})
 	}
 	return
 }
