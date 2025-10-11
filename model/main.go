@@ -3,12 +3,13 @@ package model
 import (
 	"fmt"
 	"log"
-	"one-api/common"
-	"one-api/constant"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"

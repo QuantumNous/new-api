@@ -3,8 +3,9 @@ package ratio_setting
 import (
 	"encoding/json"
 	"errors"
-	"one-api/common"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var groupRatio = map[string]float64{

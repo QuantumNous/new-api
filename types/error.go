@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"one-api/common"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type OpenAIError struct {

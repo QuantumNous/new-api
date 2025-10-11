@@ -1,7 +1,7 @@
 package model_setting
 
 import (
-	"one-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 type GlobalSettings struct {

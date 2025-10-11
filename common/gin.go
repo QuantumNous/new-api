@@ -5,9 +5,10 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"one-api/constant"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/gin-gonic/gin"
 )

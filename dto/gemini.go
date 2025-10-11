@@ -2,10 +2,11 @@ package dto
 
 import (
 	"encoding/json"
-	"one-api/common"
-	"one-api/logger"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )

@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/types"
 	"strings"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"

@@ -3,12 +3,13 @@ package controller
 import (
 	"errors"
 	"fmt"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/middleware"
-	"one-api/model"
-	"one-api/types"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )

@@ -3,9 +3,10 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
-	"one-api/common"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )

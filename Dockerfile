@@ -23,7 +23,7 @@ RUN go mod download
 
 COPY . .
 COPY --from=builder /build/dist ./web/dist
-RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -o one-api
+RUN go build -ldflags "-s -w -X 'new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM alpine
 
@@ -31,7 +31,7 @@ RUN apk upgrade --no-cache \
     && apk add --no-cache ca-certificates tzdata ffmpeg \
     && update-ca-certificates
 
-COPY --from=builder2 /build/one-api /
+COPY --from=builder2 /build/new-api /
 EXPOSE 3000
 WORKDIR /data
-ENTRYPOINT ["/one-api"]
+ENTRYPOINT ["/new-api"]

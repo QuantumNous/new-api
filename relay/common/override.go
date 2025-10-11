@@ -3,11 +3,12 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type ConditionOperation struct {

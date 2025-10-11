@@ -2,10 +2,11 @@ package helper
 
 import (
 	"fmt"
-	"one-api/common"
-	relaycommon "one-api/relay/common"
-	"one-api/setting/ratio_setting"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )

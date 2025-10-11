@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/logger"
-	"one-api/model"
-	"one-api/setting"
 	"strconv"
 	"strings"
 	"sync"
 
-	"one-api/constant"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

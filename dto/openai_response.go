@@ -3,7 +3,8 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/types"
 )
 
 const (

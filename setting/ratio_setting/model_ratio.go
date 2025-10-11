@@ -2,10 +2,11 @@ package ratio_setting
 
 import (
 	"encoding/json"
-	"one-api/common"
-	"one-api/setting/operation_setting"
 	"strings"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 // from songquanpeng/one-api

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/logger"
-	"one-api/model"
 	"time"
+
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 )

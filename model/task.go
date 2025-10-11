@@ -3,9 +3,10 @@ package model
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"one-api/constant"
-	commonRelay "one-api/relay/common"
 	"time"
+
+	"github.com/QuantumNous/new-api/constant"
+	commonRelay "github.com/QuantumNous/new-api/relay/common"
 )
 
 type TaskStatus string
