@@ -2274,5 +2274,20 @@
   "填写隐私政策内容后，用户注册时将被要求勾选已阅读隐私政策": "Après avoir rempli le contenu de la politique de confidentialité, les utilisateurs devront cocher qu'ils ont lu la politique de confidentialité lors de l'inscription",
   "管理员设置了外部链接，点击下方按钮访问": "L'administrateur a défini un lien externe, cliquez sur le bouton ci-dessous pour accéder",
   "访问用户协议": "Accéder à l'accord utilisateur",
-  "访问隐私政策": "Accéder à la politique de confidentialité"
+  "访问隐私政策": "Accéder à la politique de confidentialité",
+  "修改初始密码": "Modifier le mot de passe initial",
+  "您使用的是管理员设置的初始密码，为了账户安全，请立即修改密码。": "Vous utilisez un mot de passe initial défini par l'administrateur. Pour la sécurité du compte, veuillez le modifier immédiatement.",
+  "新密码": "Nouveau mot de passe",
+  "请输入新密码（8-20个字符）": "Veuillez entrer le nouveau mot de passe (8-20 caractères)",
+  "确认密码": "Confirmer le mot de passe",
+  "请再次输入新密码": "Veuillez entrer à nouveau le nouveau mot de passe",
+  "取消": "Annuler",
+  "确认修改": "Confirmer",
+  "请输入新密码和确认密码": "Veuillez entrer le nouveau mot de passe et la confirmation",
+  "新密码长度必须在8-20个字符之间": "La longueur du nouveau mot de passe doit être comprise entre 8 et 20 caractères",
+  "两次输入的密码不一致": "Les deux mots de passe ne correspondent pas",
+  "新密码不能与原密码相同": "Le nouveau mot de passe ne peut pas être identique à l'ancien mot de passe",
+  "密码修改成功，请输入新密码登录": "Mot de passe modifié avec succès, veuillez entrer votre nouveau mot de passe pour vous connecter",
+  "密码修改成功，请重新登录": "Mot de passe modifié avec succès, veuillez vous reconnecter",
+  "密码修改失败，请重试": "Échec de la modification du mot de passe, veuillez réessayer"
 }
