@@ -4,6 +4,8 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/core/registry"
+	pluginchannels "github.com/QuantumNous/new-api/plugins/channels"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ali"
 	"github.com/QuantumNous/new-api/relay/channel/aws"
@@ -44,7 +46,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAdaptor 获取Channel适配器（优先从插件注册中心获取，保持向后兼容）
 func GetAdaptor(apiType int) channel.Adaptor {
+	// 优先从插件注册中心获取
+	if plugin, err := registry.GetChannel(apiType); err == nil {
+		// 如果是BaseChannelPlugin，提取内部的Adaptor
+		if basePlugin, ok := plugin.(*pluginchannels.BaseChannelPlugin); ok {
+			return basePlugin.GetAdaptor()
+		}
+		// 否则直接返回plugin（它也实现了Adaptor接口）
+		return plugin
+	}
+	
+	// 向后兼容：如果注册中心没有，使用原有的硬编码方式
 	switch apiType {
 	case constant.APITypeAli:
 		return &ali.Adaptor{}

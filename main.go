@@ -21,6 +21,13 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
+	// Plugin System
+	coreregistry "github.com/QuantumNous/new-api/core/registry"
+	_ "github.com/QuantumNous/new-api/plugins/channels"  // 自动注册channel插件
+	_ "github.com/QuantumNous/new-api/plugins/hooks/web_search" // 自动注册web_search hook
+	_ "github.com/QuantumNous/new-api/plugins/hooks/content_filter" // 自动注册content_filter hook
+	relayhooks "github.com/QuantumNous/new-api/relay/hooks"
+
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -229,5 +236,34 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+	
+	// Initialize Plugin System
+	InitPluginSystem()
+	
 	return nil
+}
+
+// InitPluginSystem 初始化插件系统
+func InitPluginSystem() {
+	common.SysLog("Initializing plugin system...")
+	
+	// 1. 加载插件配置
+	// config.LoadPluginConfig() 会在各个插件的init()中自动调用
+	
+	// 2. 注册Channel插件
+	// 注意：这会在 plugins/channels/registry.go 的 init() 中自动完成
+	// 但为了确保加载，我们显式导入
+	common.SysLog("Registering channel plugins...")
+	
+	// 3. 初始化Hook链
+	common.SysLog("Initializing hook chain...")
+	_ = relayhooks.GetGlobalChain()
+	
+	hookCount := coreregistry.HookCount()
+	enabledHookCount := coreregistry.EnabledHookCount()
+	common.SysLog(fmt.Sprintf("Plugin system initialized: %d hooks registered (%d enabled)", 
+		hookCount, enabledHookCount))
+	
+	channelCount := len(coreregistry.ListChannels())
+	common.SysLog(fmt.Sprintf("Registered %d channel plugins", channelCount))
 }

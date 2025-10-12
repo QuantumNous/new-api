@@ -1,0 +1,52 @@
+# New-API 插件配置
+# 此文件用于配置所有插件的启用状态和参数
+
+# Channel插件配置
+channels:
+  openai:
+    enabled: true
+    priority: 100
+  
+  claude:
+    enabled: true
+    priority: 90
+  
+  gemini:
+    enabled: true
+    priority: 85
+
+# Middleware插件配置
+middlewares:
+  - name: auth
+    enabled: true
+    priority: 100
+  
+  - name: ratelimit
+    enabled: true
+    priority: 90
+    config:
+      default_rate: 60
+
+# Hook插件配置
+hooks:
+  # Relay层Hook
+  relay:
+    # 联网搜索插件
+    - name: web_search
+      enabled: false  # 默认禁用，需要配置API key后启用
+      priority: 50
+      config:
+        provider: google
+        api_key: ${WEB_SEARCH_API_KEY}  # 从环境变量读取
+    
+    # 内容过滤插件
+    - name: content_filter
+      enabled: false  # 默认禁用，需要配置后启用
+      priority: 100   # 高优先级，最后执行
+      config:
+        filter_nsfw: true
+        filter_political: false
+        sensitive_words:
+          - "敏感词1"
+          - "敏感词2"
+

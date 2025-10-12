@@ -40,6 +40,7 @@ require (
 	golang.org/x/image v0.23.0
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.17.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.4.3
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/gorm v1.25.2
