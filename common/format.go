@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"strings"
 
@@ -35,6 +36,11 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 		RequestHeaders:  "",
 		ResponseHeaders: "",
 		ResponseBody:    "",
+	}
+
+	// 检查环境变量是否禁用缩略
+	if os.Getenv("DISABLE_LOG_TRUNCATE") == "true" {
+		isTruncated = false
 	}
 
 	requestbody, exists := c.Get(CtxRequestBody)
