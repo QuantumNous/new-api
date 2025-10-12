@@ -1144,36 +1144,18 @@ type UpdateUserSettingRequest struct {
 }
 
 type ChangeInitialPasswordRequest struct {
-	UserId      int    `json:"user_id"`
-	Username    string `json:"username"`
-	OldPassword string `json:"old_password"`
-	NewPassword string `json:"new_password"`
+	UserId      int    `json:"user_id" binding:"required"`
+	Username    string `json:"username" binding:"required"`
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8,max=20"`
 }
 
 func ChangeInitialPassword(c *gin.Context) {
 	var req ChangeInitialPasswordRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
-	if err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "无效的参数",
-		})
-		return
-	}
-
-	if req.UserId == 0 || req.Username == "" || req.OldPassword == "" || req.NewPassword == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "请提供完整的参数",
-		})
-		return
-	}
-
-	// 验证新密码长度
-	if len(req.NewPassword) < 8 || len(req.NewPassword) > 20 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "新密码长度必须在8-20个字符之间",
+			"message": "无效的参数: " + err.Error(),
 		})
 		return
 	}
