@@ -944,8 +944,8 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		response.Created = createAt
 		response.Model = info.UpstreamModelName
 		if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
-			usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
-			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount
+			usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount + geminiResponse.UsageMetadata.ToolUsePromptTokenCount
+			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
 			for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
@@ -1010,8 +1010,12 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		}
 	}
 
-	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
-	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+	if usage.PromptTokensDetails.TextTokens == 0 && usage.PromptTokensDetails.AudioTokens == 0 && usage.PromptTokensDetails.ImageTokens == 0 {
+		usage.PromptTokensDetails.TextTokens = usage.PromptTokens
+	}
+	if usage.TotalTokens > 0 && usage.CompletionTokens == 0 && usage.TotalTokens >= usage.PromptTokens {
+		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+	}
 
 	if usage.CompletionTokens == 0 {
 		str := responseText.String()
@@ -1060,13 +1064,16 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
 	usage := dto.Usage{
-		PromptTokens:     geminiResponse.UsageMetadata.PromptTokenCount,
-		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount,
+		PromptTokens:     geminiResponse.UsageMetadata.PromptTokenCount + geminiResponse.UsageMetadata.ToolUsePromptTokenCount,
+		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount,
 		TotalTokens:      geminiResponse.UsageMetadata.TotalTokenCount,
 	}
 
 	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
-	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+	if usage.TotalTokens > 0 && usage.CompletionTokens == 0 && usage.TotalTokens >= usage.PromptTokens {
+		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+	}
+
 
 	for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
 		if detail.Modality == "AUDIO" {
