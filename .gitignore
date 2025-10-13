@@ -20,3 +20,4 @@ out.log_2
 *.prof
 .env*
 .env_prod
+log_*

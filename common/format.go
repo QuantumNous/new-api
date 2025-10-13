@@ -67,6 +67,14 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 		ResponseBody:    responsebody.(string),
 	}
 
+	Writer.Write(RequestInfo{
+		IsTruncated:     false,
+		RequestBody:     requestbody.(string),
+		RequestHeaders:  requestheaders.(string),
+		ResponseHeaders: responseheaders.(string),
+		ResponseBody:    responsebody.(string),
+	})
+
 	if isTruncated {
 		reqInfo = &RequestInfo{
 			IsTruncated:     true,
