@@ -38,11 +38,6 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 		ResponseBody:    "",
 	}
 
-	// 检查环境变量是否禁用缩略
-	if os.Getenv("DISABLE_LOG_TRUNCATE") == "true" {
-		isTruncated = false
-	}
-
 	requestbody, exists := c.Get(CtxRequestBody)
 	if !exists {
 		return reqInfo, errors.New("failed to get request body")
@@ -64,6 +59,14 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 		isTruncated = false
 	}
 
+	reqInfo = &RequestInfo{
+		IsTruncated:     false,
+		RequestBody:     requestbody.(string),
+		RequestHeaders:  requestheaders.(string),
+		ResponseHeaders: responseheaders.(string),
+		ResponseBody:    responsebody.(string),
+	}
+
 	if isTruncated {
 		reqInfo = &RequestInfo{
 			IsTruncated:     true,
@@ -72,7 +75,11 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 			ResponseHeaders: responseheaders.(string),
 			ResponseBody:    TruncatedBody(responsebody.(string), responseheaders.(string)),
 		}
-	} else {
+	}
+
+	// 检查环境变量是否禁用缩略
+	switch os.Getenv("LOG_TRUNCATE_TYPE") {
+	case "ALL_REC":
 		reqInfo = &RequestInfo{
 			IsTruncated:     false,
 			RequestBody:     requestbody.(string),
@@ -80,8 +87,17 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 			ResponseHeaders: responseheaders.(string),
 			ResponseBody:    responsebody.(string),
 		}
+	case "REQ_DROP":
+		reqInfo.RequestBody = "{}"
+		reqInfo.RequestHeaders = "{}"
+		reqInfo.ResponseHeaders = "{}"
+	case "REQ_TRUN":
+		reqInfo.RequestBody = TruncatedBody(requestbody.(string), requestheaders.(string))
+	case "ALL_TRUN":
+		reqInfo.RequestBody = "{}"
+		reqInfo.RequestHeaders = "{}"
+		reqInfo.ResponseHeaders = "{}"
 	}
-
 	return
 }
 
