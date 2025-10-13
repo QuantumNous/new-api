@@ -65,6 +65,11 @@ type responseTask struct {
 	TimeElapsed string `json:"time_elapsed"`
 }
 
+const (
+	// 即梦限制单个文件最大4.7MB https://www.volcengine.com/docs/85621/1747301
+	MaxFileSize int64 = 4*1024*1024 + 700*1024 // 4.7MB (4MB + 724KB)
+)
+
 // ============================
 // Adaptor implementation
 // ============================
@@ -127,15 +132,19 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if files, exists := mf.File["input_reference"]; exists && len(files) > 0 {
 			if len(files) == 1 {
 				info.Action = constant.TaskActionGenerate
-			} else if len(files) == 2 {
+			} else if len(files) > 1 {
 				info.Action = constant.TaskActionFirstTailGenerate
-			} else if len(files) > 2 {
-				info.Action = constant.TaskActionReferenceGenerate
 			}
 
 			// 将上传的文件转换为base64格式
 			var images []string
+
 			for _, fileHeader := range files {
+				// 检查文件大小
+				if fileHeader.Size > MaxFileSize {
+					return nil, fmt.Errorf("文件 %s 大小超过限制，最大允许 %d MB", fileHeader.Filename, MaxFileSize/(1024*1024))
+				}
+
 				file, err := fileHeader.Open()
 				if err != nil {
 					continue
