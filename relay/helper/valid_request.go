@@ -21,7 +21,11 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatOpenAI:
 		request, err = GetAndValidateTextRequest(c, relayMode)
 	case types.RelayFormatGemini:
-		request, err = GetAndValidateGeminiRequest(c)
+		if strings.Contains(c.Request.URL.Path, ":embedContent") || strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
+			request, err = GetAndValidateGeminiEmbeddingRequest(c)
+		} else {
+			request, err = GetAndValidateGeminiRequest(c)
+		}
 	case types.RelayFormatClaude:
 		request, err = GetAndValidateClaudeRequest(c)
 	case types.RelayFormatOpenAIResponses:
@@ -271,7 +275,9 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 			return nil, errors.New("field prompt is required")
 		}
 	case relayconstant.RelayModeChatCompletions:
-		if len(textRequest.Messages) == 0 {
+		// For FIM (Fill-in-the-middle) requests with prefix/suffix, messages is optional
+		// It will be filled by provider-specific adaptors if needed (e.g., SiliconFlow)。Or it is allowed by model vendor(s) (e.g., DeepSeek)
+		if len(textRequest.Messages) == 0 && textRequest.Prefix == nil && textRequest.Suffix == nil {
 			return nil, errors.New("field messages is required")
 		}
 	case relayconstant.RelayModeEmbeddings:
@@ -288,7 +294,6 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 }
 
 func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error) {
-
 	request := &dto.GeminiChatRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
@@ -302,5 +307,14 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	//	relayInfo.IsStream = true
 	//}
 
+	return request, nil
+}
+
+func GetAndValidateGeminiEmbeddingRequest(c *gin.Context) (*dto.GeminiEmbeddingRequest, error) {
+	request := &dto.GeminiEmbeddingRequest{}
+	err := common.UnmarshalBodyReusable(c, request)
+	if err != nil {
+		return nil, err
+	}
 	return request, nil
 }

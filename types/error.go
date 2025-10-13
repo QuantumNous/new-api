@@ -70,6 +70,7 @@ const (
 	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
 	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
 	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
+	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -123,6 +124,9 @@ func (e *NewAPIError) MaskSensitiveError() string {
 		return string(e.errorCode)
 	}
 	errStr := e.Err.Error()
+	if e.errorCode == ErrorCodeCountTokenFailed {
+		return errStr
+	}
 	return common.MaskSensitiveInfo(errStr)
 }
 
@@ -154,8 +158,12 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 			Code:    e.errorCode,
 		}
 	}
-
-	result.Message = common.MaskSensitiveInfo(result.Message)
+	if e.errorCode != ErrorCodeCountTokenFailed {
+		result.Message = common.MaskSensitiveInfo(result.Message)
+	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
 	return result
 }
 
@@ -179,13 +187,26 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 			Type:    string(e.errorType),
 		}
 	}
-	result.Message = common.MaskSensitiveInfo(result.Message)
+	if e.errorCode != ErrorCodeCountTokenFailed {
+		result.Message = common.MaskSensitiveInfo(result.Message)
+	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
 	return result
 }
 
 type NewAPIErrorOptions func(*NewAPIError)
 
 func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPIError {
+	var newErr *NewAPIError
+	// 保留深层传递的 new err
+	if errors.As(err, &newErr) {
+		for _, op := range ops {
+			op(newErr)
+		}
+		return newErr
+	}
 	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
@@ -200,8 +221,21 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 }
 
 func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
-	if errorCode == ErrorCodeDoRequestFailed {
-		err = errors.New("upstream error: do request failed")
+	var newErr *NewAPIError
+	// 保留深层传递的 new err
+	if errors.As(err, &newErr) {
+		if newErr.RelayError == nil {
+			openaiError := OpenAIError{
+				Message: newErr.Error(),
+				Type:    string(errorCode),
+				Code:    errorCode,
+			}
+			newErr.RelayError = openaiError
+		}
+		for _, op := range ops {
+			op(newErr)
+		}
+		return newErr
 	}
 	openaiError := OpenAIError{
 		Message: err.Error(),
@@ -303,6 +337,15 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.recordErrorLog = common.GetPointer(false)
+	}
+}
+
+func ErrOptionWithHideErrMsg(replaceStr string) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		if common.DebugEnabled {
+			fmt.Printf("ErrOptionWithHideErrMsg: %s, origin error: %s", replaceStr, e.Err)
+		}
+		e.Err = errors.New(replaceStr)
 	}
 }
 

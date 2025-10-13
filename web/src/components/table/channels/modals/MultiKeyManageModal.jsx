@@ -247,6 +247,32 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
     }
   };
 
+  // Delete a specific key
+  const handleDeleteKey = async (keyIndex) => {
+    const operationId = `delete_${keyIndex}`;
+    setOperationLoading((prev) => ({ ...prev, [operationId]: true }));
+
+    try {
+      const res = await API.post('/api/channel/multi_key/manage', {
+        channel_id: channel.id,
+        action: 'delete_key',
+        key_index: keyIndex,
+      });
+
+      if (res.data.success) {
+        showSuccess(t('密钥已删除'));
+        await loadKeyStatus(currentPage, pageSize); // Reload current page
+        onRefresh && onRefresh(); // Refresh parent component
+      } else {
+        showError(res.data.message);
+      }
+    } catch (error) {
+      showError(t('删除密钥失败'));
+    } finally {
+      setOperationLoading((prev) => ({ ...prev, [operationId]: false }));
+    }
+  };
+
   // Handle page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -384,7 +410,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       title: t('操作'),
       key: 'action',
       fixed: 'right',
-      width: 100,
+      width: 150,
       render: (_, record) => (
         <Space>
           {record.status === 1 ? (
@@ -406,6 +432,21 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               {t('启用')}
             </Button>
           )}
+          <Popconfirm
+            title={t('确定要删除此密钥吗？')}
+            content={t('此操作不可撤销，将永久删除该密钥')}
+            onConfirm={() => handleDeleteKey(record.index)}
+            okType={'danger'}
+            position={'topRight'}
+          >
+            <Button
+              type='danger'
+              size='small'
+              loading={operationLoading[`delete_${record.index}`]}
+            >
+              {t('删除')}
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },

@@ -6,6 +6,10 @@ import (
 	"one-api/types"
 )
 
+const (
+	ResponsesOutputTypeImageGenerationCall = "image_generation_call"
+)
+
 type SimpleResponse struct {
 	Usage `json:"usage"`
 	Error any `json:"error"`
@@ -229,6 +233,16 @@ type Usage struct {
 	Cost any `json:"cost,omitempty"`
 }
 
+type OpenAIVideoResponse struct {
+	Id        string `json:"id" example:"file-abc123"`
+	Object    string `json:"object" example:"file"`
+	Bytes     int64  `json:"bytes" example:"120000"`
+	CreatedAt int64  `json:"created_at" example:"1677610602"`
+	ExpiresAt int64  `json:"expires_at" example:"1677614202"`
+	Filename  string `json:"filename" example:"mydata.jsonl"`
+	Purpose   string `json:"purpose" example:"fine-tune"`
+}
+
 type InputTokenDetails struct {
 	CachedTokens         int `json:"cached_tokens"`
 	CachedCreationTokens int `json:"-"`
@@ -273,6 +287,42 @@ func (o *OpenAIResponsesResponse) GetOpenAIError() *types.OpenAIError {
 	return GetOpenAIError(o.Error)
 }
 
+func (o *OpenAIResponsesResponse) HasImageGenerationCall() bool {
+	if len(o.Output) == 0 {
+		return false
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return true
+		}
+	}
+	return false
+}
+
+func (o *OpenAIResponsesResponse) GetQuality() string {
+	if len(o.Output) == 0 {
+		return ""
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Quality
+		}
+	}
+	return ""
+}
+
+func (o *OpenAIResponsesResponse) GetSize() string {
+	if len(o.Output) == 0 {
+		return ""
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Size
+		}
+	}
+	return ""
+}
+
 type IncompleteDetails struct {
 	Reasoning string `json:"reasoning"`
 }
@@ -283,6 +333,8 @@ type ResponsesOutput struct {
 	Status  string                   `json:"status"`
 	Role    string                   `json:"role"`
 	Content []ResponsesOutputContent `json:"content"`
+	Quality string                   `json:"quality"`
+	Size    string                   `json:"size"`
 }
 
 type ResponsesOutputContent struct {

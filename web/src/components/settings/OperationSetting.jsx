@@ -42,7 +42,7 @@ const OperationSetting = () => {
     QuotaPerUnit: 0,
     USDExchangeRate: 0,
     RetryTimes: 0,
-    DisplayInCurrencyEnabled: false,
+    'general_setting.quota_display_type': 'USD',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,

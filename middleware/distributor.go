@@ -165,10 +165,45 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
-	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
-		err = common.UnmarshalBodyReusable(c, &modelRequest)
+	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") {
+		//curl https://api.openai.com/v1/videos \
+		//  -H "Authorization: Bearer $OPENAI_API_KEY" \
+		//  -F "model=sora-2" \
+		//  -F "prompt=A calico cat playing a piano on stage"
+		//	-F input_reference="@image.jpg"
 		relayMode := relayconstant.RelayModeUnknown
 		if c.Request.Method == http.MethodPost {
+			relayMode = relayconstant.RelayModeVideoSubmit
+			contentType := c.Request.Header.Get("Content-Type")
+			if strings.HasPrefix(contentType, "multipart/form-data") {
+				form, err := common.ParseMultipartFormReusable(c)
+				if err != nil {
+					return nil, false, errors.New("无效的video请求, " + err.Error())
+				}
+				defer form.RemoveAll()
+				if form != nil {
+					if values, ok := form.Value["model"]; ok && len(values) > 0 {
+						modelRequest.Model = values[0]
+					}
+				}
+			} else if strings.HasPrefix(contentType, "application/json") {
+				err = common.UnmarshalBodyReusable(c, &modelRequest)
+				if err != nil {
+					return nil, false, errors.New("无效的video请求, " + err.Error())
+				}
+			}
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
+		}
+		c.Set("relay_mode", relayMode)
+	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
+		relayMode := relayconstant.RelayModeUnknown
+		if c.Request.Method == http.MethodPost {
+			err = common.UnmarshalBodyReusable(c, &modelRequest)
+			if err != nil {
+				return nil, false, errors.New("video无效的请求, " + err.Error())
+			}
 			relayMode = relayconstant.RelayModeVideoSubmit
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID

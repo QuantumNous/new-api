@@ -11,8 +11,8 @@ import (
 	"one-api/logger"
 	"one-api/model"
 	relaycommon "one-api/relay/common"
-	"one-api/setting"
 	"one-api/setting/ratio_setting"
+	"one-api/setting/system_setting"
 	"one-api/types"
 	"strings"
 	"time"
@@ -534,7 +534,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 		}
 		if quotaTooLow {
 			prompt := "您的额度即将用尽"
-			topUpLink := fmt.Sprintf("%s/topup", setting.ServerAddress)
+			topUpLink := fmt.Sprintf("%s/topup", system_setting.ServerAddress)
 
 			// 根据通知方式生成不同的内容格式
 			var content string
@@ -549,8 +549,11 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 				// Bark推送使用简短文本，不支持HTML
 				content = "{{value}}，剩余额度：{{value}}，请及时充值"
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
+			} else if notifyType == dto.NotifyTypeGotify {
+				content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
+				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
 			} else {
-				// 默认内容格式，适用于Email和Webhook
+				// 默认内容格式，适用于Email和Webhook（支持HTML）
 				content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota), topUpLink, topUpLink}
 			}

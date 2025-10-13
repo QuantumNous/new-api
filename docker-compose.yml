@@ -1,4 +1,18 @@
-version: '3.4'
+# New-API Docker Compose Configuration
+# 
+# Quick Start:
+#   1. docker-compose up -d
+#   2. Access at http://localhost:3000
+#
+# Using MySQL instead of PostgreSQL:
+#   1. Comment out the postgres service and SQL_DSN line 15
+#   2. Uncomment the mysql service and SQL_DSN line 16
+#   3. Uncomment mysql in depends_on (line 28)
+#   4. Uncomment mysql_data in volumes section (line 64)
+#
+# ⚠️  IMPORTANT: Change all default passwords before deploying to production!
+
+version: '3.4' # For compatibility with older Docker versions
 
 services:
   new-api:
@@ -12,21 +26,22 @@ services:
       - ./data:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
+#      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录
-    #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值
-    #      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！！！！！！
-    #      - NODE_TYPE=slave  # Uncomment for slave node in multi-node deployment
-    #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
-    #      - FRONTEND_BASE_URL=https://openai.justsong.cn  # Uncomment for multi-node deployment with front-end URL
+      - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 batch update enabled
+#      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions
+#      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！ multi-node deployment, set this to a random string!!!!!!!
+#      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
 
     depends_on:
       - redis
-      - mysql
+      - postgres
+#      - mysql  # Uncomment if using MySQL
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' | awk -F: '{print $$2}'"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -36,17 +51,31 @@ services:
     container_name: redis
     restart: always
 
-  mysql:
-    image: mysql:8.2
-    container_name: mysql
+  postgres:
+    image: postgres:15
+    container_name: postgres
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 123456  # Ensure this matches the password in SQL_DSN
-      MYSQL_DATABASE: new-api
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
+      POSTGRES_DB: new-api
     volumes:
-      - mysql_data:/var/lib/mysql
-    # ports:
-    #   - "3306:3306"  # If you want to access MySQL from outside Docker, uncomment
+      - pg_data:/var/lib/postgresql/data
+#    ports:
+#      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
+
+#  mysql:
+#    image: mysql:8.2
+#    container_name: mysql
+#    restart: always
+#    environment:
+#      MYSQL_ROOT_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
+#      MYSQL_DATABASE: new-api
+#    volumes:
+#      - mysql_data:/var/lib/mysql
+#    ports:
+#      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
 
 volumes:
-  mysql_data:
+  pg_data:
+#  mysql_data:

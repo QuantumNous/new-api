@@ -10,7 +10,7 @@ import (
 	"one-api/constant"
 	"one-api/model"
 	"one-api/service"
-	"one-api/setting"
+	"one-api/setting/operation_setting"
 	"one-api/types"
 	"strconv"
 	"time"
@@ -124,6 +124,14 @@ type OpenRouterCreditResponse struct {
 func GetAuthHeader(token string) http.Header {
 	h := http.Header{}
 	h.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	return h
+}
+
+// GetClaudeAuthHeader get claude auth header
+func GetClaudeAuthHeader(token string) http.Header {
+	h := http.Header{}
+	h.Add("x-api-key", token)
+	h.Add("anthropic-version", "2023-06-01")
 	return h
 }
 
@@ -342,7 +350,7 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 		return 0, fmt.Errorf("failed to update moonshot balance, status: %v, code: %d, scode: %s", response.Status, response.Code, response.Scode)
 	}
 	availableBalanceCny := response.Data.AvailableBalance
-	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(setting.Price)).InexactFloat64()
+	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
 	channel.UpdateBalance(availableBalanceUsd)
 	return availableBalanceUsd, nil
 }

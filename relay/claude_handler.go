@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
@@ -69,6 +70,31 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.UpstreamModelName = request.Model
 	}
 
+	if info.ChannelSetting.SystemPrompt != "" {
+		if request.System == nil {
+			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+		} else if info.ChannelSetting.SystemPromptOverride {
+			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+			if request.IsStringSystem() {
+				existing := strings.TrimSpace(request.GetStringSystem())
+				if existing == "" {
+					request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+				} else {
+					request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
+				}
+			} else {
+				systemContents := request.ParseSystem()
+				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
+				newSystem.SetText(info.ChannelSetting.SystemPrompt)
+				if len(systemContents) == 0 {
+					request.System = []dto.ClaudeMediaMessage{newSystem}
+				} else {
+					request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
+				}
+			}
+		}
+	}
+
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		body, err := common.GetRequestBody(c)
@@ -82,6 +108,12 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+
+		// remove disabled fields for Claude API
+		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
@@ -115,7 +147,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError

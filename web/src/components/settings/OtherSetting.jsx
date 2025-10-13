@@ -34,10 +34,15 @@ import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
+const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
+const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+
 const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     Notice: '',
+    [LEGAL_USER_AGREEMENT_KEY]: '',
+    [LEGAL_PRIVACY_POLICY_KEY]: '',
     SystemName: '',
     Logo: '',
     Footer: '',
@@ -69,6 +74,8 @@ const OtherSetting = () => {
 
   const [loadingInput, setLoadingInput] = useState({
     Notice: false,
+    [LEGAL_USER_AGREEMENT_KEY]: false,
+    [LEGAL_PRIVACY_POLICY_KEY]: false,
     SystemName: false,
     Logo: false,
     HomePageContent: false,
@@ -94,6 +101,50 @@ const OtherSetting = () => {
       showError(t('公告更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
+    }
+  };
+  // 通用设置 - UserAgreement
+  const submitUserAgreement = async () => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [LEGAL_USER_AGREEMENT_KEY]: true,
+      }));
+      await updateOption(
+        LEGAL_USER_AGREEMENT_KEY,
+        inputs[LEGAL_USER_AGREEMENT_KEY],
+      );
+      showSuccess(t('用户协议已更新'));
+    } catch (error) {
+      console.error(t('用户协议更新失败'), error);
+      showError(t('用户协议更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [LEGAL_USER_AGREEMENT_KEY]: false,
+      }));
+    }
+  };
+  // 通用设置 - PrivacyPolicy
+  const submitPrivacyPolicy = async () => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [LEGAL_PRIVACY_POLICY_KEY]: true,
+      }));
+      await updateOption(
+        LEGAL_PRIVACY_POLICY_KEY,
+        inputs[LEGAL_PRIVACY_POLICY_KEY],
+      );
+      showSuccess(t('隐私政策已更新'));
+    } catch (error) {
+      console.error(t('隐私政策更新失败'), error);
+      showError(t('隐私政策更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        [LEGAL_PRIVACY_POLICY_KEY]: false,
+      }));
     }
   };
   // 个性化设置
@@ -323,6 +374,40 @@ const OtherSetting = () => {
               />
               <Button onClick={submitNotice} loading={loadingInput['Notice']}>
                 {t('设置公告')}
+              </Button>
+              <Form.TextArea
+                label={t('用户协议')}
+                placeholder={t(
+              '在此输入用户协议内容，支持 Markdown & HTML 代码',
+                )}
+                field={LEGAL_USER_AGREEMENT_KEY}
+                onChange={handleInputChange}
+                style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                autosize={{ minRows: 6, maxRows: 12 }}
+                helpText={t('填写用户协议内容后，用户注册时将被要求勾选已阅读用户协议')}
+              />
+              <Button
+                onClick={submitUserAgreement}
+                loading={loadingInput[LEGAL_USER_AGREEMENT_KEY]}
+              >
+                {t('设置用户协议')}
+              </Button>
+              <Form.TextArea
+                label={t('隐私政策')}
+                placeholder={t(
+                  '在此输入隐私政策内容，支持 Markdown & HTML 代码',
+                )}
+                field={LEGAL_PRIVACY_POLICY_KEY}
+                onChange={handleInputChange}
+                style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                autosize={{ minRows: 6, maxRows: 12 }}
+                helpText={t('填写隐私政策内容后，用户注册时将被要求勾选已阅读隐私政策')}
+              />
+              <Button
+                onClick={submitPrivacyPolicy}
+                loading={loadingInput[LEGAL_PRIVACY_POLICY_KEY]}
+              >
+                {t('设置隐私政策')}
               </Button>
             </Form.Section>
           </Card>

@@ -377,6 +377,12 @@ export const useLogsData = () => {
                 other.file_search_call_count || 0,
               ),
         });
+        if (logs[i]?.content) {
+          expandDataLocal.push({
+            key: t('其他详情'),
+            value: logs[i].content,
+          });
+        }
       }
       if (logs[i].type === 2) {
         let modelMapped =
@@ -447,6 +453,8 @@ export const useLogsData = () => {
             other?.audio_input_seperate_price || false,
             other?.audio_input_token_count || 0,
             other?.audio_input_price || 0,
+            other?.image_generation_call || false,
+            other?.image_generation_call_price || 0,
           );
         }
         expandDataLocal.push({

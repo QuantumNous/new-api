@@ -7,16 +7,17 @@ import (
 	"io"
 	"net/http"
 	"one-api/model"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
 
-	"one-api/common"
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/relay/channel"
@@ -27,16 +28,6 @@ import (
 // ============================
 // Request / Response structures
 // ============================
-
-type SubmitReq struct {
-	Prompt   string                 `json:"prompt"`
-	Model    string                 `json:"model,omitempty"`
-	Mode     string                 `json:"mode,omitempty"`
-	Image    string                 `json:"image,omitempty"`
-	Size     string                 `json:"size,omitempty"`
-	Duration int                    `json:"duration,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-}
 
 type TrajectoryPoint struct {
 	X int `json:"x"`
@@ -121,28 +112,18 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	// Accept only POST /v1/video/generations as "generate" action.
-	action := constant.TaskActionGenerate
-	info.Action = action
-
-	var req SubmitReq
-	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
-		taskErr = service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(req.Prompt) == "" {
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
-		return
-	}
-
-	// Store into context for later usage
-	c.Set("task_request", req)
-	return nil
+	// Use the standard validation method for TaskSubmitReq
+	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	path := lo.Ternary(info.Action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
+
+	if isNewAPIRelay(info.ApiKey) {
+		return fmt.Sprintf("%s/kling%s", a.baseURL, path), nil
+	}
+
 	return fmt.Sprintf("%s%s", a.baseURL, path), nil
 }
 
@@ -166,7 +147,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
 	}
-	req := v.(SubmitReq)
+	req := v.(relaycommon.TaskSubmitReq)
 
 	body, err := a.convertToRequestPayload(&req)
 	if err != nil {
@@ -225,6 +206,9 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	}
 	path := lo.Ternary(action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
 	url := fmt.Sprintf("%s%s/%s", baseUrl, path, taskID)
+	if isNewAPIRelay(key) {
+		url = fmt.Sprintf("%s/kling%s/%s", baseUrl, path, taskID)
+	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -255,7 +239,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 // helpers
 // ============================
 
-func (a *TaskAdaptor) convertToRequestPayload(req *SubmitReq) (*requestPayload, error) {
+func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	r := requestPayload{
 		Prompt:         req.Prompt,
 		Image:          req.Image,
@@ -321,17 +305,14 @@ func (a *TaskAdaptor) createJWTToken() (string, error) {
 	return a.createJWTTokenWithKey(a.apiKey)
 }
 
-//func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
-//	parts := strings.Split(apiKey, "|")
-//	if len(parts) != 2 {
-//		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
-//	}
-//	return a.createJWTTokenWithKey(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-//}
-
 func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
-
+	if isNewAPIRelay(apiKey) {
+		return apiKey, nil // new api relay
+	}
 	keyParts := strings.Split(apiKey, "|")
+	if len(keyParts) != 2 {
+		return "", errors.New("invalid api_key, required format is accessKey|secretKey")
+	}
 	accessKey := strings.TrimSpace(keyParts[0])
 	if len(keyParts) == 1 {
 		return accessKey, nil
@@ -377,4 +358,55 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskInfo.Url = video.Url
 	}
 	return taskInfo, nil
+}
+
+func isNewAPIRelay(apiKey string) bool {
+	return strings.HasPrefix(apiKey, "sk-")
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) (*relaycommon.OpenAIVideo, error) {
+	var klingResp responsePayload
+	if err := json.Unmarshal(originTask.Data, &klingResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal kling task data failed")
+	}
+
+	convertProgress := func(progress string) int {
+		progress = strings.TrimSuffix(progress, "%")
+		p, err := strconv.Atoi(progress)
+		if err != nil {
+			logger.Warnf("convert progress failed, progress: %s, err: %v", progress, err)
+		}
+		return p
+	}
+
+	openAIVideo := &relaycommon.OpenAIVideo{
+		ID:     klingResp.Data.TaskId,
+		Object: "video",
+		//Model:       "kling-v1", //todo save model
+		Status:      string(originTask.Status),
+		CreatedAt:   klingResp.Data.CreatedAt,
+		CompletedAt: klingResp.Data.UpdatedAt,
+		Metadata:    make(map[string]any),
+		Progress:    convertProgress(originTask.Progress),
+	}
+
+	// 处理视频 URL
+	if len(klingResp.Data.TaskResult.Videos) > 0 {
+		video := klingResp.Data.TaskResult.Videos[0]
+		if video.Url != "" {
+			openAIVideo.Metadata["url"] = video.Url
+		}
+		if video.Duration != "" {
+			openAIVideo.Seconds = video.Duration
+		}
+	}
+
+	if klingResp.Code != 0 && klingResp.Message != "" {
+		openAIVideo.Error = &relaycommon.OpenAIVideoError{
+			Message: klingResp.Message,
+			Code:    fmt.Sprintf("%d", klingResp.Code),
+		}
+	}
+
+	return openAIVideo, nil
 }

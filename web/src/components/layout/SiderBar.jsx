@@ -58,7 +58,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     loading: sidebarLoading,
   } = useSidebar();
 
-  const showSkeleton = useMinimumLoadingTime(sidebarLoading);
+  const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
   const [chatItems, setChatItems] = useState([]);

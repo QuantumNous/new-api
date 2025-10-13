@@ -11,10 +11,13 @@ import (
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/model"
+	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
 	relayconstant "one-api/relay/constant"
 	"one-api/service"
 	"one-api/setting/ratio_setting"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +36,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 		platform = GetTaskPlatform(c)
 	}
 
+	info.InitChannelMeta(c)
 	adaptor := GetTaskAdaptor(platform)
 	if adaptor == nil {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
@@ -50,7 +54,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	}
 	modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
 	if !success {
-		defaultPrice, ok := ratio_setting.GetDefaultModelRatioMap()[modelName]
+		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[modelName]
 		if !ok {
 			modelPrice = 0.1
 		} else {
@@ -67,6 +71,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	} else {
 		ratio = modelPrice * groupRatio
 	}
+	if len(info.PriceData.OtherRatios) > 0 {
+		for _, ra := range info.PriceData.OtherRatios {
+			if 1.0 != ra {
+				ratio *= ra
+			}
+		}
+	}
+	println(fmt.Sprintf("model: %s, model_price: %.4f, group: %s, group_ratio: %.4f, final_ratio: %.4f", modelName, modelPrice, info.UsingGroup, groupRatio, ratio))
 	userQuota, err := model.GetUserQuota(info.UserId, false)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
@@ -135,11 +147,22 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 			}
 			if quota != 0 {
 				tokenName := c.GetString("token_name")
-				gRatio := groupRatio
-				if hasUserGroupRatio {
-					gRatio = userGroupRatio
+				//gRatio := groupRatio
+				//if hasUserGroupRatio {
+				//	gRatio = userGroupRatio
+				//}
+				logContent := fmt.Sprintf("操作 %s", info.Action)
+				if len(info.PriceData.OtherRatios) > 0 {
+					var contents []string
+					for key, ra := range info.PriceData.OtherRatios {
+						if 1.0 != ra {
+							contents = append(contents, fmt.Sprintf("%s: %.2f", key, ra))
+						}
+					}
+					if len(contents) > 0 {
+						logContent = fmt.Sprintf("%s, 计算参数：%s", logContent, strings.Join(contents, ", "))
+					}
 				}
-				logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", modelPrice, gRatio, info.Action)
 				other := make(map[string]interface{})
 				other["model_price"] = modelPrice
 				other["group_ratio"] = groupRatio
@@ -196,6 +219,9 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 	respBody, taskErr := respBuilder(c)
 	if taskErr != nil {
 		return taskErr
+	}
+	if len(respBody) == 0 {
+		respBody = []byte("{\"code\":\"success\",\"data\":null}")
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
@@ -276,10 +302,115 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	func() {
+		channelModel, err2 := model.GetChannelById(originTask.ChannelId, true)
+		if err2 != nil {
+			return
+		}
+		if channelModel.Type != constant.ChannelTypeVertexAi {
+			return
+		}
+		baseURL := constant.ChannelBaseURLs[channelModel.Type]
+		if channelModel.GetBaseURL() != "" {
+			baseURL = channelModel.GetBaseURL()
+		}
+		adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+		if adaptor == nil {
+			return
+		}
+		resp, err2 := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
+			"task_id": originTask.TaskID,
+			"action":  originTask.Action,
+		})
+		if err2 != nil || resp == nil {
+			return
+		}
+		defer resp.Body.Close()
+		body, err2 := io.ReadAll(resp.Body)
+		if err2 != nil {
+			return
+		}
+		ti, err2 := adaptor.ParseTaskResult(body)
+		if err2 == nil && ti != nil {
+			if ti.Status != "" {
+				originTask.Status = model.TaskStatus(ti.Status)
+			}
+			if ti.Progress != "" {
+				originTask.Progress = ti.Progress
+			}
+			if ti.Url != "" {
+				originTask.FailReason = ti.Url
+			}
+			_ = originTask.Update()
+			var raw map[string]any
+			_ = json.Unmarshal(body, &raw)
+			format := "mp4"
+			if respObj, ok := raw["response"].(map[string]any); ok {
+				if vids, ok := respObj["videos"].([]any); ok && len(vids) > 0 {
+					if v0, ok := vids[0].(map[string]any); ok {
+						if mt, ok := v0["mimeType"].(string); ok && mt != "" {
+							if strings.Contains(mt, "mp4") {
+								format = "mp4"
+							} else {
+								format = mt
+							}
+						}
+					}
+				}
+			}
+			status := "processing"
+			switch originTask.Status {
+			case model.TaskStatusSuccess:
+				status = "succeeded"
+			case model.TaskStatusFailure:
+				status = "failed"
+			case model.TaskStatusQueued, model.TaskStatusSubmitted:
+				status = "queued"
+			}
+			out := map[string]any{
+				"error":    nil,
+				"format":   format,
+				"metadata": nil,
+				"status":   status,
+				"task_id":  originTask.TaskID,
+				"url":      originTask.FailReason,
+			}
+			respBody, _ = json.Marshal(dto.TaskResponse[any]{
+				Code: "success",
+				Data: out,
+			})
+		}
+	}()
+
+	if len(respBody) != 0 {
+		return
+	}
+
+	if strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if adaptor == nil {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+			return
+		}
+		if converter, ok := adaptor.(channel.OpenAIVideoConverter); ok {
+			openAIVideo, err := converter.ConvertToOpenAIVideo(originTask)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
+				return
+			}
+			respBody, _ = json.Marshal(openAIVideo)
+			return
+		}
+		taskResp = service.TaskErrorWrapperLocal(errors.New(fmt.Sprintf("not_implemented:%s", originTask.Platform)), "not_implemented", http.StatusNotImplemented)
+		return
+	}
 	respBody, err = json.Marshal(dto.TaskResponse[any]{
 		Code: "success",
 		Data: TaskModel2Dto(originTask),
 	})
+	if err != nil {
+		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+	}
 	return
 }
 

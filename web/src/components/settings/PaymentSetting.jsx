@@ -37,12 +37,15 @@ const PaymentSetting = () => {
     TopupGroupRatio: '',
     CustomCallbackAddress: '',
     PayMethods: '',
+    AmountOptions: '',
+    AmountDiscount: '',
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
     StripePriceId: '',
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
+    StripePromotionCodesEnabled: false,
   });
 
   let [loading, setLoading] = useState(false);
@@ -64,6 +67,30 @@ const PaymentSetting = () => {
             } catch (error) {
               console.error('解析TopupGroupRatio出错:', error);
               newInputs[item.key] = item.value;
+            }
+            break;
+          case 'payment_setting.amount_options':
+            try {
+              newInputs['AmountOptions'] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
+            } catch (error) {
+              console.error('解析AmountOptions出错:', error);
+              newInputs['AmountOptions'] = item.value;
+            }
+            break;
+          case 'payment_setting.amount_discount':
+            try {
+              newInputs['AmountDiscount'] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
+            } catch (error) {
+              console.error('解析AmountDiscount出错:', error);
+              newInputs['AmountDiscount'] = item.value;
             }
             break;
           case 'Price':

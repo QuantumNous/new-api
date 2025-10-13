@@ -30,7 +30,7 @@ import {
   setUserData,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
-import { Button, Card, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
+import { Button, Card, Checkbox, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import {
@@ -82,6 +82,9 @@ const RegisterForm = () => {
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [hasUserAgreement, setHasUserAgreement] = useState(false);
+  const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -106,6 +109,10 @@ const RegisterForm = () => {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
+    
+    // 从 status 获取用户协议和隐私政策的启用状态
+    setHasUserAgreement(status.user_agreement_enabled || false);
+    setHasPrivacyPolicy(status.privacy_policy_enabled || false);
   }, [status]);
 
   useEffect(() => {
@@ -505,6 +512,44 @@ const RegisterForm = () => {
                   </>
                 )}
 
+                {(hasUserAgreement || hasPrivacyPolicy) && (
+                  <div className='pt-4'>
+                    <Checkbox
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    >
+                      <Text size='small' className='text-gray-600'>
+                        {t('我已阅读并同意')}
+                        {hasUserAgreement && (
+                          <>
+                            <a
+                              href='/user-agreement'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-600 hover:text-blue-800 mx-1'
+                            >
+                              {t('用户协议')}
+                            </a>
+                          </>
+                        )}
+                        {hasUserAgreement && hasPrivacyPolicy && t('和')}
+                        {hasPrivacyPolicy && (
+                          <>
+                            <a
+                              href='/privacy-policy'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-600 hover:text-blue-800 mx-1'
+                            >
+                              {t('隐私政策')}
+                            </a>
+                          </>
+                        )}
+                      </Text>
+                    </Checkbox>
+                  </div>
+                )}
+
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
@@ -513,6 +558,7 @@ const RegisterForm = () => {
                     htmlType='submit'
                     onClick={handleSubmit}
                     loading={registerLoading}
+                    disabled={(hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms}
                   >
                     {t('注册')}
                   </Button>

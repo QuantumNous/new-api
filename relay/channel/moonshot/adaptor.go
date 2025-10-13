@@ -25,7 +25,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	adaptor := openai.Adaptor{}
+	adaptor := claude.Adaptor{}
 	return adaptor.ConvertClaudeRequest(c, info, req)
 }
 

@@ -462,6 +462,7 @@ export const useModelsData = () => {
     copyText,
 
     // Pagination
+    setActivePage,
     handlePageChange,
     handlePageSizeChange,
 

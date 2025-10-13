@@ -24,7 +24,7 @@ type Task struct {
 	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
 	CreatedAt  int64                 `json:"created_at" gorm:"index"`
 	UpdatedAt  int64                 `json:"updated_at"`
-	TaskID     string                `json:"task_id" gorm:"type:varchar(50);index"`  // 第三方id，不一定有/ song id\ Task id
+	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
 	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
 	UserId     int                   `json:"user_id" gorm:"index"`
 	ChannelId  int                   `json:"channel_id" gorm:"index"`

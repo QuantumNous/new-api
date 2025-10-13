@@ -10,7 +10,7 @@
     "@visactor/react-vchart": "~1.8.8",
     "@visactor/vchart": "~1.8.8",
     "@visactor/vchart-semi-theme": "~1.8.8",
-    "axios": "^0.27.2",
+    "axios": "1.12.0",
     "clsx": "^2.1.1",
     "country-flag-icons": "^1.5.19",
     "dayjs": "^1.11.11",

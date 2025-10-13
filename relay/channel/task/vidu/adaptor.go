@@ -23,16 +23,6 @@ import (
 // Request / Response structures
 // ============================
 
-type SubmitReq struct {
-	Prompt   string                 `json:"prompt"`
-	Model    string                 `json:"model,omitempty"`
-	Mode     string                 `json:"mode,omitempty"`
-	Image    string                 `json:"image,omitempty"`
-	Size     string                 `json:"size,omitempty"`
-	Duration int                    `json:"duration,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-}
-
 type requestPayload struct {
 	Model             string   `json:"model"`
 	Images            []string `json:"images"`
@@ -90,23 +80,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	var req SubmitReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return service.TaskErrorWrapper(err, "invalid_request_body", http.StatusBadRequest)
-	}
-
-	if req.Prompt == "" {
-		return service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "missing_prompt", http.StatusBadRequest)
-	}
-
-	if req.Image != "" {
-		info.Action = constant.TaskActionGenerate
-	} else {
-		info.Action = constant.TaskActionTextGenerate
-	}
-
-	c.Set("task_request", req)
-	return nil
+	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo) (io.Reader, error) {
@@ -114,7 +88,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
 	}
-	req := v.(SubmitReq)
+	req := v.(relaycommon.TaskSubmitReq)
 
 	body, err := a.convertToRequestPayload(&req)
 	if err != nil {
@@ -137,6 +111,10 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	switch info.Action {
 	case constant.TaskActionGenerate:
 		path = "/img2video"
+	case constant.TaskActionFirstTailGenerate:
+		path = "/start-end2video"
+	case constant.TaskActionReferenceGenerate:
+		path = "/reference2video"
 	default:
 		path = "/text2video"
 	}
@@ -211,15 +189,10 @@ func (a *TaskAdaptor) GetChannelName() string {
 // helpers
 // ============================
 
-func (a *TaskAdaptor) convertToRequestPayload(req *SubmitReq) (*requestPayload, error) {
-	var images []string
-	if req.Image != "" {
-		images = []string{req.Image}
-	}
-
+func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	r := requestPayload{
 		Model:             defaultString(req.Model, "viduq1"),
-		Images:            images,
+		Images:            req.Images,
 		Prompt:            req.Prompt,
 		Duration:          defaultInt(req.Duration, 5),
 		Resolution:        defaultString(req.Size, "1080p"),
