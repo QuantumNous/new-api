@@ -79,7 +79,7 @@ export function Pricing() {
   const currency = (search.currency as 'USD' | 'CNY') || 'USD'
   const tokenUnit = (search.tokenUnit as 'M' | 'K') || 'M'
   const showWithRecharge = search.showRecharge === 'true'
-  const view = ((search as any).view as 'table' | 'card') || 'table'
+  const view = ((search as any).view as 'table' | 'card') || 'card'
 
   // Force card view on mobile
   const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768
@@ -112,7 +112,16 @@ export function Pricing() {
 
   const handleReset = useCallback(() => {
     navigate({
-      search: {},
+      search: (prev: any) => {
+        // Preserve view mode and display settings when resetting filters
+        const { view, currency, tokenUnit, showRecharge } = prev
+        const preserved: any = {}
+        if (view) preserved.view = view
+        if (currency) preserved.currency = currency
+        if (tokenUnit) preserved.tokenUnit = tokenUnit
+        if (showRecharge) preserved.showRecharge = showRecharge
+        return preserved
+      },
     })
   }, [navigate])
 
@@ -248,7 +257,8 @@ export function Pricing() {
           <PricingViewToggle
             view={view}
             onViewChange={(newView) => {
-              if (newView === 'table') {
+              if (newView === 'card') {
+                // Card is default, remove view param
                 navigate({
                   search: (prev: any) => {
                     const { view, ...rest } = prev
@@ -256,6 +266,7 @@ export function Pricing() {
                   },
                 })
               } else {
+                // Table view, set explicitly
                 updateSearch({ view: newView } as any)
               }
             }}
