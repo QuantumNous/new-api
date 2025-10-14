@@ -22,8 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/tunnel_api/dao"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -513,6 +514,36 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		completionTokens = completionTokens + thinkingTokens
 	}
 
+	responsebody, exists := ctx.Get(common.CtxResponseBody)
+	if !exists {
+		common.LogError(ctx, "failed to get request body")
+	}
+	modelResp, err := dao.NewModelResp(ctx, responsebody.(string), modelName)
+	if err != nil {
+		common.LogError(ctx, "failed to get model resp: "+err.Error())
+	}
+	commonTokenInfo, err := modelResp.GetCommonTokenInfo(ctx)
+	if err != nil {
+		common.LogError(ctx, "failed to get common token info: "+err.Error())
+	}
+
+	logPromptTokens := int(commonTokenInfo.InputAudioTokens + commonTokenInfo.InputTextTokens +
+		commonTokenInfo.InputVideoTokens + commonTokenInfo.InputImageTokens +
+		commonTokenInfo.InputCachedTextTokens + commonTokenInfo.InputCachedAudioTokens +
+		commonTokenInfo.InputCachedVideoTokens + commonTokenInfo.InputCachedImageTokens)
+	logCompletionTokens := int(commonTokenInfo.OutputTextTokens + commonTokenInfo.OutputAudioTokens +
+		commonTokenInfo.OutputVideoTokens + commonTokenInfo.OutputImageTokens + commonTokenInfo.OutputReasoningTokens +
+		commonTokenInfo.OutputAcceptedPredictionTokens + commonTokenInfo.OutputRejectedPredictionTokens)
+	logThinkingTokens := int(commonTokenInfo.OutputReasoningTokens)
+	if promptTokens < logPromptTokens {
+		promptTokens = logPromptTokens
+	}
+	if completionTokens < logCompletionTokens {
+		completionTokens = logCompletionTokens
+	}
+	if thinkingTokens < logThinkingTokens {
+		thinkingTokens = logThinkingTokens
+	}
 	quota := 0
 	if !priceData.UsePrice {
 		quota = (promptTokens - cacheTokens) + int(math.Round(float64(cacheTokens)*cacheRatio))
