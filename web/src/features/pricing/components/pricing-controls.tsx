@@ -89,12 +89,12 @@ export function PricingControls({
           isVertical && 'justify-between'
         )}
       >
+        <Label htmlFor='recharge'>Show Recharge Price</Label>
         <Switch
           id='recharge'
           checked={showWithRecharge}
           onCheckedChange={onShowWithRechargeChange}
         />
-        <Label htmlFor='recharge'>Show Recharge Price</Label>
       </div>
     </div>
   )
