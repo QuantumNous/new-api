@@ -31,6 +31,7 @@ type OidcResponse struct {
 type OidcUser struct {
 	OpenID            string `json:"sub"`
 	Email             string `json:"email"`
+	EmailVerified     bool   `json:"email_verified"`
 	Name              string `json:"name"`
 	PreferredUsername string `json:"preferred_username"`
 	Picture           string `json:"picture"`
@@ -98,6 +99,10 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
 		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息为空！请检查设置！")
+	}
+	if !oidcUser.EmailVerified {
+		common.SysLog("OIDC 邮箱未验证！请检查设置！")
+		return nil, errors.New("OIDC 邮箱未验证！请先完成邮箱验证！")
 	}
 	return &oidcUser, nil
 }
