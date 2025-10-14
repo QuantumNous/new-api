@@ -20,9 +20,19 @@ export function Home() {
       {/* Header */}
       <header className='bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur'>
         <div className='container flex h-14 items-center justify-between'>
-          <div className='flex items-center space-x-2'>
-            <Code className='h-6 w-6' />
-            <span className='text-xl font-bold'>New API</span>
+          <div className='flex items-center space-x-8'>
+            <div className='flex items-center space-x-2'>
+              <Code className='h-6 w-6' />
+              <span className='text-xl font-bold'>New API</span>
+            </div>
+            <nav className='hidden items-center space-x-6 md:flex'>
+              <Link
+                to='/pricing'
+                className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors'
+              >
+                Pricing
+              </Link>
+            </nav>
           </div>
           <div className='flex items-center space-x-4'>
             <ThemeSwitch />
