@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
+import { useTranslation } from 'react-i18next';
 
 const chat2page = () => {
+  const { t } = useTranslation();
   const { keys, chatLink, serverAddress, isLoading } = useTokenKeys();
 
   const comLink = (key) => {
@@ -37,7 +39,7 @@ const chat2page = () => {
 
   return (
     <div className='mt-[60px] px-2'>
-      <h3>正在加载，请稍候...</h3>
+      <h3>{t('正在加载，请稍候...')}</h3>
     </div>
   );
 };

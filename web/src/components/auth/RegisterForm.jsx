@@ -622,7 +622,11 @@ const RegisterForm = () => {
         }}
       >
         <div className='flex flex-col items-center'>
-          <img src={status.wechat_qrcode} alt='微信二维码' className='mb-4' />
+          <img
+            src={status.wechat_qrcode}
+            alt={t('微信二维码')}
+            className='mb-4'
+          />
         </div>
 
         <div className='text-center mb-4'>
