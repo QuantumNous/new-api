@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tunnel_api/dao"
+	"github.com/Furion-cn/tunnel_api/dao"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
