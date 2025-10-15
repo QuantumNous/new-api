@@ -1,10 +1,10 @@
 package router
 
 import (
+	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"one-api/controller"
-	"one-api/middleware"
 )
 
 func SetDashboardRouter(router *gin.Engine) {

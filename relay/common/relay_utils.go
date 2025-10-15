@@ -3,13 +3,15 @@ package common
 import (
 	"fmt"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
 	"strconv"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type HasPrompt interface {
@@ -106,27 +108,97 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 }
 
 func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
-	form, err := common.ParseMultipartFormReusable(c)
-	if err != nil {
-		return createTaskError(err, "invalid_multipart_form", http.StatusBadRequest, true)
-	}
-	defer form.RemoveAll()
+	contentType := c.GetHeader("Content-Type")
+	var prompt string
+	var model string
+	var seconds int
+	var size string
+	var hasInputReference bool
 
-	prompts, ok := form.Value["prompt"]
-	if !ok || len(prompts) == 0 {
-		return createTaskError(fmt.Errorf("prompt field is required"), "missing_prompt", http.StatusBadRequest, true)
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		form, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return createTaskError(err, "invalid_multipart_form", http.StatusBadRequest, true)
+		}
+		defer form.RemoveAll()
+
+		prompts, ok := form.Value["prompt"]
+		if !ok || len(prompts) == 0 {
+			return createTaskError(fmt.Errorf("prompt field is required"), "missing_prompt", http.StatusBadRequest, true)
+		}
+		prompt = prompts[0]
+
+		if _, ok := form.Value["model"]; !ok {
+			return createTaskError(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest, true)
+		}
+		model = form.Value["model"][0]
+
+		if _, ok := form.File["input_reference"]; ok {
+			hasInputReference = true
+		}
+
+		if ss, ok := form.Value["seconds"]; ok {
+			sInt := common.String2Int(ss[0])
+			if sInt > seconds {
+				seconds = common.String2Int(ss[0])
+			}
+		}
+
+		if sz, ok := form.Value["size"]; ok {
+			size = sz[0]
+		}
+	} else {
+		var req TaskSubmitReq
+		if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+			return createTaskError(err, "invalid_json", http.StatusBadRequest, true)
+		}
+
+		prompt = req.Prompt
+		model = req.Model
+		seconds = req.Duration
+
+		if strings.TrimSpace(req.Model) == "" {
+			return createTaskError(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest, true)
+		}
+
+		if req.HasImage() {
+			hasInputReference = true
+		}
 	}
-	if taskErr := validatePrompt(prompts[0]); taskErr != nil {
+
+	if taskErr := validatePrompt(prompt); taskErr != nil {
 		return taskErr
 	}
 
-	if _, ok := form.Value["model"]; !ok {
-		return createTaskError(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest, true)
-	}
 	action := constant.TaskActionTextGenerate
-	if _, ok := form.File["input_reference"]; ok {
+	if hasInputReference {
 		action = constant.TaskActionGenerate
 	}
+	if strings.HasPrefix(model, "sora-2") {
+
+		if size == "" {
+			size = "720x1280"
+		}
+
+		if seconds <= 0 {
+			seconds = 4
+		}
+
+		if model == "sora-2" && !lo.Contains([]string{"720x1280", "1280x720"}, size) {
+			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
+		}
+		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {
+			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
+		}
+		info.PriceData.OtherRatios = map[string]float64{
+			"seconds": float64(seconds),
+			"size":    1,
+		}
+		if lo.Contains([]string{"1792x1024", "1024x1792"}, size) {
+			info.PriceData.OtherRatios["size"] = 1.666667
+		}
+	}
+
 	info.Action = action
 
 	return nil

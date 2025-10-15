@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/middleware"
-	"one-api/model"
-	"one-api/setting"
-	"one-api/setting/console_setting"
-	"one-api/setting/operation_setting"
-	"one-api/setting/system_setting"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/console_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -43,6 +44,7 @@ func GetStatus(c *gin.Context) {
 	defer common.OptionMapRWMutex.RUnlock()
 
 	passkeySetting := system_setting.GetPasskeySettings()
+	legalSetting := system_setting.GetLegalSettings()
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -108,6 +110,8 @@ func GetStatus(c *gin.Context) {
 		"passkey_user_verification":   passkeySetting.UserVerification,
 		"passkey_attachment":          passkeySetting.AttachmentPreference,
 		"setup":                       constant.Setup,
+		"user_agreement_enabled":      legalSetting.UserAgreement != "",
+		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 	}
 
 	// 根据启用状态注入可选内容
@@ -147,6 +151,24 @@ func GetAbout(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    common.OptionMap["About"],
+	})
+	return
+}
+
+func GetUserAgreement(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    system_setting.GetLegalSettings().UserAgreement,
+	})
+	return
+}
+
+func GetPrivacyPolicy(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    system_setting.GetLegalSettings().PrivacyPolicy,
 	})
 	return
 }

@@ -2,9 +2,10 @@ package model
 
 import (
 	"fmt"
-	"one-api/common"
-	"one-api/constant"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 )
 
 func cacheSetToken(token Token) error {

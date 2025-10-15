@@ -24,6 +24,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
 import zhTranslation from './locales/zh.json';
+import ruTranslation from './locales/ru.json';
 
 i18n
   .use(LanguageDetector)
@@ -31,15 +32,10 @@ i18n
   .init({
     load: 'languageOnly',
     resources: {
-      en: {
-        translation: enTranslation,
-      },
-      zh: {
-        translation: zhTranslation,
-      },
-      fr: {
-        translation: frTranslation,
-      },
+      en: enTranslation,
+      zh: zhTranslation,
+      fr: frTranslation,
+      ru: ruTranslation,
     },
     fallbackLng: 'zh',
     interpolation: {

@@ -165,12 +165,18 @@ New API提供了丰富的功能，详细特性请参考[特性说明](https://do
 
 #### 使用Docker Compose部署（推荐）
 ```shell
-# 下载项目
-git clone https://github.com/Calcium-Ion/new-api.git
+# 下载项目源码
+git clone https://github.com/QuantumNous/new-api.git
+
+# 进入项目目录
 cd new-api
-# 按需编辑docker-compose.yml
-# 启动
-docker-compose up -d
+
+# 根据需要编辑 docker-compose.yml 文件
+# 使用nano编辑器
+nano docker-compose.yml
+# 或使用vim编辑器
+# vim docker-compose.yml
+
 ```
 
 #### 直接使用Docker镜像

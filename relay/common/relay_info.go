@@ -3,13 +3,14 @@ package common
 import (
 	"errors"
 	"fmt"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	relayconstant "one-api/relay/constant"
-	"one-api/types"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -509,6 +510,13 @@ type TaskInfo struct {
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+}
+
+func FailTaskInfo(reason string) *TaskInfo {
+	return &TaskInfo{
+		Status: "FAILURE",
+		Reason: reason,
+	}
 }
 
 // RemoveDisabledFields 从请求 JSON 数据中移除渠道设置中禁用的字段

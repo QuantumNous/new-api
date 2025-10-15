@@ -89,6 +89,11 @@ export const CHANNEL_OPTIONS = [
     label: '智谱 GLM-4V',
   },
   {
+    value: 27,
+    color: 'blue',
+    label: 'Perplexity',
+  },
+  {
     value: 24,
     color: 'orange',
     label: 'Google Gemini',

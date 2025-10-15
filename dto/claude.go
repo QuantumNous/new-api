@@ -3,9 +3,10 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
-	"one-api/common"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ type ClaudeMediaMessage struct {
 	StopReason   *string              `json:"stop_reason,omitempty"`
 	PartialJson  *string              `json:"partial_json,omitempty"`
 	Role         string               `json:"role,omitempty"`
-	Thinking     string               `json:"thinking,omitempty"`
+	Thinking     *string              `json:"thinking,omitempty"`
 	Signature    string               `json:"signature,omitempty"`
 	Delta        string               `json:"delta,omitempty"`
 	CacheControl json.RawMessage      `json:"cache_control,omitempty"`

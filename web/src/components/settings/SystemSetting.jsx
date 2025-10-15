@@ -705,8 +705,15 @@ const SystemSetting = () => {
 
               <Card>
                 <Form.Section text={t('代理设置')}>
+                  <Banner
+                    type='info'
+                    description={t(
+                      '此代理仅用于图片请求转发，Webhook通知发送等，AI API请求仍然由服务器直接发出，可在渠道设置中单独配置代理',
+                    )}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
                   <Text>
-                    （支持{' '}
+                    {t('仅支持')}{' '}
                     <a
                       href='https://github.com/Calcium-Ion/new-api-worker'
                       target='_blank'
@@ -714,7 +721,7 @@ const SystemSetting = () => {
                     >
                       new-api-worker
                     </a>
-                    ）
+                    {' '}{t('或其兼容new-api-worker格式的其他版本')}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}

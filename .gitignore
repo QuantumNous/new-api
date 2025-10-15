@@ -13,7 +13,7 @@ new-api
 .DS_Store
 tiktoken_cache
 .eslintcache
-.cunzhi-memory/
+.gocache
 
 electron/node_modules
 electron/dist

@@ -1,4 +1,4 @@
-module one-api
+module github.com/QuantumNous/new-api
 
 // +heroku goVersion go1.18
 go 1.25.1

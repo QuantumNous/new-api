@@ -54,6 +54,7 @@ import {
   FastGPT,
   Kling,
   Jimeng,
+  Perplexity,
 } from '@lobehub/icons';
 
 import {
@@ -309,6 +310,8 @@ export function getChannelIcon(channelType) {
       return <Xinference.Color size={iconSize} />;
     case 25: // Moonshot
       return <Moonshot size={iconSize} />;
+    case 27: // Perplexity
+      return <Perplexity.Color size={iconSize} />;
     case 20: // OpenRouter
       return <OpenRouter size={iconSize} />;
     case 19: // 360 智脑

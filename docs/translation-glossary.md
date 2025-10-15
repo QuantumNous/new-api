@@ -54,6 +54,20 @@ This document provides standard translation references for key terminology in th
 | 代理 | Proxy | 代理服务器地址 | Proxy server address |
 | 模型重定向 | Model Mapping | 请求体中模型名称替换 | Model name replacement in request body |
 
+## 安全相关 (Security Related)
+
+| 中文 | English | 说明 | Description |
+|------|---------|------|-------------|
+| 两步验证 | Two-Factor Authentication | 为账户提供额外安全保护的验证方式 | Additional security verification method for accounts |
+| 2FA | Two-Factor Authentication | 两步验证的缩写 | Abbreviation for Two-Factor Authentication |
+
+## 计费相关 (Billing Related)
+
+| 中文 | English | 说明 | Description |
+|------|---------|------|-------------|
+| 倍率 | Ratio | 价格计算的乘数因子 | Multiplier factor used for price calculation |
+| 倍率 | Multiplier | 价格计算的乘数因子（同义词） | Multiplier factor used for price calculation (synonym) |
+
 ## 翻译注意事项 (Translation Guidelines)
 
 - **提示 (Prompt)** = 模型输入内容 / Model input content

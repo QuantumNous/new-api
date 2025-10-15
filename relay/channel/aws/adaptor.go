@@ -4,10 +4,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"one-api/dto"
-	"one-api/relay/channel/claude"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )

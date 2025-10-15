@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"one-api/common"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type OpenAIError struct {
@@ -160,6 +161,9 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		result.Message = common.MaskSensitiveInfo(result.Message)
 	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
 	return result
 }
 
@@ -185,6 +189,9 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		result.Message = common.MaskSensitiveInfo(result.Message)
+	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
 	}
 	return result
 }

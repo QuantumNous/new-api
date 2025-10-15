@@ -2,7 +2,8 @@ package minimax
 
 import (
 	"fmt"
-	relaycommon "one-api/relay/common"
+
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
