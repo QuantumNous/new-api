@@ -34,6 +34,7 @@ export const useTokensData = (openFluentNotification) => {
   const [tokenCount, setTokenCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
+  const [groupOptions, setGroupOptions] = useState([]);
 
   // Selection state
   const [selectedKeys, setSelectedKeys] = useState([]);
@@ -53,6 +54,7 @@ export const useTokensData = (openFluentNotification) => {
   const formInitValues = {
     searchKeyword: '',
     searchToken: '',
+    searchGroup: '',
   };
 
   // Get form values helper function
@@ -61,6 +63,7 @@ export const useTokensData = (openFluentNotification) => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchToken: formValues.searchToken || '',
+      searchGroup: formValues.searchGroup ?? '',
     };
   };
 
@@ -181,26 +184,51 @@ export const useTokensData = (openFluentNotification) => {
     setLoading(false);
   };
 
+  // Fetch available token groups
+  const fetchGroups = async () => {
+    try {
+      const res = await API.get('/api/group/');
+      if (!res?.data?.data) {
+        return;
+      }
+      setGroupOptions(
+        res.data.data.map((group) => ({
+          label: group,
+          value: group,
+        })),
+      );
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+
   // Search tokens function
   const searchTokens = async () => {
-    const { searchKeyword, searchToken } = getFormValues();
-    if (searchKeyword === '' && searchToken === '') {
+    const { searchKeyword, searchToken, searchGroup } = getFormValues();
+    if (searchKeyword === '' && searchToken === '' && searchGroup === '') {
       await loadTokens(1);
       return;
     }
     setSearching(true);
-    const res = await API.get(
-      `/api/token/search?keyword=${searchKeyword}&token=${searchToken}`,
-    );
-    const { success, message, data } = res.data;
-    if (success) {
-      setTokens(data);
-      setTokenCount(data.length);
-      setActivePage(1);
-    } else {
-      showError(message);
+    try {
+      const res = await API.get('/api/token/search', {
+        params: {
+          keyword: searchKeyword,
+          token: searchToken,
+          group: searchGroup,
+        },
+      });
+      const { success, message, data } = res.data;
+      if (success) {
+        setTokens(data);
+        setTokenCount(data.length);
+        setActivePage(1);
+      } else {
+        showError(message);
+      }
+    } finally {
+      setSearching(false);
     }
-    setSearching(false);
   };
 
   // Sort tokens function
@@ -324,6 +352,10 @@ export const useTokensData = (openFluentNotification) => {
     });
   };
 
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
   // Initialize data
   useEffect(() => {
     loadTokens(1)
@@ -341,6 +373,7 @@ export const useTokensData = (openFluentNotification) => {
     tokenCount,
     pageSize,
     searching,
+    groupOptions,
 
     // Selection state
     selectedKeys,
