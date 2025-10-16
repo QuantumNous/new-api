@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import type { PricingModel, PricingVendor } from '@/lib/api'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import {
@@ -10,6 +9,7 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import type { PricingModel, PricingVendor } from '../api'
 import { PricingControls } from './pricing-controls'
 
 type PricingFilters = {

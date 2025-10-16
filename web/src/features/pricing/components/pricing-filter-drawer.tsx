@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Filter } from 'lucide-react'
-import type { PricingModel, PricingVendor } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -10,6 +9,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import type { PricingModel, PricingVendor } from '../api'
 import { PricingSidebar } from './pricing-sidebar'
 
 type PricingFilters = {

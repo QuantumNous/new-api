@@ -11,7 +11,6 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import type { PricingModel } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import {
   Table,
@@ -22,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import type { PricingModel } from '../api'
 import { getPricingColumns } from './pricing-columns'
 
 type PricingTableProps = {

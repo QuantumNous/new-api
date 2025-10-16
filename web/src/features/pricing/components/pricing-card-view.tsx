@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react'
-import type { PricingModel } from '@/lib/api'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/status-badge'
+import type { PricingModel } from '../api'
 import { formatPrice } from '../utils/price-calculator'
 
 type PricingCardViewProps = {

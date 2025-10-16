@@ -1,8 +1,8 @@
 import { type ColumnDef } from '@tanstack/react-table'
-import type { PricingModel } from '@/lib/api'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
+import type { PricingModel } from '../api'
 import { formatPrice } from '../utils/price-calculator'
 
 type PricingColumnsProps = {
