@@ -141,6 +141,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskdoubao.TaskAdaptor{}
 		case constant.ChannelTypeSora:
 			return &tasksora.TaskAdaptor{}
+		case constant.ChannelTypeOpenAI:
+			return &tasksora.TaskAdaptor{}
 		}
 	}
 	return nil
