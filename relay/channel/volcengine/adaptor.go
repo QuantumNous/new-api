@@ -75,6 +75,13 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		},
 	}
 
+	// 同步扩展字段的厂商自定义metadata
+	if len(request.Metadata) > 0 {
+		if err = json.Unmarshal(request.Metadata, &volcRequest); err != nil {
+			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
+		}
+	}
+
 	jsonData, err := json.Marshal(volcRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling volcengine request: %w", err)
