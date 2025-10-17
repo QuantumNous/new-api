@@ -34,6 +34,7 @@ export default function SettingsSensitiveWords(props) {
   const [inputs, setInputs] = useState({
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
+    CheckSensitiveOnCompletionEnabled: false,
     SensitiveWords: '',
   });
   const refForm = useRef();
@@ -123,6 +124,21 @@ export default function SettingsSensitiveWords(props) {
                       CheckSensitiveOnPromptEnabled: value,
                     })
                   }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                    field={'CheckSensitiveOnCompletionEnabled'}
+                    label={t('启用模型回复检查')}
+                    size='default'
+                    checkedText='｜'
+                    uncheckedText='〇'
+                    onChange={(value) =>
+                        setInputs({
+                          ...inputs,
+                          CheckSensitiveOnCompletionEnabled: value,
+                        })
+                    }
                 />
               </Col>
             </Row>
