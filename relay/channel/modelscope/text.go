@@ -6,9 +6,9 @@ import (
 
 func requestOpenAI2Modelscope(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIRequest {
 	if request.TopP >= 1 {
-		request.TopP = 0.999
+		request.TopP = 0.99
 	} else if request.TopP <= 0 {
-		request.TopP = 0.001
+		request.TopP = 0.01
 	}
 	return &request
 }
