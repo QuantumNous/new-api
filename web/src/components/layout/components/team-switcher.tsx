@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useNavigate, useLocation } from '@tanstack/react-router'
 import { ChevronsUpDown } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useWorkspace } from '../context/workspace-context'
 import { type Workspace } from '../types'
+import { detectWorkspaceFromURL } from '../utils/workspace-detector'
 
 type TeamSwitcherProps = {
   workspaces: Workspace[]
@@ -36,6 +38,8 @@ export function TeamSwitcher({
   defaultName = 'AI Gateway',
   defaultVersion = 'Unknown version',
 }: TeamSwitcherProps) {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { isMobile } = useSidebar()
   const { status } = useStatus()
   const isSuperAdmin = useAuthStore(
@@ -72,23 +76,37 @@ export function TeamSwitcher({
   )
 
   // 初始化和同步激活的工作区
+  // 优先从 URL 检测，然后从 activeWorkspace 同步
   React.useEffect(() => {
-    if (!activeWorkspace && availableWorkspaces[0]) {
-      // 如果没有激活的工作区，设置第一个
-      setActiveWorkspace(availableWorkspaces[0])
-    } else if (activeWorkspace) {
-      // 如果有激活的工作区，确保它仍然在可用列表中
-      const updated = availableWorkspaces.find(
-        (w) => w.name === activeWorkspace.name
+    // 从 URL 检测当前应该在哪个工作区
+    const detectedWorkspaceName = detectWorkspaceFromURL(pathname)
+
+    if (detectedWorkspaceName === 'System Settings') {
+      // 当前在系统设置路由中，应该激活 System Settings 工作区
+      const systemSettingsWorkspace = availableWorkspaces.find(
+        (w) => w.name === 'System Settings'
       )
-      if (updated) {
-        setActiveWorkspace(updated)
-      } else if (availableWorkspaces[0]) {
-        // 如果当前工作区不可用（比如权限变更），切换到第一个
-        setActiveWorkspace(availableWorkspaces[0])
+      if (systemSettingsWorkspace) {
+        setActiveWorkspace(systemSettingsWorkspace)
+      }
+    } else {
+      // 当前在主工作区路由中，应该激活主工作区
+      const mainWorkspace = availableWorkspaces[0]
+      if (mainWorkspace) {
+        setActiveWorkspace(mainWorkspace)
       }
     }
-  }, [availableWorkspaces, activeWorkspace, setActiveWorkspace])
+  }, [pathname, availableWorkspaces, setActiveWorkspace])
+
+  const handleWorkspaceChange = (workspace: Workspace) => {
+    // 仅导航，让 useEffect 根据新的 pathname 来同步工作区状态
+    // 这样可以避免竞态条件和上下文丢失的问题
+    if (workspace.name === 'System Settings') {
+      navigate({ to: '/system-settings/general' })
+    } else {
+      navigate({ to: '/dashboard' })
+    }
+  }
 
   if (!activeWorkspace) {
     return null
@@ -127,7 +145,7 @@ export function TeamSwitcher({
             {availableWorkspaces.map((workspace) => (
               <DropdownMenuItem
                 key={workspace.name}
-                onClick={() => setActiveWorkspace(workspace)}
+                onClick={() => handleWorkspaceChange(workspace)}
                 className='gap-2 p-2'
               >
                 <div className='flex size-6 items-center justify-center rounded-sm border'>

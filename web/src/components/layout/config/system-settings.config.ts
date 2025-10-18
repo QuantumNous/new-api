@@ -1,4 +1,12 @@
-import { UserCog, Wrench, Palette, Bell, Monitor } from 'lucide-react'
+import {
+  Settings,
+  Shield,
+  ShieldAlert,
+  Layout,
+  Plug,
+  Box,
+  Wrench,
+} from 'lucide-react'
 import { type NavGroup } from '../types'
 
 /**
@@ -7,32 +15,42 @@ import { type NavGroup } from '../types'
  */
 export const systemSettingsConfig: NavGroup[] = [
   {
-    title: 'System Settings',
+    title: 'System Administration',
     items: [
       {
-        title: 'Profile',
-        url: '/settings',
-        icon: UserCog,
+        title: 'General',
+        url: '/system-settings/general',
+        icon: Settings,
       },
       {
-        title: 'Account',
-        url: '/settings/account',
+        title: 'Authentication',
+        url: '/system-settings/auth',
+        icon: Shield,
+      },
+      {
+        title: 'Request Limits',
+        url: '/system-settings/request-limits',
+        icon: ShieldAlert,
+      },
+      {
+        title: 'Content',
+        url: '/system-settings/content',
+        icon: Layout,
+      },
+      {
+        title: 'Integrations',
+        url: '/system-settings/integrations',
+        icon: Plug,
+      },
+      {
+        title: 'Models',
+        url: '/system-settings/models',
+        icon: Box,
+      },
+      {
+        title: 'Maintenance',
+        url: '/system-settings/maintenance',
         icon: Wrench,
-      },
-      {
-        title: 'Appearance',
-        url: '/settings/appearance',
-        icon: Palette,
-      },
-      {
-        title: 'Notifications',
-        url: '/settings/notifications',
-        icon: Bell,
-      },
-      {
-        title: 'Display',
-        url: '/settings/display',
-        icon: Monitor,
       },
     ],
   },

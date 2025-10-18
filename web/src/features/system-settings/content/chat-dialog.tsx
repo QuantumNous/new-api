@@ -1,0 +1,146 @@
+import { useEffect } from 'react'
+import * as z from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+
+const chatDialogSchema = z.object({
+  name: z.string().min(1, 'Chat client name is required'),
+  url: z.string().min(1, 'URL is required'),
+})
+
+type ChatDialogFormValues = z.infer<typeof chatDialogSchema>
+
+export type ChatEntryData = {
+  name: string
+  url: string
+}
+
+type ChatDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (data: ChatEntryData) => void
+  editData?: ChatEntryData | null
+}
+
+export function ChatDialog({
+  open,
+  onOpenChange,
+  onSave,
+  editData,
+}: ChatDialogProps) {
+  const isEditMode = !!editData
+
+  const form = useForm<ChatDialogFormValues>({
+    resolver: zodResolver(chatDialogSchema),
+    defaultValues: {
+      name: '',
+      url: '',
+    },
+  })
+
+  useEffect(() => {
+    if (editData) {
+      form.reset(editData)
+    } else {
+      form.reset({
+        name: '',
+        url: '',
+      })
+    }
+  }, [editData, form, open])
+
+  const handleSubmit = (values: ChatDialogFormValues) => {
+    onSave(values)
+    form.reset()
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-[500px]'>
+        <DialogHeader>
+          <DialogTitle>
+            {isEditMode ? 'Edit chat preset' : 'Add chat preset'}
+          </DialogTitle>
+          <DialogDescription>
+            Configure a predefined chat link for end users.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(handleSubmit)}
+            className='space-y-4'
+          >
+            <FormField
+              control={form.control}
+              name='name'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Chat Client Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='Please enter chat client name'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Display name for this chat client.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Please enter the URL' {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    The URL for this chat client.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}

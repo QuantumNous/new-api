@@ -1,0 +1,374 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import * as z from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { resetModelRatios } from '../api'
+import { SettingsAccordion } from '../components/settings-accordion'
+import { useUpdateOption } from '../hooks/use-update-option'
+import { GroupRatioForm } from './group-ratio-form'
+import { ModelRatioForm } from './model-ratio-form'
+import {
+  formatJsonForTextarea,
+  normalizeJsonString,
+  validateJsonString,
+} from './utils'
+
+const modelSchema = z.object({
+  ModelPrice: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  ModelRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  CacheRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  CompletionRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  ImageRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  AudioRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  AudioCompletionRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  ExposeRatioEnabled: z.boolean(),
+})
+
+const groupSchema = z.object({
+  GroupRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  TopupGroupRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  UserUsableGroups: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  GroupGroupRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  AutoGroups: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value, {
+      predicate: (parsed) =>
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === 'string'),
+      predicateMessage: 'Expected a JSON array of group identifiers',
+    })
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON array',
+      })
+    }
+  }),
+  DefaultUseAutoGroup: z.boolean(),
+})
+
+type ModelFormValues = z.infer<typeof modelSchema>
+type GroupFormValues = z.infer<typeof groupSchema>
+
+type RatioSettingsCardProps = {
+  modelDefaults: ModelFormValues
+  groupDefaults: GroupFormValues
+}
+
+export function RatioSettingsCard({
+  modelDefaults,
+  groupDefaults,
+}: RatioSettingsCardProps) {
+  const updateOption = useUpdateOption()
+  const queryClient = useQueryClient()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const resetMutation = useMutation({
+    mutationFn: resetModelRatios,
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success('Model ratios reset successfully')
+        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        setConfirmOpen(false)
+      } else {
+        toast.error(data.message || 'Failed to reset model ratios')
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to reset model ratios')
+    },
+  })
+
+  const modelNormalizedDefaults = useRef({
+    ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
+    ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
+    CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
+    CompletionRatio: normalizeJsonString(modelDefaults.CompletionRatio),
+    ImageRatio: normalizeJsonString(modelDefaults.ImageRatio),
+    AudioRatio: normalizeJsonString(modelDefaults.AudioRatio),
+    AudioCompletionRatio: normalizeJsonString(
+      modelDefaults.AudioCompletionRatio
+    ),
+    ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
+  })
+
+  const groupNormalizedDefaults = useRef({
+    GroupRatio: normalizeJsonString(groupDefaults.GroupRatio),
+    TopupGroupRatio: normalizeJsonString(groupDefaults.TopupGroupRatio),
+    UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
+    GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
+    AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
+    DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+  })
+
+  const modelForm = useForm<ModelFormValues>({
+    resolver: zodResolver(modelSchema),
+    mode: 'onChange',
+    defaultValues: {
+      ...modelDefaults,
+      ModelPrice: formatJsonForTextarea(modelDefaults.ModelPrice),
+      ModelRatio: formatJsonForTextarea(modelDefaults.ModelRatio),
+      CacheRatio: formatJsonForTextarea(modelDefaults.CacheRatio),
+      CompletionRatio: formatJsonForTextarea(modelDefaults.CompletionRatio),
+      ImageRatio: formatJsonForTextarea(modelDefaults.ImageRatio),
+      AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
+      AudioCompletionRatio: formatJsonForTextarea(
+        modelDefaults.AudioCompletionRatio
+      ),
+    },
+  })
+
+  const groupForm = useForm<GroupFormValues>({
+    resolver: zodResolver(groupSchema),
+    mode: 'onChange',
+    defaultValues: {
+      ...groupDefaults,
+      GroupRatio: formatJsonForTextarea(groupDefaults.GroupRatio),
+      TopupGroupRatio: formatJsonForTextarea(groupDefaults.TopupGroupRatio),
+      UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
+      GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
+      AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+    },
+  })
+
+  useEffect(() => {
+    modelNormalizedDefaults.current = {
+      ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
+      ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
+      CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
+      CompletionRatio: normalizeJsonString(modelDefaults.CompletionRatio),
+      ImageRatio: normalizeJsonString(modelDefaults.ImageRatio),
+      AudioRatio: normalizeJsonString(modelDefaults.AudioRatio),
+      AudioCompletionRatio: normalizeJsonString(
+        modelDefaults.AudioCompletionRatio
+      ),
+      ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
+    }
+
+    modelForm.reset({
+      ...modelDefaults,
+      ModelPrice: formatJsonForTextarea(modelDefaults.ModelPrice),
+      ModelRatio: formatJsonForTextarea(modelDefaults.ModelRatio),
+      CacheRatio: formatJsonForTextarea(modelDefaults.CacheRatio),
+      CompletionRatio: formatJsonForTextarea(modelDefaults.CompletionRatio),
+      ImageRatio: formatJsonForTextarea(modelDefaults.ImageRatio),
+      AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
+      AudioCompletionRatio: formatJsonForTextarea(
+        modelDefaults.AudioCompletionRatio
+      ),
+    })
+  }, [modelDefaults, modelForm])
+
+  useEffect(() => {
+    groupNormalizedDefaults.current = {
+      GroupRatio: normalizeJsonString(groupDefaults.GroupRatio),
+      TopupGroupRatio: normalizeJsonString(groupDefaults.TopupGroupRatio),
+      UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
+      GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
+      AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
+      DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+    }
+
+    groupForm.reset({
+      ...groupDefaults,
+      GroupRatio: formatJsonForTextarea(groupDefaults.GroupRatio),
+      TopupGroupRatio: formatJsonForTextarea(groupDefaults.TopupGroupRatio),
+      UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
+      GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
+      AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+    })
+  }, [groupDefaults, groupForm])
+
+  const saveModelRatios = useCallback(
+    async (values: ModelFormValues) => {
+      const normalized = {
+        ModelPrice: normalizeJsonString(values.ModelPrice),
+        ModelRatio: normalizeJsonString(values.ModelRatio),
+        CacheRatio: normalizeJsonString(values.CacheRatio),
+        CompletionRatio: normalizeJsonString(values.CompletionRatio),
+        ImageRatio: normalizeJsonString(values.ImageRatio),
+        AudioRatio: normalizeJsonString(values.AudioRatio),
+        AudioCompletionRatio: normalizeJsonString(values.AudioCompletionRatio),
+        ExposeRatioEnabled: values.ExposeRatioEnabled,
+      }
+
+      const updates = (
+        Object.keys(normalized) as Array<keyof ModelFormValues>
+      ).filter(
+        (key) => normalized[key] !== modelNormalizedDefaults.current[key]
+      )
+
+      for (const key of updates) {
+        await updateOption.mutateAsync({ key, value: normalized[key] })
+      }
+    },
+    [updateOption]
+  )
+
+  const saveGroupRatios = useCallback(
+    async (values: GroupFormValues) => {
+      const normalized = {
+        GroupRatio: normalizeJsonString(values.GroupRatio),
+        TopupGroupRatio: normalizeJsonString(values.TopupGroupRatio),
+        UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
+        GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
+        AutoGroups: normalizeJsonString(values.AutoGroups),
+        DefaultUseAutoGroup: values.DefaultUseAutoGroup,
+      }
+
+      const updates = (
+        Object.keys(normalized) as Array<keyof GroupFormValues>
+      ).filter(
+        (key) => normalized[key] !== groupNormalizedDefaults.current[key]
+      )
+
+      for (const key of updates) {
+        await updateOption.mutateAsync({ key, value: normalized[key] })
+      }
+    },
+    [updateOption]
+  )
+
+  const handleResetRatios = useCallback(() => {
+    setConfirmOpen(true)
+  }, [])
+
+  const handleConfirmReset = useCallback(() => {
+    resetMutation.mutate()
+  }, [resetMutation.mutate])
+
+  return (
+    <SettingsAccordion
+      value='ratio-settings'
+      title='Pricing Ratios'
+      description='Configure model, caching, and group ratios used for billing'
+    >
+      <Tabs defaultValue='models' className='space-y-6'>
+        <TabsList className='grid w-full grid-cols-2'>
+          <TabsTrigger value='models'>Model ratios</TabsTrigger>
+          <TabsTrigger value='groups'>Group ratios</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value='models'>
+          <ModelRatioForm
+            form={modelForm}
+            onSave={saveModelRatios}
+            onReset={handleResetRatios}
+            isSaving={updateOption.isPending}
+            isResetting={resetMutation.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value='groups'>
+          <GroupRatioForm
+            form={groupForm}
+            onSave={saveGroupRatios}
+            isSaving={updateOption.isPending}
+          />
+        </TabsContent>
+      </Tabs>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title='Reset all model ratios?'
+        desc='This will clear custom pricing ratios and revert to upstream defaults.'
+        destructive
+        isLoading={resetMutation.isPending}
+        handleConfirm={handleConfirmReset}
+        confirmText='Reset'
+      />
+    </SettingsAccordion>
+  )
+}

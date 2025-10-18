@@ -1,0 +1,163 @@
+import { useState } from 'react'
+import { ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
+import { toast } from 'sonner'
+import { formatTimestamp } from '@/lib/format'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Markdown } from '@/components/ui/markdown'
+import { SettingsAccordion } from '../components/settings-accordion'
+
+type ReleaseInfo = {
+  tag_name: string
+  name?: string
+  body?: string
+  html_url?: string
+  published_at?: string
+}
+
+type UpdateCheckerSectionProps = {
+  currentVersion?: string | null
+  startTime?: number | null
+}
+
+export function UpdateCheckerSection({
+  currentVersion,
+  startTime,
+}: UpdateCheckerSectionProps) {
+  const [checking, setChecking] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [release, setRelease] = useState<ReleaseInfo | null>(null)
+
+  const uptime = startTime ? formatTimestamp(startTime) : 'Unknown'
+  const version = currentVersion || 'Unknown'
+
+  const handleCheckUpdates = async () => {
+    setChecking(true)
+    try {
+      const response = await fetch(
+        'https://api.github.com/repos/Calcium-Ion/new-api/releases/latest',
+        {
+          headers: {
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'new-api-dashboard',
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to contact GitHub releases API')
+      }
+
+      const data = (await response.json()) as ReleaseInfo
+      if (!data?.tag_name) {
+        throw new Error('Unexpected release payload')
+      }
+
+      if (currentVersion && data.tag_name === currentVersion) {
+        toast.success(`You are running the latest version (${data.tag_name}).`)
+        return
+      }
+
+      setRelease(data)
+      setDialogOpen(true)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to check for updates'
+      toast.error(message)
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const goToRelease = () => {
+    if (release?.html_url) {
+      window.open(release.html_url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
+  return (
+    <>
+      <SettingsAccordion
+        value='update-checker'
+        title='System maintenance'
+        description='Review current version and fetch release notes.'
+      >
+        <div className='space-y-6'>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <div className='rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>
+                Current version
+              </div>
+              <div className='text-lg font-semibold'>{version}</div>
+            </div>
+            <div className='rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>Uptime since</div>
+              <div className='text-lg font-semibold'>{uptime}</div>
+            </div>
+          </div>
+
+          <Button onClick={handleCheckUpdates} disabled={checking}>
+            {checking ? (
+              'Checking updates...'
+            ) : (
+              <>
+                <RefreshCcwIcon className='me-2 h-4 w-4' />
+                Check for updates
+              </>
+            )}
+          </Button>
+        </div>
+      </SettingsAccordion>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className='max-h-[80vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>
+              {release?.tag_name
+                ? `New version available: ${release.tag_name}`
+                : 'Release details'}
+            </DialogTitle>
+            {release?.published_at && (
+              <DialogDescription>
+                Published {new Date(release.published_at).toLocaleString()}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className='space-y-4'>
+            {release?.body ? (
+              <Markdown>{release.body}</Markdown>
+            ) : (
+              <p className='text-muted-foreground text-sm'>
+                No release notes provided.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => setDialogOpen(false)}
+            >
+              Close
+            </Button>
+            {release?.html_url && (
+              <Button type='button' onClick={goToRelease}>
+                <ExternalLinkIcon className='me-2 h-4 w-4' />
+                Open release
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}

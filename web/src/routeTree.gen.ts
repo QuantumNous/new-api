@@ -25,17 +25,26 @@ import { Route as authResetRouteImport } from './routes/(auth)/reset'
 import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
+import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
+import { Route as AuthenticatedSystemSettingsRequestLimitsRouteImport } from './routes/_authenticated/system-settings/request-limits'
+import { Route as AuthenticatedSystemSettingsModelsRouteImport } from './routes/_authenticated/system-settings/models'
+import { Route as AuthenticatedSystemSettingsMaintenanceRouteImport } from './routes/_authenticated/system-settings/maintenance'
+import { Route as AuthenticatedSystemSettingsIntegrationsRouteImport } from './routes/_authenticated/system-settings/integrations'
+import { Route as AuthenticatedSystemSettingsGeneralRouteImport } from './routes/_authenticated/system-settings/general'
+import { Route as AuthenticatedSystemSettingsContentRouteImport } from './routes/_authenticated/system-settings/content'
+import { Route as AuthenticatedSystemSettingsAuthRouteImport } from './routes/_authenticated/system-settings/auth'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
@@ -120,6 +129,12 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => authRouteRoute,
 } as any)
+const AuthenticatedSystemSettingsRouteRoute =
+  AuthenticatedSystemSettingsRouteRouteImport.update({
+    id: '/system-settings',
+    path: '/system-settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsRouteRoute =
   AuthenticatedSettingsRouteRouteImport.update({
     id: '/settings',
@@ -148,6 +163,12 @@ const AuthenticatedTasksIndexRoute = AuthenticatedTasksIndexRouteImport.update({
   path: '/tasks/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSystemSettingsIndexRoute =
+  AuthenticatedSystemSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/',
@@ -183,6 +204,48 @@ const AuthenticatedDashboardIndexRoute =
     path: '/dashboard/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSystemSettingsRequestLimitsRoute =
+  AuthenticatedSystemSettingsRequestLimitsRouteImport.update({
+    id: '/request-limits',
+    path: '/request-limits',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsModelsRoute =
+  AuthenticatedSystemSettingsModelsRouteImport.update({
+    id: '/models',
+    path: '/models',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsMaintenanceRoute =
+  AuthenticatedSystemSettingsMaintenanceRouteImport.update({
+    id: '/maintenance',
+    path: '/maintenance',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsIntegrationsRoute =
+  AuthenticatedSystemSettingsIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsGeneralRoute =
+  AuthenticatedSystemSettingsGeneralRouteImport.update({
+    id: '/general',
+    path: '/general',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsContentRoute =
+  AuthenticatedSystemSettingsContentRouteImport.update({
+    id: '/content',
+    path: '/content',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsAuthRoute =
+  AuthenticatedSystemSettingsAuthRouteImport.update({
+    id: '/auth',
+    path: '/auth',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
 const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsRouteImport.update({
     id: '/notifications',
@@ -217,6 +280,7 @@ const AuthenticatedErrorsErrorRoute =
 export interface FileRoutesByFullPath {
   '/': typeof authRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
@@ -235,12 +299,20 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
+  '/system-settings/content': typeof AuthenticatedSystemSettingsContentRoute
+  '/system-settings/general': typeof AuthenticatedSystemSettingsGeneralRoute
+  '/system-settings/integrations': typeof AuthenticatedSystemSettingsIntegrationsRoute
+  '/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
+  '/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
+  '/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -266,12 +338,20 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
+  '/system-settings/content': typeof AuthenticatedSystemSettingsContentRoute
+  '/system-settings/general': typeof AuthenticatedSystemSettingsGeneralRoute
+  '/system-settings/integrations': typeof AuthenticatedSystemSettingsIntegrationsRoute
+  '/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
+  '/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
+  '/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -283,6 +363,7 @@ export interface FileRoutesById {
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
   '/(auth)/otp': typeof authOtpRoute
@@ -301,12 +382,20 @@ export interface FileRoutesById {
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/_authenticated/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
+  '/_authenticated/system-settings/content': typeof AuthenticatedSystemSettingsContentRoute
+  '/_authenticated/system-settings/general': typeof AuthenticatedSystemSettingsGeneralRoute
+  '/_authenticated/system-settings/integrations': typeof AuthenticatedSystemSettingsIntegrationsRoute
+  '/_authenticated/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
+  '/_authenticated/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
+  '/_authenticated/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
@@ -317,6 +406,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
+    | '/system-settings'
     | '/forgot-password'
     | '/oauth'
     | '/otp'
@@ -335,12 +425,20 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/system-settings/auth'
+    | '/system-settings/content'
+    | '/system-settings/general'
+    | '/system-settings/integrations'
+    | '/system-settings/maintenance'
+    | '/system-settings/models'
+    | '/system-settings/request-limits'
     | '/dashboard'
     | '/keys'
     | '/models'
     | '/profile'
     | '/redemption-codes'
     | '/settings/'
+    | '/system-settings/'
     | '/tasks'
     | '/usage-logs'
     | '/users'
@@ -366,12 +464,20 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/system-settings/auth'
+    | '/system-settings/content'
+    | '/system-settings/general'
+    | '/system-settings/integrations'
+    | '/system-settings/maintenance'
+    | '/system-settings/models'
+    | '/system-settings/request-limits'
     | '/dashboard'
     | '/keys'
     | '/models'
     | '/profile'
     | '/redemption-codes'
     | '/settings'
+    | '/system-settings'
     | '/tasks'
     | '/usage-logs'
     | '/users'
@@ -382,6 +488,7 @@ export interface FileRouteTypes {
     | '/(auth)'
     | '/_authenticated'
     | '/_authenticated/settings'
+    | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
     | '/(auth)/otp'
@@ -400,12 +507,20 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
+    | '/_authenticated/system-settings/auth'
+    | '/_authenticated/system-settings/content'
+    | '/_authenticated/system-settings/general'
+    | '/_authenticated/system-settings/integrations'
+    | '/_authenticated/system-settings/maintenance'
+    | '/_authenticated/system-settings/models'
+    | '/_authenticated/system-settings/request-limits'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/settings/'
+    | '/_authenticated/system-settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
@@ -538,6 +653,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/_authenticated/system-settings': {
+      id: '/_authenticated/system-settings'
+      path: '/system-settings'
+      fullPath: '/system-settings'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -572,6 +694,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tasks'
       preLoaderRoute: typeof AuthenticatedTasksIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/system-settings/': {
+      id: '/_authenticated/system-settings/'
+      path: '/'
+      fullPath: '/system-settings/'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
     '/_authenticated/settings/': {
       id: '/_authenticated/settings/'
@@ -614,6 +743,55 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/system-settings/request-limits': {
+      id: '/_authenticated/system-settings/request-limits'
+      path: '/request-limits'
+      fullPath: '/system-settings/request-limits'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsRequestLimitsRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/models': {
+      id: '/_authenticated/system-settings/models'
+      path: '/models'
+      fullPath: '/system-settings/models'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsModelsRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/maintenance': {
+      id: '/_authenticated/system-settings/maintenance'
+      path: '/maintenance'
+      fullPath: '/system-settings/maintenance'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsMaintenanceRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/integrations': {
+      id: '/_authenticated/system-settings/integrations'
+      path: '/integrations'
+      fullPath: '/system-settings/integrations'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsIntegrationsRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/general': {
+      id: '/_authenticated/system-settings/general'
+      path: '/general'
+      fullPath: '/system-settings/general'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsGeneralRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/content': {
+      id: '/_authenticated/system-settings/content'
+      path: '/content'
+      fullPath: '/system-settings/content'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsContentRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/auth': {
+      id: '/_authenticated/system-settings/auth'
+      path: '/auth'
+      fullPath: '/system-settings/auth'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsAuthRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
     '/_authenticated/settings/notifications': {
       id: '/_authenticated/settings/notifications'
@@ -700,8 +878,44 @@ const AuthenticatedSettingsRouteRouteWithChildren =
     AuthenticatedSettingsRouteRouteChildren,
   )
 
+interface AuthenticatedSystemSettingsRouteRouteChildren {
+  AuthenticatedSystemSettingsAuthRoute: typeof AuthenticatedSystemSettingsAuthRoute
+  AuthenticatedSystemSettingsContentRoute: typeof AuthenticatedSystemSettingsContentRoute
+  AuthenticatedSystemSettingsGeneralRoute: typeof AuthenticatedSystemSettingsGeneralRoute
+  AuthenticatedSystemSettingsIntegrationsRoute: typeof AuthenticatedSystemSettingsIntegrationsRoute
+  AuthenticatedSystemSettingsMaintenanceRoute: typeof AuthenticatedSystemSettingsMaintenanceRoute
+  AuthenticatedSystemSettingsModelsRoute: typeof AuthenticatedSystemSettingsModelsRoute
+  AuthenticatedSystemSettingsRequestLimitsRoute: typeof AuthenticatedSystemSettingsRequestLimitsRoute
+  AuthenticatedSystemSettingsIndexRoute: typeof AuthenticatedSystemSettingsIndexRoute
+}
+
+const AuthenticatedSystemSettingsRouteRouteChildren: AuthenticatedSystemSettingsRouteRouteChildren =
+  {
+    AuthenticatedSystemSettingsAuthRoute: AuthenticatedSystemSettingsAuthRoute,
+    AuthenticatedSystemSettingsContentRoute:
+      AuthenticatedSystemSettingsContentRoute,
+    AuthenticatedSystemSettingsGeneralRoute:
+      AuthenticatedSystemSettingsGeneralRoute,
+    AuthenticatedSystemSettingsIntegrationsRoute:
+      AuthenticatedSystemSettingsIntegrationsRoute,
+    AuthenticatedSystemSettingsMaintenanceRoute:
+      AuthenticatedSystemSettingsMaintenanceRoute,
+    AuthenticatedSystemSettingsModelsRoute:
+      AuthenticatedSystemSettingsModelsRoute,
+    AuthenticatedSystemSettingsRequestLimitsRoute:
+      AuthenticatedSystemSettingsRequestLimitsRoute,
+    AuthenticatedSystemSettingsIndexRoute:
+      AuthenticatedSystemSettingsIndexRoute,
+  }
+
+const AuthenticatedSystemSettingsRouteRouteWithChildren =
+  AuthenticatedSystemSettingsRouteRoute._addFileChildren(
+    AuthenticatedSystemSettingsRouteRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -716,6 +930,8 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedSystemSettingsRouteRoute:
+    AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
