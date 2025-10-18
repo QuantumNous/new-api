@@ -69,6 +69,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeMoonshot
 	case constant.ChannelTypeSubmodel:
 		apiType = constant.APITypeSubmodel
+	case constant.ChannelTypeModelScope:
+		apiType = constant.APITypeModelScope
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

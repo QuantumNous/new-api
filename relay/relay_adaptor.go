@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/mistral"
 	"github.com/QuantumNous/new-api/relay/channel/mokaai"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
+	"github.com/QuantumNous/new-api/relay/channel/modelscope"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/channel/palm"
@@ -106,8 +107,11 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &jimeng.Adaptor{}
 	case constant.APITypeMoonshot:
 		return &moonshot.Adaptor{} // Moonshot uses Claude API
+	case constant.APITypeModelScope:
+		return &modelscope.Adaptor{}
 	case constant.APITypeSubmodel:
 		return &submodel.Adaptor{}
+		
 	}
 	return nil
 }
