@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type GitHubOAuthResponse struct {
@@ -131,7 +132,44 @@ func GitHubOAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
+		if githubUser.Email != "" {
+			var existingUser model.User
+			err := model.DB.Where("email = ?", githubUser.Email).First(&existingUser).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				common.ApiError(c, err)
+				return
+			}
+			if err == nil {
+				if existingUser.GitHubId != "" && existingUser.GitHubId != githubUser.Login {
+					c.JSON(http.StatusOK, gin.H{
+						"success": false,
+						"message": "该邮箱对应的账户已绑定其他 GitHub 账户",
+					})
+					return
+				}
+				existingUser.GitHubId = githubUser.Login
+				if existingUser.DisplayName == "" {
+					if githubUser.Name != "" {
+						existingUser.DisplayName = githubUser.Name
+					} else {
+						existingUser.DisplayName = "GitHub User"
+					}
+				}
+				if err := existingUser.Update(false); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+				user = existingUser
+			}
+		}
+		if user.Id == 0 {
+			if !common.RegisterEnabled {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "管理员关闭了新用户注册",
+				})
+				return
+			}
 			user.Username = "github_" + strconv.Itoa(model.GetMaxUserId()+1)
 			if githubUser.Name != "" {
 				user.DisplayName = githubUser.Name
@@ -154,12 +192,6 @@ func GitHubOAuth(c *gin.Context) {
 				})
 				return
 			}
-		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
-			return
 		}
 	}
 
