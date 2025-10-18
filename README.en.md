@@ -209,6 +209,7 @@ For detailed API documentation, please refer to [API Documentation](https://docs
 - [One API](https://github.com/songquanpeng/one-api): Original project
 - [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy): Midjourney interface support
 - [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool): Query usage quota with key
+- [aiproxy](https://github.com/labring/aiproxy): Next-generation AI gateway
 
 Other projects based on New API:
 - [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon): High-performance optimized version of New API
