@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useWorkspace } from '../context/workspace-context'
 import { type Workspace } from '../types'
-import { detectWorkspaceFromURL } from '../utils/workspace-detector'
+import { getWorkspaceByPath } from '../utils/workspace-registry'
 
 type TeamSwitcherProps = {
   workspaces: Workspace[]
@@ -78,10 +78,10 @@ export function TeamSwitcher({
   // 初始化和同步激活的工作区
   // 优先从 URL 检测，然后从 activeWorkspace 同步
   React.useEffect(() => {
-    // 从 URL 检测当前应该在哪个工作区
-    const detectedWorkspaceName = detectWorkspaceFromURL(pathname)
+    // 从工作区注册表检测当前应该在哪个工作区
+    const detectedWorkspace = getWorkspaceByPath(pathname)
 
-    if (detectedWorkspaceName === 'System Settings') {
+    if (detectedWorkspace.name === 'System Settings') {
       // 当前在系统设置路由中，应该激活 System Settings 工作区
       const systemSettingsWorkspace = availableWorkspaces.find(
         (w) => w.name === 'System Settings'

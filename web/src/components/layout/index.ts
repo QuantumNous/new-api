@@ -20,6 +20,14 @@ export { sidebarConfig } from './config/sidebar.config'
 export { systemSettingsConfig } from './config/system-settings.config'
 export { defaultTopNavLinks } from './config/top-nav.config'
 
+// 工具函数 - 工作区注册表
+export {
+  getWorkspaceByPath,
+  getNavGroupsForPath,
+  isInWorkspace,
+  getAllWorkspaces,
+} from './utils/workspace-registry'
+
 // 类型导出（使用 type-only 导出避免与组件冲突）
 export type {
   Workspace,
@@ -30,3 +38,4 @@ export type {
   SidebarData,
   TopNavLink,
 } from './types'
+export type { WorkspaceConfig } from './utils/workspace-registry'

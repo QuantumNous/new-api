@@ -1,5 +1,5 @@
 import React from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
@@ -12,13 +12,17 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { sidebarConfig } from './layout'
+import { getNavGroupsForPath } from './layout/utils/workspace-registry'
 import { ScrollArea } from './ui/scroll-area'
 
 export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
+  const { pathname } = useLocation()
+
+  // 根据当前路径从工作区注册表获取对应的侧边栏配置
+  const navGroups = getNavGroupsForPath(pathname)
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {
@@ -34,7 +38,7 @@ export function CommandMenu() {
       <CommandList>
         <ScrollArea type='hover' className='h-72 pe-1'>
           <CommandEmpty>No results found.</CommandEmpty>
-          {sidebarConfig.navGroups.map((group) => (
+          {navGroups.map((group) => (
             <CommandGroup key={group.title} heading={group.title}>
               {group.items.map((navItem, i) => {
                 if (navItem.url)
