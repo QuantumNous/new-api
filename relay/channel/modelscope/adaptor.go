@@ -86,7 +86,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 	default:
 		switch info.RelayMode {
-		case constant.RelayModeImagesGenerations:
+		case constant.RelayModeImagesGenerations, constant.RelayModeEdits:
 			err, usage = msImageHandler(c, resp, info)
 		default:
 			adaptor := openai.Adaptor{}

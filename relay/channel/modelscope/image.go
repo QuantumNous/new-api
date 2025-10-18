@@ -63,17 +63,20 @@ func updateTask(info *relaycommon.RelayInfo, taskID string) (*MSImageResponse, e
 		req.Header.Set("X-ModelScope-Task-Type", "image_generation")
 	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: time.Second * 30}
 	resp, err := client.Do(req)
 	if err != nil {
 		common.SysLog("updateTask client.Do err: " + err.Error())
 		return &msResponse, err, nil
 	}
 	defer resp.Body.Close()
+	
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+        responseBody, _ := io.ReadAll(resp.Body)
+        return &msResponse, fmt.Errorf("updateTask HTTP %d: %s", resp.StatusCode, string(responseBody)), responseBody
+    }
 
 	responseBody, err := io.ReadAll(resp.Body)
-	fmt.Print(string(responseBody))
-	
 
 	var response MSImageResponse
 	err = common.Unmarshal(responseBody, &response)
@@ -105,7 +108,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 		}
 
 		if rsp.TaskStatus == "" {
-			return &taskResponse, responseBody, nil
+			return rsp, responseBody, nil
 		}
 
 		switch rsp.TaskStatus {
@@ -178,7 +181,7 @@ func msImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.Relay
 
 	if msResponse.TaskStatus != "SUCCEED" {
 		return types.WithOpenAIError(types.OpenAIError{
-			Message: "Unknow ModelScope Image API error",
+			Message: "Unknown ModelScope Image API error",
 			Type:    "ms_error",
 			Param:   "",
 			Code:    400,
