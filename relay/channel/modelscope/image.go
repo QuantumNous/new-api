@@ -93,7 +93,6 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 	step := 0
 	maxStep := 20
 
-	var taskResponse MSImageResponse
 	var responseBody []byte
 
 	for {
