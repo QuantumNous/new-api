@@ -119,20 +119,6 @@ func mapVoiceType(openAIVoice string) string {
 	return openAIVoice
 }
 
-// [0.1,2]，默认为 1，通常保留一位小数即可
-func mapSpeedRatio(speed float64) float64 {
-	if speed == 0 {
-		return 1.0
-	}
-	if speed < 0.1 {
-		return 0.1
-	}
-	if speed > 2.0 {
-		return 2.0
-	}
-	return speed
-}
-
 func mapEncoding(responseFormat string) string {
 	if encoding, ok := responseFormatToEncodingMap[responseFormat]; ok {
 		return encoding

@@ -47,7 +47,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	voiceType := mapVoiceType(request.Voice)
-	speedRatio := mapSpeedRatio(request.Speed)
+	speedRatio := request.Speed
 	encoding := mapEncoding(request.ResponseFormat)
 
 	c.Set("response_format", encoding)
@@ -73,6 +73,13 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 			Operation: "query",
 			Model:     info.OriginModelName,
 		},
+	}
+
+	// 同步扩展字段的厂商自定义metadata
+	if len(request.Metadata) > 0 {
+		if err = json.Unmarshal(request.Metadata, &volcRequest); err != nil {
+			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
+		}
 	}
 
 	jsonData, err := json.Marshal(volcRequest)
