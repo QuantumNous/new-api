@@ -9,13 +9,17 @@ RUN npm install -g pnpm
 COPY web/package.json web/pnpm-lock.yaml ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm config set ignore-scripts false && pnpm install --frozen-lockfile
 
 # Copy source code
 COPY ./web .
 
-# Build the frontend
+# Build the frontend with production optimizations
+ENV NODE_ENV=production
 RUN pnpm run build
+
+# Remove unnecessary files to reduce image size
+RUN rm -rf node_modules .git src
 
 FROM golang:alpine AS builder2
 
@@ -30,7 +34,12 @@ RUN go mod download
 
 COPY . .
 COPY --from=builder /build/dist ./web/dist
-RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -o one-api
+
+# Build with additional optimizations for smaller binary
+RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -trimpath -o one-api
+
+# Strip binary to reduce size further
+RUN apk add --no-cache upx && upx --best --lzma one-api && apk del upx
 
 FROM alpine
 

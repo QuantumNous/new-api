@@ -85,6 +85,7 @@
     "knip": "^5.62.0",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
+    "terser": "^5.36.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.1.2"
