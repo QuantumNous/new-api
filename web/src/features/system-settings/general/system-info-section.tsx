@@ -88,7 +88,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 <FormItem>
                   <FormLabel>System Name</FormLabel>
                   <FormControl>
-                    <Input placeholder='AI Gateway' {...field} />
+                    <Input placeholder='New API' {...field} />
                   </FormControl>
                   <FormDescription>
                     The name displayed across the application
@@ -167,7 +167,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>Home Page Content</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder='Welcome to our AI Gateway...'
+                      placeholder='Welcome to our New API...'
                       rows={6}
                       {...field}
                     />

@@ -1,6 +1,5 @@
-import { Logo } from '@/assets/logo'
 import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TermsFooter } from '../components/terms-footer'
 import dashboardDark from './assets/dashboard-dark.png'
@@ -8,7 +7,7 @@ import dashboardLight from './assets/dashboard-light.png'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn2() {
-  const { status, loading } = useStatus()
+  const { systemName, logo, loading } = useSystemConfig()
   return (
     <div className='relative container grid h-svh flex-col items-center justify-center lg:max-w-none lg:grid-cols-2 lg:px-0'>
       <div className='lg:p-8'>
@@ -20,16 +19,12 @@ export function SignIn2() {
             </div>
           ) : (
             <div className='mb-4 flex items-center justify-center gap-2'>
-              {status?.logo ? (
-                <img
-                  src={status.logo}
-                  alt='Logo'
-                  className='h-8 w-8 rounded-full object-cover'
-                />
-              ) : (
-                <Logo className='me-2' />
-              )}
-              <h1 className='text-xl font-medium'>{status?.system_name}</h1>
+              <img
+                src={logo}
+                alt='Logo'
+                className='h-8 w-8 rounded-full object-cover'
+              />
+              <h1 className='text-xl font-medium'>{systemName}</h1>
             </div>
           )}
         </div>

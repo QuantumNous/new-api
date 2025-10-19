@@ -8,7 +8,7 @@ import { SystemBehaviorSection } from './system-behavior-section'
 import { SystemInfoSection } from './system-info-section'
 
 const defaultGeneralSettings: GeneralSettings = {
-  SystemName: 'AI Gateway',
+  SystemName: 'New API',
   Logo: '',
   Footer: '',
   About: '',
