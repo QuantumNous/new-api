@@ -1,11 +1,9 @@
-import { useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback } from 'react'
 import { Link, useSearch, useNavigate } from '@tanstack/react-router'
 import { Code } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
-import { useSidebar } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AppHeader, Main, AuthenticatedLayout } from '@/components/layout'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { PricingCardView } from './components/pricing-card-view'
 import { PricingFilterDrawer } from './components/pricing-filter-drawer'
@@ -20,33 +18,6 @@ type PricingFilters = {
   endpoint: string
   tag: string
   quota: 'all' | '0' | '1'
-}
-
-function PricingAuthenticatedContent({
-  content,
-}: {
-  content: React.ReactNode
-}) {
-  const sidebar = useSidebar()
-
-  // Close sidebar on mount (only run once)
-  useEffect(() => {
-    try {
-      if (sidebar?.setOpen) {
-        sidebar.setOpen(false)
-      }
-    } catch (error) {
-      console.error('Error closing sidebar:', error)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return (
-    <>
-      <AppHeader fixed />
-      <Main>{content}</Main>
-    </>
-  )
 }
 
 export function Pricing() {
@@ -229,89 +200,6 @@ export function Pricing() {
     },
   }
 
-  const content = (
-    <div className='flex gap-6'>
-      <div className='hidden w-72 shrink-0 md:block'>
-        {!isLoading && models.length > 0 ? (
-          <PricingSidebar {...filterProps} />
-        ) : (
-          <div className='space-y-4'>
-            <Skeleton className='h-12 w-full' />
-            <Skeleton className='h-12 w-full' />
-            <Skeleton className='h-12 w-full' />
-          </div>
-        )}
-      </div>
-
-      <div className='min-w-0 flex-1 space-y-4'>
-        <div className='flex items-center justify-between gap-4'>
-          <div>
-            <h2 className='text-2xl font-bold tracking-tight'>Pricing</h2>
-            <p className='text-muted-foreground text-sm'>
-              View pricing for all available models ({filteredModels.length}{' '}
-              models)
-            </p>
-          </div>
-          <PricingViewToggle
-            view={view}
-            onViewChange={(newView) => {
-              if (newView === 'card') {
-                // Card is default, remove view param
-                navigate({
-                  search: (prev: any) => {
-                    const { view, ...rest } = prev
-                    return rest
-                  },
-                })
-              } else {
-                // Table view, set explicitly
-                updateSearch({ view: newView } as any)
-              }
-            }}
-          />
-        </div>
-
-        {isLoading ? (
-          <div className='space-y-4'>
-            <Skeleton className='h-12 w-full' />
-            <Skeleton className='h-[400px] w-full' />
-          </div>
-        ) : effectiveView === 'card' ? (
-          <PricingCardView
-            models={filteredModels}
-            currency={currency}
-            tokenUnit={tokenUnit}
-            showWithRecharge={showWithRecharge}
-            priceRate={priceRate}
-            usdExchangeRate={usdExchangeRate}
-            filterButton={
-              !isLoading && models.length > 0 ? (
-                <PricingFilterDrawer {...filterProps} />
-              ) : null
-            }
-          />
-        ) : (
-          <PricingTable
-            models={filteredModels}
-            currency={currency}
-            tokenUnit={tokenUnit}
-            showWithRecharge={showWithRecharge}
-            priceRate={priceRate}
-            usdExchangeRate={usdExchangeRate}
-          />
-        )}
-      </div>
-    </div>
-  )
-
-  if (isAuthenticated) {
-    return (
-      <AuthenticatedLayout>
-        <PricingAuthenticatedContent content={content} />
-      </AuthenticatedLayout>
-    )
-  }
-
   return (
     <div className='min-h-screen'>
       <header className='bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur'>
@@ -322,17 +210,98 @@ export function Pricing() {
           </Link>
           <div className='flex items-center space-x-4'>
             <ThemeSwitch />
-            <Button variant='ghost' asChild>
-              <Link to='/sign-in'>登录</Link>
-            </Button>
-            <Button asChild>
-              <Link to='/sign-up'>注册</Link>
-            </Button>
+            {isAuthenticated ? (
+              <Button variant='ghost' asChild>
+                <Link to='/dashboard'>控制台</Link>
+              </Button>
+            ) : (
+              <>
+                <Button variant='ghost' asChild>
+                  <Link to='/sign-in'>登录</Link>
+                </Button>
+                <Button asChild>
+                  <Link to='/sign-up'>注册</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      <main className='container px-4 py-6 md:px-4'>{content}</main>
+      <main className='container px-4 py-6 md:px-4'>
+        <div className='flex gap-6'>
+          <div className='hidden w-72 shrink-0 md:block'>
+            {!isLoading && models.length > 0 ? (
+              <PricingSidebar {...filterProps} />
+            ) : (
+              <div className='space-y-4'>
+                <Skeleton className='h-12 w-full' />
+                <Skeleton className='h-12 w-full' />
+                <Skeleton className='h-12 w-full' />
+              </div>
+            )}
+          </div>
+
+          <div className='min-w-0 flex-1 space-y-4'>
+            <div className='flex items-center justify-between gap-4'>
+              <div>
+                <h2 className='text-2xl font-bold tracking-tight'>Pricing</h2>
+                <p className='text-muted-foreground text-sm'>
+                  View pricing for all available models ({filteredModels.length}{' '}
+                  models)
+                </p>
+              </div>
+              <PricingViewToggle
+                view={view}
+                onViewChange={(newView) => {
+                  if (newView === 'card') {
+                    // Card is default, remove view param
+                    navigate({
+                      search: (prev: any) => {
+                        const { view, ...rest } = prev
+                        return rest
+                      },
+                    })
+                  } else {
+                    // Table view, set explicitly
+                    updateSearch({ view: newView } as any)
+                  }
+                }}
+              />
+            </div>
+
+            {isLoading ? (
+              <div className='space-y-4'>
+                <Skeleton className='h-12 w-full' />
+                <Skeleton className='h-[400px] w-full' />
+              </div>
+            ) : effectiveView === 'card' ? (
+              <PricingCardView
+                models={filteredModels}
+                currency={currency}
+                tokenUnit={tokenUnit}
+                showWithRecharge={showWithRecharge}
+                priceRate={priceRate}
+                usdExchangeRate={usdExchangeRate}
+                filterButton={
+                  !isLoading && models.length > 0 ? (
+                    <PricingFilterDrawer {...filterProps} />
+                  ) : null
+                }
+              />
+            ) : (
+              <PricingTable
+                models={filteredModels}
+                currency={currency}
+                tokenUnit={tokenUnit}
+                showWithRecharge={showWithRecharge}
+                priceRate={priceRate}
+                usdExchangeRate={usdExchangeRate}
+              />
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   )
 }

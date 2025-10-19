@@ -1,45 +1,17 @@
-import { useMemo, useEffect } from 'react'
-import { useParams, useSearch, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, Copy, Link2, DollarSign } from 'lucide-react'
+import { useMemo } from 'react'
+import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router'
+import { ArrowLeft, Copy, Link2, DollarSign, Code } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { useSidebar } from '@/components/ui/sidebar'
-import { AppHeader, Main, AuthenticatedLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
+import { ThemeSwitch } from '@/components/theme-switch'
 import { usePricingData } from '../hooks/use-pricing-data'
 import type { PricingModel } from '../type'
 import { formatGroupPrice, formatFixedPrice } from '../utils/price-calculator'
-
-function ModelDetailsAuthenticatedContent({
-  content,
-}: {
-  content: React.ReactNode
-}) {
-  const sidebar = useSidebar()
-
-  // Close sidebar on mount (only run once)
-  useEffect(() => {
-    try {
-      if (sidebar?.setOpen) {
-        sidebar.setOpen(false)
-      }
-    } catch (error) {
-      console.error('Error closing sidebar:', error)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return (
-    <>
-      <AppHeader fixed />
-      <Main>{content}</Main>
-    </>
-  )
-}
 
 function ModelHeader({ model }: { model: PricingModel }) {
   const { copyToClipboard } = useCopyToClipboard()
@@ -458,45 +430,65 @@ export function ModelDetails() {
     )
   }
 
-  const content = (
-    <div className='mx-auto max-w-4xl space-y-6 px-4 py-6'>
-      <div className='flex items-center gap-4'>
-        <Button variant='ghost' size='sm' onClick={handleBack}>
-          <ArrowLeft className='mr-2 h-4 w-4' />
-          Back
-        </Button>
-      </div>
+  return (
+    <div className='min-h-screen'>
+      <header className='bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur'>
+        <div className='container flex h-14 items-center justify-between'>
+          <Link to='/' className='flex items-center space-x-2'>
+            <Code className='h-6 w-6' />
+            <span className='text-xl font-bold'>New API</span>
+          </Link>
+          <div className='flex items-center space-x-4'>
+            <ThemeSwitch />
+            {isAuthenticated ? (
+              <Button variant='ghost' asChild>
+                <Link to='/dashboard'>控制台</Link>
+              </Button>
+            ) : (
+              <>
+                <Button variant='ghost' asChild>
+                  <Link to='/sign-in'>登录</Link>
+                </Button>
+                <Button asChild>
+                  <Link to='/sign-up'>注册</Link>
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
 
-      <ModelHeader model={model} />
+      <main className='container px-4 py-6 md:px-4'>
+        <div className='mx-auto max-w-4xl space-y-6'>
+          <div className='flex items-center gap-4'>
+            <Button variant='ghost' size='sm' onClick={handleBack}>
+              <ArrowLeft className='mr-2 h-4 w-4' />
+              Back
+            </Button>
+          </div>
 
-      <BasicInfoSection model={model} />
+          <ModelHeader model={model} />
 
-      <EndpointsSection
-        model={model}
-        endpointMap={(endpointMap as any) || {}}
-      />
+          <BasicInfoSection model={model} />
 
-      <GroupPricingSection
-        model={model}
-        groupRatio={groupRatio || {}}
-        usableGroup={usableGroup || {}}
-        autoGroups={autoGroups || []}
-        currency={currency}
-        tokenUnit={tokenUnit}
-        showWithRecharge={showWithRecharge}
-        priceRate={priceRate}
-        usdExchangeRate={usdExchangeRate}
-      />
+          <EndpointsSection
+            model={model}
+            endpointMap={(endpointMap as any) || {}}
+          />
+
+          <GroupPricingSection
+            model={model}
+            groupRatio={groupRatio || {}}
+            usableGroup={usableGroup || {}}
+            autoGroups={autoGroups || []}
+            currency={currency}
+            tokenUnit={tokenUnit}
+            showWithRecharge={showWithRecharge}
+            priceRate={priceRate}
+            usdExchangeRate={usdExchangeRate}
+          />
+        </div>
+      </main>
     </div>
   )
-
-  if (isAuthenticated) {
-    return (
-      <AuthenticatedLayout>
-        <ModelDetailsAuthenticatedContent content={content} />
-      </AuthenticatedLayout>
-    )
-  }
-
-  return <div className='min-h-screen'>{content}</div>
 }
