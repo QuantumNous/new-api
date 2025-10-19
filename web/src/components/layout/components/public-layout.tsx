@@ -1,65 +1,101 @@
-import { Link } from '@tanstack/react-router'
-import { Code } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
-import { Button } from '@/components/ui/button'
-import { ThemeSwitch } from '@/components/theme-switch'
+import type { TopNavLink } from '../types'
+import { PublicHeader, type PublicHeaderProps } from './public-header'
+import { PublicNavigation } from './public-navigation'
 
 type PublicLayoutProps = {
   children: React.ReactNode
   /**
-   * 是否显示 main 容器
+   * Whether to show main container wrapper
    * @default true
    */
   showMainContainer?: boolean
   /**
-   * 自定义导航内容（在 Logo 之后显示）
+   * Custom navigation content (displayed after logo)
    */
   navContent?: React.ReactNode
+  /**
+   * Header configuration - all props from PublicHeader
+   */
+  headerProps?: Omit<PublicHeaderProps, 'navContent'>
+  /**
+   * Custom navigation links - if not provided, will use dynamic links from backend or defaults
+   */
+  navLinks?: TopNavLink[]
+  /**
+   * Show theme switcher in header
+   * @default true
+   */
+  showThemeSwitch?: boolean
+  /**
+   * Show auth buttons in header
+   * @default true
+   */
+  showAuthButtons?: boolean
+  /**
+   * Custom logo component
+   */
+  logo?: React.ReactNode
+  /**
+   * Site name
+   */
+  siteName?: string
 }
 
 /**
- * 公共页面布局组件
- * 用于非 console 页面（如 pricing、about、home 等）
- * 提供统一的 header 和布局结构
+ * Public page layout component
+ * Used for non-console pages (pricing, about, home, etc.)
+ * Provides unified header and layout structure
+ *
+ * @example
+ * // Basic usage
+ * <PublicLayout>
+ *   <HomePage />
+ * </PublicLayout>
+ *
+ * @example
+ * // Custom navigation
+ * <PublicLayout
+ *   navLinks={[
+ *     { title: 'Features', href: '/features' },
+ *     { title: 'Pricing', href: '/pricing' },
+ *     { title: 'Blog', href: '/blog', external: true }
+ *   ]}
+ * >
+ *   <Content />
+ * </PublicLayout>
+ *
+ * @example
+ * // Without main container
+ * <PublicLayout showMainContainer={false}>
+ *   <HeroSection />
+ *   <Features />
+ * </PublicLayout>
  */
 export function PublicLayout({
   children,
   showMainContainer = true,
   navContent,
+  headerProps,
+  navLinks,
+  showThemeSwitch = true,
+  showAuthButtons = true,
+  logo,
+  siteName,
 }: PublicLayoutProps) {
-  const { auth } = useAuthStore()
-  const isAuthenticated = !!auth.user
+  // Use PublicNavigation as default if no navContent provided
+  const navigationContent = navContent || <PublicNavigation links={navLinks} />
 
   return (
     <div className='min-h-screen'>
-      <header className='bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur'>
-        <div className='container flex h-14 items-center justify-between'>
-          <div className='flex items-center space-x-8'>
-            <Link to='/' className='flex items-center space-x-2'>
-              <Code className='h-6 w-6' />
-              <span className='text-xl font-bold'>New API</span>
-            </Link>
-            {navContent}
-          </div>
-          <div className='flex items-center space-x-4'>
-            <ThemeSwitch />
-            {isAuthenticated ? (
-              <Button variant='ghost' asChild>
-                <Link to='/dashboard'>控制台</Link>
-              </Button>
-            ) : (
-              <>
-                <Button variant='ghost' asChild>
-                  <Link to='/sign-in'>登录</Link>
-                </Button>
-                <Button asChild>
-                  <Link to='/sign-up'>注册</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <PublicHeader
+        navContent={navigationContent}
+        navLinks={navLinks}
+        showThemeSwitch={showThemeSwitch}
+        showAuthButtons={showAuthButtons}
+        logo={logo}
+        siteName={siteName}
+        {...headerProps}
+      />
 
       {showMainContainer ? (
         <main className='container px-4 py-6 md:px-4'>{children}</main>

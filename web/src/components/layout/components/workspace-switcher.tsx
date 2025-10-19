@@ -4,6 +4,7 @@ import { ChevronsUpDown } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +22,7 @@ import { useWorkspace } from '../context/workspace-context'
 import { type Workspace } from '../types'
 import { getWorkspaceByPath } from '../utils/workspace-registry'
 
-type TeamSwitcherProps = {
+type WorkspaceSwitcherProps = {
   workspaces: Workspace[]
   defaultName?: string
   defaultVersion?: string
@@ -33,15 +34,16 @@ type TeamSwitcherProps = {
  * - 普通用户只能看到默认工作区
  * - 超级管理员可以看到系统设置工作区
  */
-export function TeamSwitcher({
+export function WorkspaceSwitcher({
   workspaces,
-  defaultName = 'AI Gateway',
+  defaultName = 'New API',
   defaultVersion = 'Unknown version',
-}: TeamSwitcherProps) {
+}: WorkspaceSwitcherProps) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const { isMobile } = useSidebar()
   const { status } = useStatus()
+  const { logo } = useSystemConfig()
   const isSuperAdmin = useAuthStore(
     (state) => state.auth.user?.role === ROLE.SUPER_ADMIN
   )
@@ -121,9 +123,19 @@ export function TeamSwitcher({
               size='lg'
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
-              <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
-                <activeWorkspace.logo className='size-4' />
-              </div>
+              {activeWorkspace.name === 'System Settings' ? (
+                <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
+                  <activeWorkspace.logo className='size-4' />
+                </div>
+              ) : (
+                <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
+                  <img
+                    src={logo}
+                    alt='Logo'
+                    className='size-full rounded-lg object-cover'
+                  />
+                </div>
+              )}
               <div className='grid flex-1 text-start text-sm leading-tight'>
                 <span className='truncate font-semibold'>
                   {activeWorkspace.name}
@@ -142,15 +154,25 @@ export function TeamSwitcher({
             <DropdownMenuLabel className='text-muted-foreground text-xs'>
               Workspaces
             </DropdownMenuLabel>
-            {availableWorkspaces.map((workspace) => (
+            {availableWorkspaces.map((workspace, index) => (
               <DropdownMenuItem
                 key={workspace.name}
                 onClick={() => handleWorkspaceChange(workspace)}
                 className='gap-2 p-2'
               >
-                <div className='flex size-6 items-center justify-center rounded-sm border'>
-                  <workspace.logo className='size-4 shrink-0' />
-                </div>
+                {index === 0 ? (
+                  <div className='flex size-6 items-center justify-center overflow-hidden rounded-sm border'>
+                    <img
+                      src={logo}
+                      alt='Logo'
+                      className='size-full object-cover'
+                    />
+                  </div>
+                ) : (
+                  <div className='flex size-6 items-center justify-center rounded-sm border'>
+                    <workspace.logo className='size-4 shrink-0' />
+                  </div>
+                )}
                 {workspace.name}
               </DropdownMenuItem>
             ))}

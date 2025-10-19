@@ -9,7 +9,7 @@ import {
 import { sidebarConfig } from '../config/sidebar.config'
 import { getNavGroupsForPath } from '../utils/workspace-registry'
 import { NavGroup } from './nav-group'
-import { TeamSwitcher } from './team-switcher'
+import { WorkspaceSwitcher } from './workspace-switcher'
 
 /**
  * 应用侧边栏组件
@@ -28,7 +28,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
-        <TeamSwitcher workspaces={sidebarConfig.workspaces} />
+        <WorkspaceSwitcher workspaces={sidebarConfig.workspaces} />
       </SidebarHeader>
       <SidebarContent>
         {currentNavGroups.map((props) => (

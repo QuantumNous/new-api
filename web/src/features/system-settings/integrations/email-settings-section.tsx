@@ -208,7 +208,7 @@ export function EmailSettingsSection({
                 <FormLabel>From Address</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder='AI Gateway &lt;noreply@example.com&gt;'
+                    placeholder='New API &lt;noreply@example.com&gt;'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />

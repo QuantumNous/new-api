@@ -4,12 +4,16 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
+import { useLoadSystemConfig } from '@/hooks/use-load-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 
 function RootComponent() {
+  // Load system configuration (logo, system name, etc.) from backend
+  useLoadSystemConfig()
+
   return (
     <>
       <NavigationProgress />
