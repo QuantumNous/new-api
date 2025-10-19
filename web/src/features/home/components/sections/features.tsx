@@ -1,75 +1,27 @@
-import {
-  Zap,
-  Shield,
-  Globe,
-  Code,
-  Gauge,
-  DollarSign,
-  Users,
-  HeartHandshake,
-} from 'lucide-react'
 import { Section } from '@/components/layout/components/section'
+import { DEFAULT_FEATURES } from '../../constants'
+import { getFeatureIcon } from '../../lib/icon-mapper'
 
 interface FeatureProps {
-  title: string
-  description: string
-  icon: React.ReactNode
+  readonly title: string
+  readonly description: string
+  readonly icon: React.ReactNode
 }
 
 interface FeaturesProps {
   title?: string
   subtitle?: string
-  items?: FeatureProps[]
+  items?: readonly FeatureProps[]
   className?: string
 }
 
 export function Features({
   title = 'Core Features',
   subtitle = 'Comprehensive API management solutions for developers and enterprises',
-  items = [
-    {
-      title: 'Lightning Fast',
-      description:
-        'Optimized network architecture ensures millisecond response times',
-      icon: <Zap className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'Secure & Reliable',
-      description:
-        'Enterprise-grade security with comprehensive permission management',
-      icon: <Shield className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'Global Coverage',
-      description: 'Multi-region deployment for stable global access',
-      icon: <Globe className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'Developer Friendly',
-      description: 'Complete API documentation with multi-language SDK support',
-      icon: <Code className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'High Performance',
-      description: 'Support for high concurrency with automatic load balancing',
-      icon: <Gauge className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'Transparent Billing',
-      description: 'Pay-as-you-go with real-time usage monitoring',
-      icon: <DollarSign className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'Team Collaboration',
-      description: 'Multi-user management with flexible permission allocation',
-      icon: <Users className='h-5 w-5 stroke-1' />,
-    },
-    {
-      title: 'Technical Support',
-      description: 'Professional team providing 24/7 technical support',
-      icon: <HeartHandshake className='h-5 w-5 stroke-1' />,
-    },
-  ],
+  items = DEFAULT_FEATURES.map((feature) => ({
+    ...feature,
+    icon: getFeatureIcon(feature.iconName, 'h-5 w-5 stroke-1'),
+  })),
   className,
 }: FeaturesProps) {
   return (

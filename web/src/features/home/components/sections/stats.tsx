@@ -1,43 +1,20 @@
 import { cn } from '@/lib/utils'
 import { Section } from '@/components/layout/components/section'
+import { DEFAULT_STATS } from '../../constants'
 
 interface StatItemProps {
-  label?: string
-  value: string | number
-  suffix?: string
-  description?: string
+  readonly label?: string
+  readonly value: string | number
+  readonly suffix?: string
+  readonly description?: string
 }
 
 interface StatsProps {
-  items?: StatItemProps[]
+  items?: readonly StatItemProps[]
   className?: string
 }
 
-export function Stats({
-  items = [
-    {
-      value: '100',
-      suffix: 'M+',
-      description: 'requests served',
-    },
-    {
-      value: '50',
-      suffix: '+',
-      description: 'AI models supported',
-    },
-    {
-      value: '99.9',
-      suffix: '%',
-      description: 'uptime',
-    },
-    {
-      value: '10',
-      suffix: 'K+',
-      description: 'active users',
-    },
-  ],
-  className,
-}: StatsProps) {
+export function Stats({ items = DEFAULT_STATS, className }: StatsProps) {
   return (
     <Section className={cn('bg-muted/50', className)}>
       <div className='container mx-auto max-w-[1200px]'>

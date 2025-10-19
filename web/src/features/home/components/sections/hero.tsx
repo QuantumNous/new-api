@@ -1,6 +1,5 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Github } from 'lucide-react'
-import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Glow } from '@/components/layout/components/glow'
 import { Mockup, MockupFrame } from '@/components/layout/components/mockup'
 import { Section } from '@/components/layout/components/section'
+import { AI_APPLICATIONS, AI_MODELS, GATEWAY_FEATURES } from '../../constants'
+import { IconCard } from '../icon-card'
 
 interface HeroProps {
   title?: string
@@ -105,39 +106,16 @@ export function Hero({
                       <div className='scroll-container hidden h-[360px] overflow-hidden lg:block'>
                         <div className='animate-scroll-up flex flex-col gap-5'>
                           {/* First set */}
-                          {[
-                            'LobeHub.Color',
-                            'Dify.Color',
-                            'OpenWebUI',
-                            'Cline',
-                          ].map((iconName, i) => (
-                            <div
-                              key={`app-1-${i}`}
-                              className='glass-morphism group/app border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
-                            >
-                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/app:opacity-100' />
-                              <div className='relative flex items-center justify-center'>
-                                {getLobeIcon(iconName, 32)}
-                              </div>
-                            </div>
+                          {AI_APPLICATIONS.map((iconName, i) => (
+                            <IconCard key={`app-1-${i}`} iconName={iconName} />
                           ))}
                           {/* Duplicate set for seamless loop */}
-                          {[
-                            'LobeHub.Color',
-                            'Dify.Color',
-                            'OpenWebUI',
-                            'Cline',
-                          ].map((iconName, i) => (
-                            <div
+                          {AI_APPLICATIONS.map((iconName, i) => (
+                            <IconCard
                               key={`app-2-${i}`}
-                              className='glass-morphism group/app border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
-                              aria-hidden='true'
-                            >
-                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/app:opacity-100' />
-                              <div className='relative flex items-center justify-center'>
-                                {getLobeIcon(iconName, 32)}
-                              </div>
-                            </div>
+                              iconName={iconName}
+                              className='aria-hidden'
+                            />
                           ))}
                         </div>
                       </div>
@@ -170,18 +148,7 @@ export function Hero({
 
                           {/* Features Grid with glass morphism */}
                           <div className='grid grid-cols-2 gap-3'>
-                            {[
-                              'Cost Tracking',
-                              'Model Access',
-                              'Guardrails',
-                              'Observability',
-                              'Budgets',
-                              'Load Balancing',
-                              'Rate Limiting',
-                              'Token Mgmt',
-                              'Prompt Caching',
-                              'Pass-Through',
-                            ].map((feature, i) => (
+                            {GATEWAY_FEATURES.map((feature, i) => (
                               <div
                                 key={i}
                                 className='glass-morphism group/item border-border/40 dark:border-border/20 relative overflow-hidden rounded-xl border px-4 py-3.5 text-center shadow-sm transition-all duration-300 hover:scale-[1.02] hover:border-amber-500/40 hover:shadow-md'
@@ -201,47 +168,23 @@ export function Hero({
                         <div className='h-[2px] w-24 bg-gradient-to-r from-amber-500/20 to-amber-500/60' />
                       </div>
 
-                      {/* AI Models - Right with enhanced styling */}
+                      {/* AI Models - Right */}
                       <div className='scroll-container hidden h-[360px] overflow-hidden lg:block'>
                         <div className='animate-scroll-down flex flex-col gap-5'>
                           {/* First set */}
-                          {[
-                            'Qwen.Color',
-                            'DeepSeek.Color',
-                            'Doubao.Color',
-                            'OpenAI',
-                            'Claude.Color',
-                            'Gemini.Color',
-                          ].map((iconName, i) => (
-                            <div
+                          {AI_MODELS.map((iconName, i) => (
+                            <IconCard
                               key={`model-1-${i}`}
-                              className='glass-morphism group/model border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
-                            >
-                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/model:opacity-100' />
-                              <div className='relative flex items-center justify-center'>
-                                {getLobeIcon(iconName, 32)}
-                              </div>
-                            </div>
+                              iconName={iconName}
+                            />
                           ))}
                           {/* Duplicate set for seamless loop */}
-                          {[
-                            'Qwen.Color',
-                            'DeepSeek.Color',
-                            'Doubao.Color',
-                            'OpenAI',
-                            'Claude.Color',
-                            'Gemini.Color',
-                          ].map((iconName, i) => (
-                            <div
+                          {AI_MODELS.map((iconName, i) => (
+                            <IconCard
                               key={`model-2-${i}`}
-                              className='glass-morphism group/model border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
-                              aria-hidden='true'
-                            >
-                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/model:opacity-100' />
-                              <div className='relative flex items-center justify-center'>
-                                {getLobeIcon(iconName, 32)}
-                              </div>
-                            </div>
+                              iconName={iconName}
+                              className='aria-hidden'
+                            />
                           ))}
                         </div>
                       </div>

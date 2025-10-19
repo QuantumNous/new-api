@@ -1,0 +1,5 @@
+export { IconCard } from './icon-card'
+export { CTA } from './sections/cta'
+export { Features } from './sections/features'
+export { Hero } from './sections/hero'
+export { Stats } from './sections/stats'
