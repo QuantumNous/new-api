@@ -119,6 +119,9 @@ var BatchUpdateInterval = GetEnvOrDefault("BATCH_UPDATE_INTERVAL", 5)
 
 var RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0) // unit is second
 
+// 429状态码返回延迟时间配置（秒）
+var RateLimitResponseDelay = GetEnvOrDefault("RATE_LIMIT_RESPONSE_DELAY", 0) // unit is second
+
 var GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")
 
 // https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT

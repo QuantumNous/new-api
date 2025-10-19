@@ -284,6 +284,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		responseBody, _ := io.ReadAll(resp.Body)
 		onecommon.LogError(ctx, fmt.Sprintf("error response body: %s", string(responseBody)))
 		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+
+		// 处理429状态码，根据环境变量配置延迟返回
+		if resp.StatusCode == http.StatusTooManyRequests && onecommon.RateLimitResponseDelay > 0 {
+			onecommon.LogInfo(ctx, fmt.Sprintf("received 429 status code, delaying response by %d seconds", onecommon.RateLimitResponseDelay))
+			time.Sleep(time.Duration(onecommon.RateLimitResponseDelay) * time.Second)
+		}
 	}
 
 	_ = req.Body.Close()
