@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { User, Wallet, LogOut } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
-import { getRoleLabel } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog-state'
+import { useUserDisplay } from '@/hooks/use-user-display'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,27 +21,8 @@ import { SignOutDialog } from '@/components/sign-out-dialog'
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((state) => state.auth.user)
-
-  const displayName = user?.display_name || user?.username || 'User'
-  const secondaryText = (() => {
-    if (user?.email) return user.email
-    if (user?.github_id) return `GitHub ID: ${user.github_id}`
-    if (user?.oidc_id) return `OIDC ID: ${user.oidc_id}`
-    if (user?.wechat_id) return `WeChat ID: ${user.wechat_id}`
-    if (user?.telegram_id) return `Telegram ID: ${user.telegram_id}`
-    if (user?.linux_do_id) return `LinuxDO ID: ${user.linux_do_id}`
-    if (user?.username) return user.username
-    if (user?.display_name) return user.display_name
-    return ''
-  })()
-  const initials = displayName
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-
-  const roleLabel = getRoleLabel(user?.role)
+  const { displayName, secondaryText, initials, roleLabel } =
+    useUserDisplay(user)
 
   return (
     <>

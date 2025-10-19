@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-interface AuthUser {
+export interface AuthUser {
   id: number
   username: string
   display_name?: string

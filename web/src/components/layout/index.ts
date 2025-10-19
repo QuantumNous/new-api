@@ -16,6 +16,7 @@ export { Main } from './components/main'
 export { NavGroup } from './components/nav-group'
 export { WorkspaceSwitcher } from './components/workspace-switcher'
 export { TopNav } from './components/top-nav'
+export { MobileDrawer } from './components/mobile-drawer'
 
 // 上下文
 export { WorkspaceProvider, useWorkspace } from './context/workspace-context'
@@ -24,6 +25,9 @@ export { WorkspaceProvider, useWorkspace } from './context/workspace-context'
 export { sidebarConfig } from './config/sidebar.config'
 export { systemSettingsConfig } from './config/system-settings.config'
 export { defaultTopNavLinks } from './config/top-nav.config'
+
+// 常量
+export { MOBILE_DRAWER_ANIMATION, MOBILE_DRAWER_CONFIG } from './constants'
 
 // 工具函数 - 工作区注册表
 export {
