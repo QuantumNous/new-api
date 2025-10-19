@@ -15,7 +15,6 @@ export type TopNavLink = {
  * {
  *   home: true,
  *   console: true,
- *   models: { enabled: true, requireAuth: false },
  *   pricing: { enabled: true, requireAuth: false },
  *   docs: true,
  *   about: true
@@ -32,22 +31,13 @@ export function useTopNavLinks(): TopNavLink[] {
       return null as null | {
         home?: boolean
         console?: boolean
-        models?: boolean | { enabled: boolean; requireAuth?: boolean }
-        pricing?: boolean | { enabled: boolean; requireAuth?: boolean }
+        pricing?: { enabled: boolean; requireAuth: boolean }
         docs?: boolean
         about?: boolean
       }
     }
     try {
-      const parsed = JSON.parse(raw)
-      // 向后兼容：models 和 pricing 可能是 boolean
-      if (typeof parsed?.models === 'boolean') {
-        parsed.models = { enabled: parsed.models, requireAuth: false }
-      }
-      if (typeof parsed?.pricing === 'boolean') {
-        parsed.pricing = { enabled: parsed.pricing, requireAuth: false }
-      }
-      return parsed
+      return JSON.parse(raw)
     } catch {
       return null
     }
@@ -70,25 +60,10 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: 'Console', href: '/dashboard' })
   }
 
-  // Models
-  const models = modules?.models
-  const modelsEnabled =
-    typeof models === 'object' ? !!models.enabled : models !== false
-  const modelsRequireAuth =
-    typeof models === 'object' ? !!models.requireAuth : false
-  if (modelsEnabled) {
-    const disabled = modelsRequireAuth && !isAuthed
-    links.push({ title: 'Models', href: '/models', disabled })
-  }
-
   // Pricing
   const pricing = modules?.pricing
-  const pricingEnabled =
-    typeof pricing === 'object' ? !!pricing.enabled : pricing !== false
-  const pricingRequireAuth =
-    typeof pricing === 'object' ? !!pricing.requireAuth : false
-  if (pricingEnabled) {
-    const disabled = pricingRequireAuth && !isAuthed
+  if (pricing && typeof pricing === 'object' && pricing.enabled) {
+    const disabled = pricing.requireAuth && !isAuthed
     links.push({ title: 'Pricing', href: '/pricing', disabled })
   }
 
