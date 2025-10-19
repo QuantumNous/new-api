@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router'
+import { useParams, useSearch, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Copy, Link2, DollarSign } from 'lucide-react'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
