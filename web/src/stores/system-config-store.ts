@@ -6,6 +6,7 @@ export interface SystemConfig {
   systemName: string
   logo: string
   footerHtml?: string
+  demoSiteEnabled?: boolean
 }
 
 interface SystemConfigState {

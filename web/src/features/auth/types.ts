@@ -89,6 +89,7 @@ export interface SystemStatus {
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
     quota_per_unit?: number
+    demo_site_enabled?: boolean
   }
   // Allow direct access to common properties
   version?: string
@@ -109,6 +110,7 @@ export interface SystemStatus {
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean
   quota_per_unit?: number
+  demo_site_enabled?: boolean
 }
 
 // ============================================================================

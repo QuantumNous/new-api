@@ -16,6 +16,7 @@ interface StatusApiResponse {
     system_name?: string
     logo?: string
     footer_html?: string
+    demo_site_enabled?: boolean
   }
 }
 
@@ -31,6 +32,7 @@ async function fetchSystemConfig(): Promise<SystemConfig> {
     systemName: data.data.system_name || DEFAULT_SYSTEM_NAME,
     logo: data.data.logo || DEFAULT_LOGO,
     footerHtml: data.data.footer_html,
+    demoSiteEnabled: data.data.demo_site_enabled,
   }
 }
 

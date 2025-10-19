@@ -2,7 +2,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { PublicLayout } from '@/components/layout'
 import { CTA } from '@/features/home/components/sections/cta'
 import { Features } from '@/features/home/components/sections/features'
-import { Footer } from '@/features/home/components/sections/footer'
+import { Footer } from '@/components/layout/components/footer'
 import { Hero } from '@/features/home/components/sections/hero'
 import { Stats } from '@/features/home/components/sections/stats'
 
