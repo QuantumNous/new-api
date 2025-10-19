@@ -20,7 +20,6 @@ import { Route as errors404RouteImport } from './routes/(errors)/404'
 import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors401RouteImport } from './routes/(errors)/401'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
-import { Route as authSignIn2RouteImport } from './routes/(auth)/sign-in-2'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as authResetRouteImport } from './routes/(auth)/reset'
 import { Route as authOtpRouteImport } from './routes/(auth)/otp'
@@ -104,11 +103,6 @@ const errors401Route = errors401RouteImport.update({
 const authSignUpRoute = authSignUpRouteImport.update({
   id: '/sign-up',
   path: '/sign-up',
-  getParentRoute: () => authRouteRoute,
-} as any)
-const authSignIn2Route = authSignIn2RouteImport.update({
-  id: '/sign-in-2',
-  path: '/sign-in-2',
   getParentRoute: () => authRouteRoute,
 } as any)
 const authSignInRoute = authSignInRouteImport.update({
@@ -298,7 +292,6 @@ export interface FileRoutesByFullPath {
   '/otp': typeof authOtpRoute
   '/reset': typeof authResetRoute
   '/sign-in': typeof authSignInRoute
-  '/sign-in-2': typeof authSignIn2Route
   '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
   '/403': typeof errors403Route
@@ -339,7 +332,6 @@ export interface FileRoutesByTo {
   '/otp': typeof authOtpRoute
   '/reset': typeof authResetRoute
   '/sign-in': typeof authSignInRoute
-  '/sign-in-2': typeof authSignIn2Route
   '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
   '/403': typeof errors403Route
@@ -385,7 +377,6 @@ export interface FileRoutesById {
   '/(auth)/otp': typeof authOtpRoute
   '/(auth)/reset': typeof authResetRoute
   '/(auth)/sign-in': typeof authSignInRoute
-  '/(auth)/sign-in-2': typeof authSignIn2Route
   '/(auth)/sign-up': typeof authSignUpRoute
   '/(errors)/401': typeof errors401Route
   '/(errors)/403': typeof errors403Route
@@ -430,7 +421,6 @@ export interface FileRouteTypes {
     | '/otp'
     | '/reset'
     | '/sign-in'
-    | '/sign-in-2'
     | '/sign-up'
     | '/401'
     | '/403'
@@ -471,7 +461,6 @@ export interface FileRouteTypes {
     | '/otp'
     | '/reset'
     | '/sign-in'
-    | '/sign-in-2'
     | '/sign-up'
     | '/401'
     | '/403'
@@ -516,7 +505,6 @@ export interface FileRouteTypes {
     | '/(auth)/otp'
     | '/(auth)/reset'
     | '/(auth)/sign-in'
-    | '/(auth)/sign-in-2'
     | '/(auth)/sign-up'
     | '/(errors)/401'
     | '/(errors)/403'
@@ -642,13 +630,6 @@ declare module '@tanstack/react-router' {
       path: '/sign-up'
       fullPath: '/sign-up'
       preLoaderRoute: typeof authSignUpRouteImport
-      parentRoute: typeof authRouteRoute
-    }
-    '/(auth)/sign-in-2': {
-      id: '/(auth)/sign-in-2'
-      path: '/sign-in-2'
-      fullPath: '/sign-in-2'
-      preLoaderRoute: typeof authSignIn2RouteImport
       parentRoute: typeof authRouteRoute
     }
     '/(auth)/sign-in': {
@@ -877,7 +858,6 @@ interface authRouteRouteChildren {
   authOtpRoute: typeof authOtpRoute
   authResetRoute: typeof authResetRoute
   authSignInRoute: typeof authSignInRoute
-  authSignIn2Route: typeof authSignIn2Route
   authSignUpRoute: typeof authSignUpRoute
 }
 
@@ -887,7 +867,6 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authOtpRoute: authOtpRoute,
   authResetRoute: authResetRoute,
   authSignInRoute: authSignInRoute,
-  authSignIn2Route: authSignIn2Route,
   authSignUpRoute: authSignUpRoute,
 }
 
