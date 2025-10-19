@@ -13,6 +13,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
+import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
@@ -69,6 +70,11 @@ const IndexRoute = IndexRouteImport.update({
 const PricingIndexRoute = PricingIndexRouteImport.update({
   id: '/pricing/',
   path: '/pricing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutIndexRoute = AboutIndexRouteImport.update({
+  id: '/about/',
+  path: '/about/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthProviderRoute = OauthProviderRouteImport.update({
@@ -306,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
+  '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
@@ -347,6 +354,7 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
+  '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
@@ -393,6 +401,7 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
+  '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
@@ -438,6 +447,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/oauth/$provider'
+    | '/about'
     | '/pricing'
     | '/errors/$error'
     | '/settings/account'
@@ -479,6 +489,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/oauth/$provider'
+    | '/about'
     | '/pricing'
     | '/errors/$error'
     | '/settings/account'
@@ -524,6 +535,7 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/oauth/$provider'
+    | '/about/'
     | '/pricing/'
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/account'
@@ -561,6 +573,7 @@ export interface RootRouteChildren {
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
   OauthProviderRoute: typeof OauthProviderRoute
+  AboutIndexRoute: typeof AboutIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
 }
@@ -593,6 +606,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about/': {
+      id: '/about/'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/$provider': {
@@ -998,6 +1018,7 @@ const rootRouteChildren: RootRouteChildren = {
   errors500Route: errors500Route,
   errors503Route: errors503Route,
   OauthProviderRoute: OauthProviderRoute,
+  AboutIndexRoute: AboutIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
 }
