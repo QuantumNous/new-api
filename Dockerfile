@@ -1,12 +1,21 @@
-FROM oven/bun:latest AS builder
+FROM node:alpine AS builder
 
 WORKDIR /build
-COPY web/package.json .
-COPY web/bun.lock .
-RUN bun install
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy package files
+COPY web/package.json web/pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
 COPY ./web .
-COPY ./VERSION .
-RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) bun run build
+
+# Build the frontend
+RUN pnpm run build
 
 FROM golang:alpine AS builder2
 
