@@ -14,16 +14,20 @@ export function useHomePageContent(): HomePageContentResult {
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
+    let mounted = true
+
     const loadContent = async () => {
       // Load from localStorage first for immediate display
       const cached = localStorage.getItem(STORAGE_KEY)
-      if (cached) {
+      if (cached && mounted) {
         setContent(cached)
       }
 
       try {
         const response = await getHomePageContent()
         const { success, data } = response
+
+        if (!mounted) return
 
         if (success && data) {
           setContent(data)
@@ -34,14 +38,21 @@ export function useHomePageContent(): HomePageContentResult {
           localStorage.removeItem(STORAGE_KEY)
         }
       } catch (error) {
+        if (!mounted) return
         console.error('Failed to load home page content:', error)
         toast.error('Failed to load home page content')
       } finally {
-        setIsLoaded(true)
+        if (mounted) {
+          setIsLoaded(true)
+        }
       }
     }
 
     loadContent()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const isUrl = content.startsWith('https://')

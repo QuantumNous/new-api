@@ -2,11 +2,9 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
-import { CTA } from './components/sections/cta'
-import { Features } from './components/sections/features'
-import { Hero } from './components/sections/hero'
-import { Stats } from './components/sections/stats'
-import { useHomePageContent } from './hooks/use-home-page-content'
+import { CTA, Features, Hero, Stats } from './components'
+import { MAIN_BASE_CLASSES } from './constants'
+import { useHomePageContent } from './hooks'
 
 export function Home() {
   const { auth } = useAuthStore()
@@ -17,7 +15,9 @@ export function Home() {
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>
-        <main className='bg-background text-foreground flex min-h-screen w-full items-center justify-center'>
+        <main
+          className={`${MAIN_BASE_CLASSES} flex min-h-screen items-center justify-center`}
+        >
           <div className='text-muted-foreground'>Loading...</div>
         </main>
       </PublicLayout>
@@ -28,7 +28,7 @@ export function Home() {
   if (content) {
     return (
       <PublicLayout showMainContainer={false}>
-        <main className='bg-background text-foreground w-full overflow-x-hidden'>
+        <main className={`${MAIN_BASE_CLASSES} overflow-x-hidden`}>
           {isUrl ? (
             <iframe
               src={content}
@@ -48,7 +48,7 @@ export function Home() {
   // Default home page
   return (
     <PublicLayout showMainContainer={false}>
-      <main className='bg-background text-foreground min-h-screen w-full overflow-hidden'>
+      <main className={`${MAIN_BASE_CLASSES} min-h-screen overflow-hidden`}>
         <Hero isAuthenticated={isAuthenticated} />
         <Stats />
         <Features />

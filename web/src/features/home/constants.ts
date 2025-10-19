@@ -3,6 +3,9 @@
  * All hardcoded data for home page sections
  */
 
+// Layout - Main base classes
+export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
+
 // Hero section - AI Applications (Left side)
 export const AI_APPLICATIONS = [
   'LobeHub.Color',
