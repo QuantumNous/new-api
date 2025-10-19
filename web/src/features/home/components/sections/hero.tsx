@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Github } from 'lucide-react'
+import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Glow } from '@/components/layout/components/glow'
@@ -36,6 +38,7 @@ export function Hero({
   className,
   isAuthenticated = false,
 }: HeroProps) {
+  const { systemName, logo } = useSystemConfig()
   return (
     <Section className={cn('overflow-hidden pb-0 sm:pb-0 md:pb-0', className)}>
       <div className='max-w-container mx-auto flex flex-col gap-12 pt-16 sm:gap-24'>
@@ -96,29 +99,150 @@ export function Hero({
                 </>
               ) : (
                 <>
-                  <div className='animate-appear animation-delay-700 relative z-10 mx-auto max-w-6xl opacity-0'>
-                    <div className='bg-background/50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-sm'>
-                      <div className='bg-muted/30 border-b p-3'>
-                        <div className='flex gap-2'>
-                          <div className='h-3 w-3 rounded-full bg-red-500'></div>
-                          <div className='h-3 w-3 rounded-full bg-yellow-500'></div>
-                          <div className='h-3 w-3 rounded-full bg-green-500'></div>
+                  <div className='animate-appear animation-delay-700 relative z-10 mx-auto max-w-7xl opacity-0'>
+                    <div className='relative flex items-center justify-center gap-8 py-20 lg:gap-16'>
+                      {/* AI Applications - Left */}
+                      <div className='scroll-container hidden h-[360px] overflow-hidden lg:block'>
+                        <div className='animate-scroll-up flex flex-col gap-5'>
+                          {/* First set */}
+                          {[
+                            'LobeHub.Color',
+                            'Dify.Color',
+                            'OpenWebUI',
+                            'Cline',
+                          ].map((iconName, i) => (
+                            <div
+                              key={`app-1-${i}`}
+                              className='glass-morphism group/app border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
+                            >
+                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/app:opacity-100' />
+                              <div className='relative flex items-center justify-center'>
+                                {getLobeIcon(iconName, 32)}
+                              </div>
+                            </div>
+                          ))}
+                          {/* Duplicate set for seamless loop */}
+                          {[
+                            'LobeHub.Color',
+                            'Dify.Color',
+                            'OpenWebUI',
+                            'Cline',
+                          ].map((iconName, i) => (
+                            <div
+                              key={`app-2-${i}`}
+                              className='glass-morphism group/app border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
+                              aria-hidden='true'
+                            >
+                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/app:opacity-100' />
+                              <div className='relative flex items-center justify-center'>
+                                {getLobeIcon(iconName, 32)}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div className='p-6'>
-                        <div className='space-y-4'>
-                          <div className='bg-muted h-8 w-48 animate-pulse rounded'></div>
-                          <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
-                            {[1, 2, 3].map((i) => (
+
+                      {/* Simple Connection Line - Left */}
+                      <div className='hidden lg:block'>
+                        <div className='h-[2px] w-24 bg-gradient-to-r from-amber-500/60 to-amber-500/20' />
+                      </div>
+
+                      {/* Gateway Center Card - Enhanced */}
+                      <div className='glass-3 group border-border/50 dark:border-border/20 relative overflow-hidden rounded-[32px] border p-10 shadow-2xl transition-all duration-500 sm:p-12 dark:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)]'>
+                        {/* Top gradient border effect */}
+                        <hr className='absolute top-0 left-[10%] h-[2px] w-[80%] border-0 bg-gradient-to-r from-transparent via-amber-500/80 to-transparent' />
+
+                        {/* Ambient glow behind card */}
+                        <div className='absolute -top-32 left-1/2 h-64 w-[120%] -translate-x-1/2 rounded-full bg-radial from-amber-500/30 to-amber-500/0 blur-3xl transition-all duration-500 group-hover:opacity-100 dark:opacity-80' />
+
+                        <div className='relative'>
+                          {/* Gateway Header with enhanced styling */}
+                          <div className='mb-8 flex items-center justify-center gap-3'>
+                            <img
+                              src={logo}
+                              alt={systemName}
+                              className='h-12 w-12 rounded-lg object-cover'
+                            />
+                            <h3 className='from-foreground to-foreground/70 bg-gradient-to-r bg-clip-text text-2xl font-bold text-transparent'>
+                              {systemName}
+                            </h3>
+                          </div>
+
+                          {/* Features Grid with glass morphism */}
+                          <div className='grid grid-cols-2 gap-3'>
+                            {[
+                              'Cost Tracking',
+                              'Model Access',
+                              'Guardrails',
+                              'Observability',
+                              'Budgets',
+                              'Load Balancing',
+                              'Rate Limiting',
+                              'Token Mgmt',
+                              'Prompt Caching',
+                              'Pass-Through',
+                            ].map((feature, i) => (
                               <div
                                 key={i}
-                                className='space-y-2 rounded-lg border p-4'
+                                className='glass-morphism group/item border-border/40 dark:border-border/20 relative overflow-hidden rounded-xl border px-4 py-3.5 text-center shadow-sm transition-all duration-300 hover:scale-[1.02] hover:border-amber-500/40 hover:shadow-md'
                               >
-                                <div className='bg-muted h-6 w-24 animate-pulse rounded'></div>
-                                <div className='bg-muted/50 h-4 w-full animate-pulse rounded'></div>
+                                <div className='absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 transition-all duration-300 group-hover/item:from-amber-500/10' />
+                                <span className='text-foreground/90 group-hover/item:text-foreground relative text-sm font-medium'>
+                                  {feature}
+                                </span>
                               </div>
                             ))}
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Simple Connection Line - Right */}
+                      <div className='hidden lg:block'>
+                        <div className='h-[2px] w-24 bg-gradient-to-r from-amber-500/20 to-amber-500/60' />
+                      </div>
+
+                      {/* AI Models - Right with enhanced styling */}
+                      <div className='scroll-container hidden h-[360px] overflow-hidden lg:block'>
+                        <div className='animate-scroll-down flex flex-col gap-5'>
+                          {/* First set */}
+                          {[
+                            'Qwen.Color',
+                            'DeepSeek.Color',
+                            'Doubao.Color',
+                            'OpenAI',
+                            'Claude.Color',
+                            'Gemini.Color',
+                          ].map((iconName, i) => (
+                            <div
+                              key={`model-1-${i}`}
+                              className='glass-morphism group/model border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
+                            >
+                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/model:opacity-100' />
+                              <div className='relative flex items-center justify-center'>
+                                {getLobeIcon(iconName, 32)}
+                              </div>
+                            </div>
+                          ))}
+                          {/* Duplicate set for seamless loop */}
+                          {[
+                            'Qwen.Color',
+                            'DeepSeek.Color',
+                            'Doubao.Color',
+                            'OpenAI',
+                            'Claude.Color',
+                            'Gemini.Color',
+                          ].map((iconName, i) => (
+                            <div
+                              key={`model-2-${i}`}
+                              className='glass-morphism group/model border-border/50 dark:border-border/20 relative overflow-hidden rounded-2xl border p-5 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl'
+                              aria-hidden='true'
+                            >
+                              <div className='absolute -top-8 left-1/2 h-16 w-32 -translate-x-1/2 rounded-full bg-radial from-amber-500/10 to-amber-500/0 opacity-0 blur-xl transition-opacity duration-500 group-hover/model:opacity-100' />
+                              <div className='relative flex items-center justify-center'>
+                                {getLobeIcon(iconName, 32)}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>

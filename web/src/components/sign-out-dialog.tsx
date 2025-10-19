@@ -1,4 +1,3 @@
-import { useNavigate, useLocation } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -10,8 +9,6 @@ interface SignOutDialogProps {
 }
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
-  const navigate = useNavigate()
-  const location = useLocation()
   const { auth } = useAuthStore()
 
   const handleSignOut = async () => {
@@ -24,13 +21,11 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
         window.localStorage.removeItem('uid')
       }
     } catch {}
-    const currentPath = location.href
-    navigate({
-      to: '/sign-in',
-      search: { redirect: currentPath },
-      replace: true,
-    })
     toast.success('Signed out')
+    // Refresh the page to clear all state and update UI
+    if (typeof window !== 'undefined') {
+      window.location.reload()
+    }
   }
 
   return (

@@ -16,58 +16,49 @@ interface StatsProps {
 export function Stats({
   items = [
     {
-      label: 'Served',
-      value: '10',
-      suffix: 'K+',
-      description: 'developers and enterprise users',
-    },
-    {
-      label: 'Processed',
       value: '100',
       suffix: 'M+',
-      description: 'total API calls',
+      description: 'requests served',
     },
     {
-      label: 'Supported',
       value: '50',
       suffix: '+',
-      description: 'mainstream AI models',
+      description: 'AI models supported',
     },
     {
-      label: 'Average response',
-      value: '50',
-      suffix: 'ms',
-      description: 'ultra-low latency',
+      value: '99.9',
+      suffix: '%',
+      description: 'uptime',
+    },
+    {
+      value: '10',
+      suffix: 'K+',
+      description: 'active users',
     },
   ],
   className,
 }: StatsProps) {
   return (
     <Section className={cn('bg-muted/50', className)}>
-      <div className='container mx-auto max-w-[960px]'>
-        <div className='grid grid-cols-2 gap-12 sm:grid-cols-4'>
+      <div className='container mx-auto max-w-[1200px]'>
+        <div className='grid grid-cols-2 gap-8 sm:grid-cols-4 sm:gap-12'>
           {items.map((item, index) => (
             <div
               key={index}
-              className='flex flex-col items-start gap-3 text-left'
+              className='flex flex-col items-center gap-2 text-center'
             >
-              {item.label && (
-                <div className='text-muted-foreground text-sm font-semibold'>
-                  {item.label}
-                </div>
-              )}
-              <div className='flex items-baseline gap-2'>
-                <div className='from-foreground to-foreground/70 bg-gradient-to-r bg-clip-text text-4xl font-medium text-transparent drop-shadow-sm transition-all duration-300 sm:text-5xl md:text-6xl'>
+              <div className='flex items-baseline gap-1'>
+                <div className='from-foreground to-foreground/70 bg-gradient-to-r bg-clip-text text-4xl font-bold text-transparent drop-shadow-sm transition-all duration-300 sm:text-5xl md:text-6xl'>
                   {item.value}
                 </div>
                 {item.suffix && (
-                  <div className='text-primary text-2xl font-semibold'>
+                  <div className='from-foreground to-foreground/70 bg-gradient-to-r bg-clip-text text-3xl font-bold text-transparent sm:text-4xl md:text-5xl'>
                     {item.suffix}
                   </div>
                 )}
               </div>
               {item.description && (
-                <div className='text-muted-foreground text-sm font-semibold'>
+                <div className='text-muted-foreground text-sm font-medium'>
                   {item.description}
                 </div>
               )}

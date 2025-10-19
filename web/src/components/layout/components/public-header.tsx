@@ -7,6 +7,8 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ProfileDropdown } from '@/components/profile-dropdown'
 import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { defaultTopNavLinks } from '../config/top-nav.config'
@@ -191,28 +193,27 @@ export function PublicHeader({
             )}
           </NavbarLeft>
 
-          {/* Right section: Theme switch + Auth buttons + Mobile menu */}
+          {/* Right section: Auth + Theme switch + Mobile menu */}
           <NavbarRight>
             {rightContent || (
               <>
                 {showThemeSwitch && <ThemeSwitch />}
                 {showAuthButtons && (
-                  <>
-                    {isAuthenticated ? (
-                      <Button asChild className='hidden md:inline-flex'>
-                        <Link to='/dashboard'>Dashboard</Link>
-                      </Button>
+                  // Fixed container to maintain consistent size
+                  <div className='hidden h-9 items-center md:flex'>
+                    {loading ? (
+                      // Skeleton while system config is loading
+                      <Skeleton className='h-9 w-9 rounded-full' />
+                    ) : isAuthenticated ? (
+                      // User profile dropdown when authenticated
+                      <ProfileDropdown />
                     ) : (
-                      <>
-                        <Link to='/sign-in' className='hidden text-sm md:block'>
-                          Sign In
-                        </Link>
-                        <Button asChild className='hidden md:inline-flex'>
-                          <Link to='/sign-up'>Get Started</Link>
-                        </Button>
-                      </>
+                      // Sign in button when not authenticated
+                      <Button variant='ghost' size='sm' asChild className='h-9'>
+                        <Link to='/sign-in'>Sign in</Link>
+                      </Button>
                     )}
-                  </>
+                  </div>
                 )}
 
                 {/* Mobile Menu */}
@@ -256,31 +257,12 @@ export function PublicHeader({
                         <NavLinkList links={mobileLinksList} />
                       )}
                       {showAuthButtons && !loading && (
-                        <>
-                          {isAuthenticated ? (
-                            <Link
-                              to='/dashboard'
-                              className='text-muted-foreground hover:text-foreground'
-                            >
-                              Dashboard
-                            </Link>
-                          ) : (
-                            <>
-                              <Link
-                                to='/sign-in'
-                                className='text-muted-foreground hover:text-foreground'
-                              >
-                                Sign In
-                              </Link>
-                              <Link
-                                to='/sign-up'
-                                className='text-muted-foreground hover:text-foreground'
-                              >
-                                Get Started
-                              </Link>
-                            </>
-                          )}
-                        </>
+                        <Link
+                          to={isAuthenticated ? '/dashboard' : '/sign-in'}
+                          className='text-muted-foreground hover:text-foreground'
+                        >
+                          {isAuthenticated ? 'Dashboard' : 'Sign in'}
+                        </Link>
                       )}
                     </nav>
                   </SheetContent>

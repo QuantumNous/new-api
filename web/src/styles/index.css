@@ -230,4 +230,30 @@
       transform: scale(1);
     }
   }
+
+  /* Vertical scroll animation for icon lists */
+  @keyframes scroll-up {
+    0% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(-50%);
+    }
+  }
+
+  .animate-scroll-up {
+    animation: scroll-up 20s linear infinite;
+    will-change: transform;
+  }
+
+  .animate-scroll-down {
+    animation: scroll-up 20s linear infinite reverse;
+    will-change: transform;
+  }
+
+  /* Pause animation on hover */
+  .scroll-container:hover .animate-scroll-up,
+  .scroll-container:hover .animate-scroll-down {
+    animation-play-state: paused;
+  }
 }
