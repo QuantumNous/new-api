@@ -136,13 +136,13 @@ export function WorkspaceSwitcher({
                   />
                 </div>
               )}
-              <div className='grid flex-1 text-start text-sm leading-tight'>
+              <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
                 <span className='truncate font-semibold'>
                   {activeWorkspace.name}
                 </span>
                 <span className='truncate text-xs'>{activeWorkspace.plan}</span>
               </div>
-              <ChevronsUpDown className='ms-auto' />
+              <ChevronsUpDown className='ms-auto group-data-[collapsible=icon]:hidden' />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
