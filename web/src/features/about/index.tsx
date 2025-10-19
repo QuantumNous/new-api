@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { Code, Construction } from 'lucide-react'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
@@ -103,25 +102,7 @@ export function About() {
     /<\/?[a-z][\s\S]*>/i.test(trimmedContent)
 
   return (
-    <PublicLayout
-      navContent={
-        <nav className='hidden items-center space-x-6 md:flex'>
-          <Link
-            to='/pricing'
-            className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors'
-          >
-            Pricing
-          </Link>
-          <Link
-            to='/about'
-            className='text-foreground text-sm font-medium transition-colors'
-          >
-            About
-          </Link>
-        </nav>
-      }
-      showMainContainer={!isUrl}
-    >
+    <PublicLayout showMainContainer={!isUrl}>
       {isLoading ? (
         <div className='flex min-h-[60vh] items-center justify-center'>
           <div className='flex items-center space-x-2'>

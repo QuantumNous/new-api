@@ -428,24 +428,7 @@ export function ModelDetails() {
   }
 
   return (
-    <PublicLayout
-      navContent={
-        <nav className='hidden items-center space-x-6 md:flex'>
-          <Link
-            to='/pricing'
-            className='text-foreground text-sm font-medium transition-colors'
-          >
-            Pricing
-          </Link>
-          <Link
-            to='/about'
-            className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors'
-          >
-            About
-          </Link>
-        </nav>
-      }
-    >
+    <PublicLayout>
       <div className='mx-auto max-w-4xl space-y-6'>
         <div className='flex items-center gap-4'>
           <Button variant='ghost' size='sm' onClick={handleBack}>
