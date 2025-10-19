@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils'
+
 interface StatItemProps {
   value: string | number
   suffix?: string
@@ -15,12 +17,17 @@ export function StatItem({ value, suffix, description }: StatItemProps) {
     <div className='flex flex-col items-center gap-2 text-center'>
       <div className='flex items-baseline gap-1'>
         <div
-          className={`${GRADIENT_TEXT} text-4xl drop-shadow-sm transition-all duration-300 sm:text-5xl md:text-6xl`}
+          className={cn(
+            GRADIENT_TEXT,
+            'text-4xl drop-shadow-sm transition-all duration-300 sm:text-5xl md:text-6xl'
+          )}
         >
           {value}
         </div>
         {suffix && (
-          <div className={`${GRADIENT_TEXT} text-3xl sm:text-4xl md:text-5xl`}>
+          <div
+            className={cn(GRADIENT_TEXT, 'text-3xl sm:text-4xl md:text-5xl')}
+          >
             {suffix}
           </div>
         )}
