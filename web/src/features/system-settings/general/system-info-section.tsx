@@ -146,13 +146,15 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>About</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder='About your service...'
+                      placeholder='Enter HTML code (e.g., <p>About us...</p>) or a URL (e.g., https://example.com) to embed as iframe'
                       rows={4}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Information about your service (supports Markdown)
+                    Supports HTML markup or iframe embedding. Enter HTML code
+                    directly, or provide a complete URL to automatically embed
+                    it as an iframe.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
