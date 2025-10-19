@@ -6,6 +6,7 @@
 export { AppHeader } from './components/app-header'
 export { AppSidebar } from './components/app-sidebar'
 export { AuthenticatedLayout } from './components/authenticated-layout'
+export { PublicLayout } from './components/public-layout'
 export { Header } from './components/header'
 export { Main } from './components/main'
 export { NavGroup } from './components/nav-group'
