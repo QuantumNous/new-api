@@ -1,9 +1,9 @@
-FROM node:alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /build
 
-# Enable pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm
+RUN npm install -g pnpm
 
 # Copy package files
 COPY web/package.json web/pnpm-lock.yaml ./
