@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
@@ -27,6 +28,7 @@ import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
@@ -62,6 +64,11 @@ const authRouteRoute = authRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingIndexRoute = PricingIndexRouteImport.update({
+  id: '/pricing/',
+  path: '/pricing/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthProviderRoute = OauthProviderRouteImport.update({
@@ -141,6 +148,11 @@ const AuthenticatedSettingsRouteRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
+  id: '/pricing/$modelId/',
+  path: '/pricing/$modelId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
     id: '/wallet/',
@@ -294,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
+  '/pricing': typeof PricingIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -317,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/pricing/$modelId': typeof PricingModelIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof authRouteRouteWithChildren
@@ -333,6 +347,7 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
+  '/pricing': typeof PricingIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -356,6 +371,7 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/pricing/$modelId': typeof PricingModelIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -377,6 +393,7 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
+  '/pricing/': typeof PricingIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -400,6 +417,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/pricing/$modelId/': typeof PricingModelIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -420,6 +438,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/oauth/$provider'
+    | '/pricing'
     | '/errors/$error'
     | '/settings/account'
     | '/settings/appearance'
@@ -443,6 +462,7 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
+    | '/pricing/$modelId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -459,6 +479,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/oauth/$provider'
+    | '/pricing'
     | '/errors/$error'
     | '/settings/account'
     | '/settings/appearance'
@@ -482,6 +503,7 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
+    | '/pricing/$modelId'
   id:
     | '__root__'
     | '/'
@@ -502,6 +524,7 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/oauth/$provider'
+    | '/pricing/'
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
@@ -525,6 +548,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
+    | '/pricing/$modelId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -537,6 +561,8 @@ export interface RootRouteChildren {
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
   OauthProviderRoute: typeof OauthProviderRoute
+  PricingIndexRoute: typeof PricingIndexRoute
+  PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -560,6 +586,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing/': {
+      id: '/pricing/'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/$provider': {
@@ -666,6 +699,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/pricing/$modelId/': {
+      id: '/pricing/$modelId/'
+      path: '/pricing/$modelId'
+      fullPath: '/pricing/$modelId'
+      preLoaderRoute: typeof PricingModelIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/wallet/': {
       id: '/_authenticated/wallet/'
@@ -958,6 +998,8 @@ const rootRouteChildren: RootRouteChildren = {
   errors500Route: errors500Route,
   errors503Route: errors503Route,
   OauthProviderRoute: OauthProviderRoute,
+  PricingIndexRoute: PricingIndexRoute,
+  PricingModelIdIndexRoute: PricingModelIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

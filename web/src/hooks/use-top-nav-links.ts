@@ -15,6 +15,7 @@ export type TopNavLink = {
  * {
  *   home: true,
  *   console: true,
+ *   models: { enabled: true, requireAuth: false },
  *   pricing: { enabled: true, requireAuth: false },
  *   docs: true,
  *   about: true
@@ -31,6 +32,7 @@ export function useTopNavLinks(): TopNavLink[] {
       return null as null | {
         home?: boolean
         console?: boolean
+        models?: boolean | { enabled: boolean; requireAuth?: boolean }
         pricing?: boolean | { enabled: boolean; requireAuth?: boolean }
         docs?: boolean
         about?: boolean
@@ -38,7 +40,10 @@ export function useTopNavLinks(): TopNavLink[] {
     }
     try {
       const parsed = JSON.parse(raw)
-      // 向后兼容：pricing 可能是 boolean
+      // 向后兼容：models 和 pricing 可能是 boolean
+      if (typeof parsed?.models === 'boolean') {
+        parsed.models = { enabled: parsed.models, requireAuth: false }
+      }
       if (typeof parsed?.pricing === 'boolean') {
         parsed.pricing = { enabled: parsed.pricing, requireAuth: false }
       }
@@ -65,7 +70,18 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: 'Console', href: '/dashboard' })
   }
 
-  // Models（旧称 pricing / 模型广场）
+  // Models
+  const models = modules?.models
+  const modelsEnabled =
+    typeof models === 'object' ? !!models.enabled : models !== false
+  const modelsRequireAuth =
+    typeof models === 'object' ? !!models.requireAuth : false
+  if (modelsEnabled) {
+    const disabled = modelsRequireAuth && !isAuthed
+    links.push({ title: 'Models', href: '/models', disabled })
+  }
+
+  // Pricing
   const pricing = modules?.pricing
   const pricingEnabled =
     typeof pricing === 'object' ? !!pricing.enabled : pricing !== false
@@ -73,7 +89,7 @@ export function useTopNavLinks(): TopNavLink[] {
     typeof pricing === 'object' ? !!pricing.requireAuth : false
   if (pricingEnabled) {
     const disabled = pricingRequireAuth && !isAuthed
-    links.push({ title: 'Models', href: '/models', disabled })
+    links.push({ title: 'Pricing', href: '/pricing', disabled })
   }
 
   // Docs（支持外链）
