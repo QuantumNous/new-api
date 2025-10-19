@@ -32,7 +32,6 @@ import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$model
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
-import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
@@ -170,11 +169,6 @@ const AuthenticatedUsageLogsIndexRoute =
     path: '/usage-logs/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedTasksIndexRoute = AuthenticatedTasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedSystemSettingsIndexRoute =
   AuthenticatedSystemSettingsIndexRouteImport.update({
     id: '/',
@@ -326,7 +320,6 @@ export interface FileRoutesByFullPath {
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
-  '/tasks': typeof AuthenticatedTasksIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
@@ -367,7 +360,6 @@ export interface FileRoutesByTo {
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
-  '/tasks': typeof AuthenticatedTasksIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
@@ -413,7 +405,6 @@ export interface FileRoutesById {
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
-  '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
@@ -458,7 +449,6 @@ export interface FileRouteTypes {
     | '/redemption-codes'
     | '/settings/'
     | '/system-settings/'
-    | '/tasks'
     | '/usage-logs'
     | '/users'
     | '/wallet'
@@ -499,7 +489,6 @@ export interface FileRouteTypes {
     | '/redemption-codes'
     | '/settings'
     | '/system-settings'
-    | '/tasks'
     | '/usage-logs'
     | '/users'
     | '/wallet'
@@ -544,7 +533,6 @@ export interface FileRouteTypes {
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/settings/'
     | '/_authenticated/system-settings/'
-    | '/_authenticated/tasks/'
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
@@ -727,13 +715,6 @@ declare module '@tanstack/react-router' {
       path: '/usage-logs'
       fullPath: '/usage-logs'
       preLoaderRoute: typeof AuthenticatedUsageLogsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/tasks/': {
-      id: '/_authenticated/tasks/'
-      path: '/tasks'
-      fullPath: '/tasks'
-      preLoaderRoute: typeof AuthenticatedTasksIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/system-settings/': {
@@ -961,7 +942,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
-  AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
@@ -978,7 +958,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
-  AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
