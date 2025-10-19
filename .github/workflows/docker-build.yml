@@ -3,7 +3,6 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - v2
       - main
     tags:
       - 'v*'
