@@ -99,14 +99,12 @@ function FilterOptions({
   )
 }
 
-const TAG_SPLIT_REGEX = /[,;|\s]+/
-
 function extractTags(models: PricingModel[]) {
   const tagMap = new Map<string, string>()
   models.forEach((model) => {
     if (!model.tags) return
     model.tags
-      .split(TAG_SPLIT_REGEX)
+      .split(',')
       .map((tag) => tag.trim())
       .filter(Boolean)
       .forEach((tag) => {

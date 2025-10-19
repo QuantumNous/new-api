@@ -22,8 +22,6 @@ type PricingFilters = {
   quota: 'all' | '0' | '1'
 }
 
-const TAG_SPLIT_REGEX = /[,;|\s]+/
-
 function PricingAuthenticatedContent({
   content,
 }: {
@@ -146,7 +144,7 @@ export function Pricing() {
           if (!model.tags) return false
           const modelTags = model.tags
             .toLowerCase()
-            .split(TAG_SPLIT_REGEX)
+            .split(',')
             .map((t) => t.trim())
             .filter(Boolean)
           if (!modelTags.includes(activeFilters.tag.toLowerCase())) return false
