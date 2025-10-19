@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react'
-import { useSearch, useNavigate } from '@tanstack/react-router'
+import { useSearch, useNavigate, Link } from '@tanstack/react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PricingCardView } from './components/pricing-card-view'
@@ -196,7 +196,24 @@ export function Pricing() {
   }
 
   return (
-    <PublicLayout>
+    <PublicLayout
+      navContent={
+        <nav className='hidden items-center space-x-6 md:flex'>
+          <Link
+            to='/pricing'
+            className='text-foreground text-sm font-medium transition-colors'
+          >
+            Pricing
+          </Link>
+          <Link
+            to='/about'
+            className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors'
+          >
+            About
+          </Link>
+        </nav>
+      }
+    >
       <div className='flex gap-6'>
         <div className='hidden w-72 shrink-0 md:block'>
           {!isLoading && models.length > 0 ? (

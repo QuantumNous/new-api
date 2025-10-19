@@ -26,6 +26,12 @@ export function Home() {
           >
             Pricing
           </Link>
+          <Link
+            to='/about'
+            className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors'
+          >
+            About
+          </Link>
         </nav>
       }
     >
