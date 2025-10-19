@@ -9,7 +9,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import type { PricingModel, PricingVendor } from '../api'
+import type { PricingModel, PricingVendor } from '../type'
 import { PricingSidebar } from './pricing-sidebar'
 
 type PricingFilters = {

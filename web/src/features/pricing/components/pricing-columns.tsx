@@ -2,7 +2,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
-import type { PricingModel } from '../api'
+import type { PricingModel } from '../type'
 import { formatPrice } from '../utils/price-calculator'
 
 type PricingColumnsProps = {
@@ -206,7 +206,7 @@ export function getPricingColumns(
         return (
           <div className='flex flex-wrap gap-1'>
             {tags
-              .split(/[,;|\s]+/)
+              .split(',')
               .map((tag) => tag.trim())
               .filter(Boolean)
               .slice(0, 3)

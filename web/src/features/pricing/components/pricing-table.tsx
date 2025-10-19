@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import type { PricingModel } from '../api'
+import type { PricingModel } from '../type'
 import { getPricingColumns } from './pricing-columns'
 
 type PricingTableProps = {

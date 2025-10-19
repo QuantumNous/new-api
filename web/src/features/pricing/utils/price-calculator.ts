@@ -1,4 +1,4 @@
-import type { PricingModel } from '../api'
+import type { PricingModel } from '../type'
 
 /**
  * Format price for display based on currency, token unit, and recharge settings

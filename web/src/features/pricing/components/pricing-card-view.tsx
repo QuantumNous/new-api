@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/status-badge'
-import type { PricingModel } from '../api'
+import type { PricingModel } from '../type'
 import { formatPrice } from '../utils/price-calculator'
 
 type PricingCardViewProps = {
@@ -168,7 +168,7 @@ export function PricingCardView({
                   {model.tags && model.tags.trim() && (
                     <div className='flex flex-wrap gap-1.5'>
                       {model.tags
-                        .split(/[,;|\s]+/)
+                        .split(',')
                         .map((tag) => tag.trim())
                         .filter(Boolean)
                         .map((tag, idx) => (

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { PricingModel, PricingVendor } from '../api'
+import type { PricingModel, PricingVendor } from '../type'
 import { PricingControls } from './pricing-controls'
 
 type PricingFilters = {

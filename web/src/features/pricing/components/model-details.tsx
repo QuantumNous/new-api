@@ -10,11 +10,9 @@ import { Separator } from '@/components/ui/separator'
 import { useSidebar } from '@/components/ui/sidebar'
 import { AppHeader, Main, AuthenticatedLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
-import type { PricingModel } from '../api'
 import { usePricingData } from '../hooks/use-pricing-data'
+import type { PricingModel } from '../type'
 import { formatGroupPrice, formatFixedPrice } from '../utils/price-calculator'
-
-const TAG_SPLIT_REGEX = /[,;|\s]+/
 
 function ModelDetailsAuthenticatedContent({
   content,
@@ -101,7 +99,7 @@ function BasicInfoSection({ model }: { model: PricingModel }) {
   const tags = useMemo(() => {
     if (!model.tags) return []
     return model.tags
-      .split(TAG_SPLIT_REGEX)
+      .split(',')
       .map((t) => t.trim())
       .filter(Boolean)
   }, [model.tags])
