@@ -1,5 +1,7 @@
 import z from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { Models } from '@/features/models'
 
 const modelsSearchSchema = z.object({
@@ -9,6 +11,15 @@ const modelsSearchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_authenticated/models/')({
+  beforeLoad: () => {
+    const { auth } = useAuthStore.getState()
+
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({
+        to: '/403',
+      })
+    }
+  },
   validateSearch: modelsSearchSchema,
   component: Models,
 })

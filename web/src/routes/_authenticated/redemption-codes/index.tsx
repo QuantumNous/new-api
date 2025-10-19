@@ -1,5 +1,7 @@
 import z from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { Redemptions } from '@/features/redemption-codes'
 import { REDEMPTION_STATUS_OPTIONS } from '@/features/redemption-codes/constants'
 
@@ -14,6 +16,15 @@ const redemptionsSearchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_authenticated/redemption-codes/')({
+  beforeLoad: () => {
+    const { auth } = useAuthStore.getState()
+
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({
+        to: '/403',
+      })
+    }
+  },
   validateSearch: redemptionsSearchSchema,
   component: Redemptions,
 })

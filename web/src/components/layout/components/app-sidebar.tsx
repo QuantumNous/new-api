@@ -1,4 +1,7 @@
+import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -21,9 +24,22 @@ import { WorkspaceSwitcher } from './workspace-switcher'
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { pathname } = useLocation()
+  const userRole = useAuthStore((state) => state.auth.user?.role)
 
   // 从工作区注册表获取当前路径对应的导航组配置
-  const currentNavGroups = getNavGroupsForPath(pathname)
+  const allNavGroups = getNavGroupsForPath(pathname)
+
+  // 根据用户角色过滤导航组
+  // 非 Admin 用户不显示 Admin 导航组
+  const currentNavGroups = useMemo(() => {
+    const isAdmin = userRole && userRole >= ROLE.ADMIN
+    return allNavGroups.filter((group) => {
+      if (group.title === 'Admin') {
+        return isAdmin
+      }
+      return true
+    })
+  }, [allNavGroups, userRole])
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>

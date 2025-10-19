@@ -4,7 +4,6 @@ import {
   FileText,
   Wallet,
   Box,
-  Server,
   Users,
   Ticket,
   Settings,
@@ -69,11 +68,6 @@ export const sidebarConfig: SidebarData = {
           title: 'Models',
           url: '/models',
           icon: Box,
-        },
-        {
-          title: 'Providers',
-          url: '/providers',
-          icon: Server,
         },
         {
           title: 'Users',
