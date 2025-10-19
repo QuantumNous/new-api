@@ -1,7 +1,7 @@
 {
-  "name": "shadcn-admin",
+  "name": "newapi-web",
   "private": false,
-  "version": "2.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
