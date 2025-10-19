@@ -232,14 +232,17 @@ export function PublicHeader({
                   logoLoaded={logoLoaded}
                 />
                 {showNavigation &&
+                  navContent &&
                   (loading ? (
-                    <SkeletonWrapper
-                      loading={true}
-                      type='navigation'
-                      count={SKELETON_DEFAULTS.NAV_COUNT}
-                      width={SKELETON_DEFAULTS.NAV_WIDTH}
-                      height={SKELETON_DEFAULTS.NAV_HEIGHT}
-                    />
+                    <div className='hidden md:flex'>
+                      <SkeletonWrapper
+                        loading={true}
+                        type='navigation'
+                        count={SKELETON_DEFAULTS.NAV_COUNT}
+                        width={SKELETON_DEFAULTS.NAV_WIDTH}
+                        height={SKELETON_DEFAULTS.NAV_HEIGHT}
+                      />
+                    </div>
                   ) : (
                     navContent
                   ))}
