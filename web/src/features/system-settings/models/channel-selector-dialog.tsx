@@ -80,13 +80,20 @@ export function ChannelSelectorDialog({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   useEffect(() => {
+    if (!selectedChannelIds.length) {
+      setRowSelection({})
+      return
+    }
+
+    const availableChannelIds = new Set(channels.map((channel) => channel.id))
     const newSelection: RowSelectionState = {}
+
     selectedChannelIds.forEach((id) => {
-      const index = channels.findIndex((ch) => ch.id === id)
-      if (index !== -1) {
-        newSelection[index] = true
+      if (availableChannelIds.has(id)) {
+        newSelection[id.toString()] = true
       }
     })
+
     setRowSelection(newSelection)
   }, [selectedChannelIds, channels])
 
@@ -269,6 +276,7 @@ export function ChannelSelectorDialog({
     state: {
       rowSelection,
     },
+    getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
@@ -282,7 +290,7 @@ export function ChannelSelectorDialog({
   })
 
   const handleConfirm = () => {
-    const selectedRows = table.getFilteredSelectedRowModel().rows
+    const selectedRows = table.getSelectedRowModel().rows
     const selectedIds = selectedRows.map((row) => row.original.id)
     onSelectedChannelIdsChange(selectedIds)
     onOpenChange(false)
