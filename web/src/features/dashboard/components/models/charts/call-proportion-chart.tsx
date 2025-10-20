@@ -46,7 +46,7 @@ export function CallProportionChart({
             cy='50%'
             labelLine={false}
             label={({ name, percent }) =>
-              `${name} ${((percent || 0) * 100).toFixed(1)}%`
+              `${name} ${(Number(percent || 0) * 100).toFixed(1)}%`
             }
             outerRadius={120}
             innerRadius={60}
