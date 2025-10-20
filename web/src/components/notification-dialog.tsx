@@ -110,7 +110,7 @@ function NoticeContent({
   }
 
   return (
-    <ScrollArea className='max-h-[55vh] pr-4'>
+    <ScrollArea className='h-[50vh] pr-4'>
       <Markdown>{notice}</Markdown>
     </ScrollArea>
   )
@@ -135,7 +135,7 @@ function AnnouncementsContent({
   }
 
   return (
-    <ScrollArea className='max-h-[55vh] pr-4'>
+    <ScrollArea className='h-[50vh] pr-4'>
       <div className='space-y-0'>
         {announcements.map((item: any, idx: number) => {
           const publishDate = item.publishDate
@@ -198,7 +198,7 @@ export function NotificationDialog({
 }: NotificationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-2xl'>
+      <DialogContent className='max-h-[90vh] sm:max-w-2xl'>
         <DialogHeader>
           <DialogTitle>System Announcements</DialogTitle>
         </DialogHeader>

@@ -24,10 +24,10 @@ export function NotificationButton({
         variant='ghost'
         size='icon'
         onClick={onClick}
-        className={cn('relative', className)}
+        className={cn('h-9 w-9 rounded-full', className)}
         aria-label='Notifications'
       >
-        <Bell className='h-[1.2rem] w-[1.2rem]' />
+        <Bell className='size-[1.2rem]' />
       </Button>
 
       {unreadCount > 0 && (
