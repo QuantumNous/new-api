@@ -102,7 +102,20 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+function ChartTooltip({
+  wrapperStyle,
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
+  return (
+    <RechartsPrimitive.Tooltip
+      wrapperStyle={{
+        zIndex: 9999,
+        ...wrapperStyle,
+      }}
+      {...props}
+    />
+  )
+}
 
 function ChartTooltipContent({
   active,

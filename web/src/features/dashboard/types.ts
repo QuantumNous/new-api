@@ -64,7 +64,7 @@ export const TIME_RANGE_PRESETS = [
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
   start_timestamp: undefined,
   end_timestamp: undefined,
-  time_granularity: 'hour',
+  time_granularity: 'day',
   username: '',
 }
 
@@ -98,6 +98,7 @@ export interface PieDataPoint {
   name: string
   value: number
   fill: string
+  [key: string]: string | number
 }
 
 export interface RankDataPoint {
