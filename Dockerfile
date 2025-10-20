@@ -3,7 +3,7 @@ FROM oven/bun:latest AS builder
 WORKDIR /build
 COPY web/package.json .
 COPY web/bun.lock .
-RUN bun install
+RUN bun install --frozen-lockfile
 COPY ./web .
 COPY ./VERSION .
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) bun run build
@@ -23,7 +23,7 @@ RUN go mod download
 
 COPY . .
 COPY --from=builder /build/dist ./web/dist
-RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
+RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM alpine
 
