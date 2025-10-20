@@ -21,6 +21,7 @@ import { SettingsAccordion } from '../components/settings-accordion'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const systemInfoSchema = z.object({
+  Notice: z.string().optional(),
   SystemName: z.string().min(1, 'System name is required'),
   Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
@@ -81,6 +82,27 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
+            <FormField
+              control={form.control}
+              name='Notice'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notice</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder='Enter announcement content (supports Markdown & HTML)'
+                      rows={6}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Announcement displayed to users (supports Markdown & HTML)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name='SystemName'
