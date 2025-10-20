@@ -11,6 +11,7 @@ import { SettingsAccordion } from '../components/settings-accordion'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
+import { UpstreamRatioSync } from './upstream-ratio-sync'
 import {
   formatJsonForTextarea,
   normalizeJsonString,
@@ -335,9 +336,10 @@ export function RatioSettingsCard({
       description='Configure model, caching, and group ratios used for billing'
     >
       <Tabs defaultValue='models' className='space-y-6'>
-        <TabsList className='grid w-full grid-cols-2'>
+        <TabsList className='grid w-full grid-cols-3'>
           <TabsTrigger value='models'>Model ratios</TabsTrigger>
           <TabsTrigger value='groups'>Group ratios</TabsTrigger>
+          <TabsTrigger value='upstream-sync'>Upstream sync</TabsTrigger>
         </TabsList>
 
         <TabsContent value='models'>
@@ -355,6 +357,17 @@ export function RatioSettingsCard({
             form={groupForm}
             onSave={saveGroupRatios}
             isSaving={updateOption.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value='upstream-sync'>
+          <UpstreamRatioSync
+            modelRatios={{
+              ModelPrice: modelDefaults.ModelPrice,
+              ModelRatio: modelDefaults.ModelRatio,
+              CompletionRatio: modelDefaults.CompletionRatio,
+              CacheRatio: modelDefaults.CacheRatio,
+            }}
           />
         </TabsContent>
       </Tabs>
