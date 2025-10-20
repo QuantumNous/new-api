@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import useDialogState from '@/hooks/use-dialog-state'
+import useDialogState from '@/hooks/use-dialog'
 import { type Redemption, type RedemptionsDialogType } from '../types'
 
 type RedemptionsContextType = {

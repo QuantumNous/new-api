@@ -6,7 +6,7 @@ import {
   handleOIDCOAuth,
   handleLinuxDOOAuth,
 } from '@/lib/oauth'
-import { useDialogs } from '@/hooks/use-dialogs'
+import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

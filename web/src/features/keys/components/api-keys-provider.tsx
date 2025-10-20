@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import useDialogState from '@/hooks/use-dialog-state'
+import useDialogState from '@/hooks/use-dialog'
 import { type ApiKey, type ApiKeysDialogType } from '../types'
 
 type ApiKeysContextType = {

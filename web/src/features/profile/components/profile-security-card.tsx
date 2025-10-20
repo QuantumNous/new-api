@@ -1,5 +1,5 @@
 import { Shield, Key, Trash2 } from 'lucide-react'
-import { useDialogs } from '@/hooks/use-dialogs'
+import { useDialogs } from '@/hooks/use-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
