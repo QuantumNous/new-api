@@ -19,6 +19,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Save version info
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # For tags, use the tag name
+            echo "${GITHUB_REF#refs/tags/}" > VERSION
+          else
+            # For branches, use date and commit hash
+            echo "$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" > VERSION
+          fi
+          cat VERSION
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
