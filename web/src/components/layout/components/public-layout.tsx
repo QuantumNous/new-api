@@ -32,6 +32,11 @@ type PublicLayoutProps = {
    */
   showAuthButtons?: boolean
   /**
+   * Show notification button in header
+   * @default true
+   */
+  showNotifications?: boolean
+  /**
    * Custom logo component
    */
   logo?: React.ReactNode
@@ -79,6 +84,7 @@ export function PublicLayout({
   navLinks,
   showThemeSwitch = true,
   showAuthButtons = true,
+  showNotifications = true,
   logo,
   siteName,
 }: PublicLayoutProps) {
@@ -92,6 +98,7 @@ export function PublicLayout({
         navLinks={navLinks}
         showThemeSwitch={showThemeSwitch}
         showAuthButtons={showAuthButtons}
+        showNotifications={showNotifications}
         logo={logo}
         siteName={siteName}
         {...headerProps}
