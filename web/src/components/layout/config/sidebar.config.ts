@@ -9,6 +9,7 @@ import {
   Settings,
   User,
   Command,
+  Radio,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -64,6 +65,11 @@ export const sidebarConfig: SidebarData = {
     {
       title: 'Admin',
       items: [
+        {
+          title: 'Channels',
+          url: '/channels',
+          icon: Radio,
+        },
         {
           title: 'Models',
           url: '/models',

@@ -1,0 +1,357 @@
+import { api } from '@/lib/api'
+import type {
+  AddChannelRequest,
+  BatchDeleteParams,
+  BatchSetTagParams,
+  Channel,
+  ChannelBalanceResponse,
+  ChannelTestResponse,
+  CopyChannelParams,
+  CopyChannelResponse,
+  FetchModelsResponse,
+  GetChannelResponse,
+  GetChannelsParams,
+  GetChannelsResponse,
+  MultiKeyManageParams,
+  MultiKeyStatusResponse,
+  SearchChannelsParams,
+  SearchChannelsResponse,
+  TagOperationParams,
+} from './types'
+
+// ============================================================================
+// Base Channel CRUD Operations
+// ============================================================================
+
+/**
+ * Get paginated list of channels
+ */
+export async function getChannels(
+  params: GetChannelsParams = {}
+): Promise<GetChannelsResponse> {
+  const res = await api.get('/api/channel', { params })
+  return res.data
+}
+
+/**
+ * Search channels with filters
+ */
+export async function searchChannels(
+  params: SearchChannelsParams
+): Promise<SearchChannelsResponse> {
+  const res = await api.get('/api/channel/search', { params })
+  return res.data
+}
+
+/**
+ * Get single channel by ID
+ */
+export async function getChannel(id: number): Promise<GetChannelResponse> {
+  const res = await api.get(`/api/channel/${id}`)
+  return res.data
+}
+
+/**
+ * Create new channel(s)
+ * Supports single, batch, and multi-key modes
+ */
+export async function createChannel(
+  data: AddChannelRequest
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.post('/api/channel', data)
+  return res.data
+}
+
+/**
+ * Update existing channel
+ */
+export async function updateChannel(
+  id: number,
+  data: Partial<Channel>
+): Promise<{ success: boolean; message?: string; data?: Channel }> {
+  const res = await api.put(`/api/channel/${id}`, data)
+  return res.data
+}
+
+/**
+ * Delete single channel
+ */
+export async function deleteChannel(
+  id: number
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.delete(`/api/channel/${id}`)
+  return res.data
+}
+
+/**
+ * Batch delete channels
+ */
+export async function batchDeleteChannels(
+  data: BatchDeleteParams
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post('/api/channel/batch', data, {
+    params: { action: 'delete' },
+  })
+  return res.data
+}
+
+/**
+ * Batch set tag for channels
+ */
+export async function batchSetChannelTag(
+  data: BatchSetTagParams
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post('/api/channel/batch/tag', data)
+  return res.data
+}
+
+// ============================================================================
+// Channel Operations
+// ============================================================================
+
+/**
+ * Test channel connectivity
+ */
+export async function testChannel(
+  id: number,
+  params?: { test_model?: string }
+): Promise<ChannelTestResponse> {
+  const res = await api.get(`/api/channel/test/${id}`, { params })
+  return res.data
+}
+
+/**
+ * Query channel balance
+ */
+export async function queryChannelBalance(
+  id: number
+): Promise<ChannelBalanceResponse> {
+  const res = await api.get(`/api/channel/${id}/balance`)
+  return res.data
+}
+
+/**
+ * Fetch available models from upstream provider
+ */
+export async function fetchUpstreamModels(
+  id: number
+): Promise<FetchModelsResponse> {
+  const res = await api.get(`/api/channel/${id}/models`)
+  return res.data
+}
+
+/**
+ * Copy/clone a channel
+ */
+export async function copyChannel(
+  id: number,
+  params: CopyChannelParams = {}
+): Promise<CopyChannelResponse> {
+  const res = await api.post(`/api/channel/copy/${id}`, null, { params })
+  return res.data
+}
+
+/**
+ * Fix channel abilities
+ */
+export async function fixChannelAbilities(): Promise<{
+  success: boolean
+  message?: string
+  data?: { success: number; fails: number }
+}> {
+  const res = await api.post('/api/channel/fix')
+  return res.data
+}
+
+/**
+ * Delete all disabled channels
+ */
+export async function deleteDisabledChannels(): Promise<{
+  success: boolean
+  message?: string
+  data?: number
+}> {
+  const res = await api.delete('/api/channel/disabled')
+  return res.data
+}
+
+/**
+ * Get channel key (requires 2FA verification)
+ */
+export async function getChannelKey(
+  id: number,
+  code: string
+): Promise<{ success: boolean; message?: string; data?: { key: string } }> {
+  const res = await api.post(`/api/channel/${id}/key`, { code })
+  return res.data
+}
+
+// ============================================================================
+// Multi-Key Management
+// ============================================================================
+
+/**
+ * Manage multi-key channel operations
+ */
+export async function manageMultiKeys(
+  params: MultiKeyManageParams
+): Promise<MultiKeyStatusResponse | { success: boolean; message?: string }> {
+  const res = await api.post('/api/channel/multi-key/manage', params)
+  return res.data
+}
+
+/**
+ * Get key status for multi-key channel
+ */
+export async function getMultiKeyStatus(
+  channelId: number,
+  page = 1,
+  pageSize = 50,
+  status?: number
+): Promise<MultiKeyStatusResponse> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'get_key_status',
+    page,
+    page_size: pageSize,
+    status,
+  }) as Promise<MultiKeyStatusResponse>
+}
+
+/**
+ * Enable a specific key in multi-key channel
+ */
+export async function enableMultiKey(
+  channelId: number,
+  keyIndex: number
+): Promise<{ success: boolean; message?: string }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'enable_key',
+    key_index: keyIndex,
+  }) as Promise<{ success: boolean; message?: string }>
+}
+
+/**
+ * Disable a specific key in multi-key channel
+ */
+export async function disableMultiKey(
+  channelId: number,
+  keyIndex: number
+): Promise<{ success: boolean; message?: string }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'disable_key',
+    key_index: keyIndex,
+  }) as Promise<{ success: boolean; message?: string }>
+}
+
+/**
+ * Delete a specific key in multi-key channel
+ */
+export async function deleteMultiKey(
+  channelId: number,
+  keyIndex: number
+): Promise<{ success: boolean; message?: string }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'delete_key',
+    key_index: keyIndex,
+  }) as Promise<{ success: boolean; message?: string }>
+}
+
+/**
+ * Enable all keys in multi-key channel
+ */
+export async function enableAllMultiKeys(
+  channelId: number
+): Promise<{ success: boolean; message?: string }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'enable_all_keys',
+  }) as Promise<{ success: boolean; message?: string }>
+}
+
+/**
+ * Disable all keys in multi-key channel
+ */
+export async function disableAllMultiKeys(
+  channelId: number
+): Promise<{ success: boolean; message?: string }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'disable_all_keys',
+  }) as Promise<{ success: boolean; message?: string }>
+}
+
+/**
+ * Delete all disabled keys in multi-key channel
+ */
+export async function deleteDisabledMultiKeys(
+  channelId: number
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'delete_disabled_keys',
+  }) as Promise<{ success: boolean; message?: string; data?: number }>
+}
+
+// ============================================================================
+// Tag Operations
+// ============================================================================
+
+/**
+ * Enable all channels with a specific tag
+ */
+export async function enableTagChannels(
+  tag: string
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.post('/api/channel/tag/enable', { tag })
+  return res.data
+}
+
+/**
+ * Disable all channels with a specific tag
+ */
+export async function disableTagChannels(
+  tag: string
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.post('/api/channel/tag/disable', { tag })
+  return res.data
+}
+
+/**
+ * Edit all channels with a specific tag
+ */
+export async function editTagChannels(
+  params: TagOperationParams
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.put('/api/channel/tag/edit', params)
+  return res.data
+}
+
+/**
+ * Get models for a specific tag
+ */
+export async function getTagModels(
+  tag: string
+): Promise<{ success: boolean; message?: string; data?: string }> {
+  const res = await api.get('/api/channel/tag/models', { params: { tag } })
+  return res.data
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Fetch models from a custom endpoint (for testing before creating channel)
+ */
+export async function fetchModels(data: {
+  base_url: string
+  type: number
+  key: string
+}): Promise<FetchModelsResponse> {
+  const res = await api.post('/api/channel/models/fetch', data)
+  return res.data
+}

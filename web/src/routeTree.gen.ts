@@ -39,6 +39,7 @@ import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
+import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedSystemSettingsRequestLimitsRouteImport } from './routes/_authenticated/system-settings/request-limits'
 import { Route as AuthenticatedSystemSettingsModelsRouteImport } from './routes/_authenticated/system-settings/models'
 import { Route as AuthenticatedSystemSettingsMaintenanceRouteImport } from './routes/_authenticated/system-settings/maintenance'
@@ -210,6 +211,12 @@ const AuthenticatedDashboardIndexRoute =
     path: '/dashboard/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedChannelsIndexRoute =
+  AuthenticatedChannelsIndexRouteImport.update({
+    id: '/channels/',
+    path: '/channels/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsRequestLimitsRoute =
   AuthenticatedSystemSettingsRequestLimitsRouteImport.update({
     id: '/request-limits',
@@ -313,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
   '/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
   '/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
+  '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
@@ -353,6 +361,7 @@ export interface FileRoutesByTo {
   '/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
   '/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
   '/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
+  '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
@@ -398,6 +407,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
   '/_authenticated/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
   '/_authenticated/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
+  '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/system-settings/maintenance'
     | '/system-settings/models'
     | '/system-settings/request-limits'
+    | '/channels'
     | '/dashboard'
     | '/keys'
     | '/models'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/system-settings/maintenance'
     | '/system-settings/models'
     | '/system-settings/request-limits'
+    | '/channels'
     | '/dashboard'
     | '/keys'
     | '/models'
@@ -526,6 +538,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/maintenance'
     | '/_authenticated/system-settings/models'
     | '/_authenticated/system-settings/request-limits'
+    | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
@@ -766,6 +779,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/channels/': {
+      id: '/_authenticated/channels/'
+      path: '/channels'
+      fullPath: '/channels'
+      preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/system-settings/request-limits': {
       id: '/_authenticated/system-settings/request-limits'
       path: '/request-limits'
@@ -937,6 +957,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
+  AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
@@ -952,6 +973,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
+  AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,

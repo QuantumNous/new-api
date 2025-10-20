@@ -1,0 +1,382 @@
+import type { QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import {
+  copyChannel,
+  deleteChannel,
+  testChannel,
+  updateChannel,
+  batchDeleteChannels,
+  batchSetChannelTag,
+  enableTagChannels,
+  disableTagChannels,
+  deleteDisabledChannels,
+  fixChannelAbilities,
+} from '../api'
+import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import type { CopyChannelParams } from '../types'
+
+// ============================================================================
+// Query Keys
+// ============================================================================
+
+export const channelsQueryKeys = {
+  all: ['channels'] as const,
+  lists: () => [...channelsQueryKeys.all, 'list'] as const,
+  list: (params: any) => [...channelsQueryKeys.lists(), params] as const,
+  details: () => [...channelsQueryKeys.all, 'detail'] as const,
+  detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
+}
+
+// ============================================================================
+// Single Channel Actions
+// ============================================================================
+
+/**
+ * Enable a channel
+ */
+export async function handleEnableChannel(
+  id: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateChannel(id, { status: CHANNEL_STATUS.ENABLED })
+    if (response.success) {
+      toast.success(SUCCESS_MESSAGES.ENABLED)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+  } catch (error) {
+    toast.error(ERROR_MESSAGES.UPDATE_FAILED)
+  }
+}
+
+/**
+ * Disable a channel
+ */
+export async function handleDisableChannel(
+  id: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateChannel(id, {
+      status: CHANNEL_STATUS.MANUAL_DISABLED,
+    })
+    if (response.success) {
+      toast.success(SUCCESS_MESSAGES.DISABLED)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+  } catch (error) {
+    toast.error(ERROR_MESSAGES.UPDATE_FAILED)
+  }
+}
+
+/**
+ * Toggle channel status (enable/disable)
+ */
+export async function handleToggleChannelStatus(
+  id: number,
+  currentStatus: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (currentStatus === CHANNEL_STATUS.ENABLED) {
+    await handleDisableChannel(id, queryClient, onSuccess)
+  } else {
+    await handleEnableChannel(id, queryClient, onSuccess)
+  }
+}
+
+/**
+ * Delete a channel
+ */
+export async function handleDeleteChannel(
+  id: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await deleteChannel(id)
+    if (response.success) {
+      toast.success(SUCCESS_MESSAGES.DELETED)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+  } catch (error) {
+    toast.error(ERROR_MESSAGES.DELETE_FAILED)
+  }
+}
+
+/**
+ * Test channel connectivity
+ */
+export async function handleTestChannel(
+  id: number,
+  testModel?: string,
+  onTestComplete?: (
+    success: boolean,
+    responseTime?: number,
+    error?: string
+  ) => void
+): Promise<void> {
+  try {
+    const response = await testChannel(
+      id,
+      testModel ? { test_model: testModel } : undefined
+    )
+    if (response.success) {
+      toast.success(SUCCESS_MESSAGES.TESTED)
+      onTestComplete?.(true, response.data?.response_time)
+    } else {
+      toast.error(response.message || ERROR_MESSAGES.TEST_FAILED)
+      onTestComplete?.(false, undefined, response.message)
+    }
+  } catch (error: any) {
+    const errorMsg =
+      error?.response?.data?.message || ERROR_MESSAGES.TEST_FAILED
+    toast.error(errorMsg)
+    onTestComplete?.(false, undefined, errorMsg)
+  }
+}
+
+/**
+ * Copy a channel
+ */
+export async function handleCopyChannel(
+  id: number,
+  params: CopyChannelParams,
+  queryClient?: QueryClient,
+  onSuccess?: (newId: number) => void
+): Promise<void> {
+  try {
+    const response = await copyChannel(id, params)
+    if (response.success && response.data?.id) {
+      toast.success(SUCCESS_MESSAGES.COPIED)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.(response.data.id)
+    }
+  } catch (error) {
+    toast.error('Failed to copy channel')
+  }
+}
+
+// ============================================================================
+// Batch Actions
+// ============================================================================
+
+/**
+ * Batch delete channels
+ */
+export async function handleBatchDelete(
+  ids: number[],
+  queryClient?: QueryClient,
+  onSuccess?: (deletedCount: number) => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error('No channels selected')
+    return
+  }
+
+  try {
+    const response = await batchDeleteChannels({ ids })
+    if (response.success) {
+      toast.success(
+        `${response.data || ids.length} ${SUCCESS_MESSAGES.BATCH_DELETED}`
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.(response.data || ids.length)
+    }
+  } catch (error) {
+    toast.error(ERROR_MESSAGES.DELETE_FAILED)
+  }
+}
+
+/**
+ * Batch enable channels
+ */
+export async function handleBatchEnable(
+  ids: number[],
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error('No channels selected')
+    return
+  }
+
+  try {
+    // Update each channel individually
+    const promises = ids.map((id) =>
+      updateChannel(id, { status: CHANNEL_STATUS.ENABLED })
+    )
+    const results = await Promise.allSettled(promises)
+
+    const successCount = results.filter((r) => r.status === 'fulfilled').length
+    const failCount = results.filter((r) => r.status === 'rejected').length
+
+    if (successCount > 0) {
+      toast.success(`${successCount} channel(s) enabled`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+
+    if (failCount > 0) {
+      toast.error(`${failCount} channel(s) failed to enable`)
+    }
+  } catch (error) {
+    toast.error('Failed to enable channels')
+  }
+}
+
+/**
+ * Batch disable channels
+ */
+export async function handleBatchDisable(
+  ids: number[],
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error('No channels selected')
+    return
+  }
+
+  try {
+    // Update each channel individually
+    const promises = ids.map((id) =>
+      updateChannel(id, { status: CHANNEL_STATUS.MANUAL_DISABLED })
+    )
+    const results = await Promise.allSettled(promises)
+
+    const successCount = results.filter((r) => r.status === 'fulfilled').length
+    const failCount = results.filter((r) => r.status === 'rejected').length
+
+    if (successCount > 0) {
+      toast.success(`${successCount} channel(s) disabled`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+
+    if (failCount > 0) {
+      toast.error(`${failCount} channel(s) failed to disable`)
+    }
+  } catch (error) {
+    toast.error('Failed to disable channels')
+  }
+}
+
+/**
+ * Batch set tag
+ */
+export async function handleBatchSetTag(
+  ids: number[],
+  tag: string | null,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error('No channels selected')
+    return
+  }
+
+  try {
+    const response = await batchSetChannelTag({ ids, tag })
+    if (response.success) {
+      toast.success(SUCCESS_MESSAGES.TAG_SET)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+  } catch (error) {
+    toast.error('Failed to set tag')
+  }
+}
+
+// ============================================================================
+// Tag-Based Actions
+// ============================================================================
+
+/**
+ * Enable all channels with a tag
+ */
+export async function handleEnableTagChannels(
+  tag: string,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await enableTagChannels(tag)
+    if (response.success) {
+      toast.success(`Enabled all channels with tag: ${tag}`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+  } catch (error) {
+    toast.error('Failed to enable tag channels')
+  }
+}
+
+/**
+ * Disable all channels with a tag
+ */
+export async function handleDisableTagChannels(
+  tag: string,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await disableTagChannels(tag)
+    if (response.success) {
+      toast.success(`Disabled all channels with tag: ${tag}`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    }
+  } catch (error) {
+    toast.error('Failed to disable tag channels')
+  }
+}
+
+// ============================================================================
+// System Actions
+// ============================================================================
+
+/**
+ * Delete all disabled channels
+ */
+export async function handleDeleteAllDisabled(
+  queryClient?: QueryClient,
+  onSuccess?: (deletedCount: number) => void
+): Promise<void> {
+  try {
+    const response = await deleteDisabledChannels()
+    if (response.success) {
+      toast.success(`${response.data || 0} disabled channel(s) deleted`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.(response.data || 0)
+    }
+  } catch (error) {
+    toast.error('Failed to delete disabled channels')
+  }
+}
+
+/**
+ * Fix channel abilities
+ */
+export async function handleFixAbilities(
+  queryClient?: QueryClient,
+  onSuccess?: (result: { success: number; fails: number }) => void
+): Promise<void> {
+  try {
+    const response = await fixChannelAbilities()
+    if (response.success && response.data) {
+      toast.success(
+        `Fixed abilities: ${response.data.success} succeeded, ${response.data.fails} failed`
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.(response.data)
+    }
+  } catch (error) {
+    toast.error('Failed to fix abilities')
+  }
+}
