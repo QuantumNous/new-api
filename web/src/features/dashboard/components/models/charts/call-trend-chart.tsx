@@ -7,9 +7,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
 import type { ChartDataPoint } from '@/features/dashboard/types'
 
@@ -66,7 +66,7 @@ export function CallTrendChart({
               />
             }
           />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend content={<PaginatedChartLegendContent />} />
           {uniqueModels.map((model) => (
             <Area
               key={model}

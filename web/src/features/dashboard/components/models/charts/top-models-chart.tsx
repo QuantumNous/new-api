@@ -6,8 +6,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
 } from '@/components/ui/chart'
+import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
 import type { RankDataPoint } from '@/features/dashboard/types'
 
@@ -67,7 +67,7 @@ export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
               />
             }
           />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend content={<PaginatedChartLegendContent />} />
           <Bar
             dataKey='count'
             fill='var(--color-count)'

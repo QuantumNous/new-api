@@ -7,8 +7,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
 } from '@/components/ui/chart'
+import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
 import type { TotalTrendDataPoint } from '@/features/dashboard/types'
 
@@ -84,7 +84,7 @@ export function TotalCallsTrendChart({
               />
             }
           />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend content={<PaginatedChartLegendContent />} />
           <Area
             yAxisId='left'
             type='monotone'

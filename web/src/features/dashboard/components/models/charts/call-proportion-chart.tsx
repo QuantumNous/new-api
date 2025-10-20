@@ -6,9 +6,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
 import type { PieDataPoint } from '@/features/dashboard/types'
 
@@ -65,7 +65,7 @@ export function CallProportionChart({
               />
             }
           />
-          <ChartLegend content={<ChartLegendContent nameKey='name' />} />
+          <ChartLegend content={<PaginatedChartLegendContent />} />
         </PieChart>
       </ChartContainer>
     </PanelWrapper>
