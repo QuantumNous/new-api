@@ -1,25 +1,19 @@
-FROM node:20-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /build
 
-# Install pnpm for faster dependency management
-RUN npm install -g pnpm@9.15.4
-
 # Copy package files
-COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/package.json web/bun.lockb* ./
 
-# Fetch dependencies (leverages pnpm store for caching)
-RUN pnpm fetch
-
-# Install dependencies from the store (much faster)
-RUN pnpm install --offline --frozen-lockfile
+# Install dependencies with Bun (much faster than pnpm/npm)
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY ./web .
 
 # Build the frontend with production optimizations
 ENV NODE_ENV=production
-RUN pnpm run build
+RUN bun run build
 
 # Remove unnecessary files to reduce image size
 RUN rm -rf node_modules .git src

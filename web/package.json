@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "build:check": "tsc -b && vite build",
+    "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
     "format:check": "prettier --check .",
@@ -49,9 +51,9 @@
     "lucide-react": "^0.542.0",
     "motion": "^12.23.24",
     "qrcode.react": "^4.2.0",
-    "react": "^19.1.1",
+    "react": "^19.2.0",
     "react-day-picker": "9.8.1",
-    "react-dom": "^19.1.1",
+    "react-dom": "^19.2.0",
     "react-hook-form": "^7.62.0",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
@@ -68,7 +70,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
-    "@faker-js/faker": "^9.9.0",
     "@tanstack/eslint-plugin-query": "^5.83.1",
     "@tanstack/react-query-devtools": "^5.85.3",
     "@tanstack/react-router-devtools": "^1.131.16",
@@ -85,7 +86,6 @@
     "knip": "^5.62.0",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
-    "terser": "^5.36.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.1.2"
