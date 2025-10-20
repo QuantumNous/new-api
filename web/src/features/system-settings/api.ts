@@ -1,9 +1,12 @@
 import { api } from '@/lib/api'
 import type {
   DeleteLogsResponse,
+  FetchUpstreamRatiosRequest,
   SystemOptionsResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
+  UpstreamChannelsResponse,
+  UpstreamRatiosResponse,
 } from './types'
 
 export async function getSystemOptions() {
@@ -26,6 +29,21 @@ export async function deleteLogsBefore(targetTimestamp: number) {
 export async function resetModelRatios() {
   const res = await api.post<UpdateOptionResponse>(
     '/api/option/rest_model_ratio'
+  )
+  return res.data
+}
+
+export async function getUpstreamChannels() {
+  const res = await api.get<UpstreamChannelsResponse>(
+    '/api/ratio_sync/channels'
+  )
+  return res.data
+}
+
+export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
+  const res = await api.post<UpstreamRatiosResponse>(
+    '/api/ratio_sync/fetch',
+    request
   )
   return res.data
 }

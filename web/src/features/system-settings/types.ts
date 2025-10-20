@@ -192,3 +192,57 @@ export type RequestLimitsSettings = {
   'fetch_setting.allowed_ports': number[]
   'fetch_setting.apply_ip_filter_for_domain': boolean
 }
+
+export type UpstreamChannel = {
+  id: number
+  name: string
+  base_url: string
+  status: number
+}
+
+export type RatioType =
+  | 'model_ratio'
+  | 'completion_ratio'
+  | 'cache_ratio'
+  | 'model_price'
+
+export type RatioDifference = {
+  current: number | null
+  upstreams: Record<string, number | 'same'>
+  confidence: Record<string, boolean>
+}
+
+export type DifferencesMap = Record<string, Record<RatioType, RatioDifference>>
+
+export type UpstreamChannelsResponse = {
+  success: boolean
+  message: string
+  data: UpstreamChannel[]
+}
+
+export type UpstreamConfig = {
+  id: number
+  name: string
+  base_url: string
+  endpoint: string
+}
+
+export type FetchUpstreamRatiosRequest = {
+  upstreams: UpstreamConfig[]
+  timeout: number
+}
+
+export type TestResult = {
+  name: string
+  status: 'success' | 'error'
+  error?: string
+}
+
+export type UpstreamRatiosResponse = {
+  success: boolean
+  message: string
+  data: {
+    differences: DifferencesMap
+    test_results: TestResult[]
+  }
+}
