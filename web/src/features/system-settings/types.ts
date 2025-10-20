@@ -28,6 +28,7 @@ export type DeleteLogsResponse = {
 }
 
 export type GeneralSettings = {
+  Notice: string
   SystemName: string
   Logo: string
   Footer: string

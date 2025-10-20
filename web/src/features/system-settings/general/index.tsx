@@ -8,6 +8,7 @@ import { SystemBehaviorSection } from './system-behavior-section'
 import { SystemInfoSection } from './system-info-section'
 
 const defaultGeneralSettings: GeneralSettings = {
+  Notice: '',
   SystemName: 'New API',
   Logo: '',
   Footer: '',
@@ -54,6 +55,7 @@ export function GeneralSettings() {
         >
           <SystemInfoSection
             defaultValues={{
+              Notice: settings.Notice,
               SystemName: settings.SystemName,
               Logo: settings.Logo,
               Footer: settings.Footer,

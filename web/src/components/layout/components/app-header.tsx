@@ -1,5 +1,8 @@
+import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { NotificationButton } from '@/components/notification-button'
+import { NotificationDialog } from '@/components/notification-dialog'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -69,6 +72,11 @@ type AppHeaderProps = {
    */
   showThemeSwitch?: boolean
   /**
+   * 是否显示通知按钮
+   * @default true
+   */
+  showNotifications?: boolean
+  /**
    * 是否显示配置抽屉
    * @default true
    */
@@ -88,6 +96,7 @@ export function AppHeader({
   fixed = false,
   rightContent,
   showThemeSwitch = true,
+  showNotifications = true,
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
@@ -95,21 +104,46 @@ export function AppHeader({
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
+  // Notifications hook
+  const notifications = useNotifications()
+
   // 决定左侧内容：自定义内容 > 导航栏 > null
   const leftSection =
     leftContent || (showTopNav ? <TopNav links={links} /> : null)
 
   return (
-    <Header fixed={fixed}>
-      {leftSection}
-      {rightContent ?? (
-        <div className='ms-auto flex items-center space-x-4'>
-          {showSearch && <Search />}
-          {showThemeSwitch && <ThemeSwitch />}
-          {showConfigDrawer && <ConfigDrawer />}
-          {showProfileDropdown && <ProfileDropdown />}
-        </div>
+    <>
+      <Header fixed={fixed}>
+        {leftSection}
+        {rightContent ?? (
+          <div className='ms-auto flex items-center space-x-4'>
+            {showSearch && <Search />}
+            {showThemeSwitch && <ThemeSwitch />}
+            {showNotifications && (
+              <NotificationButton
+                unreadCount={notifications.unreadCount}
+                onClick={() => notifications.openDialog()}
+              />
+            )}
+            {showConfigDrawer && <ConfigDrawer />}
+            {showProfileDropdown && <ProfileDropdown />}
+          </div>
+        )}
+      </Header>
+
+      {/* Notification Dialog */}
+      {showNotifications && (
+        <NotificationDialog
+          open={notifications.dialogOpen}
+          onOpenChange={notifications.setDialogOpen}
+          activeTab={notifications.activeTab}
+          onTabChange={notifications.setActiveTab}
+          notice={notifications.notice}
+          announcements={notifications.announcements}
+          loading={notifications.loading}
+          onCloseToday={notifications.closeToday}
+        />
       )}
-    </Header>
+    </>
   )
 }

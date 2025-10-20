@@ -4,10 +4,13 @@ import { Menu, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { SKELETON_DEFAULTS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { NotificationButton } from '@/components/notification-button'
+import { NotificationDialog } from '@/components/notification-dialog'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -140,6 +143,11 @@ export interface PublicHeaderProps {
    */
   showAuthButtons?: boolean
   /**
+   * Show notification button
+   * @default true
+   */
+  showNotifications?: boolean
+  /**
    * Additional className for header
    */
   className?: string
@@ -190,6 +198,7 @@ export function PublicHeader({
   rightContent,
   showNavigation = true,
   showAuthButtons = true,
+  showNotifications = true,
   className,
 }: PublicHeaderProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -201,6 +210,7 @@ export function PublicHeader({
     logoLoaded,
   } = useSystemConfig()
   const dynamicLinks = useTopNavLinks()
+  const notifications = useNotifications()
 
   // Computed values
   const user = auth.user
@@ -254,6 +264,12 @@ export function PublicHeader({
             {rightContent || (
               <>
                 {showThemeSwitch && <ThemeSwitch />}
+                {showNotifications && (
+                  <NotificationButton
+                    unreadCount={notifications.unreadCount}
+                    onClick={() => notifications.openDialog()}
+                  />
+                )}
                 {showAuthButtons && (
                   <DesktopAuthButton
                     isAuthenticated={isAuthenticated}
@@ -291,6 +307,20 @@ export function PublicHeader({
         showAuthButtons={showAuthButtons}
         user={user}
       />
+
+      {/* Notification Dialog */}
+      {showNotifications && (
+        <NotificationDialog
+          open={notifications.dialogOpen}
+          onOpenChange={notifications.setDialogOpen}
+          activeTab={notifications.activeTab}
+          onTabChange={notifications.setActiveTab}
+          notice={notifications.notice}
+          announcements={notifications.announcements}
+          loading={notifications.loading}
+          onCloseToday={notifications.closeToday}
+        />
+      )}
     </header>
   )
 }
