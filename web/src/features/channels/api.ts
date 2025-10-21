@@ -69,7 +69,7 @@ export async function updateChannel(
   id: number,
   data: Partial<Channel>
 ): Promise<{ success: boolean; message?: string; data?: Channel }> {
-  const res = await api.put(`/api/channel/${id}`, data)
+  const res = await api.put('/api/channel/', { id, ...data })
   return res.data
 }
 
