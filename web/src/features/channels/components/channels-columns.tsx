@@ -561,16 +561,27 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         const testTime = row.getValue('test_time') as number
         const timeText = formatRelativeTime(testTime)
 
+        // For invalid timestamps, return plain text without tooltip
+        if (!testTime || testTime === 0) {
+          return (
+            <span className='text-muted-foreground text-xs'>{timeText}</span>
+          )
+        }
+
+        // Format full date for tooltip
+        const fullDate = new Date(testTime * 1000).toLocaleString()
+
+        // For valid timestamps, show tooltip with full date
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-default text-xs'>
+                <span className='text-muted-foreground cursor-pointer text-xs'>
                   {timeText}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side='top' className='border-border bg-popover'>
-                {new Date(testTime * 1000).toLocaleString()}
+              <TooltipContent side='top'>
+                <p className='text-sm'>{fullDate}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
