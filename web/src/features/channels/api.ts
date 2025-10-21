@@ -124,7 +124,7 @@ export async function testChannel(
 export async function updateChannelBalance(
   id: number
 ): Promise<ChannelBalanceResponse> {
-  const res = await api.get(`/api/channel/update_balance/${id}/`)
+  const res = await api.get(`/api/channel/update_balance/${id}`)
   return res.data
 }
 
