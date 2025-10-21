@@ -429,7 +429,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
               {modelArray.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-w-md'
+                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{modelBadges}</div>
                 </TooltipContent>
@@ -454,7 +454,23 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
           <StatusBadge key={idx} label={g} autoColor={g} size='sm' />
         ))
 
-        return renderLimitedItems(groupBadges, 2)
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>{renderLimitedItems(groupBadges, 2)}</div>
+              </TooltipTrigger>
+              {groupArray.length > 2 && (
+                <TooltipContent
+                  side='top'
+                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                >
+                  <div className='flex flex-wrap gap-1'>{groupBadges}</div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        )
       },
       size: 150,
       enableSorting: false,
