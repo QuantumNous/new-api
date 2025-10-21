@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 interface NumericSpinnerInputProps {
   value: number | null | undefined
@@ -92,44 +90,40 @@ export function NumericSpinnerInput({
   }
 
   return (
-    <div className={cn('flex flex-col gap-0.5', className)}>
+    <div className={cn('inline-flex', className)}>
       {label && (
         <label className='text-muted-foreground text-xs font-medium'>
           {label}
         </label>
       )}
-      <div className='relative flex items-center'>
-        <Input
+      <div className='relative inline-block'>
+        <input
           type='text'
           value={localValue}
           onChange={handleInputChange}
           onBlur={handleBlur}
           disabled={disabled}
-          className='h-7 w-14 pr-5 text-center font-mono text-xs'
+          className='bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-8 w-20 rounded-md border px-3 py-1 pr-7 text-center font-mono text-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
         />
-        <div className='absolute right-0.5 flex flex-col'>
-          <Button
+        <div className='absolute inset-y-0 right-0 flex flex-col items-center justify-center pr-1'>
+          <button
             type='button'
-            variant='ghost'
-            size='icon'
             onClick={handleIncrement}
             disabled={
               disabled || (max !== undefined && Number(localValue) >= max)
             }
-            className='hover:bg-accent h-3 w-4 rounded-sm p-0'
+            className='hover:bg-accent flex h-3.5 w-5 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50'
           >
-            <ChevronUp className='h-2.5 w-2.5' />
-          </Button>
-          <Button
+            <ChevronUp className='h-3 w-3' />
+          </button>
+          <button
             type='button'
-            variant='ghost'
-            size='icon'
             onClick={handleDecrement}
             disabled={disabled || Number(localValue) <= min}
-            className='hover:bg-accent h-3 w-4 rounded-sm p-0'
+            className='hover:bg-accent flex h-3.5 w-5 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50'
           >
-            <ChevronDown className='h-2.5 w-2.5' />
-          </Button>
+            <ChevronDown className='h-3 w-3' />
+          </button>
         </div>
       </div>
     </div>
