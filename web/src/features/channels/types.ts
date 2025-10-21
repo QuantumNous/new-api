@@ -147,7 +147,18 @@ export interface KeyStatus {
   status: number // 1: enabled, 2: manual disabled, 3: auto disabled
   disabled_time?: number
   reason?: string
-  key_preview: string
+  key_preview?: string
+}
+
+export type MultiKeyConfirmAction = {
+  type:
+    | 'enable'
+    | 'disable'
+    | 'delete'
+    | 'enable-all'
+    | 'disable-all'
+    | 'delete-disabled'
+  keyIndex?: number
 }
 
 export interface MultiKeyStatusResponse {

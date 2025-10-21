@@ -163,6 +163,28 @@ export const ADD_MODE_OPTIONS = [
 ] as const
 
 // ============================================================================
+// Multi-Key Management
+// ============================================================================
+
+export const MULTI_KEY_FILTER_OPTIONS = [
+  { value: 'all', label: 'All Status' },
+  { value: '1', label: 'Enabled' },
+  { value: '2', label: 'Manual Disabled' },
+  { value: '3', label: 'Auto Disabled' },
+] as const
+
+export const MULTI_KEY_CONFIRM_MESSAGES = {
+  DELETE:
+    'Are you sure you want to delete this key? This action cannot be undone.',
+  ENABLE: 'Enable this key?',
+  DISABLE: 'Disable this key?',
+  ENABLE_ALL: 'Are you sure you want to enable all keys?',
+  DISABLE_ALL: 'Are you sure you want to disable all enabled keys?',
+  DELETE_DISABLED:
+    'Are you sure you want to delete all auto-disabled keys? This action cannot be undone.',
+} as const
+
+// ============================================================================
 // Auto Ban Options
 // ============================================================================
 
