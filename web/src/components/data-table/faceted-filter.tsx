@@ -28,15 +28,19 @@ type DataTableFacetedFilterProps<TData, TValue> = {
     value: string
     icon?: React.ComponentType<{ className?: string }>
   }[]
+  /** Enable single select mode (only one option can be selected at a time) */
+  singleSelect?: boolean
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
   options,
+  singleSelect = false,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues()
-  const selectedValues = new Set(column?.getFilterValue() as string[])
+  const filterValue = column?.getFilterValue() as string[] | undefined
+  const selectedValues = new Set(filterValue)
 
   return (
     <Popover>
@@ -91,15 +95,27 @@ export function DataTableFacetedFilter<TData, TValue>({
                   <CommandItem
                     key={option.value}
                     onSelect={() => {
-                      if (isSelected) {
-                        selectedValues.delete(option.value)
+                      if (singleSelect) {
+                        // Single select mode: toggle or switch selection
+                        if (isSelected) {
+                          // Deselect if clicking the same option
+                          column?.setFilterValue(undefined)
+                        } else {
+                          // Select only this option
+                          column?.setFilterValue([option.value])
+                        }
                       } else {
-                        selectedValues.add(option.value)
+                        // Multi-select mode: original behavior
+                        if (isSelected) {
+                          selectedValues.delete(option.value)
+                        } else {
+                          selectedValues.add(option.value)
+                        }
+                        const filterValues = Array.from(selectedValues)
+                        column?.setFilterValue(
+                          filterValues.length ? filterValues : undefined
+                        )
                       }
-                      const filterValues = Array.from(selectedValues)
-                      column?.setFilterValue(
-                        filterValues.length ? filterValues : undefined
-                      )
                     }}
                   >
                     <div

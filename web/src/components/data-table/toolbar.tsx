@@ -17,9 +17,16 @@ type DataTableToolbarProps<TData> = {
       value: string
       icon?: React.ComponentType<{ className?: string }>
     }[]
+    singleSelect?: boolean
   }[]
   /** Custom search component to replace the default input */
   customSearch?: React.ReactNode
+  /** Additional search input to show alongside the main search */
+  additionalSearch?: React.ReactNode
+  /** Whether additional filters are active (for showing reset button) */
+  hasAdditionalFilters?: boolean
+  /** Callback when reset button is clicked (for clearing additional filters) */
+  onReset?: () => void
 }
 
 export function DataTableToolbar<TData>({
@@ -28,9 +35,14 @@ export function DataTableToolbar<TData>({
   searchKey,
   filters = [],
   customSearch,
+  additionalSearch,
+  hasAdditionalFilters = false,
+  onReset,
 }: DataTableToolbarProps<TData>) {
   const isFiltered =
-    table.getState().columnFilters.length > 0 || table.getState().globalFilter
+    table.getState().columnFilters.length > 0 ||
+    table.getState().globalFilter ||
+    hasAdditionalFilters
 
   return (
     <div className='flex items-center justify-between'>
@@ -56,6 +68,7 @@ export function DataTableToolbar<TData>({
             className='h-8 w-[150px] lg:w-[250px]'
           />
         )}
+        {additionalSearch}
         <div className='flex gap-x-2'>
           {filters.map((filter) => {
             const column = table.getColumn(filter.columnId)
@@ -66,6 +79,7 @@ export function DataTableToolbar<TData>({
                 column={column}
                 title={filter.title}
                 options={filter.options}
+                singleSelect={filter.singleSelect}
               />
             )
           })}
@@ -76,6 +90,7 @@ export function DataTableToolbar<TData>({
             onClick={() => {
               table.resetColumnFilters()
               table.setGlobalFilter('')
+              onReset?.()
             }}
             className='h-8 px-2 lg:px-3'
           >

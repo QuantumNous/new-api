@@ -70,12 +70,14 @@ export const CHANNEL_TYPE_OPTIONS = Object.entries(CHANNEL_TYPES)
 // ============================================================================
 
 export const CHANNEL_STATUS = {
+  UNKNOWN: 0,
   ENABLED: 1,
-  MANUAL_DISABLED: 0,
-  AUTO_DISABLED: 2,
+  MANUAL_DISABLED: 2,
+  AUTO_DISABLED: 3,
 } as const
 
 export const CHANNEL_STATUS_LABELS = {
+  [CHANNEL_STATUS.UNKNOWN]: 'Unknown',
   [CHANNEL_STATUS.ENABLED]: 'Enabled',
   [CHANNEL_STATUS.MANUAL_DISABLED]: 'Disabled',
   [CHANNEL_STATUS.AUTO_DISABLED]: 'Auto Disabled',
@@ -89,6 +91,11 @@ export const CHANNEL_STATUS_OPTIONS = [
 
 // Status badge configurations
 export const CHANNEL_STATUS_CONFIG = {
+  [CHANNEL_STATUS.UNKNOWN]: {
+    variant: 'neutral' as const,
+    label: 'Unknown',
+    showDot: true,
+  },
   [CHANNEL_STATUS.ENABLED]: {
     variant: 'success' as const,
     label: 'Enabled',

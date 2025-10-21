@@ -12,6 +12,9 @@ import {
   deleteDisabledChannels,
   fixChannelAbilities,
   editTagChannels,
+  testAllChannels,
+  updateAllChannelsBalance,
+  updateChannelBalance,
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import type { CopyChannelParams } from '../types'
@@ -215,6 +218,29 @@ export async function handleCopyChannel(
     }
   } catch (error) {
     toast.error('Failed to copy channel')
+  }
+}
+
+/**
+ * Update channel balance
+ */
+export async function handleUpdateChannelBalance(
+  id: number,
+  queryClient?: QueryClient,
+  onSuccess?: (balance: number) => void
+): Promise<void> {
+  try {
+    const response = await updateChannelBalance(id)
+    if (response.success && response.balance !== undefined) {
+      const balance = response.balance
+      toast.success(`Balance updated: $${balance.toFixed(2)}`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.(balance)
+    } else {
+      toast.error(response.message || 'Failed to update balance')
+    }
+  } catch (error: any) {
+    toast.error(error?.message || 'Failed to update balance')
   }
 }
 
@@ -434,5 +460,51 @@ export async function handleFixAbilities(
     }
   } catch (error) {
     toast.error('Failed to fix abilities')
+  }
+}
+
+/**
+ * Test all enabled channels
+ */
+export async function handleTestAllChannels(
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await testAllChannels()
+    if (response.success) {
+      toast.success(
+        'Testing all enabled channels started. Please refresh to see results.'
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(response.message || 'Failed to start testing all channels')
+    }
+  } catch (error) {
+    toast.error('Failed to test all channels')
+  }
+}
+
+/**
+ * Update balance for all enabled channels
+ */
+export async function handleUpdateAllBalances(
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateAllChannelsBalance()
+    if (response.success) {
+      toast.success(
+        'Updating all channel balances. This may take a while. Please refresh to see results.'
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(response.message || 'Failed to update all balances')
+    }
+  } catch (error) {
+    toast.error('Failed to update all balances')
   }
 }

@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
 import { Loader2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -20,9 +21,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { DataTableToolbar } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
-import { getChannels, searchChannels } from '../api'
-import { DEFAULT_PAGE_SIZE } from '../constants'
+import { getChannels, searchChannels, getGroups } from '../api'
+import {
+  DEFAULT_PAGE_SIZE,
+  CHANNEL_STATUS_OPTIONS,
+  CHANNEL_TYPE_OPTIONS,
+} from '../constants'
 import {
   channelsQueryKeys,
   aggregateChannelsByTag,
@@ -30,17 +36,11 @@ import {
 } from '../lib'
 import type { Channel } from '../types'
 import { getChannelsColumns } from './channels-columns'
-import { ChannelsFilterBar } from './channels-filter-bar'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 export function ChannelsTable() {
-  const { enableTagMode } = useChannels()
-
-  // Filter state
-  const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState('all')
-  const [type, setType] = useState('all')
+  const { enableTagMode, idSort } = useChannels()
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([])
@@ -48,42 +48,107 @@ export function ChannelsTable() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = useState({})
   const [expanded, setExpanded] = useState<ExpandedState>({})
+  const [globalFilter, setGlobalFilter] = useState('')
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   })
 
-  // Debounce keyword for search
-  const debouncedKeyword = useDebounce(keyword, 500)
+  // Additional filter state
+  const [modelFilter, setModelFilter] = useState('')
+
+  // Extract filters from column filters
+  const statusFilter =
+    (columnFilters.find((f) => f.id === 'status')?.value as string[]) || []
+  const typeFilter =
+    (columnFilters.find((f) => f.id === 'type')?.value as string[]) || []
+  const groupFilter =
+    (columnFilters.find((f) => f.id === 'group')?.value as string[]) || []
+
+  // Debounce filters for search
+  const debouncedGlobalFilter = useDebounce(globalFilter, 500)
+  const debouncedModelFilter = useDebounce(modelFilter, 500)
 
   // Determine whether to use search or regular list API
-  const shouldSearch = Boolean(debouncedKeyword.trim())
+  const shouldSearch = Boolean(
+    debouncedGlobalFilter.trim() || debouncedModelFilter.trim()
+  )
+
+  // Fetch groups for filter
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups'],
+    queryFn: getGroups,
+  })
+
+  const groupOptions = useMemo(
+    () =>
+      (groupsData?.data || []).map((g) => ({
+        label: g,
+        value: g,
+      })),
+    [groupsData]
+  )
 
   // Fetch channels data
   const { data, isLoading } = useQuery({
     queryKey: channelsQueryKeys.list({
-      keyword: debouncedKeyword,
-      status: status !== 'all' ? status : undefined,
-      type: type !== 'all' ? Number(type) : undefined,
+      keyword: debouncedGlobalFilter,
+      model: debouncedModelFilter,
+      group:
+        groupFilter.length > 0 && !groupFilter.includes('all')
+          ? groupFilter[0]
+          : undefined,
+      status:
+        statusFilter.length > 0 && !statusFilter.includes('all')
+          ? statusFilter[0]
+          : undefined,
+      type:
+        typeFilter.length > 0 && !typeFilter.includes('all')
+          ? Number(typeFilter[0])
+          : undefined,
       tag_mode: enableTagMode,
+      id_sort: idSort,
       p: pagination.pageIndex + 1,
       page_size: pagination.pageSize,
     }),
     queryFn: async () => {
       if (shouldSearch) {
         return searchChannels({
-          keyword: debouncedKeyword,
-          status: status !== 'all' ? status : undefined,
-          type: type !== 'all' ? Number(type) : undefined,
+          keyword: debouncedGlobalFilter,
+          model: debouncedModelFilter,
+          group:
+            groupFilter.length > 0 && !groupFilter.includes('all')
+              ? groupFilter[0]
+              : undefined,
+          status:
+            statusFilter.length > 0 && !statusFilter.includes('all')
+              ? statusFilter[0]
+              : undefined,
+          type:
+            typeFilter.length > 0 && !typeFilter.includes('all')
+              ? Number(typeFilter[0])
+              : undefined,
           tag_mode: enableTagMode,
+          id_sort: idSort,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
       } else {
         return getChannels({
-          status: status !== 'all' ? status : undefined,
-          type: type !== 'all' ? Number(type) : undefined,
+          group:
+            groupFilter.length > 0 && !groupFilter.includes('all')
+              ? groupFilter[0]
+              : undefined,
+          status:
+            statusFilter.length > 0 && !statusFilter.includes('all')
+              ? statusFilter[0]
+              : undefined,
+          type:
+            typeFilter.length > 0 && !typeFilter.includes('all')
+              ? Number(typeFilter[0])
+              : undefined,
           tag_mode: enableTagMode,
+          id_sort: idSort,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -103,6 +168,7 @@ export function ChannelsTable() {
   }, [data, enableTagMode])
 
   const totalCount = data?.data?.total || 0
+  const typeCounts = data?.data?.type_counts
 
   // Columns configuration
   const columns = getChannelsColumns()
@@ -119,6 +185,7 @@ export function ChannelsTable() {
       rowSelection,
       pagination,
       expanded,
+      globalFilter,
     },
     enableRowSelection: (row: Row<Channel>) => !isTagAggregateRow(row.original),
     onRowSelectionChange: setRowSelection,
@@ -127,6 +194,7 @@ export function ChannelsTable() {
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     onExpandedChange: setExpanded,
+    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getSubRows: (row: any) => row.children,
@@ -135,28 +203,63 @@ export function ChannelsTable() {
     manualFiltering: true,
   })
 
-  // Reset filters
-  const handleResetFilters = () => {
-    setKeyword('')
-    setStatus('all')
-    setType('all')
-  }
+  // Prepare filter options
+  const typeFilterOptions = [
+    {
+      label: `All Types${typeCounts?.all ? ` (${typeCounts.all})` : ''}`,
+      value: 'all',
+    },
+    ...CHANNEL_TYPE_OPTIONS.map((option) => ({
+      label: `${option.label}${typeCounts?.[option.value] ? ` (${typeCounts[option.value]})` : ''}`,
+      value: String(option.value),
+    })),
+  ]
+
+  const groupFilterOptions = [
+    { label: 'All Groups', value: 'all' },
+    ...groupOptions,
+  ]
 
   return (
-    <div className='space-y-4'>
-      {/* Filter Bar */}
-      <ChannelsFilterBar
-        keyword={keyword}
-        onKeywordChange={setKeyword}
-        status={status}
-        onStatusChange={setStatus}
-        type={type}
-        onTypeChange={setType}
-        onReset={handleResetFilters}
+    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
+      {/* Toolbar with Filters */}
+      <DataTableToolbar
+        table={table}
+        searchPlaceholder='Filter by name, ID, or key...'
+        additionalSearch={
+          <Input
+            placeholder='Filter by model...'
+            value={modelFilter}
+            onChange={(e) => setModelFilter(e.target.value)}
+            className='h-8 w-[150px] lg:w-[200px]'
+          />
+        }
+        hasAdditionalFilters={Boolean(modelFilter)}
+        onReset={() => setModelFilter('')}
+        filters={[
+          {
+            columnId: 'status',
+            title: 'Status',
+            options: [...CHANNEL_STATUS_OPTIONS],
+            singleSelect: true,
+          },
+          {
+            columnId: 'type',
+            title: 'Type',
+            options: typeFilterOptions,
+            singleSelect: true,
+          },
+          {
+            columnId: 'group',
+            title: 'Group',
+            options: groupFilterOptions,
+            singleSelect: true,
+          },
+        ]}
       />
 
       {/* Table */}
-      <div className='rounded-md border'>
+      <div className='overflow-hidden rounded-md border'>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

@@ -174,6 +174,7 @@ export interface GetChannelsParams {
   page_size?: number
   status?: string // 'enabled', 'disabled', or empty for all
   type?: number
+  group?: string
   id_sort?: boolean
   tag_mode?: boolean
 }

@@ -29,6 +29,7 @@ import {
   parseGroupsList,
   handleUpdateChannelField,
   handleUpdateTagField,
+  handleUpdateChannelBalance,
 } from '../lib'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -169,6 +170,82 @@ function WeightCell({ channel }: { channel: Channel }) {
       }}
       min={0}
     />
+  )
+}
+
+/**
+ * Balance cell component with click to update
+ */
+function BalanceCell({ channel }: { channel: Channel }) {
+  const queryClient = useQueryClient()
+  const isTagRow = (channel as any).children !== undefined
+  const balance = channel.balance || 0
+  const usedQuota = channel.used_quota || 0
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  // Tag row: only show cumulative used quota
+  if (isTagRow) {
+    return (
+      <StatusBadge
+        label={`Used: ${formatBalance(usedQuota)}`}
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
+    )
+  }
+
+  // Regular channel row: show used and remaining with click to update
+  const variant = getBalanceVariant(balance)
+
+  const handleClickUpdate = async () => {
+    if (isUpdating) return
+
+    setIsUpdating(true)
+    await handleUpdateChannelBalance(channel.id, queryClient)
+    setIsUpdating(false)
+  }
+
+  return (
+    <TooltipProvider>
+      <div className='flex items-center gap-1'>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <StatusBadge
+                label={formatBalance(usedQuota)}
+                variant='neutral'
+                size='sm'
+                copyable={false}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Used Quota</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='cursor-pointer' onClick={handleClickUpdate}>
+              <StatusBadge
+                label={isUpdating ? 'Updating...' : formatBalance(balance)}
+                variant={isUpdating ? 'neutral' : variant}
+                size='sm'
+                copyable={false}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              Remaining: ${balance.toFixed(2)}
+              <br />
+              Click to update balance
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -340,6 +417,10 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
           </div>
         )
       },
+      filterFn: (row, id, value) => {
+        if (!value || value.length === 0 || value.includes('all')) return true
+        return value.includes(String(row.getValue(id)))
+      },
       size: 140,
       enableSorting: false,
     },
@@ -393,6 +474,13 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
             copyable={false}
           />
         )
+      },
+      filterFn: (row, id, value) => {
+        if (!value || value.length === 0 || value.includes('all')) return true
+        const status = row.getValue(id) as number
+        if (value.includes('enabled')) return status === 1
+        if (value.includes('disabled')) return status !== 1
+        return false
       },
       size: 120,
       enableSorting: false,
@@ -472,6 +560,12 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
           </TooltipProvider>
         )
       },
+      filterFn: (row, id, value) => {
+        if (!value || value.length === 0 || value.includes('all')) return true
+        const group = row.getValue(id) as string
+        const groupArray = parseGroupsList(group)
+        return groupArray.some((g) => value.includes(g))
+      },
       size: 150,
       enableSorting: false,
     },
@@ -510,41 +604,14 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       enableSorting: false,
     },
 
-    // Balance column
+    // Balance column (Used/Remaining)
     {
       accessorKey: 'balance',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Balance' />
+        <DataTableColumnHeader column={column} title='Used / Remaining' />
       ),
-      cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
-        const balance = row.getValue('balance') as number
-
-        // Tag row: only show cumulative used quota
-        if (isTagRow) {
-          const usedQuota = row.original.used_quota
-          return (
-            <StatusBadge
-              label={`Used: ${formatBalance(usedQuota)}`}
-              variant='neutral'
-              size='sm'
-              copyable={false}
-            />
-          )
-        }
-
-        // Regular channel row: show balance
-        const variant = getBalanceVariant(balance)
-        return (
-          <StatusBadge
-            label={formatBalance(balance)}
-            variant={variant}
-            size='sm'
-            copyable={false}
-          />
-        )
-      },
-      size: 120,
+      cell: ({ row }) => <BalanceCell channel={row.original} />,
+      size: 180,
     },
 
     // Response Time column

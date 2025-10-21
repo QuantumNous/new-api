@@ -13,6 +13,7 @@ type DialogType =
   | 'fetch-models'
   | 'multi-key-manage'
   | 'tag-batch-edit'
+  | 'edit-tag'
   | 'copy-channel'
   | null
 
@@ -25,6 +26,8 @@ type ChannelsContextType = {
   setCurrentTag: (tag: string | null) => void
   enableTagMode: boolean
   setEnableTagMode: (enabled: boolean) => void
+  idSort: boolean
+  setIdSort: (enabled: boolean) => void
 }
 
 // ============================================================================
@@ -46,6 +49,9 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   const [enableTagMode, setEnableTagMode] = useState(() => {
     return localStorage.getItem('enable-tag-mode') === 'true'
   })
+  const [idSort, setIdSort] = useState(() => {
+    return localStorage.getItem('channels-id-sort') === 'true'
+  })
 
   return (
     <ChannelsContext.Provider
@@ -58,6 +64,8 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
         setCurrentTag,
         enableTagMode,
         setEnableTagMode,
+        idSort,
+        setIdSort,
       }}
     >
       {children}

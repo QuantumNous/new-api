@@ -1,28 +1,49 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Plus, MoreHorizontal, Settings2, Trash2, Tags } from 'lucide-react'
+import {
+  Plus,
+  MoreHorizontal,
+  Settings2,
+  Trash2,
+  Tags,
+  TestTube,
+  DollarSign,
+  SortAsc,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { handleDeleteAllDisabled, handleFixAbilities } from '../lib'
+import {
+  handleDeleteAllDisabled,
+  handleFixAbilities,
+  handleTestAllChannels,
+  handleUpdateAllBalances,
+} from '../lib'
 import { useChannels } from './channels-provider'
 
 export function ChannelsPrimaryButtons() {
-  const { setOpen, enableTagMode, setEnableTagMode } = useChannels()
+  const { setOpen, enableTagMode, setEnableTagMode, idSort, setIdSort } =
+    useChannels()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const handleTagModeToggle = (checked: boolean) => {
     localStorage.setItem('enable-tag-mode', String(checked))
     setEnableTagMode(checked)
+  }
+
+  const handleIdSortToggle = (checked: boolean) => {
+    localStorage.setItem('channels-id-sort', String(checked))
+    setIdSort(checked)
   }
 
   return (
@@ -38,6 +59,19 @@ export function ChannelsPrimaryButtons() {
             id='tag-mode'
             checked={enableTagMode}
             onCheckedChange={handleTagModeToggle}
+          />
+        </div>
+
+        {/* ID Sort Toggle */}
+        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+          <SortAsc className='text-muted-foreground h-4 w-4' />
+          <Label htmlFor='id-sort' className='cursor-pointer text-sm'>
+            Sort by ID
+          </Label>
+          <Switch
+            id='id-sort'
+            checked={idSort}
+            onCheckedChange={handleIdSortToggle}
           />
         </div>
 
@@ -57,13 +91,39 @@ export function ChannelsPrimaryButtons() {
           <DropdownMenuContent align='end' className='w-56'>
             <DropdownMenuItem
               onClick={() => {
+                handleTestAllChannels(queryClient)
+              }}
+            >
+              Test All Channels
+              <DropdownMenuShortcut>
+                <TestTube className='h-4 w-4' />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => {
+                handleUpdateAllBalances(queryClient)
+              }}
+            >
+              Update All Balances
+              <DropdownMenuShortcut>
+                <DollarSign className='h-4 w-4' />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem
+              onClick={() => {
                 handleFixAbilities(queryClient, (result) => {
                   console.log('Fix abilities result:', result)
                 })
               }}
             >
-              <Settings2 className='mr-2 h-4 w-4' />
               Fix Abilities
+              <DropdownMenuShortcut>
+                <Settings2 className='h-4 w-4' />
+              </DropdownMenuShortcut>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -75,8 +135,10 @@ export function ChannelsPrimaryButtons() {
               }}
               className='text-destructive focus:text-destructive'
             >
-              <Trash2 className='mr-2 h-4 w-4' />
               Delete All Disabled
+              <DropdownMenuShortcut>
+                <Trash2 className='h-4 w-4' />
+              </DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
