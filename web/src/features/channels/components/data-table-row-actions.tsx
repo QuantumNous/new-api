@@ -18,6 +18,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -89,41 +90,53 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <DropdownMenuContent align='end' className='w-48'>
         {/* Edit */}
         <DropdownMenuItem onClick={handleEdit}>
-          <Pencil className='mr-2 h-4 w-4' />
           Edit
+          <DropdownMenuShortcut>
+            <Pencil size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
 
         {/* Test Connection */}
         <DropdownMenuItem onClick={handleTest}>
-          <TestTube className='mr-2 h-4 w-4' />
           Test Connection
+          <DropdownMenuShortcut>
+            <TestTube size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
 
         {/* Query Balance */}
         <DropdownMenuItem onClick={handleQueryBalance}>
-          <DollarSign className='mr-2 h-4 w-4' />
           Query Balance
+          <DropdownMenuShortcut>
+            <DollarSign size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
 
         {/* Fetch Models */}
         <DropdownMenuItem onClick={handleFetchModels}>
-          <Download className='mr-2 h-4 w-4' />
           Fetch Models
+          <DropdownMenuShortcut>
+            <Download size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
         {/* Copy Channel */}
         <DropdownMenuItem onClick={handleCopy}>
-          <Copy className='mr-2 h-4 w-4' />
           Copy Channel
+          <DropdownMenuShortcut>
+            <Copy size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
 
         {/* Manage Keys (only for multi-key channels) */}
         {isMultiKey && (
           <DropdownMenuItem onClick={handleManageKeys}>
-            <Key className='mr-2 h-4 w-4' />
             Manage Keys
+            <DropdownMenuShortcut>
+              <Key size={16} />
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
 
@@ -133,13 +146,17 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuItem onClick={handleToggleStatus}>
           {isEnabled ? (
             <>
-              <PowerOff className='mr-2 h-4 w-4' />
               Disable
+              <DropdownMenuShortcut>
+                <PowerOff size={16} />
+              </DropdownMenuShortcut>
             </>
           ) : (
             <>
-              <Power className='mr-2 h-4 w-4' />
               Enable
+              <DropdownMenuShortcut>
+                <Power size={16} />
+              </DropdownMenuShortcut>
             </>
           )}
         </DropdownMenuItem>
@@ -160,8 +177,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           }}
           className='text-destructive focus:text-destructive'
         >
-          <Trash2 className='mr-2 h-4 w-4' />
           Delete
+          <DropdownMenuShortcut>
+            <Trash2 size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
