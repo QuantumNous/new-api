@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   getCoreRowModel,
   useReactTable,
+  getExpandedRowModel,
   type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
+  type ExpandedState,
+  type Row,
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
 import { Loader2 } from 'lucide-react'
@@ -21,12 +24,20 @@ import { DataTablePagination } from '@/components/data-table/pagination'
 import { DataTableViewOptions } from '@/components/data-table/view-options'
 import { getChannels, searchChannels } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
-import { channelsQueryKeys } from '../lib'
+import {
+  channelsQueryKeys,
+  aggregateChannelsByTag,
+  isTagAggregateRow,
+} from '../lib'
+import type { Channel } from '../types'
 import { getChannelsColumns } from './channels-columns'
 import { ChannelsFilterBar } from './channels-filter-bar'
+import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 export function ChannelsTable() {
+  const { enableTagMode } = useChannels()
+
   // Filter state
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('all')
@@ -37,6 +48,7 @@ export function ChannelsTable() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = useState({})
+  const [expanded, setExpanded] = useState<ExpandedState>({})
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
@@ -54,6 +66,7 @@ export function ChannelsTable() {
       keyword: debouncedKeyword,
       status: status !== 'all' ? status : undefined,
       type: type !== 'all' ? Number(type) : undefined,
+      tag_mode: enableTagMode,
       p: pagination.pageIndex + 1,
       page_size: pagination.pageSize,
     }),
@@ -63,6 +76,7 @@ export function ChannelsTable() {
           keyword: debouncedKeyword,
           status: status !== 'all' ? status : undefined,
           type: type !== 'all' ? Number(type) : undefined,
+          tag_mode: enableTagMode,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -70,6 +84,7 @@ export function ChannelsTable() {
         return getChannels({
           status: status !== 'all' ? status : undefined,
           type: type !== 'all' ? Number(type) : undefined,
+          tag_mode: enableTagMode,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -77,7 +92,17 @@ export function ChannelsTable() {
     },
   })
 
-  const channels = data?.data?.items || []
+  // Apply tag aggregation if tag mode is enabled
+  const channels = useMemo(() => {
+    const rawChannels = data?.data?.items || []
+
+    if (enableTagMode && rawChannels.length > 0) {
+      return aggregateChannelsByTag(rawChannels)
+    }
+
+    return rawChannels
+  }, [data, enableTagMode])
+
   const totalCount = data?.data?.total || 0
 
   // Columns configuration
@@ -94,14 +119,18 @@ export function ChannelsTable() {
       columnVisibility,
       rowSelection,
       pagination,
+      expanded,
     },
-    enableRowSelection: true,
+    enableRowSelection: (row: Row<Channel>) => !isTagAggregateRow(row.original),
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    getSubRows: (row: any) => row.children,
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,

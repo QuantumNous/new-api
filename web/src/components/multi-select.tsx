@@ -86,7 +86,7 @@ export function MultiSelect({
             onValueChange={setInputValue}
             onBlur={() => setOpen(false)}
             onFocus={() => setOpen(true)}
-            placeholder={placeholder}
+            placeholder={selected.length === 0 ? placeholder : ''}
             className='placeholder:text-muted-foreground flex-1 bg-transparent outline-none'
           />
         </div>

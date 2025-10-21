@@ -120,10 +120,8 @@ export interface ChannelTestResponse {
 export interface ChannelBalanceResponse {
   success: boolean
   message?: string
-  data?: {
-    balance: number
-    currency?: string
-  }
+  balance?: number
+  currency?: string
 }
 
 export interface FetchModelsResponse {

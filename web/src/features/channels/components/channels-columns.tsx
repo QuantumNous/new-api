@@ -1,6 +1,10 @@
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { truncateText } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -8,6 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
 import { CHANNEL_STATUS_CONFIG } from '../constants'
@@ -22,9 +27,13 @@ import {
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
+  handleUpdateChannelField,
+  handleUpdateTagField,
 } from '../lib'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+import { DataTableTagRowActions } from './data-table-tag-row-actions'
+import { NumericSpinnerInput } from './numeric-spinner-input'
 
 /**
  * Render limited items with "and X more" indicator
@@ -56,6 +65,114 @@ function renderLimitedItems(
 }
 
 /**
+ * Priority cell component with inline editing
+ */
+function PriorityCell({ channel }: { channel: Channel }) {
+  const queryClient = useQueryClient()
+  const isTagRow = (channel as any).children !== undefined
+  const priority = channel.priority
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingValue, setPendingValue] = useState<number | null>(null)
+
+  // Tag row - editable with confirmation for all tag channels
+  if (isTagRow) {
+    const tag = channel.tag || ''
+    const channelCount = (channel as any).children?.length || 0
+
+    return (
+      <>
+        <NumericSpinnerInput
+          value={priority ?? 0}
+          onChange={(value) => {
+            setPendingValue(value)
+            setConfirmOpen(true)
+          }}
+          min={0}
+        />
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title='Confirm Batch Update'
+          desc={`This will update the priority to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
+          confirmText='Update'
+          handleConfirm={() => {
+            if (pendingValue !== null) {
+              handleUpdateTagField(tag, 'priority', pendingValue, queryClient)
+            }
+            setConfirmOpen(false)
+          }}
+        />
+      </>
+    )
+  }
+
+  // Regular channel row - editable
+  return (
+    <NumericSpinnerInput
+      value={priority ?? 0}
+      onChange={(value) => {
+        handleUpdateChannelField(channel.id, 'priority', value, queryClient)
+      }}
+      min={0}
+    />
+  )
+}
+
+/**
+ * Weight cell component with inline editing
+ */
+function WeightCell({ channel }: { channel: Channel }) {
+  const queryClient = useQueryClient()
+  const isTagRow = (channel as any).children !== undefined
+  const weight = channel.weight
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingValue, setPendingValue] = useState<number | null>(null)
+
+  // Tag row - editable with confirmation for all tag channels
+  if (isTagRow) {
+    const tag = channel.tag || ''
+    const channelCount = (channel as any).children?.length || 0
+
+    return (
+      <>
+        <NumericSpinnerInput
+          value={weight ?? 0}
+          onChange={(value) => {
+            setPendingValue(value)
+            setConfirmOpen(true)
+          }}
+          min={0}
+        />
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title='Confirm Batch Update'
+          desc={`This will update the weight to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
+          confirmText='Update'
+          handleConfirm={() => {
+            if (pendingValue !== null) {
+              handleUpdateTagField(tag, 'weight', pendingValue, queryClient)
+            }
+            setConfirmOpen(false)
+          }}
+        />
+      </>
+    )
+  }
+
+  // Regular channel row - editable
+  return (
+    <NumericSpinnerInput
+      value={weight ?? 0}
+      onChange={(value) => {
+        handleUpdateChannelField(channel.id, 'weight', value, queryClient)
+      }}
+      min={0}
+    />
+  )
+}
+
+/**
  * Generate channels columns configuration
  */
 export function getChannelsColumns(): ColumnDef<Channel>[] {
@@ -73,13 +190,22 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
           aria-label='Select all'
         />
       ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label='Select row'
-        />
-      ),
+      cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
+
+        // Don't show checkbox for tag rows
+        if (isTagRow) {
+          return null
+        }
+
+        return (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label='Select row'
+          />
+        )
+      },
       enableSorting: false,
       enableHiding: false,
       size: 40,
@@ -113,10 +239,44 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         <DataTableColumnHeader column={column} title='Name' />
       ),
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const name = row.getValue('name') as string
         const channel = row.original
         const isMultiKey = isMultiKeyChannel(channel)
 
+        // Tag row with expand/collapse
+        if (isTagRow) {
+          const tag = (row.original as any).tag || name
+          const childrenCount = (row.original as any).children?.length || 0
+
+          return (
+            <div className='flex items-center gap-2'>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-6 w-6 p-0'
+                onClick={row.getToggleExpandedHandler()}
+              >
+                {row.getIsExpanded() ? (
+                  <ChevronDown className='h-4 w-4' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' />
+                )}
+              </Button>
+              <div className='flex items-center gap-1.5'>
+                <span className='font-semibold'>Tag：{tag}</span>
+                <StatusBadge
+                  label={`${childrenCount} channels`}
+                  variant='blue'
+                  size='sm'
+                  copyable={false}
+                />
+              </div>
+            </div>
+          )
+        }
+
+        // Regular channel row
         return (
           <div className='flex items-center gap-2'>
             <div className='flex flex-col gap-1'>
@@ -148,6 +308,19 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'type',
       header: 'Type',
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
+
+        if (isTagRow) {
+          return (
+            <StatusBadge
+              label='Tag Aggregate'
+              variant='blue'
+              size='sm'
+              copyable={false}
+            />
+          )
+        }
+
         const type = row.getValue('type') as number
         const typeName = getChannelTypeLabel(type)
         const iconName = getChannelTypeIcon(type)
@@ -176,7 +349,37 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const status = row.getValue('status') as number
+
+        // Tag row: show aggregated status
+        if (isTagRow) {
+          const childrenCount = (row.original as any).children?.length || 0
+          const hasEnabled = status === 1
+
+          if (hasEnabled) {
+            return (
+              <StatusBadge
+                label={`Active (${childrenCount})`}
+                variant='success'
+                showDot
+                size='sm'
+                copyable={false}
+              />
+            )
+          } else {
+            return (
+              <StatusBadge
+                label={`Inactive (${childrenCount})`}
+                variant='neutral'
+                size='sm'
+                copyable={false}
+              />
+            )
+          }
+        }
+
+        // Regular channel row
         const config =
           CHANNEL_STATUS_CONFIG[status as keyof typeof CHANNEL_STATUS_CONFIG] ||
           CHANNEL_STATUS_CONFIG[0]
@@ -278,17 +481,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Priority' />
       ),
-      cell: ({ row }) => {
-        const priority = row.getValue('priority') as number | null
-        return (
-          <StatusBadge
-            label={String(priority || 0)}
-            variant='neutral'
-            size='sm'
-            copyable={false}
-          />
-        )
-      },
+      cell: ({ row }) => <PriorityCell channel={row.original} />,
       size: 100,
     },
 
@@ -296,17 +489,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     {
       accessorKey: 'weight',
       header: 'Weight',
-      cell: ({ row }) => {
-        const weight = row.getValue('weight') as number | null
-        return (
-          <StatusBadge
-            label={String(weight || 0)}
-            variant='neutral'
-            size='sm'
-            copyable={false}
-          />
-        )
-      },
+      cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
       enableSorting: false,
     },
@@ -318,9 +501,24 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         <DataTableColumnHeader column={column} title='Balance' />
       ),
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const balance = row.getValue('balance') as number
-        const variant = getBalanceVariant(balance)
 
+        // Tag row: only show cumulative used quota
+        if (isTagRow) {
+          const usedQuota = row.original.used_quota
+          return (
+            <StatusBadge
+              label={`Used: ${formatBalance(usedQuota)}`}
+              variant='neutral'
+              size='sm'
+              copyable={false}
+            />
+          )
+        }
+
+        // Regular channel row: show balance
+        const variant = getBalanceVariant(balance)
         return (
           <StatusBadge
             label={formatBalance(balance)}
@@ -363,16 +561,27 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         const testTime = row.getValue('test_time') as number
         const timeText = formatRelativeTime(testTime)
 
+        // For invalid timestamps, return plain text without tooltip
+        if (!testTime || testTime === 0) {
+          return (
+            <span className='text-muted-foreground text-xs'>{timeText}</span>
+          )
+        }
+
+        // Format full date for tooltip
+        const fullDate = new Date(testTime * 1000).toLocaleString()
+
+        // For valid timestamps, show tooltip with full date
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-default text-xs'>
+                <span className='text-muted-foreground cursor-pointer text-xs'>
                   {timeText}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side='top' className='border-border bg-popover'>
-                {new Date(testTime * 1000).toLocaleString()}
+              <TooltipContent side='top'>
+                <p className='text-sm'>{fullDate}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -385,8 +594,17 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Actions column
     {
       id: 'actions',
-      cell: ({ row }) => <DataTableRowActions row={row} />,
-      size: 60,
+      cell: ({ row }) => {
+        // Check if this is a tag row (has children)
+        const isTagRow = (row.original as any).children !== undefined
+
+        if (isTagRow) {
+          return <DataTableTagRowActions row={row as any} />
+        }
+
+        return <DataTableRowActions row={row} />
+      },
+      size: 300,
       enableSorting: false,
       enableHiding: false,
     },

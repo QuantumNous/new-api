@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Plus, MoreHorizontal, Settings2, Trash2 } from 'lucide-react'
+import { Plus, MoreHorizontal, Settings2, Trash2, Tags } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,18 +9,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { handleDeleteAllDisabled, handleFixAbilities } from '../lib'
 import { useChannels } from './channels-provider'
 
 export function ChannelsPrimaryButtons() {
-  const { setOpen } = useChannels()
+  const { setOpen, enableTagMode, setEnableTagMode } = useChannels()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  const handleTagModeToggle = (checked: boolean) => {
+    localStorage.setItem('enable-tag-mode', String(checked))
+    setEnableTagMode(checked)
+  }
 
   return (
     <>
       <div className='flex items-center gap-2'>
+        {/* Tag Mode Toggle */}
+        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+          <Tags className='text-muted-foreground h-4 w-4' />
+          <Label htmlFor='tag-mode' className='cursor-pointer text-sm'>
+            Tag Mode
+          </Label>
+          <Switch
+            id='tag-mode'
+            checked={enableTagMode}
+            onCheckedChange={handleTagModeToggle}
+          />
+        </div>
+
         {/* Create Channel */}
         <Button onClick={() => setOpen('create-channel')} size='sm'>
           <Plus className='h-4 w-4' />
