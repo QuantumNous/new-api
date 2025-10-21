@@ -89,9 +89,7 @@ export async function deleteChannel(
 export async function batchDeleteChannels(
   data: BatchDeleteParams
 ): Promise<{ success: boolean; message?: string; data?: number }> {
-  const res = await api.post('/api/channel/batch', data, {
-    params: { action: 'delete' },
-  })
+  const res = await api.post('/api/channel/batch', data)
   return res.data
 }
 
@@ -121,12 +119,12 @@ export async function testChannel(
 }
 
 /**
- * Query channel balance
+ * Update channel balance
  */
-export async function queryChannelBalance(
+export async function updateChannelBalance(
   id: number
 ): Promise<ChannelBalanceResponse> {
-  const res = await api.get(`/api/channel/${id}/balance`)
+  const res = await api.get(`/api/channel/update_balance/${id}/`)
   return res.data
 }
 
@@ -136,7 +134,7 @@ export async function queryChannelBalance(
 export async function fetchUpstreamModels(
   id: number
 ): Promise<FetchModelsResponse> {
-  const res = await api.get(`/api/channel/${id}/models`)
+  const res = await api.get(`/api/channel/fetch_models/${id}`)
   return res.data
 }
 
@@ -196,7 +194,7 @@ export async function getChannelKey(
 export async function manageMultiKeys(
   params: MultiKeyManageParams
 ): Promise<MultiKeyStatusResponse | { success: boolean; message?: string }> {
-  const res = await api.post('/api/channel/multi-key/manage', params)
+  const res = await api.post('/api/channel/multi_key/manage', params)
   return res.data
 }
 
@@ -306,7 +304,7 @@ export async function deleteDisabledMultiKeys(
 export async function enableTagChannels(
   tag: string
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.post('/api/channel/tag/enable', { tag })
+  const res = await api.post('/api/channel/tag/enabled', { tag })
   return res.data
 }
 
@@ -316,7 +314,7 @@ export async function enableTagChannels(
 export async function disableTagChannels(
   tag: string
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.post('/api/channel/tag/disable', { tag })
+  const res = await api.post('/api/channel/tag/disabled', { tag })
   return res.data
 }
 
@@ -326,7 +324,7 @@ export async function disableTagChannels(
 export async function editTagChannels(
   params: TagOperationParams
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.put('/api/channel/tag/edit', params)
+  const res = await api.put('/api/channel/tag', params)
   return res.data
 }
 
@@ -352,6 +350,53 @@ export async function fetchModels(data: {
   type: number
   key: string
 }): Promise<FetchModelsResponse> {
-  const res = await api.post('/api/channel/models/fetch', data)
+  const res = await api.post('/api/channel/fetch_models', data)
   return res.data
 }
+
+/**
+ * Test all enabled channels
+ */
+export async function testAllChannels(): Promise<{
+  success: boolean
+  message?: string
+}> {
+  const res = await api.get('/api/channel/test')
+  return res.data
+}
+
+/**
+ * Update balance for all enabled channels
+ */
+export async function updateAllChannelsBalance(): Promise<{
+  success: boolean
+  message?: string
+}> {
+  const res = await api.get('/api/channel/update_balance')
+  return res.data
+}
+
+/**
+ * Get all available models
+ */
+export async function getAllModels(): Promise<{
+  success: boolean
+  message?: string
+  data?: Array<{ id: string; [key: string]: any }>
+}> {
+  const res = await api.get('/api/channel/models')
+  return res.data
+}
+
+/**
+ * Get all enabled models
+ */
+export async function getEnabledModels(): Promise<{
+  success: boolean
+  message?: string
+  data?: string[]
+}> {
+  const res = await api.get('/api/channel/models_enabled')
+  return res.data
+}
+
