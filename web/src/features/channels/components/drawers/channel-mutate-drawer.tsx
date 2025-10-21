@@ -57,6 +57,7 @@ import {
 } from '../../lib'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
+import { ModelMappingEditor } from '../model-mapping-editor'
 
 type ChannelMutateDrawerProps = {
   open: boolean
@@ -646,12 +647,12 @@ export function ChannelMutateDrawer({
                 name='model_mapping'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Model Mapping (JSON)</FormLabel>
+                    <FormLabel>Model Mapping</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder={FIELD_PLACEHOLDERS.MODEL_MAPPING}
-                        rows={3}
-                        {...field}
+                      <ModelMappingEditor
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        disabled={isSubmitting}
                       />
                     </FormControl>
                     <FormDescription>

@@ -25,6 +25,7 @@ import {
 } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
+import { ModelMappingEditor } from '../model-mapping-editor'
 
 type TagBatchEditDialogProps = {
   open: boolean
@@ -158,16 +159,6 @@ export function TagBatchEditDialog({
     onOpenChange(false)
   }
 
-  const fillModelMappingTemplate = () => {
-    setModelMapping(
-      JSON.stringify({ 'gpt-3.5-turbo': 'gpt-3.5-turbo-0125' }, null, 2)
-    )
-  }
-
-  const clearModelMapping = () => {
-    setModelMapping(JSON.stringify({}, null, 2))
-  }
-
   if (!currentTag) return null
 
   return (
@@ -229,45 +220,12 @@ export function TagBatchEditDialog({
 
               {/* Model Mapping */}
               <div className='space-y-2'>
-                <Label htmlFor='model-mapping'>Model Mapping (JSON)</Label>
-                <Textarea
-                  id='model-mapping'
-                  placeholder='{"original-model": "replacement-model"}'
+                <Label htmlFor='model-mapping'>Model Mapping</Label>
+                <ModelMappingEditor
                   value={modelMapping}
-                  onChange={(e) => setModelMapping(e.target.value)}
+                  onChange={setModelMapping}
                   disabled={isSaving}
-                  rows={5}
-                  className='font-mono text-sm'
                 />
-                <div className='flex gap-2 text-xs'>
-                  <Button
-                    type='button'
-                    variant='link'
-                    size='sm'
-                    className='h-auto p-0'
-                    onClick={fillModelMappingTemplate}
-                  >
-                    Fill Template
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='link'
-                    size='sm'
-                    className='h-auto p-0'
-                    onClick={clearModelMapping}
-                  >
-                    Clear Mapping
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='link'
-                    size='sm'
-                    className='h-auto p-0'
-                    onClick={() => setModelMapping('')}
-                  >
-                    Keep Current
-                  </Button>
-                </div>
               </div>
 
               {/* Groups */}
