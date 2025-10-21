@@ -52,7 +52,6 @@ export function ChannelsPrimaryButtons() {
           <DropdownMenuTrigger asChild>
             <Button variant='outline' size='sm'>
               <MoreHorizontal className='h-4 w-4' />
-              More Actions
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-56'>

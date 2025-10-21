@@ -21,7 +21,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination } from '@/components/data-table/pagination'
-import { DataTableViewOptions } from '@/components/data-table/view-options'
 import { getChannels, searchChannels } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
 import {
@@ -225,11 +224,8 @@ export function ChannelsTable() {
         </Table>
       </div>
 
-      {/* Pagination & View Options */}
-      <div className='flex items-center justify-between'>
-        <DataTableViewOptions table={table} />
-        <DataTablePagination table={table} />
-      </div>
+      {/* Pagination */}
+      <DataTablePagination table={table as any} />
 
       {/* Bulk Actions Floating Toolbar */}
       <DataTableBulkActions table={table} />

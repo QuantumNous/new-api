@@ -563,9 +563,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
 
         // For invalid timestamps, return plain text without tooltip
         if (!testTime || testTime === 0) {
-          return (
-            <span className='text-muted-foreground text-xs'>{timeText}</span>
-          )
+          return <span className='text-muted-foreground'>{timeText}</span>
         }
 
         // Format full date for tooltip
@@ -576,7 +574,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-pointer text-xs'>
+                <span className='text-muted-foreground cursor-pointer'>
                   {timeText}
                 </span>
               </TooltipTrigger>
