@@ -21,6 +21,10 @@ type ChannelsContextType = {
   setOpen: (open: DialogType) => void
   currentRow: Channel | null
   setCurrentRow: (row: Channel | null) => void
+  currentTag: string | null
+  setCurrentTag: (tag: string | null) => void
+  enableTagMode: boolean
+  setEnableTagMode: (enabled: boolean) => void
 }
 
 // ============================================================================
@@ -38,6 +42,10 @@ const ChannelsContext = createContext<ChannelsContextType | undefined>(
 export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState<DialogType>(null)
   const [currentRow, setCurrentRow] = useState<Channel | null>(null)
+  const [currentTag, setCurrentTag] = useState<string | null>(null)
+  const [enableTagMode, setEnableTagMode] = useState(() => {
+    return localStorage.getItem('enable-tag-mode') === 'true'
+  })
 
   return (
     <ChannelsContext.Provider
@@ -46,6 +54,10 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
         setOpen,
         currentRow,
         setCurrentRow,
+        currentTag,
+        setCurrentTag,
+        enableTagMode,
+        setEnableTagMode,
       }}
     >
       {children}

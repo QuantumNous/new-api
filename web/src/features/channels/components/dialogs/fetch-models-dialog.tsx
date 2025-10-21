@@ -1,8 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -14,16 +21,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { fetchUpstreamModels, updateChannel } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
-import { toast } from 'sonner'
-import { ChevronDown } from 'lucide-react'
 
 type FetchModelsDialogProps = {
   open: boolean
@@ -114,7 +114,11 @@ export function FetchModelsDialog({
       let category = 'Other'
 
       // Determine category based on model name
-      if (model.toLowerCase().includes('gpt') || model.toLowerCase().includes('o1') || model.toLowerCase().includes('o3')) {
+      if (
+        model.toLowerCase().includes('gpt') ||
+        model.toLowerCase().includes('o1') ||
+        model.toLowerCase().includes('o3')
+      ) {
         category = 'OpenAI'
       } else if (model.toLowerCase().includes('claude')) {
         category = 'Anthropic'
@@ -192,7 +196,7 @@ export function FetchModelsDialog({
 
     return (
       <Collapsible key={categoryName} defaultOpen>
-        <CollapsibleTrigger className='flex w-full items-center justify-between rounded-lg border p-3 hover:bg-muted/50'>
+        <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center justify-between rounded-lg border p-3'>
           <div className='flex items-center gap-2'>
             <ChevronDown className='h-4 w-4' />
             <span className='font-medium'>
@@ -200,7 +204,7 @@ export function FetchModelsDialog({
             </span>
           </div>
           <div className='flex items-center gap-2'>
-            <span className='text-sm text-muted-foreground'>
+            <span className='text-muted-foreground text-sm'>
               {categoryModels.filter((m) => selectedModels.includes(m)).length}{' '}
               / {categoryModels.length} selected
             </span>
@@ -247,15 +251,15 @@ export function FetchModelsDialog({
         </DialogHeader>
 
         {!currentRow ? (
-          <div className='py-8 text-center text-muted-foreground'>
+          <div className='text-muted-foreground py-8 text-center'>
             No channel selected
           </div>
         ) : isFetching ? (
           <div className='flex items-center justify-center py-12'>
-            <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
           </div>
         ) : fetchedModels.length === 0 ? (
-          <div className='py-8 text-center text-muted-foreground'>
+          <div className='text-muted-foreground py-8 text-center'>
             <p>No models fetched yet.</p>
             <Button
               className='mt-4'
@@ -270,7 +274,7 @@ export function FetchModelsDialog({
             <div className='space-y-4'>
               {/* Search Bar */}
               <div className='relative'>
-                <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
                 <Input
                   placeholder='Search models...'
                   value={searchKeyword}
@@ -293,9 +297,13 @@ export function FetchModelsDialog({
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value='new' className='max-h-96 space-y-2 overflow-y-auto'>
-                  {Object.entries(newModelsByCategory).map(([category, models]) =>
-                    renderModelCategory(category, models)
+                <TabsContent
+                  value='new'
+                  className='max-h-96 space-y-2 overflow-y-auto'
+                >
+                  {Object.entries(newModelsByCategory).map(
+                    ([category, models]) =>
+                      renderModelCategory(category, models)
                   )}
                 </TabsContent>
 
@@ -304,20 +312,25 @@ export function FetchModelsDialog({
                   className='max-h-96 space-y-2 overflow-y-auto'
                 >
                   {Object.entries(existingModelsByCategory).map(
-                    ([category, models]) => renderModelCategory(category, models)
+                    ([category, models]) =>
+                      renderModelCategory(category, models)
                   )}
                 </TabsContent>
               </Tabs>
 
               {/* Selection Summary */}
-              <div className='rounded-lg border bg-muted/50 p-3 text-sm'>
+              <div className='bg-muted/50 rounded-lg border p-3 text-sm'>
                 <strong>{selectedModels.length}</strong> model(s) selected out
                 of <strong>{filteredModels.length}</strong>
               </div>
             </div>
 
             <DialogFooter>
-              <Button variant='outline' onClick={handleClose} disabled={isSaving}>
+              <Button
+                variant='outline'
+                onClick={handleClose}
+                disabled={isSaving}
+              >
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={isSaving}>

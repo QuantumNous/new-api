@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { getGroups as getUserGroups } from '@/features/users/api'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -400,3 +401,11 @@ export async function getEnabledModels(): Promise<{
   return res.data
 }
 
+// ============================================================================
+// Group Management
+// ============================================================================
+
+/**
+ * Get all available groups (re-exported from users API for convenience)
+ */
+export const getGroups = getUserGroups

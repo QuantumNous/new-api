@@ -8,29 +8,7 @@ import {
   PowerOff,
   AlertTriangle,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { toast } from 'sonner'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,8 +19,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   getMultiKeyStatus,
   enableMultiKey,
@@ -53,9 +54,8 @@ import {
   deleteDisabledMultiKeys,
 } from '../../api'
 import { channelsQueryKeys } from '../../lib'
-import { useChannels } from '../channels-provider'
-import { toast } from 'sonner'
 import type { KeyStatus } from '../../types'
+import { useChannels } from '../channels-provider'
 
 type MultiKeyManageDialogProps = {
   open: boolean
@@ -63,7 +63,13 @@ type MultiKeyManageDialogProps = {
 }
 
 type ConfirmAction = {
-  type: 'enable' | 'disable' | 'delete' | 'enable-all' | 'disable-all' | 'delete-disabled'
+  type:
+    | 'enable'
+    | 'disable'
+    | 'delete'
+    | 'enable-all'
+    | 'disable-all'
+    | 'delete-disabled'
   keyIndex?: number
 }
 
@@ -164,17 +170,26 @@ export function MultiKeyManageDialog({
       switch (confirmAction.type) {
         case 'enable':
           if (confirmAction.keyIndex !== undefined) {
-            response = await enableMultiKey(currentRow.id, confirmAction.keyIndex)
+            response = await enableMultiKey(
+              currentRow.id,
+              confirmAction.keyIndex
+            )
           }
           break
         case 'disable':
           if (confirmAction.keyIndex !== undefined) {
-            response = await disableMultiKey(currentRow.id, confirmAction.keyIndex)
+            response = await disableMultiKey(
+              currentRow.id,
+              confirmAction.keyIndex
+            )
           }
           break
         case 'delete':
           if (confirmAction.keyIndex !== undefined) {
-            response = await deleteMultiKey(currentRow.id, confirmAction.keyIndex)
+            response = await deleteMultiKey(
+              currentRow.id,
+              confirmAction.keyIndex
+            )
           }
           break
         case 'enable-all':
@@ -192,7 +207,10 @@ export function MultiKeyManageDialog({
         toast.success(response.message || 'Operation successful')
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
         // Reload current page or reset to page 1 for bulk actions
-        if (confirmAction.type.includes('all') || confirmAction.type === 'delete-disabled') {
+        if (
+          confirmAction.type.includes('all') ||
+          confirmAction.type === 'delete-disabled'
+        ) {
           setCurrentPage(1)
           loadKeyStatus(1, pageSize)
         } else {
@@ -212,11 +230,32 @@ export function MultiKeyManageDialog({
   const getStatusBadge = (status: number) => {
     switch (status) {
       case 1:
-        return <Badge variant='outline' className='bg-green-50 text-green-700 border-green-200'>Enabled</Badge>
+        return (
+          <Badge
+            variant='outline'
+            className='border-green-200 bg-green-50 text-green-700'
+          >
+            Enabled
+          </Badge>
+        )
       case 2:
-        return <Badge variant='outline' className='bg-red-50 text-red-700 border-red-200'>Disabled</Badge>
+        return (
+          <Badge
+            variant='outline'
+            className='border-red-200 bg-red-50 text-red-700'
+          >
+            Disabled
+          </Badge>
+        )
       case 3:
-        return <Badge variant='outline' className='bg-orange-50 text-orange-700 border-orange-200'>Auto-Disabled</Badge>
+        return (
+          <Badge
+            variant='outline'
+            className='border-orange-200 bg-orange-50 text-orange-700'
+          >
+            Auto-Disabled
+          </Badge>
+        )
       default:
         return <Badge variant='outline'>Unknown</Badge>
     }
@@ -229,7 +268,8 @@ export function MultiKeyManageDialog({
 
   if (!currentRow) return null
 
-  const enabledPercent = total > 0 ? Math.round((enabledCount / total) * 100) : 0
+  const enabledPercent =
+    total > 0 ? Math.round((enabledCount / total) * 100) : 0
   const manualDisabledPercent =
     total > 0 ? Math.round((manualDisabledCount / total) * 100) : 0
   const autoDisabledPercent =
@@ -238,7 +278,7 @@ export function MultiKeyManageDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='max-w-5xl max-h-[90vh] overflow-hidden flex flex-col'>
+        <DialogContent className='flex max-h-[90vh] max-w-5xl flex-col overflow-hidden'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               Multi-Key Management
@@ -257,7 +297,7 @@ export function MultiKeyManageDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className='flex-1 overflow-y-auto space-y-4'>
+          <div className='flex-1 space-y-4 overflow-y-auto'>
             {/* Statistics Cards */}
             <div className='grid grid-cols-3 gap-4'>
               <div className='rounded-lg border bg-green-50/50 p-4 dark:bg-green-950/20'>
@@ -266,12 +306,12 @@ export function MultiKeyManageDialog({
                 </div>
                 <div className='text-2xl font-bold text-green-900 dark:text-green-100'>
                   {enabledCount}
-                  <span className='text-lg text-muted-foreground'> / {total}</span>
+                  <span className='text-muted-foreground text-lg'>
+                    {' '}
+                    / {total}
+                  </span>
                 </div>
-                <Progress
-                  value={enabledPercent}
-                  className='mt-2 h-2'
-                />
+                <Progress value={enabledPercent} className='mt-2 h-2' />
               </div>
 
               <div className='rounded-lg border bg-red-50/50 p-4 dark:bg-red-950/20'>
@@ -280,7 +320,10 @@ export function MultiKeyManageDialog({
                 </div>
                 <div className='text-2xl font-bold text-red-900 dark:text-red-100'>
                   {manualDisabledCount}
-                  <span className='text-lg text-muted-foreground'> / {total}</span>
+                  <span className='text-muted-foreground text-lg'>
+                    {' '}
+                    / {total}
+                  </span>
                 </div>
                 <Progress
                   value={manualDisabledPercent}
@@ -294,7 +337,10 @@ export function MultiKeyManageDialog({
                 </div>
                 <div className='text-2xl font-bold text-orange-900 dark:text-orange-100'>
                   {autoDisabledCount}
-                  <span className='text-lg text-muted-foreground'> / {total}</span>
+                  <span className='text-muted-foreground text-lg'>
+                    {' '}
+                    / {total}
+                  </span>
                 </div>
                 <Progress
                   value={autoDisabledPercent}
@@ -307,7 +353,9 @@ export function MultiKeyManageDialog({
             <div className='flex items-center justify-between gap-2'>
               <div className='flex items-center gap-2'>
                 <Select
-                  value={statusFilter === null ? 'all' : statusFilter.toString()}
+                  value={
+                    statusFilter === null ? 'all' : statusFilter.toString()
+                  }
                   onValueChange={handleStatusFilterChange}
                 >
                   <SelectTrigger className='w-40'>
@@ -332,7 +380,7 @@ export function MultiKeyManageDialog({
                   <RefreshCw className='h-4 w-4' />
                 </Button>
 
-                {(manualDisabledCount + autoDisabledCount) > 0 && (
+                {manualDisabledCount + autoDisabledCount > 0 && (
                   <Button
                     variant='default'
                     size='sm'
@@ -358,7 +406,9 @@ export function MultiKeyManageDialog({
                   <Button
                     variant='destructive'
                     size='sm'
-                    onClick={() => setConfirmAction({ type: 'delete-disabled' })}
+                    onClick={() =>
+                      setConfirmAction({ type: 'delete-disabled' })
+                    }
                   >
                     <Trash2 className='mr-2 h-4 w-4' />
                     Delete Auto-Disabled
@@ -371,10 +421,10 @@ export function MultiKeyManageDialog({
             <div className='rounded-lg border'>
               {isLoading ? (
                 <div className='flex items-center justify-center py-12'>
-                  <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+                  <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
                 </div>
               ) : keys.length === 0 ? (
-                <div className='py-12 text-center text-muted-foreground'>
+                <div className='text-muted-foreground py-12 text-center'>
                   No keys found
                 </div>
               ) : (
@@ -391,12 +441,14 @@ export function MultiKeyManageDialog({
                   <TableBody>
                     {keys.map((key) => (
                       <TableRow key={key.index}>
-                        <TableCell className='font-mono'>#{key.index}</TableCell>
+                        <TableCell className='font-mono'>
+                          #{key.index}
+                        </TableCell>
                         <TableCell>{getStatusBadge(key.status)}</TableCell>
                         <TableCell className='max-w-xs truncate'>
                           {key.reason || '-'}
                         </TableCell>
-                        <TableCell className='text-sm text-muted-foreground'>
+                        <TableCell className='text-muted-foreground text-sm'>
                           {formatTimestamp(key.disabled_time)}
                         </TableCell>
                         <TableCell className='text-right'>
@@ -406,7 +458,10 @@ export function MultiKeyManageDialog({
                                 variant='outline'
                                 size='sm'
                                 onClick={() =>
-                                  setConfirmAction({ type: 'disable', keyIndex: key.index })
+                                  setConfirmAction({
+                                    type: 'disable',
+                                    keyIndex: key.index,
+                                  })
                                 }
                               >
                                 Disable
@@ -416,7 +471,10 @@ export function MultiKeyManageDialog({
                                 variant='outline'
                                 size='sm'
                                 onClick={() =>
-                                  setConfirmAction({ type: 'enable', keyIndex: key.index })
+                                  setConfirmAction({
+                                    type: 'enable',
+                                    keyIndex: key.index,
+                                  })
                                 }
                               >
                                 Enable
@@ -426,7 +484,10 @@ export function MultiKeyManageDialog({
                               variant='destructive'
                               size='sm'
                               onClick={() =>
-                                setConfirmAction({ type: 'delete', keyIndex: key.index })
+                                setConfirmAction({
+                                  type: 'delete',
+                                  keyIndex: key.index,
+                                })
                               }
                             >
                               Delete
@@ -443,7 +504,7 @@ export function MultiKeyManageDialog({
             {/* Pagination */}
             {totalPages > 1 && (
               <div className='flex items-center justify-between'>
-                <div className='text-sm text-muted-foreground'>
+                <div className='text-muted-foreground text-sm'>
                   Page {currentPage} of {totalPages}
                 </div>
                 <div className='flex gap-2'>

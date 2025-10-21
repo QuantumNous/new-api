@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,7 +14,6 @@ import {
 import { updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
-import { toast } from 'sonner'
 
 type BalanceQueryDialogProps = {
   open: boolean
@@ -97,8 +97,8 @@ export function BalanceQueryDialog({
 
         <div className='space-y-4 py-4'>
           {/* Current Balance Display */}
-          <div className='rounded-lg border bg-muted/50 p-4'>
-            <div className='mb-2 flex items-center gap-2 text-sm text-muted-foreground'>
+          <div className='bg-muted/50 rounded-lg border p-4'>
+            <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
               <DollarSign className='h-4 w-4' />
               <span>Current Balance</span>
             </div>
@@ -107,7 +107,7 @@ export function BalanceQueryDialog({
                 ? formatBalance(balance)
                 : formatBalance(currentRow.balance)}
             </div>
-            <div className='mt-2 text-xs text-muted-foreground'>
+            <div className='text-muted-foreground mt-2 text-xs'>
               Last updated:{' '}
               {formatDate(
                 balanceUpdatedTime ?? currentRow.balance_updated_time

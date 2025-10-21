@@ -1,6 +1,8 @@
 import { type ColumnDef } from '@tanstack/react-table'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { truncateText } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -25,6 +27,7 @@ import {
 } from '../lib'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+import { DataTableTagRowActions } from './data-table-tag-row-actions'
 
 /**
  * Render limited items with "and X more" indicator
@@ -73,13 +76,22 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
           aria-label='Select all'
         />
       ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label='Select row'
-        />
-      ),
+      cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
+
+        // Don't show checkbox for tag rows
+        if (isTagRow) {
+          return null
+        }
+
+        return (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label='Select row'
+          />
+        )
+      },
       enableSorting: false,
       enableHiding: false,
       size: 40,
@@ -113,10 +125,44 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         <DataTableColumnHeader column={column} title='Name' />
       ),
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const name = row.getValue('name') as string
         const channel = row.original
         const isMultiKey = isMultiKeyChannel(channel)
 
+        // Tag row with expand/collapse
+        if (isTagRow) {
+          const tag = (row.original as any).tag || name
+          const childrenCount = (row.original as any).children?.length || 0
+
+          return (
+            <div className='flex items-center gap-2'>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-6 w-6 p-0'
+                onClick={row.getToggleExpandedHandler()}
+              >
+                {row.getIsExpanded() ? (
+                  <ChevronDown className='h-4 w-4' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' />
+                )}
+              </Button>
+              <div className='flex items-center gap-1.5'>
+                <span className='font-semibold'>Tag：{tag}</span>
+                <StatusBadge
+                  label={`${childrenCount} channels`}
+                  variant='blue'
+                  size='sm'
+                  copyable={false}
+                />
+              </div>
+            </div>
+          )
+        }
+
+        // Regular channel row
         return (
           <div className='flex items-center gap-2'>
             <div className='flex flex-col gap-1'>
@@ -148,6 +194,19 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'type',
       header: 'Type',
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
+
+        if (isTagRow) {
+          return (
+            <StatusBadge
+              label='Tag Aggregate'
+              variant='blue'
+              size='sm'
+              copyable={false}
+            />
+          )
+        }
+
         const type = row.getValue('type') as number
         const typeName = getChannelTypeLabel(type)
         const iconName = getChannelTypeIcon(type)
@@ -176,7 +235,37 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const status = row.getValue('status') as number
+
+        // Tag row: show aggregated status
+        if (isTagRow) {
+          const childrenCount = (row.original as any).children?.length || 0
+          const hasEnabled = status === 1
+
+          if (hasEnabled) {
+            return (
+              <StatusBadge
+                label={`Active (${childrenCount})`}
+                variant='success'
+                showDot
+                size='sm'
+                copyable={false}
+              />
+            )
+          } else {
+            return (
+              <StatusBadge
+                label={`Inactive (${childrenCount})`}
+                variant='neutral'
+                size='sm'
+                copyable={false}
+              />
+            )
+          }
+        }
+
+        // Regular channel row
         const config =
           CHANNEL_STATUS_CONFIG[status as keyof typeof CHANNEL_STATUS_CONFIG] ||
           CHANNEL_STATUS_CONFIG[0]
@@ -279,7 +368,14 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         <DataTableColumnHeader column={column} title='Priority' />
       ),
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const priority = row.getValue('priority') as number | null
+
+        // Tag row: if null (children have different values), show "-"
+        if (isTagRow && priority === null) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+
         return (
           <StatusBadge
             label={String(priority || 0)}
@@ -297,7 +393,14 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'weight',
       header: 'Weight',
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const weight = row.getValue('weight') as number | null
+
+        // Tag row: if null (children have different values), show "-"
+        if (isTagRow && weight === null) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+
         return (
           <StatusBadge
             label={String(weight || 0)}
@@ -318,9 +421,24 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         <DataTableColumnHeader column={column} title='Balance' />
       ),
       cell: ({ row }) => {
+        const isTagRow = (row.original as any).children !== undefined
         const balance = row.getValue('balance') as number
-        const variant = getBalanceVariant(balance)
 
+        // Tag row: only show cumulative used quota
+        if (isTagRow) {
+          const usedQuota = row.original.used_quota
+          return (
+            <StatusBadge
+              label={`Used: ${formatBalance(usedQuota)}`}
+              variant='neutral'
+              size='sm'
+              copyable={false}
+            />
+          )
+        }
+
+        // Regular channel row: show balance
+        const variant = getBalanceVariant(balance)
         return (
           <StatusBadge
             label={formatBalance(balance)}
@@ -385,8 +503,17 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Actions column
     {
       id: 'actions',
-      cell: ({ row }) => <DataTableRowActions row={row} />,
-      size: 60,
+      cell: ({ row }) => {
+        // Check if this is a tag row (has children)
+        const isTagRow = (row.original as any).children !== undefined
+
+        if (isTagRow) {
+          return <DataTableTagRowActions row={row as any} />
+        }
+
+        return <DataTableRowActions row={row} />
+      },
+      size: 300,
       enableSorting: false,
       enableHiding: false,
     },

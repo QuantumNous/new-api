@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -32,9 +32,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { createChannel, getChannel, updateChannel } from '../../api'
+import { MultiSelect } from '@/components/multi-select'
+import { createChannel, getChannel, getGroups, updateChannel } from '../../api'
 import {
   ADD_MODE_OPTIONS,
   AUTO_BAN_OPTIONS,
@@ -80,6 +82,12 @@ export function ChannelMutateDrawer({
     enabled: isEditing && Boolean(currentRow?.id),
   })
 
+  // Fetch available groups
+  const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
+    queryKey: ['groups'],
+    queryFn: getGroups,
+  })
+
   // Check if this is a multi-key channel
   const isMultiKeyChannel =
     isEditing && channelData?.data?.channel_info?.is_multi_key === true
@@ -93,6 +101,17 @@ export function ChannelMutateDrawer({
   // Watch form values for conditional rendering
   const multiKeyMode = form.watch('multi_key_mode')
   const multiKeyType = form.watch('multi_key_type')
+  const currentGroups = form.watch('group')
+
+  // Transform groups to multi-select options (combine backend + current form values)
+  const groupOptions = useMemo(() => {
+    if (!groupsData?.data) return []
+    const allGroups = new Set([...groupsData.data, ...(currentGroups || [])])
+    return Array.from(allGroups).map((group) => ({
+      value: group,
+      label: group,
+    }))
+  }, [groupsData, currentGroups])
 
   // Load channel data into form when editing
   useEffect(() => {
@@ -164,7 +183,7 @@ export function ChannelMutateDrawer({
       onOpenChange={(v) => {
         onOpenChange(v)
         if (!v) {
-          form.reset()
+          form.reset(CHANNEL_FORM_DEFAULT_VALUES)
         }
       }}
     >
@@ -498,10 +517,16 @@ export function ChannelMutateDrawer({
                   <FormItem>
                     <FormLabel>Groups *</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder={FIELD_PLACEHOLDERS.GROUP}
-                        {...field}
-                      />
+                      {isLoadingGroups ? (
+                        <Skeleton className='h-10 w-full' />
+                      ) : (
+                        <MultiSelect
+                          options={groupOptions}
+                          selected={field.value}
+                          onChange={field.onChange}
+                          placeholder={FIELD_PLACEHOLDERS.GROUP}
+                        />
+                      )}
                     </FormControl>
                     <FormDescription>
                       {FIELD_DESCRIPTIONS.GROUP}
