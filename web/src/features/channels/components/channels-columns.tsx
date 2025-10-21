@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -11,6 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
 import { CHANNEL_STATUS_CONFIG } from '../constants'
@@ -26,6 +28,7 @@ import {
   parseModelsList,
   parseGroupsList,
   handleUpdateChannelField,
+  handleUpdateTagField,
 } from '../lib'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -68,21 +71,38 @@ function PriorityCell({ channel }: { channel: Channel }) {
   const queryClient = useQueryClient()
   const isTagRow = (channel as any).children !== undefined
   const priority = channel.priority
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingValue, setPendingValue] = useState<number | null>(null)
 
-  // Tag row: if null (children have different values), show "-"
-  if (isTagRow && priority === null) {
-    return <span className='text-muted-foreground text-xs'>-</span>
-  }
-
-  // Tag row with same priority across children - show as read-only badge
+  // Tag row - editable with confirmation for all tag channels
   if (isTagRow) {
+    const tag = channel.tag || ''
+    const channelCount = (channel as any).children?.length || 0
+
     return (
-      <StatusBadge
-        label={String(priority || 0)}
-        variant='neutral'
-        size='sm'
-        copyable={false}
-      />
+      <>
+        <NumericSpinnerInput
+          value={priority ?? 0}
+          onChange={(value) => {
+            setPendingValue(value)
+            setConfirmOpen(true)
+          }}
+          min={0}
+        />
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title='Confirm Batch Update'
+          desc={`This will update the priority to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
+          confirmText='Update'
+          handleConfirm={() => {
+            if (pendingValue !== null) {
+              handleUpdateTagField(tag, 'priority', pendingValue, queryClient)
+            }
+            setConfirmOpen(false)
+          }}
+        />
+      </>
     )
   }
 
@@ -105,21 +125,38 @@ function WeightCell({ channel }: { channel: Channel }) {
   const queryClient = useQueryClient()
   const isTagRow = (channel as any).children !== undefined
   const weight = channel.weight
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingValue, setPendingValue] = useState<number | null>(null)
 
-  // Tag row: if null (children have different values), show "-"
-  if (isTagRow && weight === null) {
-    return <span className='text-muted-foreground text-xs'>-</span>
-  }
-
-  // Tag row with same weight across children - show as read-only badge
+  // Tag row - editable with confirmation for all tag channels
   if (isTagRow) {
+    const tag = channel.tag || ''
+    const channelCount = (channel as any).children?.length || 0
+
     return (
-      <StatusBadge
-        label={String(weight || 0)}
-        variant='neutral'
-        size='sm'
-        copyable={false}
-      />
+      <>
+        <NumericSpinnerInput
+          value={weight ?? 0}
+          onChange={(value) => {
+            setPendingValue(value)
+            setConfirmOpen(true)
+          }}
+          min={0}
+        />
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title='Confirm Batch Update'
+          desc={`This will update the weight to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
+          confirmText='Update'
+          handleConfirm={() => {
+            if (pendingValue !== null) {
+              handleUpdateTagField(tag, 'weight', pendingValue, queryClient)
+            }
+            setConfirmOpen(false)
+          }}
+        />
+      </>
     )
   }
 
