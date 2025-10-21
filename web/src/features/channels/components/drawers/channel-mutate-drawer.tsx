@@ -106,6 +106,15 @@ export function ChannelMutateDrawer({
 
   // Submit handler
   const onSubmit = async (data: ChannelFormValues) => {
+    // Validate key is required when creating
+    if (!isEditing && (!data.key || data.key.trim() === '')) {
+      form.setError('key', {
+        type: 'manual',
+        message: 'API key is required',
+      })
+      return
+    }
+
     setIsSubmitting(true)
     try {
       if (isEditing && currentRow) {

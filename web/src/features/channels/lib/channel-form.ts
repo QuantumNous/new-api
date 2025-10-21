@@ -10,7 +10,7 @@ export const channelFormSchema = z.object({
   name: z.string().min(1, 'Channel name is required'),
   type: z.number().min(0, 'Channel type is required'),
   base_url: z.string().optional(),
-  key: z.string().min(1, 'API key is required'),
+  key: z.string(),
   openai_organization: z.string().optional(),
   models: z.string().min(1, 'At least one model is required'),
   group: z.string().min(1, 'At least one group is required'),
