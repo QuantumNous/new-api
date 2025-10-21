@@ -27,7 +27,7 @@ func GetUserGroups(c *gin.Context) {
 	userGroup := ""
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
-	for groupName, ratio := range ratio_setting.GetGroupRatioCopy() {
+	for groupName, ratio := range ratio_setting.GetGroupRatioExtendCopy(userGroup) {
 		// UserUsableGroups contains the groups that the user can use
 		userUsableGroups := setting.GetUserUsableGroups(userGroup)
 		if desc, ok := userUsableGroups[groupName]; ok {
