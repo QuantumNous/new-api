@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -24,10 +25,12 @@ import {
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
+  handleUpdateChannelField,
 } from '../lib'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
+import { NumericSpinnerInput } from './numeric-spinner-input'
 
 /**
  * Render limited items with "and X more" indicator
@@ -55,6 +58,80 @@ function renderLimitedItems(
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Priority cell component with inline editing
+ */
+function PriorityCell({ channel }: { channel: Channel }) {
+  const queryClient = useQueryClient()
+  const isTagRow = (channel as any).children !== undefined
+  const priority = channel.priority
+
+  // Tag row: if null (children have different values), show "-"
+  if (isTagRow && priority === null) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  // Tag row with same priority across children - show as read-only badge
+  if (isTagRow) {
+    return (
+      <StatusBadge
+        label={String(priority || 0)}
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
+    )
+  }
+
+  // Regular channel row - editable
+  return (
+    <NumericSpinnerInput
+      value={priority ?? 0}
+      onChange={(value) => {
+        handleUpdateChannelField(channel.id, 'priority', value, queryClient)
+      }}
+      min={0}
+    />
+  )
+}
+
+/**
+ * Weight cell component with inline editing
+ */
+function WeightCell({ channel }: { channel: Channel }) {
+  const queryClient = useQueryClient()
+  const isTagRow = (channel as any).children !== undefined
+  const weight = channel.weight
+
+  // Tag row: if null (children have different values), show "-"
+  if (isTagRow && weight === null) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  // Tag row with same weight across children - show as read-only badge
+  if (isTagRow) {
+    return (
+      <StatusBadge
+        label={String(weight || 0)}
+        variant='neutral'
+        size='sm'
+        copyable={false}
+      />
+    )
+  }
+
+  // Regular channel row - editable
+  return (
+    <NumericSpinnerInput
+      value={weight ?? 0}
+      onChange={(value) => {
+        handleUpdateChannelField(channel.id, 'weight', value, queryClient)
+      }}
+      min={0}
+    />
   )
 }
 
@@ -367,24 +444,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Priority' />
       ),
-      cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
-        const priority = row.getValue('priority') as number | null
-
-        // Tag row: if null (children have different values), show "-"
-        if (isTagRow && priority === null) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        return (
-          <StatusBadge
-            label={String(priority || 0)}
-            variant='neutral'
-            size='sm'
-            copyable={false}
-          />
-        )
-      },
+      cell: ({ row }) => <PriorityCell channel={row.original} />,
       size: 100,
     },
 
@@ -392,24 +452,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     {
       accessorKey: 'weight',
       header: 'Weight',
-      cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
-        const weight = row.getValue('weight') as number | null
-
-        // Tag row: if null (children have different values), show "-"
-        if (isTagRow && weight === null) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        return (
-          <StatusBadge
-            label={String(weight || 0)}
-            variant='neutral'
-            size='sm'
-            copyable={false}
-          />
-        )
-      },
+      cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
       enableSorting: false,
     },

@@ -110,6 +110,33 @@ export async function handleDeleteChannel(
 }
 
 /**
+ * Update a specific channel field (e.g., priority, weight)
+ */
+export async function handleUpdateChannelField(
+  id: number,
+  fieldName: string,
+  value: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateChannel(id, { [fieldName]: value })
+    if (response.success) {
+      // Show success toast with field name
+      const fieldLabel =
+        fieldName.charAt(0).toUpperCase() + fieldName.slice(1).toLowerCase()
+      toast.success(`${fieldLabel} updated to ${value}`)
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(response.message || ERROR_MESSAGES.UPDATE_FAILED)
+    }
+  } catch (error) {
+    toast.error(ERROR_MESSAGES.UPDATE_FAILED)
+  }
+}
+
+/**
  * Test channel connectivity
  */
 export async function handleTestChannel(

@@ -291,8 +291,7 @@ export const FIELD_DESCRIPTIONS = {
   KEY: 'API key from the provider',
   MODELS:
     'List of models supported by this channel. Use comma to separate multiple models.',
-  GROUP:
-    'User groups that can access this channel. ',
+  GROUP: 'User groups that can access this channel. ',
   MODEL_MAPPING:
     'Map request model names to actual provider model names (JSON format)',
   PRIORITY: 'Higher priority channels are selected first',
