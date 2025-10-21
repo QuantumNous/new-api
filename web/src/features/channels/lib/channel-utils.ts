@@ -475,6 +475,15 @@ export type TagRow = Channel & {
 }
 
 /**
+ * Type guard to check whether a row is a tag aggregate row
+ */
+export function isTagAggregateRow(
+  row: Channel | TagRow
+): row is TagRow {
+  return Array.isArray((row as TagRow).children)
+}
+
+/**
  * Aggregate channels by tag for tag mode display
  * Converts flat array into tree structure grouped by tag
  */

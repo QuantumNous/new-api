@@ -8,6 +8,7 @@ import {
   type SortingState,
   type VisibilityState,
   type ExpandedState,
+  type Row,
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
 import { Loader2 } from 'lucide-react'
@@ -23,7 +24,12 @@ import { DataTablePagination } from '@/components/data-table/pagination'
 import { DataTableViewOptions } from '@/components/data-table/view-options'
 import { getChannels, searchChannels } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
-import { channelsQueryKeys, aggregateChannelsByTag } from '../lib'
+import {
+  channelsQueryKeys,
+  aggregateChannelsByTag,
+  isTagAggregateRow,
+} from '../lib'
+import type { Channel } from '../types'
 import { getChannelsColumns } from './channels-columns'
 import { ChannelsFilterBar } from './channels-filter-bar'
 import { useChannels } from './channels-provider'
@@ -115,7 +121,7 @@ export function ChannelsTable() {
       pagination,
       expanded,
     },
-    enableRowSelection: true,
+    enableRowSelection: (row: Row<Channel>) => !isTagAggregateRow(row.original),
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,

@@ -40,7 +40,15 @@ export function DataTableBulkActions<TData>({
   const [tagValue, setTagValue] = useState('')
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
-  const selectedIds = selectedRows.map((row) => (row.original as Channel).id)
+  const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
+    const id = (row.original as Channel).id
+
+    if (typeof id === 'number') {
+      ids.push(id)
+    }
+
+    return ids
+  }, [])
 
   const handleClearSelection = () => {
     table.resetRowSelection()
