@@ -12,6 +12,7 @@ import {
   Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getLobeIcon } from '@/lib/lobe-icon'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -73,7 +74,11 @@ import {
   transformFormDataToUpdatePayload,
   type ChannelFormValues,
 } from '../../lib'
-import { deduplicateKeys, getKeyPromptForType } from '../../lib/channel-utils'
+import {
+  deduplicateKeys,
+  getChannelTypeIcon,
+  getKeyPromptForType,
+} from '../../lib/channel-utils'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
@@ -537,7 +542,13 @@ export function ChannelMutateDrawer({
                               key={option.value}
                               value={String(option.value)}
                             >
-                              {option.label}
+                              <div className='flex items-center gap-2'>
+                                {getLobeIcon(
+                                  `${getChannelTypeIcon(option.value)}.Color`,
+                                  16
+                                )}
+                                <span>{option.label}</span>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
