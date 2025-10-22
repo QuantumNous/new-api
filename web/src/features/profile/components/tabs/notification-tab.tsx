@@ -34,6 +34,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     webhook_url: '',
     webhook_secret: '',
     bark_url: '',
+    gotify_url: '',
+    gotify_token: '',
+    gotify_priority: 5,
     accept_unset_model_ratio_model: false,
     record_ip_log: false,
   })
@@ -57,6 +60,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         webhook_url: parsed.webhook_url ?? '',
         webhook_secret: parsed.webhook_secret ?? '',
         bark_url: parsed.bark_url ?? '',
+        gotify_url: parsed.gotify_url ?? '',
+        gotify_token: parsed.gotify_token ?? '',
+        gotify_priority: parsed.gotify_priority ?? 5,
         accept_unset_model_ratio_model:
           parsed.accept_unset_model_ratio_model || false,
         record_ip_log: parsed.record_ip_log || false,
@@ -175,6 +181,73 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             Template variables: {'{{title}}'}, {'{{content}}'}
           </p>
         </div>
+      )}
+
+      {/* Gotify Settings */}
+      {settings.notify_type === 'gotify' && (
+        <>
+          <div className='space-y-2'>
+            <Label htmlFor='gotifyUrl'>Gotify Server URL</Label>
+            <Input
+              id='gotifyUrl'
+              type='url'
+              value={settings.gotify_url}
+              onChange={(e) => updateField('gotify_url', e.target.value)}
+              placeholder='https://gotify.example.com'
+            />
+            <p className='text-muted-foreground text-xs'>
+              Enter the full URL of your Gotify server
+            </p>
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='gotifyToken'>Gotify Application Token</Label>
+            <PasswordInput
+              id='gotifyToken'
+              value={settings.gotify_token}
+              onChange={(e) => updateField('gotify_token', e.target.value)}
+              placeholder='Enter application token'
+            />
+            <p className='text-muted-foreground text-xs'>
+              Token obtained from your Gotify application
+            </p>
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='gotifyPriority'>Message Priority</Label>
+            <Input
+              id='gotifyPriority'
+              type='number'
+              min='0'
+              max='10'
+              value={settings.gotify_priority}
+              onChange={(e) =>
+                updateField('gotify_priority', Number(e.target.value))
+              }
+              placeholder='5'
+            />
+            <p className='text-muted-foreground text-xs'>
+              Priority level from 0 (lowest) to 10 (highest), default is 5
+            </p>
+          </div>
+          <div className='bg-muted/50 rounded-lg border p-4'>
+            <h5 className='mb-2 text-sm font-medium'>Setup Instructions</h5>
+            <ol className='text-muted-foreground space-y-1 text-xs'>
+              <li>1. Create an application in your Gotify server</li>
+              <li>2. Copy the application token</li>
+              <li>3. Enter your Gotify server URL and token above</li>
+            </ol>
+            <p className='text-muted-foreground mt-3 text-xs'>
+              Learn more:{' '}
+              <a
+                href='https://gotify.net/'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='text-primary hover:underline'
+              >
+                Gotify Documentation
+              </a>
+            </p>
+          </div>
+        </>
       )}
 
       {/* Divider */}

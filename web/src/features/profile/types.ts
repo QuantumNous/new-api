@@ -66,7 +66,7 @@ export interface UserProfile {
 /**
  * Notification type
  */
-export type NotifyType = 'email' | 'webhook' | 'bark'
+export type NotifyType = 'email' | 'webhook' | 'bark' | 'gotify'
 
 /**
  * Parsed user settings
@@ -84,6 +84,12 @@ export interface UserSettings {
   notification_email?: string
   /** Bark URL */
   bark_url?: string
+  /** Gotify server URL */
+  gotify_url?: string
+  /** Gotify application token */
+  gotify_token?: string
+  /** Gotify message priority (0-10) */
+  gotify_priority?: number
   /** Accept unset model ratio model */
   accept_unset_model_ratio_model?: boolean
   /** Record IP log */
@@ -109,6 +115,9 @@ export interface UpdateUserSettingsRequest {
   webhook_secret?: string
   notification_email?: string
   bark_url?: string
+  gotify_url?: string
+  gotify_token?: string
+  gotify_priority?: number
   accept_unset_model_ratio_model?: boolean
   record_ip_log?: boolean
 }
