@@ -337,3 +337,46 @@ export const FIELD_DESCRIPTIONS = {
   BATCH_ADD: 'Create multiple channels from multiple keys',
   OPENAI_ORG: 'OpenAI Organization ID (optional)',
 } as const
+
+// ============================================================================
+// Channel Type Specific Configurations
+// ============================================================================
+
+// Channel types that support fetching models from upstream
+export const MODEL_FETCHABLE_TYPES = new Set([
+  1, // OpenAI
+  4, // Ollama
+  14, // Anthropic
+  17, // Ali
+  20, // OpenRouter
+  23, // Tencent
+  24, // Gemini
+  25, // Moonshot
+  26, // Zhipu V4
+  31, // LingYiWanWu
+  34, // Cohere
+  35, // MiniMax
+  40, // SiliconFlow
+  42, // Mistral
+  43, // DeepSeek
+  47, // Xinference
+  48, // xAI
+])
+
+// Channel type specific key format prompts
+export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
+  15: 'Format: APIKey|SecretKey',
+  18: 'Format: APPID|APISecret|APIKey',
+  22: 'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041',
+  23: 'Format: AppId|SecretId|SecretKey',
+  33: 'Format: Ak|Sk|Region',
+  50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
+  51: 'Format: Access Key ID|Secret Access Key',
+}
+
+// Channel types with special warnings
+export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
+  3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
+  8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
+  37: 'Dify channels only support chatflow and agent, and agent does not support images',
+}

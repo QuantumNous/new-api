@@ -44,9 +44,10 @@ export const channelFormSchema = z.object({
   pass_through_body_enabled: z.boolean().optional(),
   system_prompt: z.string().optional(),
   system_prompt_override: z.boolean().optional(),
-  // Type-specific settings
+  // Type-specific settings (stored in settings JSON)
   is_enterprise_account: z.boolean().optional(), // OpenRouter specific
   vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
+  azure_responses_version: z.string().optional(), // Azure specific
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -57,7 +58,7 @@ export type ChannelFormValues = z.infer<typeof channelFormSchema>
 
 export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   name: '',
-  type: 0,
+  type: 1,
   base_url: '',
   key: '',
   openai_organization: '',
@@ -92,6 +93,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
+  azure_responses_version: '',
 }
 
 // ============================================================================
@@ -130,12 +132,17 @@ export function transformChannelToFormDefaults(
     }
   }
 
-  // Parse vertex_key_type from settings field
+  // Parse type-specific settings from settings field
   let vertexKeyType: 'json' | 'api_key' = 'json'
+  let azureResponsesVersion = ''
+  let isEnterpriseAccount = false
+
   if (channel.settings) {
     try {
       const parsed = JSON.parse(channel.settings)
       vertexKeyType = parsed.vertex_key_type || 'json'
+      azureResponsesVersion = parsed.azure_responses_version || ''
+      isEnterpriseAccount = parsed.openrouter_enterprise === true
     } catch (error) {
       console.error('Failed to parse channel settings:', error)
     }
@@ -171,8 +178,9 @@ export function transformChannelToFormDefaults(
     // Channel extra settings
     ...extraSettings,
     // Type-specific settings
-    is_enterprise_account: false, // Not stored in backend, always false on load
+    is_enterprise_account: isEnterpriseAccount,
     vertex_key_type: vertexKeyType,
+    azure_responses_version: azureResponsesVersion,
   }
 }
 
@@ -209,6 +217,16 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   // Add vertex_key_type for Vertex AI channels (type 41)
   if (formData.type === 41) {
     settingsObj.vertex_key_type = formData.vertex_key_type || 'json'
+  }
+
+  // Add azure_responses_version for Azure channels (type 3)
+  if (formData.type === 3 && formData.azure_responses_version) {
+    settingsObj.azure_responses_version = formData.azure_responses_version
+  }
+
+  // Add enterprise account setting for OpenRouter (type 20)
+  if (formData.type === 20) {
+    settingsObj.openrouter_enterprise = formData.is_enterprise_account === true
   }
 
   return JSON.stringify(settingsObj)

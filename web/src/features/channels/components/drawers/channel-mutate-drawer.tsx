@@ -1,9 +1,18 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import {
+  Loader2,
+  Sparkles,
+  Trash2,
+  Copy,
+  FileText,
+  Eraser,
+  Plus,
+} from 'lucide-react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -36,13 +45,24 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { MultiSelect } from '@/components/multi-select'
-import { createChannel, getChannel, getGroups, updateChannel } from '../../api'
+import {
+  createChannel,
+  fetchUpstreamModels,
+  fetchModels,
+  getAllModels,
+  getChannel,
+  getGroups,
+  getPrefillGroups,
+  updateChannel,
+} from '../../api'
 import {
   ADD_MODE_OPTIONS,
   CHANNEL_TYPE_OPTIONS,
+  CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
+  MODEL_FETCHABLE_TYPES,
   SUCCESS_MESSAGES,
 } from '../../constants'
 import {
@@ -54,6 +74,7 @@ import {
   transformFormDataToUpdatePayload,
   type ChannelFormValues,
 } from '../../lib'
+import { deduplicateKeys, getKeyPromptForType } from '../../lib/channel-utils'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { JsonEditor } from '../json-editor'
@@ -65,6 +86,20 @@ type ChannelMutateDrawerProps = {
   currentRow?: Channel | null
 }
 
+// Helper functions for model operations
+const parseModelsString = (modelsStr: string): string[] => {
+  return modelsStr
+    ? modelsStr
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean)
+    : []
+}
+
+const formatModelsArray = (models: string[]): string => {
+  return Array.from(new Set(models)).join(',')
+}
+
 export function ChannelMutateDrawer({
   open,
   onOpenChange,
@@ -73,6 +108,8 @@ export function ChannelMutateDrawer({
   const queryClient = useQueryClient()
   const { setOpen } = useChannels()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [customModel, setCustomModel] = useState('')
+  const [isFetchingModels, setIsFetchingModels] = useState(false)
 
   const isEditing = Boolean(currentRow)
 
@@ -89,6 +126,18 @@ export function ChannelMutateDrawer({
     queryFn: getGroups,
   })
 
+  // Fetch all available models
+  const { data: allModelsData } = useQuery({
+    queryKey: ['channel_models'],
+    queryFn: getAllModels,
+  })
+
+  // Fetch prefill model groups
+  const { data: prefillGroupsData } = useQuery({
+    queryKey: ['prefill_groups', 'model'],
+    queryFn: () => getPrefillGroups('model'),
+  })
+
   // Check if this is a multi-key channel
   const isMultiKeyChannel =
     isEditing && channelData?.data?.channel_info?.is_multi_key === true
@@ -102,9 +151,41 @@ export function ChannelMutateDrawer({
   // Watch form values for conditional rendering
   const multiKeyMode = form.watch('multi_key_mode')
   const multiKeyType = form.watch('multi_key_type')
+  const keyMode = form.watch('key_mode')
   const currentGroups = form.watch('group')
+  const currentType = form.watch('type')
+  const currentBaseUrl = form.watch('base_url')
+  const currentModels = form.watch('models')
 
-  // Transform groups to multi-select options (combine backend + current form values)
+  // Helper computed values
+  const isBatchMode =
+    multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
+
+  // Get all models list
+  const allModelsList = useMemo(
+    () => allModelsData?.data?.map((model) => model.id).filter(Boolean) || [],
+    [allModelsData]
+  )
+
+  // Get basic models for the current channel type
+  const basicModels = useMemo(() => {
+    if (!allModelsList.length) return []
+    // Filter models based on common patterns for specific types
+    if (currentType === 1) {
+      return allModelsList.filter(
+        (model) => model.startsWith('gpt-') || model.startsWith('text-')
+      )
+    }
+    return allModelsList
+  }, [allModelsList, currentType])
+
+  // Get prefill groups
+  const prefillGroups = useMemo(
+    () => prefillGroupsData?.data || [],
+    [prefillGroupsData]
+  )
+
+  // Transform groups to multi-select options
   const groupOptions = useMemo(() => {
     if (!groupsData?.data) return []
     const allGroups = new Set([...groupsData.data, ...(currentGroups || [])])
@@ -113,6 +194,21 @@ export function ChannelMutateDrawer({
       label: group,
     }))
   }, [groupsData, currentGroups])
+
+  // Parse current models as array
+  const currentModelsArray = useMemo(
+    () => parseModelsString(currentModels),
+    [currentModels]
+  )
+
+  // Transform models to multi-select options
+  const modelOptions = useMemo(() => {
+    const allModels = new Set([...allModelsList, ...currentModelsArray])
+    return Array.from(allModels).map((model) => ({
+      value: model,
+      label: model,
+    }))
+  }, [allModelsList, currentModelsArray])
 
   // Load channel data into form when editing
   useEffect(() => {
@@ -124,70 +220,264 @@ export function ChannelMutateDrawer({
     }
   }, [isEditing, channelData, form])
 
-  // Submit handler
-  const onSubmit = async (data: ChannelFormValues) => {
-    // Validate key is required when creating
-    if (!isEditing && (!data.key || data.key.trim() === '')) {
-      form.setError('key', {
-        type: 'manual',
-        message: 'API key is required',
-      })
+  // Handle type change - set default values for specific types
+  useEffect(() => {
+    if (isEditing) return // Don't auto-set defaults when editing
+
+    // Type 45 (VolcEngine) - set default base_url
+    if (currentType === 45) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
+      }
+    }
+
+    // Type 18 (Xunfei) - set default other (version)
+    if (currentType === 18) {
+      const currentOther = form.getValues('other')
+      if (!currentOther || currentOther === '') {
+        form.setValue('other', 'v2.1')
+      }
+    }
+  }, [currentType, isEditing, form])
+
+  // Validate base_url - warn if it ends with /v1
+  useEffect(() => {
+    if (!currentBaseUrl || !currentBaseUrl.endsWith('/v1')) return
+
+    // Show warning toast
+    const timer = setTimeout(() => {
+      toast.warning(
+        'Warning: Base URL should not end with /v1. New API will handle it automatically. This may cause request failures.',
+        { duration: 5000 }
+      )
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [currentBaseUrl])
+
+  // Handle key deduplication
+  const handleDeduplicateKeys = () => {
+    const currentKey = form.getValues('key')
+    if (!currentKey || currentKey.trim() === '') {
+      toast.info('Please enter keys first')
       return
     }
 
-    setIsSubmitting(true)
-    try {
-      if (isEditing && currentRow) {
-        // Update existing channel
-        let payload = transformFormDataToUpdatePayload(data, currentRow.id)
+    const result = deduplicateKeys(currentKey)
 
-        // Add key_mode for multi-key channels
-        if (isMultiKeyChannel && data.key_mode) {
-          payload = {
-            ...payload,
-            key_mode: data.key_mode,
-          } as any
-        }
-
-        const response = await updateChannel(currentRow.id, payload)
-
-        if (response.success) {
-          toast.success(SUCCESS_MESSAGES.UPDATED)
-          queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-          onOpenChange(false)
-          setOpen(null)
-        }
-      } else {
-        // Create new channel(s)
-        const payload = transformFormDataToCreatePayload(data)
-        const response = await createChannel(payload)
-
-        if (response.success) {
-          toast.success(SUCCESS_MESSAGES.CREATED)
-          queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-          onOpenChange(false)
-          setOpen(null)
-        }
-      }
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || ERROR_MESSAGES.CREATE_FAILED
+    if (result.removedCount === 0) {
+      toast.info('No duplicate keys found')
+    } else {
+      form.setValue('key', result.deduplicatedText)
+      toast.success(
+        `Removed ${result.removedCount} duplicate key(s). Before: ${result.beforeCount}, After: ${result.afterCount}`
       )
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
-  return (
-    <Sheet
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v)
-        if (!v) {
-          form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+  // Unified function to update models
+  const updateModels = useCallback(
+    (newModels: string[], merge: boolean = false) => {
+      const finalModels = merge
+        ? formatModelsArray([...currentModelsArray, ...newModels])
+        : formatModelsArray(newModels)
+      form.setValue('models', finalModels)
+      return newModels.length
+    },
+    [currentModelsArray, form]
+  )
+
+  // Handle fetching models from upstream
+  const handleFetchModels = useCallback(async () => {
+    const type = form.getValues('type')
+
+    if (!MODEL_FETCHABLE_TYPES.has(type)) {
+      toast.error('This channel type does not support fetching models')
+      return
+    }
+
+    setIsFetchingModels(true)
+    try {
+      let models: string[] = []
+
+      if (isEditing && currentRow) {
+        const response = await fetchUpstreamModels(currentRow.id)
+        if (response.success && response.data) {
+          models = response.data
         }
-      }}
-    >
+      } else {
+        const key = form.getValues('key')
+        if (!key?.trim()) {
+          toast.error('Please enter API key first')
+          return
+        }
+
+        const response = await fetchModels({
+          type,
+          key,
+          base_url: form.getValues('base_url') || '',
+        })
+
+        if (response.success && response.data) {
+          models = response.data
+        }
+      }
+
+      if (models.length > 0) {
+        updateModels(models, true)
+        toast.success(`Fetched ${models.length} model(s) from upstream`)
+      } else {
+        toast.error('No models fetched from upstream')
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to fetch models')
+    } finally {
+      setIsFetchingModels(false)
+    }
+  }, [isEditing, currentRow, form, updateModels])
+
+  // Handle adding custom models
+  const handleAddCustomModels = useCallback(() => {
+    if (!customModel?.trim()) return
+
+    const modelArray = parseModelsString(customModel)
+    const count = updateModels(modelArray, true)
+    setCustomModel('')
+    toast.success(`Added ${count} custom model(s)`)
+  }, [customModel, updateModels])
+
+  // Handle model operations
+  const handleFillRelatedModels = useCallback(() => {
+    if (!basicModels.length) {
+      toast.info('No related models available for this channel type')
+      return
+    }
+    updateModels(basicModels)
+    toast.success(`Filled ${basicModels.length} related model(s)`)
+  }, [basicModels, updateModels])
+
+  const handleFillAllModels = useCallback(() => {
+    if (!allModelsList.length) {
+      toast.info('No models available')
+      return
+    }
+    updateModels(allModelsList)
+    toast.success(`Filled ${allModelsList.length} model(s)`)
+  }, [allModelsList, updateModels])
+
+  const handleClearModels = useCallback(() => {
+    form.setValue('models', '')
+    toast.success('Cleared all models')
+  }, [form])
+
+  const handleCopyModels = useCallback(() => {
+    const models = form.getValues('models')
+    if (!models?.trim()) {
+      toast.info('No models to copy')
+      return
+    }
+    navigator.clipboard.writeText(models)
+    toast.success('Models copied to clipboard')
+  }, [form])
+
+  // Handle adding prefill group models
+  const handleAddPrefillGroup = useCallback(
+    (group: { id: number; name: string; items: string | string[] }) => {
+      try {
+        const items = Array.isArray(group.items)
+          ? group.items
+          : JSON.parse(group.items)
+
+        if (!Array.isArray(items)) {
+          throw new Error('Invalid items format')
+        }
+
+        const count = updateModels(items, true)
+        toast.success(`Added ${count} models from "${group.name}"`)
+      } catch {
+        toast.error('Failed to parse group items')
+      }
+    },
+    [updateModels]
+  )
+
+  // Handle model selection change from MultiSelect
+  const handleModelsChange = useCallback(
+    (selected: string[]) => {
+      form.setValue('models', selected.join(','))
+    },
+    [form]
+  )
+
+  // Handle successful submission
+  const handleSuccess = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    onOpenChange(false)
+    setOpen(null)
+  }, [queryClient, onOpenChange, setOpen])
+
+  // Submit handler
+  const onSubmit = useCallback(
+    async (data: ChannelFormValues) => {
+      // Validate key is required when creating
+      if (!isEditing && !data.key?.trim()) {
+        form.setError('key', {
+          type: 'manual',
+          message: 'API key is required',
+        })
+        return
+      }
+
+      setIsSubmitting(true)
+      try {
+        if (isEditing && currentRow) {
+          // Update existing channel
+          let payload = transformFormDataToUpdatePayload(data, currentRow.id)
+
+          // Add key_mode for multi-key channels
+          if (isMultiKeyChannel && data.key_mode) {
+            payload = { ...payload, key_mode: data.key_mode } as any
+          }
+
+          const response = await updateChannel(currentRow.id, payload)
+          if (response.success) {
+            toast.success(SUCCESS_MESSAGES.UPDATED)
+            handleSuccess()
+          }
+        } else {
+          // Create new channel(s)
+          const payload = transformFormDataToCreatePayload(data)
+          const response = await createChannel(payload)
+          if (response.success) {
+            toast.success(SUCCESS_MESSAGES.CREATED)
+            handleSuccess()
+          }
+        }
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message || ERROR_MESSAGES.CREATE_FAILED
+        )
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [isEditing, currentRow, isMultiKeyChannel, form, handleSuccess]
+  )
+
+  // Handle drawer close
+  const handleOpenChange = useCallback(
+    (v: boolean) => {
+      onOpenChange(v)
+      if (!v) {
+        form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      }
+    },
+    [onOpenChange, form]
+  )
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className='flex flex-col sm:max-w-2xl'>
         <SheetHeader className='text-start'>
           <SheetTitle>
@@ -259,26 +549,6 @@ export function ChannelMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='base_url'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Base URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={FIELD_PLACEHOLDERS.BASE_URL}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {FIELD_DESCRIPTIONS.BASE_URL}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name='status'
                 render={({ field }) => (
                   <FormItem className='flex items-center justify-between rounded-lg border p-4'>
@@ -299,6 +569,433 @@ export function ChannelMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {/* OpenAI Organization - only for type 1 */}
+              {currentType === 1 && (
+                <FormField
+                  control={form.control}
+                  name='openai_organization'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>OpenAI Organization</FormLabel>
+                      <FormControl>
+                        <Input placeholder='org-...' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {FIELD_DESCRIPTIONS.OPENAI_ORG}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Type-Specific Settings Section - Moved up for better UX */}
+            <div className='space-y-4'>
+              <h3 className='text-sm font-semibold'>Type-Specific Settings</h3>
+
+              {/* Show warning if applicable */}
+              {CHANNEL_TYPE_WARNINGS[currentType] && (
+                <Alert>
+                  <AlertDescription>
+                    {CHANNEL_TYPE_WARNINGS[currentType]}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Azure (type 3) */}
+              {currentType === 3 && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>AZURE_OPENAI_ENDPOINT *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='e.g., https://docs-test-001.openai.azure.com'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Your Azure OpenAI endpoint URL
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='other'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Default API Version *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='e.g., 2025-04-01-preview'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Default API version for this channel
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='azure_responses_version'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Responses API Version</FormLabel>
+                        <FormControl>
+                          <Input placeholder='e.g., preview' {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Default Responses API version, if empty, will use the
+                          API version above
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              {/* Custom (type 8) */}
+              {currentType === 8 && (
+                <FormField
+                  control={form.control}
+                  name='base_url'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Full Base URL (supports {'{'}model{'}'} variable) *
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='e.g., https://api.openai.com/v1/chat/completions'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the complete URL, supports {'{'}model{'}'}{' '}
+                        variable
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Xunfei/Spark (type 18) */}
+              {currentType === 18 && (
+                <FormField
+                  control={form.control}
+                  name='other'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Model Version *</FormLabel>
+                      <FormControl>
+                        <Input placeholder='e.g., v2.1' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Spark model version, e.g., v2.1 (version number in API
+                        URL)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* OpenRouter (type 20) */}
+              {currentType === 20 && (
+                <FormField
+                  control={form.control}
+                  name='is_enterprise_account'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          Enterprise Account
+                        </FormLabel>
+                        <FormDescription>
+                          Enable if this is an OpenRouter enterprise account
+                          with special response format
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* AI Proxy Library (type 21) */}
+              {currentType === 21 && (
+                <FormField
+                  control={form.control}
+                  name='other'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Knowledge Base ID *</FormLabel>
+                      <FormControl>
+                        <Input placeholder='e.g., 123456' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the knowledge base ID
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* FastGPT (type 22) */}
+              {currentType === 22 && (
+                <FormField
+                  control={form.control}
+                  name='base_url'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Private Deployment URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='e.g., https://fastgpt.run/api/openapi'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        For private deployments, format:
+                        https://fastgpt.run/api/openapi
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* SunoAPI (type 36) */}
+              {currentType === 36 && (
+                <FormField
+                  control={form.control}
+                  name='base_url'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        API Base URL (Important: Not Chat API) *
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='e.g., https://api.example.com (path before /suno)'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the path before /suno, usually just the domain
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Cloudflare Workers AI (type 39) */}
+              {currentType === 39 && (
+                <FormField
+                  control={form.control}
+                  name='other'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account ID *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='e.g., d6b5da8hk1awo8nap34ube6gh'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Your Cloudflare Account ID
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* SiliconFlow (type 40) */}
+              {currentType === 40 && (
+                <Alert>
+                  <AlertDescription>
+                    Referral link:{' '}
+                    <a
+                      href='https://cloud.siliconflow.cn/i/hij0YNTZ'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-primary underline'
+                    >
+                      https://cloud.siliconflow.cn/i/hij0YNTZ
+                    </a>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Vertex AI (type 41) */}
+              {currentType === 41 && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name='vertex_key_type'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vertex AI Key Format</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value='json'>JSON</SelectItem>
+                            <SelectItem value='api_key'>API Key</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {field.value === 'json'
+                            ? 'JSON format supports service account JSON files'
+                            : 'API Key mode (does not support batch creation)'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='other'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Deployment Region *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder='e.g., us-central1 or JSON format for model-specific regions'
+                            rows={3}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Enter deployment region or JSON mapping: {'{'}
+                          "default": "us-central1",
+                          "claude-3-5-sonnet-20240620": "europe-west1"{'}'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              {/* VolcEngine (type 45) */}
+              {currentType === 45 && (
+                <FormField
+                  control={form.control}
+                  name='base_url'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API Base URL *</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={
+                          field.value || 'https://ark.cn-beijing.volces.com'
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value='https://ark.cn-beijing.volces.com'>
+                            https://ark.cn-beijing.volces.com
+                          </SelectItem>
+                          <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
+                            https://ark.ap-southeast.bytepluses.com
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Select the API endpoint region
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Coze (type 49) */}
+              {currentType === 49 && (
+                <FormField
+                  control={form.control}
+                  name='other'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Agent ID *</FormLabel>
+                      <FormControl>
+                        <Input placeholder='e.g., 7342866812345' {...field} />
+                      </FormControl>
+                      <FormDescription>Enter the Coze agent ID</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* General base_url for other types */}
+              {![3, 8, 22, 36, 45].includes(currentType) && (
+                <FormField
+                  control={form.control}
+                  name='base_url'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Base URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={FIELD_PLACEHOLDERS.BASE_URL}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Custom API base URL. For official channels, New API has
+                        built-in addresses. Only fill this for third-party proxy
+                        sites or special endpoints. Do not add /v1 or trailing
+                        slash.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Show message if no type-specific settings */}
+              {![3, 8, 18, 20, 21, 22, 36, 39, 40, 41, 45, 49].includes(
+                currentType
+              ) && (
+                <p className='text-muted-foreground text-sm'>
+                  No additional type-specific settings for this channel type.
+                </p>
+              )}
             </div>
 
             <Separator />
@@ -351,40 +1048,49 @@ export function ChannelMutateDrawer({
                         placeholder={
                           isEditing
                             ? 'Leave empty to keep existing key'
-                            : multiKeyMode === 'batch' ||
-                                multiKeyMode === 'multi_to_single'
+                            : isBatchMode
                               ? 'Enter one key per line for batch creation'
-                              : FIELD_PLACEHOLDERS.KEY
+                              : getKeyPromptForType(currentType)
                         }
-                        rows={
-                          multiKeyMode === 'batch' ||
-                          multiKeyMode === 'multi_to_single'
-                            ? 8
-                            : 4
-                        }
+                        rows={isBatchMode ? 8 : 4}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      {isEditing ? (
-                        <>
-                          Enter new key to update, or leave empty to keep
-                          current key
-                          {isMultiKeyChannel && (
-                            <span className='text-warning mt-1 block'>
-                              Multi-key channel: Keys will be{' '}
-                              {form.watch('key_mode') === 'replace'
-                                ? 'replaced'
-                                : 'appended'}
-                            </span>
+                      <div className='flex flex-col gap-2'>
+                        <span>
+                          {isEditing ? (
+                            <>
+                              Enter new key to update, or leave empty to keep
+                              current key
+                              {isMultiKeyChannel && (
+                                <span className='text-warning mt-1 block'>
+                                  Multi-key channel: Keys will be{' '}
+                                  {keyMode === 'replace'
+                                    ? 'replaced'
+                                    : 'appended'}
+                                </span>
+                              )}
+                            </>
+                          ) : isBatchMode ? (
+                            'Enter one API key per line for batch creation'
+                          ) : (
+                            FIELD_DESCRIPTIONS.KEY
                           )}
-                        </>
-                      ) : multiKeyMode === 'batch' ||
-                        multiKeyMode === 'multi_to_single' ? (
-                        'Enter one API key per line for batch creation'
-                      ) : (
-                        FIELD_DESCRIPTIONS.KEY
-                      )}
+                        </span>
+                        {isBatchMode && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleDeduplicateKeys}
+                            className='w-fit'
+                          >
+                            <Trash2 className='mr-2 h-4 w-4' />
+                            Remove Duplicates
+                          </Button>
+                        )}
+                      </div>
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -463,23 +1169,6 @@ export function ChannelMutateDrawer({
                   )}
                 />
               )}
-
-              <FormField
-                control={form.control}
-                name='openai_organization'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>OpenAI Organization (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder='org-...' {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {FIELD_DESCRIPTIONS.OPENAI_ORG}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
 
             <Separator />
@@ -491,23 +1180,116 @@ export function ChannelMutateDrawer({
               <FormField
                 control={form.control}
                 name='models'
-                render={({ field }) => (
+                render={() => (
                   <FormItem>
                     <FormLabel>Models *</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder={FIELD_PLACEHOLDERS.MODELS}
-                        rows={3}
-                        {...field}
+                      <MultiSelect
+                        options={modelOptions}
+                        selected={currentModelsArray}
+                        onChange={handleModelsChange}
+                        placeholder='Select models or add custom ones'
                       />
                     </FormControl>
                     <FormDescription>
-                      {FIELD_DESCRIPTIONS.MODELS}
+                      <div className='flex flex-col gap-2'>
+                        <span>{FIELD_DESCRIPTIONS.MODELS}</span>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleFillRelatedModels}
+                            disabled={!basicModels.length}
+                          >
+                            <FileText className='mr-2 h-4 w-4' />
+                            Fill Related Models
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleFillAllModels}
+                            disabled={!allModelsList.length}
+                          >
+                            <Plus className='mr-2 h-4 w-4' />
+                            Fill All Models
+                          </Button>
+                          {MODEL_FETCHABLE_TYPES.has(currentType) && (
+                            <Button
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              onClick={handleFetchModels}
+                              disabled={isFetchingModels}
+                            >
+                              {isFetchingModels ? (
+                                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                              ) : (
+                                <Sparkles className='mr-2 h-4 w-4' />
+                              )}
+                              Fetch from Upstream
+                            </Button>
+                          )}
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleClearModels}
+                          >
+                            <Eraser className='mr-2 h-4 w-4' />
+                            Clear All
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleCopyModels}
+                          >
+                            <Copy className='mr-2 h-4 w-4' />
+                            Copy All
+                          </Button>
+                          {prefillGroups.map((group) => (
+                            <Button
+                              key={group.id}
+                              type='button'
+                              variant='secondary'
+                              size='sm'
+                              onClick={() => handleAddPrefillGroup(group)}
+                            >
+                              {group.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Custom Model Input */}
+              <div className='flex gap-2'>
+                <Input
+                  placeholder='Add custom model(s), comma-separated'
+                  value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddCustomModels()
+                    }
+                  }}
+                />
+                <Button
+                  type='button'
+                  variant='secondary'
+                  onClick={handleAddCustomModels}
+                  disabled={!customModel}
+                >
+                  Add
+                </Button>
+              </div>
 
               <FormField
                 control={form.control}
@@ -739,7 +1521,64 @@ export function ChannelMutateDrawer({
                       />
                     </FormControl>
                     <FormDescription>
-                      Override request parameters
+                      <div className='flex flex-col gap-2'>
+                        <span>
+                          Override request parameters. Cannot override{' '}
+                          <code>stream</code> parameter.
+                        </span>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            className='h-6 text-xs'
+                            onClick={() => {
+                              field.onChange(
+                                JSON.stringify({ temperature: 0 }, null, 2)
+                              )
+                            }}
+                          >
+                            Old Format Template
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            className='h-6 text-xs'
+                            onClick={() => {
+                              field.onChange(
+                                JSON.stringify(
+                                  {
+                                    operations: [
+                                      {
+                                        path: 'temperature',
+                                        mode: 'set',
+                                        value: 0.7,
+                                        conditions: [
+                                          {
+                                            path: 'model',
+                                            mode: 'prefix',
+                                            value: 'gpt',
+                                          },
+                                        ],
+                                        logic: 'AND',
+                                      },
+                                    ],
+                                  },
+                                  null,
+                                  2
+                                )
+                              )
+                            }}
+                          >
+                            New Format Template
+                          </Button>
+                        </div>
+                        <span className='text-muted-foreground text-xs'>
+                          Old format: Direct override. New format: Supports
+                          conditional judgment and custom JSON operations.
+                        </span>
+                      </div>
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -804,7 +1643,7 @@ export function ChannelMutateDrawer({
             <div className='space-y-4'>
               <h3 className='text-sm font-semibold'>Channel Extra Settings</h3>
 
-              {form.watch('type') === 1 && (
+              {currentType === 1 && (
                 <FormField
                   control={form.control}
                   name='force_format'
@@ -941,77 +1780,6 @@ export function ChannelMutateDrawer({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <Separator />
-
-            {/* Type-Specific Settings Section */}
-            <div className='space-y-4'>
-              <h3 className='text-sm font-semibold'>Type-Specific Settings</h3>
-
-              {form.watch('type') === 20 && (
-                <FormField
-                  control={form.control}
-                  name='is_enterprise_account'
-                  render={({ field }) => (
-                    <FormItem className='flex items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          Enterprise Account
-                        </FormLabel>
-                        <FormDescription>
-                          Enable if this is an OpenRouter enterprise account
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              {form.watch('type') === 41 && (
-                <FormField
-                  control={form.control}
-                  name='vertex_key_type'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vertex AI Key Format</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value='json'>JSON</SelectItem>
-                          <SelectItem value='api_key'>API Key</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        {field.value === 'json'
-                          ? 'JSON format supports service account JSON files'
-                          : 'API Key mode (does not support batch creation)'}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              {/* Show message if no type-specific settings */}
-              {form.watch('type') !== 20 && form.watch('type') !== 41 && (
-                <p className='text-muted-foreground text-sm'>
-                  No type-specific settings for this channel type.
-                </p>
-              )}
             </div>
           </form>
         </Form>

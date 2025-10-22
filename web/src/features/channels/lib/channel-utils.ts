@@ -571,3 +571,70 @@ export function aggregateChannelsByTag(
 
   return result
 }
+
+// ============================================================================
+// Key Management Utilities
+// ============================================================================
+
+/**
+ * Deduplicate keys from a multiline string
+ * @param keysText - Text with one key per line
+ * @returns Object with deduplicated keys and statistics
+ */
+export function deduplicateKeys(keysText: string): {
+  deduplicatedText: string
+  beforeCount: number
+  afterCount: number
+  removedCount: number
+} {
+  if (!keysText || keysText.trim() === '') {
+    return {
+      deduplicatedText: '',
+      beforeCount: 0,
+      afterCount: 0,
+      removedCount: 0,
+    }
+  }
+
+  // Split by lines
+  const keyLines = keysText.split('\n')
+  const beforeCount = keyLines.length
+
+  // Use Set for deduplication, maintaining order
+  const keySet = new Set<string>()
+  const deduplicatedKeys: string[] = []
+
+  keyLines.forEach((line) => {
+    const trimmedLine = line.trim()
+    if (trimmedLine && !keySet.has(trimmedLine)) {
+      keySet.add(trimmedLine)
+      deduplicatedKeys.push(trimmedLine)
+    }
+  })
+
+  const afterCount = deduplicatedKeys.length
+  const deduplicatedText = deduplicatedKeys.join('\n')
+
+  return {
+    deduplicatedText,
+    beforeCount,
+    afterCount,
+    removedCount: beforeCount - afterCount,
+  }
+}
+
+/**
+ * Get key prompt based on channel type
+ */
+export function getKeyPromptForType(type: number): string {
+  const typePrompts: Record<number, string> = {
+    15: 'Format: APIKey|SecretKey',
+    18: 'Format: APPID|APISecret|APIKey',
+    22: 'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041',
+    23: 'Format: AppId|SecretId|SecretKey',
+    33: 'Format: Ak|Sk|Region',
+    50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
+    51: 'Format: Access Key ID|Secret Access Key',
+  }
+  return typePrompts[type] || 'Enter API key for this channel'
+}
