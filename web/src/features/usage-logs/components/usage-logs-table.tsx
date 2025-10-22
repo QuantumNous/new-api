@@ -25,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { getColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
@@ -156,6 +157,13 @@ export function UsageLogsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  const visibleColumns = table.getVisibleLeafColumns()
+  const skeletonRowCount = Math.min(
+    table.getState().pagination.pageSize || 10,
+    10
+  )
+  const skeletonColumnCount = visibleColumns.length || columns.length || 1
+
   // Handle tab change with URL update
   const handleTabChange = (category: typeof logCategory) => {
     setLogCategory(category)
@@ -210,14 +218,29 @@ export function UsageLogsTable() {
           </TableHeader>
           <TableBody>
             {isLoadingData ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
+              Array.from({ length: skeletonRowCount }, (_, rowIndex) => (
+                <TableRow
+                  key={`usage-log-skeleton-${rowIndex}`}
+                  className='h-14'
                 >
-                  Loading...
-                </TableCell>
-              </TableRow>
+                  {Array.from(
+                    { length: skeletonColumnCount },
+                    (_, colIndex) => (
+                      <TableCell
+                        key={`usage-log-skeleton-${rowIndex}-${colIndex}`}
+                      >
+                        <SkeletonWrapper
+                          loading
+                          type='text'
+                          width='100%'
+                          height={16}
+                          className='h-4 w-full'
+                        />
+                      </TableCell>
+                    )
+                  )}
+                </TableRow>
+              ))
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>

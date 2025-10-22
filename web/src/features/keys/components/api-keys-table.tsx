@@ -24,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { getApiKeys, searchApiKeys } from '../api'
 import { API_KEY_STATUS_OPTIONS, ERROR_MESSAGES } from '../constants'
 import { apiKeysColumns as columns } from './api-keys-columns'
@@ -142,6 +143,9 @@ export function ApiKeysTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  const visibleColumns = table.getVisibleLeafColumns()
+  const skeletonRowCount = Math.min((pagination.pageSize as number) || 10, 10)
+
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
@@ -177,14 +181,21 @@ export function ApiKeysTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
+              Array.from({ length: skeletonRowCount }, (_, index) => (
+                <TableRow key={`api-keys-skeleton-${index}`} className='h-14'>
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column.id}>
+                      <SkeletonWrapper
+                        loading
+                        type='text'
+                        width='100%'
+                        height={16}
+                        className='h-4 w-full'
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
