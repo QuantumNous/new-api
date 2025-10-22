@@ -9,6 +9,7 @@ const pricingSearchSchema = z.object({
   group: z.string().optional(),
   endpoint: z.string().optional(),
   tag: z.string().optional(),
+  search: z.string().optional(),
   quota: z.enum(['all', '0', '1']).optional(),
   currency: z.enum(['USD', 'CNY']).optional(),
   tokenUnit: z.enum(['M', 'K']).optional(),

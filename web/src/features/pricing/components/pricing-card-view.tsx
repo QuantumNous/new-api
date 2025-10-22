@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -29,15 +29,25 @@ export function PricingCardView({
   filterButton,
 }: PricingCardViewProps) {
   const navigate = useNavigate({ from: '/pricing' })
-  const [searchTerm, setSearchTerm] = useState('')
+  const searchParams = useSearch({ from: '/pricing/' })
+  const searchTerm = searchParams.search || ''
+  const [searchInput, setSearchInput] = useState(searchTerm)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 20
   const { copyToClipboard } = useCopyToClipboard()
 
-  const filteredModels = useMemo(() => {
-    if (!searchTerm) return models
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchInput])
 
-    const searchLower = searchTerm.toLowerCase()
+  useEffect(() => {
+    setSearchInput(searchTerm)
+  }, [searchTerm])
+
+  const filteredModels = useMemo(() => {
+    if (!searchInput) return models
+
+    const searchLower = searchInput.toLowerCase()
     return models.filter(
       (model) =>
         model.model_name?.toLowerCase().includes(searchLower) ||
@@ -45,7 +55,7 @@ export function PricingCardView({
         model.tags?.toLowerCase().includes(searchLower) ||
         model.vendor_name?.toLowerCase().includes(searchLower)
     )
-  }, [models, searchTerm])
+  }, [models, searchInput])
 
   const totalPages = Math.ceil(filteredModels.length / pageSize)
   const paginatedModels = useMemo(() => {
@@ -54,8 +64,16 @@ export function PricingCardView({
   }, [filteredModels, currentPage])
 
   const handleSearch = (value: string) => {
-    setSearchTerm(value)
-    setCurrentPage(1)
+    setSearchInput(value)
+    navigate({
+      search: (prev) => {
+        if (!value.trim()) {
+          const { search: _removed, ...rest } = prev
+          return rest
+        }
+        return { ...prev, search: value }
+      },
+    })
   }
 
   const handleCopyModelName = (modelName: string, e: React.MouseEvent) => {
@@ -87,7 +105,7 @@ export function PricingCardView({
           <div className='flex flex-1 items-center gap-2'>
             <Input
               placeholder='Search models...'
-              value={searchTerm}
+              value={searchInput}
               onChange={(e) => handleSearch(e.target.value)}
               className='h-9 w-full max-w-[300px]'
             />

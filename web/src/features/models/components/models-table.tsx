@@ -24,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination } from '@/components/data-table'
+import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { getModels, getVendors } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import { DataTableBulkActions } from './data-table-bulk-actions'
@@ -156,6 +157,12 @@ export function ModelsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  const visibleColumns = table.getVisibleLeafColumns()
+  const skeletonRowCount = Math.min(
+    table.getState().pagination.pageSize || 10,
+    10
+  )
+
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <ModelsFilterBar table={table} />
@@ -181,14 +188,21 @@ export function ModelsTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
+              Array.from({ length: skeletonRowCount }, (_, index) => (
+                <TableRow key={`model-skeleton-${index}`} className='h-14'>
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column.id}>
+                      <SkeletonWrapper
+                        loading
+                        type='text'
+                        width='100%'
+                        height={16}
+                        className='h-4 w-full'
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow

@@ -11,7 +11,6 @@ import {
   type Row,
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
-import { Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -23,6 +22,7 @@ import {
 } from '@/components/ui/table'
 import { DataTableToolbar } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
+import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -223,6 +223,12 @@ export function ChannelsTable() {
     ...groupOptions,
   ]
 
+  const visibleColumns = table.getVisibleLeafColumns()
+  const skeletonRowCount = Math.min(
+    pagination.pageSize || DEFAULT_PAGE_SIZE,
+    10
+  )
+
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       {/* Toolbar with Filters */}
@@ -285,19 +291,21 @@ export function ChannelsTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  <div className='flex items-center justify-center gap-2'>
-                    <Loader2 className='h-5 w-5 animate-spin' />
-                    <span className='text-muted-foreground'>
-                      Loading channels...
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
+              Array.from({ length: skeletonRowCount }, (_, index) => (
+                <TableRow key={`channel-skeleton-${index}`} className='h-14'>
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column.id}>
+                      <SkeletonWrapper
+                        loading
+                        type='text'
+                        width='100%'
+                        height={16}
+                        className='h-4 w-full'
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow

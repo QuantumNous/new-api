@@ -17,6 +17,51 @@ type PricingFilters = {
   quota: 'all' | '0' | '1'
 }
 
+function PricingCardSkeleton() {
+  return (
+    <div className='flex justify-center'>
+      <div className='w-full max-w-3xl space-y-6'>
+        <div className='flex items-center justify-between gap-4 py-4'>
+          <div className='flex flex-1 items-center gap-2'>
+            <Skeleton className='h-9 w-full max-w-[300px]' />
+            <Skeleton className='h-9 w-24 rounded-md md:hidden' />
+          </div>
+          <Skeleton className='h-5 w-16' />
+        </div>
+
+        <div className='space-y-0'>
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index}>
+              <div className='space-y-3 py-6'>
+                <div className='flex items-center gap-2'>
+                  <Skeleton className='h-6 w-40' />
+                  <Skeleton className='h-6 w-6 rounded-full' />
+                </div>
+                <Skeleton className='h-4 w-full' />
+                <Skeleton className='h-4 w-2/3' />
+                <div className='flex flex-wrap items-center gap-2 pt-1'>
+                  <Skeleton className='h-4 w-24' />
+                  <Skeleton className='h-4 w-20' />
+                  <Skeleton className='h-4 w-28' />
+                </div>
+                <div className='flex flex-wrap gap-1.5 pt-1'>
+                  {Array.from({ length: 4 }).map((_, tagIndex) => (
+                    <Skeleton
+                      key={tagIndex}
+                      className='h-6 w-20 rounded-full'
+                    />
+                  ))}
+                </div>
+              </div>
+              {index < 3 && <div className='bg-border h-px w-full' />}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Pricing() {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
@@ -239,10 +284,14 @@ export function Pricing() {
           </div>
 
           {isLoading ? (
-            <div className='space-y-4'>
-              <Skeleton className='h-12 w-full' />
-              <Skeleton className='h-[400px] w-full' />
-            </div>
+            effectiveView === 'card' ? (
+              <PricingCardSkeleton />
+            ) : (
+              <div className='space-y-4'>
+                <Skeleton className='h-12 w-full' />
+                <Skeleton className='h-[400px] w-full' />
+              </div>
+            )
           ) : effectiveView === 'card' ? (
             <PricingCardView
               models={filteredModels}

@@ -6,6 +6,7 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import { usePricingData } from '../hooks/use-pricing-data'
@@ -407,9 +408,71 @@ export function ModelDetails() {
 
   if (isLoading) {
     return (
-      <div className='flex min-h-screen items-center justify-center'>
-        <div className='text-muted-foreground'>Loading...</div>
-      </div>
+      <PublicLayout>
+        <div className='mx-auto max-w-4xl space-y-6'>
+          <div className='flex items-center gap-4'>
+            <Skeleton className='h-9 w-24 rounded-md' />
+          </div>
+
+          <div className='flex items-center gap-4'>
+            <Skeleton className='h-16 w-16 rounded-2xl' />
+            <div className='flex-1 space-y-3'>
+              <Skeleton className='h-6 w-40' />
+              <Skeleton className='h-4 w-24' />
+            </div>
+          </div>
+
+          <Card className='p-6'>
+            <div className='space-y-4'>
+              <Skeleton className='h-5 w-48' />
+              <div className='space-y-2'>
+                <Skeleton className='h-4 w-full' />
+                <Skeleton className='h-4 w-5/6' />
+                <Skeleton className='h-4 w-2/3' />
+              </div>
+              <div className='flex flex-wrap gap-2 pt-2'>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={index} className='h-6 w-20 rounded-full' />
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card className='p-6'>
+            <div className='space-y-4'>
+              <Skeleton className='h-5 w-48' />
+              <div className='space-y-3'>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className='space-y-2'>
+                    <Skeleton className='h-4 w-full' />
+                    <Skeleton className='h-3 w-4/5' />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card className='p-6'>
+            <div className='space-y-4'>
+              <Skeleton className='h-5 w-48' />
+              <Skeleton className='h-4 w-32' />
+              <div className='space-y-3'>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className='flex flex-wrap items-center gap-3'
+                  >
+                    <Skeleton className='h-6 w-24 rounded-full' />
+                    <Skeleton className='h-6 w-24 rounded-full' />
+                    <Skeleton className='h-6 w-32 rounded-full' />
+                    <Skeleton className='h-6 w-32 rounded-full' />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
+      </PublicLayout>
     )
   }
 
