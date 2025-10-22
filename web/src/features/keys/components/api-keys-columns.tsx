@@ -46,6 +46,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     ),
     enableSorting: false,
     enableHiding: false,
+    meta: { label: 'Select' },
   },
   {
     accessorKey: 'name',
@@ -59,6 +60,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
         </div>
       )
     },
+    meta: { label: 'Name' },
   },
   {
     accessorKey: 'status',
@@ -85,6 +87,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
     filterFn: (row, id, value) => {
       return value.includes(String(row.getValue(id)))
     },
+    meta: { label: 'Status' },
   },
   {
     id: 'key',
@@ -121,6 +124,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       )
     },
     enableSorting: false,
+    meta: { label: 'API Key' },
   },
   {
     id: 'quota',
@@ -163,6 +167,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
         </Tooltip>
       )
     },
+    meta: { label: 'Quota' },
   },
   {
     accessorKey: 'group',
@@ -188,6 +193,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
       }
       return <Badge variant='outline'>{group || 'Default'}</Badge>
     },
+    meta: { label: 'Group' },
   },
   {
     accessorKey: 'created_time',
@@ -201,6 +207,7 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
         </div>
       )
     },
+    meta: { label: 'Created' },
   },
   {
     accessorKey: 'expired_time',
@@ -221,9 +228,11 @@ export const apiKeysColumns: ColumnDef<ApiKey>[] = [
         </div>
       )
     },
+    meta: { label: 'Expires' },
   },
   {
     id: 'actions',
     cell: ({ row }) => <DataTableRowActions row={row} />,
+    meta: { label: 'Actions' },
   },
 ]

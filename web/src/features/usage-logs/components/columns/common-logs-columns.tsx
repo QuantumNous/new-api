@@ -48,6 +48,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       enableHiding: false,
+      meta: { label: 'Time' },
     },
 
     // Type column
@@ -73,6 +74,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!value || value.length === 0) return true
         return value.includes(String(row.getValue(id)))
       },
+      meta: { label: 'Type' },
     },
   ]
 
@@ -127,6 +129,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
           )
         },
+        meta: { label: 'Channel' },
       },
 
       // Username column
@@ -159,6 +162,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
           )
         },
+        meta: { label: 'User' },
       }
     )
   }
@@ -180,6 +184,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           ? renderBadge(tokenName, { className: 'truncate' })
           : null
       },
+      meta: { label: 'Token' },
     },
 
     // Group column
@@ -195,6 +200,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const group = row.getValue('group') as string
         return group ? renderBadge(group) : null
       },
+      meta: { label: 'Group' },
     },
 
     // Model column
@@ -243,6 +249,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </Popover>
         )
       },
+      meta: { label: 'Model' },
     },
 
     // Use time column
@@ -286,6 +293,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
+      meta: { label: 'Time / FRT' },
     },
 
     // Tokens column
@@ -356,6 +364,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
+      meta: { label: 'Tokens' },
     },
 
     // Cost column
@@ -385,6 +394,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
+      meta: { label: 'Cost' },
     },
 
     // IP column
@@ -414,6 +424,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const ip = row.getValue('ip') as string
         return ip ? renderBadge(ip, { mono: true }) : null
       },
+      meta: { label: 'IP' },
     },
 
     // Details column
@@ -442,6 +453,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           />
         )
       },
+      meta: { label: 'Details' },
     }
   )
 
@@ -470,6 +482,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
+      meta: { label: 'Retry' },
     })
   }
 

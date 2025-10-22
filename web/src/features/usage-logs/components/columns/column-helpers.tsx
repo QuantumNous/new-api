@@ -98,6 +98,7 @@ export function createTimestampColumn<T>(config: {
         </div>
       )
     },
+    meta: { label: title },
   }
 }
 
@@ -136,6 +137,7 @@ export function createDurationColumn<T extends Record<string, any>>(config: {
         />
       )
     },
+    meta: { label: 'Duration' },
   }
 }
 
@@ -162,6 +164,7 @@ export function createChannelColumn<T>(config: {
         />
       )
     },
+    meta: { label: 'Channel' },
   }
 }
 
@@ -202,6 +205,7 @@ export function createFailReasonColumn<T>(config?: {
         </>
       )
     },
+    meta: { label: 'Fail Reason' },
   }
 }
 
@@ -223,5 +227,6 @@ export function createProgressColumn<T>(config?: {
       }
       return <div className='font-mono text-sm'>{progress}</div>
     },
+    meta: { label: 'Progress' },
   }
 }

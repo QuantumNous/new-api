@@ -49,6 +49,7 @@ export function getDrawingLogsColumns(
           />
         )
       },
+      meta: { label: 'Type' },
     },
 
     // Task ID
@@ -66,6 +67,7 @@ export function getDrawingLogsColumns(
           />
         )
       },
+      meta: { label: 'Task ID' },
     },
 
     // Status
@@ -84,6 +86,7 @@ export function getDrawingLogsColumns(
           />
         )
       },
+      meta: { label: 'Status' },
     },
 
     createProgressColumn<MidjourneyLog>(),
@@ -119,6 +122,7 @@ export function getDrawingLogsColumns(
           </>
         )
       },
+      meta: { label: 'Image' },
     },
 
     // Prompt (clickable)
@@ -153,6 +157,7 @@ export function getDrawingLogsColumns(
           </>
         )
       },
+      meta: { label: 'Prompt' },
     },
 
     createFailReasonColumn<MidjourneyLog>()

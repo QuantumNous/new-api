@@ -39,6 +39,7 @@ export const usersColumns: ColumnDef<User>[] = [
     ),
     enableSorting: false,
     enableHiding: false,
+    meta: { label: 'Select' },
   },
   {
     accessorKey: 'id',
@@ -48,6 +49,7 @@ export const usersColumns: ColumnDef<User>[] = [
     cell: ({ row }) => {
       return <div className='w-[60px]'>{row.getValue('id')}</div>
     },
+    meta: { label: 'ID' },
   },
   {
     accessorKey: 'username',
@@ -81,6 +83,7 @@ export const usersColumns: ColumnDef<User>[] = [
       )
     },
     enableHiding: false,
+    meta: { label: 'Username' },
   },
   {
     accessorKey: 'display_name',
@@ -94,6 +97,7 @@ export const usersColumns: ColumnDef<User>[] = [
         </LongText>
       )
     },
+    meta: { label: 'Display Name' },
   },
   {
     accessorKey: 'status',
@@ -132,6 +136,7 @@ export const usersColumns: ColumnDef<User>[] = [
       return value.includes(String(row.getValue(id)))
     },
     enableSorting: false,
+    meta: { label: 'Status' },
   },
   {
     id: 'quota',
@@ -174,6 +179,7 @@ export const usersColumns: ColumnDef<User>[] = [
         </Tooltip>
       )
     },
+    meta: { label: 'Quota' },
   },
   {
     accessorKey: 'group',
@@ -189,6 +195,7 @@ export const usersColumns: ColumnDef<User>[] = [
       const searchValue = String(value).toLowerCase()
       return group.includes(searchValue)
     },
+    meta: { label: 'Group' },
   },
   {
     accessorKey: 'role',
@@ -216,6 +223,7 @@ export const usersColumns: ColumnDef<User>[] = [
       return value.includes(String(row.getValue(id)))
     },
     enableSorting: false,
+    meta: { label: 'Role' },
   },
   {
     id: 'invite_info',
@@ -269,9 +277,11 @@ export const usersColumns: ColumnDef<User>[] = [
       )
     },
     enableSorting: false,
+    meta: { label: 'Invite Info' },
   },
   {
     id: 'actions',
     cell: ({ row }) => <DataTableRowActions row={row} />,
+    meta: { label: 'Actions' },
   },
 ]

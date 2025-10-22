@@ -57,6 +57,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
+      meta: { label: 'Platform' },
     },
 
     // Type/Action
@@ -74,6 +75,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
+      meta: { label: 'Type' },
     },
 
     // Task ID
@@ -91,6 +93,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
+      meta: { label: 'Task ID' },
     },
 
     // Status
@@ -109,6 +112,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
+      meta: { label: 'Status' },
     },
 
     createProgressColumn<TaskLog>(),
@@ -169,6 +173,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </>
         )
       },
+      meta: { label: 'Details' },
     }
   )
 
