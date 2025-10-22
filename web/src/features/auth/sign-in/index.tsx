@@ -41,7 +41,7 @@ export function SignIn() {
               </Link>
             </p>
           )}
-          <TermsFooter variant='sign-in' />
+          <TermsFooter variant='sign-in' status={status} />
         </CardFooter>
       </Card>
     </AuthLayout>

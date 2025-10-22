@@ -34,6 +34,8 @@ export type GeneralSettings = {
   Footer: string
   About: string
   HomePageContent: string
+  'legal.user_agreement': string
+  'legal.privacy_policy': string
   QuotaForNewUser: number
   PreConsumedQuota: number
   QuotaForInviter: number

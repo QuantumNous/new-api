@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UserAgreementRouteImport } from './routes/user-agreement'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -53,6 +55,16 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 
+const UserAgreementRoute = UserAgreementRouteImport.update({
+  id: '/user-agreement',
+  path: '/user-agreement',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -292,6 +304,8 @@ const AuthenticatedErrorsErrorRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/user-agreement': typeof UserAgreementRoute
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
@@ -335,6 +349,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/user-agreement': typeof UserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
@@ -379,6 +395,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
@@ -424,6 +442,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/privacy-policy'
+    | '/user-agreement'
     | '/settings'
     | '/system-settings'
     | '/forgot-password'
@@ -467,6 +487,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/privacy-policy'
+    | '/user-agreement'
     | '/forgot-password'
     | '/oauth'
     | '/otp'
@@ -510,6 +532,8 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_authenticated'
+    | '/privacy-policy'
+    | '/user-agreement'
     | '/_authenticated/settings'
     | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
@@ -556,6 +580,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
   errors404Route: typeof errors404Route
@@ -569,6 +595,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/user-agreement': {
+      id: '/user-agreement'
+      path: '/user-agreement'
+      fullPath: '/user-agreement'
+      preLoaderRoute: typeof UserAgreementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -992,6 +1032,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
+  UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,
   errors404Route: errors404Route,

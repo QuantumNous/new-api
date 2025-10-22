@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { login, wechatLoginByCode } from '@/features/auth/api'
+import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
@@ -34,6 +35,7 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const [showWeChatCode, setShowWeChatCode] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
+  const [agreedToLegal, setAgreedToLegal] = useState(false)
 
   const { status } = useStatus()
   const {
@@ -45,6 +47,18 @@ export function UserAuthForm({
   } = useTurnstile()
   const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
 
+  const hasUserAgreement = Boolean(status?.user_agreement_enabled)
+  const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
+  const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
+
+  useEffect(() => {
+    if (requiresLegalConsent) {
+      setAgreedToLegal(false)
+    } else {
+      setAgreedToLegal(true)
+    }
+  }, [requiresLegalConsent])
+
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
@@ -54,6 +68,11 @@ export function UserAuthForm({
   })
 
   async function onSubmit(data: z.infer<typeof loginFormSchema>) {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error('Please agree to the legal terms first')
+      return
+    }
+
     if (!validateTurnstile()) return
 
     setIsLoading(true)
@@ -81,6 +100,11 @@ export function UserAuthForm({
   }
 
   async function handleWeChatLogin() {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error('Please agree to the legal terms first')
+      return
+    }
+
     if (!wechatCode.trim()) return
 
     setIsLoading(true)
@@ -143,7 +167,10 @@ export function UserAuthForm({
         />
 
         {/* Submit Button */}
-        <Button className='mt-2' disabled={isLoading}>
+        <Button
+          className='mt-2'
+          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        >
           {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
           Sign in
         </Button>
@@ -158,8 +185,18 @@ export function UserAuthForm({
           </div>
         )}
 
+        <LegalConsent
+          status={status}
+          checked={agreedToLegal}
+          onCheckedChange={setAgreedToLegal}
+          className='mt-1'
+        />
+
         {/* OAuth Providers */}
-        <OAuthProviders status={status} disabled={isLoading} />
+        <OAuthProviders
+          status={status}
+          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        />
 
         {/* WeChat Login */}
         {status?.wechat_login && (
@@ -167,7 +204,7 @@ export function UserAuthForm({
             <Button
               variant='outline'
               type='button'
-              disabled={isLoading}
+              disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
               onClick={() => setShowWeChatCode((v) => !v)}
             >
               WeChat code login
@@ -181,7 +218,11 @@ export function UserAuthForm({
                   className='max-w-[220px]'
                 />
                 <Button
-                  disabled={isLoading || !wechatCode.trim()}
+                  disabled={
+                    isLoading ||
+                    !wechatCode.trim() ||
+                    (requiresLegalConsent && !agreedToLegal)
+                  }
                   onClick={handleWeChatLogin}
                 >
                   Login

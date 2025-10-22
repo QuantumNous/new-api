@@ -14,6 +14,8 @@ const defaultGeneralSettings: GeneralSettings = {
   Footer: '',
   About: '',
   HomePageContent: '',
+  'legal.user_agreement': '',
+  'legal.privacy_policy': '',
   QuotaForNewUser: 0,
   PreConsumedQuota: 0,
   QuotaForInviter: 0,
@@ -61,6 +63,8 @@ export function GeneralSettings() {
               Footer: settings.Footer,
               About: settings.About,
               HomePageContent: settings.HomePageContent,
+              'legal.user_agreement': settings['legal.user_agreement'],
+              'legal.privacy_policy': settings['legal.privacy_policy'],
             }}
           />
 

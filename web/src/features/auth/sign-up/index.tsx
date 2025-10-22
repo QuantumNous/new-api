@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useStatus } from '@/hooks/use-status'
 import {
   Card,
   CardContent,
@@ -12,6 +13,8 @@ import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
 
 export function SignUp() {
+  const { status } = useStatus()
+
   return (
     <AuthLayout>
       <Card className='gap-4'>
@@ -34,7 +37,7 @@ export function SignUp() {
           <SignUpForm />
         </CardContent>
         <CardFooter>
-          <TermsFooter variant='sign-up' />
+          <TermsFooter variant='sign-up' status={status} />
         </CardFooter>
       </Card>
     </AuthLayout>

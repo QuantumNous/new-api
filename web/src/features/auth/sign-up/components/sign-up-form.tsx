@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { register } from '@/features/auth/api'
+import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
@@ -31,6 +32,7 @@ export function SignUpForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
+  const [agreedToLegal, setAgreedToLegal] = useState(false)
 
   const { status } = useStatus()
   const {
@@ -63,8 +65,24 @@ export function SignUpForm({
 
   const emailValue = form.watch('email')
   const emailVerificationRequired = !!status?.email_verification
+  const hasUserAgreement = Boolean(status?.user_agreement_enabled)
+  const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
+  const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
+
+  useEffect(() => {
+    if (requiresLegalConsent) {
+      setAgreedToLegal(false)
+    } else {
+      setAgreedToLegal(true)
+    }
+  }, [requiresLegalConsent])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error('Please agree to the legal terms first')
+      return
+    }
+
     // Validate email verification if required
     if (emailVerificationRequired) {
       if (!data.email) {
@@ -217,8 +235,18 @@ export function SignUpForm({
           </>
         )}
 
+        <LegalConsent
+          status={status}
+          checked={agreedToLegal}
+          onCheckedChange={setAgreedToLegal}
+          className='mt-1'
+        />
+
         {/* Submit Button */}
-        <Button className='mt-2' disabled={isLoading}>
+        <Button
+          className='mt-2'
+          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Create account
         </Button>

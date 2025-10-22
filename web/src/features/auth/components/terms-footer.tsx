@@ -1,18 +1,43 @@
 import { cn } from '@/lib/utils'
+import type { SystemStatus } from '../types'
 
 interface TermsFooterProps {
   variant?: 'sign-in' | 'sign-up'
   className?: string
+  status?: SystemStatus | null
 }
 
 export function TermsFooter({
   variant = 'sign-in',
   className,
+  status,
 }: TermsFooterProps) {
   const text =
     variant === 'sign-in'
       ? 'By clicking sign in, you agree to our'
       : 'By creating an account, you agree to our'
+
+  const hasUserAgreement = Boolean(status?.user_agreement_enabled)
+  const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
+
+  const agreementLink = {
+    label: 'User Agreement',
+    href: '/user-agreement',
+  }
+  const privacyLink = {
+    label: 'Privacy Policy',
+    href: '/privacy-policy',
+  }
+
+  const activeLinks =
+    hasUserAgreement || hasPrivacyPolicy
+      ? ([
+          hasUserAgreement ? agreementLink : null,
+          hasPrivacyPolicy ? privacyLink : null,
+        ].filter(Boolean) as Array<{ label: string; href: string }>)
+      : [agreementLink, privacyLink]
+
+  const [firstLink, secondLink] = activeLinks
 
   return (
     <p
@@ -22,19 +47,26 @@ export function TermsFooter({
       )}
     >
       {text}{' '}
-      <a
-        href='/terms'
-        className='hover:text-primary underline underline-offset-4'
-      >
-        Terms of Service
-      </a>{' '}
-      and{' '}
-      <a
-        href='/privacy'
-        className='hover:text-primary underline underline-offset-4'
-      >
-        Privacy Policy
-      </a>
+      {firstLink && (
+        <a
+          href={firstLink.href}
+          className='hover:text-primary underline underline-offset-4'
+        >
+          {firstLink.label}
+        </a>
+      )}
+      {secondLink && (
+        <>
+          {' '}
+          and{' '}
+          <a
+            href={secondLink.href}
+            className='hover:text-primary underline underline-offset-4'
+          >
+            {secondLink.label}
+          </a>
+        </>
+      )}
       .
     </p>
   )

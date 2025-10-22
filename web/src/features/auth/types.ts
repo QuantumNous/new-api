@@ -90,6 +90,9 @@ export interface SystemStatus {
     display_in_currency?: boolean
     quota_per_unit?: number
     demo_site_enabled?: boolean
+    user_agreement_enabled?: boolean
+    privacy_policy_enabled?: boolean
+    [key: string]: any
   }
   // Allow direct access to common properties
   version?: string
@@ -111,6 +114,9 @@ export interface SystemStatus {
   display_in_currency?: boolean
   quota_per_unit?: number
   demo_site_enabled?: boolean
+  user_agreement_enabled?: boolean
+  privacy_policy_enabled?: boolean
+  [key: string]: any
 }
 
 // ============================================================================
