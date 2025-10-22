@@ -94,6 +94,7 @@ export function WorkerSettingsSection({
                 <FormControl>
                   <Input
                     placeholder='https://worker.example.workers.dev'
+                    autoComplete='off'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
@@ -117,6 +118,7 @@ export function WorkerSettingsSection({
                   <Input
                     type='password'
                     placeholder='Enter new key to update'
+                    autoComplete='off'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
