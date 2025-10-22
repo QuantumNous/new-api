@@ -39,7 +39,6 @@ import { MultiSelect } from '@/components/multi-select'
 import { createChannel, getChannel, getGroups, updateChannel } from '../../api'
 import {
   ADD_MODE_OPTIONS,
-  AUTO_BAN_OPTIONS,
   CHANNEL_TYPE_OPTIONS,
   ERROR_MESSAGES,
   FIELD_DESCRIPTIONS,
@@ -57,6 +56,7 @@ import {
 } from '../../lib'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
+import { JsonEditor } from '../json-editor'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
 type ChannelMutateDrawerProps = {
@@ -281,23 +281,21 @@ export function ChannelMutateDrawer({
                 control={form.control}
                 name='status'
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select
-                      onValueChange={(value) => field.onChange(Number(value))}
-                      value={String(field.value)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value='1'>Enabled</SelectItem>
-                        <SelectItem value='0'>Disabled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
+                  <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>Enabled</FormLabel>
+                      <FormDescription>
+                        Enable or disable this channel
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value === 1}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? 1 : 2)
+                        }
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
@@ -612,32 +610,21 @@ export function ChannelMutateDrawer({
                 control={form.control}
                 name='auto_ban'
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Auto Ban</FormLabel>
-                    <Select
-                      onValueChange={(value) => field.onChange(Number(value))}
-                      value={String(field.value)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {AUTO_BAN_OPTIONS.map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={String(option.value)}
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      {FIELD_DESCRIPTIONS.AUTO_BAN}
-                    </FormDescription>
-                    <FormMessage />
+                  <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>Auto Ban</FormLabel>
+                      <FormDescription>
+                        {FIELD_DESCRIPTIONS.AUTO_BAN}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value === 1}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? 1 : 0)
+                        }
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
@@ -704,16 +691,23 @@ export function ChannelMutateDrawer({
                 name='status_code_mapping'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status Code Mapping (JSON)</FormLabel>
+                    <FormLabel>Status Code Mapping</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder='{"400": "500"}'
-                        rows={2}
-                        {...field}
+                      <JsonEditor
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        disabled={isSubmitting}
+                        keyPlaceholder='400'
+                        valuePlaceholder='500'
+                        keyLabel='Original Code'
+                        valueLabel='Mapped Code'
+                        emptyMessage='No status code mappings configured.'
+                        template={{ '400': '500', '429': '503' }}
+                        valueType='string'
                       />
                     </FormControl>
                     <FormDescription>
-                      Map upstream status codes to different codes (JSON object)
+                      Map upstream status codes to different codes
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -725,16 +719,27 @@ export function ChannelMutateDrawer({
                 name='param_override'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Parameter Override (JSON)</FormLabel>
+                    <FormLabel>Parameter Override</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder='{"temperature": 0.7}'
-                        rows={2}
-                        {...field}
+                      <JsonEditor
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        disabled={isSubmitting}
+                        keyPlaceholder='temperature'
+                        valuePlaceholder='0.7'
+                        keyLabel='Parameter'
+                        valueLabel='Value'
+                        emptyMessage='No parameter overrides configured.'
+                        template={{
+                          temperature: 0.7,
+                          max_tokens: 2000,
+                          top_p: 1,
+                        }}
+                        valueType='any'
                       />
                     </FormControl>
                     <FormDescription>
-                      Override request parameters (JSON object)
+                      Override request parameters
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -746,17 +751,25 @@ export function ChannelMutateDrawer({
                 name='header_override'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Header Override (JSON)</FormLabel>
+                    <FormLabel>Header Override</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder='{"X-Custom-Header": "value"}'
-                        rows={2}
-                        {...field}
+                      <JsonEditor
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        disabled={isSubmitting}
+                        keyPlaceholder='X-Custom-Header'
+                        valuePlaceholder='value'
+                        keyLabel='Header Name'
+                        valueLabel='Header Value'
+                        emptyMessage='No header overrides configured.'
+                        template={{
+                          'X-Custom-Header': 'custom-value',
+                          'X-API-Version': '2024-01',
+                        }}
+                        valueType='string'
                       />
                     </FormControl>
-                    <FormDescription>
-                      Override request headers (JSON object)
-                    </FormDescription>
+                    <FormDescription>Override request headers</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
