@@ -3,6 +3,16 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -29,11 +39,30 @@ type LogSettingsSectionProps = {
   defaultEnabled: boolean
 }
 
-const getDefaultPurgeDate = () => {
+const HOURS_IN_DAY = 24
+
+const getDateHoursAgo = (hours: number) => {
   const date = new Date()
-  date.setMonth(date.getMonth() - 1)
+  date.setHours(date.getHours() - hours)
   return date
 }
+
+const getDateDaysAgo = (days: number) => getDateHoursAgo(days * HOURS_IN_DAY)
+
+const quickSelectOptions = [
+  {
+    label: '24 hours ago',
+    getValue: () => getDateHoursAgo(24),
+  },
+  {
+    label: '7 days ago',
+    getValue: () => getDateDaysAgo(7),
+  },
+  {
+    label: '30 days ago',
+    getValue: () => getDateDaysAgo(30),
+  },
+]
 
 export function LogSettingsSection({
   defaultEnabled,
@@ -47,9 +76,10 @@ export function LogSettingsSection({
   })
 
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
-    getDefaultPurgeDate()
+    getDateDaysAgo(30)
   )
   const [isCleaning, setIsCleaning] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
     form.reset({ LogConsumeEnabled: defaultEnabled })
@@ -60,12 +90,26 @@ export function LogSettingsSection({
     return Math.floor(purgeDate.getTime() / 1000)
   }, [purgeDate])
 
+  const formattedPurgeDate = useMemo(() => {
+    if (!purgeDate) return ''
+    return purgeDate.toLocaleString()
+  }, [purgeDate])
+
   const onSubmit = async (values: LogSettingsFormValues) => {
     if (values.LogConsumeEnabled === defaultEnabled) return
     await updateOption.mutateAsync({
       key: 'LogConsumeEnabled',
       value: values.LogConsumeEnabled,
     })
+  }
+
+  const handleRequestCleanLogs = () => {
+    if (!purgeTimestamp) {
+      toast.error('Select a timestamp before clearing logs.')
+      return
+    }
+
+    setShowConfirmDialog(true)
   }
 
   const handleCleanLogs = async () => {
@@ -137,17 +181,20 @@ export function LogSettingsSection({
             </div>
             <DateTimePicker value={purgeDate} onChange={setPurgeDate} />
             <div className='flex flex-wrap gap-3'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => setPurgeDate(getDefaultPurgeDate())}
-              >
-                Reset to 30 days ago
-              </Button>
+              {quickSelectOptions.map((option) => (
+                <Button
+                  key={option.label}
+                  type='button'
+                  variant='outline'
+                  onClick={() => setPurgeDate(option.getValue())}
+                >
+                  {option.label}
+                </Button>
+              ))}
               <Button
                 type='button'
                 variant='destructive'
-                onClick={handleCleanLogs}
+                onClick={handleRequestCleanLogs}
                 disabled={isCleaning}
               >
                 {isCleaning ? 'Cleaning...' : 'Clean logs'}
@@ -160,6 +207,25 @@ export function LogSettingsSection({
           </Button>
         </form>
       </Form>
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm log cleanup</AlertDialogTitle>
+            <AlertDialogDescription>
+              {formattedPurgeDate
+                ? `This will permanently remove all log entries created before ${formattedPurgeDate}.`
+                : 'This will permanently remove log entries before the selected timestamp.'}{' '}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCleaning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCleanLogs} disabled={isCleaning}>
+              {isCleaning ? 'Cleaning...' : 'Delete logs'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SettingsAccordion>
   )
 }
