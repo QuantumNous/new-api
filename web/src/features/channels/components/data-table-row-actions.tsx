@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Row } from '@tanstack/react-table'
 import {
@@ -21,6 +22,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   handleDeleteChannel,
   handleToggleChannelStatus,
@@ -38,6 +40,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const channel = row.original
   const { setOpen, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
   const isMultiKey = isMultiKeyChannel(channel)
@@ -167,13 +170,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault()
-            if (
-              window.confirm(
-                `Are you sure you want to delete "${channel.name}"? This action cannot be undone.`
-              )
-            ) {
-              handleDeleteChannel(channel.id, queryClient)
-            }
+            setDeleteConfirmOpen(true)
           }}
           className='text-destructive focus:text-destructive'
         >
@@ -183,6 +180,19 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title='Delete Channel'
+        desc={`Are you sure you want to delete "${channel.name}"? This action cannot be undone.`}
+        confirmText='Delete'
+        destructive
+        handleConfirm={() => {
+          handleDeleteChannel(channel.id, queryClient)
+          setDeleteConfirmOpen(false)
+        }}
+      />
     </DropdownMenu>
   )
 }

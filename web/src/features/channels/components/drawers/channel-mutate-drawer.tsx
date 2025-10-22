@@ -1315,6 +1315,27 @@ export function ChannelMutateDrawer({
 
                 <FormField
                   control={form.control}
+                  name='model_mapping'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Model Mapping</FormLabel>
+                      <FormControl>
+                        <ModelMappingEditor
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          disabled={isSubmitting}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {FIELD_DESCRIPTIONS.MODEL_MAPPING}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name='group'
                   render={({ field }) => (
                     <FormItem>
@@ -1433,27 +1454,6 @@ export function ChannelMutateDrawer({
                           }
                         />
                       </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='model_mapping'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Model Mapping</FormLabel>
-                      <FormControl>
-                        <ModelMappingEditor
-                          value={field.value || ''}
-                          onChange={field.onChange}
-                          disabled={isSubmitting}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {FIELD_DESCRIPTIONS.MODEL_MAPPING}
-                      </FormDescription>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
