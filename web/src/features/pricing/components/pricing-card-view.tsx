@@ -71,6 +71,14 @@ export function PricingCardView({
     })
   }
 
+  const handleTagClick = (tag: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigate({
+      to: '/pricing',
+      search: { tag },
+    })
+  }
+
   return (
     <div className='flex justify-center'>
       <div className='w-full max-w-3xl space-y-6'>
@@ -172,13 +180,18 @@ export function PricingCardView({
                         .map((tag) => tag.trim())
                         .filter(Boolean)
                         .map((tag, idx) => (
-                          <StatusBadge
+                          <div
                             key={idx}
-                            label={tag}
-                            autoColor={tag}
-                            copyable={false}
-                            size='sm'
-                          />
+                            onClick={(e) => handleTagClick(tag, e)}
+                            className='cursor-pointer transition-transform hover:scale-110'
+                          >
+                            <StatusBadge
+                              label={tag}
+                              autoColor={tag}
+                              copyable={false}
+                              size='sm'
+                            />
+                          </div>
                         ))}
                     </div>
                   )}
