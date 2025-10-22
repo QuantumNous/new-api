@@ -78,6 +78,7 @@ export function getModelsColumns(
     // Icon column
     {
       accessorKey: 'icon',
+      meta: { label: 'Icon' },
       header: 'Icon',
       cell: ({ row }) => {
         const model = row.original
@@ -98,6 +99,7 @@ export function getModelsColumns(
     // Model name column
     {
       accessorKey: 'model_name',
+      meta: { label: 'Model Name' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Model Name' />
       ),
@@ -118,6 +120,7 @@ export function getModelsColumns(
     // Name rule column
     {
       accessorKey: 'name_rule',
+      meta: { label: 'Match Type' },
       header: 'Match Type',
       cell: ({ row }) => {
         const rule = row.getValue('name_rule') as number
@@ -154,6 +157,7 @@ export function getModelsColumns(
     // Sync official column
     {
       accessorKey: 'sync_official',
+      meta: { label: 'Official Sync' },
       header: 'Official Sync',
       cell: ({ row }) => {
         const sync = row.getValue('sync_official') as number
@@ -174,6 +178,7 @@ export function getModelsColumns(
     // Description column
     {
       accessorKey: 'description',
+      meta: { label: 'Description' },
       header: 'Description',
       cell: ({ row }) => {
         const desc = row.getValue('description') as string
@@ -210,6 +215,7 @@ export function getModelsColumns(
     // Vendor column
     {
       accessorKey: 'vendor_id',
+      meta: { label: 'Vendor' },
       header: 'Vendor',
       cell: ({ row }) => {
         const vendorId = row.getValue('vendor_id') as number
@@ -236,6 +242,7 @@ export function getModelsColumns(
     // Tags column
     {
       accessorKey: 'tags',
+      meta: { label: 'Tags' },
       header: 'Tags',
       cell: ({ row }) => {
         const tags = row.getValue('tags') as string
@@ -261,6 +268,7 @@ export function getModelsColumns(
     // Endpoints column
     {
       accessorKey: 'endpoints',
+      meta: { label: 'Endpoints' },
       header: 'Endpoints',
       cell: ({ row }) => {
         const endpoints = row.getValue('endpoints') as string
@@ -298,6 +306,7 @@ export function getModelsColumns(
     // Bound channels column
     {
       accessorKey: 'bound_channels',
+      meta: { label: 'Channels' },
       header: 'Channels',
       cell: ({ row }) => {
         const channels = row.original.bound_channels
@@ -324,6 +333,7 @@ export function getModelsColumns(
     // Enable groups column
     {
       accessorKey: 'enable_groups',
+      meta: { label: 'Groups' },
       header: 'Groups',
       cell: ({ row }) => {
         const groups = row.original.enable_groups
@@ -350,6 +360,7 @@ export function getModelsColumns(
     // Quota types column
     {
       accessorKey: 'quota_types',
+      meta: { label: 'Billing' },
       header: 'Billing',
       cell: ({ row }) => {
         const quotaTypes = row.original.quota_types
@@ -382,6 +393,7 @@ export function getModelsColumns(
     // Created time column
     {
       accessorKey: 'created_time',
+      meta: { label: 'Created' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Created' />
       ),
@@ -399,6 +411,7 @@ export function getModelsColumns(
     // Updated time column
     {
       accessorKey: 'updated_time',
+      meta: { label: 'Updated' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Updated' />
       ),

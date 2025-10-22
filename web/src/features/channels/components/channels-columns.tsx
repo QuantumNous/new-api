@@ -291,6 +291,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // ID column
     {
       accessorKey: 'id',
+      meta: { label: 'ID' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='ID' />
       ),
@@ -312,6 +313,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Name column
     {
       accessorKey: 'name',
+      meta: { label: 'Name' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Name' />
       ),
@@ -383,6 +385,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Type column
     {
       accessorKey: 'type',
+      meta: { label: 'Type' },
       header: 'Type',
       cell: ({ row }) => {
         const isTagRow = (row.original as any).children !== undefined
@@ -426,6 +429,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Status column
     {
       accessorKey: 'status',
+      meta: { label: 'Status' },
       header: 'Status',
       cell: ({ row }) => {
         const isTagRow = (row.original as any).children !== undefined
@@ -487,6 +491,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Models column
     {
       accessorKey: 'models',
+      meta: { label: 'Models' },
       header: 'Models',
       cell: ({ row }) => {
         const models = row.getValue('models') as string
@@ -531,6 +536,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Group column
     {
       accessorKey: 'group',
+      meta: { label: 'Groups' },
       header: 'Groups',
       cell: ({ row }) => {
         const group = row.getValue('group') as string
@@ -571,6 +577,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Tag column
     {
       accessorKey: 'tag',
+      meta: { label: 'Tag' },
       header: 'Tag',
       cell: ({ row }) => {
         const tag = row.getValue('tag') as string | null
@@ -586,6 +593,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Priority column
     {
       accessorKey: 'priority',
+      meta: { label: 'Priority' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Priority' />
       ),
@@ -596,6 +604,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Weight column
     {
       accessorKey: 'weight',
+      meta: { label: 'Weight' },
       header: 'Weight',
       cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
@@ -605,6 +614,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Balance column (Used/Remaining)
     {
       accessorKey: 'balance',
+      meta: { label: 'Used / Remaining' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Used / Remaining' />
       ),
@@ -615,6 +625,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Response Time column
     {
       accessorKey: 'response_time',
+      meta: { label: 'Response' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Response' />
       ),
@@ -637,6 +648,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Test Time column
     {
       accessorKey: 'test_time',
+      meta: { label: 'Last Tested' },
       header: 'Last Tested',
       cell: ({ row }) => {
         const testTime = row.getValue('test_time') as number
