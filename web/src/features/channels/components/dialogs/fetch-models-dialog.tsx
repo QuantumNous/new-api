@@ -28,11 +28,13 @@ import { useChannels } from '../channels-provider'
 type FetchModelsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onModelsSelected?: (models: string[]) => void // Optional callback for form filling mode
 }
 
 export function FetchModelsDialog({
   open,
   onOpenChange,
+  onModelsSelected,
 }: FetchModelsDialogProps) {
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
@@ -79,6 +81,15 @@ export function FetchModelsDialog({
   const handleSave = async () => {
     if (!currentRow) return
 
+    // If onModelsSelected callback is provided, use it (form filling mode)
+    if (onModelsSelected) {
+      onModelsSelected(selectedModels)
+      toast.success('Models filled to form')
+      onOpenChange(false)
+      return
+    }
+
+    // Otherwise, directly save to API (standalone mode)
     setIsSaving(true)
     try {
       const modelsString = selectedModels.join(',')

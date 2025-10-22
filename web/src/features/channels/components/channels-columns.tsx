@@ -401,13 +401,11 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         const type = row.getValue('type') as number
         const typeName = getChannelTypeLabel(type)
         const iconName = getChannelTypeIcon(type)
-        const icon = getLobeIcon(iconName, 20)
+        const icon = getLobeIcon(`${iconName}.Color`, 20)
 
         return (
           <div className='flex items-center gap-2'>
-            <div className='bg-background flex h-8 w-8 items-center justify-center rounded-md border'>
-              {icon}
-            </div>
+            {icon}
             <StatusBadge
               label={typeName}
               autoColor={typeName}
