@@ -3,13 +3,14 @@ package common
 import (
 	"errors"
 	"fmt"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	relayconstant "one-api/relay/constant"
-	"one-api/types"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -105,7 +106,8 @@ type RelayInfo struct {
 	UserQuota              int
 	RelayFormat            types.RelayFormat
 	SendResponseCount      int
-	FinalPreConsumedQuota  int // 最终预消耗的配额
+	FinalPreConsumedQuota  int  // 最终预消耗的配额
+	IsClaudeBetaQuery      bool // /v1/messages?beta=true
 
 	PriceData types.PriceData
 
@@ -260,6 +262,8 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeXai:        true,
 	constant.ChannelTypeDeepSeek:   true,
 	constant.ChannelTypeBaiduV2:    true,
+	constant.ChannelTypeZhipu_v4:   true,
+	constant.ChannelTypeAli:        true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -278,6 +282,9 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
 		LastMessagesType: LastMessageTypeNone,
+	}
+	if c.Query("beta") == "true" {
+		info.IsClaudeBetaQuery = true
 	}
 	return info
 }
@@ -496,10 +503,59 @@ func (t TaskSubmitReq) HasImage() bool {
 }
 
 type TaskInfo struct {
-	Code     int    `json:"code"`
-	TaskID   string `json:"task_id"`
-	Status   string `json:"status"`
-	Reason   string `json:"reason,omitempty"`
-	Url      string `json:"url,omitempty"`
-	Progress string `json:"progress,omitempty"`
+	Code             int    `json:"code"`
+	TaskID           string `json:"task_id"`
+	Status           string `json:"status"`
+	Reason           string `json:"reason,omitempty"`
+	Url              string `json:"url,omitempty"`
+	Progress         string `json:"progress,omitempty"`
+	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
+	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+}
+
+func FailTaskInfo(reason string) *TaskInfo {
+	return &TaskInfo{
+		Status: "FAILURE",
+		Reason: reason,
+	}
+}
+
+// RemoveDisabledFields 从请求 JSON 数据中移除渠道设置中禁用的字段
+// service_tier: 服务层级字段，可能导致额外计费（OpenAI、Claude、Responses API 支持）
+// store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传，禁用后可能导致 Codex 无法使用）
+// safety_identifier: 安全标识符，用于向 OpenAI 报告违规用户（仅 OpenAI 支持，涉及用户隐私）
+func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings) ([]byte, error) {
+	var data map[string]interface{}
+	if err := common.Unmarshal(jsonData, &data); err != nil {
+		common.SysError("RemoveDisabledFields Unmarshal error :" + err.Error())
+		return jsonData, nil
+	}
+
+	// 默认移除 service_tier，除非明确允许（避免额外计费风险）
+	if !channelOtherSettings.AllowServiceTier {
+		if _, exists := data["service_tier"]; exists {
+			delete(data, "service_tier")
+		}
+	}
+
+	// 默认允许 store 透传，除非明确禁用（禁用可能影响 Codex 使用）
+	if channelOtherSettings.DisableStore {
+		if _, exists := data["store"]; exists {
+			delete(data, "store")
+		}
+	}
+
+	// 默认移除 safety_identifier，除非明确允许（保护用户隐私，避免向 OpenAI 报告用户信息）
+	if !channelOtherSettings.AllowSafetyIdentifier {
+		if _, exists := data["safety_identifier"]; exists {
+			delete(data, "safety_identifier")
+		}
+	}
+
+	jsonDataAfter, err := common.Marshal(data)
+	if err != nil {
+		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
+		return jsonData, nil
+	}
+	return jsonDataAfter, nil
 }

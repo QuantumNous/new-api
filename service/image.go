@@ -8,9 +8,10 @@ import (
 	"image"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"golang.org/x/image/webp"
 )

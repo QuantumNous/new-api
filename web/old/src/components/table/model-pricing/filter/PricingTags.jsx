@@ -44,7 +44,7 @@ const PricingTags = ({
     (allModels.length > 0 ? allModels : models).forEach((model) => {
       if (model.tags) {
         model.tags
-          .split(',') // 英文逗号分隔
+          .split(/[,;|\s]+/) // 逗号、分号、竖线或空白字符
           .map((tag) => tag.trim())
           .filter(Boolean)
           .forEach((tag) => tagSet.add(tag.toLowerCase()));
@@ -64,7 +64,7 @@ const PricingTags = ({
         if (!model.tags) return false;
         return model.tags
           .toLowerCase()
-          .split(',')
+          .split(/[,;|\s]+/)
           .map((tg) => tg.trim())
           .includes(tagLower);
       }).length;

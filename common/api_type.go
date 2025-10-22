@@ -1,6 +1,6 @@
 package common
 
-import "one-api/constant"
+import "github.com/QuantumNous/new-api/constant"
 
 func ChannelType2APIType(channelType int) (int, bool) {
 	apiType := -1
@@ -67,6 +67,10 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeJimeng
 	case constant.ChannelTypeMoonshot:
 		apiType = constant.APITypeMoonshot
+	case constant.ChannelTypeSubmodel:
+		apiType = constant.APITypeSubmodel
+	case constant.ChannelTypeMiniMax:
+		apiType = constant.APITypeMiniMax
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

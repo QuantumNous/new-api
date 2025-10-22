@@ -17,8 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Banner, Button, Col, Form, Row, Spin, Modal } from '@douyinfe/semi-ui';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import {
+  Banner,
+  Button,
+  Col,
+  Form,
+  Row,
+  Spin,
+  Modal,
+  Select,
+  InputGroup,
+  Input,
+} from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -35,10 +46,12 @@ export default function GeneralSettings(props) {
   const [inputs, setInputs] = useState({
     TopUpLink: '',
     'general_setting.docs_link': '',
+    'general_setting.quota_display_type': 'USD',
+    'general_setting.custom_currency_symbol': '¤',
+    'general_setting.custom_currency_exchange_rate': '',
     QuotaPerUnit: '',
     RetryTimes: '',
     USDExchangeRate: '',
-    DisplayInCurrencyEnabled: false,
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
@@ -88,12 +101,58 @@ export default function GeneralSettings(props) {
       });
   }
 
+  // 计算展示在输入框中的“1 USD = X <currency>”中的 X
+  const combinedRate = useMemo(() => {
+    const type = inputs['general_setting.quota_display_type'];
+    if (type === 'USD') return '1';
+    if (type === 'CNY') return String(inputs['USDExchangeRate'] || '');
+    if (type === 'TOKENS') return String(inputs['QuotaPerUnit'] || '');
+    if (type === 'CUSTOM')
+      return String(
+        inputs['general_setting.custom_currency_exchange_rate'] || '',
+      );
+    return '';
+  }, [inputs]);
+
+  const onCombinedRateChange = (val) => {
+    const type = inputs['general_setting.quota_display_type'];
+    if (type === 'CNY') {
+      handleFieldChange('USDExchangeRate')(val);
+    } else if (type === 'TOKENS') {
+      handleFieldChange('QuotaPerUnit')(val);
+    } else if (type === 'CUSTOM') {
+      handleFieldChange('general_setting.custom_currency_exchange_rate')(val);
+    }
+  };
+
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
         currentInputs[key] = props.options[key];
       }
+    }
+    // 若旧字段存在且新字段缺失，则做一次兜底映射
+    if (
+      currentInputs['general_setting.quota_display_type'] === undefined &&
+      props.options?.DisplayInCurrencyEnabled !== undefined
+    ) {
+      currentInputs['general_setting.quota_display_type'] = props.options
+        .DisplayInCurrencyEnabled
+        ? 'USD'
+        : 'TOKENS';
+    }
+    // 回填自定义货币相关字段（如果后端已存在）
+    if (props.options['general_setting.custom_currency_symbol'] !== undefined) {
+      currentInputs['general_setting.custom_currency_symbol'] =
+        props.options['general_setting.custom_currency_symbol'];
+    }
+    if (
+      props.options['general_setting.custom_currency_exchange_rate'] !==
+      undefined
+    ) {
+      currentInputs['general_setting.custom_currency_exchange_rate'] =
+        props.options['general_setting.custom_currency_exchange_rate'];
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
@@ -130,29 +189,7 @@ export default function GeneralSettings(props) {
                   showClear
                 />
               </Col>
-              {inputs.QuotaPerUnit !== '500000' && inputs.QuotaPerUnit !== 500000 && (
-                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                  <Form.Input
-                    field={'QuotaPerUnit'}
-                    label={t('单位美元额度')}
-                    initValue={''}
-                    placeholder={t('一单位货币能兑换的额度')}
-                    onChange={handleFieldChange('QuotaPerUnit')}
-                    showClear
-                    onClick={() => setShowQuotaWarning(true)}
-                  />
-                </Col>
-              )}
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Input
-                  field={'USDExchangeRate'}
-                  label={t('美元汇率（非充值汇率，仅用于定价页面换算）')}
-                  initValue={''}
-                  placeholder={t('美元汇率')}
-                  onChange={handleFieldChange('USDExchangeRate')}
-                  showClear
-                />
-              </Col>
+              {/* 单位美元额度已合入汇率组合控件（TOKENS 模式下编辑），不再单独展示 */}
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Input
                   field={'RetryTimes'}
@@ -163,18 +200,51 @@ export default function GeneralSettings(props) {
                   showClear
                 />
               </Col>
-            </Row>
-            <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'DisplayInCurrencyEnabled'}
-                  label={t('以货币形式显示额度')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange('DisplayInCurrencyEnabled')}
+                <Form.Slot label={t('站点额度展示类型及汇率')}>
+                  <InputGroup style={{ width: '100%' }}>
+                    <Input
+                      prefix={'1 USD = '}
+                      style={{ width: '50%' }}
+                      value={combinedRate}
+                      onChange={onCombinedRateChange}
+                      disabled={
+                        inputs['general_setting.quota_display_type'] === 'USD'
+                      }
+                    />
+                    <Select
+                      style={{ width: '50%' }}
+                      value={inputs['general_setting.quota_display_type']}
+                      onChange={handleFieldChange(
+                        'general_setting.quota_display_type',
+                      )}
+                    >
+                      <Select.Option value='USD'>USD ($)</Select.Option>
+                      <Select.Option value='CNY'>CNY (¥)</Select.Option>
+                      <Select.Option value='TOKENS'>Tokens</Select.Option>
+                      <Select.Option value='CUSTOM'>
+                        {t('自定义货币')}
+                      </Select.Option>
+                    </Select>
+                  </InputGroup>
+                </Form.Slot>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field={'general_setting.custom_currency_symbol'}
+                  label={t('自定义货币符号')}
+                  placeholder={t('例如 €, £, Rp, ₩, ₹...')}
+                  onChange={handleFieldChange(
+                    'general_setting.custom_currency_symbol',
+                  )}
+                  showClear
+                  disabled={
+                    inputs['general_setting.quota_display_type'] !== 'CUSTOM'
+                  }
                 />
               </Col>
+            </Row>
+            <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch
                   field={'DisplayTokenStatEnabled'}
@@ -195,8 +265,6 @@ export default function GeneralSettings(props) {
                   onChange={handleFieldChange('DefaultCollapseSidebar')}
                 />
               </Col>
-            </Row>
-            <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch
                   field={'DemoSiteEnabled'}

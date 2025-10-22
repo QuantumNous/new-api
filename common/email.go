@@ -86,5 +86,8 @@ func SendEmail(subject string, receiver string, content string) error {
 	} else {
 		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
 	}
+	if err != nil {
+		SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, err))
+	}
 	return err
 }

@@ -202,9 +202,8 @@ export default function SettingClaudeModel(props) {
                   label={t('思考适配 BudgetTokens 百分比')}
                   field={'claude.thinking_adapter_budget_tokens_percentage'}
                   initValue={''}
-                  extraText={t('0.1-1之间的小数')}
+                  extraText={t('0.1以上的小数')}
                   min={0.1}
-                  max={1}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,

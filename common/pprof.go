@@ -2,10 +2,11 @@ package common
 
 import (
 	"fmt"
-	"github.com/shirou/gopsutil/cpu"
 	"os"
 	"runtime/pprof"
 	"time"
+
+	"github.com/shirou/gopsutil/cpu"
 )
 
 // Monitor 定时监控cpu使用率，超过阈值输出pprof文件

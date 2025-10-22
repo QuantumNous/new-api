@@ -3,12 +3,31 @@ package model
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"one-api/constant"
-	commonRelay "one-api/relay/common"
 	"time"
+
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	commonRelay "github.com/QuantumNous/new-api/relay/common"
 )
 
 type TaskStatus string
+
+func (t TaskStatus) ToVideoStatus() string {
+	var status string
+	switch t {
+	case TaskStatusQueued, TaskStatusSubmitted:
+		status = dto.VideoStatusQueued
+	case TaskStatusInProgress:
+		status = dto.VideoStatusInProgress
+	case TaskStatusSuccess:
+		status = dto.VideoStatusCompleted
+	case TaskStatusFailure:
+		status = dto.VideoStatusFailed
+	default:
+		status = dto.VideoStatusUnknown // Default fallback
+	}
+	return status
+}
 
 const (
 	TaskStatusNotStart   TaskStatus = "NOT_START"
@@ -27,6 +46,7 @@ type Task struct {
 	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
 	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
 	UserId     int                   `json:"user_id" gorm:"index"`
+	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
 	ChannelId  int                   `json:"channel_id" gorm:"index"`
 	Quota      int                   `json:"quota"`
 	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
@@ -80,6 +100,7 @@ type SyncTaskQueryParams struct {
 func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
 	t := &Task{
 		UserId:     relayInfo.UserId,
+		Group:      relayInfo.UsingGroup,
 		SubmitTime: time.Now().Unix(),
 		Status:     TaskStatusNotStart,
 		Progress:   "0%",
@@ -174,7 +195,7 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var tasks []*Task
 	var err error
 	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Limit(limit).Order("id").Find(&tasks).Error
+	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
 	if err != nil {
 		return nil
 	}

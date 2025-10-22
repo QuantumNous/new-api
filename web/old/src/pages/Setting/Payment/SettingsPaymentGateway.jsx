@@ -118,14 +118,20 @@ export default function SettingsPaymentGateway(props) {
       }
     }
 
-    if (originInputs['AmountOptions'] !== inputs.AmountOptions && inputs.AmountOptions.trim() !== '') {
+    if (
+      originInputs['AmountOptions'] !== inputs.AmountOptions &&
+      inputs.AmountOptions.trim() !== ''
+    ) {
       if (!verifyJSON(inputs.AmountOptions)) {
         showError(t('自定义充值数量选项不是合法的 JSON 数组'));
         return;
       }
     }
 
-    if (originInputs['AmountDiscount'] !== inputs.AmountDiscount && inputs.AmountDiscount.trim() !== '') {
+    if (
+      originInputs['AmountDiscount'] !== inputs.AmountDiscount &&
+      inputs.AmountDiscount.trim() !== ''
+    ) {
       if (!verifyJSON(inputs.AmountDiscount)) {
         showError(t('充值金额折扣配置不是合法的 JSON 对象'));
         return;
@@ -163,10 +169,16 @@ export default function SettingsPaymentGateway(props) {
         options.push({ key: 'PayMethods', value: inputs.PayMethods });
       }
       if (originInputs['AmountOptions'] !== inputs.AmountOptions) {
-        options.push({ key: 'payment_setting.amount_options', value: inputs.AmountOptions });
+        options.push({
+          key: 'payment_setting.amount_options',
+          value: inputs.AmountOptions,
+        });
       }
       if (originInputs['AmountDiscount'] !== inputs.AmountDiscount) {
-        options.push({ key: 'payment_setting.amount_discount', value: inputs.AmountDiscount });
+        options.push({
+          key: 'payment_setting.amount_discount',
+          value: inputs.AmountDiscount,
+        });
       }
 
       // 发送请求
@@ -273,7 +285,7 @@ export default function SettingsPaymentGateway(props) {
             placeholder={t('为一个 JSON 文本')}
             autosize
           />
-          
+
           <Row
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}
@@ -282,13 +294,17 @@ export default function SettingsPaymentGateway(props) {
               <Form.TextArea
                 field='AmountOptions'
                 label={t('自定义充值数量选项')}
-                placeholder={t('为一个 JSON 数组，例如：[10, 20, 50, 100, 200, 500]')}
+                placeholder={t(
+                  '为一个 JSON 数组，例如：[10, 20, 50, 100, 200, 500]',
+                )}
                 autosize
-                extraText={t('设置用户可选择的充值数量选项，例如：[10, 20, 50, 100, 200, 500]')}
+                extraText={t(
+                  '设置用户可选择的充值数量选项，例如：[10, 20, 50, 100, 200, 500]',
+                )}
               />
             </Col>
           </Row>
-          
+
           <Row
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}
@@ -297,13 +313,17 @@ export default function SettingsPaymentGateway(props) {
               <Form.TextArea
                 field='AmountDiscount'
                 label={t('充值金额折扣配置')}
-                placeholder={t('为一个 JSON 对象，例如：{"100": 0.95, "200": 0.9, "500": 0.85}')}
+                placeholder={t(
+                  '为一个 JSON 对象，例如：{"100": 0.95, "200": 0.9, "500": 0.85}',
+                )}
                 autosize
-                extraText={t('设置不同充值金额对应的折扣，键为充值金额，值为折扣率，例如：{"100": 0.95, "200": 0.9, "500": 0.85}')}
+                extraText={t(
+                  '设置不同充值金额对应的折扣，键为充值金额，值为折扣率，例如：{"100": 0.95, "200": 0.9, "500": 0.85}',
+                )}
               />
             </Col>
           </Row>
-          
+
           <Button onClick={submitPayAddress}>{t('更新支付设置')}</Button>
         </Form.Section>
       </Form>

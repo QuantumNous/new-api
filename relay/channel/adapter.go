@@ -3,9 +3,11 @@ package channel
 import (
 	"io"
 	"net/http"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,4 +50,8 @@ type TaskAdaptor interface {
 	FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error)
 
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
+}
+
+type OpenAIVideoConverter interface {
+	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }

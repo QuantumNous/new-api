@@ -419,7 +419,7 @@ export const getLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.PROMPT,
-      title: t('提示'),
+      title: t('输入'),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
         return record.type === 0 || record.type === 2 || record.type === 5 ? (
@@ -431,7 +431,7 @@ export const getLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.COMPLETION,
-      title: t('补全'),
+      title: t('输出'),
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
         return parseInt(text) > 0 &&

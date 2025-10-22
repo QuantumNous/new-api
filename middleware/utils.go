@@ -2,9 +2,10 @@ package middleware
 
 import (
 	"fmt"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
-	"one-api/common"
-	"one-api/logger"
 )
 
 func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code ...string) {

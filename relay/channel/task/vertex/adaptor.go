@@ -7,18 +7,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/model"
 	"regexp"
 	"strings"
 
+	"github.com/QuantumNous/new-api/model"
+
 	"github.com/gin-gonic/gin"
 
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/relay/channel"
-	vertexcore "one-api/relay/channel/vertex"
-	relaycommon "one-api/relay/common"
-	"one-api/service"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	vertexcore "github.com/QuantumNous/new-api/relay/channel/vertex"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 )
 
 // ============================

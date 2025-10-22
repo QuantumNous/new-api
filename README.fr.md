@@ -1,6 +1,10 @@
 <p align="right">
-   <a href="./README.md">中文</a> | <a href="./README.en.md">English</a> | <strong>Français</strong>
+   <a href="./README.md">中文</a> | <a href="./README.en.md">English</a> | <strong>Français</strong> | <a href="./README.ja.md">日本語</a>
 </p>
+
+> [!NOTE]
+> **MT (Traduction Automatique)**: Ce document est traduit automatiquement. Pour les informations les plus précises, veuillez vous référer à la [version chinoise](./README.md).
+
 <div align="center">
 
 ![new-api](/web/public/logo.png)
@@ -75,7 +79,7 @@ New API offre un large éventail de fonctionnalités, veuillez vous référer à
 
 1. 🎨 Nouvelle interface utilisateur
 2. 🌍 Prise en charge multilingue
-3. 💰 Fonctionnalité de recharge en ligne (YiPay)
+3. 💰 Fonctionnalité de recharge en ligne, prend actuellement en charge EPay et Stripe
 4. 🔍 Prise en charge de la recherche de quotas d'utilisation avec des clés (fonctionne avec [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool))
 5. 🔄 Compatible avec la base de données originale de One API
 6. 💵 Prise en charge de la tarification des modèles de paiement à l'utilisation
@@ -85,18 +89,23 @@ New API offre un large éventail de fonctionnalités, veuillez vous référer à
 10. 🤖 Prise en charge de plus de méthodes de connexion par autorisation (LinuxDO, Telegram, OIDC)
 11. 🔄 Prise en charge des modèles Rerank (Cohere et Jina), [Documentation de l'API](https://docs.newapi.pro/api/jinaai-rerank)
 12. ⚡ Prise en charge de l'API OpenAI Realtime (y compris les canaux Azure), [Documentation de l'API](https://docs.newapi.pro/api/openai-realtime)
-13. ⚡ Prise en charge du format Claude Messages, [Documentation de l'API](https://docs.newapi.pro/api/anthropic-chat)
-14. Prise en charge de l'accès à l'interface de discussion via la route /chat2link
-15. 🧠 Prise en charge de la définition de l'effort de raisonnement via les suffixes de nom de modèle :
+13. ⚡ Prise en charge du format **OpenAI Responses**, [Documentation de l'API](https://docs.newapi.pro/api/openai-responses)
+14. ⚡ Prise en charge du format **Claude Messages**, [Documentation de l'API](https://docs.newapi.pro/api/anthropic-chat)
+15. ⚡ Prise en charge du format **Google Gemini**, [Documentation de l'API](https://docs.newapi.pro/api/google-gemini-chat/)
+16. 🧠 Prise en charge de la définition de l'effort de raisonnement via les suffixes de nom de modèle :
     1. Modèles de la série o d'OpenAI
         - Ajouter le suffixe `-high` pour un effort de raisonnement élevé (par exemple : `o3-mini-high`)
         - Ajouter le suffixe `-medium` pour un effort de raisonnement moyen (par exemple : `o3-mini-medium`)
         - Ajouter le suffixe `-low` pour un effort de raisonnement faible (par exemple : `o3-mini-low`)
     2. Modèles de pensée de Claude
         - Ajouter le suffixe `-thinking` pour activer le mode de pensée (par exemple : `claude-3-7-sonnet-20250219-thinking`)
-16. 🔄 Fonctionnalité de la pensée au contenu
-17. 🔄 Limitation du débit du modèle pour les utilisateurs
-18. 💰 Prise en charge de la facturation du cache, qui permet de facturer à un ratio défini lorsque le cache est atteint :
+17. 🔄 Fonctionnalité de la pensée au contenu
+18. 🔄 Limitation du débit du modèle pour les utilisateurs
+19. 🔄 Fonctionnalité de conversion de format de requête, prenant en charge les trois conversions de format suivantes :
+    1. OpenAI Chat Completions => Claude Messages
+    2. Claude Messages => OpenAI Chat Completions (peut être utilisé pour Claude Code pour appeler des modèles tiers)
+    3. OpenAI Chat Completions => Gemini Chat
+20. 💰 Prise en charge de la facturation du cache, qui permet de facturer à un ratio défini lorsque le cache est atteint :
     1. Définir l'option `Ratio de cache d'invite` dans `Paramètres système->Paramètres de fonctionnement`
     2. Définir le `Ratio de cache d'invite` dans le canal, plage de 0 à 1, par exemple, le définir sur 0,5 signifie facturer à 50 % lorsque le cache est atteint
     3. Canaux pris en charge :
@@ -115,7 +124,9 @@ Cette version prend en charge plusieurs modèles, veuillez vous référer à [Do
 4. Canaux personnalisés, prenant en charge la saisie complète de l'adresse d'appel
 5. Modèles Rerank ([Cohere](https://cohere.ai/) et [Jina](https://jina.ai/)), [Documentation de l'API](https://docs.newapi.pro/api/jinaai-rerank)
 6. Format de messages Claude, [Documentation de l'API](https://docs.newapi.pro/api/anthropic-chat)
-7. Dify, ne prend actuellement en charge que chatflow
+7. Format Google Gemini, [Documentation de l'API](https://docs.newapi.pro/api/google-gemini-chat/)
+8. Dify, ne prend actuellement en charge que chatflow
+9. Pour plus d'interfaces, veuillez vous référer à la [Documentation de l'API](https://docs.newapi.pro/api)
 
 ## Configuration des variables d'environnement
 
@@ -124,14 +135,12 @@ Pour des instructions de configuration détaillées, veuillez vous référer à 
 - `GENERATE_DEFAULT_TOKEN` : S'il faut générer des jetons initiaux pour les utilisateurs nouvellement enregistrés, la valeur par défaut est `false`
 - `STREAMING_TIMEOUT` : Délai d'expiration de la réponse en streaming, la valeur par défaut est de 300 secondes
 - `DIFY_DEBUG` : S'il faut afficher les informations sur le flux de travail et les nœuds pour les canaux Dify, la valeur par défaut est `true`
-- `FORCE_STREAM_OPTION` : S'il faut remplacer le paramètre client stream_options, la valeur par défaut est `true`
 - `GET_MEDIA_TOKEN` : S'il faut compter les jetons d'image, la valeur par défaut est `true`
 - `GET_MEDIA_TOKEN_NOT_STREAM` : S'il faut compter les jetons d'image dans les cas sans streaming, la valeur par défaut est `true`
 - `UPDATE_TASK` : S'il faut mettre à jour les tâches asynchrones (Midjourney, Suno), la valeur par défaut est `true`
-- `COHERE_SAFETY_SETTING` : Paramètres de sécurité du modèle Cohere, les options sont `NONE`, `CONTEXTUAL`, `STRICT`, la valeur par défaut est `NONE`
 - `GEMINI_VISION_MAX_IMAGE_NUM` : Nombre maximum d'images pour les modèles Gemini, la valeur par défaut est `16`
 - `MAX_FILE_DOWNLOAD_MB` : Taille maximale de téléchargement de fichier en Mo, la valeur par défaut est `20`
-- `CRYPTO_SECRET` : Clé de chiffrement utilisée pour chiffrer le contenu de la base de données
+- `CRYPTO_SECRET` : Clé de chiffrement utilisée pour chiffrer le contenu de la base de données Redis
 - `AZURE_DEFAULT_API_VERSION` : Version de l'API par défaut du canal Azure, la valeur par défaut est `2025-04-01-preview`
 - `NOTIFICATION_LIMIT_DURATION_MINUTE` : Durée de la limite de notification, la valeur par défaut est de `10` minutes
 - `NOTIFY_LIMIT_COUNT` : Nombre maximal de notifications utilisateur dans la durée spécifiée, la valeur par défaut est `2`
@@ -178,7 +187,7 @@ docker run --name new-api -d --restart always -p 3000:3000 -e SQL_DSN="root:1234
 ```
 
 ## Nouvelle tentative de canal et cache
-La fonctionnalité de nouvelle tentative de canal a été implémentée, vous pouvez définir le nombre de tentatives dans `Paramètres->Paramètres de fonctionnement->Paramètres généraux`. Il est **recommandé d'activer la mise en cache**.
+La fonctionnalité de nouvelle tentative de canal a été implémentée, vous pouvez définir le nombre de tentatives dans `Paramètres->Paramètres de fonctionnement->Paramètres généraux->Nombre de tentatives en cas d'échec`, **recommandé d'activer la fonctionnalité de mise en cache**.
 
 ### Méthode de configuration du cache
 1. `REDIS_CONN_STRING` : Définir Redis comme cache
@@ -188,21 +197,21 @@ La fonctionnalité de nouvelle tentative de canal a été implémentée, vous po
 
 Pour une documentation détaillée de l'API, veuillez vous référer à [Documentation de l'API](https://docs.newapi.pro/api) :
 
-- [API de discussion](https://docs.newapi.pro/api/openai-chat)
-- [API d'image](https://docs.newapi.pro/api/openai-image)
-- [API de rerank](https://docs.newapi.pro/api/jinaai-rerank)
-- [API en temps réel](https://docs.newapi.pro/api/openai-realtime)
-- [API de discussion Claude (messages)](https://docs.newapi.pro/api/anthropic-chat)
+- [API de discussion (Chat Completions)](https://docs.newapi.pro/api/openai-chat)
+- [API de réponse (Responses)](https://docs.newapi.pro/api/openai-responses)
+- [API d'image (Image)](https://docs.newapi.pro/api/openai-image)
+- [API de rerank (Rerank)](https://docs.newapi.pro/api/jinaai-rerank)
+- [API de discussion en temps réel (Realtime)](https://docs.newapi.pro/api/openai-realtime)
+- [API de discussion Claude](https://docs.newapi.pro/api/anthropic-chat)
+- [API de discussion Google Gemini](https://docs.newapi.pro/api/google-gemini-chat)
 
 ## Projets connexes
 - [One API](https://github.com/songquanpeng/one-api) : Projet original
 - [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy) : Prise en charge de l'interface Midjourney
-- [chatnio](https://github.com/Deeptrain-Community/chatnio) : Solution B/C unique d'IA de nouvelle génération
 - [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool) : Interroger le quota d'utilisation avec une clé
 
 Autres projets basés sur New API :
 - [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) : Version optimisée hautes performances de New API
-- [VoAPI](https://github.com/VoAPI/VoAPI) : Version embellie du frontend basée sur New API
 
 ## Aide et support
 

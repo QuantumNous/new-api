@@ -1,7 +1,10 @@
 package aws
 
 import (
-	"one-api/dto"
+	"io"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 )
 
 type AwsClaudeRequest struct {
@@ -33,6 +36,16 @@ func copyRequest(req *dto.ClaudeRequest) *AwsClaudeRequest {
 		ToolChoice:       req.ToolChoice,
 		Thinking:         req.Thinking,
 	}
+}
+
+func formatRequest(requestBody io.Reader) (*AwsClaudeRequest, error) {
+	var awsClaudeRequest AwsClaudeRequest
+	err := common.DecodeJson(requestBody, &awsClaudeRequest)
+	if err != nil {
+		return nil, err
+	}
+	awsClaudeRequest.AnthropicVersion = "bedrock-2023-05-31"
+	return &awsClaudeRequest, nil
 }
 
 // NovaMessage Nova模型使用messages-v1格式

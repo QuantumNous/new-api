@@ -646,9 +646,25 @@ export const calculateModelPrice = ({
     const numCompletion =
       parseFloat(rawDisplayCompletion.replace(/[^0-9.]/g, '')) / unitDivisor;
 
+    let symbol = '$';
+    if (currency === 'CNY') {
+      symbol = '¥';
+    } else if (currency === 'CUSTOM') {
+      try {
+        const statusStr = localStorage.getItem('status');
+        if (statusStr) {
+          const s = JSON.parse(statusStr);
+          symbol = s?.custom_currency_symbol || '¤';
+        } else {
+          symbol = '¤';
+        }
+      } catch (e) {
+        symbol = '¤';
+      }
+    }
     return {
-      inputPrice: `${currency === 'CNY' ? '¥' : '$'}${numInput.toFixed(precision)}`,
-      completionPrice: `${currency === 'CNY' ? '¥' : '$'}${numCompletion.toFixed(precision)}`,
+      inputPrice: `${symbol}${numInput.toFixed(precision)}`,
+      completionPrice: `${symbol}${numCompletion.toFixed(precision)}`,
       unitLabel,
       isPerToken: true,
       usedGroup,

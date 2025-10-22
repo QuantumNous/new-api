@@ -23,7 +23,7 @@ import { useMemo } from 'react';
 const normalizeTags = (tags = '') =>
   tags
     .toLowerCase()
-    .split(',')
+    .split(/[,;|\s]+/)
     .map((t) => t.trim())
     .filter(Boolean);
 

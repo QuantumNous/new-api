@@ -143,14 +143,6 @@ const FooterBar = () => {
                     Midjourney-Proxy
                   </a>
                   <a
-                    href='https://github.com/Deeptrain-Community/chatnio'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
-                  >
-                    chatnio
-                  </a>
-                  <a
                     href='https://github.com/Calcium-Ion/neko-api-key-tool'
                     target='_blank'
                     rel='noopener noreferrer'
@@ -163,7 +155,7 @@ const FooterBar = () => {
 
               <div className='text-left'>
                 <p className='!text-semi-color-text-0 font-semibold mb-5'>
-                  {t('基于New API的项目')}
+                  {t('友情链接')}
                 </p>
                 <div className='flex flex-col gap-4'>
                   <a
@@ -174,7 +166,22 @@ const FooterBar = () => {
                   >
                     new-api-horizon
                   </a>
-                  {/* <a href="https://github.com/VoAPI/VoAPI" target="_blank" rel="noopener noreferrer" className="!text-semi-color-text-1">VoAPI</a> */}
+                  <a
+                    href='https://github.com/coaidev/coai'
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='!text-semi-color-text-1'
+                  >
+                    CoAI
+                  </a>
+                  <a
+                    href='https://www.gpt-load.com/'
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='!text-semi-color-text-1'
+                  >
+                    GPT-Load
+                  </a>
                 </div>
               </div>
             </div>
@@ -200,15 +207,6 @@ const FooterBar = () => {
             >
               New API
             </a>
-            <span className='!text-semi-color-text-1'> & </span>
-            <a
-              href='https://github.com/songquanpeng/one-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
-            >
-              One API
-            </a>
           </div>
         </div>
       </footer>
@@ -223,10 +221,23 @@ const FooterBar = () => {
   return (
     <div className='w-full'>
       {footer ? (
-        <div
-          className='custom-footer'
-          dangerouslySetInnerHTML={{ __html: footer }}
-        ></div>
+        <div className='relative'>
+          <div
+            className='custom-footer'
+            dangerouslySetInnerHTML={{ __html: footer }}
+          ></div>
+          <div className='absolute bottom-2 right-4 text-xs !text-semi-color-text-2 opacity-70'>
+            <span>{t('设计与开发由')} </span>
+            <a
+              href='https://github.com/QuantumNous/new-api'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='!text-semi-color-primary font-medium'
+            >
+              New API
+            </a>
+          </div>
+        </div>
       ) : (
         customFooter
       )}

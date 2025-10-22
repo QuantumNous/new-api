@@ -2,8 +2,9 @@ package ratio_setting
 
 import (
 	"encoding/json"
-	"one-api/common"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var defaultCacheRatio = map[string]float64{
@@ -52,6 +53,8 @@ var defaultCacheRatio = map[string]float64{
 	"claude-opus-4-20250514-thinking":     0.1,
 	"claude-opus-4-1-20250805":            0.1,
 	"claude-opus-4-1-20250805-thinking":   0.1,
+	"claude-sonnet-4-5-20250929":          0.1,
+	"claude-sonnet-4-5-20250929-thinking": 0.1,
 }
 
 var defaultCreateCacheRatio = map[string]float64{
@@ -69,6 +72,8 @@ var defaultCreateCacheRatio = map[string]float64{
 	"claude-opus-4-20250514-thinking":     1.25,
 	"claude-opus-4-1-20250805":            1.25,
 	"claude-opus-4-1-20250805-thinking":   1.25,
+	"claude-sonnet-4-5-20250929":          1.25,
+	"claude-sonnet-4-5-20250929-thinking": 1.25,
 }
 
 //var defaultCreateCacheRatio = map[string]float64{}

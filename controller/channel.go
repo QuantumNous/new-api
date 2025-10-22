@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/model"
-	"one-api/service"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -198,9 +199,10 @@ func FetchUpstreamModels(c *gin.Context) {
 	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
 	var body []byte
 	key := strings.Split(channel.Key, "\n")[0]
-	if channel.Type == constant.ChannelTypeGemini {
-		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key)) // Use AuthHeader since Gemini now forces it
-	} else {
+	switch channel.Type {
+	case constant.ChannelTypeAnthropic:
+		body, err = GetResponseBody("GET", url, channel, GetClaudeAuthHeader(key))
+	default:
 		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	}
 	if err != nil {
@@ -384,40 +386,13 @@ func GetChannel(c *gin.Context) {
 	return
 }
 
-// GetChannelKey 验证2FA后获取渠道密钥
+// GetChannelKey 获取渠道密钥（需要通过安全验证中间件）
+// 此函数依赖 SecureVerificationRequired 中间件，确保用户已通过安全验证
 func GetChannelKey(c *gin.Context) {
-	type GetChannelKeyRequest struct {
-		Code string `json:"code" binding:"required"`
-	}
-
-	var req GetChannelKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiError(c, fmt.Errorf("参数错误: %v", err))
-		return
-	}
-
 	userId := c.GetInt("id")
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiError(c, fmt.Errorf("渠道ID格式错误: %v", err))
-		return
-	}
-
-	// 获取2FA记录并验证
-	twoFA, err := model.GetTwoFAByUserId(userId)
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("获取2FA信息失败: %v", err))
-		return
-	}
-
-	if twoFA == nil || !twoFA.IsEnabled {
-		common.ApiError(c, fmt.Errorf("用户未启用2FA，无法查看密钥"))
-		return
-	}
-
-	// 统一的2FA验证逻辑
-	if !validateTwoFactorAuth(twoFA, req.Code) {
-		common.ApiError(c, fmt.Errorf("验证码或备用码错误，请重试"))
 		return
 	}
 
@@ -436,10 +411,10 @@ func GetChannelKey(c *gin.Context) {
 	// 记录操作日志
 	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId))
 
-	// 统一的成功响应格式
+	// 返回渠道密钥
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "验证成功",
+		"message": "获取成功",
 		"data": map[string]interface{}{
 			"key": channel.Key,
 		},

@@ -1,9 +1,10 @@
 package operation_setting
 
 import (
-	"one-api/setting/config"
 	"os"
 	"strconv"
+
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 type MonitorSetting struct {

@@ -6,21 +6,23 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/model"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
 
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/relay/channel"
-	relaycommon "one-api/relay/common"
-	"one-api/service"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 )
 
 // ============================
@@ -187,8 +189,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf(kResp.Message), "task_failed", http.StatusBadRequest)
 		return
 	}
-	kResp.TaskId = kResp.Data.TaskId
-	c.JSON(http.StatusOK, kResp)
+	ov := dto.NewOpenAIVideo()
+	ov.ID = kResp.Data.TaskId
+	ov.TaskID = kResp.Data.TaskId
+	ov.CreatedAt = time.Now().Unix()
+	ov.Model = info.OriginModelName
+	c.JSON(http.StatusOK, ov)
 	return kResp.Data.TaskId, responseBody, nil
 }
 
@@ -303,14 +309,6 @@ func (a *TaskAdaptor) createJWTToken() (string, error) {
 	return a.createJWTTokenWithKey(a.apiKey)
 }
 
-//func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
-//	parts := strings.Split(apiKey, "|")
-//	if len(parts) != 2 {
-//		return "", fmt.Errorf("invalid API key format, expected 'access_key,secret_key'")
-//	}
-//	return a.createJWTTokenWithKey(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-//}
-
 func (a *TaskAdaptor) createJWTTokenWithKey(apiKey string) (string, error) {
 	if isNewAPIRelay(apiKey) {
 		return apiKey, nil // new api relay
@@ -368,4 +366,37 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 
 func isNewAPIRelay(apiKey string) bool {
 	return strings.HasPrefix(apiKey, "sk-")
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
+	var klingResp responsePayload
+	if err := json.Unmarshal(originTask.Data, &klingResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal kling task data failed")
+	}
+
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = originTask.TaskID
+	openAIVideo.Status = originTask.Status.ToVideoStatus()
+	openAIVideo.SetProgressStr(originTask.Progress)
+	openAIVideo.CreatedAt = klingResp.Data.CreatedAt
+	openAIVideo.CompletedAt = klingResp.Data.UpdatedAt
+
+	if len(klingResp.Data.TaskResult.Videos) > 0 {
+		video := klingResp.Data.TaskResult.Videos[0]
+		if video.Url != "" {
+			openAIVideo.SetMetadata("url", video.Url)
+		}
+		if video.Duration != "" {
+			openAIVideo.Seconds = video.Duration
+		}
+	}
+
+	if klingResp.Code != 0 && klingResp.Message != "" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: klingResp.Message,
+			Code:    fmt.Sprintf("%d", klingResp.Code),
+		}
+	}
+	jsonData, _ := common.Marshal(openAIVideo)
+	return jsonData, nil
 }

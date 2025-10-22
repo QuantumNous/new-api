@@ -1,6 +1,6 @@
 package cohere
 
-import "one-api/dto"
+import "github.com/QuantumNous/new-api/dto"
 
 type CohereRequest struct {
 	Model       string        `json:"model"`

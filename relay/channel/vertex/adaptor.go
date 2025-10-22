@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/relay/channel"
-	"one-api/relay/channel/claude"
-	"one-api/relay/channel/gemini"
-	"one-api/relay/channel/openai"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/constant"
-	"one-api/setting/model_setting"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
+	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,6 +38,7 @@ var claudeModelMap = map[string]string{
 	"claude-sonnet-4-20250514":   "claude-sonnet-4@20250514",
 	"claude-opus-4-20250514":     "claude-opus-4@20250514",
 	"claude-opus-4-1-20250805":   "claude-opus-4-1@20250805",
+	"claude-sonnet-4-5-20250929": "claude-sonnet-4-5@20250929",
 }
 
 const anthropicVersion = "vertex-2023-10-16"
@@ -90,7 +92,43 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		}
 		a.AccountCredentials = *adc
 
-		if a.RequestMode == RequestModeLlama {
+		if a.RequestMode == RequestModeGemini {
+			if region == "global" {
+				return fmt.Sprintf(
+					"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
+					adc.ProjectID,
+					modelName,
+					suffix,
+				), nil
+			} else {
+				return fmt.Sprintf(
+					"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
+					region,
+					adc.ProjectID,
+					region,
+					modelName,
+					suffix,
+				), nil
+			}
+		} else if a.RequestMode == RequestModeClaude {
+			if region == "global" {
+				return fmt.Sprintf(
+					"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/anthropic/models/%s:%s",
+					adc.ProjectID,
+					modelName,
+					suffix,
+				), nil
+			} else {
+				return fmt.Sprintf(
+					"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s",
+					region,
+					adc.ProjectID,
+					region,
+					modelName,
+					suffix,
+				), nil
+			}
+		} else if a.RequestMode == RequestModeLlama {
 			return fmt.Sprintf(
 				"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
 				region,
@@ -98,42 +136,33 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 				region,
 			), nil
 		}
-
-		if region == "global" {
-			return fmt.Sprintf(
-				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
-				adc.ProjectID,
-				modelName,
-				suffix,
-			), nil
-		} else {
-			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
-				region,
-				adc.ProjectID,
-				region,
-				modelName,
-				suffix,
-			), nil
-		}
 	} else {
+		var keyPrefix string
+		if strings.HasSuffix(suffix, "?alt=sse") {
+			keyPrefix = "&"
+		} else {
+			keyPrefix = "?"
+		}
 		if region == "global" {
 			return fmt.Sprintf(
-				"https://aiplatform.googleapis.com/v1/publishers/google/models/%s:%s?key=%s",
+				"https://aiplatform.googleapis.com/v1/publishers/google/models/%s:%s%skey=%s",
 				modelName,
 				suffix,
+				keyPrefix,
 				info.ApiKey,
 			), nil
 		} else {
 			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1/publishers/google/models/%s:%s?key=%s",
+				"https://%s-aiplatform.googleapis.com/v1/publishers/google/models/%s:%s%skey=%s",
 				region,
 				modelName,
 				suffix,
+				keyPrefix,
 				info.ApiKey,
 			), nil
 		}
 	}
+	return "", errors.New("unsupported request mode")
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -187,7 +216,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		}
 		req.Set("Authorization", "Bearer "+accessToken)
 	}
-  if a.AccountCredentials.ProjectID != "" {
+	if a.AccountCredentials.ProjectID != "" {
 		req.Set("x-goog-user-project", a.AccountCredentials.ProjectID)
 	}
 	return nil

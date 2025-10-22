@@ -1,15 +1,16 @@
 package model
 
 import (
-	"one-api/common"
-	"one-api/setting"
-	"one-api/setting/config"
-	"one-api/setting/operation_setting"
-	"one-api/setting/ratio_setting"
-	"one-api/setting/system_setting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 type Option struct {
@@ -240,7 +241,15 @@ func updateOptionMap(key string, value string) (err error) {
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
-			common.DisplayInCurrencyEnabled = boolValue
+			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
+			// true -> USD, false -> TOKENS
+			newVal := "USD"
+			if !boolValue {
+				newVal = "TOKENS"
+			}
+			if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
+				_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": newVal})
+			}
 		case "DisplayTokenStatEnabled":
 			common.DisplayTokenStatEnabled = boolValue
 		case "DrawingEnabled":

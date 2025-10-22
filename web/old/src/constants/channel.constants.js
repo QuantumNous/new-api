@@ -89,6 +89,11 @@ export const CHANNEL_OPTIONS = [
     label: '智谱 GLM-4V',
   },
   {
+    value: 27,
+    color: 'blue',
+    label: 'Perplexity',
+  },
+  {
     value: 24,
     color: 'orange',
     label: 'Google Gemini',
@@ -158,6 +163,21 @@ export const CHANNEL_OPTIONS = [
     value: 52,
     color: 'purple',
     label: 'Vidu',
+  },
+  {
+    value: 53,
+    color: 'blue',
+    label: 'SubModel',
+  },
+  {
+    value: 54,
+    color: 'blue',
+    label: '豆包视频',
+  },
+  {
+    value: 55,
+    color: 'green',
+    label: 'Sora',
   },
 ];
 

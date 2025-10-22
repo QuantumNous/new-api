@@ -1,10 +1,11 @@
 package common
 
 import (
-	"github.com/google/uuid"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type verificationValue struct {

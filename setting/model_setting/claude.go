@@ -2,7 +2,8 @@ package model_setting
 
 import (
 	"net/http"
-	"one-api/setting/config"
+
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 //var claudeHeadersSettings = map[string][]string{}

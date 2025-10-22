@@ -2,8 +2,9 @@ package setting
 
 import (
 	"encoding/json"
-	"one-api/common"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var userUsableGroups = map[string]string{

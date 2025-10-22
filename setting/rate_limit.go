@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"one-api/common"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var ModelRequestRateLimitEnabled = false

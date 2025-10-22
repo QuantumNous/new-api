@@ -6,3 +6,4 @@
 Makefile
 docs
 .eslintcache
+.gocache
