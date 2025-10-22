@@ -96,6 +96,11 @@ export function getLobeIcon(
   } else {
     IconComponent = (LobeIcons as any)[baseKey]
     propStartIndex = 1
+    // Skip failed nested component names (e.g., "Color", "Avatar") to avoid treating them as props
+    // Check if segments[1] looks like a component name (starts with uppercase)
+    if (segments.length > 1 && /^[A-Z]/.test(segments[1])) {
+      propStartIndex = 2 // Skip the failed component name
+    }
   }
 
   // Fallback if icon not found
