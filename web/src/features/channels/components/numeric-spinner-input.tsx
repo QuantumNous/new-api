@@ -103,7 +103,7 @@ export function NumericSpinnerInput({
           onChange={handleInputChange}
           onBlur={handleBlur}
           disabled={disabled}
-          className='bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-8 w-20 rounded-md border px-3 py-1 pr-7 text-center font-mono text-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+          className='bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-8 w-20 rounded-md border px-3 py-1 pr-7 text-center font-mono transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
         />
         <div className='absolute inset-y-0 right-0 flex flex-col items-center justify-center pr-1'>
           <button
