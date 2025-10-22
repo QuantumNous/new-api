@@ -144,7 +144,7 @@ func GetLogTableName(timestamp int64) string {
 func RecordConsumeLog(c *gin.Context, userId int, channelId int, promptTokens int, completionTokens int, thinkingTokens int,
 	modelName string, tokenName string, quota int, content string, tokenId int, userQuota int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
-	reqInfo, err := common.LogRequestInfo(c, quota != 0)
+	reqInfo, err := common.LogRequestInfo(c, quota != 0, modelName)
 	if err != nil {
 		common.LogError(c, "failed to get request info: "+err.Error())
 	}

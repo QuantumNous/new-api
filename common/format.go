@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
 	"os"
 
 	"strings"
@@ -29,7 +30,7 @@ const (
 	CtxResponseBody    = "ctx_response_body"
 )
 
-func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err error) {
+func LogRequestInfo(c *gin.Context, isTruncated bool, modelName string) (reqInfo *RequestInfo, err error) {
 	reqInfo = &RequestInfo{
 		IsTruncated:     isTruncated,
 		RequestBody:     "",
@@ -67,13 +68,34 @@ func LogRequestInfo(c *gin.Context, isTruncated bool) (reqInfo *RequestInfo, err
 		ResponseBody:    responsebody.(string),
 	}
 
-	Writer.Write(RequestInfo{
-		IsTruncated:     false,
+	type COSLOG struct {
+		UserName        string `json:"user_name"`
+		ModelName       string `json:"model_name"`
+		Url             string `json:"url"`
+		RequestID       string `json:"request_id"`
+		RequestBody     string `json:"request_body"`
+		RequestHeaders  string `json:"request_headers"`
+		ResponseHeaders string `json:"response_headers"`
+		ResponseBody    string `json:"response_body"`
+	}
+
+	var requestId string
+	if id := c.Value(RequestIdKey); id != nil {
+		requestId = id.(string)
+	}
+
+	coslog := COSLOG{
+		UserName:        c.GetString("username"),
+		ModelName:       modelName,
+		Url:             c.Request.URL.String(),
+		RequestID:       requestId,
 		RequestBody:     requestbody.(string),
 		RequestHeaders:  requestheaders.(string),
 		ResponseHeaders: responseheaders.(string),
 		ResponseBody:    responsebody.(string),
-	})
+	}
+
+	Writer.Write(coslog)
 
 	if isTruncated {
 		reqInfo = &RequestInfo{

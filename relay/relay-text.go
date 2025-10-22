@@ -517,6 +517,11 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	responsebody, exists := ctx.Get(common.CtxResponseBody)
 	if !exists {
 		common.LogError(ctx, "failed to get request body")
+		return
+	}
+	if responsebody == nil {
+		common.LogError(ctx, "response body is nil")
+		return
 	}
 	modelResp, err := dao.NewModelResp(ctx, responsebody.(string), modelName)
 	if err != nil {
