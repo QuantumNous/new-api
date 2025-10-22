@@ -173,18 +173,25 @@ export async function handleUpdateTagField(
  */
 export async function handleTestChannel(
   id: number,
-  testModel?: string,
+  options?: { testModel?: string; endpointType?: string },
   onTestComplete?: (
     success: boolean,
     responseTime?: number,
     error?: string
   ) => void
 ): Promise<void> {
+  const payload =
+    options && (options.testModel || options.endpointType)
+      ? {
+          ...(options.testModel ? { test_model: options.testModel } : {}),
+          ...(options.endpointType
+            ? { endpoint_type: options.endpointType }
+            : {}),
+        }
+      : undefined
+
   try {
-    const response = await testChannel(
-      id,
-      testModel ? { test_model: testModel } : undefined
-    )
+    const response = await testChannel(id, payload)
     if (response.success) {
       toast.success(SUCCESS_MESSAGES.TESTED)
       onTestComplete?.(true, response.data?.response_time)
