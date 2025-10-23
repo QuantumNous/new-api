@@ -183,7 +183,7 @@ export async function handleTestChannel(
   const payload =
     options && (options.testModel || options.endpointType)
       ? {
-          ...(options.testModel ? { test_model: options.testModel } : {}),
+          ...(options.testModel ? { model: options.testModel } : {}),
           ...(options.endpointType
             ? { endpoint_type: options.endpointType }
             : {}),
