@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -12,6 +13,9 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { FormDirtyIndicator } from '../components/form-dirty-indicator'
+import { FormNavigationGuard } from '../components/form-navigation-guard'
 import { SettingsAccordion } from '../components/settings-accordion'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -23,7 +27,20 @@ const quotaSchema = z.object({
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string().url().optional().or(z.literal('')),
   'general_setting.docs_link': z.string().url().optional().or(z.literal('')),
+  'quota_setting.enable_free_model_pre_consume': z.boolean(),
 })
+
+const OPTION_KEYS = [
+  'QuotaForNewUser',
+  'PreConsumedQuota',
+  'QuotaForInviter',
+  'QuotaForInvitee',
+  'TopUpLink',
+  'general_setting.docs_link',
+  'quota_setting.enable_free_model_pre_consume',
+] as const
+
+type OptionKey = (typeof OPTION_KEYS)[number]
 
 type QuotaFormValues = z.infer<typeof quotaSchema>
 
@@ -43,14 +60,51 @@ export function QuotaSettingsSection({
 
   useResetForm(form, defaultValues)
 
-  const onSubmit = async (data: QuotaFormValues) => {
-    const updates = Object.entries(data).filter(
-      ([key, value]) => value !== defaultValues[key as keyof QuotaFormValues]
-    )
+  const onSubmit = async () => {
+    const baseline =
+      (form.formState.defaultValues as QuotaFormValues | undefined) ??
+      defaultValues
+
+    const updates = OPTION_KEYS.reduce<
+      Array<[OptionKey, QuotaFormValues[OptionKey]]>
+    >((acc, key) => {
+      const currentValue = form.getValues(key as OptionKey)
+      if (typeof currentValue === 'undefined') {
+        return acc
+      }
+
+      const defaultValue = baseline[key]
+
+      if (currentValue !== defaultValue) {
+        acc.push([key, currentValue as QuotaFormValues[OptionKey]])
+      }
+
+      return acc
+    }, [])
+
+    if (updates.length === 0) {
+      toast.info('No changes to save')
+      return
+    }
 
     for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
+      await updateOption.mutateAsync({
+        key,
+        value: value as string | number | boolean,
+      })
     }
+
+    const nextDefaults = { ...baseline } as QuotaFormValues
+    updates.forEach(([key, value]) => {
+      ;(nextDefaults as Record<OptionKey, QuotaFormValues[OptionKey]>)[key] =
+        value
+    })
+
+    form.reset(nextDefaults, {
+      keepDirty: false,
+      keepDirtyValues: false,
+      keepErrors: true,
+    })
   }
 
   return (
@@ -59,8 +113,11 @@ export function QuotaSettingsSection({
       title='Quota Settings'
       description='Configure user quota allocation and rewards'
     >
+      <FormNavigationGuard when={form.formState.isDirty} />
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+          <FormDirtyIndicator isDirty={form.formState.isDirty} />
           <FormField
             control={form.control}
             name='QuotaForNewUser'
@@ -151,6 +208,31 @@ export function QuotaSettingsSection({
                 </FormControl>
                 <FormDescription>Quota given to invited users</FormDescription>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='quota_setting.enable_free_model_pre_consume'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    Pre-Consume for Free Models
+                  </FormLabel>
+                  <FormDescription>
+                    When enabled, zero-cost models also pre-consume quota before
+                    final settlement.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={updateOption.isPending}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

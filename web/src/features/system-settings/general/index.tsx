@@ -22,6 +22,7 @@ const defaultGeneralSettings: GeneralSettings = {
   QuotaForInvitee: 0,
   TopUpLink: '',
   'general_setting.docs_link': '',
+  'quota_setting.enable_free_model_pre_consume': true,
   QuotaPerUnit: 500000,
   USDExchangeRate: 7,
   RetryTimes: 0,
@@ -77,6 +78,8 @@ export function GeneralSettings() {
               TopUpLink: settings.TopUpLink,
               'general_setting.docs_link':
                 settings['general_setting.docs_link'],
+              'quota_setting.enable_free_model_pre_consume':
+                settings['quota_setting.enable_free_model_pre_consume'],
             }}
           />
 
