@@ -84,7 +84,11 @@ export function WorkerSettingsSection({
       description='Configure upstream worker or proxy service for outbound requests'
     >
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          autoComplete='off'
+          className='space-y-6'
+        >
           <FormField
             control={form.control}
             name='WorkerUrl'
@@ -93,6 +97,8 @@ export function WorkerSettingsSection({
                 <FormLabel>Worker URL</FormLabel>
                 <FormControl>
                   <Input
+                    type='url'
+                    inputMode='url'
                     placeholder='https://worker.example.workers.dev'
                     autoComplete='off'
                     {...field}
@@ -118,7 +124,7 @@ export function WorkerSettingsSection({
                   <Input
                     type='password'
                     placeholder='Enter new key to update'
-                    autoComplete='off'
+                    autoComplete='new-password'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
