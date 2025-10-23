@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Route, Info } from 'lucide-react'
 import {
@@ -6,6 +7,7 @@ import {
   formatLogQuota,
   formatTimestampToDate,
 } from '@/lib/format'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -30,6 +32,31 @@ import {
 } from '../../lib/utils'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import { renderBadge, CacheTooltip } from './column-helpers'
+
+function CopyableDetailsContent({ content }: { content?: string | null }) {
+  const { copyToClipboard } = useCopyToClipboard()
+
+  if (content == null) {
+    return <span className='text-muted-foreground text-sm'>-</span>
+  }
+
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    copyToClipboard(content)
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={handleClick}
+      title={content}
+      className='click-content-to-copy text-foreground hover:text-primary max-w-[200px] truncate text-left text-sm transition-colors focus-visible:underline focus-visible:outline-none'
+      aria-label='Copy details'
+    >
+      {content}
+    </button>
+  )
+}
 
 export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const columns: ColumnDef<UsageLog>[] = [
@@ -433,15 +460,11 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       header: 'Details',
       cell: ({ row }) => {
         const log = row.original
-        const content = row.getValue('content') as string
+        const content = row.getValue('content') as string | null
 
         // For non-consume logs, show content
         if (log.type !== 2) {
-          return (
-            <div className='max-w-[200px] truncate text-sm' title={content}>
-              {content}
-            </div>
-          )
+          return <CopyableDetailsContent content={content} />
         }
 
         // For consume logs, show billing type
@@ -481,7 +504,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='text-sm'>
-            <span className='text-muted-foreground'>Ch: </span>
+            <span className='text-muted-foreground'>Chain: </span>
             <span className='font-mono'>{useChannel.join(' → ')}</span>
           </div>
         )
