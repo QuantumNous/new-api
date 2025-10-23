@@ -437,7 +437,11 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         // For non-consume logs, show content
         if (log.type !== 2) {
-          return <div className='truncate text-sm'>{content}</div>
+          return (
+            <div className='max-w-[200px] truncate text-sm' title={content}>
+              {content}
+            </div>
+          )
         }
 
         // For consume logs, show billing type
