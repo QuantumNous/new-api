@@ -153,11 +153,11 @@ var (
 // Shouldn't larger then RateLimitKeyExpirationDuration
 var (
 	GlobalApiRateLimitEnable   = GetEnvOrDefaultBool("GLOBAL_API_RATE_LIMIT_ENABLE", true)
-	GlobalApiRateLimitNum      = GetEnvOrDefault("GLOBAL_API_RATE_LIMIT", 180)
+	GlobalApiRateLimitNum      = GetEnvOrDefault("GLOBAL_API_RATE_LIMIT", 18000)
 	GlobalApiRateLimitDuration = int64(GetEnvOrDefault("GLOBAL_API_RATE_LIMIT_DURATION", 180))
 
 	GlobalWebRateLimitEnable   = GetEnvOrDefaultBool("GLOBAL_WEB_RATE_LIMIT_ENABLE", true)
-	GlobalWebRateLimitNum      = GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT", 60)
+	GlobalWebRateLimitNum      = GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT", 6000)
 	GlobalWebRateLimitDuration = int64(GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT_DURATION", 180))
 
 	UploadRateLimitNum            = 10
