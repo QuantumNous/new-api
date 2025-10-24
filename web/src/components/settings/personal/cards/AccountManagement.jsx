@@ -193,14 +193,16 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
-                      disabled={!status.wechat_login}
+                      disabled={
+                        !status.wechat_login || isBound(userState.user?.wechat_id)
+                      }
                       onClick={() => setShowWeChatBindModal(true)}
                     >
-                      {isBound(userState.user?.wechat_id)
-                        ? t('修改绑定')
-                        : status.wechat_login
-                          ? t('绑定')
-                          : t('未启用')}
+                      {!status.wechat_login
+                        ? t('未启用')
+                        : isBound(userState.user?.wechat_id)
+                          ? t('已绑定')
+                          : t('绑定')}
                     </Button>
                   </div>
                 </div>
@@ -241,7 +243,11 @@ const AccountManagement = ({
                         !status.github_oauth
                       }
                     >
-                      {status.github_oauth ? t('绑定') : t('未启用')}
+                      {!status.github_oauth
+                        ? t('未启用')
+                        : isBound(userState.user?.github_id)
+                          ? t('已绑定')
+                          : t('绑定')}
                     </Button>
                   </div>
                 </div>
@@ -284,7 +290,11 @@ const AccountManagement = ({
                         isBound(userState.user?.oidc_id) || !status.oidc_enabled
                       }
                     >
-                      {status.oidc_enabled ? t('绑定') : t('未启用')}
+                      {!status.oidc_enabled
+                        ? t('未启用')
+                        : isBound(userState.user?.oidc_id)
+                          ? t('已绑定')
+                          : t('绑定')}
                     </Button>
                   </div>
                 </div>
@@ -400,7 +410,11 @@ const AccountManagement = ({
                         !status.linuxdo_oauth
                       }
                     >
-                      {status.linuxdo_oauth ? t('绑定') : t('未启用')}
+                      {!status.linuxdo_oauth
+                        ? t('未启用')
+                        : isBound(userState.user?.linux_do_id)
+                          ? t('已绑定')
+                          : t('绑定')}
                     </Button>
                   </div>
                 </div>

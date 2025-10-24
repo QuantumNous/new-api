@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type OidcResponse struct {
@@ -142,7 +143,42 @@ func OidcAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
+		var existingUser model.User
+		err := model.DB.Where("email = ?", oidcUser.Email).First(&existingUser).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiError(c, err)
+			return
+		}
+		if err == nil {
+			if existingUser.OidcId != "" && existingUser.OidcId != oidcUser.OpenID {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "该邮箱对应的账户已绑定其他 OIDC 账户",
+				})
+				return
+			}
+			existingUser.OidcId = oidcUser.OpenID
+			if existingUser.DisplayName == "" {
+				if oidcUser.Name != "" {
+					existingUser.DisplayName = oidcUser.Name
+				} else {
+					existingUser.DisplayName = "OIDC User"
+				}
+			}
+			if err := existingUser.Update(false); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			user = existingUser
+		}
+		if user.Id == 0 {
+			if !common.RegisterEnabled {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "管理员关闭了新用户注册",
+				})
+				return
+			}
 			user.Email = oidcUser.Email
 			if oidcUser.PreferredUsername != "" {
 				user.Username = oidcUser.PreferredUsername
@@ -162,12 +198,6 @@ func OidcAuth(c *gin.Context) {
 				})
 				return
 			}
-		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
-			return
 		}
 	}
 
