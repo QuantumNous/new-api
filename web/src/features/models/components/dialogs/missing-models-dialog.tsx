@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function MissingModelsDialog({
   onOpenChange,
 }: MissingModelsDialogProps) {
   const { setOpen, setCurrentRow } = useModels()
+  const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -90,7 +92,14 @@ export function MissingModelsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[85vh] max-w-2xl flex-col gap-3 p-4'>
+      <DialogContent
+        className='flex max-h-[85vh] max-w-2xl flex-col gap-3 p-4'
+        onOpenAutoFocus={(event) => {
+          if (isMobile) {
+            event.preventDefault()
+          }
+        }}
+      >
         <DialogHeader className='flex-shrink-0 text-start'>
           <DialogTitle>Missing Models</DialogTitle>
           <DialogDescription>
