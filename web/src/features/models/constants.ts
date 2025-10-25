@@ -1,4 +1,4 @@
-import type { NameRule, ModelStatus } from './types'
+import type { NameRule, ModelStatus, SyncSource } from './types'
 
 // ============================================================================
 // Pagination
@@ -107,4 +107,20 @@ export const ENDPOINT_TEMPLATES: Record<
 export const SYNC_LOCALE_OPTIONS = [
   { label: 'Chinese', value: 'zh' },
   { label: 'English', value: 'en' },
+  { label: 'Japanese', value: 'ja' },
+] as const
+
+export const SYNC_SOURCE_OPTIONS = [
+  {
+    label: 'Official Repository',
+    value: 'official' as SyncSource,
+    description: 'Sync from the public upstream metadata repository.',
+    disabled: false,
+  },
+  {
+    label: 'Configuration File',
+    value: 'config' as SyncSource,
+    description: 'Upload or reference a local configuration file.',
+    disabled: true,
+  },
 ] as const

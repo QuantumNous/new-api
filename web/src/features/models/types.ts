@@ -146,8 +146,18 @@ export interface SyncDiffData {
     model_name: string
     local?: Partial<Model>
     upstream?: Partial<Model>
+    fields?: Array<{
+      field: string
+      local?: unknown
+      upstream?: unknown
+    }>
     [key: string]: any
   }>
+}
+
+export interface SyncOverwritePayload {
+  model_name: string
+  fields: string[]
 }
 
 /**
@@ -260,4 +270,9 @@ export type QuotaType = 0 | 1 // usage-based, per-call
 /**
  * Sync locale
  */
-export type SyncLocale = 'zh' | 'en'
+export type SyncLocale = 'zh' | 'en' | 'ja'
+
+/**
+ * Sync upstream source
+ */
+export type SyncSource = 'official' | 'config'

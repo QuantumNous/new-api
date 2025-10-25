@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,9 +17,10 @@ import {
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { syncUpstream, previewUpstreamDiff } from '../../api'
-import { SYNC_LOCALE_OPTIONS } from '../../constants'
+import { SYNC_LOCALE_OPTIONS, SYNC_SOURCE_OPTIONS } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
-import type { SyncLocale } from '../../types'
+import type { SyncLocale, SyncSource } from '../../types'
+import { useModels } from '../models-provider'
 
 type SyncWizardDialogProps = {
   open: boolean
@@ -28,30 +32,60 @@ export function SyncWizardDialog({
   onOpenChange,
 }: SyncWizardDialogProps) {
   const queryClient = useQueryClient()
+  const {
+    setOpen,
+    setUpstreamConflicts,
+    setSyncWizardOptions,
+    syncWizardOptions,
+  } = useModels()
+  const isMobile = useIsMobile()
   const [locale, setLocale] = useState<SyncLocale>('zh')
+  const [source, setSource] = useState<SyncSource>('official')
   const [isSyncing, setIsSyncing] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setLocale(syncWizardOptions.locale || 'zh')
+      const preferredSource = SYNC_SOURCE_OPTIONS.find(
+        (option) => option.value === syncWizardOptions.source
+      )
+      setSource(
+        preferredSource && !preferredSource.disabled
+          ? (preferredSource.value as SyncSource)
+          : 'official'
+      )
+    }
+  }, [open, syncWizardOptions])
 
   const handleSync = async () => {
     setIsSyncing(true)
     try {
-      // First preview to check for conflicts
-      const previewRes = await previewUpstreamDiff({ locale })
+      setSyncWizardOptions({ locale, source })
+      const previewRes = await previewUpstreamDiff({ locale, source })
 
-      if (previewRes.data?.conflicts && previewRes.data.conflicts.length > 0) {
+      if (!previewRes.success) {
+        throw new Error(previewRes.message || 'Failed to preview upstream diff')
+      }
+
+      const conflicts = previewRes.data?.conflicts || []
+
+      if (conflicts.length > 0) {
         toast.warning(
-          `Found ${previewRes.data.conflicts.length} conflicts. Please resolve them first.`
+          `Found ${conflicts.length} conflict${conflicts.length > 1 ? 's' : ''}. Please resolve them first.`
         )
-        // TODO: Open conflict dialog
+        setUpstreamConflicts(conflicts)
+        setOpen('upstream-conflict')
         return
       }
 
       // No conflicts, proceed with sync
-      const response = await syncUpstream({ locale })
+      const response = await syncUpstream({ locale, source })
 
       if (response.success) {
-        const { created_models, created_vendors } = response.data || {}
+        const { created_models, created_vendors, updated_models } =
+          response.data || {}
         toast.success(
-          `Sync completed! Created ${created_models || 0} models and ${created_vendors || 0} vendors.`
+          `Sync completed! Created ${created_models || 0} models, updated ${updated_models || 0}, and added ${created_vendors || 0} vendors.`
         )
         queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
@@ -68,23 +102,93 @@ export function SyncWizardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent
+        className='flex max-h-[90vh] w-full flex-col gap-4 p-4 sm:max-w-2xl sm:p-6'
+        onOpenAutoFocus={(event) => {
+          if (isMobile) {
+            event.preventDefault()
+          }
+        }}
+      >
+        <DialogHeader className='flex-shrink-0 text-start'>
           <DialogTitle>Sync Upstream Models</DialogTitle>
           <DialogDescription>
-            Synchronize models from the official upstream repository
+            Synchronize models and vendors from an upstream source
           </DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-4 py-4'>
+        <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto'>
+          <div className='space-y-3'>
+            <div>
+              <Label className='text-base'>Select Sync Source</Label>
+              <p className='text-muted-foreground text-sm'>
+                Choose where to fetch upstream metadata.
+              </p>
+            </div>
+            <RadioGroup
+              value={source}
+              onValueChange={(value) => {
+                const selected = SYNC_SOURCE_OPTIONS.find(
+                  (option) => option.value === value
+                )
+                if (!selected || selected.disabled) return
+                setSource(selected.value)
+              }}
+              className='grid gap-3 md:grid-cols-2'
+            >
+              {SYNC_SOURCE_OPTIONS.map((option) => {
+                const isActive = source === option.value
+                const isDisabled = option.disabled
+                return (
+                  <label
+                    key={option.value}
+                    htmlFor={`sync-source-${option.value}`}
+                    className={cn(
+                      'rounded-lg border p-4 transition-all',
+                      isActive && 'border-primary ring-primary ring-1',
+                      isDisabled
+                        ? 'cursor-not-allowed opacity-60'
+                        : 'hover:border-primary/60 cursor-pointer'
+                    )}
+                  >
+                    <div className='flex items-start gap-3'>
+                      <RadioGroupItem
+                        value={option.value}
+                        id={`sync-source-${option.value}`}
+                        disabled={isDisabled}
+                      />
+                      <div className='space-y-1'>
+                        <div className='flex items-center gap-2'>
+                          <span className='font-medium'>{option.label}</span>
+                          {option.value === 'official' && (
+                            <Badge variant='secondary' className='text-xs'>
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                        <p className='text-muted-foreground text-sm'>
+                          {option.description}
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+                )
+              })}
+            </RadioGroup>
+          </div>
+
           <div className='space-y-2'>
-            <Label>Select Language</Label>
+            <Label className='text-base'>Select Language</Label>
             <RadioGroup
               value={locale}
               onValueChange={(v) => setLocale(v as SyncLocale)}
+              className='grid gap-3 sm:grid-cols-3'
             >
               {SYNC_LOCALE_OPTIONS.map((option) => (
-                <div key={option.value} className='flex items-center space-x-2'>
+                <div
+                  key={option.value}
+                  className='flex items-center space-x-2 rounded-lg border p-3'
+                >
                   <RadioGroupItem
                     value={option.value}
                     id={`locale-${option.value}`}
@@ -102,13 +206,14 @@ export function SyncWizardDialog({
 
           <div className='bg-muted/50 rounded-lg border p-4'>
             <p className='text-muted-foreground text-sm'>
-              This will fetch missing models and vendors from the official
-              repository. Existing models will not be modified.
+              The sync will fetch missing models and vendors from the selected
+              source. Existing records are updated only when you approve
+              conflicts.
             </p>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className='flex-shrink-0 gap-2 sm:justify-end'>
           <Button
             variant='outline'
             onClick={() => onOpenChange(false)}
