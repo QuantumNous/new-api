@@ -5,6 +5,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from '@/components/ui/sheet'
 import {
   FILTER_SECTIONS,
@@ -75,6 +76,9 @@ export function MobileFilters({
       >
         <SheetHeader className='border-b px-6 py-4'>
           <SheetTitle>Filters</SheetTitle>
+          <SheetDescription className='sr-only'>
+            Filter models by pricing type, endpoint type, vendor, group and tags
+          </SheetDescription>
         </SheetHeader>
 
         {/* Filter Content - Scrollable */}

@@ -1,5 +1,4 @@
-import { useRef, useMemo } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
 import type { PricingModel } from '../types'
 import { ModelRow } from './model-row'
@@ -12,7 +11,6 @@ export interface VirtualModelListProps {
   models: PricingModel[]
   onModelClick: (modelName: string) => void
   estimateSize?: number
-  height?: string | number
   overscan?: number
 }
 
@@ -20,15 +18,11 @@ export function VirtualModelList({
   models,
   onModelClick,
   estimateSize = 140,
-  height = '70vh',
   overscan = 5,
 }: VirtualModelListProps) {
-  const parentRef = useRef<HTMLDivElement>(null)
-
-  // Memoize virtualizer to prevent unnecessary re-calculations
-  const virtualizer = useVirtualizer({
+  // Window-based virtualizer - page scroll controls virtualization
+  const virtualizer = useWindowVirtualizer({
     count: models.length,
-    getScrollElement: () => parentRef.current,
     estimateSize: () => estimateSize,
     overscan,
     measureElement:
@@ -39,25 +33,12 @@ export function VirtualModelList({
   })
 
   const items = virtualizer.getVirtualItems()
-
-  // Calculate the height style
-  const heightStyle = useMemo(() => {
-    if (typeof height === 'number') return `${height}px`
-    return height
-  }, [height])
-
-  // Memoize total size to reduce recalculations
   const totalSize = virtualizer.getTotalSize()
 
   return (
     <div
-      ref={parentRef}
-      className='border-border/40 overflow-auto rounded-lg border'
-      style={{
-        height: heightStyle,
-        maxHeight: 'calc(100vh - 20rem)',
-        contain: 'strict',
-      }}
+      className='border-border/40 rounded-lg border'
+      style={{ height: `${totalSize}px`, position: 'relative' }}
     >
       <div
         style={{
