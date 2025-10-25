@@ -23,7 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import {
+  DataTablePagination,
+  DataTableToolbar,
+  TableSkeleton,
+  TableEmpty,
+} from '@/components/data-table'
 import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
@@ -185,15 +190,14 @@ export function UsersTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
+              <TableSkeleton table={table} keyPrefix='users-skeleton' />
+            ) : table.getRowModel().rows.length === 0 ? (
+              <TableEmpty
+                colSpan={columns.length}
+                title='No Users Found'
+                description='No users available. Try adjusting your search or filters.'
+              />
+            ) : (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -214,15 +218,6 @@ export function UsersTable() {
                   ))}
                 </TableRow>
               ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
             )}
           </TableBody>
         </Table>

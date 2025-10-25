@@ -22,7 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import {
+  DataTablePagination,
+  DataTableToolbar,
+  TableSkeleton,
+  TableEmpty,
+} from '@/components/data-table'
 import { getRedemptions, searchRedemptions } from '../api'
 import { REDEMPTION_STATUS, REDEMPTION_STATUS_OPTIONS } from '../constants'
 import { isRedemptionExpired } from '../lib'
@@ -159,15 +164,14 @@ export function RedemptionsTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
+              <TableSkeleton table={table} keyPrefix='redemptions-skeleton' />
+            ) : table.getRowModel().rows.length === 0 ? (
+              <TableEmpty
+                colSpan={columns.length}
+                title='No Redemption Codes Found'
+                description='No redemption codes available. Create your first redemption code to get started.'
+              />
+            ) : (
               table.getRowModel().rows.map((row) => {
                 const redemption = row.original
                 const isDisabled =
@@ -194,15 +198,6 @@ export function RedemptionsTable() {
                   </TableRow>
                 )
               })
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='h-24 text-center'
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
             )}
           </TableBody>
         </Table>

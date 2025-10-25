@@ -695,7 +695,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
 
         return <DataTableRowActions row={row} />
       },
-      size: 300,
+      size: 100,
       enableSorting: false,
       enableHiding: false,
     },
