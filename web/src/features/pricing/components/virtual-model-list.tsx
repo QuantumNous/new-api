@@ -50,10 +50,14 @@ export function VirtualModelList({
         {items.map((virtualItem) => {
           const model = models[virtualItem.index]
           const isLast = virtualItem.index === models.length - 1
+          const reactKey =
+            model.id != null
+              ? `m-${model.id}`
+              : `${model.vendor_id ?? model.vendor_name ?? 'v-unknown'}-${model.model_name}-${virtualItem.index}`
 
           return (
             <div
-              key={model.model_name}
+              key={reactKey}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
               className={cn(
