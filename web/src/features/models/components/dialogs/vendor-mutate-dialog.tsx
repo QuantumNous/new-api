@@ -1,0 +1,186 @@
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { createVendor, updateVendor } from '../../api'
+import { vendorsQueryKeys, modelsQueryKeys } from '../../lib'
+import { vendorFormSchema, type Vendor } from '../../types'
+
+type VendorMutateDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  currentVendor?: Vendor | null
+}
+
+export function VendorMutateDialog({
+  open,
+  onOpenChange,
+  currentVendor,
+}: VendorMutateDialogProps) {
+  const queryClient = useQueryClient()
+  const isEdit = Boolean(currentVendor?.id)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const form = useForm({
+    resolver: zodResolver(vendorFormSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      icon: '',
+      status: 1,
+    },
+  })
+
+  // Load vendor data for editing
+  useEffect(() => {
+    if (open && isEdit && currentVendor) {
+      form.reset({
+        id: currentVendor.id,
+        name: currentVendor.name,
+        description: currentVendor.description || '',
+        icon: currentVendor.icon || '',
+        status: currentVendor.status || 1,
+      })
+    } else if (open && !isEdit) {
+      form.reset({
+        name: '',
+        description: '',
+        icon: '',
+        status: 1,
+      })
+    }
+  }, [open, isEdit, currentVendor, form])
+
+  const onSubmit = async (values: any) => {
+    setIsSaving(true)
+    try {
+      const response = isEdit
+        ? await updateVendor({ ...values, id: currentVendor!.id })
+        : await createVendor(values)
+
+      if (response.success) {
+        toast.success(
+          isEdit ? 'Vendor updated successfully' : 'Vendor created successfully'
+        )
+        queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+        onOpenChange(false)
+      } else {
+        toast.error(response.message || 'Operation failed')
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Operation failed')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Edit Vendor' : 'Create Vendor'}</DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? `Update vendor information for ${currentVendor?.name}`
+              : 'Add a new vendor to the system'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+            <FormField
+              control={form.control}
+              name='name'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Vendor Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder='OpenAI, Anthropic, etc.' {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    The unique name for this vendor
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='description'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder='Describe this vendor...'
+                      rows={3}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='icon'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Icon</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='OpenAI, Anthropic, Google, etc.'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>@lobehub/icons key name</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => onOpenChange(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button type='submit' disabled={isSaving}>
+                {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+                {isSaving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}

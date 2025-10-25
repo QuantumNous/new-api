@@ -45,6 +45,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
 import {
   createChannel,
@@ -82,7 +83,6 @@ import {
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
-import { JsonEditor } from '../json-editor'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
 type ChannelMutateDrawerProps = {

@@ -73,28 +73,66 @@ func (mi *Model) Delete() error {
 	return DB.Delete(mi).Error
 }
 
-func GetVendorModelCounts() (map[int64]int64, error) {
+func GetVendorModelCounts(status string, syncOfficial string) (map[string]int64, error) {
 	var stats []struct {
 		VendorID int64
 		Count    int64
 	}
-	if err := DB.Model(&Model{}).
-		Select("vendor_id as vendor_id, count(*) as count").
+
+	db := DB.Model(&Model{})
+	db = applyModelFilters(db, status, syncOfficial)
+
+	if err := db.Select("vendor_id, count(*) as count").
 		Group("vendor_id").
 		Scan(&stats).Error; err != nil {
 		return nil, err
 	}
-	m := make(map[int64]int64, len(stats))
+
+	result := make(map[string]int64, len(stats)+1)
+	var total int64
 	for _, s := range stats {
-		m[s.VendorID] = s.Count
+		result[strconv.FormatInt(s.VendorID, 10)] = s.Count
+		total += s.Count
 	}
-	return m, nil
+	result["all"] = total
+	return result, nil
 }
 
-func GetAllModels(offset int, limit int) ([]*Model, error) {
+// applyModelFilters 应用status和sync_official筛选条件（公共函数）
+func applyModelFilters(db *gorm.DB, status string, syncOfficial string) *gorm.DB {
+	// Filter by status
+	if status == "enabled" {
+		db = db.Where("status = ?", 1)
+	} else if status == "disabled" {
+		db = db.Where("status != ?", 1)
+	}
+
+	// Filter by sync_official
+	if syncOfficial == "yes" {
+		db = db.Where("sync_official = ?", 1)
+	} else if syncOfficial == "no" {
+		db = db.Where("sync_official != ?", 1)
+	}
+
+	return db
+}
+
+func GetAllModels(offset int, limit int, status string, syncOfficial string) ([]*Model, int64, error) {
 	var models []*Model
-	err := DB.Order("id DESC").Offset(offset).Limit(limit).Find(&models).Error
-	return models, err
+	db := DB.Model(&Model{})
+
+	// Apply filters
+	db = applyModelFilters(db, status, syncOfficial)
+
+	// Count total
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch data
+	err := db.Order("id DESC").Offset(offset).Limit(limit).Find(&models).Error
+	return models, total, err
 }
 
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
@@ -123,13 +161,17 @@ func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel
 	return result, nil
 }
 
-func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Model, int64, error) {
+func SearchModels(keyword string, vendor string, status string, syncOfficial string, offset int, limit int) ([]*Model, int64, error) {
 	var models []*Model
 	db := DB.Model(&Model{})
+
+	// Apply keyword filter
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		db = db.Where("model_name LIKE ? OR description LIKE ? OR tags LIKE ?", like, like, like)
 	}
+
+	// Apply vendor filter
 	if vendor != "" {
 		if vid, err := strconv.Atoi(vendor); err == nil {
 			db = db.Where("models.vendor_id = ?", vid)
@@ -137,12 +179,20 @@ func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Mode
 			db = db.Joins("JOIN vendors ON vendors.id = models.vendor_id").Where("vendors.name LIKE ?", "%"+vendor+"%")
 		}
 	}
+
+	// Apply common filters (status and sync_official)
+	db = applyModelFilters(db, status, syncOfficial)
+
+	// Count total
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
+
+	// Fetch data
 	if err := db.Order("models.id DESC").Offset(offset).Limit(limit).Find(&models).Error; err != nil {
 		return nil, 0, err
 	}
+
 	return models, total, nil
 }

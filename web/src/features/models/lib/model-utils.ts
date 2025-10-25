@@ -1,0 +1,171 @@
+import { NAME_RULE_CONFIG, QUOTA_TYPE_CONFIG } from '../constants'
+import type { NameRule, Model } from '../types'
+
+// ============================================================================
+// Time Formatting
+// ============================================================================
+
+/**
+ * Format timestamp to locale string
+ */
+export function formatTimestamp(timestamp: number): string {
+  if (!timestamp || timestamp === 0) return '-'
+  return new Date(timestamp * 1000).toLocaleString()
+}
+
+/**
+ * Format relative time
+ */
+export function formatRelativeTime(timestamp: number): string {
+  if (!timestamp || timestamp === 0) return 'Never'
+
+  const now = Date.now()
+  const time = timestamp * 1000
+  const diff = now - time
+
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
+  return `${seconds} second${seconds !== 1 ? 's' : ''} ago`
+}
+
+// ============================================================================
+// Tags Parsing
+// ============================================================================
+
+/**
+ * Parse tags string to array
+ */
+export function parseModelTags(tags: string | undefined): string[] {
+  if (!tags) return []
+  return tags
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Format tags array to string
+ */
+export function formatTagsString(tags: string[]): string {
+  return tags.join(',')
+}
+
+// ============================================================================
+// Endpoints Parsing
+// ============================================================================
+
+/**
+ * Parse endpoints JSON string
+ */
+export function parseEndpoints(
+  endpoints: string | undefined
+): Record<string, any> | any[] | null {
+  if (!endpoints || endpoints.trim() === '') return null
+
+  try {
+    return JSON.parse(endpoints)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Format endpoints to display
+ */
+export function formatEndpointsDisplay(
+  endpoints: string | undefined
+): string[] {
+  const parsed = parseEndpoints(endpoints)
+  if (!parsed) return []
+
+  if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+    return Object.keys(parsed)
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed.map(String)
+  }
+
+  return []
+}
+
+// ============================================================================
+// Name Rule Utils
+// ============================================================================
+
+/**
+ * Get name rule label
+ */
+export function getNameRuleLabel(rule: NameRule): string {
+  return NAME_RULE_CONFIG[rule]?.label || '-'
+}
+
+/**
+ * Get name rule config
+ */
+export function getNameRuleConfig(rule: NameRule) {
+  return NAME_RULE_CONFIG[rule] || NAME_RULE_CONFIG[0]
+}
+
+// ============================================================================
+// Quota Type Utils
+// ============================================================================
+
+/**
+ * Format quota types array
+ */
+export function formatQuotaTypes(quotaTypes: number[] | undefined): string {
+  if (!quotaTypes || quotaTypes.length === 0) return '-'
+  return quotaTypes
+    .map((qt) => QUOTA_TYPE_CONFIG[qt]?.label || String(qt))
+    .join(', ')
+}
+
+// ============================================================================
+// Model Validation
+// ============================================================================
+
+/**
+ * Validate model name
+ */
+export function validateModelName(name: string): boolean {
+  return name.trim().length > 0
+}
+
+/**
+ * Validate endpoints JSON
+ */
+export function validateEndpointsJSON(endpoints: string): boolean {
+  if (!endpoints || endpoints.trim() === '') return true
+
+  try {
+    JSON.parse(endpoints)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ============================================================================
+// Model Status Utils
+// ============================================================================
+
+/**
+ * Check if model is enabled
+ */
+export function isModelEnabled(model: Model): boolean {
+  return model.status === 1
+}
+
+/**
+ * Check if model syncs with official
+ */
+export function isModelSyncOfficial(model: Model): boolean {
+  return model.sync_official === 1
+}
