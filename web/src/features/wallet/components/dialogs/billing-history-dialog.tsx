@@ -12,7 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -32,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusBadge } from '@/components/status-badge'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,
@@ -181,9 +181,12 @@ export function BillingHistoryDialog({
                               {formatTimestamp(record.create_time)}
                             </div>
                           </div>
-                          <Badge variant={statusConfig.variant}>
-                            {statusConfig.label}
-                          </Badge>
+                          <StatusBadge
+                            label={statusConfig.label}
+                            variant={statusConfig.variant}
+                            showDot
+                            copyable={false}
+                          />
                         </div>
 
                         {/* Details Grid */}

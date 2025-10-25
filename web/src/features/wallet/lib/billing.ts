@@ -1,14 +1,13 @@
 import { formatTimestampToDate } from '@/lib/format'
+import type { StatusBadgeProps } from '@/components/status-badge'
 import type { TopupStatus } from '../types'
 
 // ============================================================================
 // Billing Utility Functions
 // ============================================================================
 
-type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
-
 interface StatusConfig {
-  variant: BadgeVariant
+  variant: StatusBadgeProps['variant']
   label: string
 }
 
@@ -17,15 +16,15 @@ interface StatusConfig {
  */
 export const STATUS_CONFIG: Record<TopupStatus, StatusConfig> = {
   success: {
-    variant: 'default',
+    variant: 'success',
     label: 'Success',
   },
   pending: {
-    variant: 'secondary',
+    variant: 'warning',
     label: 'Pending',
   },
   expired: {
-    variant: 'destructive',
+    variant: 'danger',
     label: 'Expired',
   },
 }
