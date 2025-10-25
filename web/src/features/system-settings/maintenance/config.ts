@@ -109,9 +109,7 @@ export function parseHeaderNavModules(
 
     Object.entries(parsed).forEach(([key, raw]) => {
       if (key === 'pricing') {
-        if (typeof raw === 'boolean') {
-          result.pricing = { enabled: raw, requireAuth: false }
-        } else if (raw && typeof raw === 'object') {
+        if (raw && typeof raw === 'object') {
           const rawPricing = raw as Record<string, unknown>
           result.pricing = {
             enabled: toBoolean(
@@ -153,7 +151,8 @@ export function parseSidebarModulesAdmin(
   value: string | null | undefined
 ): SidebarModulesAdminConfig {
   const defaults = cloneSidebarDefault()
-  if (!value) return defaults
+  // If empty string, null, or undefined, use default config
+  if (!value || value.trim() === '') return defaults
 
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>

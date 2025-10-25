@@ -9,9 +9,18 @@ export type TopNavLink = {
   external?: boolean
 }
 
+// Default navigation configuration
+const DEFAULT_HEADER_NAV_MODULES = {
+  home: true,
+  console: true,
+  pricing: { enabled: true, requireAuth: false },
+  docs: true,
+  about: true,
+}
+
 /**
- * 依据后端 /api/status 返回的 HeaderNavModules 配置生成顶部导航链接
- * 后端格式示例（字符串化 JSON）：
+ * Generate top navigation links based on HeaderNavModules configuration from backend /api/status
+ * Backend format example (stringified JSON):
  * {
  *   home: true,
  *   console: true,
@@ -24,26 +33,22 @@ export function useTopNavLinks(): TopNavLink[] {
   const { status } = useStatus()
   const { auth } = useAuthStore()
 
-  // 解析 HeaderNavModules
+  // Parse HeaderNavModules
   const modules = useMemo(() => {
     const raw = status?.HeaderNavModules
-    if (!raw) {
-      return null as null | {
-        home?: boolean
-        console?: boolean
-        pricing?: { enabled: boolean; requireAuth: boolean }
-        docs?: boolean
-        about?: boolean
-      }
+    // If empty string, null, or undefined, use default config
+    if (!raw || raw.trim() === '') {
+      return DEFAULT_HEADER_NAV_MODULES
     }
     try {
       return JSON.parse(raw)
     } catch {
-      return null
+      // Parse failed, use default config
+      return DEFAULT_HEADER_NAV_MODULES
     }
   }, [status?.HeaderNavModules])
 
-  // 文档链接（可能是外链）
+  // Documentation link (may be external)
   const docsLink: string | undefined = status?.docs_link
 
   const isAuthed = !!auth?.user
@@ -55,7 +60,7 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: 'Home', href: '/' })
   }
 
-  // Console -> /dashboard（新控制台路径）
+  // Console -> /dashboard (new console path)
   if (modules?.console !== false) {
     links.push({ title: 'Console', href: '/dashboard' })
   }
@@ -67,7 +72,7 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: 'Pricing', href: '/pricing', disabled })
   }
 
-  // Docs（支持外链）
+  // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {
       links.push({ title: 'Docs', href: docsLink, external: true })

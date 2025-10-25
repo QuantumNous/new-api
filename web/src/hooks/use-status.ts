@@ -1,39 +1,42 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getStatus } from '@/lib/api'
 import type { SystemStatus } from '@/features/auth/types'
 
-export function useStatus() {
-  const [status, setStatus] = useState<SystemStatus | null>(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const saved = window.localStorage.getItem('status')
-        return saved ? (JSON.parse(saved) as SystemStatus) : null
-      }
-    } catch {}
-    return null
-  })
-  const [loading, setLoading] = useState(!status)
-
-  useEffect(() => {
-    let mounted = true
-    getStatus()
-      .then((s) => {
-        if (!mounted) return
-        setStatus((s ?? null) as SystemStatus | null)
-        try {
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem('status', JSON.stringify(s))
-          }
-        } catch {}
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
-    return () => {
-      mounted = false
+// Get initial cache from localStorage
+function getInitialStatus(): SystemStatus | undefined {
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('status')
+      return saved ? (JSON.parse(saved) as SystemStatus) : undefined
     }
-  }, [])
+  } catch {}
+  return undefined
+}
 
-  return { status, loading }
+export function useStatus() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['status'],
+    queryFn: async () => {
+      const status = await getStatus()
+      // Save to localStorage
+      try {
+        if (typeof window !== 'undefined' && status) {
+          window.localStorage.setItem('status', JSON.stringify(status))
+        }
+      } catch {}
+      return status as SystemStatus | null
+    },
+    // Use localStorage data as initial data
+    placeholderData: getInitialStatus(),
+    // Data becomes stale after 5 minutes
+    staleTime: 5 * 60 * 1000,
+    // Cache expires after 30 minutes
+    gcTime: 30 * 60 * 1000,
+  })
+
+  return {
+    status: data ?? null,
+    loading: isLoading,
+    error,
+  }
 }

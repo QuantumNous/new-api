@@ -3,6 +3,7 @@ import { useLocation } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +18,7 @@ import { WorkspaceSwitcher } from './workspace-switcher'
 /**
  * 应用侧边栏组件
  * 根据当前路径从工作区注册表获取对应的导航菜单
+ * 根据后端 SidebarModulesAdmin 配置动态过滤导航项
  *
  * 通过工作区注册表系统自动匹配当前路径对应的工作区配置
  * 添加新工作区只需在 workspace-registry.ts 中注册即可
@@ -29,17 +31,20 @@ export function AppSidebar() {
   // 从工作区注册表获取当前路径对应的导航组配置
   const allNavGroups = getNavGroupsForPath(pathname)
 
+  // 根据后端配置过滤侧边栏导航项
+  const configFilteredNavGroups = useSidebarConfig(allNavGroups)
+
   // 根据用户角色过滤导航组
   // 非 Admin 用户不显示 Admin 导航组
   const currentNavGroups = useMemo(() => {
     const isAdmin = userRole && userRole >= ROLE.ADMIN
-    return allNavGroups.filter((group) => {
+    return configFilteredNavGroups.filter((group) => {
       if (group.title === 'Admin') {
         return isAdmin
       }
       return true
     })
-  }, [allNavGroups, userRole])
+  }, [configFilteredNavGroups, userRole])
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
