@@ -27,10 +27,10 @@ export function SearchProvider({ children }: SearchProviderProps) {
   }, [])
 
   return (
-    <SearchContext value={{ open, setOpen }}>
+    <SearchContext.Provider value={{ open, setOpen }}>
       {children}
       <CommandMenu />
-    </SearchContext>
+    </SearchContext.Provider>
   )
 }
 
