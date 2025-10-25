@@ -402,7 +402,7 @@ export function ModelDetails() {
   const handleBack = () => {
     navigate({
       to: '/pricing',
-      search: (prev) => prev,
+      search: true,
     })
   }
 
