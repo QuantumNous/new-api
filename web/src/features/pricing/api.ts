@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import type { PricingData } from './type'
+import type { PricingData } from './types'
 
 // ----------------------------------------------------------------------------
 // Pricing APIs

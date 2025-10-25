@@ -1,321 +1,258 @@
-import { useMemo, useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Filter } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { PublicLayout } from '@/components/layout'
-import { PricingCardView } from './components/pricing-card-view'
-import { PricingFilterDrawer } from './components/pricing-filter-drawer'
-import { PricingSidebar } from './components/pricing-sidebar'
-import { PricingTable } from './components/pricing-table'
-import { PricingViewToggle } from './components/pricing-view-toggle'
+import { StatusBadge } from '@/components/status-badge'
+import {
+  LoadingSkeleton,
+  ModelRow,
+  EmptyState,
+  SearchBar,
+  ActiveFilterTags,
+  MobileFilters,
+  DesktopSidebar,
+} from './components'
+import {
+  SORT_LABELS,
+  QUOTA_TYPES,
+  ENDPOINT_TYPES,
+  FILTER_ALL,
+  EXCLUDED_GROUPS,
+} from './constants'
+import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
+import { useUIState } from './hooks/use-ui-state'
 
-type PricingFilters = {
-  vendor: string
-  group: string
-  endpoint: string
-  tag: string
-  quota: 'all' | '0' | '1'
-}
-
-function PricingCardSkeleton() {
-  return (
-    <div className='flex justify-center'>
-      <div className='w-full max-w-3xl space-y-6'>
-        <div className='flex items-center justify-between gap-4 py-4'>
-          <div className='flex flex-1 items-center gap-2'>
-            <Skeleton className='h-9 w-full max-w-[300px]' />
-            <Skeleton className='h-9 w-24 rounded-md md:hidden' />
-          </div>
-          <Skeleton className='h-5 w-16' />
-        </div>
-
-        <div className='space-y-0'>
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index}>
-              <div className='space-y-3 py-6'>
-                <div className='flex items-center gap-2'>
-                  <Skeleton className='h-6 w-40' />
-                  <Skeleton className='h-6 w-6 rounded-full' />
-                </div>
-                <Skeleton className='h-4 w-full' />
-                <Skeleton className='h-4 w-2/3' />
-                <div className='flex flex-wrap items-center gap-2 pt-1'>
-                  <Skeleton className='h-4 w-24' />
-                  <Skeleton className='h-4 w-20' />
-                  <Skeleton className='h-4 w-28' />
-                </div>
-                <div className='flex flex-wrap gap-1.5 pt-1'>
-                  {Array.from({ length: 4 }).map((_, tagIndex) => (
-                    <Skeleton
-                      key={tagIndex}
-                      className='h-6 w-20 rounded-full'
-                    />
-                  ))}
-                </div>
-              </div>
-              {index < 3 && <div className='bg-border h-px w-full' />}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
+// ----------------------------------------------------------------------------
+// Pricing Page Component
+// ----------------------------------------------------------------------------
 
 export function Pricing() {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
+  const { models, vendors, usableGroup, isLoading } = usePricingData()
 
   const {
-    models,
-    vendors,
-    groupRatio,
-    usableGroup,
-    endpointMap,
-    isLoading,
-    priceRate,
-    usdExchangeRate,
-  } = usePricingData()
+    searchInput,
+    sortBy,
+    vendorFilter,
+    groupFilter,
+    quotaTypeFilter,
+    endpointTypeFilter,
+    tagFilter,
+    setSearchInput,
+    setSortBy,
+    setVendorFilter,
+    setGroupFilter,
+    setQuotaTypeFilter,
+    setEndpointTypeFilter,
+    setTagFilter,
+    filteredModels,
+    hasActiveFilters,
+    activeFilterCount,
+    availableTags,
+    clearFilters,
+    clearSearch,
+  } = useFilters({
+    models: models || [],
+    initialSearch: search.search,
+  })
 
-  const filters: PricingFilters = {
-    vendor: search.vendor || 'all',
-    group: search.group || 'all',
-    endpoint: search.endpoint || 'all',
-    tag: search.tag || 'all',
-    quota: (search.quota as PricingFilters['quota']) || 'all',
-  }
+  const {
+    showMobileFilters,
+    openSections,
+    expandedFilters,
+    toggleSection,
+    toggleExpandFilter,
+    toggleMobileFilters,
+    closeMobileFilters,
+  } = useUIState()
 
-  const currency = (search.currency as 'USD' | 'CNY') || 'USD'
-  const tokenUnit = (search.tokenUnit as 'M' | 'K') || 'M'
-  const showWithRecharge = search.showRecharge === 'true'
-  const view = ((search as any).view as 'table' | 'card') || 'card'
-
-  // Force card view on mobile
-  const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768
-  const effectiveView = isMobileView ? 'card' : view
-
-  const updateSearch = useCallback(
-    (updates: Partial<typeof search>) => {
+  const handleModelClick = useCallback(
+    (modelName: string) => {
       navigate({
-        search: (prev) => ({ ...prev, ...updates }),
+        to: '/pricing/$modelId',
+        params: { modelId: modelName },
       })
     },
     [navigate]
   )
 
-  const handleFilterChange = useCallback(
-    <K extends keyof PricingFilters>(key: K, value: PricingFilters[K]) => {
-      if (value === 'all') {
-        navigate({
-          search: (prev) => {
-            const { [key]: _, ...rest } = prev
-            return rest
-          },
-        })
-      } else {
-        updateSearch({ [key]: value })
-      }
-    },
-    [navigate, updateSearch]
+  const availableGroups = useMemo(
+    () =>
+      Object.keys(usableGroup || {}).filter(
+        (g) => !EXCLUDED_GROUPS.includes(g)
+      ),
+    [usableGroup]
   )
 
-  const handleReset = useCallback(() => {
-    navigate({
-      search: (prev: any) => {
-        // Preserve view mode and display settings when resetting filters
-        const { view, currency, tokenUnit, showRecharge } = prev
-        const preserved: any = {}
-        if (view) preserved.view = view
-        if (currency) preserved.currency = currency
-        if (tokenUnit) preserved.tokenUnit = tokenUnit
-        if (showRecharge) preserved.showRecharge = showRecharge
-        return preserved
-      },
-    })
-  }, [navigate])
-
-  const getFilteredModels = useCallback(
-    (overrides?: Partial<PricingFilters>) => {
-      if (!models || models.length === 0) return []
-
-      const activeFilters = { ...filters, ...overrides }
-
-      return models.filter((model) => {
-        if (!model) return false
-
-        if (activeFilters.vendor !== 'all') {
-          if (activeFilters.vendor === 'unknown') {
-            if (model.vendor_name) return false
-          } else {
-            if (model.vendor_name !== activeFilters.vendor) return false
-          }
-        }
-
-        if (activeFilters.tag !== 'all') {
-          if (!model.tags) return false
-          const modelTags = model.tags
-            .toLowerCase()
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-          if (!modelTags.includes(activeFilters.tag.toLowerCase())) return false
-        }
-
-        if (activeFilters.group !== 'all') {
-          const groups = Array.isArray(model.enable_groups)
-            ? model.enable_groups
-            : []
-          if (!groups.includes(activeFilters.group)) return false
-        }
-
-        if (activeFilters.endpoint !== 'all') {
-          const endpoints = Array.isArray(model.supported_endpoint_types)
-            ? model.supported_endpoint_types
-            : []
-          if (!endpoints.includes(activeFilters.endpoint)) return false
-        }
-
-        if (activeFilters.quota !== 'all') {
-          const quotaValue = parseInt(activeFilters.quota)
-          if (model.quota_type !== quotaValue) return false
-        }
-
-        return true
-      })
-    },
-    [filters, models]
-  )
-
-  const filteredModels = useMemo(() => getFilteredModels(), [getFilteredModels])
-
-  const filterProps = {
-    filters,
-    onFilterChange: handleFilterChange,
-    onReset: handleReset,
-    getFilteredModels,
-    models: models || [],
-    vendors: vendors || [],
-    usableGroup: usableGroup || {},
-    groupRatio: groupRatio || {},
-    endpointMap: endpointMap || {},
-    isLoading,
-    currency,
-    onCurrencyChange: (value: 'USD' | 'CNY') => {
-      if (value === 'USD') {
-        navigate({
-          search: (prev) => {
-            const { currency, ...rest } = prev
-            return rest
-          },
-        })
-      } else {
-        updateSearch({ currency: value })
-      }
-    },
-    tokenUnit,
-    onTokenUnitChange: (value: 'M' | 'K') => {
-      if (value === 'M') {
-        navigate({
-          search: (prev) => {
-            const { tokenUnit, ...rest } = prev
-            return rest
-          },
-        })
-      } else {
-        updateSearch({ tokenUnit: value })
-      }
-    },
-    showWithRecharge,
-    onShowWithRechargeChange: (value: boolean) => {
-      if (!value) {
-        navigate({
-          search: (prev) => {
-            const { showRecharge, ...rest } = prev
-            return rest
-          },
-        })
-      } else {
-        updateSearch({ showRecharge: 'true' })
-      }
-    },
+  if (isLoading) {
+    return (
+      <PublicLayout>
+        <div className='mx-auto max-w-7xl px-4 sm:px-6'>
+          <LoadingSkeleton />
+        </div>
+      </PublicLayout>
+    )
   }
 
   return (
     <PublicLayout>
-      <div className='flex gap-6'>
-        <div className='hidden w-72 shrink-0 md:block'>
-          {!isLoading && models.length > 0 ? (
-            <PricingSidebar {...filterProps} />
-          ) : (
-            <div className='space-y-4'>
-              <Skeleton className='h-12 w-full' />
-              <Skeleton className='h-12 w-full' />
-              <Skeleton className='h-12 w-full' />
-            </div>
-          )}
-        </div>
+      <div className='mx-auto max-w-7xl px-4 sm:px-6'>
+        {/* Header */}
+        <header className='animate-appear mb-6 space-y-1'>
+          <h2 className='text-2xl font-bold tracking-tight'>Models</h2>
+          <p className='text-muted-foreground text-sm'>
+            Browse and compare {models?.length || 0} AI models
+          </p>
+        </header>
 
-        <div className='min-w-0 flex-1 space-y-4'>
-          <div className='flex items-center justify-between gap-4'>
-            <div>
-              <h2 className='text-2xl font-bold tracking-tight'>Pricing</h2>
-              <p className='text-muted-foreground text-sm'>
-                View pricing for all available models ({filteredModels.length}{' '}
-                models)
-              </p>
-            </div>
-            <PricingViewToggle
-              view={view}
-              onViewChange={(newView) => {
-                if (newView === 'card') {
-                  // Card is default, remove view param
-                  navigate({
-                    search: (prev: any) => {
-                      const { view, ...rest } = prev
-                      return rest
-                    },
-                  })
-                } else {
-                  // Table view, set explicitly
-                  updateSearch({ view: newView } as any)
-                }
-              }}
-            />
-          </div>
+        {/* Main Layout */}
+        <div className='flex gap-8'>
+          {/* Sidebar Filters - Desktop */}
+          <DesktopSidebar
+            quotaTypeFilter={quotaTypeFilter}
+            endpointTypeFilter={endpointTypeFilter}
+            vendorFilter={vendorFilter}
+            groupFilter={groupFilter}
+            tagFilter={tagFilter}
+            onQuotaTypeChange={setQuotaTypeFilter}
+            onEndpointTypeChange={setEndpointTypeFilter}
+            onVendorChange={setVendorFilter}
+            onGroupChange={setGroupFilter}
+            onTagChange={setTagFilter}
+            vendors={vendors || []}
+            groups={availableGroups}
+            tags={availableTags}
+            openSections={openSections}
+            onToggleSection={toggleSection}
+            expandedFilters={expandedFilters}
+            onToggleExpandFilter={toggleExpandFilter}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={clearFilters}
+          />
 
-          {isLoading ? (
-            effectiveView === 'card' ? (
-              <PricingCardSkeleton />
-            ) : (
-              <div className='space-y-4'>
-                <Skeleton className='h-12 w-full' />
-                <Skeleton className='h-[400px] w-full' />
+          {/* Main Content */}
+          <main className='animate-appear animation-delay-100 min-w-0 flex-1'>
+            {/* Search and Controls Bar */}
+            <div className='mb-6 space-y-4'>
+              {/* Search Bar */}
+              <SearchBar
+                value={searchInput}
+                onChange={setSearchInput}
+                onClear={clearSearch}
+              />
+
+              {/* Controls Bar */}
+              <div className='flex items-center justify-between gap-4'>
+                {/* Results Count & Filter Button (Mobile) */}
+                <div className='flex items-center gap-3'>
+                  <p className='text-muted-foreground text-sm'>
+                    {filteredModels.length}{' '}
+                    {filteredModels.length === 1 ? 'model' : 'models'}
+                  </p>
+                  {/* Mobile Filter Toggle */}
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={toggleMobileFilters}
+                    className='gap-2 lg:hidden'
+                  >
+                    <Filter className='h-4 w-4' />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <StatusBadge
+                        label={String(activeFilterCount)}
+                        variant='neutral'
+                        size='sm'
+                        rounded='full'
+                        copyable={false}
+                        className='ml-0.5'
+                      />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Sort Dropdown */}
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className='w-[180px]'>
+                    <SelectValue placeholder='Sort by' />
+                  </SelectTrigger>
+                  <SelectContent align='end'>
+                    {Object.entries(SORT_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )
-          ) : effectiveView === 'card' ? (
-            <PricingCardView
-              models={filteredModels}
-              currency={currency}
-              tokenUnit={tokenUnit}
-              showWithRecharge={showWithRecharge}
-              priceRate={priceRate}
-              usdExchangeRate={usdExchangeRate}
-              filterButton={
-                !isLoading && models.length > 0 ? (
-                  <PricingFilterDrawer {...filterProps} />
-                ) : null
-              }
-            />
-          ) : (
-            <PricingTable
-              models={filteredModels}
-              currency={currency}
-              tokenUnit={tokenUnit}
-              showWithRecharge={showWithRecharge}
-              priceRate={priceRate}
-              usdExchangeRate={usdExchangeRate}
-            />
-          )}
+
+              {/* Mobile Filters */}
+              <MobileFilters
+                show={showMobileFilters}
+                onClose={closeMobileFilters}
+                quotaTypeFilter={quotaTypeFilter}
+                endpointTypeFilter={endpointTypeFilter}
+                vendorFilter={vendorFilter}
+                groupFilter={groupFilter}
+                tagFilter={tagFilter}
+                onQuotaTypeChange={setQuotaTypeFilter}
+                onEndpointTypeChange={setEndpointTypeFilter}
+                onVendorChange={setVendorFilter}
+                onGroupChange={setGroupFilter}
+                onTagChange={setTagFilter}
+                vendors={vendors || []}
+                groups={availableGroups}
+                tags={availableTags}
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={clearFilters}
+              />
+
+              {/* Active Filter Tags (Desktop) */}
+              <ActiveFilterTags
+                vendorFilter={vendorFilter}
+                groupFilter={groupFilter}
+                quotaTypeFilter={quotaTypeFilter}
+                endpointTypeFilter={endpointTypeFilter}
+                tagFilter={tagFilter}
+                onRemoveVendor={() => setVendorFilter(FILTER_ALL)}
+                onRemoveGroup={() => setGroupFilter(FILTER_ALL)}
+                onRemoveQuotaType={() => setQuotaTypeFilter(QUOTA_TYPES.ALL)}
+                onRemoveEndpointType={() =>
+                  setEndpointTypeFilter(ENDPOINT_TYPES.ALL)
+                }
+                onRemoveTag={() => setTagFilter(FILTER_ALL)}
+              />
+            </div>
+
+            {/* Model List */}
+            {filteredModels.length > 0 ? (
+              <div className='divide-border/30 border-border/40 divide-y rounded-lg border'>
+                {filteredModels.map((model) => (
+                  <ModelRow
+                    key={model.model_name}
+                    model={model}
+                    onClick={() => handleModelClick(model.model_name || '')}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                searchQuery={searchInput}
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={clearFilters}
+              />
+            )}
+          </main>
         </div>
       </div>
     </PublicLayout>

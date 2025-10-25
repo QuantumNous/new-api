@@ -1,3 +1,7 @@
+// ----------------------------------------------------------------------------
+// Pricing Types
+// ----------------------------------------------------------------------------
+
 export type PricingVendor = {
   id: number
   name: string
@@ -34,3 +38,8 @@ export type PricingData = {
   supported_endpoint: Record<string, string>
   auto_groups: string[]
 }
+
+export type Currency = 'USD' | 'CNY'
+export type TokenUnit = 'M' | 'K'
+export type PriceType = 'input' | 'output'
+export type QuotaType = 0 | 1 // 0: token-based, 1: per-request

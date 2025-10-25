@@ -1,113 +1,73 @@
 import { useMemo } from 'react'
-import { useParams, useSearch, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, Copy, Link2, DollarSign } from 'lucide-react'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useParams, useNavigate } from '@tanstack/react-router'
+import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CopyButton } from '@/components/copy-button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import { usePricingData } from '../hooks/use-pricing-data'
-import type { PricingModel } from '../type'
-import { formatGroupPrice, formatFixedPrice } from '../utils/price-calculator'
+import { parseTags } from '../lib/filters'
+import {
+  getAvailableGroups,
+  replaceModelInPath,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
+import { formatGroupPrice, formatFixedPrice } from '../lib/price'
+import type { PricingModel } from '../types'
 
 function ModelHeader({ model }: { model: PricingModel }) {
-  const { copyToClipboard } = useCopyToClipboard()
-
-  const getModelIcon = () => {
-    if (model.vendor_icon) {
-      return (
-        <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-2xl shadow-sm'>
-          {getLobeIcon(model.vendor_icon, 40)}
-        </div>
-      )
-    }
-
-    const avatarText = model.model_name?.slice(0, 2).toUpperCase() || 'AI'
-    return (
-      <div className='bg-primary text-primary-foreground flex h-16 w-16 items-center justify-center rounded-2xl text-xl font-bold shadow-sm'>
-        {avatarText}
-      </div>
-    )
-  }
-
   return (
-    <div className='flex items-center gap-4'>
-      {getModelIcon()}
-      <div className='flex-1'>
-        <div className='flex items-center gap-2'>
-          <h1 className='text-2xl font-bold'>{model.model_name}</h1>
-          <button
-            onClick={() => copyToClipboard(model.model_name || '')}
-            className='text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded transition-colors'
-            title='Copy model name'
-          >
-            <Copy className='h-4 w-4' />
-          </button>
+    <div className='border-b pb-6'>
+      <div className='flex items-start justify-between gap-4'>
+        <div>
+          <div className='mb-2 flex items-center gap-2'>
+            <h1 className='text-3xl font-semibold'>{model.model_name}</h1>
+            <CopyButton
+              value={model.model_name || ''}
+              className='size-8'
+              iconClassName='size-4'
+              tooltip='Copy model name'
+              successTooltip='Copied!'
+              aria-label='Copy model name'
+            />
+          </div>
+          {model.vendor_name && (
+            <p className='text-muted-foreground'>by {model.vendor_name}</p>
+          )}
         </div>
-        {model.vendor_name && (
-          <p className='text-muted-foreground text-sm'>
-            by {model.vendor_name}
-          </p>
-        )}
       </div>
     </div>
   )
 }
 
 function BasicInfoSection({ model }: { model: PricingModel }) {
-  const getModelDescription = () => {
-    if (model.description) {
-      return model.description
-    }
-    if (model.vendor_description) {
-      return `Vendor info: ${model.vendor_description}`
-    }
-    return 'No description available'
-  }
+  const description =
+    model.description || model.vendor_description || 'No description available'
 
-  const tags = useMemo(() => {
-    if (!model.tags) return []
-    return model.tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
-  }, [model.tags])
+  const tags = parseTags(model.tags)
 
   return (
-    <Card className='p-6'>
-      <div className='mb-4 flex items-center gap-2'>
-        <div className='bg-primary/10 text-primary flex h-8 w-8 items-center justify-center rounded-lg'>
-          <span className='text-lg'>ℹ️</span>
-        </div>
-        <div>
-          <h2 className='text-lg font-semibold'>Basic Information</h2>
-          <p className='text-muted-foreground text-xs'>
-            Detailed description and characteristics
-          </p>
-        </div>
+    <div className='space-y-4 border-b py-6'>
+      <div>
+        <h2 className='mb-3 text-xl font-semibold'>Overview</h2>
+        <p className='text-muted-foreground leading-relaxed'>{description}</p>
       </div>
 
-      <p className='text-foreground mb-4 leading-relaxed'>
-        {getModelDescription()}
-      </p>
-
       {tags.length > 0 && (
-        <div className='flex flex-wrap gap-1.5'>
-          {tags.map((tag, idx) => (
+        <div className='flex flex-wrap gap-2'>
+          {tags.map((tag) => (
             <StatusBadge
-              key={idx}
+              key={tag}
               label={tag}
               autoColor={tag}
-              copyable={false}
               size='sm'
+              copyable={false}
             />
           ))}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -124,7 +84,7 @@ function EndpointsSection({
       const info = endpointMap[type] || {}
       let path = info.path || ''
       if (path.includes('{model}')) {
-        path = path.replace(/\{model\}/g, model.model_name || '')
+        path = replaceModelInPath(path, model.model_name || '')
       }
       const method = info.method || 'POST'
       return { type, path, method }
@@ -136,45 +96,32 @@ function EndpointsSection({
   }
 
   return (
-    <Card className='p-6'>
-      <div className='mb-4 flex items-center gap-2'>
-        <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400'>
-          <Link2 className='h-4 w-4' />
-        </div>
-        <div>
-          <h2 className='text-lg font-semibold'>API Endpoints</h2>
-          <p className='text-muted-foreground text-xs'>
-            Supported interface endpoint information
-          </p>
-        </div>
-      </div>
-
-      <div className='space-y-3'>
-        {endpoints.map(({ type, path, method }, idx) => (
-          <div key={type}>
-            <div className='flex items-start justify-between gap-4'>
-              <div className='flex min-w-0 flex-1 items-start gap-2'>
-                <div className='bg-success mt-1 h-2 w-2 flex-shrink-0 rounded-full' />
-                <div className='min-w-0 flex-1'>
-                  <div className='font-medium'>{type}</div>
-                  {path && (
-                    <div className='text-muted-foreground mt-1 text-sm break-all'>
-                      {path}
-                    </div>
-                  )}
-                </div>
-              </div>
+    <div className='space-y-3 border-b py-6'>
+      <h2 className='text-xl font-semibold'>API Endpoints</h2>
+      <div className='space-y-2'>
+        {endpoints.map(({ type, path, method }) => (
+          <div key={type} className='rounded-md border p-3'>
+            <div className='mb-1 flex items-center justify-between'>
+              <span className='font-medium'>{type}</span>
               {path && (
-                <span className='text-muted-foreground flex-shrink-0 text-xs'>
-                  {method}
-                </span>
+                <StatusBadge
+                  label={method}
+                  variant='neutral'
+                  size='sm'
+                  copyable={false}
+                  className='font-mono'
+                />
               )}
             </div>
-            {idx < endpoints.length - 1 && <Separator className='mt-3' />}
+            {path && (
+              <code className='text-muted-foreground block text-sm break-all'>
+                {path}
+              </code>
+            )}
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -182,104 +129,52 @@ function GroupPricingSection({
   model,
   groupRatio,
   usableGroup,
-  autoGroups,
-  currency,
-  tokenUnit,
-  showWithRecharge,
-  priceRate,
-  usdExchangeRate,
 }: {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
-  autoGroups: string[]
-  currency: 'USD' | 'CNY'
-  tokenUnit: 'M' | 'K'
-  showWithRecharge: boolean
-  priceRate: number
-  usdExchangeRate: number
 }) {
-  const modelEnableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-
-  const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g))
-
   const availableGroups = useMemo(() => {
-    return Object.keys(usableGroup || {})
-      .filter((g) => g !== '' && g !== 'auto')
-      .filter((g) => modelEnableGroups.includes(g))
-  }, [usableGroup, modelEnableGroups])
+    return getAvailableGroups(model, usableGroup || {})
+  }, [model, usableGroup])
 
+  const isTokenBased = isTokenBasedModel(model)
+
+  // Show message if no groups available
   if (availableGroups.length === 0) {
-    return null
-  }
-
-  return (
-    <Card className='p-6'>
-      <div className='mb-4 flex items-center gap-2'>
-        <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400'>
-          <DollarSign className='h-4 w-4' />
-        </div>
-        <div>
-          <h2 className='text-lg font-semibold'>Group Pricing</h2>
-          <p className='text-muted-foreground text-xs'>
-            Pricing information for different user groups
+    return (
+      <div className='space-y-3 py-6'>
+        <h2 className='text-xl font-semibold'>Pricing by Group</h2>
+        <div className='border-border/40 text-muted-foreground rounded-lg border p-6 text-center'>
+          <p className='text-sm'>
+            This model is not available in any group, or no group pricing
+            information is configured.
           </p>
         </div>
       </div>
+    )
+  }
 
-      {autoChain.length > 0 && (
-        <div className='bg-muted mb-4 rounded-lg p-3'>
-          <div className='flex flex-wrap items-center gap-2 text-sm'>
-            <span className='text-muted-foreground'>
-              Auto group call chain:
-            </span>
-            {autoChain.map((g, idx) => (
-              <div key={g} className='flex items-center gap-2'>
-                <StatusBadge
-                  label={`${g} group`}
-                  variant='neutral'
-                  copyable={false}
-                />
-                {idx < autoChain.length - 1 && (
-                  <span className='text-muted-foreground'>→</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+  return (
+    <div className='space-y-3 py-6'>
+      <h2 className='text-xl font-semibold'>Pricing by Group</h2>
       <div className='overflow-x-auto'>
         <table className='w-full text-sm'>
           <thead>
             <tr className='border-b'>
-              <th className='pb-3 text-left font-semibold'>Group</th>
-              <th className='pb-3 text-left font-semibold'>Ratio</th>
-              <th className='pb-3 text-left font-semibold'>Billing Type</th>
-              {model.quota_type === 0 ? (
+              <th className='pr-4 pb-3 text-left font-medium'>Group</th>
+              <th className='pr-4 pb-3 text-left font-medium'>Ratio</th>
+              {isTokenBased ? (
                 <>
-                  <th className='pb-3 text-right font-semibold'>
-                    Input
-                    <div className='text-muted-foreground mt-1 text-xs font-normal'>
-                      / {tokenUnit === 'K' ? '1K' : '1M'} tokens
-                    </div>
+                  <th className='pr-4 pb-3 text-right font-medium'>
+                    Input / 1M tokens
                   </th>
-                  <th className='pb-3 text-right font-semibold'>
-                    Output
-                    <div className='text-muted-foreground mt-1 text-xs font-normal'>
-                      / {tokenUnit === 'K' ? '1K' : '1M'} tokens
-                    </div>
+                  <th className='pb-3 text-right font-medium'>
+                    Output / 1M tokens
                   </th>
                 </>
               ) : (
-                <th className='pb-3 text-right font-semibold'>
-                  Price
-                  <div className='text-muted-foreground mt-1 text-xs font-normal'>
-                    / request
-                  </div>
-                </th>
+                <th className='pb-3 text-right font-medium'>Price / request</th>
               )}
             </tr>
           </thead>
@@ -288,80 +183,63 @@ function GroupPricingSection({
               const ratio = groupRatio[group] || 1
               return (
                 <tr key={group} className='border-b last:border-0'>
-                  <td className='py-3'>
+                  <td className='py-3 pr-4'>
                     <StatusBadge
-                      label={`${group} group`}
-                      variant='neutral'
-                      copyable={false}
+                      label={group}
+                      autoColor={group}
                       size='sm'
+                      copyable={false}
                     />
                   </td>
-                  <td className='py-3'>
+                  <td className='py-3 pr-4'>
                     <StatusBadge
                       label={`${ratio}x`}
                       variant='neutral'
-                      copyable={false}
                       size='sm'
+                      copyable={false}
+                      className='font-mono'
                     />
                   </td>
-                  <td className='py-3'>
-                    <StatusBadge
-                      label={
-                        model.quota_type === 0
-                          ? 'Pay Per Token'
-                          : 'Pay Per Request'
-                      }
-                      variant={model.quota_type === 0 ? 'info' : 'purple'}
-                      copyable={false}
-                      size='sm'
-                    />
-                  </td>
-                  {model.quota_type === 0 ? (
+                  {isTokenBased ? (
                     <>
-                      <td className='py-3 text-right'>
-                        <span className='font-mono font-semibold text-orange-600 dark:text-orange-400'>
-                          {formatGroupPrice(
-                            model,
-                            group,
-                            'input',
-                            currency,
-                            tokenUnit,
-                            showWithRecharge,
-                            priceRate,
-                            usdExchangeRate,
-                            groupRatio
-                          )}
-                        </span>
+                      <td className='py-3 pr-4 text-right font-mono'>
+                        {formatGroupPrice(
+                          model,
+                          group,
+                          'input',
+                          'USD',
+                          'M',
+                          false,
+                          1,
+                          1,
+                          groupRatio
+                        )}
                       </td>
-                      <td className='py-3 text-right'>
-                        <span className='font-mono font-semibold text-orange-600 dark:text-orange-400'>
-                          {formatGroupPrice(
-                            model,
-                            group,
-                            'output',
-                            currency,
-                            tokenUnit,
-                            showWithRecharge,
-                            priceRate,
-                            usdExchangeRate,
-                            groupRatio
-                          )}
-                        </span>
+                      <td className='py-3 text-right font-mono'>
+                        {formatGroupPrice(
+                          model,
+                          group,
+                          'output',
+                          'USD',
+                          'M',
+                          false,
+                          1,
+                          1,
+                          groupRatio
+                        )}
                       </td>
                     </>
                   ) : (
-                    <td className='py-3 text-right'>
-                      <span className='font-mono font-semibold text-orange-600 dark:text-orange-400'>
-                        {formatFixedPrice(
-                          model,
-                          group,
-                          currency,
-                          showWithRecharge,
-                          priceRate,
-                          usdExchangeRate,
-                          groupRatio
-                        )}
-                      </span>
+                    <td className='py-3 text-right font-mono'>
+                      {formatFixedPrice(
+                        model,
+                        group,
+                        'USD',
+                        false,
+                        1,
+                        1,
+                        groupRatio
+                      )}
                     </td>
                   )}
                 </tr>
@@ -370,29 +248,16 @@ function GroupPricingSection({
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   )
 }
 
 export function ModelDetails() {
   const { modelId } = useParams({ from: '/pricing/$modelId/' })
-  const search = useSearch({ from: '/pricing/$modelId/' })
   const navigate = useNavigate()
 
-  const {
-    models,
-    groupRatio,
-    usableGroup,
-    endpointMap,
-    isLoading,
-    priceRate,
-    usdExchangeRate,
-    autoGroups,
-  } = usePricingData()
-
-  const currency = ((search as any).currency as 'USD' | 'CNY') || 'USD'
-  const tokenUnit = ((search as any).tokenUnit as 'M' | 'K') || 'M'
-  const showWithRecharge = (search as any).showRecharge === 'true'
+  const { models, groupRatio, usableGroup, endpointMap, isLoading } =
+    usePricingData()
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
@@ -400,77 +265,23 @@ export function ModelDetails() {
   }, [models, modelId])
 
   const handleBack = () => {
-    navigate({
-      to: '/pricing',
-      search: true,
-    })
+    navigate({ to: '/pricing' })
   }
 
   if (isLoading) {
     return (
       <PublicLayout>
-        <div className='mx-auto max-w-4xl space-y-6'>
-          <div className='flex items-center gap-4'>
-            <Skeleton className='h-9 w-24 rounded-md' />
+        <div className='mx-auto max-w-4xl space-y-8'>
+          <Skeleton className='h-9 w-24' />
+          <div className='space-y-4'>
+            <Skeleton className='h-10 w-96' />
+            <Skeleton className='h-5 w-48' />
           </div>
-
-          <div className='flex items-center gap-4'>
-            <Skeleton className='h-16 w-16 rounded-2xl' />
-            <div className='flex-1 space-y-3'>
-              <Skeleton className='h-6 w-40' />
-              <Skeleton className='h-4 w-24' />
-            </div>
+          <div className='space-y-3'>
+            <Skeleton className='h-6 w-32' />
+            <Skeleton className='h-4 w-full' />
+            <Skeleton className='h-4 w-5/6' />
           </div>
-
-          <Card className='p-6'>
-            <div className='space-y-4'>
-              <Skeleton className='h-5 w-48' />
-              <div className='space-y-2'>
-                <Skeleton className='h-4 w-full' />
-                <Skeleton className='h-4 w-5/6' />
-                <Skeleton className='h-4 w-2/3' />
-              </div>
-              <div className='flex flex-wrap gap-2 pt-2'>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} className='h-6 w-20 rounded-full' />
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card className='p-6'>
-            <div className='space-y-4'>
-              <Skeleton className='h-5 w-48' />
-              <div className='space-y-3'>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className='space-y-2'>
-                    <Skeleton className='h-4 w-full' />
-                    <Skeleton className='h-3 w-4/5' />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card className='p-6'>
-            <div className='space-y-4'>
-              <Skeleton className='h-5 w-48' />
-              <Skeleton className='h-4 w-32' />
-              <div className='space-y-3'>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className='flex flex-wrap items-center gap-3'
-                  >
-                    <Skeleton className='h-6 w-24 rounded-full' />
-                    <Skeleton className='h-6 w-24 rounded-full' />
-                    <Skeleton className='h-6 w-32 rounded-full' />
-                    <Skeleton className='h-6 w-32 rounded-full' />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
         </div>
       </PublicLayout>
     )
@@ -478,27 +289,27 @@ export function ModelDetails() {
 
   if (!model) {
     return (
-      <div className='flex min-h-screen items-center justify-center'>
-        <div className='text-center'>
+      <PublicLayout>
+        <div className='mx-auto max-w-4xl text-center'>
           <h2 className='mb-2 text-xl font-semibold'>Model not found</h2>
           <p className='text-muted-foreground mb-4'>
             The model you're looking for doesn't exist.
           </p>
-          <Button onClick={handleBack}>Back to Pricing</Button>
+          <Button onClick={handleBack} variant='outline'>
+            Back to Models
+          </Button>
         </div>
-      </div>
+      </PublicLayout>
     )
   }
 
   return (
     <PublicLayout>
-      <div className='mx-auto max-w-4xl space-y-6'>
-        <div className='flex items-center gap-4'>
-          <Button variant='ghost' size='sm' onClick={handleBack}>
-            <ArrowLeft className='mr-2 h-4 w-4' />
-            Back
-          </Button>
-        </div>
+      <div className='mx-auto max-w-4xl px-4 sm:px-6'>
+        <Button variant='ghost' size='sm' onClick={handleBack} className='mb-6'>
+          <ArrowLeft className='mr-2 h-4 w-4' />
+          Back
+        </Button>
 
         <ModelHeader model={model} />
 
@@ -513,12 +324,6 @@ export function ModelDetails() {
           model={model}
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
-          autoGroups={autoGroups || []}
-          currency={currency}
-          tokenUnit={tokenUnit}
-          showWithRecharge={showWithRecharge}
-          priceRate={priceRate}
-          usdExchangeRate={usdExchangeRate}
         />
       </div>
     </PublicLayout>
