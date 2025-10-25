@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -82,7 +83,7 @@ export function BalanceQueryDialog({
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'Never'
-    return new Date(timestamp * 1000).toLocaleString()
+    return formatTimestampToDate(timestamp)
   }
 
   return (

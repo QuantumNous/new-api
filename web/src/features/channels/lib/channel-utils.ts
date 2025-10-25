@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
+import { formatTimestampToDate } from '@/lib/format'
 import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPES,
@@ -350,7 +351,7 @@ export function formatTimestamp(timestamp: number): string {
   if (!timestamp || timestamp === 0) return 'N/A'
 
   try {
-    return new Date(timestamp * 1000).toLocaleString()
+    return formatTimestampToDate(timestamp)
   } catch {
     return 'Invalid date'
   }

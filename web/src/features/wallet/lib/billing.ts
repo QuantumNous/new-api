@@ -1,3 +1,4 @@
+import { formatTimestampToDate } from '@/lib/format'
 import type { TopupStatus } from '../types'
 
 // ============================================================================
@@ -56,5 +57,5 @@ export function getPaymentMethodName(method: string): string {
  * Format timestamp to readable date string
  */
 export function formatTimestamp(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleString()
+  return formatTimestampToDate(timestamp)
 }

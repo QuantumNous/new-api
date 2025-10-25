@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { truncateText } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -652,27 +654,26 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
       header: 'Last Tested',
       cell: ({ row }) => {
         const testTime = row.getValue('test_time') as number
-        const timeText = formatRelativeTime(testTime)
 
-        // For invalid timestamps, return plain text without tooltip
+        // For invalid timestamps, show "Never" badge
         if (!testTime || testTime === 0) {
-          return <span className='text-muted-foreground'>{timeText}</span>
+          return <Badge variant='outline'>Never</Badge>
         }
 
-        // Format full date for tooltip
-        const fullDate = new Date(testTime * 1000).toLocaleString()
+        const timeText = formatRelativeTime(testTime)
+        const fullDate = formatTimestampToDate(testTime)
 
         // For valid timestamps, show tooltip with full date
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-pointer'>
+                <span className='text-muted-foreground cursor-pointer font-mono text-sm'>
                   {timeText}
                 </span>
               </TooltipTrigger>
               <TooltipContent side='top'>
-                <p className='text-sm'>{fullDate}</p>
+                <p className='font-mono text-sm'>{fullDate}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

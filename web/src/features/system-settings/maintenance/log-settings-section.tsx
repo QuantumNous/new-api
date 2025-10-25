@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { formatTimestampToDate } from '@/lib/format'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,7 +93,7 @@ export function LogSettingsSection({
 
   const formattedPurgeDate = useMemo(() => {
     if (!purgeDate) return ''
-    return purgeDate.toLocaleString()
+    return formatTimestampToDate(purgeDate.getTime(), 'milliseconds')
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {

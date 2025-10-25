@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatTimestamp } from '@/lib/format'
+import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -126,7 +126,11 @@ export function UpdateCheckerSection({
             </DialogTitle>
             {release?.published_at && (
               <DialogDescription>
-                Published {new Date(release.published_at).toLocaleString()}
+                Published{' '}
+                {formatTimestampToDate(
+                  new Date(release.published_at).getTime(),
+                  'milliseconds'
+                )}
               </DialogDescription>
             )}
           </DialogHeader>

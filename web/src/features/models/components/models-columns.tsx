@@ -1,4 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
+import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -14,7 +15,7 @@ import {
   NAME_RULE_CONFIG,
   QUOTA_TYPE_CONFIG,
 } from '../constants'
-import { formatTimestamp, parseModelTags, formatEndpointsDisplay } from '../lib'
+import { parseModelTags, formatEndpointsDisplay } from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
@@ -522,9 +523,11 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       ),
       cell: ({ row }) => {
         const timestamp = row.getValue('created_time') as number
-        const timeText = formatTimestamp(timestamp)
-
-        return <span className='text-muted-foreground text-sm'>{timeText}</span>
+        return (
+          <div className='min-w-[140px] font-mono text-sm'>
+            {formatTimestampToDate(timestamp)}
+          </div>
+        )
       },
       size: 180,
     },
@@ -538,9 +541,11 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       ),
       cell: ({ row }) => {
         const timestamp = row.getValue('updated_time') as number
-        const timeText = formatTimestamp(timestamp)
-
-        return <span className='text-muted-foreground text-sm'>{timeText}</span>
+        return (
+          <div className='min-w-[140px] font-mono text-sm'>
+            {formatTimestampToDate(timestamp)}
+          </div>
+        )
       },
       size: 180,
     },

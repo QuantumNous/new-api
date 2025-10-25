@@ -1,3 +1,4 @@
+import { formatTimestampToDate } from '@/lib/format'
 import { NAME_RULE_CONFIG, QUOTA_TYPE_CONFIG } from '../constants'
 import type { NameRule, Model } from '../types'
 
@@ -6,11 +7,11 @@ import type { NameRule, Model } from '../types'
 // ============================================================================
 
 /**
- * Format timestamp to locale string
+ * Format timestamp to standard date string (YYYY-MM-DD HH:mm:ss)
  */
 export function formatTimestamp(timestamp: number): string {
   if (!timestamp || timestamp === 0) return '-'
-  return new Date(timestamp * 1000).toLocaleString()
+  return formatTimestampToDate(timestamp)
 }
 
 /**
