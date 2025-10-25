@@ -1,16 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import {
   getCoreRowModel,
   useReactTable,
   getExpandedRowModel,
-  type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
   type ExpandedState,
   type Row,
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -42,26 +43,41 @@ import { getChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
+const route = getRouteApi('/_authenticated/channels/')
+
 export function ChannelsTable() {
   const { enableTagMode, idSort } = useChannels()
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     models: false,
     tag: false,
   })
   const [rowSelection, setRowSelection] = useState({})
   const [expanded, setExpanded] = useState<ExpandedState>({})
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: DEFAULT_PAGE_SIZE,
-  })
 
-  // Additional filter state
-  const [modelFilter, setModelFilter] = useState('')
+  // URL state management
+  const {
+    globalFilter,
+    onGlobalFilterChange,
+    columnFilters,
+    onColumnFiltersChange,
+    pagination,
+    onPaginationChange,
+    ensurePageInRange,
+  } = useTableUrlState({
+    search: route.useSearch(),
+    navigate: route.useNavigate(),
+    pagination: { defaultPage: 1, defaultPageSize: DEFAULT_PAGE_SIZE },
+    globalFilter: { enabled: true, key: 'filter' },
+    columnFilters: [
+      { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: 'type', searchKey: 'type', type: 'array' },
+      { columnId: 'group', searchKey: 'group', type: 'array' },
+      { columnId: 'model', searchKey: 'model', type: 'string' },
+    ],
+  })
 
   // Extract filters from column filters
   const statusFilter =
@@ -70,15 +86,34 @@ export function ChannelsTable() {
     (columnFilters.find((f) => f.id === 'type')?.value as string[]) || []
   const groupFilter =
     (columnFilters.find((f) => f.id === 'group')?.value as string[]) || []
+  const modelFilterFromUrl =
+    (columnFilters.find((f) => f.id === 'model')?.value as string) || ''
 
-  // Debounce filters for search
-  const debouncedGlobalFilter = useDebounce(globalFilter, 500)
-  const debouncedModelFilter = useDebounce(modelFilter, 500)
+  // Local state for immediate input feedback
+  const [modelFilterInput, setModelFilterInput] = useState(modelFilterFromUrl)
+  const debouncedModelFilter = useDebounce(modelFilterInput, 500)
+
+  // Sync local input with URL when URL changes (e.g., from back/forward navigation)
+  useEffect(() => {
+    setModelFilterInput(modelFilterFromUrl)
+  }, [modelFilterFromUrl])
+
+  // Update URL when debounced value changes
+  useEffect(() => {
+    if (debouncedModelFilter !== modelFilterFromUrl) {
+      onColumnFiltersChange((prev) => {
+        const filtered = prev.filter((f) => f.id !== 'model')
+        return debouncedModelFilter
+          ? [...filtered, { id: 'model', value: debouncedModelFilter }]
+          : filtered
+      })
+    }
+  }, [debouncedModelFilter, modelFilterFromUrl, onColumnFiltersChange])
+
+  const modelFilter = modelFilterFromUrl
 
   // Determine whether to use search or regular list API
-  const shouldSearch = Boolean(
-    debouncedGlobalFilter.trim() || debouncedModelFilter.trim()
-  )
+  const shouldSearch = Boolean(globalFilter?.trim() || modelFilter.trim())
 
   // Fetch groups for filter
   const { data: groupsData } = useQuery({
@@ -98,8 +133,8 @@ export function ChannelsTable() {
   // Fetch channels data
   const { data, isLoading } = useQuery({
     queryKey: channelsQueryKeys.list({
-      keyword: debouncedGlobalFilter,
-      model: debouncedModelFilter,
+      keyword: globalFilter,
+      model: modelFilter,
       group:
         groupFilter.length > 0 && !groupFilter.includes('all')
           ? groupFilter[0]
@@ -120,8 +155,8 @@ export function ChannelsTable() {
     queryFn: async () => {
       if (shouldSearch) {
         return searchChannels({
-          keyword: debouncedGlobalFilter,
-          model: debouncedModelFilter,
+          keyword: globalFilter,
+          model: modelFilter,
           group:
             groupFilter.length > 0 && !groupFilter.includes('all')
               ? groupFilter[0]
@@ -160,6 +195,7 @@ export function ChannelsTable() {
         })
       }
     },
+    placeholderData: (previousData) => previousData,
   })
 
   // Apply tag aggregation if tag mode is enabled
@@ -196,11 +232,11 @@ export function ChannelsTable() {
     enableRowSelection: (row: Row<Channel>) => !isTagAggregateRow(row.original),
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
+    onPaginationChange,
     onExpandedChange: setExpanded,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getSubRows: (row: any) => row.children,
@@ -208,6 +244,12 @@ export function ChannelsTable() {
     manualSorting: true,
     manualFiltering: true,
   })
+
+  // Ensure page is in range when total count changes
+  const pageCount = table.getPageCount()
+  useEffect(() => {
+    ensurePageInRange(pageCount)
+  }, [pageCount, ensurePageInRange])
 
   // Prepare filter options
   const typeFilterOptions = [
@@ -235,13 +277,11 @@ export function ChannelsTable() {
         additionalSearch={
           <Input
             placeholder='Filter by model...'
-            value={modelFilter}
-            onChange={(e) => setModelFilter(e.target.value)}
+            value={modelFilterInput}
+            onChange={(e) => setModelFilterInput(e.target.value)}
             className='h-8 w-[150px] lg:w-[200px]'
           />
         }
-        hasAdditionalFilters={Boolean(modelFilter)}
-        onReset={() => setModelFilter('')}
         filters={[
           {
             columnId: 'status',

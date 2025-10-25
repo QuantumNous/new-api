@@ -1,13 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import {
   getCoreRowModel,
   useReactTable,
-  type ColumnFiltersState,
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { useDebounce } from '@/hooks'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
   TableBody,
@@ -33,26 +33,40 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { getModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
 
+const route = getRouteApi('/_authenticated/models/')
+
 export function ModelsTable() {
   const { selectedVendor } = useModels()
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     description: false,
     bound_channels: false,
     quota_types: false,
   })
   const [rowSelection, setRowSelection] = useState({})
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: DEFAULT_PAGE_SIZE,
-  })
 
-  // Debounce filters for search
-  const debouncedGlobalFilter = useDebounce(globalFilter, 500)
+  // URL state management
+  const {
+    globalFilter,
+    onGlobalFilterChange,
+    columnFilters,
+    onColumnFiltersChange,
+    pagination,
+    onPaginationChange,
+    ensurePageInRange,
+  } = useTableUrlState({
+    search: route.useSearch(),
+    navigate: route.useNavigate(),
+    pagination: { defaultPage: 1, defaultPageSize: DEFAULT_PAGE_SIZE },
+    globalFilter: { enabled: true, key: 'filter' },
+    columnFilters: [
+      { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: 'vendor_id', searchKey: 'vendor', type: 'array' },
+      { columnId: 'sync_official', searchKey: 'sync', type: 'array' },
+    ],
+  })
 
   // Extract filters from column filters
   const statusFilter =
@@ -79,7 +93,7 @@ export function ModelsTable() {
   }, [vendors])
 
   // Determine whether to use search or regular list API
-  const shouldSearch = Boolean(debouncedGlobalFilter.trim())
+  const shouldSearch = Boolean(globalFilter?.trim())
 
   // Apply selected vendor from context or filter
   const activeVendorFilter =
@@ -91,7 +105,7 @@ export function ModelsTable() {
   // Fetch models data
   const { data, isLoading } = useQuery({
     queryKey: modelsQueryKeys.list({
-      keyword: debouncedGlobalFilter,
+      keyword: globalFilter,
       vendor: activeVendorFilter,
       status:
         statusFilter.length > 0 && !statusFilter.includes('all')
@@ -107,7 +121,7 @@ export function ModelsTable() {
     queryFn: async () => {
       if (shouldSearch || activeVendorFilter) {
         return searchModels({
-          keyword: debouncedGlobalFilter,
+          keyword: globalFilter,
           vendor: activeVendorFilter,
           status:
             statusFilter.length > 0 && !statusFilter.includes('all')
@@ -135,6 +149,7 @@ export function ModelsTable() {
         })
       }
     },
+    placeholderData: (previousData) => previousData,
   })
 
   const models = data?.data?.items || []
@@ -160,15 +175,21 @@ export function ModelsTable() {
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
-    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange,
+    onGlobalFilterChange,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
   })
+
+  // Ensure page is in range when total count changes
+  const pageCount = table.getPageCount()
+  useEffect(() => {
+    ensurePageInRange(pageCount)
+  }, [pageCount, ensurePageInRange])
 
   // Prepare filter options
   const vendorFilterOptions = [
