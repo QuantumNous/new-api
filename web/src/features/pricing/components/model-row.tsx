@@ -26,7 +26,7 @@ export function ModelRow({ model, onClick }: ModelRowProps) {
   return (
     <button
       onClick={onClick}
-      className='hover:bg-accent/5 animate-appear group w-full px-6 py-6 text-left transition-colors'
+      className='hover:bg-accent/5 group w-full px-6 py-6 text-left transition-colors'
     >
       <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8'>
         {/* Model Info */}
