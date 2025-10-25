@@ -13,12 +13,12 @@ import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import {
   LoadingSkeleton,
-  ModelRow,
   EmptyState,
   SearchBar,
   ActiveFilterTags,
   MobileFilters,
   DesktopSidebar,
+  VirtualModelList,
 } from './components'
 import {
   SORT_LABELS,
@@ -240,15 +240,10 @@ export function Pricing() {
 
             {/* Model List */}
             {filteredModels.length > 0 ? (
-              <div className='divide-border/30 border-border/40 divide-y rounded-lg border'>
-                {filteredModels.map((model) => (
-                  <ModelRow
-                    key={model.model_name}
-                    model={model}
-                    onClick={() => handleModelClick(model.model_name || '')}
-                  />
-                ))}
-              </div>
+              <VirtualModelList
+                models={filteredModels}
+                onModelClick={handleModelClick}
+              />
             ) : (
               <EmptyState
                 searchQuery={searchInput}
