@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Route, Info } from 'lucide-react'
 import {
@@ -7,7 +7,6 @@ import {
   formatLogQuota,
   formatTimestampToDate,
 } from '@/lib/format'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -30,31 +29,40 @@ import {
   getLogTypeConfig,
   isPerCallBilling,
 } from '../../lib/utils'
+import { DetailsDialog } from '../dialogs/details-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import { renderBadge, CacheTooltip } from './column-helpers'
 
-function CopyableDetailsContent({ content }: { content?: string | null }) {
-  const { copyToClipboard } = useCopyToClipboard()
+function DetailsCell({
+  content,
+  logType,
+}: {
+  content?: string | null
+  logType: number
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   if (content == null) {
     return <span className='text-muted-foreground text-sm'>-</span>
   }
 
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    copyToClipboard(content)
-  }
-
   return (
-    <button
-      type='button'
-      onClick={handleClick}
-      title={content}
-      className='click-content-to-copy text-foreground hover:text-primary max-w-[200px] truncate text-left text-sm transition-colors focus-visible:underline focus-visible:outline-none'
-      aria-label='Copy details'
-    >
-      {content}
-    </button>
+    <>
+      <Button
+        variant='ghost'
+        className='h-auto max-w-[200px] justify-start overflow-hidden p-0 text-left text-sm font-normal hover:underline'
+        onClick={() => setDialogOpen(true)}
+        title='Click to view full details'
+      >
+        <span className='truncate'>{content}</span>
+      </Button>
+      <DetailsDialog
+        details={content}
+        logType={logType}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    </>
   )
 }
 
@@ -91,7 +99,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         return (
           <StatusBadge
             label={config.label}
-            variant='neutral'
+            variant={config.color as any}
             size='sm'
             copyable={false}
           />
@@ -464,7 +472,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         // For non-consume logs, show content
         if (log.type !== 2) {
-          return <CopyableDetailsContent content={content} />
+          return <DetailsCell content={content} logType={log.type} />
         }
 
         // For consume logs, show billing type
