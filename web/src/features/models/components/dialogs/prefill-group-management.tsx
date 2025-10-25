@@ -1,39 +1,60 @@
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { useEffect, useState } from 'react'
+import type { PrefillGroup } from '../../types'
+import { PrefillGroupFormDrawer } from '../drawers/prefill-group-form-drawer'
+import { PrefillGroupManagementDialog } from './prefill-group-management-dialog'
 
 type PrefillGroupManagementProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
+type PrefillView = 'dialog' | 'drawer'
+
 export function PrefillGroupManagement({
   open,
   onOpenChange,
 }: PrefillGroupManagementProps) {
+  const [view, setView] = useState<PrefillView>('dialog')
+  const [currentGroup, setCurrentGroup] = useState<PrefillGroup | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setView('dialog')
+      setCurrentGroup(null)
+    }
+  }, [open])
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setView('dialog')
+      setCurrentGroup(null)
+      onOpenChange(false)
+    }
+  }
+
+  const handleDrawerClose = () => {
+    setView('dialog')
+    setCurrentGroup(null)
+  }
+
+  const handleShowDrawer = (group: PrefillGroup | null) => {
+    setCurrentGroup(group)
+    setView('drawer')
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Prefill Group Management</DialogTitle>
-          <DialogDescription>
-            Manage prefill groups for models, tags, and endpoints
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className='text-muted-foreground py-12 text-center'>
-          <p>Prefill group management coming soon...</p>
-        </div>
-
-        <div className='flex justify-end'>
-          <Button onClick={() => onOpenChange(false)}>Close</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <>
+      <PrefillGroupManagementDialog
+        open={open && view === 'dialog'}
+        onOpenChange={handleDialogOpenChange}
+        onCreateGroup={() => handleShowDrawer(null)}
+        onEditGroup={(group) => handleShowDrawer(group)}
+      />
+      <PrefillGroupFormDrawer
+        open={open && view === 'drawer'}
+        onClose={handleDrawerClose}
+        currentGroup={currentGroup}
+      />
+    </>
   )
 }

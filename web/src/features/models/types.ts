@@ -55,8 +55,9 @@ export interface Vendor {
 export interface PrefillGroup {
   id: number
   name: string
-  type: 'model' | 'tag' | 'endpoint' | 'group'
+  type: 'model' | 'tag' | 'endpoint'
   items: string | string[]
+  description?: string
 }
 
 // ============================================================================
@@ -242,7 +243,8 @@ export type VendorFormValues = z.infer<typeof vendorFormSchema>
 export const prefillGroupFormSchema = z.object({
   id: z.number().optional(),
   name: z.string().min(1, 'Group name is required'),
-  type: z.enum(['model', 'tag', 'endpoint', 'group']),
+  description: z.string().optional(),
+  type: z.enum(['model', 'tag', 'endpoint']),
   items: z.union([z.string(), z.array(z.string())]),
 })
 
