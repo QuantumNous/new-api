@@ -160,8 +160,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				imageRequest.N = 1
 			}
 
-			watermark := formData.Has("watermark")
-			if watermark {
+			hasWatermark := formData.Has("watermark")
+			if hasWatermark {
+				watermark := formData.Get("watermark") == "true"
 				imageRequest.Watermark = &watermark
 			}
 			break
