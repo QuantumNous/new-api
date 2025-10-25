@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getSelf } from '@/lib/api'
+import { useStatus } from '@/hooks/use-status'
 import { AppHeader, Main } from '@/components/layout'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -21,8 +23,10 @@ export function Wallet() {
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
 
+  const { status } = useStatus()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
   const {
     amount: paymentAmount,
@@ -180,6 +184,8 @@ export function Wallet() {
               redeeming={redeeming}
               topupLink={topupInfo?.topup_link}
               loading={topupLoading}
+              priceRatio={status?.price || 1}
+              onOpenBilling={() => setBillingDialogOpen(true)}
             />
           </div>
 
@@ -214,6 +220,12 @@ export function Wallet() {
           onConfirm={handleTransfer}
           availableQuota={user?.aff_quota ?? 0}
           transferring={transferring}
+        />
+
+        {/* Billing History Dialog */}
+        <BillingHistoryDialog
+          open={billingDialogOpen}
+          onOpenChange={setBillingDialogOpen}
         />
       </Main>
     </>

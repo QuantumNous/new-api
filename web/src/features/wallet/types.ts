@@ -125,3 +125,47 @@ export interface UserWalletData {
   /** User group */
   group: string
 }
+
+/**
+ * Topup record status
+ */
+export type TopupStatus = 'success' | 'pending' | 'expired'
+
+/**
+ * Topup billing record
+ */
+export interface TopupRecord {
+  /** Record ID */
+  id: number
+  /** User ID */
+  user_id: number
+  /** Topup amount (quota) */
+  amount: number
+  /** Payment amount (actual money paid) */
+  money: number
+  /** Trade/order number */
+  trade_no: string
+  /** Payment method type */
+  payment_method: string
+  /** Creation timestamp */
+  create_time: number
+  /** Completion timestamp */
+  complete_time?: number
+  /** Payment status */
+  status: TopupStatus
+}
+
+/**
+ * Billing history response
+ */
+export interface BillingHistoryResponse {
+  items: TopupRecord[]
+  total: number
+}
+
+/**
+ * Complete order request (admin only)
+ */
+export interface CompleteOrderRequest {
+  trade_no: string
+}

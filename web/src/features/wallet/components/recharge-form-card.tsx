@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Gift, ExternalLink, Loader2 } from 'lucide-react'
+import { Gift, ExternalLink, Loader2, Receipt } from 'lucide-react'
 import { formatNumber } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import {
   getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
+  calculatePresetPricing,
 } from '../lib'
 import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
 
@@ -38,6 +39,8 @@ interface RechargeFormCardProps {
   redeeming: boolean
   topupLink?: string
   loading?: boolean
+  priceRatio?: number
+  onOpenBilling?: () => void
 }
 
 export function RechargeFormCard({
@@ -57,6 +60,8 @@ export function RechargeFormCard({
   redeeming,
   topupLink,
   loading,
+  priceRatio = 1,
+  onOpenBilling,
 }: RechargeFormCardProps) {
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
@@ -128,10 +133,25 @@ export function RechargeFormCard({
   return (
     <Card>
       <CardHeader>
-        <h3 className='text-xl font-semibold tracking-tight'>Add Funds</h3>
-        <p className='text-muted-foreground mt-2 text-sm'>
-          Choose an amount and payment method
-        </p>
+        <div className='flex items-center justify-between'>
+          <div>
+            <h3 className='text-xl font-semibold tracking-tight'>Add Funds</h3>
+            <p className='text-muted-foreground mt-2 text-sm'>
+              Choose an amount and payment method
+            </p>
+          </div>
+          {onOpenBilling && (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={onOpenBilling}
+              className='gap-2'
+            >
+              <Receipt className='h-4 w-4' />
+              Billing
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className='space-y-8'>
         {/* Online Topup Section */}
@@ -149,7 +169,8 @@ export function RechargeFormCard({
                       preset.discount ||
                       topupInfo?.discount?.[preset.value] ||
                       1.0
-                    const hasDiscount = discount < 1.0
+                    const { actualPrice, savedAmount, hasDiscount } =
+                      calculatePresetPricing(preset.value, priceRatio, discount)
                     return (
                       <button
                         key={index}
@@ -160,14 +181,25 @@ export function RechargeFormCard({
                         }`}
                         onClick={() => onSelectPreset(preset)}
                       >
-                        <div className='text-lg font-semibold'>
-                          {formatNumber(preset.value)}
-                        </div>
-                        {hasDiscount && (
-                          <div className='text-muted-foreground mt-1 text-xs'>
-                            {getDiscountLabel(discount)}
+                        <div className='flex items-center justify-between'>
+                          <div className='text-lg font-semibold'>
+                            {formatNumber(preset.value)}
                           </div>
-                        )}
+                          {hasDiscount && (
+                            <div className='text-xs font-medium text-green-600'>
+                              {getDiscountLabel(discount)}
+                            </div>
+                          )}
+                        </div>
+                        <div className='text-muted-foreground mt-2 text-xs'>
+                          Pay ${formatCurrency(actualPrice)}
+                          {hasDiscount && savedAmount > 0 && (
+                            <span className='text-green-600'>
+                              {' '}
+                              • Save ${formatCurrency(savedAmount)}
+                            </span>
+                          )}
+                        </div>
                       </button>
                     )
                   })}
