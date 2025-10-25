@@ -14,6 +14,7 @@ type DialogType =
   | 'sync-wizard'
   | 'upstream-conflict'
   | 'prefill-groups'
+  | 'description'
   | null
 
 type ModelsContextType = {
@@ -25,6 +26,10 @@ type ModelsContextType = {
   setCurrentVendor: (vendor: Vendor | null) => void
   selectedVendor: string | null
   setSelectedVendor: (vendor: string | null) => void
+  descriptionData: { modelName: string; description: string } | null
+  setDescriptionData: (
+    data: { modelName: string; description: string } | null
+  ) => void
 }
 
 // ============================================================================
@@ -42,6 +47,10 @@ export function ModelsProvider({ children }: { children: React.ReactNode }) {
   const [currentRow, setCurrentRow] = useState<Model | null>(null)
   const [currentVendor, setCurrentVendor] = useState<Vendor | null>(null)
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
+  const [descriptionData, setDescriptionData] = useState<{
+    modelName: string
+    description: string
+  } | null>(null)
 
   return (
     <ModelsContext.Provider
@@ -54,6 +63,8 @@ export function ModelsProvider({ children }: { children: React.ReactNode }) {
         setCurrentVendor,
         selectedVendor,
         setSelectedVendor,
+        descriptionData,
+        setDescriptionData,
       }}
     >
       {children}

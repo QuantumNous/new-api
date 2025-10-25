@@ -348,7 +348,7 @@ export function ModelMutateDrawer({
               <div className='flex items-center justify-between'>
                 <h3 className='text-sm font-semibold'>Endpoints</h3>
                 <Select onValueChange={handleFillEndpointTemplate}>
-                  <SelectTrigger className='w-[200px]'>
+                  <SelectTrigger size='sm' className='w-[200px]'>
                     <SelectValue placeholder='Load template...' />
                   </SelectTrigger>
                   <SelectContent>

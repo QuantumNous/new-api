@@ -1,3 +1,4 @@
+import { DescriptionDialog } from './dialogs/description-dialog'
 import { MissingModelsDialog } from './dialogs/missing-models-dialog'
 import { PrefillGroupManagement } from './dialogs/prefill-group-management'
 import { SyncWizardDialog } from './dialogs/sync-wizard-dialog'
@@ -6,7 +7,14 @@ import { ModelMutateDrawer } from './drawers/model-mutate-drawer'
 import { useModels } from './models-provider'
 
 export function ModelsDialogs() {
-  const { open, setOpen, currentRow, currentVendor } = useModels()
+  const {
+    open,
+    setOpen,
+    currentRow,
+    currentVendor,
+    descriptionData,
+    setDescriptionData,
+  } = useModels()
 
   return (
     <>
@@ -40,6 +48,19 @@ export function ModelsDialogs() {
       <PrefillGroupManagement
         open={open === 'prefill-groups'}
         onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      {/* Description Dialog */}
+      <DescriptionDialog
+        open={open === 'description'}
+        onOpenChange={(v) => {
+          if (!v) {
+            setOpen(null)
+            setDescriptionData(null)
+          }
+        }}
+        modelName={descriptionData?.modelName || ''}
+        description={descriptionData?.description || ''}
       />
     </>
   )

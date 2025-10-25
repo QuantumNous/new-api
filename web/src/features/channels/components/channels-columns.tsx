@@ -520,7 +520,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
               {modelArray.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{modelBadges}</div>
                 </TooltipContent>
@@ -555,7 +555,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
               {groupArray.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{groupBadges}</div>
                 </TooltipContent>

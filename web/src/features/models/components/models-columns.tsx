@@ -1,6 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { truncateText } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -18,6 +17,7 @@ import {
 import { formatTimestamp, parseModelTags, formatEndpointsDisplay } from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+import { DescriptionCell } from './description-cell'
 
 /**
  * Render limited items with "and X more" indicator
@@ -113,7 +113,10 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       cell: ({ row }) => {
         const model = row.original
         const iconKey =
-          model.icon || vendorMap[model.vendor_id || 0]?.icon || 'Layers'
+          model.icon ||
+          vendorMap[model.vendor_id || 0]?.icon ||
+          model.model_name?.[0] ||
+          'N'
         const icon = getLobeIcon(iconKey, 20)
 
         return <div className='flex items-center justify-center'>{icon}</div>
@@ -133,7 +136,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const name = row.getValue('model_name') as string
         return (
           <StatusBadge
-            label={truncateText(name, 50)}
+            label={name}
             variant='neutral'
             copyText={name}
             size='sm'
@@ -160,12 +163,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         }
 
         const badge = (
-          <StatusBadge
-            label={label}
-            variant={config.color as any}
-            size='sm'
-            copyable={false}
-          />
+          <StatusBadge label={label} variant={config.color as any} size='sm' />
         )
 
         // Show tooltip with matched models for non-exact rules
@@ -186,7 +184,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
                 </TooltipTrigger>
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{matchedBadges}</div>
                 </TooltipContent>
@@ -254,7 +252,6 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               label={vendor.name}
               autoColor={vendor.name}
               size='sm'
-              copyable={false}
             />
           </div>
         )
@@ -274,26 +271,13 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       header: 'Description',
       cell: ({ row }) => {
         const description = row.getValue('description') as string
-        if (!description) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
+        const modelName = row.getValue('model_name') as string
 
         return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-pointer text-sm'>
-                  {truncateText(description, 50)}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side='top' className='max-w-md'>
-                <p className='text-sm'>{description}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <DescriptionCell modelName={modelName} description={description} />
         )
       },
-      size: 200,
+      size: 150,
       enableSorting: false,
     },
 
@@ -323,7 +307,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               {tagArray.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{tagBadges}</div>
                 </TooltipContent>
@@ -362,7 +346,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               {endpointArray.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{endpointBadges}</div>
                 </TooltipContent>
@@ -391,9 +375,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           <StatusBadge
             key={idx}
             label={`${c.name} (${c.type})`}
-            variant='neutral'
+            autoColor={c.name}
             size='sm'
-            copyable={false}
           />
         ))
 
@@ -406,7 +389,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               {channels.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{channelBadges}</div>
                 </TooltipContent>
@@ -444,7 +427,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               {groups.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover max-h-48 w-[320px] max-w-[80vw] overflow-y-auto p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{groupBadges}</div>
                 </TooltipContent>
@@ -477,7 +460,6 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               label={config?.label || String(qt)}
               variant={config?.color as any}
               size='sm'
-              copyable={false}
             />
           )
         })
@@ -491,7 +473,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               {quotaTypes.length > 2 && (
                 <TooltipContent
                   side='top'
-                  className='border-border bg-popover p-2'
+                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
                 >
                   <div className='flex flex-wrap gap-1'>{quotaBadges}</div>
                 </TooltipContent>
