@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function MissingModelsDialog({
   onOpenChange,
 }: MissingModelsDialogProps) {
   const { setOpen, setCurrentRow } = useModels()
+  const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -90,8 +92,15 @@ export function MissingModelsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-2xl'>
-        <DialogHeader>
+      <DialogContent
+        className='flex max-h-[85vh] max-w-2xl flex-col gap-3 p-4'
+        onOpenAutoFocus={(event) => {
+          if (isMobile) {
+            event.preventDefault()
+          }
+        }}
+      >
+        <DialogHeader className='flex-shrink-0 text-start'>
           <DialogTitle>Missing Models</DialogTitle>
           <DialogDescription>
             Models that are being used but not configured in the system
@@ -110,14 +119,12 @@ export function MissingModelsDialog({
             </p>
           </div>
         ) : (
-          <div className='space-y-4'>
-            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-              <div className='text-muted-foreground text-sm'>
-                Showing {displayStart === 0 ? 0 : displayStart}-
-                {displayEnd === 0 ? 0 : displayEnd} of {totalItems} missing
-                models
+          <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto'>
+            <div className='flex flex-shrink-0 items-center justify-between gap-3'>
+              <div className='text-muted-foreground text-sm whitespace-nowrap'>
+                Showing {displayStart}-{displayEnd} of {totalItems}
               </div>
-              <div className='relative w-full sm:max-w-xs'>
+              <div className='relative w-48'>
                 <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
                 <Input
                   value={searchTerm}
@@ -145,21 +152,23 @@ export function MissingModelsDialog({
                 </EmptyHeader>
               </Empty>
             ) : (
-              <div className='rounded-lg border'>
+              <div className='flex-shrink-0 rounded-lg border'>
                 <div className='divide-y'>
                   {paginatedModels.map((modelName) => (
                     <div
                       key={modelName}
-                      className='flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between'
+                      className='flex items-center justify-between gap-3 p-3'
                     >
-                      <StatusBadge
-                        label={modelName}
-                        variant='neutral'
-                        copyText={modelName}
-                      />
+                      <div className='min-w-0 flex-1'>
+                        <StatusBadge
+                          label={modelName}
+                          variant='neutral'
+                          copyText={modelName}
+                        />
+                      </div>
                       <Button
                         size='sm'
-                        className='gap-1 self-start sm:self-auto'
+                        className='flex-shrink-0 gap-1'
                         onClick={() => handleConfigureModel(modelName)}
                       >
                         <Plus className='h-4 w-4' />
@@ -169,8 +178,8 @@ export function MissingModelsDialog({
                   ))}
                 </div>
 
-                <div className='bg-muted/40 flex flex-wrap items-center justify-between gap-3 border-t px-3 py-2 text-sm'>
-                  <div className='text-muted-foreground'>
+                <div className='bg-muted/40 flex items-center justify-between border-t px-3 py-2 text-sm'>
+                  <div className='text-muted-foreground text-sm'>
                     Page {currentPage} of {totalPages}
                   </div>
                   {showPagination && (
