@@ -22,7 +22,7 @@ export function ModelsDialogs() {
       <ModelMutateDrawer
         open={open === 'create-model' || open === 'update-model'}
         onOpenChange={(v) => !v && setOpen(null)}
-        currentRow={open === 'update-model' ? currentRow : null}
+        currentRow={currentRow}
       />
 
       {/* Vendor Create/Update Dialog */}
