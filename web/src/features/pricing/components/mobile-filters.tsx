@@ -1,18 +1,20 @@
-import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
-  FILTER_ALL,
+  FILTER_SECTIONS,
   QUOTA_TYPE_LABELS,
   ENDPOINT_TYPE_LABELS,
 } from '../constants'
 import type { PricingVendor } from '../types'
+import { FilterButton } from './filter-button'
+import { FilterList } from './filter-list'
+import { FilterSection } from './filter-section'
 
 // ----------------------------------------------------------------------------
 // Mobile Filters Component
@@ -36,6 +38,10 @@ export interface MobileFiltersProps {
   tags: string[]
   hasActiveFilters: boolean
   onClearFilters: () => void
+  openSections: Record<string, boolean>
+  onToggleSection: (section: string) => void
+  expandedFilters: Record<string, boolean>
+  onToggleExpandFilter: (filterType: 'vendor' | 'group' | 'tag') => void
 }
 
 export function MobileFilters({
@@ -56,126 +62,138 @@ export function MobileFilters({
   tags,
   hasActiveFilters,
   onClearFilters,
+  openSections,
+  onToggleSection,
+  expandedFilters,
+  onToggleExpandFilter,
 }: MobileFiltersProps) {
-  if (!show) return null
-
   return (
-    <div className='border-border/40 bg-card space-y-4 rounded-lg border p-4 lg:hidden'>
-      <div className='flex items-center justify-between'>
-        <h3 className='text-sm font-semibold'>Filters</h3>
-        <button
-          onClick={onClose}
-          className='text-muted-foreground hover:text-foreground'
-          aria-label='Close filters'
-        >
-          <X className='h-4 w-4' />
-        </button>
-      </div>
+    <Sheet open={show} onOpenChange={onClose}>
+      <SheetContent
+        side='right'
+        className='flex w-full flex-col overflow-hidden p-0 sm:max-w-md'
+      >
+        <SheetHeader className='border-b px-6 py-4'>
+          <SheetTitle>Filters</SheetTitle>
+        </SheetHeader>
 
-      {/* Pricing Type */}
-      <div className='space-y-2'>
-        <label className='text-sm font-medium'>Pricing Type</label>
-        <Select value={quotaTypeFilter} onValueChange={onQuotaTypeChange}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(QUOTA_TYPE_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Endpoint Type */}
-      <div className='space-y-2'>
-        <label className='text-sm font-medium'>Endpoint Type</label>
-        <Select value={endpointTypeFilter} onValueChange={onEndpointTypeChange}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(ENDPOINT_TYPE_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Vendor */}
-      {vendors.length > 0 && (
-        <div className='space-y-2'>
-          <label className='text-sm font-medium'>Vendor</label>
-          <Select value={vendorFilter} onValueChange={onVendorChange}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FILTER_ALL}>All Vendors</SelectItem>
-              {vendors.map((v) => (
-                <SelectItem key={v.id} value={v.name}>
-                  {v.name}
-                </SelectItem>
+        {/* Filter Content - Scrollable */}
+        <div className='flex-1 space-y-1 overflow-y-auto px-6'>
+          {/* Pricing Type Filter */}
+          <FilterSection
+            title='Pricing Type'
+            isOpen={openSections[FILTER_SECTIONS.PRICING_TYPE]}
+            onToggle={() => onToggleSection(FILTER_SECTIONS.PRICING_TYPE)}
+          >
+            <div className='flex flex-col gap-1'>
+              {Object.entries(QUOTA_TYPE_LABELS).map(([value, label]) => (
+                <FilterButton
+                  key={value}
+                  isActive={quotaTypeFilter === value}
+                  onClick={() => onQuotaTypeChange(value)}
+                >
+                  {label}
+                </FilterButton>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+            </div>
+          </FilterSection>
 
-      {/* Group */}
-      {groups.length > 0 && (
-        <div className='space-y-2'>
-          <label className='text-sm font-medium'>Group</label>
-          <Select value={groupFilter} onValueChange={onGroupChange}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FILTER_ALL}>All Groups</SelectItem>
-              {groups.map((g) => (
-                <SelectItem key={g} value={g}>
-                  {g}
-                </SelectItem>
+          {/* Endpoint Type Filter */}
+          <FilterSection
+            title='Endpoint Type'
+            isOpen={openSections[FILTER_SECTIONS.ENDPOINT_TYPE]}
+            onToggle={() => onToggleSection(FILTER_SECTIONS.ENDPOINT_TYPE)}
+          >
+            <div className='flex flex-col gap-1'>
+              {Object.entries(ENDPOINT_TYPE_LABELS).map(([value, label]) => (
+                <FilterButton
+                  key={value}
+                  isActive={endpointTypeFilter === value}
+                  onClick={() => onEndpointTypeChange(value)}
+                >
+                  {label}
+                </FilterButton>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+            </div>
+          </FilterSection>
 
-      {/* Tags */}
-      {tags.length > 0 && (
-        <div className='space-y-2'>
-          <label className='text-sm font-medium'>Tags</label>
-          <Select value={tagFilter} onValueChange={onTagChange}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FILTER_ALL}>All Tags</SelectItem>
-              {tags.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+          {/* Vendor Filter */}
+          {vendors.length > 0 && (
+            <FilterSection
+              title='Vendor'
+              isOpen={openSections[FILTER_SECTIONS.VENDOR]}
+              onToggle={() => onToggleSection(FILTER_SECTIONS.VENDOR)}
+            >
+              <FilterList
+                items={vendors.map((v) => ({
+                  id: v.id,
+                  name: v.name,
+                  icon: v.icon,
+                }))}
+                activeValue={vendorFilter}
+                onSelect={onVendorChange}
+                isExpanded={expandedFilters.vendor}
+                onToggleExpand={() => onToggleExpandFilter('vendor')}
+                allOptionLabel='All Vendors'
+              />
+            </FilterSection>
+          )}
 
-      {hasActiveFilters && (
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={onClearFilters}
-          className='w-full'
-        >
-          Clear all filters
-        </Button>
-      )}
-    </div>
+          {/* Group Filter */}
+          {groups.length > 0 && (
+            <FilterSection
+              title='Group'
+              isOpen={openSections[FILTER_SECTIONS.GROUP]}
+              onToggle={() => onToggleSection(FILTER_SECTIONS.GROUP)}
+            >
+              <FilterList
+                items={groups.map((g) => ({ id: g, name: g }))}
+                activeValue={groupFilter}
+                onSelect={onGroupChange}
+                isExpanded={expandedFilters.group}
+                onToggleExpand={() => onToggleExpandFilter('group')}
+                allOptionLabel='All Groups'
+              />
+            </FilterSection>
+          )}
+
+          {/* Tag Filter */}
+          {tags.length > 0 && (
+            <FilterSection
+              title='Tags'
+              isOpen={openSections[FILTER_SECTIONS.TAG]}
+              onToggle={() => onToggleSection(FILTER_SECTIONS.TAG)}
+            >
+              <FilterList
+                items={tags.map((t) => ({ id: t, name: t }))}
+                activeValue={tagFilter}
+                onSelect={onTagChange}
+                isExpanded={expandedFilters.tag}
+                onToggleExpand={() => onToggleExpandFilter('tag')}
+                allOptionLabel='All Tags'
+              />
+            </FilterSection>
+          )}
+        </div>
+
+        {/* Footer with Actions */}
+        <SheetFooter className='border-t px-6 py-4'>
+          <div className='flex w-full gap-3'>
+            {hasActiveFilters && (
+              <Button
+                variant='outline'
+                onClick={onClearFilters}
+                className='flex-1'
+              >
+                Reset Filters
+              </Button>
+            )}
+            <Button onClick={onClose} className='flex-1'>
+              Close
+            </Button>
+          </div>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

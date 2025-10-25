@@ -183,7 +183,7 @@ export function Pricing() {
 
                 {/* Sort Dropdown */}
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className='w-[180px]'>
+                  <SelectTrigger size='sm' className='w-[180px]'>
                     <SelectValue placeholder='Sort by' />
                   </SelectTrigger>
                   <SelectContent align='end'>
@@ -215,6 +215,10 @@ export function Pricing() {
                 tags={availableTags}
                 hasActiveFilters={hasActiveFilters}
                 onClearFilters={clearFilters}
+                openSections={openSections}
+                onToggleSection={toggleSection}
+                expandedFilters={expandedFilters}
+                onToggleExpandFilter={toggleExpandFilter}
               />
 
               {/* Active Filter Tags (Desktop) */}
