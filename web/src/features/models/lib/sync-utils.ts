@@ -1,5 +1,19 @@
+// ============================================================================
+// Sync Utilities
+// ============================================================================
+
 /**
- * Format sync result message
+ * Format sync result statistics into human-readable message
+ *
+ * @param data - Sync result data from API
+ * @returns Formatted message string
+ *
+ * @example
+ * ```ts
+ * const result = { created_models: 5, updated_models: 3, created_vendors: 2 }
+ * const message = formatSyncResultMessage(result)
+ * // "5 models created, 3 models updated, 2 vendors created"
+ * ```
  */
 export function formatSyncResultMessage(data: {
   created_models?: number
@@ -41,8 +55,23 @@ export function formatSyncResultMessage(data: {
   return parts.length > 0 ? parts.join(', ') : 'Sync completed'
 }
 
+// ============================================================================
+// Conflict Resolution Utilities
+// ============================================================================
+
 /**
- * Format conflict field value for display
+ * Format conflict field value for display in conflict resolution UI
+ * Handles various value types including null, strings, objects, and arrays
+ *
+ * @param value - The field value to format
+ * @returns Formatted string representation
+ *
+ * @example
+ * ```ts
+ * formatConflictValue(null)        // "-"
+ * formatConflictValue({ a: 1 })    // "{\n  \"a\": 1\n}"
+ * formatConflictValue("text")      // "text"
+ * ```
  */
 export function formatConflictValue(value: unknown): string {
   if (value === null || value === undefined) return '-'
@@ -55,7 +84,11 @@ export function formatConflictValue(value: unknown): string {
 }
 
 /**
- * Check if conflict selections are valid
+ * Check if any conflict field selections have been made
+ * Used for form validation before submitting conflict resolution
+ *
+ * @param selections - Map of model names to selected field sets
+ * @returns True if at least one field is selected
  */
 export function validateConflictSelections(
   selections: Record<string, Set<string>>
@@ -64,7 +97,22 @@ export function validateConflictSelections(
 }
 
 /**
- * Transform conflict selections to API payload
+ * Transform conflict selections from UI state to API payload format
+ * Converts Record<modelName, Set<fields>> to Array<{model_name, fields}>
+ * Filters out models with no field selections
+ *
+ * @param selections - Map of model names to selected field sets
+ * @returns Array of conflict resolution entries for API
+ *
+ * @example
+ * ```ts
+ * const selections = {
+ *   'gpt-4': new Set(['description', 'icon']),
+ *   'claude-3': new Set()
+ * }
+ * const payload = transformConflictSelectionsToPayload(selections)
+ * // [{ model_name: 'gpt-4', fields: ['description', 'icon'] }]
+ * ```
  */
 export function transformConflictSelectionsToPayload(
   selections: Record<string, Set<string>>

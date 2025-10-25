@@ -18,11 +18,13 @@ import type {
 } from './types'
 
 // ============================================================================
-// Model APIs
+// Model CRUD Operations
 // ============================================================================
 
 /**
- * Get paginated models list
+ * Get paginated list of models
+ * @param params - Pagination and filter parameters
+ * @returns Promise with models list response
  */
 export async function getModels(
   params: GetModelsParams = {}
@@ -40,6 +42,8 @@ export async function getModels(
 
 /**
  * Search models by keyword and vendor
+ * @param params - Search parameters including keyword and vendor filter
+ * @returns Promise with filtered models list
  */
 export async function searchModels(
   params: SearchModelsParams
@@ -53,6 +57,8 @@ export async function searchModels(
 
 /**
  * Get single model by ID
+ * @param id - Model ID
+ * @returns Promise with model data
  */
 export async function getModel(id: number): Promise<ApiResponse<Model>> {
   const res = await api.get(`/api/models/${id}`)
@@ -61,6 +67,8 @@ export async function getModel(id: number): Promise<ApiResponse<Model>> {
 
 /**
  * Create a new model
+ * @param data - Model form data
+ * @returns Promise with created model
  */
 export async function createModel(
   data: ModelFormData
@@ -71,6 +79,8 @@ export async function createModel(
 
 /**
  * Update an existing model
+ * @param data - Model form data with ID
+ * @returns Promise with updated model
  */
 export async function updateModel(
   data: ModelFormData & { id: number }
@@ -81,6 +91,8 @@ export async function updateModel(
 
 /**
  * Delete a single model
+ * @param id - Model ID to delete
+ * @returns Promise with deletion result
  */
 export async function deleteModel(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/models/${id}`)
@@ -89,6 +101,8 @@ export async function deleteModel(id: number): Promise<ApiResponse> {
 
 /**
  * Batch delete multiple models
+ * @param ids - Array of model IDs to delete
+ * @returns Promise with batch deletion result and count
  */
 export async function batchDeleteModels(
   ids: number[]
@@ -108,8 +122,15 @@ export async function batchDeleteModels(
   }
 }
 
+// ============================================================================
+// Model Operations
+// ============================================================================
+
 /**
  * Update model status (enable/disable)
+ * @param id - Model ID
+ * @param status - New status (0: disabled, 1: enabled)
+ * @returns Promise with updated model
  */
 export async function updateModelStatus(
   id: number,
@@ -120,15 +141,23 @@ export async function updateModelStatus(
 }
 
 /**
- * Get missing (unconfigured) models
+ * Get list of missing (unconfigured) models
+ * Models that have been requested but not yet configured
+ * @returns Promise with array of missing model names
  */
 export async function getMissingModels(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/models/missing')
   return res.data
 }
 
+// ============================================================================
+// Upstream Sync Operations
+// ============================================================================
+
 /**
- * Sync upstream models/vendors
+ * Sync models and vendors from upstream official metadata
+ * @param params - Sync parameters (locale, overwrite conflicts)
+ * @returns Promise with sync result statistics
  */
 export async function syncUpstream(
   params: SyncUpstreamParams = {}
@@ -138,7 +167,10 @@ export async function syncUpstream(
 }
 
 /**
- * Preview upstream sync differences
+ * Preview upstream sync differences before applying
+ * Shows conflicts between local and upstream data
+ * @param locale - Language locale for metadata (zh, en, ja)
+ * @returns Promise with diff data including conflicts
  */
 export async function previewUpstreamDiff(
   locale?: string
@@ -149,7 +181,10 @@ export async function previewUpstreamDiff(
 }
 
 /**
- * Apply upstream overwrite with selected conflicts
+ * Apply upstream sync with conflict resolution
+ * Use after previewing to resolve conflicts selectively
+ * @param params - Sync parameters with overwrite field selections
+ * @returns Promise with sync result statistics
  */
 export async function applyUpstreamOverwrite(
   params: SyncUpstreamParams
@@ -159,11 +194,13 @@ export async function applyUpstreamOverwrite(
 }
 
 // ============================================================================
-// Vendor APIs
+// Vendor CRUD Operations
 // ============================================================================
 
 /**
- * Get vendors list
+ * Get list of all vendors
+ * @param params - Query parameters (pagination)
+ * @returns Promise with vendors list
  */
 export async function getVendors(
   params: GetVendorsParams = {}
@@ -175,6 +212,8 @@ export async function getVendors(
 
 /**
  * Get single vendor by ID
+ * @param id - Vendor ID
+ * @returns Promise with vendor data
  */
 export async function getVendor(id: number): Promise<ApiResponse<Vendor>> {
   const res = await api.get(`/api/vendors/${id}`)
@@ -183,6 +222,8 @@ export async function getVendor(id: number): Promise<ApiResponse<Vendor>> {
 
 /**
  * Create a new vendor
+ * @param data - Vendor form data
+ * @returns Promise with created vendor
  */
 export async function createVendor(
   data: VendorFormData
@@ -193,6 +234,8 @@ export async function createVendor(
 
 /**
  * Update an existing vendor
+ * @param data - Vendor form data with ID
+ * @returns Promise with updated vendor
  */
 export async function updateVendor(
   data: VendorFormData & { id: number }
@@ -203,6 +246,8 @@ export async function updateVendor(
 
 /**
  * Delete a single vendor
+ * @param id - Vendor ID to delete
+ * @returns Promise with deletion result
  */
 export async function deleteVendor(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/vendors/${id}`)
@@ -210,11 +255,14 @@ export async function deleteVendor(id: number): Promise<ApiResponse> {
 }
 
 // ============================================================================
-// Prefill Group APIs
+// Prefill Group CRUD Operations
 // ============================================================================
 
 /**
- * Get prefill groups list
+ * Get list of prefill groups
+ * Used for quick-filling model tags and endpoints
+ * @param params - Filter parameters (type: model/tag/endpoint)
+ * @returns Promise with prefill groups array
  */
 export async function getPrefillGroups(
   params: GetPrefillGroupsParams = {}
@@ -227,6 +275,8 @@ export async function getPrefillGroups(
 
 /**
  * Get single prefill group by ID
+ * @param id - Prefill group ID
+ * @returns Promise with prefill group data
  */
 export async function getPrefillGroup(
   id: number
@@ -237,6 +287,8 @@ export async function getPrefillGroup(
 
 /**
  * Create a new prefill group
+ * @param data - Prefill group form data
+ * @returns Promise with created prefill group
  */
 export async function createPrefillGroup(
   data: PrefillGroupFormData
@@ -247,6 +299,8 @@ export async function createPrefillGroup(
 
 /**
  * Update an existing prefill group
+ * @param data - Prefill group form data with ID
+ * @returns Promise with updated prefill group
  */
 export async function updatePrefillGroup(
   data: PrefillGroupFormData & { id: number }
@@ -257,6 +311,8 @@ export async function updatePrefillGroup(
 
 /**
  * Delete a single prefill group
+ * @param id - Prefill group ID to delete
+ * @returns Promise with deletion result
  */
 export async function deletePrefillGroup(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/prefill_group/${id}`)

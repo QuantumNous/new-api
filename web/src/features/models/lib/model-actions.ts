@@ -1,8 +1,24 @@
 import { deleteModel, updateModelStatus } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 
+// ============================================================================
+// Model Action Utilities
+// ============================================================================
+
 /**
- * Toggle model status (enable/disable)
+ * Toggle model status between enabled and disabled
+ *
+ * @param id - Model ID to toggle
+ * @param currentStatus - Current status (0: disabled, 1: enabled)
+ * @returns Promise with operation result and message
+ *
+ * @example
+ * ```ts
+ * const result = await toggleModelStatus(1, 1)
+ * if (result.success) {
+ *   toast.success(result.message)
+ * }
+ * ```
  */
 export async function toggleModelStatus(
   id: number,
@@ -35,7 +51,19 @@ export async function toggleModelStatus(
 }
 
 /**
- * Delete a single model
+ * Delete a single model by ID
+ *
+ * @param id - Model ID to delete
+ * @returns Promise with operation result and message
+ *
+ * @example
+ * ```ts
+ * const result = await deleteSingleModel(1)
+ * if (result.success) {
+ *   toast.success(result.message)
+ *   refreshTable()
+ * }
+ * ```
  */
 export async function deleteSingleModel(
   id: number

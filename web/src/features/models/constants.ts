@@ -4,11 +4,20 @@ import { type StatusBadgeProps } from '@/components/status-badge'
 // Model Status Configuration
 // ============================================================================
 
+/**
+ * Model status enum
+ * 0 = Disabled: Model is not available for use
+ * 1 = Enabled: Model is active and available
+ */
 export const MODEL_STATUS = {
   DISABLED: 0,
   ENABLED: 1,
 } as const
 
+/**
+ * Model status display configuration
+ * Maps status codes to UI presentation properties
+ */
 export const MODEL_STATUSES: Record<
   number,
   Pick<StatusBadgeProps, 'variant' | 'showDot'> & {
@@ -34,6 +43,17 @@ export const MODEL_STATUSES: Record<
 // Name Rule Configuration
 // ============================================================================
 
+/**
+ * Model name matching rule options
+ * Controls how model names are matched against incoming requests
+ *
+ * Priority: Exact > Prefix > Suffix > Contains
+ *
+ * - Exact Match (0): Matches only when model name is exactly the same
+ * - Prefix Match (1): Matches when request starts with model name
+ * - Contains Match (2): Matches when model name appears anywhere in request
+ * - Suffix Match (3): Matches when request ends with model name
+ */
 export const NAME_RULE_OPTIONS = [
   { label: 'Exact Match', value: 0, color: 'green' },
   { label: 'Prefix Match', value: 1, color: 'blue' },
@@ -45,6 +65,13 @@ export const NAME_RULE_OPTIONS = [
 // Prefill Group Type Configuration
 // ============================================================================
 
+/**
+ * Prefill group type options for quick-filling model forms
+ *
+ * - Model Group: Predefined list of model names
+ * - Tag Group: Predefined list of tags for categorization
+ * - Endpoint Group: Predefined endpoint configurations (JSON format)
+ */
 export const PREFILL_GROUP_TYPE_OPTIONS = [
   { label: 'Model Group', value: 'model' as const },
   { label: 'Tag Group', value: 'tag' as const },
@@ -55,6 +82,14 @@ export const PREFILL_GROUP_TYPE_OPTIONS = [
 // Endpoint Template
 // ============================================================================
 
+/**
+ * Default endpoint configurations for common API types
+ * Used as template for endpoint field in model forms
+ *
+ * Structure: { [endpointType]: { path, method } }
+ * - path: API endpoint path (may include {model} placeholder)
+ * - method: HTTP method (usually POST)
+ */
 export const ENDPOINT_TEMPLATE = {
   openai: { path: '/v1/chat/completions', method: 'POST' },
   'openai-response': { path: '/v1/responses', method: 'POST' },
@@ -68,6 +103,10 @@ export const ENDPOINT_TEMPLATE = {
 // Sync Locale Options
 // ============================================================================
 
+/**
+ * Available language options for upstream model/vendor metadata sync
+ * Controls which language version of descriptions and documentation to fetch
+ */
 export const SYNC_LOCALES = [
   { label: 'English', value: 'en', extra: 'English' },
   { label: 'Chinese', value: 'zh', extra: '中文' },
@@ -78,6 +117,12 @@ export const SYNC_LOCALES = [
 // Quota Type Configuration
 // ============================================================================
 
+/**
+ * Model billing/quota type configuration
+ *
+ * - Pay per Use (0): Charged based on token usage
+ * - Pay per Call (1): Charged per API request regardless of tokens
+ */
 export const QUOTA_TYPE_CONFIG: Record<
   number,
   { label: string; color: string }
@@ -90,8 +135,15 @@ export const QUOTA_TYPE_CONFIG: Record<
 // Error Messages
 // ============================================================================
 
+/**
+ * Error messages for model-related operations
+ * Used for consistent error reporting across the feature
+ */
 export const ERROR_MESSAGES = {
+  // General
   UNEXPECTED: 'An unexpected error occurred',
+
+  // Model operations
   LOAD_FAILED: 'Failed to load models',
   SEARCH_FAILED: 'Failed to search models',
   CREATE_FAILED: 'Failed to create model',
@@ -100,19 +152,19 @@ export const ERROR_MESSAGES = {
   BATCH_DELETE_FAILED: 'Failed to delete models',
   STATUS_UPDATE_FAILED: 'Failed to update model status',
 
-  // Vendor
+  // Vendor operations
   VENDOR_LOAD_FAILED: 'Failed to load vendors',
   VENDOR_CREATE_FAILED: 'Failed to create vendor',
   VENDOR_UPDATE_FAILED: 'Failed to update vendor',
   VENDOR_DELETE_FAILED: 'Failed to delete vendor',
 
-  // Prefill Group
+  // Prefill group operations
   PREFILL_GROUP_LOAD_FAILED: 'Failed to load prefill groups',
   PREFILL_GROUP_CREATE_FAILED: 'Failed to create prefill group',
   PREFILL_GROUP_UPDATE_FAILED: 'Failed to update prefill group',
   PREFILL_GROUP_DELETE_FAILED: 'Failed to delete prefill group',
 
-  // Sync
+  // Sync operations
   SYNC_FAILED: 'Failed to sync upstream',
   PREVIEW_FAILED: 'Failed to preview sync differences',
   MISSING_MODELS_LOAD_FAILED: 'Failed to load missing models',
@@ -122,7 +174,12 @@ export const ERROR_MESSAGES = {
 // Success Messages
 // ============================================================================
 
+/**
+ * Success messages for model-related operations
+ * Used for consistent success notifications across the feature
+ */
 export const SUCCESS_MESSAGES = {
+  // Model operations
   MODEL_CREATED: 'Model created successfully',
   MODEL_UPDATED: 'Model updated successfully',
   MODEL_DELETED: 'Model deleted successfully',
@@ -130,17 +187,17 @@ export const SUCCESS_MESSAGES = {
   MODEL_DISABLED: 'Model disabled successfully',
   MODELS_DELETED: 'Models deleted successfully',
 
-  // Vendor
+  // Vendor operations
   VENDOR_CREATED: 'Vendor created successfully',
   VENDOR_UPDATED: 'Vendor updated successfully',
   VENDOR_DELETED: 'Vendor deleted successfully',
 
-  // Prefill Group
+  // Prefill group operations
   PREFILL_GROUP_CREATED: 'Prefill group created successfully',
   PREFILL_GROUP_UPDATED: 'Prefill group updated successfully',
   PREFILL_GROUP_DELETED: 'Prefill group deleted successfully',
 
-  // Sync
+  // Sync operations
   SYNC_COMPLETED: 'Sync completed successfully',
 } as const
 
@@ -148,6 +205,10 @@ export const SUCCESS_MESSAGES = {
 // Field Labels for Conflict Resolution
 // ============================================================================
 
+/**
+ * Human-readable labels for model fields in conflict resolution UI
+ * Maps internal field names to display names
+ */
 export const CONFLICT_FIELD_LABELS: Record<string, string> = {
   description: 'Description',
   icon: 'Icon',

@@ -15,8 +15,17 @@ import { NAME_RULE_OPTIONS, QUOTA_TYPE_CONFIG } from '../constants'
 import { type Model, type Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
  * Render limited items with "and X more" indicator
+ * Shows first N items then displays "+X" badge for remaining count
+ *
+ * @param items - Array of React nodes to render
+ * @param maxDisplay - Maximum number of items to show (default: 3)
+ * @returns Rendered elements with overflow indicator
  */
 function renderLimitedItems(
   items: React.ReactNode[],
@@ -44,8 +53,21 @@ function renderLimitedItems(
   )
 }
 
+// ============================================================================
+// Column Definitions
+// ============================================================================
+
 /**
- * Generate models columns configuration
+ * Generate models table column configuration
+ *
+ * @param vendorMap - Map of vendor IDs to vendor objects for lookups
+ * @returns Array of TanStack Table column definitions
+ *
+ * @example
+ * ```tsx
+ * const columns = getModelsColumns(vendorMap)
+ * const table = useReactTable({ data: models, columns })
+ * ```
  */
 export function getModelsColumns(
   vendorMap: Record<number, Vendor>
@@ -163,9 +185,10 @@ export function getModelsColumns(
         const sync = row.getValue('sync_official') as number
         return (
           <StatusBadge
-            variant={sync === 1 ? 'success' : 'warning'}
+            variant={sync === 1 ? 'success' : 'neutral'}
             showDot
-            label={sync === 1 ? 'Yes' : 'No'}
+            label={sync === 1 ? 'Enabled' : 'Disabled'}
+            copyable={false}
           />
         )
       },
