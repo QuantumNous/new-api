@@ -112,7 +112,11 @@ export function EmailSettingsSection({
       description='Configure outgoing email server for notifications'
     >
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className='space-y-6'
+          autoComplete='off'
+        >
           <FormField
             control={form.control}
             name='SMTPServer'
@@ -121,6 +125,7 @@ export function EmailSettingsSection({
                 <FormLabel>SMTP Host</FormLabel>
                 <FormControl>
                   <Input
+                    autoComplete='off'
                     placeholder='smtp.example.com'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
@@ -143,6 +148,7 @@ export function EmailSettingsSection({
                   <FormLabel>Port</FormLabel>
                   <FormControl>
                     <Input
+                      autoComplete='off'
                       type='number'
                       placeholder='587'
                       {...field}
@@ -187,6 +193,7 @@ export function EmailSettingsSection({
                 <FormLabel>Username</FormLabel>
                 <FormControl>
                   <Input
+                    autoComplete='off'
                     placeholder='noreply@example.com'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
@@ -208,6 +215,7 @@ export function EmailSettingsSection({
                 <FormLabel>From Address</FormLabel>
                 <FormControl>
                   <Input
+                    autoComplete='off'
                     placeholder='New API &lt;noreply@example.com&gt;'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
@@ -229,6 +237,7 @@ export function EmailSettingsSection({
                 <FormLabel>Password / Access Token</FormLabel>
                 <FormControl>
                   <Input
+                    autoComplete='off'
                     type='password'
                     placeholder='Enter new token to update'
                     {...field}
