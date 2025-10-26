@@ -4,7 +4,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { MAX_TAGS_DISPLAY } from '../constants'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice } from '../lib/price'
+import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel } from '../types'
 
 // ----------------------------------------------------------------------------
@@ -122,12 +122,19 @@ export function ModelRow({
               </span>
             </>
           ) : (
-            <StatusBadge
-              label='Pay per request'
-              variant='neutral'
-              size='sm'
-              copyable={false}
-            />
+            <>
+              <div className='flex flex-col items-start gap-0.5 sm:items-end'>
+                <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
+                  Price
+                </span>
+                <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
+                  {formatRequestPrice(model, false, priceRate, usdExchangeRate)}
+                </span>
+              </div>
+              <span className='text-muted-foreground text-[10px] sm:text-xs'>
+                per request
+              </span>
+            </>
           )}
         </div>
       </div>

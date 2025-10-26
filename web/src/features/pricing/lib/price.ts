@@ -126,7 +126,7 @@ export function formatGroupPrice(
 }
 
 /**
- * Format fixed price for pay-per-request models
+ * Format fixed price for pay-per-request models (with specific group)
  */
 export function formatFixedPrice(
   model: PricingModel,
@@ -142,6 +142,41 @@ export function formatFixedPrice(
 
   const ratio = groupRatio[group] || 1
   let priceInUSD = (model.model_price || 0) * ratio
+
+  priceInUSD = applyRechargeRate(
+    priceInUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}
+
+/**
+ * Format fixed price for pay-per-request models (minimum price from all groups)
+ */
+export function formatRequestPrice(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): string {
+  if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
+    return '-'
+  }
+
+  const enableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const groupRatio = model.group_ratio || {}
+  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+
+  let priceInUSD = (model.model_price || 0) * minRatio
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
