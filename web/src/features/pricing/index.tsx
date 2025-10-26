@@ -108,9 +108,11 @@ export function Pricing() {
     <PublicLayout>
       <div className='mx-auto max-w-7xl px-4 sm:px-6'>
         {/* Header */}
-        <header className='animate-appear mb-6 space-y-1'>
-          <h2 className='text-2xl font-bold tracking-tight'>Models</h2>
-          <p className='text-muted-foreground text-sm'>
+        <header className='animate-appear mb-4 space-y-0.5 sm:mb-6 sm:space-y-1'>
+          <h2 className='text-xl font-bold tracking-tight sm:text-2xl'>
+            Models
+          </h2>
+          <p className='text-muted-foreground text-xs sm:text-sm'>
             Browse and compare {models?.length || 0} AI models
           </p>
         </header>
@@ -143,7 +145,7 @@ export function Pricing() {
           {/* Main Content */}
           <main className='animate-appear animation-delay-100 min-w-0 flex-1'>
             {/* Search and Controls Bar */}
-            <div className='mb-6 space-y-4'>
+            <div className='mb-4 space-y-3 sm:mb-6 sm:space-y-4'>
               {/* Search Bar */}
               <SearchBar
                 value={searchInput}
@@ -152,10 +154,10 @@ export function Pricing() {
               />
 
               {/* Controls Bar */}
-              <div className='flex items-center justify-between gap-4'>
+              <div className='flex items-center justify-between gap-3 sm:gap-4'>
                 {/* Results Count & Filter Button (Mobile) */}
-                <div className='flex items-center gap-3'>
-                  <p className='text-muted-foreground text-sm'>
+                <div className='flex items-center gap-2 sm:gap-3'>
+                  <p className='text-muted-foreground text-xs sm:text-sm'>
                     {filteredModels.length}{' '}
                     {filteredModels.length === 1 ? 'model' : 'models'}
                   </p>

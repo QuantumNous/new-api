@@ -26,20 +26,20 @@ export function ModelRow({ model, onClick }: ModelRowProps) {
   return (
     <button
       onClick={onClick}
-      className='hover:bg-accent/5 group w-full px-6 py-6 text-left transition-colors'
+      className='hover:bg-accent/5 group w-full px-4 py-4 text-left transition-colors sm:px-6 sm:py-6'
     >
-      <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8'>
         {/* Model Info */}
-        <div className='min-w-0 flex-1 space-y-2.5'>
+        <div className='min-w-0 flex-1 space-y-2'>
           {/* Title */}
-          <div className='space-y-1'>
-            <h3 className='text-foreground text-base font-medium'>
+          <div className='space-y-0.5 sm:space-y-1'>
+            <h3 className='text-foreground text-sm font-medium sm:text-base'>
               {model.model_name}
             </h3>
             {model.vendor_name && (
               <div className='flex items-center gap-1.5'>
                 {vendorIcon}
-                <p className='text-muted-foreground text-sm'>
+                <p className='text-muted-foreground text-xs sm:text-sm'>
                   {model.vendor_name}
                 </p>
               </div>
@@ -48,14 +48,14 @@ export function ModelRow({ model, onClick }: ModelRowProps) {
 
           {/* Description */}
           {model.description && (
-            <p className='text-muted-foreground line-clamp-2 text-sm leading-relaxed'>
+            <p className='text-muted-foreground line-clamp-2 text-xs leading-relaxed sm:text-sm'>
               {model.description}
             </p>
           )}
 
           {/* Tags */}
           {tags.length > 0 && (
-            <div className='flex flex-wrap gap-1.5'>
+            <div className='flex flex-wrap gap-1 sm:gap-1.5'>
               {tags.map((tag) => (
                 <StatusBadge
                   key={tag}
@@ -70,29 +70,33 @@ export function ModelRow({ model, onClick }: ModelRowProps) {
         </div>
 
         {/* Pricing */}
-        <div className='flex shrink-0 flex-col items-start gap-1.5 sm:items-end'>
+        <div className='flex shrink-0 flex-col items-start gap-1 sm:items-end sm:gap-1.5'>
           {isTokenBased ? (
             <>
-              <div className='flex items-center gap-3'>
+              <div className='flex items-center gap-2 sm:gap-3'>
                 <div className='flex flex-col items-start gap-0.5 sm:items-end'>
-                  <span className='text-muted-foreground text-[10px] font-medium tracking-wide uppercase'>
+                  <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
                     Input
                   </span>
-                  <span className='text-foreground text-base font-semibold tabular-nums'>
+                  <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
                     {formatPrice(model, 'input', 'USD', 'M', false, 1, 1)}
                   </span>
                 </div>
-                <Separator orientation='vertical' className='h-8' decorative />
+                <Separator
+                  orientation='vertical'
+                  className='h-6 sm:h-8'
+                  decorative
+                />
                 <div className='flex flex-col items-start gap-0.5 sm:items-end'>
-                  <span className='text-muted-foreground text-[10px] font-medium tracking-wide uppercase'>
+                  <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
                     Output
                   </span>
-                  <span className='text-foreground text-base font-semibold tabular-nums'>
+                  <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
                     {formatPrice(model, 'output', 'USD', 'M', false, 1, 1)}
                   </span>
                 </div>
               </div>
-              <span className='text-muted-foreground text-xs'>
+              <span className='text-muted-foreground text-[10px] sm:text-xs'>
                 per 1M tokens
               </span>
             </>
