@@ -4,6 +4,12 @@ import { Pricing } from '@/features/pricing'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
+  sort: z.string().optional(),
+  vendor: z.string().optional(),
+  group: z.string().optional(),
+  quotaType: z.string().optional(),
+  endpointType: z.string().optional(),
+  tag: z.string().optional(),
 })
 
 export const Route = createFileRoute('/pricing/')({

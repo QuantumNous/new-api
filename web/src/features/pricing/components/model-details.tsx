@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useParams, useNavigate } from '@tanstack/react-router'
+import { useParams, useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -269,6 +269,7 @@ function GroupPricingSection({
 
 export function ModelDetails() {
   const { modelId } = useParams({ from: '/pricing/$modelId/' })
+  const search = useSearch({ from: '/pricing/$modelId/' })
   const navigate = useNavigate()
 
   const {
@@ -287,7 +288,10 @@ export function ModelDetails() {
   }, [models, modelId])
 
   const handleBack = () => {
-    navigate({ to: '/pricing' })
+    navigate({
+      to: '/pricing',
+      search,
+    })
   }
 
   if (isLoading) {

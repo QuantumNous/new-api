@@ -15,20 +15,33 @@ import type { PricingModel } from '../types'
 export interface UseFiltersOptions {
   models: PricingModel[]
   initialSearch?: string
+  initialSort?: string
+  initialVendor?: string
+  initialGroup?: string
+  initialQuotaType?: string
+  initialEndpointType?: string
+  initialTag?: string
 }
 
-export function useFilters({ models, initialSearch = '' }: UseFiltersOptions) {
+export function useFilters({
+  models,
+  initialSearch = '',
+  initialSort = SORT_OPTIONS.NAME,
+  initialVendor = FILTER_ALL,
+  initialGroup = FILTER_ALL,
+  initialQuotaType = QUOTA_TYPES.ALL,
+  initialEndpointType = ENDPOINT_TYPES.ALL,
+  initialTag = FILTER_ALL,
+}: UseFiltersOptions) {
   const [searchInput, setSearchInput] = useState(initialSearch)
-  const [sortBy, setSortBy] = useState<string>(SORT_OPTIONS.NAME)
-  const [vendorFilter, setVendorFilter] = useState<string>(FILTER_ALL)
-  const [groupFilter, setGroupFilter] = useState<string>(FILTER_ALL)
-  const [quotaTypeFilter, setQuotaTypeFilter] = useState<string>(
-    QUOTA_TYPES.ALL
-  )
-  const [endpointTypeFilter, setEndpointTypeFilter] = useState<string>(
-    ENDPOINT_TYPES.ALL
-  )
-  const [tagFilter, setTagFilter] = useState<string>(FILTER_ALL)
+  const [sortBy, setSortBy] = useState<string>(initialSort)
+  const [vendorFilter, setVendorFilter] = useState<string>(initialVendor)
+  const [groupFilter, setGroupFilter] = useState<string>(initialGroup)
+  const [quotaTypeFilter, setQuotaTypeFilter] =
+    useState<string>(initialQuotaType)
+  const [endpointTypeFilter, setEndpointTypeFilter] =
+    useState<string>(initialEndpointType)
+  const [tagFilter, setTagFilter] = useState<string>(initialTag)
 
   const availableTags = useMemo(() => {
     if (!models || models.length === 0) return []

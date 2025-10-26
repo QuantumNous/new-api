@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import {
   SortDropdown,
 } from './components'
 import {
+  SORT_OPTIONS,
   QUOTA_TYPES,
   ENDPOINT_TYPES,
   FILTER_ALL,
@@ -63,8 +64,43 @@ export function Pricing() {
     clearSearch,
   } = useFilters({
     models: models || [],
-    initialSearch: search.search,
+    initialSearch: search.search || '',
+    initialSort: search.sort || SORT_OPTIONS.NAME,
+    initialVendor: search.vendor || FILTER_ALL,
+    initialGroup: search.group || FILTER_ALL,
+    initialQuotaType: search.quotaType || QUOTA_TYPES.ALL,
+    initialEndpointType: search.endpointType || ENDPOINT_TYPES.ALL,
+    initialTag: search.tag || FILTER_ALL,
   })
+
+  // Sync filters to URL
+  useEffect(() => {
+    const params: Record<string, string> = {}
+
+    if (searchInput) params.search = searchInput
+    if (sortBy !== SORT_OPTIONS.NAME) params.sort = sortBy
+    if (vendorFilter !== FILTER_ALL) params.vendor = vendorFilter
+    if (groupFilter !== FILTER_ALL) params.group = groupFilter
+    if (quotaTypeFilter !== QUOTA_TYPES.ALL) params.quotaType = quotaTypeFilter
+    if (endpointTypeFilter !== ENDPOINT_TYPES.ALL)
+      params.endpointType = endpointTypeFilter
+    if (tagFilter !== FILTER_ALL) params.tag = tagFilter
+
+    navigate({
+      to: '/pricing',
+      search: params,
+      replace: true,
+    })
+  }, [
+    searchInput,
+    sortBy,
+    vendorFilter,
+    groupFilter,
+    quotaTypeFilter,
+    endpointTypeFilter,
+    tagFilter,
+    navigate,
+  ])
 
   const {
     showMobileFilters,
@@ -81,6 +117,7 @@ export function Pricing() {
       navigate({
         to: '/pricing/$modelId',
         params: { modelId: modelName },
+        search: (prev) => prev,
       })
     },
     [navigate]
