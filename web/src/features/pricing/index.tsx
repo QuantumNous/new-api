@@ -2,13 +2,6 @@ import { useCallback, useMemo } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import {
@@ -19,9 +12,9 @@ import {
   MobileFilters,
   DesktopSidebar,
   VirtualModelList,
+  SortDropdown,
 } from './components'
 import {
-  SORT_LABELS,
   QUOTA_TYPES,
   ENDPOINT_TYPES,
   FILTER_ALL,
@@ -114,16 +107,6 @@ export function Pricing() {
   return (
     <PublicLayout>
       <div className='mx-auto max-w-7xl px-4 sm:px-6'>
-        {/* Header */}
-        <header className='animate-appear mb-4 space-y-0.5 sm:mb-6 sm:space-y-1'>
-          <h2 className='text-xl font-bold tracking-tight sm:text-2xl'>
-            Models
-          </h2>
-          <p className='text-muted-foreground text-xs sm:text-sm'>
-            Browse and compare {models?.length || 0} AI models
-          </p>
-        </header>
-
         {/* Main Layout */}
         <div className='flex gap-8'>
           {/* Sidebar Filters - Desktop */}
@@ -151,59 +134,96 @@ export function Pricing() {
 
           {/* Main Content */}
           <main className='animate-appear animation-delay-100 min-w-0 flex-1'>
-            {/* Search and Controls Bar */}
-            <div className='mb-4 space-y-3 sm:mb-6 sm:space-y-4'>
-              {/* Search Bar */}
-              <SearchBar
-                value={searchInput}
-                onChange={setSearchInput}
-                onClear={clearSearch}
-              />
-
-              {/* Controls Bar */}
-              <div className='flex items-center justify-between gap-3 sm:gap-4'>
-                {/* Results Count & Filter Button (Mobile) */}
-                <div className='flex items-center gap-2 sm:gap-3'>
+            {/* Header */}
+            <header className='animate-appear mb-4 sm:mb-6'>
+              <div className='mb-3 flex items-start justify-between gap-4 sm:mb-0'>
+                <div className='space-y-0.5 sm:space-y-1'>
+                  <h2 className='text-xl font-bold tracking-tight sm:text-2xl'>
+                    Models
+                  </h2>
                   <p className='text-muted-foreground text-xs sm:text-sm'>
-                    {filteredModels.length}{' '}
-                    {filteredModels.length === 1 ? 'model' : 'models'}
+                    Browse and compare {models?.length || 0} AI models
                   </p>
-                  {/* Mobile Filter Toggle */}
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={toggleMobileFilters}
-                    className='gap-2 lg:hidden'
-                  >
-                    <Filter className='h-4 w-4' />
-                    Filters
-                    {activeFilterCount > 0 && (
-                      <StatusBadge
-                        label={String(activeFilterCount)}
-                        variant='neutral'
-                        size='sm'
-                        rounded='full'
-                        copyable={false}
-                        className='ml-0.5'
-                      />
-                    )}
-                  </Button>
                 </div>
 
-                {/* Sort Dropdown */}
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger size='sm' className='w-[180px]'>
-                    <SelectValue placeholder='Sort by' />
-                  </SelectTrigger>
-                  <SelectContent align='end'>
-                    {Object.entries(SORT_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Sort Dropdown - Mobile (Top Right) */}
+                <div className='shrink-0 sm:hidden'>
+                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
+                </div>
               </div>
+            </header>
+
+            {/* Top Bar - Results Count & Reset Filters */}
+            <div className='mb-3 flex items-center justify-between gap-4 sm:mb-4'>
+              <p className='text-muted-foreground text-sm font-medium'>
+                {filteredModels.length}{' '}
+                {filteredModels.length === 1 ? 'model' : 'models'}
+              </p>
+              {hasActiveFilters && (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={clearFilters}
+                  className='text-muted-foreground hover:text-foreground -mr-2 h-auto p-0 text-sm font-normal'
+                >
+                  Reset Filters
+                </Button>
+              )}
+            </div>
+
+            {/* Search and Controls Bar */}
+            <div className='mb-5 space-y-4 sm:mb-6'>
+              {/* Search and Sort Row */}
+              <div className='flex items-center gap-3'>
+                {/* Search Bar - Takes most space */}
+                <div className='flex-1'>
+                  <SearchBar
+                    value={searchInput}
+                    onChange={setSearchInput}
+                    onClear={clearSearch}
+                  />
+                </div>
+
+                {/* Sort Dropdown - Desktop */}
+                <div className='hidden shrink-0 sm:block'>
+                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
+                </div>
+
+                {/* Mobile Filter Button */}
+                <Button
+                  variant='outline'
+                  onClick={toggleMobileFilters}
+                  className='shrink-0 gap-2 sm:hidden'
+                >
+                  <Filter className='h-4 w-4' />
+                  <span className='sm:inline'>Filters</span>
+                  {activeFilterCount > 0 && (
+                    <StatusBadge
+                      label={String(activeFilterCount)}
+                      variant='neutral'
+                      size='sm'
+                      rounded='full'
+                      copyable={false}
+                    />
+                  )}
+                </Button>
+              </div>
+
+              {/* Active Filter Tags (Desktop) */}
+              <ActiveFilterTags
+                vendorFilter={vendorFilter}
+                groupFilter={groupFilter}
+                quotaTypeFilter={quotaTypeFilter}
+                endpointTypeFilter={endpointTypeFilter}
+                tagFilter={tagFilter}
+                onRemoveVendor={() => setVendorFilter(FILTER_ALL)}
+                onRemoveGroup={() => setGroupFilter(FILTER_ALL)}
+                onRemoveQuotaType={() => setQuotaTypeFilter(QUOTA_TYPES.ALL)}
+                onRemoveEndpointType={() =>
+                  setEndpointTypeFilter(ENDPOINT_TYPES.ALL)
+                }
+                onRemoveTag={() => setTagFilter(FILTER_ALL)}
+              />
 
               {/* Mobile Filters */}
               <MobileFilters
@@ -228,22 +248,6 @@ export function Pricing() {
                 onToggleSection={toggleSection}
                 expandedFilters={expandedFilters}
                 onToggleExpandFilter={toggleExpandFilter}
-              />
-
-              {/* Active Filter Tags (Desktop) */}
-              <ActiveFilterTags
-                vendorFilter={vendorFilter}
-                groupFilter={groupFilter}
-                quotaTypeFilter={quotaTypeFilter}
-                endpointTypeFilter={endpointTypeFilter}
-                tagFilter={tagFilter}
-                onRemoveVendor={() => setVendorFilter(FILTER_ALL)}
-                onRemoveGroup={() => setGroupFilter(FILTER_ALL)}
-                onRemoveQuotaType={() => setQuotaTypeFilter(QUOTA_TYPES.ALL)}
-                onRemoveEndpointType={() =>
-                  setEndpointTypeFilter(ENDPOINT_TYPES.ALL)
-                }
-                onRemoveTag={() => setTagFilter(FILTER_ALL)}
               />
             </div>
 
