@@ -2,13 +2,12 @@ package controller
 
 import (
 	"fmt"
-	"one-api/pkg/ionet"
 	"strconv"
 	"strings"
 	"time"
 
-	"one-api/common"
-
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/ionet"
 	"github.com/gin-gonic/gin"
 )
 
