@@ -37,6 +37,7 @@ import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
+import TopupHistoryModal from './modals/TopupHistoryModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -76,6 +77,9 @@ const TopUp = () => {
   const [affLink, setAffLink] = useState('');
   const [openTransfer, setOpenTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState(0);
+
+  // 账单Modal状态
+  const [openHistory, setOpenHistory] = useState(false);
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -488,6 +492,14 @@ const TopUp = () => {
     setOpenTransfer(false);
   };
 
+  const handleOpenHistory = () => {
+    setOpenHistory(true);
+  };
+
+  const handleHistoryCancel = () => {
+    setOpenHistory(false);
+  };
+
   // 选择预设充值额度
   const selectPresetAmount = (preset) => {
     setTopUpCount(preset.value);
@@ -544,6 +556,13 @@ const TopUp = () => {
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
       />
 
+      {/* 充值账单模态框 */}
+      <TopupHistoryModal
+        visible={openHistory}
+        onCancel={handleHistoryCancel}
+        t={t}
+      />
+
       {/* 用户信息头部 */}
       <div className='space-y-6'>
         <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
@@ -580,6 +599,7 @@ const TopUp = () => {
               renderQuota={renderQuota}
               statusLoading={statusLoading}
               topupInfo={topupInfo}
+              onOpenHistory={handleOpenHistory}
             />
           </div>
 

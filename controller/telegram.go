@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/model"
 	"sort"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

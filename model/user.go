@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/logger"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"

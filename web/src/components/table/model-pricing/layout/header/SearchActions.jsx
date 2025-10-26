@@ -107,6 +107,7 @@ const SearchActions = memo(
                 optionList={[
                   { value: 'USD', label: 'USD' },
                   { value: 'CNY', label: 'CNY' },
+                  { value: 'CUSTOM', label: t('自定义货币') },
                 ]}
               />
             )}

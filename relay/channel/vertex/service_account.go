@@ -8,12 +8,13 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	relaycommon "one-api/relay/common"
-	"one-api/service"
 	"strings"
 
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+
 	"github.com/bytedance/gopkg/cache/asynccache"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 
 	"fmt"
 	"time"

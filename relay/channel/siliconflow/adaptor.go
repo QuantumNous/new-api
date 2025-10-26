@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/dto"
-	"one-api/relay/channel"
-	"one-api/relay/channel/openai"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/constant"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,8 +36,27 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	adaptor := openai.Adaptor{}
-	return adaptor.ConvertImageRequest(c, info, request)
+	// 解析extra到SFImageRequest里，以填入SiliconFlow特殊字段。若失败重建一个空的。
+	sfRequest := &SFImageRequest{}
+	extra, err := common.Marshal(request.Extra)
+	if err == nil {
+		err = common.Unmarshal(extra, sfRequest)
+		if err != nil {
+			sfRequest = &SFImageRequest{}
+		}
+	}
+
+	sfRequest.Model = request.Model
+	sfRequest.Prompt = request.Prompt
+	// 优先使用image_size/batch_size，否则使用OpenAI标准的size/n
+	if sfRequest.ImageSize == "" {
+		sfRequest.ImageSize = request.Size
+	}
+	if sfRequest.BatchSize == 0 {
+		sfRequest.BatchSize = request.N
+	}
+
+	return sfRequest, nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -50,6 +71,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 	} else if info.RelayMode == constant.RelayModeCompletions {
 		return fmt.Sprintf("%s/v1/completions", info.ChannelBaseUrl), nil
+	} else if info.RelayMode == constant.RelayModeImagesGenerations {
+		return fmt.Sprintf("%s/v1/images/generations", info.ChannelBaseUrl), nil
 	}
 	return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 }
@@ -100,6 +123,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case constant.RelayModeCompletions:
 		fallthrough
 	case constant.RelayModeChatCompletions:
+		fallthrough
+	case constant.RelayModeImagesGenerations:
 		fallthrough
 	default:
 		if info.IsStream {

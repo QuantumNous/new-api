@@ -52,6 +52,8 @@ import SetupCheck from './components/layout/SetupCheck';
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
+const UserAgreement = lazy(() => import('./pages/UserAgreement'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 function App() {
   const location = useLocation();
@@ -307,6 +309,22 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <About />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/user-agreement'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <UserAgreement />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/privacy-policy'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <PrivacyPolicy />
             </Suspense>
           }
         />

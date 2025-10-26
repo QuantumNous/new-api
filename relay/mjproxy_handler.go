@@ -7,19 +7,20 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/model"
-	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/setting"
-	"one-api/setting/system_setting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -217,7 +218,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 
 			tokenName := c.GetString("token_name")
 			logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, constant.MjActionSwapFace)
-			other := service.GenerateMjOtherInfo(priceData)
+			other := service.GenerateMjOtherInfo(info, priceData)
 			model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 				ChannelId: info.ChannelId,
 				ModelName: modelName,
@@ -517,7 +518,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 			}
 			tokenName := c.GetString("token_name")
 			logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s，ID %s", priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, midjRequest.Action, midjResponse.Result)
-			other := service.GenerateMjOtherInfo(priceData)
+			other := service.GenerateMjOtherInfo(relayInfo, priceData)
 			model.RecordConsumeLog(c, relayInfo.UserId, model.RecordConsumeLogParams{
 				ChannelId: relayInfo.ChannelId,
 				ModelName: modelName,

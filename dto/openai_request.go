@@ -3,9 +3,10 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
-	"one-api/common"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -87,6 +88,12 @@ type GeneralOpenAIRequest struct {
 	WebSearch json.RawMessage `json:"web_search,omitempty"`
 	// doubao,zhipu_v4
 	THINKING json.RawMessage `json:"thinking,omitempty"`
+	// pplx Params
+	SearchDomainFilter     json.RawMessage `json:"search_domain_filter,omitempty"`
+	SearchRecencyFilter    string          `json:"search_recency_filter,omitempty"`
+	ReturnImages           bool            `json:"return_images,omitempty"`
+	ReturnRelatedQuestions bool            `json:"return_related_questions,omitempty"`
+	SearchMode             string          `json:"search_mode,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {

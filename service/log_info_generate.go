@@ -1,14 +1,35 @@
 package service
 
 import (
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
+
+func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if other == nil {
+		return
+	}
+	if ctx != nil && ctx.Request != nil && ctx.Request.URL != nil {
+		if path := ctx.Request.URL.Path; path != "" {
+			other["request_path"] = path
+			return
+		}
+	}
+	if relayInfo != nil && relayInfo.RequestURLPath != "" {
+		path := relayInfo.RequestURLPath
+		if idx := strings.Index(path, "?"); idx != -1 {
+			path = path[:idx]
+		}
+		other["request_path"] = path
+	}
+}
 
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
 	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
@@ -42,6 +63,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		adminInfo["multi_key_index"] = common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex)
 	}
 	other["admin_info"] = adminInfo
+	appendRequestPath(ctx, relayInfo, other)
 	return other
 }
 
@@ -78,12 +100,13 @@ func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	return info
 }
 
-func GenerateMjOtherInfo(priceData types.PerCallPriceData) map[string]interface{} {
+func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.PerCallPriceData) map[string]interface{} {
 	other := make(map[string]interface{})
 	other["model_price"] = priceData.ModelPrice
 	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	appendRequestPath(nil, relayInfo, other)
 	return other
 }

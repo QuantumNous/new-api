@@ -279,16 +279,8 @@ const renderOperations = (
       >
         {t('降级')}
       </Button>
-      <Dropdown
-        menu={moreMenu}
-        trigger='click'
-        position='bottomRight'
-      >
-        <Button
-          type='tertiary'
-          size='small'
-          icon={<IconMore />}
-        />
+      <Dropdown menu={moreMenu} trigger='click' position='bottomRight'>
+        <Button type='tertiary' size='small' icon={<IconMore />} />
       </Dropdown>
     </Space>
   );

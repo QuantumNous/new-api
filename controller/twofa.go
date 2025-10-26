@@ -4,9 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"one-api/common"
-	"one-api/model"
 	"strconv"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

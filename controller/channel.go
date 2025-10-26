@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/model"
-	"one-api/relay/channel/ollama"
-	"one-api/service"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -251,9 +251,10 @@ func FetchUpstreamModels(c *gin.Context) {
 	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
 	var body []byte
 	key := strings.Split(channel.Key, "\n")[0]
-	if channel.Type == constant.ChannelTypeGemini {
-		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key)) // Use AuthHeader since Gemini now forces it
-	} else {
+	switch channel.Type {
+	case constant.ChannelTypeAnthropic:
+		body, err = GetResponseBody("GET", url, channel, GetClaudeAuthHeader(key))
+	default:
 		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	}
 	if err != nil {

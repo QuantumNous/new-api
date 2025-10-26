@@ -67,9 +67,15 @@ const ModelTestModal = ({
     { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
     { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
     { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
-    { value: 'gemini', label: 'Gemini (/v1beta/models/{model}:generateContent)' },
+    {
+      value: 'gemini',
+      label: 'Gemini (/v1beta/models/{model}:generateContent)',
+    },
     { value: 'jina-rerank', label: 'Jina Rerank (/rerank)' },
-    { value: 'image-generation', label: t('图像生成') + ' (/v1/images/generations)' },
+    {
+      value: 'image-generation',
+      label: t('图像生成') + ' (/v1/images/generations)',
+    },
     { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
   ];
 
@@ -166,7 +172,13 @@ const ModelTestModal = ({
         return (
           <Button
             type='tertiary'
-            onClick={() => testChannel(currentTestChannel, record.model, selectedEndpointType)}
+            onClick={() =>
+              testChannel(
+                currentTestChannel,
+                record.model,
+                selectedEndpointType,
+              )
+            }
             loading={isTesting}
             size='small'
           >

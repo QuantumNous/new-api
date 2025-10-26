@@ -34,9 +34,17 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
-import { CreditCard, Coins, Wallet, BarChart2, TrendingUp } from 'lucide-react';
+import {
+  CreditCard,
+  Coins,
+  Wallet,
+  BarChart2,
+  TrendingUp,
+  Receipt,
+} from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
+import { getCurrencyConfig } from '../../helpers/render';
 
 const { Text } = Typography;
 
@@ -71,6 +79,7 @@ const RechargeCard = ({
   renderQuota,
   statusLoading,
   topupInfo,
+  onOpenHistory,
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
@@ -78,16 +87,25 @@ const RechargeCard = ({
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-3 shadow-md'>
-          <CreditCard size={16} />
-        </Avatar>
-        <div>
-          <Typography.Text className='text-lg font-medium'>
-            {t('账户充值')}
-          </Typography.Text>
-          <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
+      <div className='flex items-center justify-between mb-4'>
+        <div className='flex items-center'>
+          <Avatar size='small' color='blue' className='mr-3 shadow-md'>
+            <CreditCard size={16} />
+          </Avatar>
+          <div>
+            <Typography.Text className='text-lg font-medium'>
+              {t('账户充值')}
+            </Typography.Text>
+            <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
+          </div>
         </div>
+        <Button
+          icon={<Receipt size={16} />}
+          theme='solid'
+          onClick={onOpenHistory}
+        >
+          {t('账单')}
+        </Button>
       </div>
 
       <Space vertical style={{ width: '100%' }}>
@@ -338,7 +356,29 @@ const RechargeCard = ({
                 )}
 
                 {(enableOnlineTopUp || enableStripeTopUp) && (
-                  <Form.Slot label={t('选择充值额度')}>
+                  <Form.Slot
+                    label={
+                      <div className='flex items-center gap-2'>
+                        <span>{t('选择充值额度')}</span>
+                        {(() => {
+                          const { symbol, rate, type } = getCurrencyConfig();
+                          if (type === 'USD') return null;
+
+                          return (
+                            <span
+                              style={{
+                                color: 'var(--semi-color-text-2)',
+                                fontSize: '12px',
+                                fontWeight: 'normal',
+                              }}
+                            >
+                              (1 $ = {rate.toFixed(2)} {symbol})
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    }
+                  >
                     <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                       {presetAmounts.map((preset, index) => {
                         const discount =
@@ -350,6 +390,35 @@ const RechargeCard = ({
                         const hasDiscount = discount < 1.0;
                         const actualPay = discountedPrice;
                         const save = originalPrice - discountedPrice;
+
+                        // 根据当前货币类型换算显示金额和数量
+                        const { symbol, rate, type } = getCurrencyConfig();
+                        const statusStr = localStorage.getItem('status');
+                        let usdRate = 7; // 默认CNY汇率
+                        try {
+                          if (statusStr) {
+                            const s = JSON.parse(statusStr);
+                            usdRate = s?.usd_exchange_rate || 7;
+                          }
+                        } catch (e) {}
+
+                        let displayValue = preset.value; // 显示的数量
+                        let displayActualPay = actualPay;
+                        let displaySave = save;
+
+                        if (type === 'USD') {
+                          // 数量保持USD，价格从CNY转USD
+                          displayActualPay = actualPay / usdRate;
+                          displaySave = save / usdRate;
+                        } else if (type === 'CNY') {
+                          // 数量转CNY，价格已是CNY
+                          displayValue = preset.value * usdRate;
+                        } else if (type === 'CUSTOM') {
+                          // 数量和价格都转自定义货币
+                          displayValue = preset.value * rate;
+                          displayActualPay = (actualPay / usdRate) * rate;
+                          displaySave = (save / usdRate) * rate;
+                        }
 
                         return (
                           <Card
@@ -378,7 +447,7 @@ const RechargeCard = ({
                                 style={{ margin: '0 0 8px 0' }}
                               >
                                 <Coins size={18} />
-                                {formatLargeNumber(preset.value)}
+                                {formatLargeNumber(preset.value)} $
                                 {hasDiscount && (
                                   <Tag style={{ marginLeft: 4 }} color='green'>
                                     {t('折').includes('off')
@@ -398,10 +467,11 @@ const RechargeCard = ({
                                   margin: '4px 0',
                                 }}
                               >
-                                {t('实付')} {actualPay.toFixed(2)}，
+                                {t('实付')} {symbol}
+                                {displayActualPay.toFixed(2)}，
                                 {hasDiscount
-                                  ? `${t('节省')} ${save.toFixed(2)}`
-                                  : `${t('节省')} 0.00`}
+                                  ? `${t('节省')} ${symbol}${displaySave.toFixed(2)}`
+                                  : `${t('节省')} ${symbol}0.00`}
                               </div>
                             </div>
                           </Card>

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 export function base64UrlToBuffer(base64url) {
   if (!base64url) return new ArrayBuffer(0);
   let padding = '='.repeat((4 - (base64url.length % 4)) % 4);
@@ -26,7 +44,11 @@ export function bufferToBase64Url(buffer) {
 }
 
 export function prepareCredentialCreationOptions(payload) {
-  const options = payload?.publicKey || payload?.PublicKey || payload?.response || payload?.Response;
+  const options =
+    payload?.publicKey ||
+    payload?.PublicKey ||
+    payload?.response ||
+    payload?.Response;
   if (!options) {
     throw new Error('无法从服务端响应中解析 Passkey 注册参数');
   }
@@ -46,7 +68,10 @@ export function prepareCredentialCreationOptions(payload) {
     }));
   }
 
-  if (Array.isArray(options.attestationFormats) && options.attestationFormats.length === 0) {
+  if (
+    Array.isArray(options.attestationFormats) &&
+    options.attestationFormats.length === 0
+  ) {
     delete publicKey.attestationFormats;
   }
 
@@ -54,7 +79,11 @@ export function prepareCredentialCreationOptions(payload) {
 }
 
 export function prepareCredentialRequestOptions(payload) {
-  const options = payload?.publicKey || payload?.PublicKey || payload?.response || payload?.Response;
+  const options =
+    payload?.publicKey ||
+    payload?.PublicKey ||
+    payload?.response ||
+    payload?.Response;
   if (!options) {
     throw new Error('无法从服务端响应中解析 Passkey 登录参数');
   }
@@ -77,7 +106,10 @@ export function buildRegistrationResult(credential) {
   if (!credential) return null;
 
   const { response } = credential;
-  const transports = typeof response.getTransports === 'function' ? response.getTransports() : undefined;
+  const transports =
+    typeof response.getTransports === 'function'
+      ? response.getTransports()
+      : undefined;
 
   return {
     id: credential.id,
@@ -107,7 +139,9 @@ export function buildAssertionResult(assertion) {
       authenticatorData: bufferToBase64Url(response.authenticatorData),
       clientDataJSON: bufferToBase64Url(response.clientDataJSON),
       signature: bufferToBase64Url(response.signature),
-      userHandle: response.userHandle ? bufferToBase64Url(response.userHandle) : null,
+      userHandle: response.userHandle
+        ? bufferToBase64Url(response.userHandle)
+        : null,
     },
     clientExtensionResults: assertion.getClientExtensionResults?.() ?? {},
   };
@@ -117,15 +151,22 @@ export async function isPasskeySupported() {
   if (typeof window === 'undefined' || !window.PublicKeyCredential) {
     return false;
   }
-  if (typeof window.PublicKeyCredential.isConditionalMediationAvailable === 'function') {
+  if (
+    typeof window.PublicKeyCredential.isConditionalMediationAvailable ===
+    'function'
+  ) {
     try {
-      const available = await window.PublicKeyCredential.isConditionalMediationAvailable();
+      const available =
+        await window.PublicKeyCredential.isConditionalMediationAvailable();
       if (available) return true;
     } catch (error) {
       // ignore
     }
   }
-  if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+  if (
+    typeof window.PublicKeyCredential
+      .isUserVerifyingPlatformAuthenticatorAvailable === 'function'
+  ) {
     try {
       return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     } catch (error) {
@@ -134,4 +175,3 @@ export async function isPasskeySupported() {
   }
   return true;
 }
-

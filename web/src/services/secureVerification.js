@@ -21,7 +21,7 @@ import { API, showError } from '../helpers';
 import {
   prepareCredentialRequestOptions,
   buildAssertionResult,
-  isPasskeySupported
+  isPasskeySupported,
 } from '../helpers/passkey';
 
 /**
@@ -35,46 +35,54 @@ export class SecureVerificationService {
    */
   static async checkAvailableVerificationMethods() {
     try {
-      const [twoFAResponse, passkeyResponse, passkeySupported] = await Promise.all([
-        API.get('/api/user/2fa/status'),
-        API.get('/api/user/passkey'),
-        isPasskeySupported()
-      ]);
+      const [twoFAResponse, passkeyResponse, passkeySupported] =
+        await Promise.all([
+          API.get('/api/user/2fa/status'),
+          API.get('/api/user/passkey'),
+          isPasskeySupported(),
+        ]);
 
       console.log('=== DEBUGGING VERIFICATION METHODS ===');
       console.log('2FA Response:', JSON.stringify(twoFAResponse, null, 2));
-      console.log('Passkey Response:', JSON.stringify(passkeyResponse, null, 2));
-      
-      const has2FA = twoFAResponse.data?.success && twoFAResponse.data?.data?.enabled === true;
-      const hasPasskey = passkeyResponse.data?.success && passkeyResponse.data?.data?.enabled === true;
-      
+      console.log(
+        'Passkey Response:',
+        JSON.stringify(passkeyResponse, null, 2),
+      );
+
+      const has2FA =
+        twoFAResponse.data?.success &&
+        twoFAResponse.data?.data?.enabled === true;
+      const hasPasskey =
+        passkeyResponse.data?.success &&
+        passkeyResponse.data?.data?.enabled === true;
+
       console.log('has2FA calculation:', {
         success: twoFAResponse.data?.success,
         dataExists: !!twoFAResponse.data?.data,
         enabled: twoFAResponse.data?.data?.enabled,
-        result: has2FA
+        result: has2FA,
       });
-      
+
       console.log('hasPasskey calculation:', {
         success: passkeyResponse.data?.success,
         dataExists: !!passkeyResponse.data?.data,
         enabled: passkeyResponse.data?.data?.enabled,
-        result: hasPasskey
+        result: hasPasskey,
       });
 
       const result = {
         has2FA,
         hasPasskey,
-        passkeySupported
+        passkeySupported,
       };
-      
+
       return result;
     } catch (error) {
       console.error('Failed to check verification methods:', error);
       return {
         has2FA: false,
         hasPasskey: false,
-        passkeySupported: false
+        passkeySupported: false,
       };
     }
   }
@@ -92,7 +100,7 @@ export class SecureVerificationService {
     // 调用通用验证 API，验证成功后后端会设置 session
     const verifyResponse = await API.post('/api/verify', {
       method: '2fa',
-      code: code.trim()
+      code: code.trim(),
     });
 
     if (!verifyResponse.data?.success) {
@@ -115,7 +123,9 @@ export class SecureVerificationService {
       }
 
       // 准备WebAuthn选项
-      const publicKey = prepareCredentialRequestOptions(beginResponse.data.data.options);
+      const publicKey = prepareCredentialRequestOptions(
+        beginResponse.data.data.options,
+      );
 
       // 执行WebAuthn验证
       const credential = await navigator.credentials.get({ publicKey });
@@ -127,14 +137,17 @@ export class SecureVerificationService {
       const assertionResult = buildAssertionResult(credential);
 
       // 完成验证
-      const finishResponse = await API.post('/api/user/passkey/verify/finish', assertionResult);
+      const finishResponse = await API.post(
+        '/api/user/passkey/verify/finish',
+        assertionResult,
+      );
       if (!finishResponse.data?.success) {
         throw new Error(finishResponse.data?.message || '验证失败');
       }
 
       // 调用通用验证 API 设置 session（Passkey 验证已完成）
       const verifyResponse = await API.post('/api/verify', {
-        method: 'passkey'
+        method: 'passkey',
       });
 
       if (!verifyResponse.data?.success) {
@@ -191,27 +204,29 @@ export const createApiCalls = {
    * @param {string} method - HTTP方法，默认为 'POST'
    * @param {Object} extraData - 额外的请求数据
    */
-  custom: (url, method = 'POST', extraData = {}) => async () => {
-    // 新系统中，验证已通过中间件处理
-    const data = extraData;
+  custom:
+    (url, method = 'POST', extraData = {}) =>
+    async () => {
+      // 新系统中，验证已通过中间件处理
+      const data = extraData;
 
-    let response;
-    switch (method.toUpperCase()) {
-      case 'GET':
-        response = await API.get(url, { params: data });
-        break;
-      case 'POST':
-        response = await API.post(url, data);
-        break;
-      case 'PUT':
-        response = await API.put(url, data);
-        break;
-      case 'DELETE':
-        response = await API.delete(url, { data });
-        break;
-      default:
-        throw new Error(`不支持的HTTP方法: ${method}`);
-    }
-    return response.data;
-  }
+      let response;
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await API.get(url, { params: data });
+          break;
+        case 'POST':
+          response = await API.post(url, data);
+          break;
+        case 'PUT':
+          response = await API.put(url, data);
+          break;
+        case 'DELETE':
+          response = await API.delete(url, { data });
+          break;
+        default:
+          throw new Error(`不支持的HTTP方法: ${method}`);
+      }
+      return response.data;
+    },
 };

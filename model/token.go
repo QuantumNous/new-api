@@ -3,8 +3,9 @@ package model
 import (
 	"errors"
 	"fmt"
-	"one-api/common"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"

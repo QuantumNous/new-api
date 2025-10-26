@@ -2,10 +2,11 @@ package ratio_setting
 
 import (
 	"encoding/json"
-	"one-api/common"
-	"one-api/setting/operation_setting"
 	"strings"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 // from songquanpeng/one-api
@@ -290,6 +291,8 @@ var defaultModelPrice = map[string]float64{
 	"mj_upscale":              0.05,
 	"swap_face":               0.05,
 	"mj_upload":               0.05,
+	"sora-2":                  0.3,
+	"sora-2-pro":              0.5,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -450,6 +453,10 @@ func DefaultModelRatio2JSONString() string {
 
 func GetDefaultModelRatioMap() map[string]float64 {
 	return defaultModelRatio
+}
+
+func GetDefaultModelPriceMap() map[string]float64 {
+	return defaultModelPrice
 }
 
 func GetDefaultImageRatioMap() map[string]float64 {

@@ -2,10 +2,12 @@ package helper
 
 import (
 	"fmt"
-	"one-api/common"
-	relaycommon "one-api/relay/common"
-	"one-api/setting/ratio_setting"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -54,6 +56,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var cacheCreationRatio float64
 	var audioRatio float64
 	var audioCompletionRatio float64
+	var freeModel bool
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
 		if meta.MaxTokens != 0 {
@@ -86,18 +89,35 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 	}
 
+	// check if free model pre-consume is disabled
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		// if model price or ratio is 0, do not pre-consume quota
+		if usePrice {
+			if modelPrice == 0 {
+				preConsumedQuota = 0
+				freeModel = true
+			}
+		} else {
+			if modelRatio == 0 {
+				preConsumedQuota = 0
+				freeModel = true
+			}
+		}
+	}
+
 	priceData := types.PriceData{
-		ModelPrice:             modelPrice,
-		ModelRatio:             modelRatio,
-		CompletionRatio:        completionRatio,
-		GroupRatioInfo:         groupRatioInfo,
-		UsePrice:               usePrice,
-		CacheRatio:             cacheRatio,
-		ImageRatio:             imageRatio,
-		AudioRatio:             audioRatio,
-		AudioCompletionRatio:   audioCompletionRatio,
-		CacheCreationRatio:     cacheCreationRatio,
-		ShouldPreConsumedQuota: preConsumedQuota,
+		FreeModel:            freeModel,
+		ModelPrice:           modelPrice,
+		ModelRatio:           modelRatio,
+		CompletionRatio:      completionRatio,
+		GroupRatioInfo:       groupRatioInfo,
+		UsePrice:             usePrice,
+		CacheRatio:           cacheRatio,
+		ImageRatio:           imageRatio,
+		AudioRatio:           audioRatio,
+		AudioCompletionRatio: audioCompletionRatio,
+		CacheCreationRatio:   cacheCreationRatio,
+		QuotaToPreConsume:    preConsumedQuota,
 	}
 
 	if common.DebugEnabled {
@@ -114,7 +134,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) types.
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	// 如果没有配置价格，则使用默认价格
 	if !success {
-		defaultPrice, ok := ratio_setting.GetDefaultModelRatioMap()[info.OriginModelName]
+		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
 		if !ok {
 			modelPrice = 0.1
 		} else {

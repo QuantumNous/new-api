@@ -58,7 +58,7 @@ const ChannelKeyViewExample = ({ channelId }) => {
   // 开始查看密钥流程
   const handleViewKey = async () => {
     const apiCall = createApiCalls.viewChannelKey(channelId);
-    
+
     await startVerification(apiCall, {
       title: t('查看渠道密钥'),
       description: t('为了保护账户安全，请验证您的身份。'),
@@ -69,11 +69,7 @@ const ChannelKeyViewExample = ({ channelId }) => {
   return (
     <>
       {/* 查看密钥按钮 */}
-      <Button
-        type='primary'
-        theme='outline'
-        onClick={handleViewKey}
-      >
+      <Button type='primary' theme='outline' onClick={handleViewKey}>
         {t('查看密钥')}
       </Button>
 

@@ -60,38 +60,54 @@ const ContentModal = ({
     if (videoError) {
       return (
         <div style={{ textAlign: 'center', padding: '40px' }}>
-          <Text type="tertiary" style={{ display: 'block', marginBottom: '16px' }}>
+          <Text
+            type='tertiary'
+            style={{ display: 'block', marginBottom: '16px' }}
+          >
             视频无法在当前浏览器中播放，这可能是由于：
           </Text>
-          <Text type="tertiary" style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}>
+          <Text
+            type='tertiary'
+            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
+          >
             • 视频服务商的跨域限制
           </Text>
-          <Text type="tertiary" style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}>
+          <Text
+            type='tertiary'
+            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
+          >
             • 需要特定的请求头或认证
           </Text>
-          <Text type="tertiary" style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}>
+          <Text
+            type='tertiary'
+            style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}
+          >
             • 防盗链保护机制
           </Text>
-          
+
           <div style={{ marginTop: '20px' }}>
-            <Button 
+            <Button
               icon={<IconExternalOpen />}
               onClick={handleOpenInNewTab}
               style={{ marginRight: '8px' }}
             >
               在新标签页中打开
             </Button>
-            <Button 
-              icon={<IconCopy />}
-              onClick={handleCopyUrl}
-            >
+            <Button icon={<IconCopy />} onClick={handleCopyUrl}>
               复制链接
             </Button>
           </div>
-          
-          <div style={{ marginTop: '16px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-            <Text 
-              type="tertiary" 
+
+          <div
+            style={{
+              marginTop: '16px',
+              padding: '8px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '4px',
+            }}
+          >
+            <Text
+              type='tertiary'
               style={{ fontSize: '10px', wordBreak: 'break-all' }}
             >
               {modalContent}
@@ -104,22 +120,24 @@ const ContentModal = ({
     return (
       <div style={{ position: 'relative' }}>
         {isLoading && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 10
-          }}>
-            <Spin size="large" />
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 10,
+            }}
+          >
+            <Spin size='large' />
           </div>
         )}
-        <video 
-          src={modalContent} 
-          controls 
-          style={{ width: '100%' }} 
+        <video
+          src={modalContent}
+          controls
+          style={{ width: '100%' }}
           autoPlay
-          crossOrigin="anonymous"
+          crossOrigin='anonymous'
           onError={handleVideoError}
           onLoadedData={handleVideoLoaded}
           onLoadStart={() => setIsLoading(true)}
@@ -134,10 +152,10 @@ const ContentModal = ({
       onOk={() => setIsModalOpen(false)}
       onCancel={() => setIsModalOpen(false)}
       closable={null}
-      bodyStyle={{ 
-        height: isVideo ? '450px' : '400px', 
+      bodyStyle={{
+        height: isVideo ? '450px' : '400px',
         overflow: 'auto',
-        padding: isVideo && videoError ? '0' : '24px'
+        padding: isVideo && videoError ? '0' : '24px',
       }}
       width={800}
     >

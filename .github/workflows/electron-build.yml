@@ -1,0 +1,141 @@
+name: Build Electron App
+
+on:
+  push:
+    tags:
+      - '*'  # Triggers on version tags like v1.0.0
+      - '!*-*'  # Ignore pre-release tags like v1.0.0-beta
+      - '!*-alpha*' # Ignore alpha tags like v1.0.0-alpha
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        # os: [macos-latest, windows-latest]
+        os: [windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.25.1'
+
+      - name: Build frontend
+        env:
+          CI: ""
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          cd web
+          bun install
+          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
+          cd ..
+
+      # - name: Build Go binary (macos/Linux)
+      #   if: runner.os != 'Windows'
+      #   run: |
+      #     go mod download
+      #     go build -ldflags "-s -w -X 'new-api/common.Version=$(git describe --tags)' -extldflags '-static'" -o new-api
+
+      - name: Build Go binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          go mod download
+          go build -ldflags "-s -w -X 'new-api/common.Version=$(git describe --tags)'" -o new-api.exe
+
+      - name: Update Electron version
+        run: |
+          cd electron
+          VERSION=$(git describe --tags)
+          VERSION=${VERSION#v}  # Remove 'v' prefix if present
+          # Convert to valid semver: take first 3 components and convert rest to prerelease format
+          # e.g., 0.9.3-patch.1 -> 0.9.3-patch.1
+          if [[ $VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(.*)$ ]]; then
+            MAJOR=${BASH_REMATCH[1]}
+            MINOR=${BASH_REMATCH[2]}
+            PATCH=${BASH_REMATCH[3]}
+            REST=${BASH_REMATCH[4]}
+          
+            VERSION="$MAJOR.$MINOR.$PATCH"
+          
+            # If there's extra content, append it without adding -dev
+            if [[ -n "$REST" ]]; then
+              VERSION="$VERSION$REST"
+            fi
+          fi
+          npm version $VERSION --no-git-tag-version --allow-same-version
+
+      - name: Install Electron dependencies
+        run: |
+          cd electron
+          npm install
+
+      # - name: Build Electron app (macOS)
+      #   if: runner.os == 'macOS'
+      #   run: |
+      #     cd electron
+      #     npm run build:mac
+      #   env:
+      #     CSC_IDENTITY_AUTO_DISCOVERY: false  # Skip code signing
+
+      - name: Build Electron app (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd electron
+          npm run build:win
+
+      # - name: Upload artifacts (macOS)
+      #   if: runner.os == 'macOS'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: macos-build
+      #     path: |
+      #       electron/dist/*.dmg
+      #       electron/dist/*.zip
+
+      - name: Upload artifacts (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            electron/dist/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            windows-build/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

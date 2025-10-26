@@ -1,8 +1,8 @@
 package router
 
 import (
-	"one-api/controller"
-	"one-api/middleware"
+	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/middleware"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -20,6 +20,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
 		apiRouter.GET("/notice", controller.GetNotice)
+		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
+		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
@@ -73,6 +75,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
 				selfRoute.GET("/aff", controller.GetAffCode)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
+				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)
@@ -93,6 +96,8 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.Use(middleware.AdminAuth())
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
+				adminRoute.GET("/topup", controller.GetAllTopUps)
+				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id", controller.GetUser)
 				adminRoute.POST("/", controller.CreateUser)

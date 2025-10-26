@@ -5,12 +5,12 @@ import (
 )
 
 type OllamaChatMessage struct {
-	Role      string            `json:"role"`
-	Content   string            `json:"content,omitempty"`
-	Images    []string          `json:"images,omitempty"`
-	ToolCalls []OllamaToolCall  `json:"tool_calls,omitempty"`
-	ToolName  string            `json:"tool_name,omitempty"`
-	Thinking  json.RawMessage   `json:"thinking,omitempty"`
+	Role      string           `json:"role"`
+	Content   string           `json:"content,omitempty"`
+	Images    []string         `json:"images,omitempty"`
+	ToolCalls []OllamaToolCall `json:"tool_calls,omitempty"`
+	ToolName  string           `json:"tool_name,omitempty"`
+	Thinking  json.RawMessage  `json:"thinking,omitempty"`
 }
 
 type OllamaToolFunction struct {
@@ -20,7 +20,7 @@ type OllamaToolFunction struct {
 }
 
 type OllamaTool struct {
-	Type     string            `json:"type"`
+	Type     string             `json:"type"`
 	Function OllamaToolFunction `json:"function"`
 }
 
@@ -43,32 +43,31 @@ type OllamaChatRequest struct {
 }
 
 type OllamaGenerateRequest struct {
-	Model     string         `json:"model"`
-	Prompt    string         `json:"prompt,omitempty"`
-	Suffix    string         `json:"suffix,omitempty"`
-	Images    []string       `json:"images,omitempty"`
-	Format    interface{}    `json:"format,omitempty"`
-	Stream    bool           `json:"stream,omitempty"`
-	Options   map[string]any `json:"options,omitempty"`
-	KeepAlive interface{}    `json:"keep_alive,omitempty"`
+	Model     string          `json:"model"`
+	Prompt    string          `json:"prompt,omitempty"`
+	Suffix    string          `json:"suffix,omitempty"`
+	Images    []string        `json:"images,omitempty"`
+	Format    interface{}     `json:"format,omitempty"`
+	Stream    bool            `json:"stream,omitempty"`
+	Options   map[string]any  `json:"options,omitempty"`
+	KeepAlive interface{}     `json:"keep_alive,omitempty"`
 	Think     json.RawMessage `json:"think,omitempty"`
 }
 
 type OllamaEmbeddingRequest struct {
-	Model     string         `json:"model"`
-	Input     interface{}    `json:"input"`
-	Options   map[string]any `json:"options,omitempty"`
+	Model      string         `json:"model"`
+	Input      interface{}    `json:"input"`
+	Options    map[string]any `json:"options,omitempty"`
 	Dimensions int            `json:"dimensions,omitempty"`
 }
 
 type OllamaEmbeddingResponse struct {
-	Error           string        `json:"error,omitempty"`
-	Model           string        `json:"model"`
-	Embeddings      [][]float64   `json:"embeddings"`
-	PromptEvalCount int           `json:"prompt_eval_count,omitempty"`
+	Error           string      `json:"error,omitempty"`
+	Model           string      `json:"model"`
+	Embeddings      [][]float64 `json:"embeddings"`
+	PromptEvalCount int         `json:"prompt_eval_count,omitempty"`
 }
 
-// Ollama Tags API 响应结构
 type OllamaTagsResponse struct {
 	Models []OllamaModel `json:"models"`
 }
@@ -90,13 +89,11 @@ type OllamaModelDetail struct {
 	QuantizationLevel string   `json:"quantization_level,omitempty"`
 }
 
-// Ollama Pull API 请求结构
 type OllamaPullRequest struct {
 	Name   string `json:"name"`
 	Stream bool   `json:"stream,omitempty"`
 }
 
-// Ollama Pull API 响应结构 (流式)
 type OllamaPullResponse struct {
 	Status    string `json:"status"`
 	Digest    string `json:"digest,omitempty"`
@@ -104,7 +101,6 @@ type OllamaPullResponse struct {
 	Completed int64  `json:"completed,omitempty"`
 }
 
-// Ollama Delete API 请求结构
 type OllamaDeleteRequest struct {
 	Name string `json:"name"`
 }

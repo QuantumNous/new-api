@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/logger"
-	"one-api/types"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/types"
 )
 
 func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {
@@ -141,7 +142,8 @@ func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 		common.SysLog(fmt.Sprintf("error: %s", text))
-		text = "请求上游地址失败"
+		//text = "请求上游地址失败"
+		text = common.MaskSensitiveInfo(text)
 	}
 	//避免暴露内部错误
 	taskError := &dto.TaskError{

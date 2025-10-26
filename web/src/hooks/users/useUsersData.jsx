@@ -86,7 +86,7 @@ export const useUsersData = () => {
   };
 
   // Search users with keyword and group
-const searchUsers = async (
+  const searchUsers = async (
     startIdx,
     pageSize,
     searchKeyword = null,

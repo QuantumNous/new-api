@@ -124,5 +124,5 @@ var ChannelName = "aws"
 
 // 判断是否为Nova模型
 func isNovaModel(modelId string) bool {
-	return strings.HasPrefix(modelId, "nova-")
+	return strings.Contains(modelId, "nova-")
 }

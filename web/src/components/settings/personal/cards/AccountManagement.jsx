@@ -91,7 +91,8 @@ const AccountManagement = ({
     );
   };
   const isBound = (accountId) => Boolean(accountId);
-  const [showTelegramBindModal, setShowTelegramBindModal] = React.useState(false);
+  const [showTelegramBindModal, setShowTelegramBindModal] =
+    React.useState(false);
   const passkeyEnabled = passkeyStatus?.enabled;
   const lastUsedLabel = passkeyStatus?.last_used_at
     ? new Date(passkeyStatus.last_used_at).toLocaleString()
@@ -236,7 +237,8 @@ const AccountManagement = ({
                         onGitHubOAuthClicked(status.github_client_id)
                       }
                       disabled={
-                        isBound(userState.user?.github_id) || !status.github_oauth
+                        isBound(userState.user?.github_id) ||
+                        !status.github_oauth
                       }
                     >
                       {status.github_oauth ? t('绑定') : t('未启用')}
@@ -394,7 +396,8 @@ const AccountManagement = ({
                         onLinuxDOOAuthClicked(status.linuxdo_client_id)
                       }
                       disabled={
-                        isBound(userState.user?.linux_do_id) || !status.linuxdo_oauth
+                        isBound(userState.user?.linux_do_id) ||
+                        !status.linuxdo_oauth
                       }
                     >
                       {status.linuxdo_oauth ? t('绑定') : t('未启用')}
@@ -532,7 +535,9 @@ const AccountManagement = ({
                           ? () => {
                               Modal.confirm({
                                 title: t('确认解绑 Passkey'),
-                                content: t('解绑后将无法使用 Passkey 登录，确定要继续吗？'),
+                                content: t(
+                                  '解绑后将无法使用 Passkey 登录，确定要继续吗？',
+                                ),
                                 okText: t('确认解绑'),
                                 cancelText: t('取消'),
                                 okType: 'danger',
@@ -544,7 +549,11 @@ const AccountManagement = ({
                       className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-slate-500 hover:!bg-slate-600' : ''}`}
                       icon={<IconKey />}
                       disabled={!passkeySupported && !passkeyEnabled}
-                      loading={passkeyEnabled ? passkeyDeleteLoading : passkeyRegisterLoading}
+                      loading={
+                        passkeyEnabled
+                          ? passkeyDeleteLoading
+                          : passkeyRegisterLoading
+                      }
                     >
                       {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
                     </Button>

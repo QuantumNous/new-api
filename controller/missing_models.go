@@ -2,7 +2,8 @@ package controller
 
 import (
 	"net/http"
-	"one-api/model"
+
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 )
