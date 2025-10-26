@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { formatTimestampToDate } from '@/lib/format'
+import { getCurrencyLabel } from '@/lib/currency'
+import {
+  formatTimestampToDate,
+  formatQuota as formatQuotaValue,
+} from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { truncateText } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -184,12 +188,19 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
   const [isUpdating, setIsUpdating] = useState(false)
+  const currencyLabel = getCurrencyLabel()
+  const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
+  const withSuffix = (value: string) =>
+    tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
+
+  const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
+  const remainingDisplay = withSuffix(formatBalance(balance))
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
     return (
       <StatusBadge
-        label={`Used: ${formatBalance(usedQuota)}`}
+        label={`Used: ${usedDisplay}`}
         variant='neutral'
         size='sm'
         copyable={false}
@@ -215,7 +226,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
           <TooltipTrigger asChild>
             <div>
               <StatusBadge
-                label={formatBalance(usedQuota)}
+                label={usedDisplay}
                 variant='neutral'
                 size='sm'
                 copyable={false}
@@ -223,7 +234,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Used Quota</p>
+            <p>Used: {usedDisplay}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -231,7 +242,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
           <TooltipTrigger asChild>
             <div className='cursor-pointer' onClick={handleClickUpdate}>
               <StatusBadge
-                label={isUpdating ? 'Updating...' : formatBalance(balance)}
+                label={isUpdating ? 'Updating...' : remainingDisplay}
                 variant={isUpdating ? 'neutral' : variant}
                 size='sm'
                 copyable={false}
@@ -239,11 +250,8 @@ function BalanceCell({ channel }: { channel: Channel }) {
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>
-              Remaining: ${balance.toFixed(2)}
-              <br />
-              Click to update balance
-            </p>
+            <p>Remaining: {remainingDisplay}</p>
+            <p>Click to update balance</p>
           </TooltipContent>
         </Tooltip>
       </div>

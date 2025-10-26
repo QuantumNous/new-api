@@ -38,7 +38,14 @@ import { useUIState } from './hooks/use-ui-state'
 export function Pricing() {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
-  const { models, vendors, usableGroup, isLoading } = usePricingData()
+  const {
+    models,
+    vendors,
+    usableGroup,
+    isLoading,
+    priceRate,
+    usdExchangeRate,
+  } = usePricingData()
 
   const {
     searchInput,
@@ -245,6 +252,8 @@ export function Pricing() {
               <VirtualModelList
                 models={filteredModels}
                 onModelClick={handleModelClick}
+                priceRate={priceRate}
+                usdExchangeRate={usdExchangeRate}
               />
             ) : (
               <EmptyState

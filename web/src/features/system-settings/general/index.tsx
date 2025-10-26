@@ -25,6 +25,9 @@ const defaultGeneralSettings: GeneralSettings = {
   'quota_setting.enable_free_model_pre_consume': true,
   QuotaPerUnit: 500000,
   USDExchangeRate: 7,
+  'general_setting.quota_display_type': 'USD',
+  'general_setting.custom_currency_symbol': '¤',
+  'general_setting.custom_currency_exchange_rate': 1,
   RetryTimes: 0,
   DisplayInCurrencyEnabled: true,
   DisplayTokenStatEnabled: true,
@@ -91,6 +94,15 @@ export function GeneralSettings() {
               USDExchangeRate: settings.USDExchangeRate,
               DisplayInCurrencyEnabled: settings.DisplayInCurrencyEnabled,
               DisplayTokenStatEnabled: settings.DisplayTokenStatEnabled,
+              general_setting: {
+                quota_display_type:
+                  settings['general_setting.quota_display_type'] ?? 'USD',
+                custom_currency_symbol:
+                  settings['general_setting.custom_currency_symbol'] ?? '¤',
+                custom_currency_exchange_rate:
+                  settings['general_setting.custom_currency_exchange_rate'] ??
+                  1,
+              },
             }}
           />
 

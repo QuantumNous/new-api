@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -72,14 +73,12 @@ export function BalanceQueryDialog({
     onOpenChange(false)
   }
 
-  const formatBalance = (bal: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(bal)
-  }
+  const formatBalance = (bal: number) =>
+    formatCurrencyFromUSD(bal, {
+      digitsLarge: 2,
+      digitsSmall: 4,
+      abbreviate: false,
+    })
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'Never'

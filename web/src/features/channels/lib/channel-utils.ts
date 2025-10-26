@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
+import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 import {
   CHANNEL_STATUS_CONFIG,
@@ -272,20 +273,13 @@ export function validateChannelSettings(settings: string): boolean {
 /**
  * Format balance with currency symbol
  */
-export function formatBalance(
-  balance: number,
-  currency: string = 'USD'
-): string {
-  if (balance === 0) return '$0.00'
-
-  const formatter = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+export function formatBalance(balance: number | null | undefined): string {
+  if (balance == null || Number.isNaN(balance)) return '-'
+  return formatCurrencyFromUSD(balance, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: false,
   })
-
-  return formatter.format(balance)
 }
 
 /**
@@ -361,13 +355,13 @@ export function formatTimestamp(timestamp: number): string {
 // Quota Formatting
 // ============================================================================
 
-/**
- * Format quota in smallest unit to readable format
- * The quota is stored in smallest unit (e.g., 1000000 = $1)
- */
+/** Format quota units using the global currency display configuration. */
 export function formatQuota(quota: number): string {
-  const dollars = quota / 500000 // Convert to dollars based on backend logic
-  return formatBalance(dollars)
+  return formatQuotaWithCurrency(quota, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: true,
+  })
 }
 
 // ============================================================================

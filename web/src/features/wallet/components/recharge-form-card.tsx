@@ -192,11 +192,11 @@ export function RechargeFormCard({
                           )}
                         </div>
                         <div className='text-muted-foreground mt-2 text-xs'>
-                          Pay ${formatCurrency(actualPrice)}
+                          Pay {formatCurrency(actualPrice)}
                           {hasDiscount && savedAmount > 0 && (
                             <span className='text-green-600'>
                               {' '}
-                              • Save ${formatCurrency(savedAmount)}
+                              • Save {formatCurrency(savedAmount)}
                             </span>
                           )}
                         </div>
@@ -233,7 +233,7 @@ export function RechargeFormCard({
                     <Skeleton className='h-5 w-16' />
                   ) : (
                     <span className='text-sm font-semibold'>
-                      ${formatCurrency(paymentAmount)}
+                      {formatCurrency(paymentAmount)}
                     </span>
                   )}
                 </div>

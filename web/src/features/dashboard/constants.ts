@@ -80,38 +80,40 @@ export const MODEL_STAT_CARDS_CONFIG: StatCardConfig[] = [
  * Overview Tab 摘要卡片配置工厂
  */
 export const createSummaryCardsConfig = (totals: {
-  remain: number
-  used: number
-  requestCount: number
-  currency: boolean
+  remainDisplay: string
+  usedDisplay: string
+  requestCountDisplay: string
+  currencyLabel: string
+  currencyEnabled: boolean
 }) =>
   [
     {
       key: 'balance',
-      title: totals.currency ? 'Current Balance (USD)' : 'Current Balance',
-      value: totals.remain,
-      description: totals.currency
-        ? 'Remaining quota (USD)'
+      title: totals.currencyEnabled
+        ? `Current Balance (${totals.currencyLabel})`
+        : 'Current Balance',
+      value: totals.remainDisplay,
+      description: totals.currencyEnabled
+        ? `Remaining quota (${totals.currencyLabel})`
         : 'Remaining quota units',
       icon: Wallet,
-      formatAsCurrency: totals.currency,
     },
     {
       key: 'usage',
-      title: totals.currency ? 'Historical Usage (USD)' : 'Historical Usage',
-      value: totals.used,
-      description: totals.currency
-        ? 'Total consumed (USD)'
+      title: totals.currencyEnabled
+        ? `Historical Usage (${totals.currencyLabel})`
+        : 'Historical Usage',
+      value: totals.usedDisplay,
+      description: totals.currencyEnabled
+        ? `Total consumed (${totals.currencyLabel})`
         : 'Total consumed quota',
       icon: TrendingUp,
-      formatAsCurrency: totals.currency,
     },
     {
       key: 'requests',
       title: 'Request Count',
-      value: totals.requestCount,
+      value: totals.requestCountDisplay,
       description: 'Total requests made',
       icon: Activity,
-      formatAsCurrency: false,
     },
   ] as const

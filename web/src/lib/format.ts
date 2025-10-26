@@ -1,3 +1,9 @@
+import {
+  formatCurrencyFromUSD,
+  formatQuotaWithCurrency,
+  getCurrencyDisplay,
+} from './currency'
+
 // ============================================================================
 // Number Formatting
 // ============================================================================
@@ -26,12 +32,7 @@ export function formatPercent(value: number | null | undefined): string {
 }
 
 export function formatCurrencyUSD(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value as number)) return '-'
-  return Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  }).format(value as number)
+  return formatCurrencyFromUSD(value == null ? null : (value as number))
 }
 
 // ============================================================================
@@ -39,33 +40,54 @@ export function formatCurrencyUSD(value: number | null | undefined): string {
 // ============================================================================
 
 /**
- * Format quota to dollar amount
- * Quota is stored in units where 500,000 = $1
+ * Format quota into the configured display amount.
+ * Quota is stored in units where `quotaPerUnit` equals 1 USD.
  */
 export function formatQuota(quota: number): string {
-  const dollars = quota / 500000
-  if (dollars >= 1000) {
-    return `$${(dollars / 1000).toFixed(1)}k`
-  }
-  if (dollars >= 1) {
-    return `$${dollars.toFixed(2)}`
-  }
-  return `$${dollars.toFixed(4)}`
+  return formatQuotaWithCurrency(quota, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: true,
+  })
 }
 
 /**
- * Parse quota from dollar input
+ * Parse quota from the current display input back to quota units.
  */
-export function parseQuotaFromDollars(dollars: number): number {
-  return Math.round(dollars * 500000)
+export function parseQuotaFromDollars(amount: number): number {
+  if (!Number.isFinite(amount)) return 0
+
+  const { config, meta } = getCurrencyDisplay()
+
+  // Tokens-only or raw quota mode
+  if (!config.displayInCurrency || meta.kind === 'tokens') {
+    return Math.round(amount)
+  }
+
+  const exchangeRate =
+    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
+
+  const usdAmount = exchangeRate > 0 ? amount / exchangeRate : amount
+
+  return Math.round(usdAmount * config.quotaPerUnit)
 }
 
 /**
- * Convert quota units to dollars
- * Reverse of parseQuotaFromDollars
+ * Convert quota units to the configured display amount.
+ * Reverse of parseQuotaFromDollars.
  */
 export function quotaUnitsToDollars(units: number): number {
-  return units / 500000
+  const { config, meta } = getCurrencyDisplay()
+
+  if (!config.displayInCurrency || meta.kind === 'tokens') {
+    return units
+  }
+
+  const usdAmount = units / config.quotaPerUnit
+  const exchangeRate =
+    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
+
+  return usdAmount * exchangeRate
 }
 
 // ============================================================================
@@ -113,16 +135,11 @@ export function formatTimestampToDate(
  * Uses 6 decimal places to show very small costs accurately
  */
 export function formatLogQuota(quota: number): string {
-  const dollars = quota / 500000
-
-  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`
-  if (dollars >= 0.01) return `$${dollars.toFixed(4)}`
-
-  // For very small amounts, use 6 decimal places
-  const result = dollars.toFixed(6)
-  return parseFloat(result) === 0 && quota > 0
-    ? `$${(0.000001).toFixed(6)}`
-    : `$${result}`
+  return formatQuotaWithCurrency(quota, {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+  })
 }
 
 /**

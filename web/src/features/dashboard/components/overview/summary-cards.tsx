@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CreditCard } from 'lucide-react'
 import { getSelf, getStatus } from '@/lib/api'
-import { formatCurrencyUSD, formatNumber } from '@/lib/format'
+import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
+import { formatNumber, formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { createSummaryCardsConfig } from '@/features/dashboard/constants'
 import { StatCard } from '../ui/stat-card'
@@ -29,28 +30,39 @@ export function SummaryCards() {
     }
   }, [])
 
-  const totals = useMemo(() => {
+  const summaryValues = useMemo(() => {
     const remainQuota = Number(self?.quota ?? 0)
     const usedQuota = Number(self?.used_quota ?? 0)
-    const displayInCurrency = !!status?.display_in_currency
-    const quotaPerUnit = Number(status?.quota_per_unit || 500000)
-    const toUSD = (q: number) => (displayInCurrency ? q / quotaPerUnit : q)
-    return {
-      used: toUSD(usedQuota),
-      remain: toUSD(remainQuota),
-      requestCount: Number(self?.request_count ?? 0),
-      currency: displayInCurrency,
-    }
-  }, [self, status])
+    const requestCount = Number(self?.request_count ?? 0)
 
-  const items = createSummaryCardsConfig(totals).map((config, index) => ({
+    return {
+      remainDisplay: formatQuota(remainQuota),
+      usedDisplay: formatQuota(usedQuota),
+      requestCountDisplay: formatNumber(requestCount),
+    }
+  }, [self])
+
+  const currencyEnabledFromStore = isCurrencyDisplayEnabled()
+  const statusCurrencyFlag =
+    typeof status?.display_in_currency === 'boolean'
+      ? Boolean(status.display_in_currency)
+      : undefined
+  const currencyEnabled =
+    statusCurrencyFlag !== undefined
+      ? statusCurrencyFlag
+      : currencyEnabledFromStore
+  const currencyLabel = currencyEnabled ? getCurrencyLabel() : 'Tokens'
+
+  const items = createSummaryCardsConfig({
+    ...summaryValues,
+    currencyEnabled,
+    currencyLabel,
+  }).map((config, index) => ({
     title: config.title,
-    value: config.formatAsCurrency
-      ? formatCurrencyUSD(config.value)
-      : formatNumber(config.value),
+    value: config.value,
     desc: config.description,
     icon: config.icon,
-    isBalance: index === 0, // First card is balance
+    isBalance: index === 0,
   }))
 
   return (

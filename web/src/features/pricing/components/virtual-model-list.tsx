@@ -12,6 +12,8 @@ export interface VirtualModelListProps {
   onModelClick: (modelName: string) => void
   estimateSize?: number
   overscan?: number
+  priceRate?: number
+  usdExchangeRate?: number
 }
 
 export function VirtualModelList({
@@ -19,6 +21,8 @@ export function VirtualModelList({
   onModelClick,
   estimateSize = 140,
   overscan = 5,
+  priceRate = 1,
+  usdExchangeRate = 1,
 }: VirtualModelListProps) {
   // Window-based virtualizer - page scroll controls virtualization
   const virtualizer = useWindowVirtualizer({
@@ -70,6 +74,8 @@ export function VirtualModelList({
             >
               <ModelRow
                 model={model}
+                priceRate={priceRate}
+                usdExchangeRate={usdExchangeRate}
                 onClick={() => onModelClick(model.model_name || '')}
               />
             </div>

@@ -1,5 +1,6 @@
+import { formatCurrencyFromUSD } from '@/lib/currency'
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
-import type { PricingModel, Currency, TokenUnit, PriceType } from '../types'
+import type { PricingModel, TokenUnit, PriceType } from '../types'
 
 // ----------------------------------------------------------------------------
 // Price Calculation Utilities
@@ -53,30 +54,15 @@ function applyRechargeRate(
 }
 
 /**
- * Format price with currency symbol
- */
-function formatWithCurrency(
-  price: number,
-  currency: Currency,
-  usdExchangeRate: number
-): string {
-  if (currency === 'CNY') {
-    return `¥${(price * usdExchangeRate).toFixed(4)}`
-  }
-  return `$${price.toFixed(4)}`
-}
-
-/**
  * Format token-based price for display
  */
 export function formatPrice(
   model: PricingModel,
   type: PriceType,
-  currency: Currency,
   tokenUnit: TokenUnit,
-  showWithRecharge: boolean,
-  priceRate: number,
-  usdExchangeRate: number
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
@@ -97,7 +83,11 @@ export function formatPrice(
   )
 
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatWithCurrency(price, currency, usdExchangeRate)
+  return formatCurrencyFromUSD(price, {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+  })
 }
 
 /**
@@ -107,11 +97,10 @@ export function formatGroupPrice(
   model: PricingModel,
   group: string,
   type: PriceType,
-  currency: Currency,
   tokenUnit: TokenUnit,
-  showWithRecharge: boolean,
-  priceRate: number,
-  usdExchangeRate: number,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
@@ -129,7 +118,11 @@ export function formatGroupPrice(
   )
 
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatWithCurrency(price, currency, usdExchangeRate)
+  return formatCurrencyFromUSD(price, {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+  })
 }
 
 /**
@@ -138,10 +131,9 @@ export function formatGroupPrice(
 export function formatFixedPrice(
   model: PricingModel,
   group: string,
-  currency: Currency,
-  showWithRecharge: boolean,
-  priceRate: number,
-  usdExchangeRate: number,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
@@ -158,5 +150,9 @@ export function formatFixedPrice(
     usdExchangeRate
   )
 
-  return formatWithCurrency(priceInUSD, currency, usdExchangeRate)
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
 }

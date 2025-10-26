@@ -14,9 +14,16 @@ import type { PricingModel } from '../types'
 export interface ModelRowProps {
   model: PricingModel
   onClick: () => void
+  priceRate?: number
+  usdExchangeRate?: number
 }
 
-export function ModelRow({ model, onClick }: ModelRowProps) {
+export function ModelRow({
+  model,
+  onClick,
+  priceRate = 1,
+  usdExchangeRate = 1,
+}: ModelRowProps) {
   const tags = parseTags(model.tags).slice(0, MAX_TAGS_DISPLAY)
   const isTokenBased = isTokenBasedModel(model)
   const vendorIcon = model.vendor_icon
@@ -79,7 +86,14 @@ export function ModelRow({ model, onClick }: ModelRowProps) {
                     Input
                   </span>
                   <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
-                    {formatPrice(model, 'input', 'USD', 'M', false, 1, 1)}
+                    {formatPrice(
+                      model,
+                      'input',
+                      'M',
+                      false,
+                      priceRate,
+                      usdExchangeRate
+                    )}
                   </span>
                 </div>
                 <Separator
@@ -92,7 +106,14 @@ export function ModelRow({ model, onClick }: ModelRowProps) {
                     Output
                   </span>
                   <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
-                    {formatPrice(model, 'output', 'USD', 'M', false, 1, 1)}
+                    {formatPrice(
+                      model,
+                      'output',
+                      'M',
+                      false,
+                      priceRate,
+                      usdExchangeRate
+                    )}
                   </span>
                 </div>
               </div>

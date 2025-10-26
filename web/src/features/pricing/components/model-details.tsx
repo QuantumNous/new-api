@@ -137,10 +137,14 @@ function GroupPricingSection({
   model,
   groupRatio,
   usableGroup,
+  priceRate,
+  usdExchangeRate,
 }: {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
+  priceRate: number
+  usdExchangeRate: number
 }) {
   const availableGroups = useMemo(() => {
     return getAvailableGroups(model, usableGroup || {})
@@ -221,11 +225,10 @@ function GroupPricingSection({
                           model,
                           group,
                           'input',
-                          'USD',
                           'M',
                           false,
-                          1,
-                          1,
+                          priceRate,
+                          usdExchangeRate,
                           groupRatio
                         )}
                       </td>
@@ -234,11 +237,10 @@ function GroupPricingSection({
                           model,
                           group,
                           'output',
-                          'USD',
                           'M',
                           false,
-                          1,
-                          1,
+                          priceRate,
+                          usdExchangeRate,
                           groupRatio
                         )}
                       </td>
@@ -248,10 +250,9 @@ function GroupPricingSection({
                       {formatFixedPrice(
                         model,
                         group,
-                        'USD',
                         false,
-                        1,
-                        1,
+                        priceRate,
+                        usdExchangeRate,
                         groupRatio
                       )}
                     </td>
@@ -270,8 +271,15 @@ export function ModelDetails() {
   const { modelId } = useParams({ from: '/pricing/$modelId/' })
   const navigate = useNavigate()
 
-  const { models, groupRatio, usableGroup, endpointMap, isLoading } =
-    usePricingData()
+  const {
+    models,
+    groupRatio,
+    usableGroup,
+    endpointMap,
+    isLoading,
+    priceRate,
+    usdExchangeRate,
+  } = usePricingData()
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
@@ -345,6 +353,8 @@ export function ModelDetails() {
           model={model}
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
+          priceRate={priceRate ?? 1}
+          usdExchangeRate={usdExchangeRate ?? 1}
         />
       </div>
     </PublicLayout>

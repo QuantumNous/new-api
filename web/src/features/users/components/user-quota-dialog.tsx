@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -44,6 +45,14 @@ export function UserQuotaDialog({
     onOpenChange(false)
   }
 
+  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly =
+    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const placeholder = tokensOnly
+    ? 'Enter amount in tokens (supports negative)'
+    : `Enter amount in ${currencyLabel} (supports negative)`
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -67,8 +76,8 @@ export function UserQuotaDialog({
           </div>
           <Input
             type='number'
-            step='0.01'
-            placeholder='Enter amount (supports negative)'
+            step={tokensOnly ? 1 : 0.01}
+            placeholder={placeholder}
             value={quotaDelta}
             onChange={(e) => setQuotaDelta(e.target.value)}
             onKeyDown={(e) => {

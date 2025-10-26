@@ -39,7 +39,6 @@ export type PricingData = {
   auto_groups: string[]
 }
 
-export type Currency = 'USD' | 'CNY'
 export type TokenUnit = 'M' | 'K'
 export type PriceType = 'input' | 'output'
 export type QuotaType = 0 | 1 // 0: token-based, 1: per-request

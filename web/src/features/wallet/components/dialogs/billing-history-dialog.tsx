@@ -33,6 +33,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
 import { useBillingHistory } from '../../hooks/use-billing-history'
+import { formatCurrency } from '../../lib'
 import {
   getStatusConfig,
   getPaymentMethodName,
@@ -212,7 +213,7 @@ export function BillingHistoryDialog({
                               Payment
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
-                              ${record.money.toFixed(2)}
+                              {formatCurrency(record.money)}
                             </div>
                           </div>
                         </div>

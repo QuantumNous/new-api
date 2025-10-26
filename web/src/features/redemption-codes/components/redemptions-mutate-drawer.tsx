@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { addTimeToDate } from '@/lib/time'
 import { Button } from '@/components/ui/button'
 import {
@@ -110,6 +111,18 @@ export function RedemptionsMutateDrawer({
     form.setValue('expired_time', newDate)
   }
 
+  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly =
+    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const quotaLabel = `Quota (${currencyLabel})`
+  const quotaPlaceholder = tokensOnly
+    ? 'Enter quota in tokens'
+    : `Enter quota in ${currencyLabel}`
+  const quotaDescription = tokensOnly
+    ? 'Enter the quota amount in tokens'
+    : `Enter the quota amount in ${currencyLabel}`
+
   return (
     <Sheet
       open={open}
@@ -160,21 +173,19 @@ export function RedemptionsMutateDrawer({
               name='quota_dollars'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Quota (USD)</FormLabel>
+                  <FormLabel>{quotaLabel}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
                       type='number'
-                      step='0.01'
-                      placeholder='Enter quota in dollars'
+                      step={tokensOnly ? 1 : 0.01}
+                      placeholder={quotaPlaceholder}
                       onChange={(e) =>
                         field.onChange(parseFloat(e.target.value) || 0)
                       }
                     />
                   </FormControl>
-                  <FormDescription>
-                    Enter the quota amount in dollars
-                  </FormDescription>
+                  <FormDescription>{quotaDescription}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

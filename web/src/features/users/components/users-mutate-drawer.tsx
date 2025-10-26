@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -90,6 +91,15 @@ export function UsersMutateDrawer({
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form])
+
+  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly =
+    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const quotaLabel = `Remaining Quota (${currencyLabel})`
+  const quotaPlaceholder = tokensOnly
+    ? 'Enter quota in tokens'
+    : `Enter quota in ${currencyLabel}`
 
   const onSubmit = async (data: UserFormValues) => {
     setIsSubmitting(true)
@@ -287,14 +297,14 @@ export function UsersMutateDrawer({
                     name='quota_dollars'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Remaining Quota (USD)</FormLabel>
+                        <FormLabel>{quotaLabel}</FormLabel>
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
                               {...field}
                               type='number'
-                              step='0.01'
-                              placeholder='Enter quota in dollars'
+                              step={tokensOnly ? 1 : 0.01}
+                              placeholder={quotaPlaceholder}
                               onChange={(e) =>
                                 field.onChange(parseFloat(e.target.value) || 0)
                               }

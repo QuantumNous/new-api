@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { formatCurrencyFromUSD } from '@/lib/currency'
 import {
   copyChannel,
   deleteChannel,
@@ -240,7 +241,13 @@ export async function handleUpdateChannelBalance(
     const response = await updateChannelBalance(id)
     if (response.success && response.balance !== undefined) {
       const balance = response.balance
-      toast.success(`Balance updated: $${balance.toFixed(2)}`)
+      toast.success(
+        `Balance updated: ${formatCurrencyFromUSD(balance, {
+          digitsLarge: 2,
+          digitsSmall: 4,
+          abbreviate: false,
+        })}`
+      )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.(balance)
     } else {

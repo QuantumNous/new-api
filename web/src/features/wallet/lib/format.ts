@@ -1,3 +1,4 @@
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
 // ============================================================================
@@ -5,10 +6,19 @@ import { DEFAULT_DISCOUNT_RATE } from '../constants'
 // ============================================================================
 
 /**
- * Format currency amount (2 decimal places)
+ * Format currency amount based on system configuration
  */
-export function formatCurrency(amount: number): string {
-  return amount.toFixed(2)
+export function formatCurrency(amount: number | string): string {
+  const numeric =
+    typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
+  return formatBillingCurrencyFromUSD(
+    Number.isFinite(numeric) ? numeric : null,
+    {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    }
+  )
 }
 
 /**

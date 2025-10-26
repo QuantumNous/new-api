@@ -1,7 +1,10 @@
 import { useEffect, useCallback } from 'react'
 import {
   useSystemConfigStore,
+  type CurrencyConfig,
+  type CurrencyDisplayType,
   type SystemConfig,
+  DEFAULT_CURRENCY_CONFIG,
 } from '@/stores/system-config-store'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 
@@ -17,23 +20,77 @@ interface StatusApiResponse {
     logo?: string
     footer_html?: string
     demo_site_enabled?: boolean
+    display_token_stat_enabled?: boolean
+    display_in_currency?: boolean
+    quota_display_type?: CurrencyDisplayType
+    quota_per_unit?: number
+    usd_exchange_rate?: number
+    custom_currency_symbol?: string
+    custom_currency_exchange_rate?: number
+  }
+}
+
+function toNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && !Number.isNaN(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (!Number.isNaN(parsed)) return parsed
+  }
+  return fallback
+}
+
+/**
+ * Map `/api/status` response data to our persisted system config structure
+ */
+export function mapStatusDataToConfig(
+  data: StatusApiResponse['data'] | undefined
+): Partial<SystemConfig> {
+  if (!data) return {}
+
+  const quotaDisplayType =
+    (data.quota_display_type as CurrencyDisplayType | undefined) ??
+    DEFAULT_CURRENCY_CONFIG.quotaDisplayType
+
+  const currency: CurrencyConfig = {
+    displayInCurrency:
+      data.display_in_currency ?? DEFAULT_CURRENCY_CONFIG.displayInCurrency,
+    quotaDisplayType,
+    quotaPerUnit: toNumber(
+      data.quota_per_unit,
+      DEFAULT_CURRENCY_CONFIG.quotaPerUnit
+    ),
+    usdExchangeRate: toNumber(
+      data.usd_exchange_rate,
+      DEFAULT_CURRENCY_CONFIG.usdExchangeRate
+    ),
+    customCurrencySymbol:
+      data.custom_currency_symbol?.trim() ||
+      DEFAULT_CURRENCY_CONFIG.customCurrencySymbol,
+    customCurrencyExchangeRate: toNumber(
+      data.custom_currency_exchange_rate,
+      DEFAULT_CURRENCY_CONFIG.customCurrencyExchangeRate
+    ),
+  }
+
+  return {
+    systemName: data.system_name || DEFAULT_SYSTEM_NAME,
+    logo: data.logo || DEFAULT_LOGO,
+    footerHtml: data.footer_html,
+    demoSiteEnabled: data.demo_site_enabled,
+    displayTokenStatEnabled: data.display_token_stat_enabled,
+    currency,
   }
 }
 
 // Fetch system config from API
-async function fetchSystemConfig(): Promise<SystemConfig> {
+async function fetchSystemConfig(): Promise<Partial<SystemConfig>> {
   const response = await fetch('/api/status')
   if (!response.ok) throw new Error('Failed to fetch status')
 
   const data: StatusApiResponse = await response.json()
   if (!data.success) throw new Error('API returned error')
 
-  return {
-    systemName: data.data.system_name || DEFAULT_SYSTEM_NAME,
-    logo: data.data.logo || DEFAULT_LOGO,
-    footerHtml: data.data.footer_html,
-    demoSiteEnabled: data.data.demo_site_enabled,
-  }
+  return mapStatusDataToConfig(data.data)
 }
 
 // Preload image and return cleanup function

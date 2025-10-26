@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -182,6 +183,18 @@ export function ApiKeysMutateDrawer({
     form.setValue('expired_time', now)
   }
 
+  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly =
+    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const quotaLabel = `Quota (${currencyLabel})`
+  const quotaPlaceholder = tokensOnly
+    ? 'Enter quota in tokens'
+    : `Enter quota in ${currencyLabel}`
+  const quotaDescription = tokensOnly
+    ? 'Enter the quota amount in tokens'
+    : `Enter the quota amount in ${currencyLabel}`
+
   return (
     <Sheet
       open={open}
@@ -277,21 +290,19 @@ export function ApiKeysMutateDrawer({
                 name='remain_quota_dollars'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quota (USD)</FormLabel>
+                    <FormLabel>{quotaLabel}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type='number'
-                        step='0.01'
-                        placeholder='Enter quota in dollars'
+                        step={tokensOnly ? 1 : 0.01}
+                        placeholder={quotaPlaceholder}
                         onChange={(e) =>
                           field.onChange(parseFloat(e.target.value) || 0)
                         }
                       />
                     </FormControl>
-                    <FormDescription>
-                      Enter the quota amount in dollars
-                    </FormDescription>
+                    <FormDescription>{quotaDescription}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
