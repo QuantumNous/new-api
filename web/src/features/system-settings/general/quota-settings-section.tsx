@@ -1,7 +1,6 @@
 import * as z from 'zod'
-import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -17,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import { SettingsAccordion } from '../components/settings-accordion'
-import { useResetForm } from '../hooks/use-reset-form'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const quotaSchema = z.object({
@@ -30,18 +29,6 @@ const quotaSchema = z.object({
   'quota_setting.enable_free_model_pre_consume': z.boolean(),
 })
 
-const OPTION_KEYS = [
-  'QuotaForNewUser',
-  'PreConsumedQuota',
-  'QuotaForInviter',
-  'QuotaForInvitee',
-  'TopUpLink',
-  'general_setting.docs_link',
-  'quota_setting.enable_free_model_pre_consume',
-] as const
-
-type OptionKey = (typeof OPTION_KEYS)[number]
-
 type QuotaFormValues = z.infer<typeof quotaSchema>
 
 type QuotaSettingsSectionProps = {
@@ -53,59 +40,23 @@ export function QuotaSettingsSection({
 }: QuotaSettingsSectionProps) {
   const updateOption = useUpdateOption()
 
-  const form = useForm({
-    resolver: zodResolver(quotaSchema),
-    defaultValues,
-  })
-
-  useResetForm(form, defaultValues)
-
-  const onSubmit = async () => {
-    const baseline =
-      (form.formState.defaultValues as QuotaFormValues | undefined) ??
-      defaultValues
-
-    const updates = OPTION_KEYS.reduce<
-      Array<[OptionKey, QuotaFormValues[OptionKey]]>
-    >((acc, key) => {
-      const currentValue = form.getValues(key as OptionKey)
-      if (typeof currentValue === 'undefined') {
-        return acc
-      }
-
-      const defaultValue = baseline[key]
-
-      if (currentValue !== defaultValue) {
-        acc.push([key, currentValue as QuotaFormValues[OptionKey]])
-      }
-
-      return acc
-    }, [])
-
-    if (updates.length === 0) {
-      toast.info('No changes to save')
-      return
-    }
-
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: value as string | number | boolean,
-      })
-    }
-
-    const nextDefaults = { ...baseline } as QuotaFormValues
-    updates.forEach(([key, value]) => {
-      ;(nextDefaults as Record<OptionKey, QuotaFormValues[OptionKey]>)[key] =
-        value
+  const { form, handleSubmit, isDirty, isSubmitting } =
+    useSettingsForm<QuotaFormValues>({
+      resolver: zodResolver(quotaSchema) as Resolver<
+        QuotaFormValues,
+        any,
+        QuotaFormValues
+      >,
+      defaultValues,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: value as string | number | boolean,
+          })
+        }
+      },
     })
-
-    form.reset(nextDefaults, {
-      keepDirty: false,
-      keepDirtyValues: false,
-      keepErrors: true,
-    })
-  }
 
   return (
     <SettingsAccordion
@@ -113,11 +64,11 @@ export function QuotaSettingsSection({
       title='Quota Settings'
       description='Configure user quota allocation and rewards'
     >
-      <FormNavigationGuard when={form.formState.isDirty} />
+      <FormNavigationGuard when={isDirty} />
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-          <FormDirtyIndicator isDirty={form.formState.isDirty} />
+        <form onSubmit={handleSubmit} className='space-y-6'>
+          <FormDirtyIndicator isDirty={isDirty} />
           <FormField
             control={form.control}
             name='QuotaForNewUser'
@@ -271,7 +222,10 @@ export function QuotaSettingsSection({
             )}
           />
 
-          <Button type='submit' disabled={updateOption.isPending}>
+          <Button
+            type='submit'
+            disabled={updateOption.isPending || isSubmitting}
+          >
             {updateOption.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </form>

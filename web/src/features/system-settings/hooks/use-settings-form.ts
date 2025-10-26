@@ -1,10 +1,144 @@
-import { useRef } from 'react'
-import { useForm, type UseFormProps, type FieldValues } from 'react-hook-form'
+import { useEffect, useMemo, useRef } from 'react'
+import {
+  useForm,
+  type UseFormProps,
+  type FieldValues,
+  type FieldNamesMarkedBoolean,
+} from 'react-hook-form'
 import { toast } from 'sonner'
 
 type SettingsFormOptions<T extends FieldValues> = UseFormProps<T> & {
-  onSubmit: (data: T, changedFields: Partial<T>) => Promise<void>
+  onSubmit: (data: T, changedFields: Record<string, unknown>) => Promise<void>
   compareValues?: (a: any, b: any) => boolean
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function flattenValues<T extends FieldValues>(
+  values: T,
+  parentKey?: string,
+  result: Record<string, unknown> = {}
+): Record<string, unknown> {
+  if (!isPlainObject(values)) {
+    if (typeof parentKey === 'string') {
+      result[parentKey] = values
+    }
+    return result
+  }
+
+  Object.entries(values).forEach(([key, value]) => {
+    const nextKey = parentKey ? `${parentKey}.${key}` : key
+
+    if (isPlainObject(value)) {
+      flattenValues(value as FieldValues, nextKey, result)
+      return
+    }
+
+    if (Array.isArray(value)) {
+      result[nextKey] = value
+      return
+    }
+
+    result[nextKey] = value
+  })
+
+  return result
+}
+
+function collectDirtyValues<TFieldValues extends FieldValues>(
+  dirtyFields: Partial<FieldNamesMarkedBoolean<TFieldValues>> | boolean,
+  values: unknown,
+  parentKey?: string,
+  result: Record<string, unknown> = {}
+) {
+  if (dirtyFields === true) {
+    if (typeof parentKey === 'string') {
+      result[parentKey] = values
+    }
+    return result
+  }
+
+  if (!dirtyFields || typeof dirtyFields !== 'object') {
+    return result
+  }
+
+  Object.entries(dirtyFields).forEach(([key, value]) => {
+    const nextKey = parentKey ? `${parentKey}.${key}` : key
+    const source =
+      values && (isPlainObject(values) || Array.isArray(values))
+        ? (values as Record<string, unknown>)[key]
+        : undefined
+
+    if (value === true) {
+      result[nextKey] = source
+      return
+    }
+
+    if (value && typeof value === 'object') {
+      collectDirtyValues(
+        value as Partial<FieldNamesMarkedBoolean<FieldValues>>,
+        source as FieldValues,
+        nextKey,
+        result
+      )
+    }
+  })
+
+  return result
+}
+
+function setDeepValue(
+  target: Record<string, unknown>,
+  path: string,
+  value: unknown
+) {
+  const segments = path.split('.')
+  let current: Record<string, unknown> = target
+
+  segments.forEach((segment, index) => {
+    const isLast = index === segments.length - 1
+    if (isLast) {
+      current[segment] = value
+      return
+    }
+
+    const next = current[segment]
+    if (isPlainObject(next)) {
+      current = next as Record<string, unknown>
+      return
+    }
+
+    current[segment] = {}
+    current = current[segment] as Record<string, unknown>
+  })
+}
+
+function expandDotPaths<T extends FieldValues>(
+  values: T | undefined
+): T | undefined {
+  if (!values || !isPlainObject(values)) {
+    return values
+  }
+
+  const result: Record<string, unknown> = {}
+
+  Object.entries(values).forEach(([key, value]) => {
+    if (key.includes('.')) {
+      setDeepValue(result, key, value)
+      return
+    }
+
+    if (isPlainObject(value)) {
+      result[key] = expandDotPaths(value as FieldValues)
+      return
+    }
+
+    result[key] = value
+  })
+
+  return result as T
 }
 
 /**
@@ -32,22 +166,50 @@ type SettingsFormOptions<T extends FieldValues> = UseFormProps<T> & {
 export function useSettingsForm<T extends FieldValues>({
   onSubmit,
   compareValues,
+  defaultValues,
   ...formOptions
 }: SettingsFormOptions<T>) {
-  const form = useForm<T>(formOptions)
+  const expandedDefaults = useMemo(
+    () => expandDotPaths(defaultValues),
+    [defaultValues]
+  )
 
-  // Store initial values at mount time - never auto-reset after this
-  const mountedDefaultsRef = useRef<T>(formOptions.defaultValues as T)
+  const form = useForm<T>({ ...formOptions, defaultValues: expandedDefaults })
 
-  const defaultCompare = (a: any, b: any): boolean => {
+  const defaultValuesRef = useRef<T>((expandedDefaults ?? ({} as T)) as T)
+  const baselineRef = useRef<Record<string, unknown>>(
+    flattenValues((expandedDefaults ?? ({} as T)) as T)
+  )
+  const serializedDefaultsRef = useRef<string>(
+    JSON.stringify(baselineRef.current)
+  )
+
+  useEffect(() => {
+    if (!expandedDefaults) return
+
+    const flattened = flattenValues(expandedDefaults as T)
+    const serialized = JSON.stringify(flattened)
+
+    if (serialized === serializedDefaultsRef.current) {
+      return
+    }
+
+    baselineRef.current = flattened
+    defaultValuesRef.current = expandedDefaults as T
+    serializedDefaultsRef.current = serialized
+    form.reset(expandedDefaults as T)
+  }, [expandedDefaults, form])
+
+  const defaultCompare = (a: unknown, b: unknown): boolean => {
     if (a === b) return true
-    if (typeof a !== typeof b) return false
 
-    // Handle arrays
     if (Array.isArray(a) && Array.isArray(b)) {
       return JSON.stringify(a) === JSON.stringify(b)
     }
 
+    if (typeof a !== typeof b) return false
+
+    // Handle arrays
     // Handle objects (but not null)
     if (a && b && typeof a === 'object' && typeof b === 'object') {
       return JSON.stringify(a) === JSON.stringify(b)
@@ -59,34 +221,35 @@ export function useSettingsForm<T extends FieldValues>({
   const compare = compareValues || defaultCompare
 
   const handleSubmit = async (data: T) => {
-    // Find only the fields that actually changed
-    const changedFields = Object.entries(data).reduce((acc, [key, value]) => {
-      const originalValue = mountedDefaultsRef.current[key as keyof T]
-      if (!compare(value, originalValue)) {
-        acc[key as keyof T] = value
-      }
-      return acc
-    }, {} as Partial<T>)
+    const dirtyValues = collectDirtyValues(form.formState.dirtyFields, data)
+    const changedEntries = Object.entries(dirtyValues).filter(
+      ([key, value]) => !compare(value, baselineRef.current[key])
+    )
 
-    if (Object.keys(changedFields).length === 0) {
+    if (changedEntries.length === 0) {
       toast.info('No changes to save')
       return
     }
 
-    try {
-      await onSubmit(data, changedFields)
-      // Update mounted defaults after successful save
-      mountedDefaultsRef.current = data
-      // Reset dirty state
-      form.reset(data)
-    } catch (error) {
-      // Error already handled by mutation
-      console.error('Form submission error:', error)
-    }
+    const changedFields = changedEntries.reduce<Record<string, unknown>>(
+      (acc, [key, value]) => {
+        acc[key] = value
+        return acc
+      },
+      {}
+    )
+
+    await onSubmit(data, changedFields)
+
+    const flattenedValues = flattenValues(data)
+    baselineRef.current = flattenedValues
+    defaultValuesRef.current = data
+    serializedDefaultsRef.current = JSON.stringify(flattenedValues)
+    form.reset(data)
   }
 
   const handleReset = () => {
-    form.reset(mountedDefaultsRef.current)
+    form.reset(defaultValuesRef.current)
     toast.success('Form reset to saved values')
   }
 

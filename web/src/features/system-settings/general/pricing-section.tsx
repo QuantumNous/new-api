@@ -1,8 +1,7 @@
 import * as z from 'zod'
-import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -18,6 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import { SettingsAccordion } from '../components/settings-accordion'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const pricingSchema = z.object({
@@ -36,40 +36,27 @@ type PricingSectionProps = {
 export function PricingSection({ defaultValues }: PricingSectionProps) {
   const updateOption = useUpdateOption()
 
-  const form = useForm({
-    resolver: zodResolver(pricingSchema),
-    defaultValues,
-  })
-
-  const onSubmit = async (data: PricingFormValues) => {
-    const updates = Object.entries(data).filter(
-      ([key, value]) => value !== defaultValues[key as keyof PricingFormValues]
-    )
-
-    if (updates.length === 0) {
-      toast.info('No changes to save')
-      return
-    }
-
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
-    }
-
-    form.reset(data)
-  }
-
-  const handleReset = () => {
-    form.reset(defaultValues, {
-      keepDirty: false,
-      keepDirtyValues: false,
-      keepErrors: false,
+  const { form, handleSubmit, handleReset, isDirty, isSubmitting } =
+    useSettingsForm<PricingFormValues>({
+      resolver: zodResolver(pricingSchema) as Resolver<
+        PricingFormValues,
+        any,
+        PricingFormValues
+      >,
+      defaultValues,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: value as number | boolean,
+          })
+        }
+      },
     })
-    toast.success('Form reset to saved values')
-  }
 
   return (
     <>
-      <FormNavigationGuard when={form.formState.isDirty} />
+      <FormNavigationGuard when={isDirty} />
 
       <SettingsAccordion
         value='pricing'
@@ -77,8 +64,8 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
         description='Configure pricing model and display options'
       >
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-            <FormDirtyIndicator isDirty={form.formState.isDirty} />
+          <form onSubmit={handleSubmit} className='space-y-6'>
+            <FormDirtyIndicator isDirty={isDirty} />
             <FormField
               control={form.control}
               name='QuotaPerUnit'
@@ -176,14 +163,17 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
             />
 
             <div className='flex gap-2'>
-              <Button type='submit' disabled={updateOption.isPending}>
+              <Button
+                type='submit'
+                disabled={updateOption.isPending || isSubmitting}
+              >
                 {updateOption.isPending ? 'Saving...' : 'Save Changes'}
               </Button>
               <Button
                 type='button'
                 variant='outline'
                 onClick={handleReset}
-                disabled={!form.formState.isDirty || updateOption.isPending}
+                disabled={!isDirty || updateOption.isPending || isSubmitting}
               >
                 <RotateCcw className='mr-2 h-4 w-4' />
                 Reset

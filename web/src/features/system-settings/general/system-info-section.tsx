@@ -1,9 +1,7 @@
-import { useMemo } from 'react'
 import * as z from 'zod'
-import { useForm } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -19,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import { SettingsAccordion } from '../components/settings-accordion'
-import { useResetForm } from '../hooks/use-reset-form'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const systemInfoSchema = z.object({
@@ -29,8 +27,10 @@ const systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
-  'legal.user_agreement': z.string().optional(),
-  'legal.privacy_policy': z.string().optional(),
+  legal: z.object({
+    user_agreement: z.string().optional(),
+    privacy_policy: z.string().optional(),
+  }),
 })
 
 type SystemInfoFormValues = z.infer<typeof systemInfoSchema>
@@ -39,139 +39,48 @@ type SystemInfoSectionProps = {
   defaultValues: SystemInfoFormValues
 }
 
-const OPTION_KEYS = [
-  'Notice',
-  'SystemName',
-  'Logo',
-  'Footer',
-  'About',
-  'HomePageContent',
-  'legal.user_agreement',
-  'legal.privacy_policy',
-] as const
-
 function normalizeValue(value: unknown): string {
   if (value === undefined || value === null) return ''
   return typeof value === 'string' ? value : String(value)
 }
 
-function getPathValue(
-  source: Record<string, any> | undefined,
-  path: string
-): unknown {
-  if (!source) return undefined
-  if (Object.prototype.hasOwnProperty.call(source, path)) {
-    return source[path]
-  }
-
-  return path.split('.').reduce<unknown>((acc, segment) => {
-    if (acc && typeof acc === 'object') {
-      return (acc as Record<string, unknown> | undefined)?.[segment]
-    }
-    return undefined
-  }, source)
-}
-
-function setPathValue(
-  target: Record<string, any>,
-  path: string,
-  value: unknown
-) {
-  if (!target) return
-
-  target[path] = value
-
-  const segments = path.split('.')
-  let current: Record<string, any> = target
-  segments.forEach((segment, index) => {
-    if (index === segments.length - 1) {
-      current[segment] = value
-      return
-    }
-
-    const next = current[segment]
-    current[segment] = next && typeof next === 'object' ? { ...next } : {}
-    current = current[segment]
-  })
-}
-
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const updateOption = useUpdateOption()
 
-  const normalizedDefaults = useMemo(() => {
-    const normalized: Record<string, any> = {}
-
-    OPTION_KEYS.forEach((key) => {
-      const rawValue = getPathValue(defaultValues as Record<string, any>, key)
-      setPathValue(normalized, key, normalizeValue(rawValue))
-    })
-
-    return normalized as SystemInfoFormValues
-  }, [defaultValues])
-
-  const form = useForm<SystemInfoFormValues>({
-    resolver: zodResolver(systemInfoSchema),
-    defaultValues: normalizedDefaults,
-  })
-
-  useResetForm(form, normalizedDefaults)
-
-  const onSubmit = async (_data: SystemInfoFormValues) => {
-    const baseline =
-      (form.formState.defaultValues as Record<string, any> | undefined) ??
-      (normalizedDefaults as Record<string, any>)
-
-    const updates = OPTION_KEYS.reduce<Array<[string, string]>>((acc, key) => {
-      const currentValue = normalizeValue(form.getValues(key as any))
-      const defaultValue = normalizeValue(getPathValue(baseline, key))
-
-      if (currentValue !== defaultValue) {
-        acc.push([key, currentValue])
-      }
-
-      return acc
-    }, [])
-
-    if (updates.length === 0) {
-      toast.info('No changes to save')
-      return
-    }
-
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
-    }
-
-    const nextDefaults = JSON.parse(
-      JSON.stringify(baseline ?? normalizedDefaults)
-    ) as Record<string, any>
-
-    updates.forEach(([key, value]) => {
-      setPathValue(nextDefaults, key, value)
-    })
-
-    form.reset(nextDefaults as SystemInfoFormValues, {
-      keepDirty: false,
-      keepDirtyValues: false,
-      keepErrors: true,
-    })
+  const normalizedDefaults: SystemInfoFormValues = {
+    Notice: normalizeValue(defaultValues.Notice),
+    SystemName: normalizeValue(defaultValues.SystemName),
+    Logo: normalizeValue(defaultValues.Logo),
+    Footer: normalizeValue(defaultValues.Footer),
+    About: normalizeValue(defaultValues.About),
+    HomePageContent: normalizeValue(defaultValues.HomePageContent),
+    legal: {
+      user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
+      privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
+    },
   }
 
-  const handleReset = () => {
-    const baseline =
-      (form.formState.defaultValues as Record<string, any> | undefined) ??
-      (normalizedDefaults as Record<string, any>)
-
-    form.reset(baseline as SystemInfoFormValues, {
-      keepDirty: false,
-      keepDirtyValues: false,
-      keepErrors: false,
+  const { form, handleSubmit, handleReset, isDirty, isSubmitting } =
+    useSettingsForm<SystemInfoFormValues>({
+      resolver: zodResolver(systemInfoSchema) as Resolver<
+        SystemInfoFormValues,
+        any,
+        SystemInfoFormValues
+      >,
+      defaultValues: normalizedDefaults,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: normalizeValue(value),
+          })
+        }
+      },
     })
-    toast.success('Form reset to saved values')
-  }
 
   return (
     <>
-      <FormNavigationGuard when={form.formState.isDirty} />
+      <FormNavigationGuard when={isDirty} />
 
       <SettingsAccordion
         value='system-info'
@@ -179,8 +88,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
         description='Configure basic system information and branding'
       >
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
-            <FormDirtyIndicator isDirty={form.formState.isDirty} />
+          <form onSubmit={handleSubmit} className='space-y-6'>
+            <FormDirtyIndicator isDirty={isDirty} />
             <FormField
               control={form.control}
               name='Notice'
@@ -348,14 +257,17 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             />
 
             <div className='flex gap-2'>
-              <Button type='submit' disabled={updateOption.isPending}>
+              <Button
+                type='submit'
+                disabled={isSubmitting || updateOption.isPending}
+              >
                 {updateOption.isPending ? 'Saving...' : 'Save Changes'}
               </Button>
               <Button
                 type='button'
                 variant='outline'
                 onClick={handleReset}
-                disabled={!form.formState.isDirty || updateOption.isPending}
+                disabled={!isDirty || updateOption.isPending || isSubmitting}
               >
                 <RotateCcw className='mr-2 h-4 w-4' />
                 Reset
