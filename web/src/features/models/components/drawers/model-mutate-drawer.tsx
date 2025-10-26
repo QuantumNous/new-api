@@ -166,7 +166,7 @@ export function ModelMutateDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='flex flex-col sm:max-w-2xl'>
+      <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
         <SheetHeader className='text-start'>
           <SheetTitle>{isEditing ? 'Edit Model' : 'Create Model'}</SheetTitle>
           <SheetDescription>

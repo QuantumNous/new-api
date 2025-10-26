@@ -479,7 +479,7 @@ export function ChannelMutateDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent className='flex flex-col sm:max-w-2xl'>
+        <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
           <SheetHeader className='text-start'>
             <SheetTitle>
               {isEditing ? 'Edit Channel' : 'Create Channel'}

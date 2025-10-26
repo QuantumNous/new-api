@@ -205,7 +205,7 @@ export function ApiKeysMutateDrawer({
         }
       }}
     >
-      <SheetContent className='flex flex-col sm:max-w-[600px]'>
+      <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
         <SheetHeader className='text-start'>
           <SheetTitle>{isUpdate ? 'Update' : 'Create'} API Key</SheetTitle>
           <SheetDescription>
