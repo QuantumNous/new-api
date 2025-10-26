@@ -112,16 +112,23 @@ export const useDeploymentsData = () => {
     [],
   );
 
-  const [visibleColumns, setVisibleColumns] = useState(() => {
+  const ensureRequiredColumns = (columns = {}) => ({
+    ...columns,
+    [COLUMN_KEYS.container_name]: true,
+    [COLUMN_KEYS.actions]: true,
+  });
+
+  const [visibleColumns, setVisibleColumnsState] = useState(() => {
     const saved = localStorage.getItem('deployments_visible_columns');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return ensureRequiredColumns(parsed);
       } catch (e) {
         console.error('Failed to parse saved column visibility:', e);
       }
     }
-    return {
+    return ensureRequiredColumns({
       [COLUMN_KEYS.container_name]: true,
       [COLUMN_KEYS.status]: true,
       [COLUMN_KEYS.time_remaining]: true,
@@ -134,7 +141,7 @@ export const useDeploymentsData = () => {
       [COLUMN_KEYS.instance_count]: false,
       [COLUMN_KEYS.resource_config]: false,
       [COLUMN_KEYS.updated_at]: false,
-    };
+    });
   });
 
   // Column selector modal
@@ -142,8 +149,9 @@ export const useDeploymentsData = () => {
 
   // Save column visibility to localStorage
   const saveColumnVisibility = (newVisibleColumns) => {
-    localStorage.setItem('deployments_visible_columns', JSON.stringify(newVisibleColumns));
-    setVisibleColumns(newVisibleColumns);
+    const normalized = ensureRequiredColumns(newVisibleColumns);
+    localStorage.setItem('deployments_visible_columns', JSON.stringify(normalized));
+    setVisibleColumnsState(normalized);
   };
 
   // Load deployments data

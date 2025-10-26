@@ -104,6 +104,7 @@ func mapIoNetDeployment(d ionet.Deployment) map[string]interface{} {
 			"gpu":    strconv.Itoa(d.HardwareQuantity),
 		},
 		"description": "",
+		"provider":    "io.net",
 	}
 }
 

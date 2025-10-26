@@ -37,6 +37,7 @@ import {
   Col,
   Progress,
   Checkbox,
+  Radio,
 } from '@douyinfe/semi-ui';
 import {
   IconClose,
@@ -185,7 +186,7 @@ const OllamaModelModal = ({
     if (!onApplyModels || selectedModelIds.length === 0) {
       return;
     }
-    onApplyModels(selectedModelIds);
+    onApplyModels({ mode: 'append', modelIds: selectedModelIds });
   };
 
   const handleToggleModel = (modelId, checked) => {
@@ -309,6 +310,16 @@ const OllamaModelModal = ({
     setPullLoading(true);
     setPullProgress({ status: 'starting', completed: 0, total: 0 });
 
+    let hasRefreshed = false;
+    const refreshModels = async () => {
+      if (hasRefreshed) return;
+      hasRefreshed = true;
+      await fetchModels();
+      if (onModelsUpdate) {
+        onModelsUpdate();
+      }
+    };
+
     try {
       // 关闭之前的连接
       if (eventSource) {
@@ -399,6 +410,7 @@ const OllamaModelModal = ({
                   if (onModelsUpdate) {
                     onModelsUpdate();
                   }
+                  await refreshModels();
                   return;
                 }
               } catch (e) {
@@ -410,6 +422,7 @@ const OllamaModelModal = ({
           setPullLoading(false);
           setPullProgress(null);
           setEventSource(null);
+          await refreshModels();
         } catch (error) {
           if (error?.name === 'AbortError') {
             setPullProgress(null);
@@ -422,6 +435,7 @@ const OllamaModelModal = ({
           setPullProgress(null);
           setPullLoading(false);
           setEventSource(null);
+          await refreshModels();
         }
       };
 
@@ -434,6 +448,7 @@ const OllamaModelModal = ({
       setPullLoading(false);
       setPullProgress(null);
       setEventSource(null);
+      await refreshModels();
     }
   };
 
@@ -593,45 +608,53 @@ const OllamaModelModal = ({
           </Row>
           
           {/* 进度条显示 */}
-          {pullProgress && (
-            <div className='mt-3 p-3 bg-gray-50 rounded-lg'>
-              <div className='flex items-center justify-between mb-2'>
-                <Text strong>{t('拉取进度')}</Text>
-                <Text type='tertiary' size='small'>
-                  {pullProgress.status === 'downloading' && pullProgress.total > 0
-                    ? `${((pullProgress.completed / pullProgress.total) * 100).toFixed(1)}%`
-                    : pullProgress.status}
-                </Text>
-              </div>
-              
-              {pullProgress.total > 0 ? (
-                <div>
-                  <Progress
-                    percent={Math.round((pullProgress.completed / pullProgress.total) * 100)}
-                    showInfo={false}
-                    stroke='#1890ff'
-                    size='small'
-                  />
-                  <div className='flex justify-between mt-1'>
-                    <Text type='tertiary' size='small'>
-                      {(pullProgress.completed / (1024 * 1024 * 1024)).toFixed(2)} GB
-                    </Text>
-                    <Text type='tertiary' size='small'>
-                      {(pullProgress.total / (1024 * 1024 * 1024)).toFixed(2)} GB
-                    </Text>
-                  </div>
+          {pullProgress && (() => {
+            const completedBytes = Number(pullProgress.completed) || 0;
+            const totalBytes = Number(pullProgress.total) || 0;
+            const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
+            const safePercent = hasTotal
+              ? Math.min(
+                  100,
+                  Math.max(0, Math.round((completedBytes / totalBytes) * 100)),
+                )
+              : null;
+            const percentText = hasTotal && safePercent !== null
+              ? `${safePercent.toFixed(0)}%`
+              : pullProgress.status || t('处理中');
+
+            return (
+              <div className='mt-3 p-3 bg-gray-50 rounded-lg'>
+                <div className='flex items-center justify-between mb-2'>
+                  <Text strong>{t('拉取进度')}</Text>
+                  <Text type='tertiary' size='small'>{percentText}</Text>
                 </div>
-              ) : (
-                <Progress
-                  percent={50}
-                  showInfo={false}
-                  stroke='#1890ff'
-                  size='small'
-                  type='indeterminate'
-                />
-              )}
-            </div>
-          )}
+
+                {hasTotal && safePercent !== null ? (
+                  <div>
+                    <Progress
+                      percent={safePercent}
+                      showInfo={false}
+                      stroke='#1890ff'
+                      size='small'
+                    />
+                    <div className='flex justify-between mt-1'>
+                      <Text type='tertiary' size='small'>
+                        {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                      </Text>
+                      <Text type='tertiary' size='small'>
+                        {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                      </Text>
+                    </div>
+                  </div>
+                ) : (
+                  <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
+                    <Spin size='small' />
+                    <span>{t('准备中...')}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           
           <Text type='tertiary' size='small' className='mt-2 block'>
             {t('支持拉取 Ollama 官方模型库中的所有模型，拉取过程可能需要几分钟时间')}

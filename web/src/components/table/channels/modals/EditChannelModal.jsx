@@ -2341,7 +2341,6 @@ const EditChannelModal = (props) => {
                             size='small'
                             type='primary'
                             theme='light'
-                            icon={<IconServer />}
                             onClick={() => setOllamaModalVisible(true)}
                           >
                             {t('Ollama 模型管理')}
@@ -2979,15 +2978,21 @@ const EditChannelModal = (props) => {
           // 当模型更新后，重新获取模型列表以更新表单
           fetchUpstreamModelList('models');
         }}
-        onApplyModels={(modelIds) => {
+        onApplyModels={({ mode, modelIds } = {}) => {
           if (!Array.isArray(modelIds) || modelIds.length === 0) {
             return;
           }
-          handleInputChange('models', modelIds);
+          const existingModels = Array.isArray(inputs.models)
+            ? inputs.models.map(String)
+            : [];
+          const incoming = modelIds.map(String);
+          const nextModels = Array.from(new Set([...existingModels, ...incoming]));
+
+          handleInputChange('models', nextModels);
           if (formApiRef.current) {
-            formApiRef.current.setValue('models', modelIds);
+            formApiRef.current.setValue('models', nextModels);
           }
-          showSuccess(t('模型列表已更新'));
+          showSuccess(t('模型列表已追加更新'));
         }}
       />
     </>

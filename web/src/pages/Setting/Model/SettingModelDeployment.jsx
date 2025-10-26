@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Card, Typography, Divider, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Card, Typography } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -27,7 +27,7 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { Server, Cloud, Zap } from 'lucide-react';
+import { Server, Cloud, Zap, ArrowUpRight } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -194,7 +194,6 @@ export default function SettingModelDeployment(props) {
         }
       }
       
-      console.log('Setting inputs from props:', currentInputs);
       setInputs(currentInputs);
       setInputsRow(structuredClone(currentInputs));
       refForm.current?.setValues(currentInputs);
@@ -212,7 +211,6 @@ export default function SettingModelDeployment(props) {
           <Form.Section 
             text={
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Server size={20} />
                 <span>{t('模型部署设置')}</span>
               </div>
             }
@@ -239,75 +237,119 @@ export default function SettingModelDeployment(props) {
               bodyStyle={{ padding: '20px' }}
               style={{ marginBottom: '16px' }}
             >
-              <Row gutter={16}>
-                <Col xs={24} sm={12} md={12} lg={12} xl={12}>
-                  <Form.Switch
-                    label={t('启用 io.net 部署')}
-                    field={'model_deployment.ionet.enabled'}
-                    onChange={(value) =>
-                      setInputs({
-                        ...inputs,
-                        'model_deployment.ionet.enabled': value,
-                      })
-                    }
-                    extraText={t('开启后可以使用 io.net 进行模型部署')}
-                  />
+              <Row gutter={24}>
+                <Col xs={24} lg={14}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '16px',
+                    }}
+                  >
+                    <Form.Switch
+                      label={t('启用 io.net 部署')}
+                      field={'model_deployment.ionet.enabled'}
+                      onChange={(value) =>
+                        setInputs({
+                          ...inputs,
+                          'model_deployment.ionet.enabled': value,
+                        })
+                      }
+                      extraText={t('启用后可接入 io.net GPU 资源')}
+                    />
+                    <Form.Input
+                      label={t('API Key')}
+                      field={'model_deployment.ionet.api_key'}
+                      placeholder={t('请输入 io.net API Key')}
+                      onChange={(value) =>
+                        setInputs({
+                          ...inputs,
+                          'model_deployment.ionet.api_key': value,
+                        })
+                      }
+                      disabled={!inputs['model_deployment.ionet.enabled']}
+                      extraText={t('请使用 Project 为 io.cloud 的密钥')}
+                      mode="password"
+                    />
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <Button
+                        type="outline"
+                        size="small"
+                        icon={<Zap size={16} />}
+                        onClick={testApiKey}
+                        loading={testing}
+                        disabled={
+                          !inputs['model_deployment.ionet.enabled'] ||
+                          !inputs['model_deployment.ionet.api_key'] ||
+                          inputs['model_deployment.ionet.api_key'].trim() === ''
+                        }
+                        style={{
+                          height: '32px',
+                          fontSize: '13px',
+                          borderRadius: '6px',
+                          fontWeight: '500',
+                          borderColor: testing
+                            ? 'var(--semi-color-primary)'
+                            : 'var(--semi-color-border)',
+                          color: testing
+                            ? 'var(--semi-color-primary)'
+                            : 'var(--semi-color-text-0)',
+                        }}
+                      >
+                        {testing ? t('连接测试中...') : t('测试连接')}
+                      </Button>
+                    </div>
+                  </div>
                 </Col>
-                <Col xs={24} sm={12} md={12} lg={12} xl={12}>
-                  <Form.Input
-                    label={t('API Key')}
-                    field={'model_deployment.ionet.api_key'}
-                    placeholder={t('请输入 io.net API Key')}
-                    onChange={(value) =>
-                      setInputs({
-                        ...inputs,
-                        'model_deployment.ionet.api_key': value,
-                      })
-                    }
-                    disabled={!inputs['model_deployment.ionet.enabled']}
-                    extraText={t('从 io.net 控制台获取的 API 密钥，请注意project需要选择 IO Cloud')}
-                    mode="password"
-                  />
-                  <div style={{ marginTop: '12px' }}>
+                <Col xs={24} lg={10}>
+                  <div
+                    style={{
+                      background: 'var(--semi-color-fill-0)',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--semi-color-border)',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div>
+                      <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                        {t('获取 io.net API Key')}
+                      </Text>
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: '18px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          color: 'var(--semi-color-text-2)',
+                          fontSize: '13px',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        <li>{t('访问 io.net 控制台的 API Keys 页面')}</li>
+                        <li>{t('创建或选择密钥时，将 Project 设置为 io.cloud')}</li>
+                        <li>{t('复制生成的密钥并粘贴到此处')}</li>
+                      </ul>
+                    </div>
                     <Button
-                      type="outline"
-                      size="small"
-                      icon={<Zap size={16} />}
-                      onClick={testApiKey}
-                      loading={testing}
-                      disabled={!inputs['model_deployment.ionet.enabled'] || !inputs['model_deployment.ionet.api_key'] || inputs['model_deployment.ionet.api_key'].trim() === ''}
-                      style={{
-                        height: '32px',
-                        fontSize: '13px',
-                        borderRadius: '6px',
-                        fontWeight: '500',
-                        borderColor: testing ? 'var(--semi-color-primary)' : 'var(--semi-color-border)',
-                        color: testing ? 'var(--semi-color-primary)' : 'var(--semi-color-text-0)'
-                      }}
+                      icon={<ArrowUpRight size={16} />}
+                      type="primary"
+                      theme="solid"
+                      style={{ width: '100%' }}
+                      onClick={() =>
+                        window.open('https://ai.io.net/ai/api-keys', '_blank')
+                      }
                     >
-                      {testing ? t('连接测试中...') : t('测试连接')}
+                      {t('前往 io.net API Keys')}
                     </Button>
                   </div>
                 </Col>
               </Row>
-              
-              <Divider margin="16px" />
-              
-              <div style={{ 
-                background: 'var(--semi-color-fill-0)', 
-                padding: '12px', 
-                borderRadius: '6px',
-                border: '1px solid var(--semi-color-border)'
-              }}>
-                <Text 
-                  type="secondary" 
-                  size="small"
-                  style={{ lineHeight: '1.5' }}
-                >
-                  <strong>{t('说明：')}</strong>
-                  {t('io.net 是一个分布式GPU网络，可以用于部署和运行AI模型。启用后，您可以在模型部署页面中使用 io.net 的GPU资源进行模型部署。')}
-                </Text>
-              </div>
             </Card>
 
             <Row>

@@ -54,8 +54,8 @@ const EditDeploymentModal = ({
   const [loadingModels, setLoadingModels] = useState(false);
   const formRef = useRef();
 
-  const isEdit = editingDeployment?.id;
-  const title = isEdit ? t('重命名部署') : t('新增部署');
+  const isEdit = Boolean(editingDeployment?.id);
+  const title = t('重命名部署');
 
   // Resource configuration options
   const cpuOptions = [
@@ -89,7 +89,7 @@ const EditDeploymentModal = ({
       const res = await API.get('/api/models/?page_size=1000');
       if (res.data.success) {
         const items = res.data.data.items || res.data.data || [];
-        const modelOptions = items.map(model => ({
+        const modelOptions = items.map((model) => ({
           label: `${model.model_name} (${model.vendor?.name || 'Unknown'})`,
           value: model.model_name,
           model_id: model.id,
@@ -113,9 +113,12 @@ const EditDeploymentModal = ({
     setLoading(true);
     try {
       // Only handle name update for now
-      const res = await API.put(`/api/deployments/${editingDeployment.id}/name`, {
-        name: values.deployment_name,
-      });
+      const res = await API.put(
+        `/api/deployments/${editingDeployment.id}/name`,
+        {
+          name: values.deployment_name,
+        },
+      );
 
       if (res.data.success) {
         showSuccess(t('部署名称更新成功'));
@@ -150,7 +153,7 @@ const EditDeploymentModal = ({
   return (
     <SideSheet
       title={
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           <Server size={20} />
           <span>{title}</span>
         </div>
@@ -162,30 +165,32 @@ const EditDeploymentModal = ({
       maskClosable={false}
       closeOnEsc={true}
     >
-      <div className="p-6 h-full overflow-auto">
+      <div className='p-6 h-full overflow-auto'>
         <Spin spinning={loading} style={{ width: '100%' }}>
           <Form
             ref={formRef}
             onSubmit={handleSubmit}
-            labelPosition="top"
+            labelPosition='top'
             style={{ width: '100%' }}
           >
             <Card>
               <Title heading={5} style={{ marginBottom: 16 }}>
                 {t('修改部署名称')}
               </Title>
-              
+
               <Row gutter={16}>
                 <Col span={24}>
                   <Form.Input
-                    field="deployment_name"
+                    field='deployment_name'
                     label={t('部署名称')}
                     placeholder={t('请输入新的部署名称')}
                     rules={[
                       { required: true, message: t('请输入部署名称') },
-                      { 
-                        pattern: /^[a-zA-Z0-9-_\u4e00-\u9fa5]+$/, 
-                        message: t('部署名称只能包含字母、数字、横线、下划线和中文') 
+                      {
+                        pattern: /^[a-zA-Z0-9-_\u4e00-\u9fa5]+$/,
+                        message: t(
+                          '部署名称只能包含字母、数字、横线、下划线和中文',
+                        ),
                       },
                     ]}
                   />
@@ -193,12 +198,16 @@ const EditDeploymentModal = ({
               </Row>
 
               {isEdit && (
-                <div className="mt-4 p-3 bg-gray-50 rounded">
-                  <Text type="secondary">{t('部署ID')}: </Text>
+                <div className='mt-4 p-3 bg-gray-50 rounded'>
+                  <Text type='secondary'>{t('部署ID')}: </Text>
                   <Text code>{editingDeployment.id}</Text>
                   <br />
-                  <Text type="secondary">{t('当前状态')}: </Text>
-                  <Tag color={editingDeployment.status === 'running' ? 'green' : 'grey'}>
+                  <Text type='secondary'>{t('当前状态')}: </Text>
+                  <Tag
+                    color={
+                      editingDeployment.status === 'running' ? 'green' : 'grey'
+                    }
+                  >
                     {editingDeployment.status}
                   </Tag>
                 </div>
@@ -208,23 +217,19 @@ const EditDeploymentModal = ({
         </Spin>
       </div>
 
-      <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+      <div className='p-4 border-t border-gray-200 bg-gray-50 flex justify-end'>
         <Space>
-          <Button 
-            theme="outline" 
-            onClick={handleClose}
-            disabled={loading}
-          >
-            <X size={16} className="mr-1" />
+          <Button theme='outline' onClick={handleClose} disabled={loading}>
+            <X size={16} className='mr-1' />
             {t('取消')}
           </Button>
           <Button
-            theme="solid"
-            type="primary"
+            theme='solid'
+            type='primary'
             loading={loading}
             onClick={() => formRef.current?.submitForm()}
           >
-            <Save size={16} className="mr-1" />
+            <Save size={16} className='mr-1' />
             {isEdit ? t('更新') : t('创建')}
           </Button>
         </Space>

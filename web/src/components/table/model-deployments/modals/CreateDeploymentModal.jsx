@@ -92,6 +92,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const customImageRef = useRef('');
   const customTrafficPortRef = useRef(null);
   const prevImageModeRef = useRef('builtin');
+  const locationRequestIdRef = useRef(0);
+  const replicaRequestIdRef = useRef(0);
   const [formDefaults, setFormDefaults] = useState({
     resource_private_name: '',
     image_url: BUILTIN_IMAGE,
@@ -103,6 +105,40 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   });
   const [formKey, setFormKey] = useState(0);
   const [priceCurrency, setPriceCurrency] = useState('usdc');
+  const normalizeCurrencyValue = (value) => {
+    if (typeof value === 'string') return value.toLowerCase();
+    if (value && typeof value === 'object') {
+      if (typeof value.value === 'string') return value.value.toLowerCase();
+      if (typeof value.target?.value === 'string') {
+        return value.target.value.toLowerCase();
+      }
+    }
+    return 'usdc';
+  };
+
+  const handleCurrencyChange = (value) => {
+    const normalized = normalizeCurrencyValue(value);
+    setPriceCurrency(normalized);
+  };
+
+  const hardwareLabelMap = useMemo(() => {
+    const map = {};
+    hardwareTypes.forEach((hardware) => {
+      const displayName = hardware.brand_name
+        ? `${hardware.brand_name} ${hardware.name}`.trim()
+        : hardware.name;
+      map[hardware.id] = displayName;
+    });
+    return map;
+  }, [hardwareTypes]);
+
+  const locationLabelMap = useMemo(() => {
+    const map = {};
+    locations.forEach((location) => {
+      map[location.id] = location.name;
+    });
+    return map;
+  }, [locations]);
 
   // Form values for price calculation
   const [selectedHardwareId, setSelectedHardwareId] = useState(null);
@@ -115,20 +151,25 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   useEffect(() => {
     if (visible) {
       loadHardwareTypes();
-      loadLocations();
       resetFormState();
     }
   }, [visible]);
 
   // Load available replicas when hardware or locations change
   useEffect(() => {
+    if (!visible) {
+      return;
+    }
     if (selectedHardwareId && gpusPerContainer > 0) {
       loadAvailableReplicas(selectedHardwareId, gpusPerContainer);
     }
-  }, [selectedHardwareId, gpusPerContainer]);
+  }, [selectedHardwareId, gpusPerContainer, visible]);
 
   // Calculate price when relevant parameters change
   useEffect(() => {
+    if (!visible) {
+      return;
+    }
     if (
       selectedHardwareId &&
       selectedLocationIds.length > 0 &&
@@ -147,6 +188,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     durationHours,
     replicaCount,
     priceCurrency,
+    visible,
   ]);
 
   useEffect(() => {
@@ -223,6 +265,27 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     formApi.setValue('location_ids', selectedLocationIds);
   }, [formApi, selectedLocationIds]);
 
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    if (selectedHardwareId) {
+      loadLocations(selectedHardwareId);
+    } else {
+      setLocations([]);
+      setSelectedLocationIds([]);
+      setAvailableReplicas([]);
+      setLocationTotalAvailable(null);
+      setLoadingLocations(false);
+      setLoadingReplicas(false);
+      locationRequestIdRef.current = 0;
+      replicaRequestIdRef.current = 0;
+      if (formApi) {
+        formApi.setValue('location_ids', []);
+      }
+    }
+  }, [selectedHardwareId, visible, formApi]);
+
   const resetFormState = () => {
     const randomName = `deployment-${Math.random().toString(36).slice(2, 8)}`;
     const generatedKey = generateRandomKey();
@@ -234,6 +297,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     setReplicaCount(1);
     setPriceEstimation(null);
     setAvailableReplicas([]);
+    setLocations([]);
     setLocationTotalAvailable(null);
     setHardwareTotalAvailable(null);
     setEnvVariables([{ key: '', value: '' }]);
@@ -301,15 +365,6 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         setHardwareTotalAvailable(
           hasProvidedTotal ? providedTotal : fallbackTotal,
         );
-
-        if (normalizedHardware.length > 0 && selectedHardwareId === null) {
-          const preferredHardware =
-            normalizedHardware.find((item) => (item.available_count || 0) > 0) ||
-            normalizedHardware[0];
-          if (preferredHardware) {
-            setSelectedHardwareId(preferredHardware.id);
-          }
-        }
       } else {
         showError(t('获取硬件类型失败: ') + response.data.message);
       }
@@ -320,12 +375,31 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     }
   };
 
-  const loadLocations = async () => {
+  const loadLocations = async (hardwareId) => {
+    if (!hardwareId) {
+      setLocations([]);
+      setLocationTotalAvailable(null);
+      return;
+    }
+
+    const requestId = Date.now();
+    locationRequestIdRef.current = requestId;
+    setLoadingLocations(true);
+    setLocations([]);
+    setLocationTotalAvailable(null);
+
     try {
-      setLoadingLocations(true);
-      const response = await API.get('/api/deployments/locations');
+      const response = await API.get('/api/deployments/locations', {
+        params: { hardware_id: hardwareId },
+      });
+
+      if (locationRequestIdRef.current !== requestId) {
+        return;
+      }
+
       if (response.data.success) {
-        const { locations: locationsList = [], total } = response.data.data || {};
+        const { locations: locationsList = [], total } =
+          response.data.data || {};
 
         const normalizedLocations = locationsList.map((location) => {
           const iso2 = (location.iso2 || '').toString().toUpperCase();
@@ -341,8 +415,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
         const providedTotal = Number(total);
         const fallbackTotal = normalizedLocations.reduce(
-          (acc, item) => acc + (Number.isNaN(item.available) ? 0 : item.available),
-          0
+          (acc, item) =>
+            acc + (Number.isNaN(item.available) ? 0 : item.available),
+          0,
         );
         const hasProvidedTotal =
           total !== undefined &&
@@ -356,24 +431,51 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         );
       } else {
         showError(t('获取部署位置失败: ') + response.data.message);
+        setLocations([]);
+        setLocationTotalAvailable(null);
       }
     } catch (error) {
-      showError(t('获取部署位置失败: ') + error.message);
+      if (locationRequestIdRef.current === requestId) {
+        showError(t('获取部署位置失败: ') + error.message);
+        setLocations([]);
+        setLocationTotalAvailable(null);
+      }
     } finally {
-      setLoadingLocations(false);
+      if (locationRequestIdRef.current === requestId) {
+        setLoadingLocations(false);
+      }
     }
   };
 
   const loadAvailableReplicas = async (hardwareId, gpuCount) => {
+    if (!hardwareId || !gpuCount) {
+      setAvailableReplicas([]);
+      setLocationTotalAvailable(null);
+      setLoadingReplicas(false);
+      return;
+    }
+
+    const requestId = Date.now();
+    replicaRequestIdRef.current = requestId;
+    setLoadingReplicas(true);
+    setAvailableReplicas([]);
+
     try {
-      setLoadingReplicas(true);
       const response = await API.get(
-        `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`
+        `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
       );
+
+      if (replicaRequestIdRef.current !== requestId) {
+        return;
+      }
+
       if (response.data.success) {
         const replicasList = response.data.data?.replicas || [];
-        setAvailableReplicas(replicasList);
-        const totalAvailableForHardware = replicasList.reduce(
+        const filteredReplicas = replicasList.filter(
+          (replica) => (replica.available_count || 0) > 0,
+        );
+        setAvailableReplicas(filteredReplicas);
+        const totalAvailableForHardware = filteredReplicas.reduce(
           (total, replica) => total + (replica.available_count || 0),
           0,
         );
@@ -384,11 +486,15 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         setLocationTotalAvailable(null);
       }
     } catch (error) {
-      console.error('Load available replicas error:', error);
-      setAvailableReplicas([]);
-      setLocationTotalAvailable(null);
+      if (replicaRequestIdRef.current === requestId) {
+        console.error('Load available replicas error:', error);
+        setAvailableReplicas([]);
+        setLocationTotalAvailable(null);
+      }
     } finally {
-      setLoadingReplicas(false);
+      if (replicaRequestIdRef.current === requestId) {
+        setLoadingReplicas(false);
+      }
     }
   };
 
@@ -401,7 +507,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         gpus_per_container: gpusPerContainer,
         duration_hours: durationHours,
         replica_count: replicaCount,
-        currency: priceCurrency?.toUpperCase?.() || priceCurrency,
+        currency: priceCurrency?.toLowerCase?.() || priceCurrency,
         duration_type: 'hour',
         duration_qty: durationHours,
         hardware_qty: gpusPerContainer,
@@ -559,40 +665,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       return;
     }
 
-    const candidateFromReplicas =
-      selectedHardwareId && availableReplicas.length > 0
-        ? (() => {
-            const sorted = [...availableReplicas].sort(
-              (a, b) => (b.available_count || 0) - (a.available_count || 0),
-            );
-            const positive = sorted.filter((item) => (item.available_count || 0) > 0);
-            const source = positive.length > 0 ? positive : sorted;
-            return source.map((item) => item.location_id);
-          })()
-        : [];
-
-    let preferredIds = candidateFromReplicas;
-
-    if (preferredIds.length === 0) {
-      if (selectedHardwareId && loadingReplicas) {
-        return;
-      }
-
-      if (locations.length > 0) {
-        const availableLocationIds = locations
-          .filter((location) => {
-            const availableValue = Number(location.available);
-            return !Number.isNaN(availableValue) && availableValue > 0;
-          })
-          .map((location) => location.id);
-        preferredIds =
-          availableLocationIds.length > 0
-            ? availableLocationIds
-            : locations.map((location) => location.id);
-      }
-    }
-
-    if (preferredIds.length === 0) {
+    if (!selectedHardwareId) {
       if (selectedLocationIds.length > 0) {
         setSelectedLocationIds([]);
         if (formApi) {
@@ -602,16 +675,33 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       return;
     }
 
-    const retainedSelection = selectedLocationIds.filter((id) =>
-      preferredIds.includes(id),
-    );
-    const nextSelection =
-      retainedSelection.length > 0 ? retainedSelection : [preferredIds[0]];
+    const validLocationIds =
+      availableReplicas.length > 0
+        ? availableReplicas.map((item) => item.location_id)
+        : locations.map((location) => location.id);
 
-    if (!arraysEqual(selectedLocationIds, nextSelection)) {
-      setSelectedLocationIds(nextSelection);
+    if (validLocationIds.length === 0) {
+      if (selectedLocationIds.length > 0) {
+        setSelectedLocationIds([]);
+        if (formApi) {
+          formApi.setValue('location_ids', []);
+        }
+      }
+      return;
+    }
+
+    if (selectedLocationIds.length === 0) {
+      return;
+    }
+
+    const filteredSelection = selectedLocationIds.filter((id) =>
+      validLocationIds.includes(id),
+    );
+
+    if (!arraysEqual(selectedLocationIds, filteredSelection)) {
+      setSelectedLocationIds(filteredSelection);
       if (formApi) {
-        formApi.setValue('location_ids', nextSelection);
+        formApi.setValue('location_ids', filteredSelection);
       }
     }
   }, [
@@ -621,7 +711,6 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     selectedLocationIds,
     visible,
     formApi,
-    loadingReplicas,
   ]);
 
   const maxAvailableReplicas = useMemo(() => {
@@ -640,6 +729,22 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         return total + (Number.isNaN(availableValue) ? 0 : availableValue);
       }, 0);
   }, [availableReplicas, selectedLocationIds, locations]);
+
+  const isPriceReady = useMemo(
+    () =>
+      selectedHardwareId &&
+      selectedLocationIds.length > 0 &&
+      gpusPerContainer > 0 &&
+      durationHours > 0 &&
+      replicaCount > 0,
+    [
+      selectedHardwareId,
+      selectedLocationIds,
+      gpusPerContainer,
+      durationHours,
+      replicaCount,
+    ],
+  );
 
   useEffect(() => {
     if (!visible || !formApi) {
@@ -757,32 +862,37 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 }}
                 style={{ width: '100%' }}
                 dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
+                renderSelectedItem={(optionNode) =>
+                  optionNode
+                    ? hardwareLabelMap[optionNode?.value] ||
+                      optionNode?.label ||
+                      optionNode?.value ||
+                      ''
+                    : ''
+                }
               >
                 {hardwareTypes.map((hardware) => {
                   const displayName = hardware.brand_name
                     ? `${hardware.brand_name} ${hardware.name}`.trim()
                     : hardware.name;
-                  const availableCount = typeof hardware.available_count === 'number'
-                    ? hardware.available_count
-                    : 0;
+                  const availableCount =
+                    typeof hardware.available_count === 'number'
+                      ? hardware.available_count
+                      : 0;
                   const hasAvailability = availableCount > 0;
 
                   return (
                     <Option key={hardware.id} value={hardware.id}>
-                      <div>
+                      <div className="flex flex-col gap-1">
                         <Text strong>{displayName}</Text>
-                        <br />
-                        <Space spacing={4} align="center">
-                          <Text size="small" type="tertiary">
+                        <div className="flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]">
+                          <span>
                             {t('最大GPU数')}: {hardware.max_gpus}
-                          </Text>
-                          <Tag
-                            color={hasAvailability ? 'green' : 'red'}
-                            size="small"
-                          >
+                          </span>
+                          <Tag color={hasAvailability ? 'green' : 'red'} size="small">
                             {t('可用数量')}: {availableCount}
                           </Tag>
-                        </Space>
+                        </div>
                       </div>
                     </Option>
                   );
@@ -817,13 +927,32 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                 {loadingReplicas && <Spin size="small" />}
               </Space>
             }
-            placeholder={t('选择部署位置（可多选）')}
+            placeholder={
+              !selectedHardwareId
+                ? t('请先选择硬件类型')
+                : loadingLocations || loadingReplicas
+                  ? t('正在加载可用部署位置...')
+                  : t('选择部署位置（可多选）')
+            }
             multiple
-            loading={loadingLocations}
+            loading={loadingLocations || loadingReplicas}
+            disabled={!selectedHardwareId || loadingLocations || loadingReplicas}
             rules={[{ required: true, message: t('请选择至少一个部署位置') }]}
             onChange={(value) => setSelectedLocationIds(value)}
             style={{ width: '100%' }}
             dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
+            renderSelectedItem={(optionNode) => ({
+              isRenderInTag: true,
+              content:
+                !optionNode
+                  ? ''
+                  : loadingLocations || loadingReplicas
+                    ? t('部署位置加载中...')
+                    : locationLabelMap[optionNode?.value] ||
+                      optionNode?.label ||
+                      optionNode?.value ||
+                      '',
+            })}
           >
             {locations.map((location) => {
               const replicaEntry = availableReplicas.find(
@@ -854,19 +983,19 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   value={location.id}
                   disabled={disableOption}
                 >
-                  <div>
-                    <Text strong>{location.name}</Text>
-                    {locationLabel && (
-                      <Text
-                        size="small"
-                        type="tertiary"
-                        style={{ marginLeft: 8 }}
-                      >
-                        ({locationLabel})
-                      </Text>
-                    )}
-                    <br />
-                    <Text size="small" type={availableCount > 0 ? 'success' : 'danger'}>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <Text strong>{location.name}</Text>
+                      {locationLabel && (
+                        <Tag color="blue" size="small">
+                          {locationLabel}
+                        </Tag>
+                      )}
+                    </div>
+                    <Text
+                      size="small"
+                      type={availableCount > 0 ? 'success' : 'danger'}
+                    >
                       {t('可用数量')}: {availableCount}
                     </Text>
                   </div>
@@ -932,58 +1061,81 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           </Row>
         </Card>
 
-        {priceEstimation && (() => {
-          const currencyLabel = (priceEstimation.currency || priceCurrency || '').toUpperCase();
-          return (
-            <Card className="mb-4">
-              <Title heading={6}>{t('价格预估')}</Title>
-              <Space align="center" spacing={12} className="mb-3 flex flex-wrap">
-                <Text type="secondary" size="small">
-                  {t('计价币种')}
+        <Card className="mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Title heading={6} style={{ margin: 0 }}>
+              {t('价格预估')}
+            </Title>
+          </div>
+
+          <Space align="center" spacing={12} className="mt-3 flex flex-wrap">
+            <Text type="secondary" size="small">
+              {t('计价币种')}
+            </Text>
+            <RadioGroup
+              type="button"
+              value={priceCurrency}
+              onChange={handleCurrencyChange}
+            >
+              <Radio value="usdc">USDC</Radio>
+              <Radio value="iocoin">IOCOIN</Radio>
+            </RadioGroup>
+            <Tag size="small" color="blue">
+              {(priceEstimation?.currency || priceCurrency || '').toUpperCase()}
+            </Tag>
+          </Space>
+
+          {priceEstimation && (
+            <Row gutter={16} className="mt-4">
+              <Col span={8}>
+                <Text strong>{t('总费用')}: </Text>
+                <Text size="large" type="primary">
+                  {priceEstimation.estimated_cost?.toFixed(4)}{' '}
+                  {(priceEstimation?.currency || priceCurrency || '').toUpperCase()}
                 </Text>
-                <RadioGroup
-                  type="button"
-                  value={priceCurrency}
-                  onChange={(value) => setPriceCurrency(value)}
-                >
-                  <Radio value="usdc">USDC</Radio>
-                  <Radio value="iocoin">IOCOIN</Radio>
-                </RadioGroup>
-                {currencyLabel && (
-                  <Tag size="small" color="blue">
-                    {currencyLabel}
-                  </Tag>
-                )}
-              </Space>
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Text strong>{t('总费用')}: </Text>
-                  <Text size="large" type="primary">
-                    {priceEstimation.estimated_cost?.toFixed(4)} {currencyLabel}
-                  </Text>
-                </Col>
-                <Col span={8}>
-                  <Text strong>{t('小时费率')}: </Text>
-                  <Text>
-                    {priceEstimation.price_breakdown?.hourly_rate?.toFixed(4)} {currencyLabel}/h
-                  </Text>
-                </Col>
-                <Col span={8}>
-                  <Text strong>{t('计算成本')}: </Text>
-                  <Text>
-                    {priceEstimation.price_breakdown?.compute_cost?.toFixed(4)} {currencyLabel}
-                  </Text>
-                </Col>
-              </Row>
-            {loadingPrice && (
-              <div style={{ textAlign: 'center', marginTop: 8 }}>
-                <Spin size="small" />
-                <Text size="small" style={{ marginLeft: 8 }}>{t('价格计算中...')}</Text>
-              </div>
-            )}
-            </Card>
-          );
-        })()}
+              </Col>
+              <Col span={8}>
+                <Text strong>{t('小时费率')}: </Text>
+                <Text>
+                  {priceEstimation.price_breakdown?.hourly_rate?.toFixed(4)}{' '}
+                  {(priceEstimation?.currency || priceCurrency || '').toUpperCase()}
+                  /h
+                </Text>
+              </Col>
+              <Col span={8}>
+                <Text strong>{t('计算成本')}: </Text>
+                <Text>
+                  {priceEstimation.price_breakdown?.compute_cost?.toFixed(4)}{' '}
+                  {(priceEstimation?.currency || priceCurrency || '').toUpperCase()}
+                </Text>
+              </Col>
+            </Row>
+          )}
+
+          {!priceEstimation && (
+            <div className="mt-3">
+              {loadingPrice ? (
+                <div className="flex items-center gap-2 text-sm text-[var(--semi-color-text-2)]">
+                  <Spin size="small" />
+                  <span>{t('价格计算中...')}</span>
+                </div>
+              ) : (
+                <Text type="tertiary" size="small">
+                  {isPriceReady
+                    ? t('价格暂时不可用，请稍后重试')
+                    : t('完成硬件类型、部署位置、副本数量等配置后，将自动计算价格')}
+                </Text>
+              )}
+            </div>
+          )}
+
+          {priceEstimation && loadingPrice && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-[var(--semi-color-text-2)]">
+              <Spin size="small" />
+              <span>{t('价格重新计算中...')}</span>
+            </div>
+          )}
+        </Card>
 
         <Collapse>
           <Collapse.Panel header={t('高级配置')} itemKey="advanced">

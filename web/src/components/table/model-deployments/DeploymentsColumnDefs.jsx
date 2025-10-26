@@ -27,7 +27,7 @@ import {
   Typography,
   Popconfirm,
   Input,
-  Space
+  Space,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -54,7 +54,10 @@ import {
   FaPlus,
   FaCog,
   FaInfoCircle,
-  FaLink, FaStop,
+  FaLink,
+  FaStop,
+  FaHourglassHalf,
+  FaGlobe,
 } from 'react-icons/fa';
 
 const normalizeStatus = (status) =>
@@ -117,6 +120,78 @@ const DEFAULT_STATUS_CONFIG = {
   color: 'grey',
   label: null,
   icon: <FaInfoCircle size={12} className='text-gray-500' />,
+};
+
+const parsePercentValue = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value.replace(/[^0-9.+-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  return null;
+};
+
+const clampPercent = (value) => {
+  if (value === null || value === undefined) return null;
+  return Math.min(100, Math.max(0, Math.round(value)));
+};
+
+const formatRemainingMinutes = (minutes, t) => {
+  if (minutes === null || minutes === undefined) return null;
+  const numeric = Number(minutes);
+  if (!Number.isFinite(numeric)) return null;
+  const totalMinutes = Math.max(0, Math.round(numeric));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const mins = totalMinutes % 60;
+  const parts = [];
+
+  if (days > 0) {
+    parts.push(`${days}${t('天')}`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours}${t('小时')}`);
+  }
+  if (parts.length === 0 || mins > 0) {
+    parts.push(`${mins}${t('分钟')}`);
+  }
+
+  return parts.join(' ');
+};
+
+const getRemainingTheme = (percentRemaining) => {
+  if (percentRemaining === null) {
+    return {
+      iconColor: 'var(--semi-color-primary)',
+      tagColor: 'blue',
+      textColor: 'var(--semi-color-text-2)',
+    };
+  }
+
+  if (percentRemaining <= 10) {
+    return {
+      iconColor: '#ff5a5f',
+      tagColor: 'red',
+      textColor: '#ff5a5f',
+    };
+  }
+
+  if (percentRemaining <= 30) {
+    return {
+      iconColor: '#ffb400',
+      tagColor: 'orange',
+      textColor: '#ffb400',
+    };
+  }
+
+  return {
+    iconColor: '#2ecc71',
+    tagColor: 'green',
+    textColor: '#2ecc71',
+  };
 };
 
 const renderStatus = (status, t) => {
@@ -307,51 +382,78 @@ export const getDeploymentsColumns = ({
       title: t('状态'),
       dataIndex: 'status',
       key: COLUMN_KEYS.status,
-      width: 140,
-      render: (status) => renderStatus(status, t),
+      width: 200,
+      render: (status, record) => (
+        <div className="flex items-center gap-2">
+          {renderStatus(status, t)}
+          {record.provider && (
+            <div className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+              style={{
+                borderColor: 'rgba(59, 130, 246, 0.4)',
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                color: '#2563eb',
+              }}
+            >
+              <FaGlobe className="text-[11px]" />
+              <span>{record.provider}</span>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: t('剩余时间'),
       dataIndex: 'time_remaining',
       key: COLUMN_KEYS.time_remaining,
-      minWidth: 180,
+      minWidth: 160,
       render: (text, record) => {
-        const rawValue = record?.completed_percent;
-        const parsed = typeof rawValue === 'string'
-          ? parseFloat(rawValue.replace(/[^0-9.+-]/g, ''))
-          : Number(rawValue ?? 0);
-        const percentUsed = Number.isFinite(parsed)
-          ? Math.min(100, Math.max(0, Math.round(parsed)))
-          : null;
-        const timeDisplay = text && String(text).trim() !== '' ? text : t('计算中');
+        const percentUsedRaw = parsePercentValue(record?.completed_percent);
+        const percentUsed = clampPercent(percentUsedRaw);
+        const percentRemaining =
+          percentUsed === null ? null : clampPercent(100 - percentUsed);
+        const theme = getRemainingTheme(percentRemaining);
+        const timeDisplay =
+          text && String(text).trim() !== '' ? text : t('计算中');
+        const humanReadable = formatRemainingMinutes(
+          record.compute_minutes_remaining,
+          t,
+        );
 
         return (
-          <div className="flex flex-col gap-1">
-            <Typography.Text className="text-sm font-medium">
-              {timeDisplay}
-            </Typography.Text>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {percentUsed !== null && (
-                <Tag
-                  size="small"
-                  color={percentUsed > 80 ? 'red' : percentUsed > 50 ? 'orange' : 'green'}
-                  className="text-xs"
-                  style={{ padding: '2px 6px', lineHeight: '16px' }}
-                >
-                  {t('已用')} {percentUsed}%
-                </Tag>
-              )}
-              {record.compute_minutes_remaining !== undefined && (
-                <Tag
-                  size="small"
-                  type="light"
-                  className="text-xs"
-                  style={{ padding: '2px 6px', lineHeight: '16px' }}
-                >
-                  {t('剩余')} {record.compute_minutes_remaining} {t('分钟')}
+          <div className="flex flex-col gap-1 leading-tight text-xs">
+            <div className="flex items-center gap-1.5">
+              <FaHourglassHalf
+                className="text-sm"
+                style={{ color: theme.iconColor }}
+              />
+              <Typography.Text className="text-sm font-medium text-[var(--semi-color-text-0)]">
+                {timeDisplay}
+              </Typography.Text>
+              {percentRemaining !== null && (
+                <Tag size="small" color={theme.tagColor}>
+                  {percentRemaining}%
                 </Tag>
               )}
             </div>
+            <div className="flex items-center gap-3 text-[var(--semi-color-text-2)]">
+              {humanReadable && (
+                <span className="flex items-center gap-1">
+                  <FaClock className="text-[11px]" />
+                  {t('约')} {humanReadable}
+                </span>
+              )}
+              {percentUsed !== null && (
+                <span className="flex items-center gap-1">
+                  <FaCheckCircle className="text-[11px]" />
+                  {t('已用')} {percentUsed}%
+                </span>
+              )}
+            </div>
+            {record.compute_minutes_remaining !== undefined && percentRemaining !== null && (
+              <div className="text-[10px]" style={{ color: theme.textColor }}>
+                {t('剩余')} {record.compute_minutes_remaining} {t('分钟')}
+              </div>
+            )}
           </div>
         );
       },
@@ -471,6 +573,20 @@ export const getDeploymentsColumns = ({
         const primaryAction = getPrimaryAction();
         const primaryTheme = primaryAction.theme || 'solid';
         const primaryType = primaryAction.type || 'primary';
+
+        if (isEnded) {
+          return (
+            <Button
+              size="small"
+              type="tertiary"
+              theme="borderless"
+              onClick={() => onViewDetails?.(record)}
+              icon={<FaInfoCircle className="text-xs" />}
+            >
+              {t('查看详情')}
+            </Button>
+          );
+        }
 
         // All actions dropdown with enhanced operations
         const dropdownItems = [
