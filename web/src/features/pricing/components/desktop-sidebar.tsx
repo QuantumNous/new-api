@@ -65,7 +65,7 @@ export function DesktopSidebar({
         'hidden shrink-0 lg:block',
         SIDEBAR_WIDTH,
         'sticky top-20 h-fit max-h-[calc(100vh-6rem)] overflow-y-auto',
-        'animate-appear'
+        'animate-appear hover-scrollbar'
       )}
     >
       <div className='space-y-1 pr-2'>
