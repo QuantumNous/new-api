@@ -1,3 +1,4 @@
+import { parseCurrencyDisplayType } from '@/lib/currency'
 import { Accordion } from '@/components/ui/accordion'
 import { useAccordionState } from '../hooks/use-accordion-state'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
@@ -49,6 +50,9 @@ export function GeneralSettings() {
   }
 
   const settings = getOptionValue(data?.data, defaultGeneralSettings)
+  const quotaDisplayType = parseCurrencyDisplayType(
+    settings['general_setting.quota_display_type']
+  )
 
   return (
     <div className='flex h-full w-full flex-1 flex-col'>
@@ -95,8 +99,11 @@ export function GeneralSettings() {
               DisplayInCurrencyEnabled: settings.DisplayInCurrencyEnabled,
               DisplayTokenStatEnabled: settings.DisplayTokenStatEnabled,
               general_setting: {
-                quota_display_type:
-                  settings['general_setting.quota_display_type'] ?? 'USD',
+                quota_display_type: quotaDisplayType as
+                  | 'USD'
+                  | 'CNY'
+                  | 'TOKENS'
+                  | 'CUSTOM',
                 custom_currency_symbol:
                   settings['general_setting.custom_currency_symbol'] ?? '¤',
                 custom_currency_exchange_rate:
