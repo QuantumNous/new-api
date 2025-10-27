@@ -1,11 +1,11 @@
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/status-badge'
-import { MAX_TAGS_DISPLAY } from '../constants'
+import { MAX_TAGS_DISPLAY, DEFAULT_TOKEN_UNIT } from '../constants'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
-import type { PricingModel } from '../types'
+import type { PricingModel, TokenUnit } from '../types'
 
 // ----------------------------------------------------------------------------
 // Model Row Component
@@ -16,6 +16,7 @@ export interface ModelRowProps {
   onClick: () => void
   priceRate?: number
   usdExchangeRate?: number
+  tokenUnit?: TokenUnit
 }
 
 export function ModelRow({
@@ -23,12 +24,14 @@ export function ModelRow({
   onClick,
   priceRate = 1,
   usdExchangeRate = 1,
+  tokenUnit = DEFAULT_TOKEN_UNIT,
 }: ModelRowProps) {
   const tags = parseTags(model.tags).slice(0, MAX_TAGS_DISPLAY)
   const isTokenBased = isTokenBasedModel(model)
   const vendorIcon = model.vendor_icon
     ? getLobeIcon(model.vendor_icon, 14)
     : null
+  const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   return (
     <button
@@ -89,7 +92,7 @@ export function ModelRow({
                     {formatPrice(
                       model,
                       'input',
-                      'M',
+                      tokenUnit,
                       false,
                       priceRate,
                       usdExchangeRate
@@ -109,7 +112,7 @@ export function ModelRow({
                     {formatPrice(
                       model,
                       'output',
-                      'M',
+                      tokenUnit,
                       false,
                       priceRate,
                       usdExchangeRate
@@ -118,7 +121,7 @@ export function ModelRow({
                 </div>
               </div>
               <span className='text-muted-foreground text-[10px] sm:text-xs'>
-                per 1M tokens
+                per {tokenUnitLabel} tokens
               </span>
             </>
           ) : (

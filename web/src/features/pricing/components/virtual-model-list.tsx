@@ -1,6 +1,7 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
-import type { PricingModel } from '../types'
+import { DEFAULT_TOKEN_UNIT } from '../constants'
+import type { PricingModel, TokenUnit } from '../types'
 import { ModelRow } from './model-row'
 
 // ----------------------------------------------------------------------------
@@ -14,6 +15,7 @@ export interface VirtualModelListProps {
   overscan?: number
   priceRate?: number
   usdExchangeRate?: number
+  tokenUnit?: TokenUnit
 }
 
 export function VirtualModelList({
@@ -23,6 +25,7 @@ export function VirtualModelList({
   overscan = 5,
   priceRate = 1,
   usdExchangeRate = 1,
+  tokenUnit = DEFAULT_TOKEN_UNIT,
 }: VirtualModelListProps) {
   // Window-based virtualizer - page scroll controls virtualization
   const virtualizer = useWindowVirtualizer({
@@ -76,6 +79,7 @@ export function VirtualModelList({
                 model={model}
                 priceRate={priceRate}
                 usdExchangeRate={usdExchangeRate}
+                tokenUnit={tokenUnit}
                 onClick={() => onModelClick(model.model_name || '')}
               />
             </div>

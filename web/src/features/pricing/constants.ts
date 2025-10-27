@@ -1,3 +1,5 @@
+import type { TokenUnit } from './types'
+
 // ----------------------------------------------------------------------------
 // Pricing Constants
 // ----------------------------------------------------------------------------
@@ -98,3 +100,6 @@ export const TOKEN_UNIT_DIVISORS = {
   M: 1,
   K: 1000,
 } as const
+
+/** Default token unit for pricing display */
+export const DEFAULT_TOKEN_UNIT: TokenUnit = 'M'

@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
+import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { usePricingData } from '../hooks/use-pricing-data'
 import { parseTags } from '../lib/filters'
 import {
@@ -14,7 +15,7 @@ import {
   isTokenBasedModel,
 } from '../lib/model-helpers'
 import { formatGroupPrice, formatFixedPrice } from '../lib/price'
-import type { PricingModel } from '../types'
+import type { PricingModel, TokenUnit } from '../types'
 
 function ModelHeader({ model }: { model: PricingModel }) {
   return (
@@ -139,18 +140,21 @@ function GroupPricingSection({
   usableGroup,
   priceRate,
   usdExchangeRate,
+  tokenUnit,
 }: {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
   priceRate: number
   usdExchangeRate: number
+  tokenUnit: TokenUnit
 }) {
   const availableGroups = useMemo(() => {
     return getAvailableGroups(model, usableGroup || {})
   }, [model, usableGroup])
 
   const isTokenBased = isTokenBasedModel(model)
+  const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   // Show message if no groups available
   if (availableGroups.length === 0) {
@@ -183,10 +187,10 @@ function GroupPricingSection({
               {isTokenBased ? (
                 <>
                   <th className='pr-2 pb-2 text-right text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                    Input / 1M tokens
+                    Input / {tokenUnitLabel} tokens
                   </th>
                   <th className='pb-2 text-right text-xs font-medium sm:pb-3 sm:text-sm'>
-                    Output / 1M tokens
+                    Output / {tokenUnitLabel} tokens
                   </th>
                 </>
               ) : (
@@ -225,7 +229,7 @@ function GroupPricingSection({
                           model,
                           group,
                           'input',
-                          'M',
+                          tokenUnit,
                           false,
                           priceRate,
                           usdExchangeRate,
@@ -237,7 +241,7 @@ function GroupPricingSection({
                           model,
                           group,
                           'output',
-                          'M',
+                          tokenUnit,
                           false,
                           priceRate,
                           usdExchangeRate,
@@ -281,6 +285,9 @@ export function ModelDetails() {
     priceRate,
     usdExchangeRate,
   } = usePricingData()
+
+  const tokenUnit =
+    search.tokenUnit === 'K' ? ('K' as TokenUnit) : DEFAULT_TOKEN_UNIT
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
@@ -359,6 +366,7 @@ export function ModelDetails() {
           usableGroup={usableGroup || {}}
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
+          tokenUnit={tokenUnit}
         />
       </div>
     </PublicLayout>

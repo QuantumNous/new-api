@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect } from 'react'
+import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import {
   DesktopSidebar,
   VirtualModelList,
   SortDropdown,
+  TokenUnitToggle,
 } from './components'
 import {
   SORT_OPTIONS,
@@ -20,10 +21,12 @@ import {
   ENDPOINT_TYPES,
   FILTER_ALL,
   EXCLUDED_GROUPS,
+  DEFAULT_TOKEN_UNIT,
 } from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
 import { useUIState } from './hooks/use-ui-state'
+import type { TokenUnit } from './types'
 
 // ----------------------------------------------------------------------------
 // Pricing Page Component
@@ -40,6 +43,16 @@ export function Pricing() {
     priceRate,
     usdExchangeRate,
   } = usePricingData()
+
+  const [tokenUnit, setTokenUnit] = useState<TokenUnit>(
+    search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
+  )
+
+  useEffect(() => {
+    const nextUnit =
+      search.tokenUnit === 'K' ? ('K' as TokenUnit) : DEFAULT_TOKEN_UNIT
+    setTokenUnit((prev) => (prev === nextUnit ? prev : nextUnit))
+  }, [search.tokenUnit])
 
   const {
     searchInput,
@@ -85,6 +98,7 @@ export function Pricing() {
     if (endpointTypeFilter !== ENDPOINT_TYPES.ALL)
       params.endpointType = endpointTypeFilter
     if (tagFilter !== FILTER_ALL) params.tag = tagFilter
+    if (tokenUnit !== DEFAULT_TOKEN_UNIT) params.tokenUnit = tokenUnit
 
     navigate({
       to: '/pricing',
@@ -100,6 +114,7 @@ export function Pricing() {
     endpointTypeFilter,
     tagFilter,
     navigate,
+    tokenUnit,
   ])
 
   const {
@@ -211,9 +226,9 @@ export function Pricing() {
             {/* Search and Controls Bar */}
             <div className='mb-5 space-y-4 sm:mb-6'>
               {/* Search and Sort Row */}
-              <div className='flex items-center gap-3'>
+              <div className='flex flex-wrap items-center gap-3'>
                 {/* Search Bar - Takes most space */}
-                <div className='flex-1'>
+                <div className='order-1 min-w-0 flex-1'>
                   <SearchBar
                     value={searchInput}
                     onChange={setSearchInput}
@@ -221,16 +236,11 @@ export function Pricing() {
                   />
                 </div>
 
-                {/* Sort Dropdown - Desktop */}
-                <div className='hidden shrink-0 sm:block'>
-                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
-                </div>
-
                 {/* Mobile Filter Button */}
                 <Button
                   variant='outline'
                   onClick={toggleMobileFilters}
-                  className='shrink-0 gap-2 sm:hidden'
+                  className='order-2 shrink-0 gap-2 sm:hidden'
                 >
                   <Filter className='h-4 w-4' />
                   <span className='sm:inline'>Filters</span>
@@ -244,6 +254,20 @@ export function Pricing() {
                     />
                   )}
                 </Button>
+
+                {/* Token Unit Toggle */}
+                <div className='order-3 w-full sm:order-2 sm:w-auto'>
+                  <TokenUnitToggle
+                    value={tokenUnit}
+                    onChange={setTokenUnit}
+                    className='w-full sm:w-auto'
+                  />
+                </div>
+
+                {/* Sort Dropdown - Desktop */}
+                <div className='hidden shrink-0 sm:order-3 sm:block'>
+                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
+                </div>
               </div>
 
               {/* Active Filter Tags (Desktop) */}
@@ -295,6 +319,7 @@ export function Pricing() {
                 onModelClick={handleModelClick}
                 priceRate={priceRate}
                 usdExchangeRate={usdExchangeRate}
+                tokenUnit={tokenUnit}
               />
             ) : (
               <EmptyState
