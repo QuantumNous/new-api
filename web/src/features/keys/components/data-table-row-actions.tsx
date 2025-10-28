@@ -1,14 +1,7 @@
 import { useCallback } from 'react'
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import {
-  Trash2,
-  Edit,
-  Power,
-  PowerOff,
-  MessageSquare,
-  ExternalLink,
-} from 'lucide-react'
+import { Trash2, Edit, Power, PowerOff, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -143,12 +136,7 @@ export function DataTableRowActions<TData>({
         </DropdownMenuItem>
         {hasChatPresets && (
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              Chat
-              <DropdownMenuShortcut>
-                <MessageSquare size={16} />
-              </DropdownMenuShortcut>
-            </DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger>Chat</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {chatPresets.map((preset) => (
                 <DropdownMenuItem
