@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Mail, Github, Shield, Send } from 'lucide-react'
 import { SiWechat, SiLinux } from 'react-icons/si'
 import {
@@ -10,6 +10,7 @@ import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import type { UserProfile, BindingItem } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
@@ -32,6 +33,34 @@ export function AccountBindingsTab({
 }: AccountBindingsTabProps) {
   const dialogs = useDialogs<DialogKey>()
   const { status, loading } = useStatus()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== OAUTH_BIND_STORAGE_KEY || !event.newValue) return
+      try {
+        const payload = JSON.parse(event.newValue) as {
+          status?: string
+          provider?: string
+          timestamp?: number
+        }
+        if (payload?.status === 'success') {
+          onUpdate()
+        }
+      } catch {
+        // ignore malformed payloads
+      }
+      try {
+        window.localStorage.removeItem(OAUTH_BIND_STORAGE_KEY)
+      } catch {
+        // ignore cleanup failure
+      }
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [onUpdate])
 
   // Memoize bindings to prevent unnecessary recalculations
   const bindings: BindingItem[] = useMemo(() => {

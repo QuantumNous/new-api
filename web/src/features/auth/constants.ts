@@ -55,3 +55,9 @@ export const OTP_REGEX = /^\d{6}$/
 
 export const EMAIL_VERIFICATION_COUNTDOWN = 30 // seconds
 export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
+
+// ============================================================================
+// OAuth Constants
+// ============================================================================
+
+export const OAUTH_BIND_STORAGE_KEY = 'oauth:binding:result'
