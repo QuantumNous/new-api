@@ -1,6 +1,14 @@
+import { useCallback } from 'react'
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2, Edit, Power, PowerOff } from 'lucide-react'
+import {
+  Trash2,
+  Edit,
+  Power,
+  PowerOff,
+  MessageSquare,
+  ExternalLink,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,9 +16,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
+import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
+import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import { apiKeySchema } from '../types'
@@ -26,6 +40,45 @@ export function DataTableRowActions<TData>({
   const apiKey = apiKeySchema.parse(row.original)
   const { setOpen, setCurrentRow, triggerRefresh } = useApiKeys()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
+  const { chatPresets, serverAddress } = useChatPresets()
+
+  const hasChatPresets = chatPresets.length > 0
+
+  const handleOpenChatPreset = useCallback(
+    (preset: ChatPreset) => {
+      if (preset.type === 'fluent') {
+        const success = sendToFluent(apiKey.key, serverAddress)
+        if (success) {
+          toast.success('Sent the API key to FluentRead.')
+        } else {
+          toast.info(
+            'FluentRead extension not detected. Please ensure it is installed and active.'
+          )
+        }
+        return
+      }
+
+      const resolvedUrl = resolveChatUrl({
+        template: preset.url,
+        apiKey: apiKey.key,
+        serverAddress,
+      })
+
+      if (!resolvedUrl) {
+        toast.error('Invalid chat link. Please contact your administrator.')
+        return
+      }
+
+      if (typeof window === 'undefined') return
+
+      try {
+        window.open(resolvedUrl, '_blank', 'noopener')
+      } catch {
+        window.location.href = resolvedUrl
+      }
+    },
+    [apiKey.key, serverAddress]
+  )
 
   const handleToggleStatus = async () => {
     const newStatus = isEnabled
@@ -43,7 +96,7 @@ export function DataTableRowActions<TData>({
       } else {
         toast.error(result.message || ERROR_MESSAGES.STATUS_UPDATE_FAILED)
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(ERROR_MESSAGES.UNEXPECTED)
     }
   }
@@ -88,6 +141,31 @@ export function DataTableRowActions<TData>({
             </>
           )}
         </DropdownMenuItem>
+        {hasChatPresets && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              Chat
+              <DropdownMenuShortcut>
+                <MessageSquare size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {chatPresets.map((preset) => (
+                <DropdownMenuItem
+                  key={preset.id}
+                  onClick={() => handleOpenChatPreset(preset)}
+                >
+                  {preset.name}
+                  {preset.type !== 'web' && (
+                    <DropdownMenuShortcut>
+                      <ExternalLink size={16} />
+                    </DropdownMenuShortcut>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
