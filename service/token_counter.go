@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 	"log"
 	"math"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -18,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	constant2 "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -254,6 +256,10 @@ func getImageToken(fileMeta *types.FileMeta, model string, stream bool) (int, er
 }
 
 func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
+	if meta == nil {
+		return 0, errors.New("token count meta is nil")
+	}
+
 	if !constant.GetMediaToken {
 		return 0, nil
 	}
@@ -263,8 +269,29 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime {
 		return 0, nil
 	}
-	if meta == nil {
-		return 0, errors.New("token count meta is nil")
+	if info.RelayMode == constant2.RelayModeAudioTranscription || info.RelayMode == constant2.RelayModeAudioTranslation {
+		multiForm, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return 0, fmt.Errorf("error parsing multipart form: %v", err)
+		}
+		fileHeaders := multiForm.File["file"]
+		totalAudioToken := 0
+		for _, fileHeader := range fileHeaders {
+			file, err := fileHeader.Open()
+			if err != nil {
+				return 0, fmt.Errorf("error opening audio file: %v", err)
+			}
+			defer file.Close()
+			// get ext and io.seeker
+			ext := filepath.Ext(fileHeader.Filename)
+			duration, err := common.GetAudioDuration(c.Request.Context(), file, ext)
+			if err != nil {
+				return 0, fmt.Errorf("error getting audio duration: %v", err)
+			}
+			// 一分钟 1000 token，与 $price / minute 对齐
+			totalAudioToken += int(math.Round(math.Ceil(duration) / 60.0 * 1000))
+		}
+		return totalAudioToken, nil
 	}
 
 	model := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)

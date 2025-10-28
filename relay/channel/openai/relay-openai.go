@@ -1,15 +1,10 @@
 package openai
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -26,7 +21,6 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
 )
 
 func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
@@ -361,57 +355,11 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 		}
 	}
 
-	audioTokens, err := countAudioTokens(c)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeCountTokenFailed), nil
-	}
 	usage := &dto.Usage{}
-	usage.PromptTokens = audioTokens
+	usage.PromptTokens = info.PromptTokens
 	usage.CompletionTokens = 0
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return nil, usage
-}
-
-func countAudioTokens(c *gin.Context) (int, error) {
-	body, err := common.GetRequestBody(c)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-
-	var reqBody struct {
-		File *multipart.FileHeader `form:"file" binding:"required"`
-	}
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	if err = c.ShouldBind(&reqBody); err != nil {
-		return 0, errors.WithStack(err)
-	}
-	ext := filepath.Ext(reqBody.File.Filename) // 获取文件扩展名
-	reqFp, err := reqBody.File.Open()
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-	defer reqFp.Close()
-
-	tmpFp, err := os.CreateTemp("", "audio-*"+ext)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-	defer os.Remove(tmpFp.Name())
-
-	_, err = io.Copy(tmpFp, reqFp)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-	if err = tmpFp.Close(); err != nil {
-		return 0, errors.WithStack(err)
-	}
-
-	duration, err := common.GetAudioDuration(c.Request.Context(), tmpFp.Name(), ext)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-
-	return int(math.Round(math.Ceil(duration) / 60.0 * 1000)), nil // 1 minute 相当于 1k tokens
 }
 
 func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
