@@ -52,6 +52,9 @@ const RechargeCard = ({
   t,
   enableOnlineTopUp,
   enableStripeTopUp,
+  enableCreemTopUp,
+  creemProducts,
+  creemPreTopUp,
   presetAmounts,
   selectedPreset,
   selectPresetAmount,
@@ -84,6 +87,7 @@ const RechargeCard = ({
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
+  console.log(' enabled screem ?', enableCreemTopUp, ' products ?', creemProducts);
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -216,7 +220,7 @@ const RechargeCard = ({
             <div className='py-8 flex justify-center'>
               <Spin size='large' />
             </div>
-          ) : enableOnlineTopUp || enableStripeTopUp ? (
+          ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp ? (
             <Form
               getFormApi={(api) => (onlineFormApiRef.current = api)}
               initValues={{ topUpCount: topUpCount }}
@@ -447,7 +451,7 @@ const RechargeCard = ({
                                 style={{ margin: '0 0 8px 0' }}
                               >
                                 <Coins size={18} />
-                                {formatLargeNumber(preset.value)} $
+                                {formatLargeNumber(displayValue)} {symbol}
                                 {hasDiscount && (
                                   <Tag style={{ marginLeft: 4 }} color='green'>
                                     {t('折').includes('off')
@@ -477,6 +481,32 @@ const RechargeCard = ({
                           </Card>
                         );
                       })}
+                    </div>
+                  </Form.Slot>
+                )}
+
+                {/* Creem 充值区域 */}
+                {enableCreemTopUp && creemProducts.length > 0 && (
+                  <Form.Slot label={t('Creem 充值')}>
+                    <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3'>
+                      {creemProducts.map((product, index) => (
+                        <Card
+                          key={index}
+                          onClick={() => creemPreTopUp(product)}
+                          className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-gray-200 hover:border-gray-300'
+                          bodyStyle={{ textAlign: 'center', padding: '16px' }}
+                        >
+                          <div className='font-medium text-lg mb-2'>
+                            {product.name}
+                          </div>
+                          <div className='text-sm text-gray-600 mb-2'>
+                            {t('充值额度')}: {product.quota}
+                          </div>
+                          <div className='text-lg font-semibold text-blue-600'>
+                            {product.currency === 'EUR' ? '€' : '$'}{product.price}
+                          </div>
+                        </Card>
+                      ))}
                     </div>
                   </Form.Slot>
                 )}
