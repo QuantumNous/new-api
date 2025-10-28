@@ -53,85 +53,54 @@ export default function SettingModelDeployment(props) {
       return;
     }
 
+    const getLocalizedMessage = (message) => {
+      switch (message) {
+        case 'invalid request payload':
+          return t('请求参数无效');
+        case 'api_key is required':
+          return t('请先填写 API Key');
+        case 'failed to validate api key':
+          return t('API Key 验证失败');
+        default:
+          return message;
+      }
+    };
+
     setTesting(true);
     try {
-      // 调用 io.net 官方 API 进行测试
-      const response = await fetch('https://api.io.solutions/enterprise/v1/io-cloud/caas/hardware/max-gpus-per-container', {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': apiKey,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await API.post(
+        '/api/deployments/test-connection',
+        {
+          api_key: apiKey.trim(),
+        },
+        {
+          skipErrorHandler: true,
+        },
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        
-        // 检查响应中是否有错误信息
-        if (data.detail) {
-          // 如果有 detail 字段，说明有错误
-          let errorMessage = t('API Key 验证失败');
-          
-          if (typeof data.detail === 'string') {
-            errorMessage = data.detail;
-          } else if (Array.isArray(data.detail) && data.detail.length > 0) {
-            // detail 是数组时，取第一个错误信息
-            const firstError = data.detail[0];
-            if (typeof firstError === 'string') {
-              errorMessage = firstError;
-            } else if (firstError.msg) {
-              errorMessage = firstError.msg;
-            } else if (firstError.message) {
-              errorMessage = firstError.message;
-            }
-          }
-          
-          showError(errorMessage);
-        } else if (data.error) {
-          // 检查其他可能的错误字段
-          showError(data.error.message || data.error || t('API Key 验证失败'));
-        } else {
-          // 成功获取到数据
-          showSuccess(t('API Key 验证成功！连接到 io.net 服务正常'));
-        }
+      if (response?.data?.success) {
+        showSuccess(t('API Key 验证成功！连接到 io.net 服务正常'));
       } else {
-        // HTTP 状态码不是 2xx
-        const errorData = await response.json().catch(() => ({}));
-        let errorMessage = t('API Key 验证失败');
-        
-        if (errorData.detail) {
-          if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
-          } else if (Array.isArray(errorData.detail) && errorData.detail.length > 0) {
-            const firstError = errorData.detail[0];
-            errorMessage = firstError.msg || firstError.message || firstError;
-          }
-        } else {
-          // 根据状态码提供友好提示
-          switch (response.status) {
-            case 401:
-              errorMessage = t('API Key 无效或已过期');
-              break;
-            case 403:
-              errorMessage = t('API Key 权限不足，无法访问此功能');
-              break;
-            case 429:
-              errorMessage = t('请求过于频繁，请稍后再试');
-              break;
-            default:
-              errorMessage = `${t('请求失败')} (HTTP ${response.status})`;
-          }
-        }
-        
-        showError(errorMessage);
+        const rawMessage = response?.data?.message;
+        const localizedMessage = rawMessage
+          ? getLocalizedMessage(rawMessage)
+          : t('API Key 验证失败');
+        showError(localizedMessage);
       }
     } catch (error) {
       console.error('io.net API test error:', error);
-      
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+
+      if (error?.code === 'ERR_NETWORK') {
         showError(t('网络连接失败，请检查网络设置或稍后重试'));
       } else {
-        showError(t('测试失败：') + (error.message || t('未知错误')));
+        const rawMessage =
+          error?.response?.data?.message ||
+          error?.message ||
+          '';
+        const localizedMessage = rawMessage
+          ? getLocalizedMessage(rawMessage)
+          : t('未知错误');
+        showError(t('测试失败：') + localizedMessage);
       }
     } finally {
       setTesting(false);

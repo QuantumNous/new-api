@@ -265,6 +265,9 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.GET("/", controller.GetAllDeployments)
 			deploymentsRoute.GET("/search", controller.SearchDeployments)
 
+			// Connection utilities
+			deploymentsRoute.POST("/test-connection", controller.TestIoNetConnection)
+
 			// Resource and configuration endpoints
 			deploymentsRoute.GET("/hardware-types", controller.GetHardwareTypes)
 			deploymentsRoute.GET("/locations", controller.GetLocations)

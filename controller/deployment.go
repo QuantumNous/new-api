@@ -39,6 +39,55 @@ func getIoEnterpriseClient(c *gin.Context) (*ionet.Client, bool) {
 	return ionet.NewEnterpriseClient(apiKey), true
 }
 
+func TestIoNetConnection(c *gin.Context) {
+	var req struct {
+		APIKey string `json:"api_key"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "invalid request payload")
+		return
+	}
+
+	apiKey := strings.TrimSpace(req.APIKey)
+	if apiKey == "" {
+		common.ApiErrorMsg(c, "api_key is required")
+		return
+	}
+
+	client := ionet.NewEnterpriseClient(apiKey)
+	result, err := client.GetMaxGPUsPerContainer()
+	if err != nil {
+		if apiErr, ok := err.(*ionet.APIError); ok {
+			message := strings.TrimSpace(apiErr.Message)
+			if message == "" {
+				message = "failed to validate api key"
+			}
+			common.ApiErrorMsg(c, message)
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+
+	totalHardware := 0
+	totalAvailable := 0
+	if result != nil {
+		totalHardware = len(result.Hardware)
+		totalAvailable = result.Total
+		if totalAvailable == 0 {
+			for _, hw := range result.Hardware {
+				totalAvailable += hw.Available
+			}
+		}
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"hardware_count":  totalHardware,
+		"total_available": totalAvailable,
+	})
+}
+
 func requireDeploymentID(c *gin.Context) (string, bool) {
 	deploymentID := strings.TrimSpace(c.Param("id"))
 	if deploymentID == "" {
