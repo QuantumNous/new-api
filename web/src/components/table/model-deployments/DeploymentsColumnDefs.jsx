@@ -21,35 +21,27 @@ import React from 'react';
 import { 
   Button,
   Dropdown,
-  Modal,
   Tag,
-  Tooltip,
   Typography,
-  Popconfirm,
-  Input,
-  Space,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
   showSuccess,
   showError,
 } from '../../../helpers';
-import { IconTreeTriangleDown, IconMore } from '@douyinfe/semi-icons';
+import { IconMore } from '@douyinfe/semi-icons';
 import {
   FaPlay,
   FaRedo,
-  FaEdit,
   FaTrash,
   FaServer,
   FaMemory,
   FaMicrochip,
-  FaCopy,
   FaCheckCircle,
   FaSpinner,
   FaClock,
   FaExclamationCircle,
   FaBan,
-  FaEye,
   FaTerminal,
   FaPlus,
   FaCog,
@@ -213,32 +205,7 @@ const renderStatus = (status, t) => {
 };
 
 // Container Name Cell Component - to properly handle React hooks
-const ContainerNameCell = ({ text, record, updateDeploymentName, t }) => {
-  const [showRenameModal, setShowRenameModal] = React.useState(false);
-  const [newName, setNewName] = React.useState(text);
-  const [isRenaming, setIsRenaming] = React.useState(false);
-
-  React.useEffect(() => {
-    if (showRenameModal) {
-      setNewName(text);
-    }
-  }, [showRenameModal, text]);
-
-  const handleRename = async () => {
-    if (newName.trim() === text || !newName.trim()) {
-      setShowRenameModal(false);
-      return;
-    }
-    
-    setIsRenaming(true);
-    const success = await updateDeploymentName(record.id, newName.trim());
-    setIsRenaming(false);
-    
-    if (success) {
-      setShowRenameModal(false);
-    }
-  };
-
+const ContainerNameCell = ({ text, record, t }) => {
   const handleCopyId = () => {
     navigator.clipboard.writeText(record.id);
     showSuccess(t('ID已复制到剪贴板'));
@@ -246,55 +213,18 @@ const ContainerNameCell = ({ text, record, updateDeploymentName, t }) => {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <Typography.Text strong className="text-base">
-          {text}
-        </Typography.Text>
-        <Button
-          size="small"
-          theme="borderless"
-          icon={<FaEdit />}
-          className="opacity-70 hover:opacity-100 transition-opacity"
-          onClick={() => setShowRenameModal(true)}
-          style={{ padding: '2px 4px', minWidth: 'auto' }}
-        />
-      </div>
-      <div className="flex items-center">
-        <Typography.Text 
-          type="secondary" 
-          size="small" 
-          className="text-xs cursor-pointer hover:text-blue-600 transition-colors select-all"
-          onClick={handleCopyId}
-          title={t('点击复制ID')}
-        >
-          ID: {record.id}
-        </Typography.Text>
-      </div>
-      
-      <Modal
-        title={t('重命名容器')}
-        visible={showRenameModal}
-        onOk={handleRename}
-        onCancel={() => setShowRenameModal(false)}
-        okText={t('确定')}
-        cancelText={t('取消')}
-        confirmLoading={isRenaming}
-        width={400}
+      <Typography.Text strong className="text-base">
+        {text}
+      </Typography.Text>
+      <Typography.Text 
+        type="secondary" 
+        size="small" 
+        className="text-xs cursor-pointer hover:text-blue-600 transition-colors select-all"
+        onClick={handleCopyId}
+        title={t('点击复制ID')}
       >
-        <div className="py-2">
-          <Typography.Text type="secondary" size="small" className="block mb-2">
-            {t('当前名称')}: {text}
-          </Typography.Text>
-          <Input
-            value={newName}
-            onChange={(value) => setNewName(value)}
-            placeholder={t('请输入新的容器名称')}
-            autoFocus
-            onEnterPress={handleRename}
-            className="w-full"
-          />
-        </div>
-      </Modal>
+        ID: {record.id}
+      </Typography.Text>
     </div>
   );
 };
@@ -349,7 +279,6 @@ export const getDeploymentsColumns = ({
   startDeployment,
   restartDeployment,
   deleteDeployment,
-  updateDeploymentName,
   setEditingDeployment,
   setShowEdit,
   refresh,
@@ -373,7 +302,6 @@ export const getDeploymentsColumns = ({
         <ContainerNameCell 
           text={text} 
           record={record} 
-          updateDeploymentName={updateDeploymentName}
           t={t}
         />
       ),
@@ -383,23 +311,35 @@ export const getDeploymentsColumns = ({
       dataIndex: 'status',
       key: COLUMN_KEYS.status,
       width: 200,
-      render: (status, record) => (
+      render: (status) => (
         <div className="flex items-center gap-2">
           {renderStatus(status, t)}
-          {record.provider && (
-            <div className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
-              style={{
-                borderColor: 'rgba(59, 130, 246, 0.4)',
-                backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                color: '#2563eb',
-              }}
-            >
-              <FaGlobe className="text-[11px]" />
-              <span>{record.provider}</span>
-            </div>
-          )}
         </div>
       ),
+    },
+    {
+      title: t('服务商'),
+      dataIndex: 'provider',
+      key: COLUMN_KEYS.provider,
+      width: 140,
+      render: (provider) =>
+        provider ? (
+          <div
+            className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+            style={{
+              borderColor: 'rgba(59, 130, 246, 0.4)',
+              backgroundColor: 'rgba(59, 130, 246, 0.08)',
+              color: '#2563eb',
+            }}
+          >
+            <FaGlobe className="text-[11px]" />
+            <span>{provider}</span>
+          </div>
+        ) : (
+          <Typography.Text type="tertiary" size="small" className="text-xs text-gray-500">
+            {t('暂无')}
+          </Typography.Text>
+        ),
     },
     {
       title: t('剩余时间'),

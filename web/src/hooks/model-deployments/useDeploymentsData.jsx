@@ -97,6 +97,7 @@ export const useDeploymentsData = () => {
     () => ({
       id: 'id',
       status: 'status',
+      provider: 'provider',
       container_name: 'container_name',
       time_remaining: 'time_remaining',
       hardware_info: 'hardware_info',
@@ -112,11 +113,19 @@ export const useDeploymentsData = () => {
     [],
   );
 
-  const ensureRequiredColumns = (columns = {}) => ({
-    ...columns,
-    [COLUMN_KEYS.container_name]: true,
-    [COLUMN_KEYS.actions]: true,
-  });
+  const ensureRequiredColumns = (columns = {}) => {
+    const normalized = {
+      ...columns,
+      [COLUMN_KEYS.container_name]: true,
+      [COLUMN_KEYS.actions]: true,
+    };
+
+    if (normalized[COLUMN_KEYS.provider] === undefined) {
+      normalized[COLUMN_KEYS.provider] = true;
+    }
+
+    return normalized;
+  };
 
   const [visibleColumns, setVisibleColumnsState] = useState(() => {
     const saved = localStorage.getItem('deployments_visible_columns');
@@ -131,6 +140,7 @@ export const useDeploymentsData = () => {
     return ensureRequiredColumns({
       [COLUMN_KEYS.container_name]: true,
       [COLUMN_KEYS.status]: true,
+      [COLUMN_KEYS.provider]: true,
       [COLUMN_KEYS.time_remaining]: true,
       [COLUMN_KEYS.hardware_info]: true,
       [COLUMN_KEYS.created_at]: true,

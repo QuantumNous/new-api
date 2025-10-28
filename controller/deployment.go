@@ -589,7 +589,7 @@ func GetPriceEstimation(c *gin.Context) {
 }
 
 func CheckClusterNameAvailability(c *gin.Context) {
-	client, ok := getIoEnterpriseClient(c)
+	client, ok := getIoClient(c)
 	if !ok {
 		return
 	}
