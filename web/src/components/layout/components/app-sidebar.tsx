@@ -11,7 +11,8 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { sidebarConfig } from '../config/sidebar.config'
-import { getNavGroupsForPath } from '../utils/workspace-registry'
+import { getNavGroupsForPath, isInWorkspace } from '../utils/workspace-registry'
+import { ChatSection } from './chat-section'
 import { NavGroup } from './nav-group'
 import { WorkspaceSwitcher } from './workspace-switcher'
 
@@ -46,12 +47,15 @@ export function AppSidebar() {
     })
   }, [configFilteredNavGroups, userRole])
 
+  const showChatSection = isInWorkspace(pathname, 'Default')
+
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
         <WorkspaceSwitcher workspaces={sidebarConfig.workspaces} />
       </SidebarHeader>
       <SidebarContent>
+        {showChatSection && <ChatSection />}
         {currentNavGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}

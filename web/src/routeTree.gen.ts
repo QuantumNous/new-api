@@ -48,6 +48,7 @@ import { Route as AuthenticatedSystemSettingsGeneralRouteImport } from './routes
 import { Route as AuthenticatedSystemSettingsContentRouteImport } from './routes/_authenticated/system-settings/content'
 import { Route as AuthenticatedSystemSettingsAuthRouteImport } from './routes/_authenticated/system-settings/auth'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 
 const UserAgreementRoute = UserAgreementRouteImport.update({
   id: '/user-agreement',
@@ -259,6 +260,11 @@ const AuthenticatedErrorsErrorRoute =
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedChatChatIdRoute = AuthenticatedChatChatIdRouteImport.update({
+  id: '/chat/$chatId',
+  path: '/chat/$chatId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
+  '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByTo {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
+  '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentRoute
@@ -359,6 +367,7 @@ export interface FileRoutesById {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
+  '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
   '/_authenticated/system-settings/content': typeof AuthenticatedSystemSettingsContentRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about'
     | '/pricing'
+    | '/chat/$chatId'
     | '/errors/$error'
     | '/system-settings/auth'
     | '/system-settings/content'
@@ -438,6 +448,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about'
     | '/pricing'
+    | '/chat/$chatId'
     | '/errors/$error'
     | '/system-settings/auth'
     | '/system-settings/content'
@@ -479,6 +490,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
+    | '/_authenticated/chat/$chatId'
     | '/_authenticated/errors/$error'
     | '/_authenticated/system-settings/auth'
     | '/_authenticated/system-settings/content'
@@ -792,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/chat/$chatId': {
+      id: '/_authenticated/chat/$chatId'
+      path: '/chat/$chatId'
+      fullPath: '/chat/$chatId'
+      preLoaderRoute: typeof AuthenticatedChatChatIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -854,6 +873,7 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
@@ -869,6 +889,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
+  AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
