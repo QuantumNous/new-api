@@ -2,6 +2,7 @@ import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
 import { useMediaQuery } from '@/hooks/use-media-query'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
@@ -17,6 +18,7 @@ import {
   TokenUnitToggle,
   PricingTable,
   ViewToggle,
+  PriceDisplayToggle,
 } from './components'
 import {
   SORT_OPTIONS,
@@ -41,6 +43,7 @@ export function Pricing() {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
   const isMobile = useMediaQuery('(max-width: 640px)')
+  const { currency } = useSystemConfig()
   const {
     models,
     vendors,
@@ -50,12 +53,20 @@ export function Pricing() {
     usdExchangeRate,
   } = usePricingData()
 
+  const effectiveUsdExchangeRate = useMemo(() => {
+    return currency?.quotaDisplayType === 'USD' ? 1 : usdExchangeRate
+  }, [currency?.quotaDisplayType, usdExchangeRate])
+
   const [tokenUnit, setTokenUnit] = useState<TokenUnit>(
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
   )
 
   const [viewMode, setViewMode] = useState<ViewMode>(
     search.view === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
+  )
+
+  const [showRechargePrice, setShowRechargePrice] = useState<boolean>(
+    search.rechargePrice === true
   )
 
   useEffect(() => {
@@ -69,6 +80,13 @@ export function Pricing() {
       search.view === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
     setViewMode((prev) => (prev === nextView ? prev : nextView))
   }, [search.view])
+
+  useEffect(() => {
+    const nextShowRecharge = search.rechargePrice === true
+    setShowRechargePrice((prev) =>
+      prev === nextShowRecharge ? prev : nextShowRecharge
+    )
+  }, [search.rechargePrice])
 
   const {
     searchInput,
@@ -104,7 +122,7 @@ export function Pricing() {
 
   // Sync filters to URL
   useEffect(() => {
-    const params: Record<string, string> = {}
+    const params: Record<string, any> = {}
 
     if (searchInput) params.search = searchInput
     if (sortBy !== SORT_OPTIONS.NAME) params.sort = sortBy
@@ -116,6 +134,7 @@ export function Pricing() {
     if (tagFilter !== FILTER_ALL) params.tag = tagFilter
     if (tokenUnit !== DEFAULT_TOKEN_UNIT) params.tokenUnit = tokenUnit
     if (viewMode === VIEW_MODES.TABLE) params.view = 'table'
+    if (showRechargePrice) params.rechargePrice = true
 
     navigate({
       to: '/pricing',
@@ -133,6 +152,7 @@ export function Pricing() {
     navigate,
     tokenUnit,
     viewMode,
+    showRechargePrice,
   ])
 
   const {
@@ -243,10 +263,10 @@ export function Pricing() {
 
             {/* Search and Controls Bar */}
             <div className='mb-5 space-y-4 sm:mb-6'>
-              {/* Search and Sort Row */}
+              {/* Row 1: Content-Focused Controls */}
               <div className='flex flex-wrap items-center gap-3'>
                 {/* Search Bar - Takes most space */}
-                <div className='order-1 min-w-0 flex-1'>
+                <div className='min-w-0 flex-1'>
                   <SearchBar
                     value={searchInput}
                     onChange={setSearchInput}
@@ -258,7 +278,7 @@ export function Pricing() {
                 <Button
                   variant='outline'
                   onClick={toggleMobileFilters}
-                  className='order-2 shrink-0 gap-2 sm:hidden'
+                  className='shrink-0 gap-2 sm:hidden'
                 >
                   <Filter className='h-4 w-4' />
                   <span className='sm:inline'>Filters</span>
@@ -274,23 +294,42 @@ export function Pricing() {
                 </Button>
 
                 {/* View Toggle - Desktop Only */}
-                <div className='order-3 hidden sm:order-2 sm:block'>
+                <div className='hidden sm:block'>
                   <ViewToggle value={viewMode} onChange={setViewMode} />
                 </div>
 
-                {/* Token Unit Toggle */}
-                <div className='order-4 w-full sm:order-3 sm:w-auto'>
-                  <TokenUnitToggle
-                    value={tokenUnit}
-                    onChange={setTokenUnit}
-                    className='w-full sm:w-auto'
+                {/* Price Display Toggle - Mobile Only (below search) */}
+                <div className='w-full sm:hidden'>
+                  <PriceDisplayToggle
+                    value={showRechargePrice}
+                    onChange={setShowRechargePrice}
+                    className='w-full'
                   />
                 </div>
 
-                {/* Sort Dropdown - Desktop */}
-                <div className='hidden shrink-0 sm:order-4 sm:block'>
-                  <SortDropdown value={sortBy} onValueChange={setSortBy} />
+                {/* Token Unit Toggle - Mobile Only (below price toggle) */}
+                <div className='w-full sm:hidden'>
+                  <TokenUnitToggle
+                    value={tokenUnit}
+                    onChange={setTokenUnit}
+                    className='w-full'
+                  />
                 </div>
+              </div>
+
+              {/* Row 2: Display/Formatting Controls - Desktop Only */}
+              <div className='hidden sm:flex sm:items-center sm:gap-3'>
+                {/* Price Display Toggle */}
+                <PriceDisplayToggle
+                  value={showRechargePrice}
+                  onChange={setShowRechargePrice}
+                />
+
+                {/* Token Unit Toggle */}
+                <TokenUnitToggle value={tokenUnit} onChange={setTokenUnit} />
+
+                {/* Sort Dropdown */}
+                <SortDropdown value={sortBy} onValueChange={setSortBy} />
               </div>
 
               {/* Active Filter Tags (Desktop) */}
@@ -342,23 +381,26 @@ export function Pricing() {
                   models={filteredModels}
                   onModelClick={handleModelClick}
                   priceRate={priceRate}
-                  usdExchangeRate={usdExchangeRate}
+                  usdExchangeRate={effectiveUsdExchangeRate}
                   tokenUnit={tokenUnit}
+                  showRechargePrice={showRechargePrice}
                 />
               ) : viewMode === VIEW_MODES.TABLE ? (
                 <PricingTable
                   models={filteredModels}
                   priceRate={priceRate}
-                  usdExchangeRate={usdExchangeRate}
+                  usdExchangeRate={effectiveUsdExchangeRate}
                   tokenUnit={tokenUnit}
+                  showRechargePrice={showRechargePrice}
                 />
               ) : (
                 <VirtualModelList
                   models={filteredModels}
                   onModelClick={handleModelClick}
                   priceRate={priceRate}
-                  usdExchangeRate={usdExchangeRate}
+                  usdExchangeRate={effectiveUsdExchangeRate}
                   tokenUnit={tokenUnit}
+                  showRechargePrice={showRechargePrice}
                 />
               )
             ) : (

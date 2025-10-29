@@ -26,6 +26,7 @@ export interface PricingColumnsOptions {
   tokenUnit?: TokenUnit
   priceRate?: number
   usdExchangeRate?: number
+  showRechargePrice?: boolean
 }
 
 /**
@@ -67,6 +68,7 @@ export function getPricingColumns(
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
+    showRechargePrice = false,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
@@ -118,7 +120,7 @@ export function getPricingColumns(
               model,
               'input',
               tokenUnit,
-              false,
+              showRechargePrice,
               priceRate,
               usdExchangeRate
             )
@@ -128,7 +130,7 @@ export function getPricingColumns(
               model,
               'output',
               tokenUnit,
-              false,
+              showRechargePrice,
               priceRate,
               usdExchangeRate
             )
@@ -146,7 +148,12 @@ export function getPricingColumns(
           )
         } else {
           const price = stripTrailingZeros(
-            formatRequestPrice(model, false, priceRate, usdExchangeRate)
+            formatRequestPrice(
+              model,
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate
+            )
           )
 
           return (

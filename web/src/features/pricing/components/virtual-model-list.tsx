@@ -16,6 +16,7 @@ export interface VirtualModelListProps {
   priceRate?: number
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
+  showRechargePrice?: boolean
 }
 
 export function VirtualModelList({
@@ -26,6 +27,7 @@ export function VirtualModelList({
   priceRate = 1,
   usdExchangeRate = 1,
   tokenUnit = DEFAULT_TOKEN_UNIT,
+  showRechargePrice = false,
 }: VirtualModelListProps) {
   // Window-based virtualizer - page scroll controls virtualization
   const virtualizer = useWindowVirtualizer({
@@ -80,6 +82,7 @@ export function VirtualModelList({
                 priceRate={priceRate}
                 usdExchangeRate={usdExchangeRate}
                 tokenUnit={tokenUnit}
+                showRechargePrice={showRechargePrice}
                 onClick={() => onModelClick(model.model_name || '')}
               />
             </div>

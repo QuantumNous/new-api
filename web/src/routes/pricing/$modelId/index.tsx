@@ -11,6 +11,7 @@ const modelDetailsSearchSchema = z.object({
   endpointType: z.string().optional(),
   tag: z.string().optional(),
   tokenUnit: z.enum(['M', 'K']).optional(),
+  rechargePrice: z.boolean().optional(),
 })
 
 export const Route = createFileRoute('/pricing/$modelId/')({

@@ -30,6 +30,7 @@ export interface PricingTableProps {
   priceRate?: number
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
+  showRechargePrice?: boolean
 }
 
 export function PricingTable({
@@ -38,6 +39,7 @@ export function PricingTable({
   priceRate = 1,
   usdExchangeRate = 1,
   tokenUnit = DEFAULT_TOKEN_UNIT,
+  showRechargePrice = false,
 }: PricingTableProps) {
   const navigate = useNavigate({ from: '/pricing' })
   const [pagination, setPagination] = useState<PaginationState>({
@@ -52,8 +54,9 @@ export function PricingTable({
         tokenUnit,
         priceRate,
         usdExchangeRate,
+        showRechargePrice,
       }),
-    [tokenUnit, priceRate, usdExchangeRate]
+    [tokenUnit, priceRate, usdExchangeRate, showRechargePrice]
   )
 
   // React Table instance

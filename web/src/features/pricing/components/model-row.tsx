@@ -17,6 +17,7 @@ export interface ModelRowProps {
   priceRate?: number
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
+  showRechargePrice?: boolean
 }
 
 export function ModelRow({
@@ -25,6 +26,7 @@ export function ModelRow({
   priceRate = 1,
   usdExchangeRate = 1,
   tokenUnit = DEFAULT_TOKEN_UNIT,
+  showRechargePrice = false,
 }: ModelRowProps) {
   const tags = parseTags(model.tags).slice(0, MAX_TAGS_DISPLAY)
   const isTokenBased = isTokenBasedModel(model)
@@ -93,7 +95,7 @@ export function ModelRow({
                       model,
                       'input',
                       tokenUnit,
-                      false,
+                      showRechargePrice,
                       priceRate,
                       usdExchangeRate
                     )}
@@ -113,7 +115,7 @@ export function ModelRow({
                       model,
                       'output',
                       tokenUnit,
-                      false,
+                      showRechargePrice,
                       priceRate,
                       usdExchangeRate
                     )}
@@ -131,7 +133,12 @@ export function ModelRow({
                   Price
                 </span>
                 <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
-                  {formatRequestPrice(model, false, priceRate, usdExchangeRate)}
+                  {formatRequestPrice(
+                    model,
+                    showRechargePrice,
+                    priceRate,
+                    usdExchangeRate
+                  )}
                 </span>
               </div>
               <span className='text-muted-foreground text-[10px] sm:text-xs'>

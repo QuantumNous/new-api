@@ -141,6 +141,7 @@ function GroupPricingSection({
   priceRate,
   usdExchangeRate,
   tokenUnit,
+  showRechargePrice = false,
 }: {
   model: PricingModel
   groupRatio: Record<string, number>
@@ -148,6 +149,7 @@ function GroupPricingSection({
   priceRate: number
   usdExchangeRate: number
   tokenUnit: TokenUnit
+  showRechargePrice?: boolean
 }) {
   const availableGroups = useMemo(() => {
     return getAvailableGroups(model, usableGroup || {})
@@ -230,7 +232,7 @@ function GroupPricingSection({
                           group,
                           'input',
                           tokenUnit,
-                          false,
+                          showRechargePrice,
                           priceRate,
                           usdExchangeRate,
                           groupRatio
@@ -242,7 +244,7 @@ function GroupPricingSection({
                           group,
                           'output',
                           tokenUnit,
-                          false,
+                          showRechargePrice,
                           priceRate,
                           usdExchangeRate,
                           groupRatio
@@ -254,7 +256,7 @@ function GroupPricingSection({
                       {formatFixedPrice(
                         model,
                         group,
-                        false,
+                        showRechargePrice,
                         priceRate,
                         usdExchangeRate,
                         groupRatio
@@ -367,6 +369,7 @@ export function ModelDetails() {
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
+          showRechargePrice={search.rechargePrice ?? false}
         />
       </div>
     </PublicLayout>
