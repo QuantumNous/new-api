@@ -4,9 +4,16 @@ import {
   type Row,
   type Table,
 } from '@tanstack/react-table'
+import { Database } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import { TableEmpty } from './table-empty'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -79,11 +86,15 @@ export function MobileCardList<TData>({
   if (!rows || rows.length === 0) {
     return (
       <div className='rounded-md border p-8'>
-        <TableEmpty
-          colSpan={1}
-          title={emptyTitle}
-          description={emptyDescription}
-        />
+        <Empty className='border-none p-0'>
+          <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <Database className='size-6' />
+            </EmptyMedia>
+            <EmptyTitle>{emptyTitle}</EmptyTitle>
+            <EmptyDescription>{emptyDescription}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </div>
     )
   }
