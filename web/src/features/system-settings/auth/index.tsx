@@ -5,6 +5,7 @@ import type { AuthSettings } from '../types'
 import { BasicAuthSection } from './basic-auth-section'
 import { BotProtectionSection } from './bot-protection-section'
 import { OAuthSection } from './oauth-section'
+import { PasskeySection } from './passkey-section'
 
 const defaultAuthSettings: AuthSettings = {
   PasswordLoginEnabled: true,
@@ -38,6 +39,13 @@ const defaultAuthSettings: AuthSettings = {
   TurnstileCheckEnabled: false,
   TurnstileSiteKey: '',
   TurnstileSecretKey: '',
+  'passkey.enabled': false,
+  'passkey.rp_display_name': '',
+  'passkey.rp_id': '',
+  'passkey.origins': '',
+  'passkey.allow_insecure_origin': false,
+  'passkey.user_verification': 'preferred',
+  'passkey.attachment_preference': '',
 }
 
 export function AuthSettings() {
@@ -101,6 +109,28 @@ export function AuthSettings() {
               WeChatServerAddress: settings.WeChatServerAddress,
               WeChatServerToken: settings.WeChatServerToken,
               WeChatAccountQRCodeImageURL: settings.WeChatAccountQRCodeImageURL,
+            }}
+          />
+
+          <PasskeySection
+            defaultValues={{
+              'passkey.enabled': settings['passkey.enabled'],
+              'passkey.rp_display_name': settings['passkey.rp_display_name'],
+              'passkey.rp_id': settings['passkey.rp_id'],
+              'passkey.origins': settings['passkey.origins'],
+              'passkey.allow_insecure_origin':
+                settings['passkey.allow_insecure_origin'],
+              'passkey.user_verification': settings[
+                'passkey.user_verification'
+              ] as 'required' | 'preferred' | 'discouraged',
+              'passkey.attachment_preference': (settings[
+                'passkey.attachment_preference'
+              ] === ''
+                ? 'none'
+                : settings['passkey.attachment_preference']) as
+                | 'none'
+                | 'platform'
+                | 'cross-platform',
             }}
           />
 

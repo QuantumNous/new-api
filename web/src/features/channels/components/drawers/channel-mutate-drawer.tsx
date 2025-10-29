@@ -10,9 +10,11 @@ import {
   FileText,
   Eraser,
   Plus,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,10 +50,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
 import {
+  SecureVerificationDialog,
+  useSecureVerification,
+} from '@/features/auth/secure-verification'
+import {
   createChannel,
   fetchModels,
   getAllModels,
   getChannel,
+  getChannelKey,
   getGroups,
   getPrefillGroups,
   updateChannel,
@@ -116,8 +123,11 @@ export function ChannelMutateDrawer({
   const [customModel, setCustomModel] = useState('')
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
+  const [channelKey, setChannelKey] = useState<string | null>(null)
+  const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
 
   const isEditing = Boolean(currentRow)
+  const channelId = currentRow?.id ?? null
 
   // Fetch channel details if editing
   const { data: channelData } = useQuery({
@@ -143,6 +153,28 @@ export function ChannelMutateDrawer({
     queryKey: ['prefill_groups', 'model'],
     queryFn: () => getPrefillGroups('model'),
   })
+
+  const { copyToClipboard } = useCopyToClipboard()
+
+  const {
+    open: verificationOpen,
+    methods: verificationMethods,
+    state: verificationState,
+    executeVerification,
+    withVerification,
+    cancel: cancelVerification,
+    setCode: setVerificationCode,
+    switchMethod: switchVerificationMethod,
+  } = useSecureVerification()
+
+  useEffect(() => {
+    if (!open) {
+      setChannelKey(null)
+      setIsChannelKeyLoading(false)
+    } else if (channelId) {
+      setChannelKey(null)
+    }
+  }, [open, channelId])
 
   // Check if this is a multi-key channel
   const isMultiKeyChannel =
@@ -281,6 +313,44 @@ export function ChannelMutateDrawer({
       )
     }
   }
+
+  const fetchChannelKey = useCallback(async () => {
+    if (!channelId) {
+      throw new Error('Channel is not selected')
+    }
+
+    setIsChannelKeyLoading(true)
+    try {
+      const res = await getChannelKey(channelId)
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to fetch channel key')
+      }
+
+      const keyValue = res.data?.key ?? ''
+      setChannelKey(keyValue)
+      toast.success('Channel key unlocked')
+      return res
+    } finally {
+      setIsChannelKeyLoading(false)
+    }
+  }, [channelId])
+
+  const handleRevealKey = useCallback(async () => {
+    if (!channelId) return
+
+    try {
+      await withVerification(fetchChannelKey, {
+        preferredMethod: 'passkey',
+        title: 'Verify to view channel key',
+        description:
+          'Use Passkey or 2FA to confirm your identity before revealing this channel key.',
+      })
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message)
+      }
+    }
+  }, [channelId, withVerification, fetchChannelKey])
 
   // Unified function to update models
   const updateModels = useCallback(
@@ -1113,6 +1183,58 @@ export function ChannelMutateDrawer({
                           )}
                         </div>
                       </FormDescription>
+                      {isEditing && (
+                        <div className='mt-4 space-y-3 rounded-lg border border-dashed p-4'>
+                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                            <div>
+                              <p className='text-sm font-medium'>Current key</p>
+                              <p className='text-muted-foreground text-xs'>
+                                Verification required to reveal the saved key.
+                              </p>
+                            </div>
+                            <div className='flex items-center gap-2'>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={handleRevealKey}
+                                disabled={
+                                  isChannelKeyLoading ||
+                                  verificationState.loading
+                                }
+                              >
+                                {isChannelKeyLoading ||
+                                verificationState.loading ? (
+                                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                ) : (
+                                  <Eye className='mr-2 h-4 w-4' />
+                                )}
+                                Reveal key
+                              </Button>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='sm'
+                                onClick={async () => {
+                                  if (channelKey) {
+                                    await copyToClipboard(channelKey)
+                                  }
+                                }}
+                                disabled={!channelKey}
+                              >
+                                <Copy className='mr-2 h-4 w-4' />
+                                Copy
+                              </Button>
+                            </div>
+                          </div>
+                          <Input
+                            readOnly
+                            value={channelKey ?? ''}
+                            placeholder='Hidden — verify to reveal'
+                            className='font-mono'
+                          />
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1825,6 +1947,23 @@ export function ChannelMutateDrawer({
           }}
         />
       )}
+
+      <SecureVerificationDialog
+        open={verificationOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelVerification()
+          }
+        }}
+        methods={verificationMethods}
+        state={verificationState}
+        onVerify={async (method, code) => {
+          await executeVerification(method, code)
+        }}
+        onCancel={cancelVerification}
+        onCodeChange={setVerificationCode}
+        onMethodChange={switchVerificationMethod}
+      />
     </>
   )
 }

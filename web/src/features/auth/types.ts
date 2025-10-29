@@ -82,6 +82,7 @@ export interface SystemStatus {
     linuxdo_oauth?: boolean
     linuxdo_client_id?: string
     telegram_oauth?: boolean
+    passkey_login?: boolean
     wechat_login?: boolean
     turnstile_check?: boolean
     turnstile_site_key?: string
@@ -111,6 +112,7 @@ export interface SystemStatus {
   linuxdo_oauth?: boolean
   linuxdo_client_id?: string
   telegram_oauth?: boolean
+  passkey_login?: boolean
   wechat_login?: boolean
   turnstile_check?: boolean
   turnstile_site_key?: string

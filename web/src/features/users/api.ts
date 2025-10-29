@@ -85,6 +85,22 @@ export async function manageUser(
 }
 
 /**
+ * Reset user's Passkey registration
+ */
+export async function resetUserPasskey(id: number): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/${id}/reset_passkey`)
+  return res.data
+}
+
+/**
+ * Reset user's Two-Factor Authentication setup
+ */
+export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/${id}/2fa`)
+  return res.data
+}
+
+/**
  * Get all available groups
  */
 export async function getGroups(): Promise<ApiResponse<string[]>> {

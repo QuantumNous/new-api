@@ -1,4 +1,5 @@
 import { AppHeader, Main } from '@/components/layout'
+import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
@@ -25,6 +26,7 @@ export function Profile() {
             {/* Left Column - Security & 2FA */}
             <div className='space-y-6'>
               <ProfileSecurityCard profile={profile} loading={loading} />
+              <PasskeyCard loading={loading} />
               <TwoFACard loading={loading} />
             </div>
 

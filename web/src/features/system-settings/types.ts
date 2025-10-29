@@ -88,6 +88,13 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
+  'passkey.enabled': boolean
+  'passkey.rp_display_name': string
+  'passkey.rp_id': string
+  'passkey.origins': string
+  'passkey.allow_insecure_origin': boolean
+  'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
+  'passkey.attachment_preference': '' | 'platform' | 'cross-platform'
 }
 
 export type ContentSettings = {
