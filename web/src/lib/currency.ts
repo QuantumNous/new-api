@@ -142,6 +142,11 @@ function mergeOptions(
   }
 }
 
+function removeTrailingZeros(str: string): string {
+  if (!str.includes('.')) return str
+  return str.replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '')
+}
+
 function formatNumberWithSuffix(
   value: number,
   digitsLarge: number,
@@ -151,11 +156,11 @@ function formatNumberWithSuffix(
   const abs = Math.abs(value)
   if (abbreviate && abs >= 1000) {
     const result = value / 1000
-    return `${result.toFixed(1)}k`
+    return removeTrailingZeros(result.toFixed(1)) + 'k'
   }
 
   const digits = abs >= 1 ? digitsLarge : digitsSmall
-  return value.toFixed(digits)
+  return removeTrailingZeros(value.toFixed(digits))
 }
 
 function adjustForMinimum(
@@ -192,16 +197,17 @@ function formatCurrencyValue(
   const adjustedValue = adjustForMinimum(value, digits, options.minimumNonZero)
 
   if (meta.kind === 'currency') {
-    return new Intl.NumberFormat(undefined, {
+    const formatted = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: meta.currencyCode,
-      minimumFractionDigits: digits,
+      minimumFractionDigits: 0,
       maximumFractionDigits: digits,
     }).format(adjustedValue)
+    return formatted
   }
 
   const decimal = new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: digits,
+    minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   }).format(adjustedValue)
 
