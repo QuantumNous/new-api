@@ -260,6 +260,7 @@ export const getChannelsColumns = ({
   refresh,
   activePage,
   channels,
+  checkOllamaVersion,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
 }) => {
@@ -568,6 +569,15 @@ export const getChannelsColumns = ({
               },
             },
           ];
+
+          if (record.type === 4) {
+            moreMenuItems.unshift({
+              node: 'item',
+              name: t('测活'),
+              type: 'tertiary',
+              onClick: () => checkOllamaVersion(record),
+            });
+          }
 
           return (
             <Space wrap>

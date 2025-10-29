@@ -406,6 +406,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 	// 读取流式响应
 	scanner := bufio.NewScanner(response.Body)
+	successful := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.TrimSpace(line) == "" {
@@ -421,14 +422,22 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 			progressCallback(pullResponse)
 		}
 
-		// 检查是否完成
-		if pullResponse.Status == "success" {
+		// 检查是否出现错误或完成
+		if strings.EqualFold(pullResponse.Status, "error") {
+			return fmt.Errorf("拉取模型失败: %s", strings.TrimSpace(line))
+		}
+		if strings.EqualFold(pullResponse.Status, "success") {
+			successful = true
 			break
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("读取流式响应失败: %v", err)
+	}
+
+	if !successful {
+		return fmt.Errorf("拉取模型未完成: 未收到成功状态")
 	}
 
 	return nil
@@ -470,4 +479,52 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 	}
 
 	return nil
+}
+
+func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
+	trimmedBase := strings.TrimRight(baseURL, "/")
+	if trimmedBase == "" {
+		return "", fmt.Errorf("baseURL 为空")
+	}
+
+	url := fmt.Sprintf("%s/api/version", trimmedBase)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	request, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("创建请求失败: %v", err)
+	}
+
+	if apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("查询版本失败 %d: %s", response.StatusCode, string(body))
+	}
+
+	var versionResp struct {
+		Version string `json:"version"`
+	}
+
+	if err := json.Unmarshal(body, &versionResp); err != nil {
+		return "", fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	if versionResp.Version == "" {
+		return "", fmt.Errorf("未返回版本信息")
+	}
+
+	return versionResp.Version, nil
 }

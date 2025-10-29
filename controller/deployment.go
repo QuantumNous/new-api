@@ -288,6 +288,7 @@ func GetDeployment(c *gin.Context) {
 		"model_version":   "",
 		"status":          strings.ToLower(details.Status),
 		"instance_count":  details.TotalContainers,
+		"hardware_id":     details.HardwareID,
 		"resource_config": map[string]interface{}{
 			"cpu":    "",
 			"memory": "",
@@ -488,7 +489,7 @@ func CreateDeployment(c *gin.Context) {
 }
 
 func GetHardwareTypes(c *gin.Context) {
-	client, ok := getIoClient(c)
+	client, ok := getIoEnterpriseClient(c)
 	if !ok {
 		return
 	}
@@ -532,7 +533,7 @@ func GetLocations(c *gin.Context) {
 }
 
 func GetAvailableReplicas(c *gin.Context) {
-	client, ok := getIoClient(c)
+	client, ok := getIoEnterpriseClient(c)
 	if !ok {
 		return
 	}
@@ -568,7 +569,7 @@ func GetAvailableReplicas(c *gin.Context) {
 }
 
 func GetPriceEstimation(c *gin.Context) {
-	client, ok := getIoClient(c)
+	client, ok := getIoEnterpriseClient(c)
 	if !ok {
 		return
 	}
@@ -589,7 +590,7 @@ func GetPriceEstimation(c *gin.Context) {
 }
 
 func CheckClusterNameAvailability(c *gin.Context) {
-	client, ok := getIoClient(c)
+	client, ok := getIoEnterpriseClient(c)
 	if !ok {
 		return
 	}

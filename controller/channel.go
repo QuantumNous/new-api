@@ -1850,3 +1850,54 @@ func OllamaDeleteModel(c *gin.Context) {
 		"message": fmt.Sprintf("Model %s deleted successfully", req.ModelName),
 	})
 }
+
+// OllamaVersion 获取 Ollama 服务版本信息
+func OllamaVersion(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid channel id",
+		})
+		return
+	}
+
+	channel, err := model.GetChannelById(id, true)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Channel not found",
+		})
+		return
+	}
+
+	if channel.Type != constant.ChannelTypeOllama {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "This operation is only supported for Ollama channels",
+		})
+		return
+	}
+
+	baseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.GetBaseURL() != "" {
+		baseURL = channel.GetBaseURL()
+	}
+
+	key := strings.Split(channel.Key, "\n")[0]
+	version, err := ollama.FetchOllamaVersion(baseURL, key)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("获取Ollama版本失败: %s", err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"version": version,
+		},
+	})
+}

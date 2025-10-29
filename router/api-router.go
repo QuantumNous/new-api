@@ -152,6 +152,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/ollama/pull", controller.OllamaPullModel)
 			channelRoute.POST("/ollama/pull/stream", controller.OllamaPullModelStream)
 			channelRoute.DELETE("/ollama/delete", controller.OllamaDeleteModel)
+			channelRoute.GET("/ollama/version/:id", controller.OllamaVersion)
 			channelRoute.POST("/batch/tag", controller.BatchSetChannelTag)
 			channelRoute.GET("/tag/models", controller.GetTagModels)
 			channelRoute.POST("/copy/:id", controller.CopyChannel)

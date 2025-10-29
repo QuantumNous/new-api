@@ -448,7 +448,7 @@ export const getDeploymentsColumns = ({
                 text: t('查看详情'),
                 onClick: () => onViewDetails?.(record),
                 type: 'secondary',
-                theme: 'light',
+                theme: 'borderless',
               };
             case 'failed':
             case 'error':
@@ -580,13 +580,13 @@ export const getDeploymentsColumns = ({
             </Dropdown.Item>,
           );
         }
-        if (!isEnded && normalizedStatus === 'running') {
-          configItems.push(
-            <Dropdown.Item key="update-config" onClick={() => onUpdateConfig?.(record)} icon={<FaCog />}>
-              {t('更新配置')}
-            </Dropdown.Item>,
-          );
-        }
+        // if (!isEnded && normalizedStatus === 'running') {
+        //   configItems.push(
+        //     <Dropdown.Item key="update-config" onClick={() => onUpdateConfig?.(record)} icon={<FaCog />}>
+        //       {t('更新配置')}
+        //     </Dropdown.Item>,
+        //   );
+        // }
 
         if (configItems.length > 0) {
           dropdownItems.push(<Dropdown.Divider key="config-divider" />);
