@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { Button } from '@/components/ui/button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
@@ -14,6 +15,8 @@ import {
   VirtualModelList,
   SortDropdown,
   TokenUnitToggle,
+  PricingTable,
+  ViewToggle,
 } from './components'
 import {
   SORT_OPTIONS,
@@ -22,6 +25,8 @@ import {
   FILTER_ALL,
   EXCLUDED_GROUPS,
   DEFAULT_TOKEN_UNIT,
+  VIEW_MODES,
+  type ViewMode,
 } from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
@@ -35,6 +40,7 @@ import type { TokenUnit } from './types'
 export function Pricing() {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const {
     models,
     vendors,
@@ -48,11 +54,21 @@ export function Pricing() {
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
   )
 
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    search.view === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
+  )
+
   useEffect(() => {
     const nextUnit =
       search.tokenUnit === 'K' ? ('K' as TokenUnit) : DEFAULT_TOKEN_UNIT
     setTokenUnit((prev) => (prev === nextUnit ? prev : nextUnit))
   }, [search.tokenUnit])
+
+  useEffect(() => {
+    const nextView =
+      search.view === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
+    setViewMode((prev) => (prev === nextView ? prev : nextView))
+  }, [search.view])
 
   const {
     searchInput,
@@ -99,6 +115,7 @@ export function Pricing() {
       params.endpointType = endpointTypeFilter
     if (tagFilter !== FILTER_ALL) params.tag = tagFilter
     if (tokenUnit !== DEFAULT_TOKEN_UNIT) params.tokenUnit = tokenUnit
+    if (viewMode === VIEW_MODES.TABLE) params.view = 'table'
 
     navigate({
       to: '/pricing',
@@ -115,6 +132,7 @@ export function Pricing() {
     tagFilter,
     navigate,
     tokenUnit,
+    viewMode,
   ])
 
   const {
@@ -255,8 +273,13 @@ export function Pricing() {
                   )}
                 </Button>
 
+                {/* View Toggle - Desktop Only */}
+                <div className='order-3 hidden sm:order-2 sm:block'>
+                  <ViewToggle value={viewMode} onChange={setViewMode} />
+                </div>
+
                 {/* Token Unit Toggle */}
-                <div className='order-3 w-full sm:order-2 sm:w-auto'>
+                <div className='order-4 w-full sm:order-3 sm:w-auto'>
                   <TokenUnitToggle
                     value={tokenUnit}
                     onChange={setTokenUnit}
@@ -265,7 +288,7 @@ export function Pricing() {
                 </div>
 
                 {/* Sort Dropdown - Desktop */}
-                <div className='hidden shrink-0 sm:order-3 sm:block'>
+                <div className='hidden shrink-0 sm:order-4 sm:block'>
                   <SortDropdown value={sortBy} onValueChange={setSortBy} />
                 </div>
               </div>
@@ -312,15 +335,32 @@ export function Pricing() {
               />
             </div>
 
-            {/* Model List */}
+            {/* Model List or Table */}
             {filteredModels.length > 0 ? (
-              <VirtualModelList
-                models={filteredModels}
-                onModelClick={handleModelClick}
-                priceRate={priceRate}
-                usdExchangeRate={usdExchangeRate}
-                tokenUnit={tokenUnit}
-              />
+              isMobile ? (
+                <VirtualModelList
+                  models={filteredModels}
+                  onModelClick={handleModelClick}
+                  priceRate={priceRate}
+                  usdExchangeRate={usdExchangeRate}
+                  tokenUnit={tokenUnit}
+                />
+              ) : viewMode === VIEW_MODES.TABLE ? (
+                <PricingTable
+                  models={filteredModels}
+                  priceRate={priceRate}
+                  usdExchangeRate={usdExchangeRate}
+                  tokenUnit={tokenUnit}
+                />
+              ) : (
+                <VirtualModelList
+                  models={filteredModels}
+                  onModelClick={handleModelClick}
+                  priceRate={priceRate}
+                  usdExchangeRate={usdExchangeRate}
+                  tokenUnit={tokenUnit}
+                />
+              )
             ) : (
               <EmptyState
                 searchQuery={searchInput}

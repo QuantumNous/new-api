@@ -7,6 +7,34 @@ import type { PricingModel, TokenUnit, PriceType } from '../types'
 // ----------------------------------------------------------------------------
 
 /**
+ * Strip trailing zeros from formatted price string while preserving currency symbols
+ */
+export function stripTrailingZeros(formatted: string): string {
+  // Match currency symbol at start, number, and potential 'k' suffix
+  const match = formatted.match(/^([^\d-]*)([-\d,]+\.?\d*)(k?)$/)
+  if (!match) return formatted
+
+  const [, symbol, number, suffix] = match
+
+  // Remove commas for processing
+  const cleanNumber = number.replace(/,/g, '')
+
+  // Convert to number and back to remove trailing zeros
+  const parsed = parseFloat(cleanNumber)
+  if (isNaN(parsed)) return formatted
+
+  // Convert to string, which automatically removes trailing zeros
+  let result = parsed.toString()
+
+  // If the result is in scientific notation, format it properly
+  if (result.includes('e')) {
+    result = parsed.toFixed(20).replace(/\.?0+$/, '')
+  }
+
+  return `${symbol}${result}${suffix}`
+}
+
+/**
  * Find minimum group ratio from enabled groups
  */
 function getMinGroupRatio(
