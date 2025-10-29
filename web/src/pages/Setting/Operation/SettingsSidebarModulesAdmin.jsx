@@ -62,6 +62,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       enabled: true,
       channel: true,
       models: true,
+      deployment: true,
       redemption: true,
       user: true,
       setting: true,
@@ -121,6 +122,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         enabled: true,
         channel: true,
         models: true,
+        deployment: true,
         redemption: true,
         user: true,
         setting: true,
@@ -188,6 +190,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             enabled: true,
             channel: true,
             models: true,
+            deployment: true,
             redemption: true,
             user: true,
             setting: true,
@@ -249,6 +252,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
+        { key: 'deployment', title: t('模型部署'), description: t('模型部署管理') },
         {
           key: 'redemption',
           title: t('兑换码管理'),

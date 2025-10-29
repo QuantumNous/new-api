@@ -43,7 +43,8 @@ import { IconTreeTriangleDown, IconMore } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
-const renderType = (type, channelInfo = undefined, t) => {
+const renderType = (type, record = {}, t) => {
+  const channelInfo = record?.channel_info;
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
     type2label[CHANNEL_OPTIONS[i].value] = CHANNEL_OPTIONS[i];
@@ -67,10 +68,64 @@ const renderType = (type, channelInfo = undefined, t) => {
       );
   }
 
-  return (
+  const typeTag = (
     <Tag color={type2label[type]?.color} shape='circle' prefixIcon={icon}>
       {type2label[type]?.label}
     </Tag>
+  );
+
+  let ionetMeta = null;
+  if (record?.other_info) {
+    try {
+      const parsed = JSON.parse(record.other_info);
+      if (parsed && typeof parsed === 'object' && parsed.source === 'ionet') {
+        ionetMeta = parsed;
+      }
+    } catch (error) {
+      // ignore invalid metadata
+    }
+  }
+
+  if (!ionetMeta) {
+    return typeTag;
+  }
+
+  const handleNavigate = (event) => {
+    event?.stopPropagation?.();
+    if (!ionetMeta?.deployment_id) {
+      return;
+    }
+    const targetUrl = `/console/model-deployments?deployment=${ionetMeta.deployment_id}`;
+    window.open(targetUrl, '_blank', 'noopener');
+  };
+
+  return (
+    <Space spacing={6}>
+      {typeTag}
+      <Tooltip
+        content={
+          <div className='max-w-xs'>
+            <div className='text-xs text-gray-600'>{t('来源于 IO.NET 部署')}</div>
+            {ionetMeta?.deployment_id && (
+              <div className='text-xs text-gray-500 mt-1'>
+                {t('部署 ID')}: {ionetMeta.deployment_id}
+              </div>
+            )}
+          </div>
+        }
+      >
+        <span>
+          <Tag
+            color='purple'
+            type='light'
+            className='cursor-pointer'
+            onClick={handleNavigate}
+          >
+            IO.NET
+          </Tag>
+        </span>
+      </Tooltip>
+    </Space>
   );
 };
 
@@ -280,12 +335,7 @@ export const getChannelsColumns = ({
       dataIndex: 'type',
       render: (text, record, index) => {
         if (record.children === undefined) {
-          if (record.channel_info) {
-            if (record.channel_info.is_multi_key) {
-              return <>{renderType(text, record.channel_info, t)}</>;
-            }
-          }
-          return <>{renderType(text, undefined, t)}</>;
+          return <>{renderType(text, record, t)}</>;
         } else {
           return <>{renderTagType(t)}</>;
         }

@@ -45,28 +45,43 @@ const ModelSelectModal = ({
   onCancel,
 }) => {
   const { t } = useTranslation();
-  const [checkedList, setCheckedList] = useState(selected);
+
+  const getModelName = (model) => {
+    if (!model) return '';
+    if (typeof model === 'string') return model;
+    if (typeof model === 'object' && model.model_name) return model.model_name;
+    return String(model ?? '');
+  };
+
+  const normalizedSelected = (selected || []).map(getModelName);
+
+  const [checkedList, setCheckedList] = useState(normalizedSelected);
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState('new');
 
   const isMobile = useIsMobile();
 
-  const filteredModels = models.filter((m) =>
-    m.toLowerCase().includes(keyword.toLowerCase()),
+  const safeKeyword = keyword ? keyword.toLowerCase() : '';
+  const normalizedModels = (models || [])
+    .map(getModelName)
+    .filter((name) => typeof name === 'string' && name.trim() !== '');
+
+  const filteredModels = normalizedModels.filter((name) =>
+    name.toLowerCase().includes(safeKeyword),
   );
 
   // 分类模型：新获取的模型和已有模型
-  const newModels = filteredModels.filter((model) => !selected.includes(model));
+  const newModels = filteredModels.filter((model) => !normalizedSelected.includes(model));
   const existingModels = filteredModels.filter((model) =>
-    selected.includes(model),
+    normalizedSelected.includes(model),
   );
 
   // 同步外部选中值
   useEffect(() => {
     if (visible) {
-      setCheckedList(selected);
+      setCheckedList(normalizedSelected);
     }
-  }, [visible, selected]);
+  }, [visible, normalizedSelected]);
 
   // 当模型列表变化时，设置默认tab
   useEffect(() => {
