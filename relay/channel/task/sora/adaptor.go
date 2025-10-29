@@ -49,6 +49,7 @@ type responseTask struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
+	VideoUrl string `json:"video_url,omitempty"`
 }
 
 // ============================
