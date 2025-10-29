@@ -151,9 +151,13 @@ export function buildApiParams(config: {
 }): GetLogsParams {
   const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
 
-  // Helper to process type parameter (array or single value)
-  const processType = (value: any) =>
-    Array.isArray(value) && value.length === 1 ? Number(value[0]) : 0
+  // Helper to process type parameter (single value from array)
+  const processType = (value: any) => {
+    if (Array.isArray(value) && value.length === 1) {
+      return Number(value[0])
+    }
+    return undefined
+  }
 
   // Build base params from search params
   const params: GetLogsParams = {

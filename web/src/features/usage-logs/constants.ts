@@ -64,7 +64,7 @@ export const TIME_RANGE_PRESETS = [
  * Log types configuration for filtering and display
  */
 export const LOG_TYPES = [
-  { value: 0, label: 'All', color: 'default' },
+  { value: 0, label: 'Unknown', color: 'default' },
   { value: 1, label: 'Top-up', color: 'cyan' },
   { value: 2, label: 'Consume', color: 'green' },
   { value: 3, label: 'Manage', color: 'orange' },
@@ -74,9 +74,9 @@ export const LOG_TYPES = [
 ] as const
 
 /**
- * Log types for DataTableToolbar filters (exclude 'All')
+ * Log types for DataTableToolbar filters (single select mode)
  */
-export const LOG_TYPE_FILTERS = LOG_TYPES.slice(1).map((type) => ({
+export const LOG_TYPE_FILTERS = LOG_TYPES.map((type) => ({
   label: type.label,
   value: String(type.value),
 }))
