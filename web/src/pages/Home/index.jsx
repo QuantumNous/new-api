@@ -177,9 +177,9 @@ const Home = () => {
                       </>
                     ) : (
                       <>
-                        统一的
+                      {t('统一的')}
                         <br />
-                        <span className='shine-text'>大模型接口网关</span>
+                        <span className='shine-text'>{t('大模型接口网关')}</span>
                       </>
                     )}
                   </h1>

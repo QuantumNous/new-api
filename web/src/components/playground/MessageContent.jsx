@@ -284,7 +284,7 @@ const MessageContent = ({
                           className='text-red-500 text-sm p-2 bg-red-50 rounded-lg border border-red-200'
                           style={{ display: 'none' }}
                         >
-                          图片加载失败: {imgItem.image_url.url}
+                          {t('图片加载失败:')} {imgItem.image_url.url}
                         </div>
                       </div>
                     ))}
