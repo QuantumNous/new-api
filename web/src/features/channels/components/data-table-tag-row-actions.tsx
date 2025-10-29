@@ -1,7 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { type Row } from '@tanstack/react-table'
-import { Power, PowerOff, Pencil, Edit } from 'lucide-react'
+import { MoreHorizontal, Power, PowerOff, Pencil, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { handleEnableTagChannels, handleDisableTagChannels } from '../lib'
 import type { Channel } from '../types'
 import { useChannels } from './channels-provider'
@@ -36,23 +44,51 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
   }
 
   return (
-    <div className='flex items-center gap-2'>
-      <Button variant='ghost' size='sm' onClick={handleEnableAll}>
-        <Power className='mr-1.5 h-3.5 w-3.5' />
-        Enable All
-      </Button>
-      <Button variant='ghost' size='sm' onClick={handleDisableAll}>
-        <PowerOff className='mr-1.5 h-3.5 w-3.5' />
-        Disable All
-      </Button>
-      <Button variant='ghost' size='sm' onClick={handleEditTag}>
-        <Edit className='mr-1.5 h-3.5 w-3.5' />
-        Edit Tag
-      </Button>
-      <Button variant='ghost' size='sm' onClick={handleBatchEdit}>
-        <Pencil className='mr-1.5 h-3.5 w-3.5' />
-        Batch Edit
-      </Button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant='ghost'
+          className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
+        >
+          <MoreHorizontal className='h-4 w-4' />
+          <span className='sr-only'>Open menu</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-48'>
+        {/* Edit Tag */}
+        <DropdownMenuItem onClick={handleEditTag}>
+          Edit Tag
+          <DropdownMenuShortcut>
+            <Edit size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        {/* Batch Edit */}
+        <DropdownMenuItem onClick={handleBatchEdit}>
+          Batch Edit
+          <DropdownMenuShortcut>
+            <Pencil size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        {/* Enable All */}
+        <DropdownMenuItem onClick={handleEnableAll}>
+          Enable All
+          <DropdownMenuShortcut>
+            <Power size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        {/* Disable All */}
+        <DropdownMenuItem onClick={handleDisableAll}>
+          Disable All
+          <DropdownMenuShortcut>
+            <PowerOff size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
