@@ -131,6 +131,18 @@ func configToMap(config interface{}) (map[string]string, error) {
 			strValue = strconv.FormatUint(field.Uint(), 10)
 		case reflect.Float32, reflect.Float64:
 			strValue = strconv.FormatFloat(field.Float(), 'f', -1, 64)
+		case reflect.Ptr:
+			// 处理指针类型：如果非 nil，序列化指向的值
+			if !field.IsNil() {
+				bytes, err := json.Marshal(field.Interface())
+				if err != nil {
+					return nil, err
+				}
+				strValue = string(bytes)
+			} else {
+				// nil 指针序列化为 "null"
+				strValue = "null"
+			}
 		case reflect.Map, reflect.Slice, reflect.Struct:
 			// 复杂类型使用JSON序列化
 			bytes, err := json.Marshal(field.Interface())
@@ -215,6 +227,21 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				continue
 			}
 			field.SetFloat(floatValue)
+		case reflect.Ptr:
+			// 处理指针类型
+			if strValue == "null" {
+				field.Set(reflect.Zero(field.Type()))
+			} else {
+				// 如果指针是 nil，需要先初始化
+				if field.IsNil() {
+					field.Set(reflect.New(field.Type().Elem()))
+				}
+				// 反序列化到指针指向的值
+				err := json.Unmarshal([]byte(strValue), field.Interface())
+				if err != nil {
+					continue
+				}
+			}
 		case reflect.Map, reflect.Slice, reflect.Struct:
 			// 复杂类型使用JSON反序列化
 			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())

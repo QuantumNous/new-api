@@ -2100,6 +2100,8 @@
     "例如：4.99": "e.g.: 4.99",
     "例如：100000": "e.g.: 100000",
     "请填写完整的产品信息": "Please fill in complete product information",
-    "产品ID已存在": "Product ID already exists"
+    "产品ID已存在": "Product ID already exists",
+    "统一的": "The Unified",
+    "大模型接口网关": "LLM API Gateway"
   }
 }

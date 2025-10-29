@@ -25,6 +25,7 @@ import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
 import zhTranslation from './locales/zh.json';
 import ruTranslation from './locales/ru.json';
+import jaTranslation from './locales/ja.json';
 
 i18n
   .use(LanguageDetector)
@@ -36,6 +37,7 @@ i18n
       zh: zhTranslation,
       fr: frTranslation,
       ru: ruTranslation,
+      ja: jaTranslation,
     },
     fallbackLng: 'zh',
     interpolation: {

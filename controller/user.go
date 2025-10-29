@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -579,7 +580,7 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := setting.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {

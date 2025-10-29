@@ -103,7 +103,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil

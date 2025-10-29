@@ -230,10 +230,6 @@ func GetUUID() string {
 
 const keyChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-func init() {
-	rand.New(rand.NewSource(time.Now().UnixNano()))
-}
-
 func GenerateRandomCharsKey(length int) (string, error) {
 	b := make([]byte, length)
 	maxI := big.NewInt(int64(len(keyChars)))

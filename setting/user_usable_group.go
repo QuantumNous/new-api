@@ -43,29 +43,6 @@ func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 	return json.Unmarshal([]byte(jsonStr), &userUsableGroups)
 }
 
-func GetUserUsableGroups(userGroup string) map[string]string {
-	groupsCopy := GetUserUsableGroupsCopy()
-	if userGroup == "" {
-		if _, ok := groupsCopy["default"]; !ok {
-			groupsCopy["default"] = "default"
-		}
-	}
-	// 如果userGroup不在UserUsableGroups中，返回UserUsableGroups + userGroup
-	if _, ok := groupsCopy[userGroup]; !ok {
-		groupsCopy[userGroup] = "用户分组"
-	}
-	// 如果userGroup在UserUsableGroups中，返回UserUsableGroups
-	return groupsCopy
-}
-
-func GroupInUserUsableGroups(groupName string) bool {
-	userUsableGroupsMutex.RLock()
-	defer userUsableGroupsMutex.RUnlock()
-
-	_, ok := userUsableGroups[groupName]
-	return ok
-}
-
 func GetUsableGroupDescription(groupName string) string {
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()

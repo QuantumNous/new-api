@@ -30,10 +30,11 @@ func GetAudioDuration(ctx context.Context, f io.ReadSeeker, ext string) (duratio
 		duration, err = getFLACDuration(f)
 	case ".m4a", ".mp4":
 		duration, err = getM4ADuration(f)
-	case ".ogg", ".oga":
+	case ".ogg", ".oga", ".opus":
 		duration, err = getOGGDuration(f)
-	case ".opus":
-		duration, err = getOpusDuration(f)
+		if err != nil {
+			duration, err = getOpusDuration(f)
+		}
 	case ".aiff", ".aif", ".aifc":
 		duration, err = getAIFFDuration(f)
 	case ".webm":

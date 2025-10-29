@@ -31,8 +31,8 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not supported")
+	adaptor := openai.Adaptor{}
+	return adaptor.ConvertAudioRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
@@ -65,16 +65,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == constant.RelayModeRerank {
 		return fmt.Sprintf("%s/v1/rerank", info.ChannelBaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeEmbeddings {
-		return fmt.Sprintf("%s/v1/embeddings", info.ChannelBaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeChatCompletions {
-		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeCompletions {
-		return fmt.Sprintf("%s/v1/completions", info.ChannelBaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeImagesGenerations {
-		return fmt.Sprintf("%s/v1/images/generations", info.ChannelBaseUrl), nil
 	}
-	return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -103,7 +95,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	adaptor := openai.Adaptor{}
+	return adaptor.DoRequest(c, info, requestBody)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -118,21 +111,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	switch info.RelayMode {
 	case constant.RelayModeRerank:
 		usage, err = siliconflowRerankHandler(c, info, resp)
-	case constant.RelayModeEmbeddings:
-		usage, err = openai.OpenaiHandler(c, info, resp)
-	case constant.RelayModeCompletions:
-		fallthrough
-	case constant.RelayModeChatCompletions:
-		fallthrough
-	case constant.RelayModeImagesGenerations:
-		fallthrough
 	default:
-		if info.IsStream {
-			usage, err = openai.OaiStreamHandler(c, info, resp)
-		} else {
-			usage, err = openai.OpenaiHandler(c, info, resp)
-		}
-
+		adaptor := openai.Adaptor{}
+		usage, err = adaptor.DoResponse(c, resp, info)
 	}
 	return
 }

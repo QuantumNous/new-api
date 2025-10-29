@@ -8,8 +8,8 @@ import (
 )
 
 type MonitorSetting struct {
-	AutoTestChannelEnabled bool `json:"auto_test_channel_enabled"`
-	AutoTestChannelMinutes int  `json:"auto_test_channel_minutes"`
+	AutoTestChannelEnabled bool    `json:"auto_test_channel_enabled"`
+	AutoTestChannelMinutes float64 `json:"auto_test_channel_minutes"`
 }
 
 // 默认配置
@@ -28,7 +28,7 @@ func GetMonitorSetting() *MonitorSetting {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_TEST_FREQUENCY"))
 		if err == nil && frequency > 0 {
 			monitorSetting.AutoTestChannelEnabled = true
-			monitorSetting.AutoTestChannelMinutes = frequency
+			monitorSetting.AutoTestChannelMinutes = float64(frequency)
 		}
 	}
 	return &monitorSetting
