@@ -1,4 +1,4 @@
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
 // ============================================================================
@@ -6,19 +6,17 @@ import { DEFAULT_DISCOUNT_RATE } from '../constants'
 // ============================================================================
 
 /**
- * Format currency amount based on system configuration
+ * Format currency amount that is already in local currency.
+ * This is used for payment amounts that have been calculated via priceRatio.
  */
 export function formatCurrency(amount: number | string): string {
   const numeric =
     typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
-  return formatBillingCurrencyFromUSD(
-    Number.isFinite(numeric) ? numeric : null,
-    {
-      digitsLarge: 2,
-      digitsSmall: 2,
-      abbreviate: false,
-    }
-  )
+  return formatLocalCurrencyAmount(Number.isFinite(numeric) ? numeric : null, {
+    digitsLarge: 2,
+    digitsSmall: 2,
+    abbreviate: false,
+  })
 }
 
 /**
@@ -38,14 +36,17 @@ export function getDiscountLabel(discount: number): string {
 export function calculatePresetPricing(
   presetValue: number,
   priceRatio: number,
-  discount: number
+  discount: number,
+  usdExchangeRate: number = 1
 ) {
   const originalPrice = presetValue * priceRatio
   const actualPrice = originalPrice * discount
   const savedAmount = originalPrice - actualPrice
   const hasDiscount = discount < 1.0
+  const displayValue = presetValue * usdExchangeRate
 
   return {
+    displayValue,
     originalPrice,
     actualPrice,
     savedAmount,

@@ -40,6 +40,7 @@ interface RechargeFormCardProps {
   topupLink?: string
   loading?: boolean
   priceRatio?: number
+  usdExchangeRate?: number
   onOpenBilling?: () => void
 }
 
@@ -61,6 +62,7 @@ export function RechargeFormCard({
   topupLink,
   loading,
   priceRatio = 1,
+  usdExchangeRate = 1,
   onOpenBilling,
 }: RechargeFormCardProps) {
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -169,8 +171,17 @@ export function RechargeFormCard({
                       preset.discount ||
                       topupInfo?.discount?.[preset.value] ||
                       1.0
-                    const { actualPrice, savedAmount, hasDiscount } =
-                      calculatePresetPricing(preset.value, priceRatio, discount)
+                    const {
+                      displayValue,
+                      actualPrice,
+                      savedAmount,
+                      hasDiscount,
+                    } = calculatePresetPricing(
+                      preset.value,
+                      priceRatio,
+                      discount,
+                      usdExchangeRate
+                    )
                     return (
                       <button
                         key={index}
@@ -183,7 +194,7 @@ export function RechargeFormCard({
                       >
                         <div className='flex items-center justify-between'>
                           <div className='text-lg font-semibold'>
-                            {formatNumber(preset.value)}
+                            {formatNumber(displayValue)}
                           </div>
                           {hasDiscount && (
                             <div className='text-xs font-medium text-green-600'>

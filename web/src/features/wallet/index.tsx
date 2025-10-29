@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { AppHeader, Main } from '@/components/layout'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
@@ -27,7 +28,15 @@ export function Wallet() {
   const [redemptionCode, setRedemptionCode] = useState('')
 
   const { status } = useStatus()
+  const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+
+  // Calculate effective exchange rate - when display type is USD, use rate of 1
+  const effectiveUsdExchangeRate = useMemo(() => {
+    return currency?.quotaDisplayType === 'USD'
+      ? 1
+      : currency?.usdExchangeRate || 1
+  }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
   const {
     amount: paymentAmount,
     calculating,
@@ -185,6 +194,7 @@ export function Wallet() {
               topupLink={topupInfo?.topup_link}
               loading={topupLoading}
               priceRatio={status?.price || 1}
+              usdExchangeRate={effectiveUsdExchangeRate}
               onOpenBilling={() => setBillingDialogOpen(true)}
             />
           </div>
@@ -211,6 +221,7 @@ export function Wallet() {
           calculating={calculating}
           processing={processing}
           discountRate={getDiscountRate()}
+          usdExchangeRate={effectiveUsdExchangeRate}
         />
 
         {/* Transfer Dialog */}

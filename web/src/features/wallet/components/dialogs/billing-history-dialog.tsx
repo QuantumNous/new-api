@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
@@ -33,7 +34,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
 import { useBillingHistory } from '../../hooks/use-billing-history'
-import { formatCurrency } from '../../lib'
 import {
   getStatusConfig,
   getPaymentMethodName,
@@ -205,7 +205,11 @@ export function BillingHistoryDialog({
                               Amount
                             </Label>
                             <div className='text-sm font-semibold'>
-                              {formatNumber(record.amount)}
+                              {formatCurrencyFromUSD(record.amount, {
+                                digitsLarge: 2,
+                                digitsSmall: 2,
+                                abbreviate: false,
+                              })}
                             </div>
                           </div>
                           <div className='space-y-1'>
@@ -213,7 +217,7 @@ export function BillingHistoryDialog({
                               Payment
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
-                              {formatCurrency(record.money)}
+                              {formatNumber(record.money)}
                             </div>
                           </div>
                         </div>
