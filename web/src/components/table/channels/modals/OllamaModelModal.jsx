@@ -316,7 +316,7 @@ const OllamaModelModal = ({
       hasRefreshed = true;
       await fetchModels();
       if (onModelsUpdate) {
-        onModelsUpdate();
+        onModelsUpdate({ silent: true });
       }
     };
 
@@ -408,7 +408,7 @@ const OllamaModelModal = ({
                   setEventSource(null);
                   await fetchModels();
                   if (onModelsUpdate) {
-                    onModelsUpdate();
+                    onModelsUpdate({ silent: true });
                   }
                   await refreshModels();
                   return;
@@ -466,7 +466,7 @@ const OllamaModelModal = ({
         showSuccess(t('模型删除成功'));
         await fetchModels(); // 重新获取模型列表
         if (onModelsUpdate) {
-          onModelsUpdate(); // 通知父组件更新
+          onModelsUpdate({ silent: true }); // 通知父组件更新
         }
       } else {
         showError(res.data.message || t('模型删除失败'));

@@ -215,7 +215,7 @@ const EditChannelModal = (props) => {
     if (!ionetMetadata?.deployment_id) {
       return;
     }
-    const targetUrl = `/console/model-deployments?deployment=${ionetMetadata.deployment_id}`;
+    const targetUrl = `/console/deployment?deployment_id=${ionetMetadata.deployment_id}`;
     window.open(targetUrl, '_blank', 'noopener');
   };
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -629,7 +629,8 @@ const EditChannelModal = (props) => {
     setLoading(false);
   };
 
-  const fetchUpstreamModelList = async (name) => {
+  const fetchUpstreamModelList = async (name, options = {}) => {
+    const silent = !!options.silent;
     // if (inputs['type'] !== 1) {
     //   showError(t('仅支持 OpenAI 接口格式'));
     //   return;
@@ -680,7 +681,9 @@ const EditChannelModal = (props) => {
     if (!err) {
       const uniqueModels = Array.from(new Set(models));
       setFetchedModels(uniqueModels);
-      setModelModalVisible(true);
+      if (!silent) {
+        setModelModalVisible(true);
+      }
     } else {
       showError(t('获取模型列表失败'));
     }
@@ -2974,9 +2977,9 @@ const EditChannelModal = (props) => {
         onCancel={() => setOllamaModalVisible(false)}
         channelId={channelId}
         channelInfo={inputs}
-        onModelsUpdate={() => {
+        onModelsUpdate={(options = {}) => {
           // 当模型更新后，重新获取模型列表以更新表单
-          fetchUpstreamModelList('models');
+          fetchUpstreamModelList('models', { silent: !!options.silent });
         }}
         onApplyModels={({ mode, modelIds } = {}) => {
           if (!Array.isArray(modelIds) || modelIds.length === 0) {

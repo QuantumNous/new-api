@@ -32,7 +32,6 @@ import {
 import { IconMore } from '@douyinfe/semi-icons';
 import {
   FaPlay,
-  FaRedo,
   FaTrash,
   FaServer,
   FaMemory,
@@ -445,11 +444,11 @@ export const getDeploymentsColumns = ({
           switch (normalizedStatus) {
             case 'running':
               return {
-                icon: <FaRedo className="text-xs" />,
-                text: t('重启'),
-                onClick: () => restartDeployment(id),
-                type: 'primary',
-                theme: 'solid',
+                icon: <FaInfoCircle className="text-xs" />,
+                text: t('查看详情'),
+                onClick: () => onViewDetails?.(record),
+                type: 'secondary',
+                theme: 'light',
               };
             case 'failed':
             case 'error':
@@ -545,11 +544,6 @@ export const getDeploymentsColumns = ({
 
         const managementItems = [];
         if (normalizedStatus === 'running') {
-          managementItems.push(
-            <Dropdown.Item key="restart" onClick={() => restartDeployment(id)} icon={<FaRedo />}>
-              {t('重启')}
-            </Dropdown.Item>,
-          );
           if (onSyncToChannel) {
             managementItems.push(
               <Dropdown.Item key="sync-channel" onClick={() => onSyncToChannel(record)} icon={<FaLink />}>
