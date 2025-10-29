@@ -58,18 +58,20 @@ export function DataTableToolbar<TData>({
             onChange={(event) =>
               table.getColumn(searchKey)?.setFilterValue(event.target.value)
             }
-            className='h-8 w-[150px] lg:w-[250px]'
+            className='h-8 w-full sm:w-[150px] lg:w-[250px]'
           />
         ) : (
           <Input
             placeholder={searchPlaceholder}
             value={table.getState().globalFilter ?? ''}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className='h-8 w-[150px] lg:w-[250px]'
+            className='h-8 w-full sm:w-[150px] lg:w-[250px]'
           />
         )}
-        {additionalSearch}
-        <div className='flex gap-x-2'>
+        {additionalSearch && (
+          <div className='w-full sm:w-auto'>{additionalSearch}</div>
+        )}
+        <div className='flex w-full flex-wrap gap-2 sm:w-auto'>
           {filters.map((filter) => {
             const column = table.getColumn(filter.columnId)
             if (!column) return null

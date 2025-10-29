@@ -15,6 +15,7 @@ import {
 } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -29,6 +30,7 @@ import {
   DataTableToolbar,
   TableSkeleton,
   TableEmpty,
+  MobileCardList,
 } from '@/components/data-table'
 import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { getColumnsByCategory } from '../lib/columns'
@@ -40,6 +42,7 @@ const route = getRouteApi('/_authenticated/usage-logs/')
 
 export function UsageLogsTable() {
   const isAdmin = useIsAdmin()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
   const navigate = route.useNavigate()
   const searchParams = route.useSearch()
@@ -193,52 +196,61 @@ export function UsageLogsTable() {
         }
         filters={filters}
       />
-      <div className='overflow-hidden rounded-md border'>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoadingData ? (
-              <TableSkeleton table={table} keyPrefix='usage-log-skeleton' />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <TableEmpty
-                colSpan={columns.length}
-                title='No Logs Found'
-                description='No usage logs available. Logs will appear here once API calls are made.'
-              />
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
+      {isMobile ? (
+        <MobileCardList
+          table={table}
+          isLoading={isLoadingData}
+          emptyTitle='No Logs Found'
+          emptyDescription='No usage logs available. Logs will appear here once API calls are made.'
+        />
+      ) : (
+        <div className='overflow-hidden rounded-md border'>
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id} colSpan={header.colSpan}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    )
+                  })}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoadingData ? (
+                <TableSkeleton table={table} keyPrefix='usage-log-skeleton' />
+              ) : table.getRowModel().rows.length === 0 ? (
+                <TableEmpty
+                  colSpan={columns.length}
+                  title='No Logs Found'
+                  description='No usage logs available. Logs will appear here once API calls are made.'
+                />
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
       <DataTablePagination table={table} />
     </div>
   )

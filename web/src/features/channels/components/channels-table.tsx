@@ -11,6 +11,7 @@ import {
   type Row,
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,6 +26,7 @@ import {
   DataTableToolbar,
   TableSkeleton,
   TableEmpty,
+  MobileCardList,
 } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
 import { getChannels, searchChannels, getGroups } from '../api'
@@ -47,6 +49,7 @@ const route = getRouteApi('/_authenticated/channels/')
 
 export function ChannelsTable() {
   const { enableTagMode, idSort } = useChannels()
+  const isMobile = useMediaQuery('(max-width: 640px)')
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([])
@@ -279,7 +282,7 @@ export function ChannelsTable() {
             placeholder='Filter by model...'
             value={modelFilterInput}
             onChange={(e) => setModelFilterInput(e.target.value)}
-            className='h-8 w-[150px] lg:w-[200px]'
+            className='h-8 w-full sm:w-[150px] lg:w-[200px]'
           />
         }
         filters={[
@@ -304,63 +307,74 @@ export function ChannelsTable() {
         ]}
       />
 
-      {/* Table */}
-      <div className='overflow-hidden rounded-md border'>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    style={{ width: header.getSize() }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
+      {isMobile ? (
+        <MobileCardList
+          table={table}
+          isLoading={isLoading}
+          emptyTitle='No Channels Found'
+          emptyDescription='No channels available. Create your first channel to get started.'
+        />
+      ) : (
+        <>
+          {/* Table */}
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton table={table} keyPrefix='channel-skeleton' />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <TableEmpty
-                colSpan={columns.length}
-                title='No Channels Found'
-                description='No channels available. Create your first channel to get started.'
-              />
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton table={table} keyPrefix='channel-skeleton' />
+                ) : table.getRowModel().rows.length === 0 ? (
+                  <TableEmpty
+                    colSpan={columns.length}
+                    title='No Channels Found'
+                    description='No channels available. Create your first channel to get started.'
+                  />
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Bulk Actions Floating Toolbar */}
+          <DataTableBulkActions table={table} />
+        </>
+      )}
 
       {/* Pagination */}
       <DataTablePagination table={table as any} />
-
-      {/* Bulk Actions Floating Toolbar */}
-      <DataTableBulkActions table={table} />
     </div>
   )
 }

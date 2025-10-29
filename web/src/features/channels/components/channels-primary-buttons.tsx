@@ -48,11 +48,14 @@ export function ChannelsPrimaryButtons() {
 
   return (
     <>
-      <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         {/* Tag Mode Toggle */}
-        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5 max-sm:px-2'>
           <Tags className='text-muted-foreground h-4 w-4' />
-          <Label htmlFor='tag-mode' className='cursor-pointer text-sm'>
+          <Label
+            htmlFor='tag-mode'
+            className='cursor-pointer text-sm max-sm:sr-only'
+          >
             Tag Mode
           </Label>
           <Switch
@@ -63,9 +66,12 @@ export function ChannelsPrimaryButtons() {
         </div>
 
         {/* ID Sort Toggle */}
-        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5 max-sm:px-2'>
           <SortAsc className='text-muted-foreground h-4 w-4' />
-          <Label htmlFor='id-sort' className='cursor-pointer text-sm'>
+          <Label
+            htmlFor='id-sort'
+            className='cursor-pointer text-sm max-sm:sr-only'
+          >
             Sort by ID
           </Label>
           <Switch
@@ -78,7 +84,8 @@ export function ChannelsPrimaryButtons() {
         {/* Create Channel */}
         <Button onClick={() => setOpen('create-channel')} size='sm'>
           <Plus className='h-4 w-4' />
-          Create Channel
+          <span className='max-sm:hidden'>Create Channel</span>
+          <span className='sm:hidden'>Create</span>
         </Button>
 
         {/* More Actions */}
