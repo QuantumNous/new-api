@@ -2,7 +2,6 @@ import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
 import { useMediaQuery } from '@/hooks/use-media-query'
-import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
@@ -43,7 +42,6 @@ export function Pricing() {
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
   const isMobile = useMediaQuery('(max-width: 640px)')
-  const { currency } = useSystemConfig()
   const {
     models,
     vendors,
@@ -52,10 +50,6 @@ export function Pricing() {
     priceRate,
     usdExchangeRate,
   } = usePricingData()
-
-  const effectiveUsdExchangeRate = useMemo(() => {
-    return currency?.quotaDisplayType === 'USD' ? 1 : usdExchangeRate
-  }, [currency?.quotaDisplayType, usdExchangeRate])
 
   const [tokenUnit, setTokenUnit] = useState<TokenUnit>(
     search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
@@ -381,7 +375,7 @@ export function Pricing() {
                   models={filteredModels}
                   onModelClick={handleModelClick}
                   priceRate={priceRate}
-                  usdExchangeRate={effectiveUsdExchangeRate}
+                  usdExchangeRate={usdExchangeRate}
                   tokenUnit={tokenUnit}
                   showRechargePrice={showRechargePrice}
                 />
@@ -389,7 +383,7 @@ export function Pricing() {
                 <PricingTable
                   models={filteredModels}
                   priceRate={priceRate}
-                  usdExchangeRate={effectiveUsdExchangeRate}
+                  usdExchangeRate={usdExchangeRate}
                   tokenUnit={tokenUnit}
                   showRechargePrice={showRechargePrice}
                 />
@@ -398,7 +392,7 @@ export function Pricing() {
                   models={filteredModels}
                   onModelClick={handleModelClick}
                   priceRate={priceRate}
-                  usdExchangeRate={effectiveUsdExchangeRate}
+                  usdExchangeRate={usdExchangeRate}
                   tokenUnit={tokenUnit}
                   showRechargePrice={showRechargePrice}
                 />

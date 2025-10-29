@@ -168,13 +168,19 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               )}
             />
 
-            {displayType === 'CNY' && (
+            {displayType !== 'TOKENS' && (
               <FormField
                 control={form.control}
                 name='USDExchangeRate'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>CNY per USD</FormLabel>
+                    <FormLabel>
+                      {displayType === 'CNY'
+                        ? 'CNY per USD'
+                        : displayType === 'USD'
+                          ? 'USD Exchange Rate'
+                          : 'USD Exchange Rate'}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -187,7 +193,8 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                       />
                     </FormControl>
                     <FormDescription>
-                      Number of CNY for 1 USD (used for display conversion)
+                      Real exchange rate between USD and your payment gateway
+                      currency
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
