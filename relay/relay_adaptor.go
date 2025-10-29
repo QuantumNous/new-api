@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/mistral"
 	"github.com/QuantumNous/new-api/relay/channel/mokaai"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
@@ -110,8 +111,9 @@ func GetAdaptor(apiType int) channel.Adaptor {
 	case constant.APITypeModelScope:
 		return &modelscope.Adaptor{}
 	case constant.APITypeSubmodel:
-		return &submodel.Adaptor{}
-		
+		return &submodel.Adaptor{}		
+	case constant.APITypeMiniMax:
+		return &minimax.Adaptor{}
 	}
 	return nil
 }

@@ -18,7 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
-	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	//"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	"github.com/QuantumNous/new-api/relay/channel/xinference"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -161,8 +161,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			requestURL = fmt.Sprintf("/openai/realtime?deployment=%s&api-version=%s", model_, apiVersion)
 		}
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestURL, info.ChannelType), nil
-	case constant.ChannelTypeMiniMax:
-		return minimax.GetRequestURL(info)
+	//case constant.ChannelTypeMiniMax:
+	//	return minimax.GetRequestURL(info)
 	case constant.ChannelTypeCustom:
 		url := info.ChannelBaseUrl
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
@@ -599,8 +599,8 @@ func (a *Adaptor) GetModelList() []string {
 		return ai360.ModelList
 	case constant.ChannelTypeLingYiWanWu:
 		return lingyiwanwu.ModelList
-	case constant.ChannelTypeMiniMax:
-		return minimax.ModelList
+	//case constant.ChannelTypeMiniMax:
+	//	return minimax.ModelList
 	case constant.ChannelTypeXinference:
 		return xinference.ModelList
 	case constant.ChannelTypeOpenRouter:
@@ -616,8 +616,8 @@ func (a *Adaptor) GetChannelName() string {
 		return ai360.ChannelName
 	case constant.ChannelTypeLingYiWanWu:
 		return lingyiwanwu.ChannelName
-	case constant.ChannelTypeMiniMax:
-		return minimax.ChannelName
+	//case constant.ChannelTypeMiniMax:
+	//	return minimax.ChannelName
 	case constant.ChannelTypeXinference:
 		return xinference.ChannelName
 	case constant.ChannelTypeOpenRouter:

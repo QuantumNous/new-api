@@ -11,10 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-
-	"github.com/gin-gonic/gin"
 )
 
 var group2model2channels map[string]map[string][]int // enabled channel
@@ -96,43 +93,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func CacheGetRandomSatisfiedChannel(c *gin.Context, group string, model string, retry int) (*Channel, string, error) {
-	var channel *Channel
-	var err error
-	selectGroup := group
-	if group == "auto" {
-		if len(setting.AutoGroups) == 0 {
-			return nil, selectGroup, errors.New("auto groups is not enabled")
-		}
-		for _, autoGroup := range setting.AutoGroups {
-			if common.DebugEnabled {
-				println("autoGroup:", autoGroup)
-			}
-			channel, _ = getRandomSatisfiedChannel(autoGroup, model, retry)
-			if channel == nil {
-				continue
-			} else {
-				c.Set("auto_group", autoGroup)
-				selectGroup = autoGroup
-				if common.DebugEnabled {
-					println("selectGroup:", selectGroup)
-				}
-				break
-			}
-		}
-	} else {
-		channel, err = getRandomSatisfiedChannel(group, model, retry)
-		if err != nil {
-			return nil, group, err
-		}
-	}
-	return channel, selectGroup, nil
-}
-
-func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetRandomSatisfiedChannel(group, model, retry)
+		return GetChannel(group, model, retry)
 	}
 
 	channelSyncLock.RLock()
@@ -178,10 +142,12 @@ func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	targetPriority := int64(sortedUniquePriorities[retry])
 
 	// get the priority for the given retry number
+	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
+				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -189,19 +155,33 @@ func getRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		}
 	}
 
-	// 平滑系数
-	smoothingFactor := 10
-	// Calculate the total weight of all channels up to endIdx
-	totalWeight := 0
-	for _, channel := range targetChannels {
-		totalWeight += channel.GetWeight() + smoothingFactor
+	if len(targetChannels) == 0 {
+		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}
+
+	// smoothing factor and adjustment
+	smoothingFactor := 1
+	smoothingAdjustment := 0
+
+	if sumWeight == 0 {
+		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
+		// each channel's effective weight = 100
+		sumWeight = len(targetChannels) * 100
+		smoothingAdjustment = 100
+	} else if sumWeight/len(targetChannels) < 10 {
+		// when the average weight is less than 10, set smoothing factor to 100
+		smoothingFactor = 100
+	}
+
+	// Calculate the total weight of all channels up to endIdx
+	totalWeight := sumWeight * smoothingFactor
+
 	// Generate a random value in the range [0, totalWeight)
 	randomWeight := rand.Intn(totalWeight)
 
 	// Find a channel based on its weight
 	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight() + smoothingFactor
+		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
 			return channel, nil
 		}

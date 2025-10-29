@@ -351,7 +351,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				originTask.Progress = ti.Progress
 			}
 			if ti.Url != "" {
-				originTask.FailReason = ti.Url
+				if strings.HasPrefix(ti.Url, "data:") {
+				} else {
+					originTask.FailReason = ti.Url
+				}
 			}
 			_ = originTask.Update()
 			var raw map[string]any
@@ -379,18 +382,20 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 			case model.TaskStatusQueued, model.TaskStatusSubmitted:
 				status = "queued"
 			}
-			out := map[string]any{
-				"error":    nil,
-				"format":   format,
-				"metadata": nil,
-				"status":   status,
-				"task_id":  originTask.TaskID,
-				"url":      originTask.FailReason,
+			if !strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") {
+				out := map[string]any{
+					"error":    nil,
+					"format":   format,
+					"metadata": nil,
+					"status":   status,
+					"task_id":  originTask.TaskID,
+					"url":      originTask.FailReason,
+				}
+				respBody, _ = json.Marshal(dto.TaskResponse[any]{
+					Code: "success",
+					Data: out,
+				})
 			}
-			respBody, _ = json.Marshal(dto.TaskResponse[any]{
-				Code: "success",
-				Data: out,
-			})
 		}
 	}()
 

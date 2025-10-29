@@ -71,6 +71,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeSubmodel
 	case constant.ChannelTypeModelScope:
 		apiType = constant.APITypeModelScope
+	case constant.ChannelTypeMiniMax:
+		apiType = constant.APITypeMiniMax
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false
