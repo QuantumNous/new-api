@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -92,40 +91,14 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
-	if channel.Type == constant.ChannelTypeGemini {
+	switch channel.Type {
+	case constant.ChannelTypeGemini:
 		videoURL = fmt.Sprintf("%s&key=%s", c.Query("url"), channel.Key)
 		req.Header.Set("x-goog-api-key", channel.Key)
-	} else if channel.Type == constant.ChannelTypeAli {
-		// Ali (通义万相): Video URL is directly in task data
-		// Parse task data to get video_url
-		var aliData map[string]interface{}
-		if err := json.Unmarshal(task.Data, &aliData); err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to parse Ali task data: %s", err.Error()))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{
-					"message": "Failed to parse task data",
-					"type":    "server_error",
-				},
-			})
-			return
-		}
-		if output, ok := aliData["output"].(map[string]interface{}); ok {
-			if vURL, ok := output["video_url"].(string); ok {
-				videoURL = vURL
-			}
-		}
-		if videoURL == "" {
-			logger.LogError(c.Request.Context(), "Ali video URL not found in task data")
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{
-					"message": "Video URL not found",
-					"type":    "server_error",
-				},
-			})
-			return
-		}
-		// Ali video URLs are pre-signed, no additional auth needed
-	} else {
+	case constant.ChannelTypeAli:
+		// Video URL is directly in task.FailReason
+		videoURL = task.FailReason
+	default:
 		// Default (Sora, etc.): Use original logic
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.TaskID)
 		req.Header.Set("Authorization", "Bearer "+channel.Key)

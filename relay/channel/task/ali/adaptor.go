@@ -339,7 +339,6 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return &taskResult, nil
 }
 
-// ConvertToOpenAIVideo 转换为 OpenAI 视频格式
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	var aliResp AliVideoResponse
 	if err := common.Unmarshal(task.Data, &aliResp); err != nil {
@@ -349,19 +348,12 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	openAIResp := dto.NewOpenAIVideo()
 	openAIResp.ID = task.TaskID
 	openAIResp.Status = convertAliStatus(aliResp.Output.TaskStatus)
+	openAIResp.SetProgressStr(task.Progress)
 	openAIResp.CreatedAt = task.CreatedAt
+	openAIResp.CompletedAt = task.UpdatedAt
 
-	// 设置元数据
-	if aliResp.Output.OrigPrompt != "" {
-		openAIResp.SetMetadata("orig_prompt", aliResp.Output.OrigPrompt)
-	}
-	if aliResp.Output.ActualPrompt != "" {
-		openAIResp.SetMetadata("actual_prompt", aliResp.Output.ActualPrompt)
-	}
-	if aliResp.Usage != nil {
-		openAIResp.SetMetadata("duration", aliResp.Usage.Duration)
-		openAIResp.SetMetadata("resolution", aliResp.Usage.SR)
-	}
+	// 设置视频URL（核心字段）
+	openAIResp.SetMetadata("url", aliResp.Output.VideoURL)
 
 	// 错误处理
 	if aliResp.Code != "" {
@@ -374,7 +366,6 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	return common.Marshal(openAIResp)
 }
 
-// convertAliStatus 转换阿里状态为 OpenAI 状态
 func convertAliStatus(aliStatus string) string {
 	switch aliStatus {
 	case "PENDING":

@@ -8,4 +8,4 @@ var ModelList = []string{
 	"wanx2.1-i2v-turbo",  // 万相2.1极速版（无声视频）
 }
 
-var ChannelName = "ali-wanxiang"
+var ChannelName = "ali"
