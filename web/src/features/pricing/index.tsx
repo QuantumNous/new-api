@@ -182,7 +182,7 @@ export function Pricing() {
     return (
       <PublicLayout>
         <div className='mx-auto max-w-7xl px-4 sm:px-6'>
-          <LoadingSkeleton />
+          <LoadingSkeleton viewMode={viewMode} />
         </div>
       </PublicLayout>
     )
