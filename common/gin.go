@@ -15,6 +15,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type MetadataSetter interface {
+	SetMetadata(map[string]any)
+}
+
 const KeyRequestBody = "key_request_body"
 
 func GetRequestBody(c *gin.Context) ([]byte, error) {
@@ -41,11 +45,11 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	//}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
-		err = Unmarshal(requestBody, &v)
+		err = Unmarshal(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
-		err = parseFormData(requestBody, &v)
+		err = parseFormData(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
-		err = parseMultipartFormData(c, requestBody, &v)
+		err = parseMultipartFormData(c, requestBody, v)
 	} else {
 		// skip for now
 		// TODO: someday non json request have variant model, we will need to implementation this
@@ -196,5 +200,12 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 		return err
 	}
 
-	return Unmarshal(jsonData, v)
+	err = Unmarshal(jsonData, v)
+	if err != nil {
+		return err
+	}
+	if setter, ok := v.(MetadataSetter); ok {
+		setter.SetMetadata(formMap)
+	}
+	return nil
 }

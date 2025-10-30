@@ -505,6 +505,15 @@ func (t TaskSubmitReq) HasImage() bool {
 	return len(t.Images) > 0
 }
 
+func (t *TaskSubmitReq) SetMetadata(metadata map[string]interface{}) {
+	if t.Metadata == nil {
+		t.Metadata = make(map[string]interface{})
+	}
+	for k, v := range metadata {
+		t.Metadata[k] = v
+	}
+}
+
 type TaskInfo struct {
 	Code             int    `json:"code"`
 	TaskID           string `json:"task_id"`
