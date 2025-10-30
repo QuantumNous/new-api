@@ -2,7 +2,6 @@ package common
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -14,10 +13,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
-type MetadataSetter interface {
-	SetMetadata(map[string]any)
-}
 
 const KeyRequestBody = "key_request_body"
 
@@ -149,6 +144,20 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	return form, nil
 }
 
+func processFormMap(formMap map[string]any, v any) error {
+	jsonData, err := Marshal(formMap)
+	if err != nil {
+		return err
+	}
+
+	err = Unmarshal(jsonData, v)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func parseFormData(data []byte, v any) error {
 	values, err := url.ParseQuery(string(data))
 	if err != nil {
@@ -162,12 +171,8 @@ func parseFormData(data []byte, v any) error {
 			formMap[key] = vals
 		}
 	}
-	jsonData, err := json.Marshal(formMap)
-	if err != nil {
-		return err
-	}
 
-	return Unmarshal(jsonData, v)
+	return processFormMap(formMap, v)
 }
 
 func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
@@ -195,17 +200,6 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 			formMap[key] = vals
 		}
 	}
-	jsonData, err := Marshal(formMap)
-	if err != nil {
-		return err
-	}
 
-	err = Unmarshal(jsonData, v)
-	if err != nil {
-		return err
-	}
-	if setter, ok := v.(MetadataSetter); ok {
-		setter.SetMetadata(formMap)
-	}
-	return nil
+	return processFormMap(formMap, v)
 }

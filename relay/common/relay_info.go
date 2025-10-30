@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -505,13 +506,36 @@ func (t TaskSubmitReq) HasImage() bool {
 	return len(t.Images) > 0
 }
 
-func (t *TaskSubmitReq) SetMetadata(metadata map[string]interface{}) {
-	if t.Metadata == nil {
-		t.Metadata = make(map[string]interface{})
+func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
+	type Alias TaskSubmitReq
+	aux := &struct {
+		Metadata json.RawMessage `json:"metadata,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(t),
 	}
-	for k, v := range metadata {
-		t.Metadata[k] = v
+
+	if err := common.Unmarshal(data, &aux); err != nil {
+		return err
 	}
+
+	if len(aux.Metadata) > 0 {
+		var metadataStr string
+		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
+			var metadataObj map[string]interface{}
+			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
+				t.Metadata = metadataObj
+				return nil
+			}
+		}
+
+		var metadataObj map[string]interface{}
+		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
+			t.Metadata = metadataObj
+		}
+	}
+
+	return nil
 }
 
 type TaskInfo struct {

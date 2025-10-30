@@ -32,7 +32,9 @@ type AliVideoRequest struct {
 // AliVideoInput 视频输入参数
 type AliVideoInput struct {
 	Prompt         string `json:"prompt,omitempty"`          // 文本提示词
-	ImgURL         string `json:"img_url"`                   // 首帧图像URL或Base64
+	ImgURL         string `json:"img_url,omitempty"`         // 首帧图像URL或Base64（图生视频）
+	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
+	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
 	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL（wan2.5支持）
 	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
 	Template       string `json:"template,omitempty"`        // 视频特效模板
@@ -40,7 +42,8 @@ type AliVideoInput struct {
 
 // AliVideoParameters 视频参数
 type AliVideoParameters struct {
-	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P
+	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P（图生视频、首尾帧生视频）
+	Size         string `json:"size,omitempty"`          // 尺寸: 如 "832*480"（文生视频）
 	Duration     int    `json:"duration,omitempty"`      // 时长: 3-10秒
 	PromptExtend bool   `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
 	Watermark    bool   `json:"watermark,omitempty"`     // 是否添加水印
@@ -74,6 +77,25 @@ type AliUsage struct {
 	Duration   int `json:"duration,omitempty"`
 	VideoCount int `json:"video_count,omitempty"`
 	SR         int `json:"SR,omitempty"`
+}
+
+type AliMetadata struct {
+	// Input 相关
+	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL
+	ImgURL         string `json:"img_url,omitempty"`         // 图片URL（图生视频）
+	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
+	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
+	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
+	Template       string `json:"template,omitempty"`        // 视频特效模板
+
+	// Parameters 相关
+	Resolution   *string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P
+	Size         *string `json:"size,omitempty"`          // 尺寸: 如 "832*480"
+	Duration     *int    `json:"duration,omitempty"`      // 时长
+	PromptExtend *bool   `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
+	Watermark    *bool   `json:"watermark,omitempty"`     // 是否添加水印
+	Audio        *bool   `json:"audio,omitempty"`         // 是否添加音频
+	Seed         *int    `json:"seed,omitempty"`          // 随机数种子
 }
 
 // ============================
@@ -204,28 +226,8 @@ func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVid
 
 	// 从 metadata 中提取额外参数
 	if req.Metadata != nil {
-		if audioURL, ok := req.Metadata["audio_url"].(string); ok && audioURL != "" {
-			aliReq.Input.AudioURL = audioURL
-		}
-		if negPrompt, ok := req.Metadata["negative_prompt"].(string); ok && negPrompt != "" {
-			aliReq.Input.NegativePrompt = negPrompt
-		}
-		if template, ok := req.Metadata["template"].(string); ok && template != "" {
-			aliReq.Input.Template = template
-		}
-		if audio, ok := req.Metadata["audio"].(bool); ok {
-			aliReq.Parameters.Audio = &audio
-		}
-		if seed, ok := req.Metadata["seed"].(float64); ok {
-			aliReq.Parameters.Seed = int(seed)
-		} else if seed, ok := req.Metadata["seed"].(int); ok {
-			aliReq.Parameters.Seed = seed
-		}
-		if extend, ok := req.Metadata["prompt_extend"].(bool); ok {
-			aliReq.Parameters.PromptExtend = extend
-		}
-		if watermark, ok := req.Metadata["watermark"].(bool); ok {
-			aliReq.Parameters.Watermark = watermark
+		if metadataBytes, err := common.Marshal(req.Metadata); err == nil {
+			_ = common.Unmarshal(metadataBytes, aliReq)
 		}
 	}
 
