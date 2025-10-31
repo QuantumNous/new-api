@@ -2,7 +2,11 @@ import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/status-badge'
-import { mjTaskTypeMapper, mjStatusMapper } from '../../lib/mappers'
+import {
+  mjTaskTypeMapper,
+  mjStatusMapper,
+  mjSubmitResultMapper,
+} from '../../lib/mappers'
 import type { MidjourneyLog } from '../../types'
 import { ImageDialog } from '../dialogs/image-dialog'
 import { PromptDialog } from '../dialogs/prompt-dialog'
@@ -58,11 +62,11 @@ export function getDrawingLogsColumns(
       header: 'Task ID',
       cell: ({ row }) => {
         const mjId = row.getValue('mj_id') as string
-        
+
         if (!mjId) {
           return <span className='text-muted-foreground text-sm'>-</span>
         }
-        
+
         return (
           <StatusBadge
             label={mjId}
@@ -73,8 +77,32 @@ export function getDrawingLogsColumns(
         )
       },
       meta: { label: 'Task ID' },
-    },
+    }
+  )
 
+  // Submit Result (admin only)
+  if (isAdmin) {
+    columns.push({
+      accessorKey: 'code',
+      header: 'Submit Result',
+      cell: ({ row }) => {
+        const code = row.getValue('code') as number
+
+        return (
+          <StatusBadge
+            label={mjSubmitResultMapper.getLabel(String(code))}
+            variant={mjSubmitResultMapper.getVariant(String(code))}
+            size='sm'
+            copyable={false}
+            showDot
+          />
+        )
+      },
+      meta: { label: 'Submit Result' },
+    })
+  }
+
+  columns.push(
     // Status
     {
       accessorKey: 'status',

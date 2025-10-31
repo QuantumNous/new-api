@@ -122,6 +122,16 @@ export const MJ_TASK_STATUS = {
   MODAL: 'MODAL', // 窗口等待
 } as const
 
+/**
+ * Midjourney submit result codes
+ */
+export const MJ_SUBMIT_RESULT_CODES = {
+  NOT_SUBMITTED: 0, // 未提交
+  SUBMITTED: 1, // 已提交
+  WAITING: 21, // 等待中
+  DUPLICATE: 22, // 重复任务
+} as const
+
 // ============================================================================
 // Task Logs Constants
 // ============================================================================
@@ -211,6 +221,28 @@ export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
   [MJ_TASK_STATUS.IN_PROGRESS]: { label: 'In Progress', variant: 'blue' },
   [MJ_TASK_STATUS.FAILURE]: { label: 'Failed', variant: 'red' },
   [MJ_TASK_STATUS.MODAL]: { label: 'Waiting', variant: 'amber' },
+}
+
+/**
+ * Midjourney submit result mappings
+ */
+export const MJ_SUBMIT_RESULT_MAPPINGS: Record<string, StatusMapping> = {
+  [String(MJ_SUBMIT_RESULT_CODES.SUBMITTED)]: {
+    label: 'Submitted',
+    variant: 'green',
+  },
+  [String(MJ_SUBMIT_RESULT_CODES.WAITING)]: {
+    label: 'Waiting',
+    variant: 'lime',
+  },
+  [String(MJ_SUBMIT_RESULT_CODES.DUPLICATE)]: {
+    label: 'Duplicate',
+    variant: 'orange',
+  },
+  [String(MJ_SUBMIT_RESULT_CODES.NOT_SUBMITTED)]: {
+    label: 'Not Submitted',
+    variant: 'yellow',
+  },
 }
 
 /**
