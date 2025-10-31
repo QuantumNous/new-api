@@ -114,39 +114,6 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	var size string
 	var hasInputReference bool
 
-	//if c.ContentType() == gin.MIMEMultipartPOSTForm {
-	//	form, err := common.ParseMultipartFormReusable(c)
-	//	if err != nil {
-	//		return createTaskError(err, "invalid_multipart_form", http.StatusBadRequest, true)
-	//	}
-	//	defer form.RemoveAll()
-	//
-	//	prompts, ok := form.Value["prompt"]
-	//	if !ok || len(prompts) == 0 {
-	//		return createTaskError(fmt.Errorf("prompt field is required"), "missing_prompt", http.StatusBadRequest, true)
-	//	}
-	//	prompt = prompts[0]
-	//
-	//	if _, ok := form.Value["model"]; !ok {
-	//		return createTaskError(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest, true)
-	//	}
-	//	model = form.Value["model"][0]
-	//
-	//	if _, ok := form.File["input_reference"]; ok {
-	//		hasInputReference = true
-	//	}
-	//
-	//	if ss, ok := form.Value["seconds"]; ok {
-	//		sInt := common.String2Int(ss[0])
-	//		if sInt > seconds {
-	//			seconds = common.String2Int(ss[0])
-	//		}
-	//	}
-	//
-	//	if sz, ok := form.Value["size"]; ok {
-	//		size = sz[0]
-	//	}
-	//} else {
 	var req TaskSubmitReq
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_json", http.StatusBadRequest, true)
@@ -169,7 +136,6 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if req.HasImage() {
 		hasInputReference = true
 	}
-	//}
 
 	if taskErr := validatePrompt(prompt); taskErr != nil {
 		return taskErr

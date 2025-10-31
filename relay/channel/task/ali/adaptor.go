@@ -132,44 +132,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	// 获取原始请求体
-	//cachedBody, err := common.GetRequestBody(c)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "get_request_body_failed")
-	//}
-
-	// 解析为通用的 TaskSubmitReq
 	var taskReq relaycommon.TaskSubmitReq
-
-	//if c.ContentType() == gin.MIMEMultipartPOSTForm {
-	//	// 处理 multipart 表单
-	//	form, err := common.ParseMultipartFormReusable(c)
-	//	if err != nil {
-	//		return nil, errors.Wrap(err, "parse_multipart_form_failed")
-	//	}
-	//	defer form.RemoveAll()
-	//
-	//	taskReq.Prompt = form.Value["prompt"][0]
-	//	taskReq.Model = form.Value["model"][0]
-	//	if img, ok := form.Value["image"]; ok && len(img) > 0 {
-	//		taskReq.Image = img[0]
-	//	}
-	//	if dur, ok := form.Value["duration"]; ok && len(dur) > 0 {
-	//		taskReq.Duration = common.String2Int(dur[0])
-	//	}
-	//	if sz, ok := form.Value["size"]; ok && len(sz) > 0 {
-	//		taskReq.Size = sz[0]
-	//	}
-	//	// 从 metadata 中提取其他参数
-	//	if metadata, ok := form.Value["metadata"]; ok && len(metadata) > 0 {
-	//		_ = common.Unmarshal([]byte(metadata[0]), &taskReq.Metadata)
-	//	}
-	//} else {
-	//	// 处理 JSON 格式
-	//	if err := common.Unmarshal(cachedBody, &taskReq); err != nil {
-	//		return nil, errors.Wrap(err, "unmarshal_task_request_failed")
-	//	}
-	//}
 	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
 		return nil, errors.Wrap(err, "unmarshal_task_request_failed")
 	}
