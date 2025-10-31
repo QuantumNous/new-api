@@ -138,6 +138,9 @@ func buildRequestBodyWithMappedModel(originalBody []byte, contentType, redirecte
 	if !ok {
 		return nil, errors.New("boundary_not_found_in_content_type")
 	}
+	if err := writer.SetBoundary(boundary); err != nil {
+		return nil, errors.Wrap(err, "set_boundary_failed")
+	}
 	r := multipart.NewReader(bytes.NewReader(originalBody), boundary)
 
 	for {
@@ -159,7 +162,7 @@ func buildRequestBodyWithMappedModel(originalBody []byte, contentType, redirecte
 		} else {
 			// 对于其他字段，保留原始内容
 			if part.FileName() != "" {
-				newPart, err := writer.CreateFormFile(fieldName, part.FileName())
+				newPart, err := writer.CreatePart(part.Header)
 				if err != nil {
 					return nil, errors.Wrap(err, "create_form_file_failed")
 				}
