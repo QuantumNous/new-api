@@ -16,6 +16,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // ============================
@@ -87,6 +89,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
 	}
+
+	if len(cachedBody) > 0 && info != nil && info.UpstreamModelName != "" && gjson.GetBytes(cachedBody, "model").Exists() {
+		updatedBody, err := sjson.SetBytes(cachedBody, "model", info.UpstreamModelName)
+		if err != nil {
+			return nil, errors.Wrap(err, "set_request_model_failed")
+		}
+		cachedBody = updatedBody
+	}
 	return bytes.NewReader(cachedBody), nil
 }
 
@@ -96,13 +106,22 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 // DoResponse handles upstream response, returns taskID etc.
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 		return
 	}
 	_ = resp.Body.Close()
+
+	if info != nil && info.UpstreamModelName != "" && gjson.GetBytes(responseBody, "model").Exists() {
+		updatedBody, setErr := sjson.SetBytes(responseBody, "model", info.UpstreamModelName)
+		if setErr != nil {
+			taskErr = service.TaskErrorWrapper(errors.Wrap(setErr, "set_response_model_failed"), "set_response_model_failed", http.StatusInternalServerError)
+			return
+		}
+		responseBody = updatedBody
+	}
 
 	// Parse Sora response
 	var dResp responseTask

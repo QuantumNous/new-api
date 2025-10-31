@@ -17,9 +17,9 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -120,6 +120,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 			info.ChannelBaseUrl = channel.GetBaseURL()
 			info.ChannelId = originTask.ChannelId
 		}
+	}
+
+	//// model mapper
+	err = helper.ModelMappedHelper(c, info, nil)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "model_mapper_failed", http.StatusInternalServerError)
 	}
 
 	// build body

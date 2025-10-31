@@ -128,6 +128,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if !ok {
 		return nil, fmt.Errorf("invalid request type in context")
 	}
+	req.Model = info.UpstreamModelName
 	// 支持openai sdk的图片上传方式
 	if mf, err := c.MultipartForm(); err == nil {
 		if files, exists := mf.File["input_reference"]; exists && len(files) > 0 {

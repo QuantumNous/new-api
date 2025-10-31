@@ -147,6 +147,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	a.aliReq.Model = info.UpstreamModelName
 	bodyBytes, err := common.Marshal(a.aliReq)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal_ali_request_failed")
