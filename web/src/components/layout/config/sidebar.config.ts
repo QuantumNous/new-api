@@ -10,6 +10,7 @@ import {
   User,
   Command,
   Radio,
+  FlaskConical,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -39,6 +40,11 @@ export const sidebarConfig: SidebarData = {
           title: 'Dashboard',
           url: '/dashboard',
           icon: LayoutDashboard,
+        },
+        {
+          title: 'Playground',
+          url: '/playground',
+          icon: FlaskConical,
         },
         {
           title: 'API Keys',
