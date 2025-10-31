@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -24,150 +25,153 @@ import {
 } from './utils'
 
 const schema = z.object({
-  'gemini.safety_settings': z.string().superRefine((value, ctx) => {
-    const result = validateJsonString(value)
-    if (!result.valid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: result.message || 'Invalid JSON',
+  gemini: z.object({
+    safety_settings: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON',
+        })
+      }
+    }),
+    version_settings: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON',
+        })
+      }
+    }),
+    supported_imagine_models: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value, {
+        predicate: (parsed) =>
+          Array.isArray(parsed) &&
+          parsed.every((item) => typeof item === 'string'),
+        predicateMessage: 'Expected a JSON array of model identifiers',
       })
-    }
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON array',
+        })
+      }
+    }),
+    thinking_adapter_enabled: z.boolean(),
+    thinking_adapter_budget_tokens_percentage: z.coerce
+      .number()
+      .min(0.002, { message: 'Must be at least 0.002' })
+      .max(1, { message: 'Must be 1 or less' }),
   }),
-  'gemini.version_settings': z.string().superRefine((value, ctx) => {
-    const result = validateJsonString(value)
-    if (!result.valid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: result.message || 'Invalid JSON',
-      })
-    }
-  }),
-  'gemini.supported_imagine_models': z.string().superRefine((value, ctx) => {
-    const result = validateJsonString(value, {
-      predicate: (parsed) =>
-        Array.isArray(parsed) &&
-        parsed.every((item) => typeof item === 'string'),
-      predicateMessage: 'Expected a JSON array of model identifiers',
-    })
-    if (!result.valid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: result.message || 'Invalid JSON array',
-      })
-    }
-  }),
-  'gemini.thinking_adapter_enabled': z.boolean(),
-  'gemini.thinking_adapter_budget_tokens_percentage': z.coerce
-    .number()
-    .min(0.002, { message: 'Must be at least 0.002' })
-    .max(1, { message: 'Must be 1 or less' }),
 })
 
-type GeminiSettingsFormValues = z.infer<typeof schema>
+type GeminiSettingsFormValues = z.output<typeof schema>
+type GeminiSettingsFormInput = z.input<typeof schema>
+
+type FlatGeminiSettings = {
+  'gemini.safety_settings': string
+  'gemini.version_settings': string
+  'gemini.supported_imagine_models': string
+  'gemini.thinking_adapter_enabled': boolean
+  'gemini.thinking_adapter_budget_tokens_percentage': number
+}
 
 type GeminiSettingsCardProps = {
-  defaultValues: GeminiSettingsFormValues
+  defaultValues: GeminiSettingsFormInput
 }
 
 export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
   const updateOption = useUpdateOption()
-  const normalizedDefaultsRef = useRef({
+  const normalizedDefaultsRef = useRef<FlatGeminiSettings>({
     'gemini.safety_settings': normalizeJsonString(
-      defaultValues['gemini.safety_settings']
+      defaultValues.gemini.safety_settings
     ),
     'gemini.version_settings': normalizeJsonString(
-      defaultValues['gemini.version_settings']
+      defaultValues.gemini.version_settings
     ),
     'gemini.supported_imagine_models': normalizeJsonString(
-      defaultValues['gemini.supported_imagine_models']
+      defaultValues.gemini.supported_imagine_models
     ),
     'gemini.thinking_adapter_enabled':
-      defaultValues['gemini.thinking_adapter_enabled'],
-    'gemini.thinking_adapter_budget_tokens_percentage':
-      defaultValues['gemini.thinking_adapter_budget_tokens_percentage'],
+      defaultValues.gemini.thinking_adapter_enabled,
+    'gemini.thinking_adapter_budget_tokens_percentage': Number(
+      defaultValues.gemini.thinking_adapter_budget_tokens_percentage
+    ),
   })
 
-  const form = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      ...defaultValues,
-      'gemini.safety_settings': formatJsonForTextarea(
-        defaultValues['gemini.safety_settings']
+  const buildFormDefaults = (
+    values: GeminiSettingsFormInput
+  ): GeminiSettingsFormInput => ({
+    gemini: {
+      safety_settings: formatJsonForTextarea(values.gemini.safety_settings),
+      version_settings: formatJsonForTextarea(values.gemini.version_settings),
+      supported_imagine_models: formatJsonForTextarea(
+        values.gemini.supported_imagine_models
       ),
-      'gemini.version_settings': formatJsonForTextarea(
-        defaultValues['gemini.version_settings']
-      ),
-      'gemini.supported_imagine_models': formatJsonForTextarea(
-        defaultValues['gemini.supported_imagine_models']
-      ),
+      thinking_adapter_enabled: values.gemini.thinking_adapter_enabled,
+      thinking_adapter_budget_tokens_percentage:
+        values.gemini.thinking_adapter_budget_tokens_percentage,
     },
+  })
+
+  const form = useForm<GeminiSettingsFormInput, any, GeminiSettingsFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: buildFormDefaults(defaultValues),
   })
 
   useEffect(() => {
     normalizedDefaultsRef.current = {
       'gemini.safety_settings': normalizeJsonString(
-        defaultValues['gemini.safety_settings']
+        defaultValues.gemini.safety_settings
       ),
       'gemini.version_settings': normalizeJsonString(
-        defaultValues['gemini.version_settings']
+        defaultValues.gemini.version_settings
       ),
       'gemini.supported_imagine_models': normalizeJsonString(
-        defaultValues['gemini.supported_imagine_models']
+        defaultValues.gemini.supported_imagine_models
       ),
       'gemini.thinking_adapter_enabled':
-        defaultValues['gemini.thinking_adapter_enabled'],
-      'gemini.thinking_adapter_budget_tokens_percentage':
-        defaultValues['gemini.thinking_adapter_budget_tokens_percentage'],
+        defaultValues.gemini.thinking_adapter_enabled,
+      'gemini.thinking_adapter_budget_tokens_percentage': Number(
+        defaultValues.gemini.thinking_adapter_budget_tokens_percentage
+      ),
     }
 
-    form.reset({
-      ...defaultValues,
-      'gemini.safety_settings': formatJsonForTextarea(
-        defaultValues['gemini.safety_settings']
-      ),
-      'gemini.version_settings': formatJsonForTextarea(
-        defaultValues['gemini.version_settings']
-      ),
-      'gemini.supported_imagine_models': formatJsonForTextarea(
-        defaultValues['gemini.supported_imagine_models']
-      ),
-    })
+    form.reset(buildFormDefaults(defaultValues))
   }, [defaultValues, form])
 
   const isAdapterEnabled = form.watch('gemini.thinking_adapter_enabled')
 
   const onSubmit = async (values: GeminiSettingsFormValues) => {
-    const updates: Array<{ key: keyof GeminiSettingsFormValues; value: any }> =
-      []
-
-    const normalized = {
+    const normalized: FlatGeminiSettings = {
       'gemini.safety_settings': normalizeJsonString(
-        values['gemini.safety_settings']
+        values.gemini.safety_settings
       ),
       'gemini.version_settings': normalizeJsonString(
-        values['gemini.version_settings']
+        values.gemini.version_settings
       ),
       'gemini.supported_imagine_models': normalizeJsonString(
-        values['gemini.supported_imagine_models']
+        values.gemini.supported_imagine_models
       ),
-      'gemini.thinking_adapter_enabled':
-        values['gemini.thinking_adapter_enabled'],
+      'gemini.thinking_adapter_enabled': values.gemini.thinking_adapter_enabled,
       'gemini.thinking_adapter_budget_tokens_percentage':
-        values['gemini.thinking_adapter_budget_tokens_percentage'],
+        values.gemini.thinking_adapter_budget_tokens_percentage,
     }
 
-    ;(Object.keys(normalized) as Array<keyof GeminiSettingsFormValues>).forEach(
-      (key) => {
-        if (normalized[key] !== normalizedDefaultsRef.current[key]) {
-          updates.push({ key, value: normalized[key] })
-        }
-      }
-    )
+    const updates = (
+      Object.keys(normalized) as Array<keyof FlatGeminiSettings>
+    ).filter((key) => normalized[key] !== normalizedDefaultsRef.current[key])
 
-    for (const update of updates) {
+    if (updates.length === 0) {
+      toast.info('No changes to save')
+      return
+    }
+
+    for (const key of updates) {
       await updateOption.mutateAsync({
-        key: update.key,
-        value: update.value,
+        key,
+        value: normalized[key],
       })
     }
   }

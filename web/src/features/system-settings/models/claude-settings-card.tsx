@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -24,107 +25,123 @@ import {
 } from './utils'
 
 const schema = z.object({
-  'claude.model_headers_settings': z.string().superRefine((value, ctx) => {
-    const result = validateJsonString(value)
-    if (!result.valid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: result.message || 'Invalid JSON',
-      })
-    }
+  claude: z.object({
+    model_headers_settings: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON',
+        })
+      }
+    }),
+    default_max_tokens: z.string().superRefine((value, ctx) => {
+      const result = validateJsonString(value)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.message || 'Invalid JSON',
+        })
+      }
+    }),
+    thinking_adapter_enabled: z.boolean(),
+    thinking_adapter_budget_tokens_percentage: z.coerce
+      .number()
+      .min(0.1, { message: 'Must be at least 0.1' })
+      .max(1, { message: 'Must be 1 or less' }),
   }),
-  'claude.default_max_tokens': z.string().superRefine((value, ctx) => {
-    const result = validateJsonString(value)
-    if (!result.valid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: result.message || 'Invalid JSON',
-      })
-    }
-  }),
-  'claude.thinking_adapter_enabled': z.boolean(),
-  'claude.thinking_adapter_budget_tokens_percentage': z.coerce
-    .number()
-    .min(0.1, { message: 'Must be at least 0.1' })
-    .max(1, { message: 'Must be 1 or less' }),
 })
 
-type ClaudeSettingsFormValues = z.infer<typeof schema>
+type ClaudeSettingsFormValues = z.output<typeof schema>
+type ClaudeSettingsFormInput = z.input<typeof schema>
+
+type FlatClaudeSettings = {
+  'claude.model_headers_settings': string
+  'claude.default_max_tokens': string
+  'claude.thinking_adapter_enabled': boolean
+  'claude.thinking_adapter_budget_tokens_percentage': number
+}
 
 type ClaudeSettingsCardProps = {
-  defaultValues: ClaudeSettingsFormValues
+  defaultValues: ClaudeSettingsFormInput
 }
 
 export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
   const updateOption = useUpdateOption()
-  const normalizedDefaultsRef = useRef({
+  const normalizedDefaultsRef = useRef<FlatClaudeSettings>({
     'claude.model_headers_settings': normalizeJsonString(
-      defaultValues['claude.model_headers_settings']
+      defaultValues.claude.model_headers_settings
     ),
     'claude.default_max_tokens': normalizeJsonString(
-      defaultValues['claude.default_max_tokens']
+      defaultValues.claude.default_max_tokens
     ),
     'claude.thinking_adapter_enabled':
-      defaultValues['claude.thinking_adapter_enabled'],
-    'claude.thinking_adapter_budget_tokens_percentage':
-      defaultValues['claude.thinking_adapter_budget_tokens_percentage'],
+      defaultValues.claude.thinking_adapter_enabled,
+    'claude.thinking_adapter_budget_tokens_percentage': Number(
+      defaultValues.claude.thinking_adapter_budget_tokens_percentage
+    ),
   })
 
-  const form = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      ...defaultValues,
-      'claude.model_headers_settings': formatJsonForTextarea(
-        defaultValues['claude.model_headers_settings']
+  const buildFormDefaults = (
+    values: ClaudeSettingsFormInput
+  ): ClaudeSettingsFormInput => ({
+    claude: {
+      model_headers_settings: formatJsonForTextarea(
+        values.claude.model_headers_settings
       ),
-      'claude.default_max_tokens': formatJsonForTextarea(
-        defaultValues['claude.default_max_tokens']
+      default_max_tokens: formatJsonForTextarea(
+        values.claude.default_max_tokens
       ),
+      thinking_adapter_enabled: values.claude.thinking_adapter_enabled,
+      thinking_adapter_budget_tokens_percentage:
+        values.claude.thinking_adapter_budget_tokens_percentage,
     },
+  })
+
+  const form = useForm<ClaudeSettingsFormInput, any, ClaudeSettingsFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: buildFormDefaults(defaultValues),
   })
 
   useEffect(() => {
     normalizedDefaultsRef.current = {
       'claude.model_headers_settings': normalizeJsonString(
-        defaultValues['claude.model_headers_settings']
+        defaultValues.claude.model_headers_settings
       ),
       'claude.default_max_tokens': normalizeJsonString(
-        defaultValues['claude.default_max_tokens']
+        defaultValues.claude.default_max_tokens
       ),
       'claude.thinking_adapter_enabled':
-        defaultValues['claude.thinking_adapter_enabled'],
-      'claude.thinking_adapter_budget_tokens_percentage':
-        defaultValues['claude.thinking_adapter_budget_tokens_percentage'],
+        defaultValues.claude.thinking_adapter_enabled,
+      'claude.thinking_adapter_budget_tokens_percentage': Number(
+        defaultValues.claude.thinking_adapter_budget_tokens_percentage
+      ),
     }
 
-    form.reset({
-      ...defaultValues,
-      'claude.model_headers_settings': formatJsonForTextarea(
-        defaultValues['claude.model_headers_settings']
-      ),
-      'claude.default_max_tokens': formatJsonForTextarea(
-        defaultValues['claude.default_max_tokens']
-      ),
-    })
+    form.reset(buildFormDefaults(defaultValues))
   }, [defaultValues, form])
 
   const onSubmit = async (values: ClaudeSettingsFormValues) => {
-    const normalized = {
+    const normalized: FlatClaudeSettings = {
       'claude.model_headers_settings': normalizeJsonString(
-        values['claude.model_headers_settings']
+        values.claude.model_headers_settings
       ),
       'claude.default_max_tokens': normalizeJsonString(
-        values['claude.default_max_tokens']
+        values.claude.default_max_tokens
       ),
-      'claude.thinking_adapter_enabled':
-        values['claude.thinking_adapter_enabled'],
+      'claude.thinking_adapter_enabled': values.claude.thinking_adapter_enabled,
       'claude.thinking_adapter_budget_tokens_percentage':
-        values['claude.thinking_adapter_budget_tokens_percentage'],
+        values.claude.thinking_adapter_budget_tokens_percentage,
     }
 
     const updates = (
-      Object.keys(normalized) as Array<keyof ClaudeSettingsFormValues>
+      Object.keys(normalized) as Array<keyof FlatClaudeSettings>
     ).filter((key) => normalized[key] !== normalizedDefaultsRef.current[key])
+
+    if (updates.length === 0) {
+      toast.info('No changes to save')
+      return
+    }
 
     for (const key of updates) {
       await updateOption.mutateAsync({ key, value: normalized[key] })

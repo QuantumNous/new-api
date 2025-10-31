@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -18,12 +19,34 @@ import { SettingsAccordion } from '../components/settings-accordion'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const schema = z.object({
-  'global.pass_through_request_enabled': z.boolean(),
-  'general_setting.ping_interval_enabled': z.boolean(),
-  'general_setting.ping_interval_seconds': z.coerce.number().min(1),
+  global: z.object({
+    pass_through_request_enabled: z.boolean(),
+  }),
+  general_setting: z.object({
+    ping_interval_enabled: z.boolean(),
+    ping_interval_seconds: z.coerce.number().min(1),
+  }),
 })
 
-type GlobalModelSettingsFormValues = z.infer<typeof schema>
+type GlobalModelSettingsFormValues = z.output<typeof schema>
+type GlobalModelSettingsFormInput = z.input<typeof schema>
+
+type FlatGlobalModelSettings = {
+  'global.pass_through_request_enabled': boolean
+  'general_setting.ping_interval_enabled': boolean
+  'general_setting.ping_interval_seconds': number
+}
+
+const flattenGlobalValues = (
+  values: GlobalModelSettingsFormValues
+): FlatGlobalModelSettings => ({
+  'global.pass_through_request_enabled':
+    values.global.pass_through_request_enabled,
+  'general_setting.ping_interval_enabled':
+    values.general_setting.ping_interval_enabled,
+  'general_setting.ping_interval_seconds':
+    values.general_setting.ping_interval_seconds,
+})
 
 type GlobalSettingsCardProps = {
   defaultValues: GlobalModelSettingsFormValues
@@ -32,35 +55,38 @@ type GlobalSettingsCardProps = {
 export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   const updateOption = useUpdateOption()
 
-  const form = useForm({
+  const form = useForm<
+    GlobalModelSettingsFormInput,
+    any,
+    GlobalModelSettingsFormValues
+  >({
     resolver: zodResolver(schema),
-    defaultValues,
+    defaultValues: defaultValues as GlobalModelSettingsFormInput,
   })
 
   useEffect(() => {
-    form.reset(defaultValues)
+    form.reset(defaultValues as GlobalModelSettingsFormInput)
   }, [defaultValues, form])
 
   const pingEnabled = form.watch('general_setting.ping_interval_enabled')
 
   const onSubmit = async (values: GlobalModelSettingsFormValues) => {
-    const updates: Array<{
-      key: keyof GlobalModelSettingsFormValues
-      value: any
-    }> = []
+    const flattenedDefaults = flattenGlobalValues(defaultValues)
+    const flattenedValues = flattenGlobalValues(values)
+    const updates = Object.entries(flattenedValues).filter(
+      ([key, value]) =>
+        value !== flattenedDefaults[key as keyof FlatGlobalModelSettings]
+    )
 
-    ;(
-      Object.keys(values) as Array<keyof GlobalModelSettingsFormValues>
-    ).forEach((key) => {
-      if (values[key] !== defaultValues[key]) {
-        updates.push({ key, value: values[key] })
-      }
-    })
+    if (updates.length === 0) {
+      toast.info('No changes to save')
+      return
+    }
 
-    for (const update of updates) {
+    for (const [key, value] of updates) {
       await updateOption.mutateAsync({
-        key: update.key,
-        value: update.value,
+        key,
+        value,
       })
     }
   }
@@ -131,7 +157,15 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     min={1}
                     disabled={!pingEnabled}
                     className='w-24'
-                    {...field}
+                    value={
+                      field.value === undefined || field.value === null
+                        ? ''
+                        : String(field.value)
+                    }
+                    onChange={(event) => field.onChange(event.target.value)}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
                   />
                 </FormControl>
                 <FormDescription>
