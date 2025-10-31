@@ -319,7 +319,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		if err2 != nil {
 			return
 		}
-		if channelModel.Type != constant.ChannelTypeVertexAi {
+		if channelModel.Type != constant.ChannelTypeVertexAi && channelModel.Type != constant.ChannelTypeGemini {
 			return
 		}
 		baseURL := constant.ChannelBaseURLs[channelModel.Type]
