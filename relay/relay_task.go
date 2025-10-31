@@ -215,7 +215,6 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	task.Data = taskData
 	task.Action = info.Action
 	task.Properties = model.Properties{
-		IsModelMapped:     info.IsModelMapped,
 		UpstreamModelName: info.UpstreamModelName,
 		OriginModelName:   info.OriginModelName,
 	}
