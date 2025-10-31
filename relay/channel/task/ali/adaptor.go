@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -108,6 +110,7 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+	aliReq      *AliVideoRequest
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -118,6 +121,16 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// 阿里通义万相支持 JSON 格式，不使用 multipart
+	var taskReq relaycommon.TaskSubmitReq
+	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
+		return service.TaskErrorWrapper(err, "unmarshal_task_request_failed", http.StatusBadRequest)
+	}
+	aliReq, err := a.convertToAliRequest(info, taskReq)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "convert_to_ali_request_failed", http.StatusInternalServerError)
+	}
+	a.aliReq = aliReq
+	logger.LogJson(c, "ali video request body", aliReq)
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
@@ -134,13 +147,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	var taskReq relaycommon.TaskSubmitReq
-	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
-		return nil, errors.Wrap(err, "unmarshal_task_request_failed")
-	}
-	aliReq := a.convertToAliRequest(taskReq)
-
-	bodyBytes, err := common.Marshal(aliReq)
+	bodyBytes, err := common.Marshal(a.aliReq)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal_ali_request_failed")
 	}
@@ -148,7 +155,31 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(bodyBytes), nil
 }
 
-func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVideoRequest {
+func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) (*AliVideoRequest, error) {
+	otherRatios := map[string]map[string]float64{
+		"wan2.5-i2v-preview": {
+			"480P":  1,
+			"720P":  2,
+			"1080P": 1 / 0.3,
+		},
+		"wan2.2-i2v-plus": {
+			"480P":  1,
+			"1080P": 0.7 / 0.14,
+		},
+		"wan2.2-kf2v-flash": {
+			"480P":  1,
+			"720P":  2,
+			"1080P": 4.8,
+		},
+		"wan2.2-i2v-flash": {
+			"480P": 1,
+			"720P": 2,
+		},
+		"wan2.2-s2v": {
+			"480P": 1,
+			"720P": 0.9 / 0.5,
+		},
+	}
 	aliReq := &AliVideoRequest{
 		Model: req.Model,
 		Input: AliVideoInput{
@@ -185,6 +216,13 @@ func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVid
 	// 处理时长
 	if req.Duration > 0 {
 		aliReq.Parameters.Duration = req.Duration
+	} else if req.Seconds != "" {
+		seconds, err := strconv.Atoi(req.Seconds)
+		if err != nil {
+			return nil, errors.Wrap(err, "convert seconds to int failed")
+		} else {
+			aliReq.Parameters.Duration = seconds
+		}
 	} else {
 		aliReq.Parameters.Duration = 5 // 默认5秒
 	}
@@ -192,11 +230,32 @@ func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVid
 	// 从 metadata 中提取额外参数
 	if req.Metadata != nil {
 		if metadataBytes, err := common.Marshal(req.Metadata); err == nil {
-			_ = common.Unmarshal(metadataBytes, aliReq)
+			err = common.Unmarshal(metadataBytes, aliReq)
+			if err != nil {
+				return nil, errors.Wrap(err, "unmarshal metadata failed")
+			}
+		} else {
+			return nil, errors.Wrap(err, "marshal metadata failed")
 		}
 	}
 
-	return aliReq
+	if aliReq.Model != req.Model {
+		return nil, errors.New("can't change model with metadata")
+	}
+
+	info.PriceData.OtherRatios = map[string]float64{
+		"seconds": float64(aliReq.Parameters.Duration),
+	}
+
+	if otherRatio, ok := otherRatios[req.Model]; ok {
+		if ratio, ok := otherRatio[aliReq.Parameters.Resolution]; ok {
+			info.PriceData.OtherRatios[fmt.Sprintf("resolution-%s", aliReq.Parameters.Resolution)] = ratio
+		}
+	}
+
+	// println(fmt.Sprintf("other ratios: %v", info.PriceData.OtherRatios))
+
+	return aliReq, nil
 }
 
 // DoRequest delegates to common helper

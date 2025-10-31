@@ -121,6 +121,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 
 	prompt = req.Prompt
 	model = req.Model
+	size = req.Size
 	seconds, _ = strconv.Atoi(req.Seconds)
 	if seconds == 0 {
 		seconds = req.Duration
