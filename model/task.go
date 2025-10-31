@@ -73,20 +73,22 @@ func (t *Task) GetData(v any) error {
 }
 
 type Properties struct {
-	Input string `json:"input"`
+	Input             string `json:"input"`
+	UpstreamModelName string `json:"upstream_model_name,omitempty"`
+	OriginModelName   string `json:"origin_model_name,omitempty"`
 }
 
 func (m *Properties) Scan(val interface{}) error {
 	bytesValue, _ := val.([]byte)
 	if len(bytesValue) == 0 {
-		m.Input = ""
+		*m = Properties{}
 		return nil
 	}
 	return json.Unmarshal(bytesValue, m)
 }
 
 func (m Properties) Value() (driver.Value, error) {
-	if m.Input == "" {
+	if m == (Properties{}) {
 		return nil, nil
 	}
 	return json.Marshal(m)
@@ -127,8 +129,16 @@ type SyncTaskQueryParams struct {
 func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
 	properties := Properties{}
 	privateData := TaskPrivateData{}
-	if relayInfo != nil && relayInfo.ChannelMeta != nil && relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini {
-		privateData.Key = relayInfo.ChannelMeta.ApiKey
+	if relayInfo != nil && relayInfo.ChannelMeta != nil {
+		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini {
+			privateData.Key = relayInfo.ChannelMeta.ApiKey
+		}
+		if relayInfo.UpstreamModelName != "" {
+			properties.UpstreamModelName = relayInfo.UpstreamModelName
+		}
+		if relayInfo.OriginModelName != "" {
+			properties.OriginModelName = relayInfo.OriginModelName
+		}
 	}
 
 	t := &Task{

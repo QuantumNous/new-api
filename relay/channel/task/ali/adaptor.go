@@ -70,6 +70,8 @@ type AliVideoOutput struct {
 	OrigPrompt    string `json:"orig_prompt,omitempty"`
 	ActualPrompt  string `json:"actual_prompt,omitempty"`
 	VideoURL      string `json:"video_url,omitempty"`
+	Code          string `json:"code,omitempty"`
+	Message       string `json:"message,omitempty"`
 }
 
 // AliUsage 使用统计
@@ -203,7 +205,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 // DoResponse handles upstream response
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
@@ -233,6 +235,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relayco
 	openAIResp := dto.NewOpenAIVideo()
 	openAIResp.ID = aliResp.Output.TaskID
 	openAIResp.Model = c.GetString("model")
+	if openAIResp.Model == "" && info != nil {
+		openAIResp.Model = info.OriginModelName
+	}
 	openAIResp.Status = convertAliStatus(aliResp.Output.TaskStatus)
 	openAIResp.CreatedAt = common.GetTimestamp()
 
@@ -294,6 +299,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusFailure
 		if aliResp.Message != "" {
 			taskResult.Reason = aliResp.Message
+		} else if aliResp.Output.Message != "" {
+			taskResult.Reason = fmt.Sprintf("task failed, code: %s , message: %s", aliResp.Output.Code, aliResp.Output.Message)
 		} else {
 			taskResult.Reason = "task failed"
 		}
@@ -313,6 +320,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	openAIResp := dto.NewOpenAIVideo()
 	openAIResp.ID = task.TaskID
 	openAIResp.Status = convertAliStatus(aliResp.Output.TaskStatus)
+	openAIResp.Model = task.Properties.OriginModelName
 	openAIResp.SetProgressStr(task.Progress)
 	openAIResp.CreatedAt = task.CreatedAt
 	openAIResp.CompletedAt = task.UpdatedAt
@@ -325,6 +333,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		openAIResp.Error = &dto.OpenAIVideoError{
 			Code:    aliResp.Code,
 			Message: aliResp.Message,
+		}
+	} else if aliResp.Output.Code != "" {
+		openAIResp.Error = &dto.OpenAIVideoError{
+			Code:    aliResp.Output.Code,
+			Message: aliResp.Output.Message,
 		}
 	}
 
