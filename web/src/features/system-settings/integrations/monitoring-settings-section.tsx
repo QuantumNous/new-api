@@ -1,6 +1,8 @@
+import { useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -30,110 +32,134 @@ const monitoringSchema = z.object({
   AutomaticDisableChannelEnabled: z.boolean(),
   AutomaticEnableChannelEnabled: z.boolean(),
   AutomaticDisableKeywords: z.string(),
-  'monitor_setting.auto_test_channel_enabled': z.boolean(),
-  'monitor_setting.auto_test_channel_minutes': z.coerce
-    .number()
-    .int()
-    .min(1, 'Interval must be at least 1 minute'),
+  monitor_setting: z.object({
+    auto_test_channel_enabled: z.boolean(),
+    auto_test_channel_minutes: z.coerce
+      .number()
+      .int()
+      .min(1, 'Interval must be at least 1 minute'),
+  }),
 })
 
-type MonitoringFormValues = z.infer<typeof monitoringSchema>
+type MonitoringFormValues = z.output<typeof monitoringSchema>
+type MonitoringFormInput = z.input<typeof monitoringSchema>
 
 type MonitoringSettingsSectionProps = {
-  defaultValues: MonitoringFormValues
+  defaultValues: {
+    ChannelDisableThreshold: string
+    QuotaRemindThreshold: string
+    AutomaticDisableChannelEnabled: boolean
+    AutomaticEnableChannelEnabled: boolean
+    AutomaticDisableKeywords: string
+    'monitor_setting.auto_test_channel_enabled': boolean
+    'monitor_setting.auto_test_channel_minutes': number
+  }
 }
 
 function normalizeLineEndings(value: string) {
   return value.replace(/\r\n/g, '\n')
 }
 
+type NormalizedMonitoringValues = {
+  ChannelDisableThreshold: string
+  QuotaRemindThreshold: string
+  AutomaticDisableChannelEnabled: boolean
+  AutomaticEnableChannelEnabled: boolean
+  AutomaticDisableKeywords: string
+  'monitor_setting.auto_test_channel_enabled': boolean
+  'monitor_setting.auto_test_channel_minutes': number
+}
+
+const buildFormDefaults = (
+  defaults: MonitoringSettingsSectionProps['defaultValues']
+): MonitoringFormInput => ({
+  ChannelDisableThreshold: defaults.ChannelDisableThreshold ?? '',
+  QuotaRemindThreshold: defaults.QuotaRemindThreshold ?? '',
+  AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
+  AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
+  AutomaticDisableKeywords: normalizeLineEndings(
+    defaults.AutomaticDisableKeywords ?? ''
+  ),
+  monitor_setting: {
+    auto_test_channel_enabled:
+      defaults['monitor_setting.auto_test_channel_enabled'],
+    auto_test_channel_minutes:
+      defaults['monitor_setting.auto_test_channel_minutes'],
+  },
+})
+
+const normalizeDefaults = (
+  defaults: MonitoringSettingsSectionProps['defaultValues']
+): NormalizedMonitoringValues => ({
+  ChannelDisableThreshold: (defaults.ChannelDisableThreshold ?? '').trim(),
+  QuotaRemindThreshold: (defaults.QuotaRemindThreshold ?? '').trim(),
+  AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
+  AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
+  AutomaticDisableKeywords: normalizeLineEndings(
+    defaults.AutomaticDisableKeywords ?? ''
+  ),
+  'monitor_setting.auto_test_channel_enabled':
+    defaults['monitor_setting.auto_test_channel_enabled'],
+  'monitor_setting.auto_test_channel_minutes':
+    defaults['monitor_setting.auto_test_channel_minutes'],
+})
+
+const normalizeFormValues = (
+  values: MonitoringFormValues
+): NormalizedMonitoringValues => ({
+  ChannelDisableThreshold: values.ChannelDisableThreshold.trim(),
+  QuotaRemindThreshold: values.QuotaRemindThreshold.trim(),
+  AutomaticDisableChannelEnabled: values.AutomaticDisableChannelEnabled,
+  AutomaticEnableChannelEnabled: values.AutomaticEnableChannelEnabled,
+  AutomaticDisableKeywords: normalizeLineEndings(
+    values.AutomaticDisableKeywords
+  ),
+  'monitor_setting.auto_test_channel_enabled':
+    values.monitor_setting.auto_test_channel_enabled,
+  'monitor_setting.auto_test_channel_minutes':
+    values.monitor_setting.auto_test_channel_minutes,
+})
+
 export function MonitoringSettingsSection({
   defaultValues,
 }: MonitoringSettingsSectionProps) {
   const updateOption = useUpdateOption()
+  const baselineRef = useRef<NormalizedMonitoringValues>(
+    normalizeDefaults(defaultValues)
+  )
 
-  const form = useForm({
+  const formDefaults = useMemo(
+    () => buildFormDefaults(defaultValues),
+    [defaultValues]
+  )
+
+  const form = useForm<MonitoringFormInput, any, MonitoringFormValues>({
     resolver: zodResolver(monitoringSchema),
-    defaultValues,
+    defaultValues: formDefaults,
   })
 
-  useResetForm(form, defaultValues)
+  useResetForm(form, formDefaults)
 
   const onSubmit = async (values: MonitoringFormValues) => {
-    const updates: Array<{ key: string; value: string | boolean | number }> = []
+    const normalized = normalizeFormValues(values)
+    const updates = (
+      Object.keys(normalized) as Array<keyof NormalizedMonitoringValues>
+    ).filter((key) => normalized[key] !== baselineRef.current[key])
 
-    const channelThreshold = values.ChannelDisableThreshold.trim()
-    const initialChannelThreshold = defaultValues.ChannelDisableThreshold.trim()
-    if (channelThreshold !== initialChannelThreshold) {
-      updates.push({
-        key: 'ChannelDisableThreshold',
-        value: channelThreshold,
+    if (updates.length === 0) {
+      toast.info('No changes to save')
+      return
+    }
+
+    for (const key of updates) {
+      const value = normalized[key]
+      await updateOption.mutateAsync({
+        key,
+        value,
       })
     }
 
-    const quotaThreshold = values.QuotaRemindThreshold.trim()
-    const initialQuotaThreshold = defaultValues.QuotaRemindThreshold.trim()
-    if (quotaThreshold !== initialQuotaThreshold) {
-      updates.push({
-        key: 'QuotaRemindThreshold',
-        value: quotaThreshold,
-      })
-    }
-
-    if (
-      values.AutomaticDisableChannelEnabled !==
-      defaultValues.AutomaticDisableChannelEnabled
-    ) {
-      updates.push({
-        key: 'AutomaticDisableChannelEnabled',
-        value: values.AutomaticDisableChannelEnabled,
-      })
-    }
-
-    if (
-      values.AutomaticEnableChannelEnabled !==
-      defaultValues.AutomaticEnableChannelEnabled
-    ) {
-      updates.push({
-        key: 'AutomaticEnableChannelEnabled',
-        value: values.AutomaticEnableChannelEnabled,
-      })
-    }
-
-    const keywords = normalizeLineEndings(values.AutomaticDisableKeywords)
-    const initialKeywords = normalizeLineEndings(
-      defaultValues.AutomaticDisableKeywords
-    )
-    if (keywords !== initialKeywords) {
-      updates.push({
-        key: 'AutomaticDisableKeywords',
-        value: values.AutomaticDisableKeywords,
-      })
-    }
-
-    if (
-      values['monitor_setting.auto_test_channel_enabled'] !==
-      defaultValues['monitor_setting.auto_test_channel_enabled']
-    ) {
-      updates.push({
-        key: 'monitor_setting.auto_test_channel_enabled',
-        value: values['monitor_setting.auto_test_channel_enabled'],
-      })
-    }
-
-    if (
-      values['monitor_setting.auto_test_channel_minutes'] !==
-      defaultValues['monitor_setting.auto_test_channel_minutes']
-    ) {
-      updates.push({
-        key: 'monitor_setting.auto_test_channel_minutes',
-        value: values['monitor_setting.auto_test_channel_minutes'],
-      })
-    }
-
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
-    }
+    baselineRef.current = normalized
   }
 
   return (
@@ -179,10 +205,18 @@ export function MonitoringSettingsSection({
                       type='number'
                       min={1}
                       step={1}
-                      value={field.value}
+                      value={
+                        typeof field.value === 'number' &&
+                        Number.isFinite(field.value)
+                          ? field.value
+                          : ''
+                      }
                       onChange={(event) =>
                         field.onChange(event.target.valueAsNumber)
                       }
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormDescription>

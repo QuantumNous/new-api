@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -26,118 +27,150 @@ import { SettingsAccordion } from '../components/settings-accordion'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const ssrfSchema = z.object({
-  'fetch_setting.enable_ssrf_protection': z.boolean(),
-  'fetch_setting.allow_private_ip': z.boolean(),
-  'fetch_setting.domain_filter_mode': z.boolean(),
-  'fetch_setting.ip_filter_mode': z.boolean(),
-  'fetch_setting.domain_list': z.string(),
-  'fetch_setting.ip_list': z.string(),
-  'fetch_setting.allowed_ports': z.string(),
-  'fetch_setting.apply_ip_filter_for_domain': z.boolean(),
+  fetch_setting: z.object({
+    enable_ssrf_protection: z.boolean(),
+    allow_private_ip: z.boolean(),
+    domain_filter_mode: z.boolean(),
+    ip_filter_mode: z.boolean(),
+    domain_list: z.string(),
+    ip_list: z.string(),
+    allowed_ports: z.string(),
+    apply_ip_filter_for_domain: z.boolean(),
+  }),
 })
 
-type SSRFFormValues = z.infer<typeof ssrfSchema>
+type SSRFFormValues = z.output<typeof ssrfSchema>
+type SSRFFormInput = z.input<typeof ssrfSchema>
+
+type NormalizedSSRFValues = {
+  'fetch_setting.enable_ssrf_protection': boolean
+  'fetch_setting.allow_private_ip': boolean
+  'fetch_setting.domain_filter_mode': boolean
+  'fetch_setting.ip_filter_mode': boolean
+  'fetch_setting.domain_list': string[]
+  'fetch_setting.ip_list': string[]
+  'fetch_setting.allowed_ports': number[]
+  'fetch_setting.apply_ip_filter_for_domain': boolean
+}
 
 type SSRFSectionProps = {
-  defaultValues: Omit<
-    SSRFFormValues,
-    | 'fetch_setting.domain_list'
-    | 'fetch_setting.ip_list'
-    | 'fetch_setting.allowed_ports'
-  > & {
+  defaultValues: {
+    'fetch_setting.enable_ssrf_protection': boolean
+    'fetch_setting.allow_private_ip': boolean
+    'fetch_setting.domain_filter_mode': boolean
+    'fetch_setting.ip_filter_mode': boolean
     'fetch_setting.domain_list': string[]
     'fetch_setting.ip_list': string[]
     'fetch_setting.allowed_ports': number[]
+    'fetch_setting.apply_ip_filter_for_domain': boolean
   }
+}
+
+const splitLines = (value: string) =>
+  value
+    .split('\n')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+const parsePorts = (value: string) =>
+  value
+    .split(',')
+    .map((item) => Number.parseInt(item.trim(), 10))
+    .filter((port) => Number.isFinite(port))
+
+const buildFormDefaults = (
+  defaults: SSRFSectionProps['defaultValues']
+): SSRFFormInput => ({
+  fetch_setting: {
+    enable_ssrf_protection: defaults['fetch_setting.enable_ssrf_protection'],
+    allow_private_ip: defaults['fetch_setting.allow_private_ip'],
+    domain_filter_mode: defaults['fetch_setting.domain_filter_mode'],
+    ip_filter_mode: defaults['fetch_setting.ip_filter_mode'],
+    domain_list: defaults['fetch_setting.domain_list'].join('\n'),
+    ip_list: defaults['fetch_setting.ip_list'].join('\n'),
+    allowed_ports: defaults['fetch_setting.allowed_ports'].join(','),
+    apply_ip_filter_for_domain:
+      defaults['fetch_setting.apply_ip_filter_for_domain'],
+  },
+})
+
+const normalizeDefaults = (
+  defaults: SSRFSectionProps['defaultValues']
+): NormalizedSSRFValues => ({
+  'fetch_setting.enable_ssrf_protection':
+    defaults['fetch_setting.enable_ssrf_protection'],
+  'fetch_setting.allow_private_ip': defaults['fetch_setting.allow_private_ip'],
+  'fetch_setting.domain_filter_mode':
+    defaults['fetch_setting.domain_filter_mode'],
+  'fetch_setting.ip_filter_mode': defaults['fetch_setting.ip_filter_mode'],
+  'fetch_setting.domain_list': defaults['fetch_setting.domain_list'],
+  'fetch_setting.ip_list': defaults['fetch_setting.ip_list'],
+  'fetch_setting.allowed_ports': defaults['fetch_setting.allowed_ports'],
+  'fetch_setting.apply_ip_filter_for_domain':
+    defaults['fetch_setting.apply_ip_filter_for_domain'],
+})
+
+const normalizeFormValues = (values: SSRFFormValues): NormalizedSSRFValues => ({
+  'fetch_setting.enable_ssrf_protection':
+    values.fetch_setting.enable_ssrf_protection,
+  'fetch_setting.allow_private_ip': values.fetch_setting.allow_private_ip,
+  'fetch_setting.domain_filter_mode': values.fetch_setting.domain_filter_mode,
+  'fetch_setting.ip_filter_mode': values.fetch_setting.ip_filter_mode,
+  'fetch_setting.domain_list': splitLines(values.fetch_setting.domain_list),
+  'fetch_setting.ip_list': splitLines(values.fetch_setting.ip_list),
+  'fetch_setting.allowed_ports': parsePorts(values.fetch_setting.allowed_ports),
+  'fetch_setting.apply_ip_filter_for_domain':
+    values.fetch_setting.apply_ip_filter_for_domain,
+})
+
+const isEqual = (a: unknown, b: unknown) => {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+  return a === b
 }
 
 export function SSRFSection({ defaultValues }: SSRFSectionProps) {
   const updateOption = useUpdateOption()
+  const baselineRef = useRef<NormalizedSSRFValues>(
+    normalizeDefaults(defaultValues)
+  )
 
-  const form = useForm<SSRFFormValues>({
+  const formDefaults = useMemo(
+    () => buildFormDefaults(defaultValues),
+    [defaultValues]
+  )
+
+  const form = useForm<SSRFFormInput, any, SSRFFormValues>({
     resolver: zodResolver(ssrfSchema),
-    defaultValues: {
-      'fetch_setting.enable_ssrf_protection':
-        defaultValues['fetch_setting.enable_ssrf_protection'],
-      'fetch_setting.allow_private_ip':
-        defaultValues['fetch_setting.allow_private_ip'],
-      'fetch_setting.domain_filter_mode':
-        defaultValues['fetch_setting.domain_filter_mode'],
-      'fetch_setting.ip_filter_mode':
-        defaultValues['fetch_setting.ip_filter_mode'],
-      'fetch_setting.domain_list':
-        defaultValues['fetch_setting.domain_list'].join('\n'),
-      'fetch_setting.ip_list':
-        defaultValues['fetch_setting.ip_list'].join('\n'),
-      'fetch_setting.allowed_ports':
-        defaultValues['fetch_setting.allowed_ports'].join(','),
-      'fetch_setting.apply_ip_filter_for_domain':
-        defaultValues['fetch_setting.apply_ip_filter_for_domain'],
-    },
+    defaultValues: formDefaults,
   })
 
   useEffect(() => {
-    form.reset({
-      'fetch_setting.enable_ssrf_protection':
-        defaultValues['fetch_setting.enable_ssrf_protection'],
-      'fetch_setting.allow_private_ip':
-        defaultValues['fetch_setting.allow_private_ip'],
-      'fetch_setting.domain_filter_mode':
-        defaultValues['fetch_setting.domain_filter_mode'],
-      'fetch_setting.ip_filter_mode':
-        defaultValues['fetch_setting.ip_filter_mode'],
-      'fetch_setting.domain_list':
-        defaultValues['fetch_setting.domain_list'].join('\n'),
-      'fetch_setting.ip_list':
-        defaultValues['fetch_setting.ip_list'].join('\n'),
-      'fetch_setting.allowed_ports':
-        defaultValues['fetch_setting.allowed_ports'].join(','),
-      'fetch_setting.apply_ip_filter_for_domain':
-        defaultValues['fetch_setting.apply_ip_filter_for_domain'],
-    })
+    baselineRef.current = normalizeDefaults(defaultValues)
+    form.reset(buildFormDefaults(defaultValues))
   }, [defaultValues, form])
 
   const onSubmit = async (data: SSRFFormValues) => {
-    const updates: Array<{ key: string; value: string | boolean }> = []
+    const normalized = normalizeFormValues(data)
+    const updates = (
+      Object.keys(normalized) as Array<keyof NormalizedSSRFValues>
+    ).filter((key) => !isEqual(normalized[key], baselineRef.current[key]))
 
-    Object.entries(data).forEach(([key, value]) => {
-      if (
-        key === 'fetch_setting.domain_list' ||
-        key === 'fetch_setting.ip_list'
-      ) {
-        if (typeof value === 'string') {
-          const list = value.split('\n').filter((d: string) => d.trim())
-          const origKey = key as
-            | 'fetch_setting.domain_list'
-            | 'fetch_setting.ip_list'
-          if (JSON.stringify(list) !== JSON.stringify(defaultValues[origKey])) {
-            updates.push({ key, value: JSON.stringify(list) })
-          }
-        }
-      } else if (key === 'fetch_setting.allowed_ports') {
-        if (typeof value === 'string') {
-          const ports = value
-            .split(',')
-            .map((p: string) => parseInt(p.trim()))
-            .filter((p: number) => !isNaN(p))
-          if (
-            JSON.stringify(ports) !==
-            JSON.stringify(defaultValues['fetch_setting.allowed_ports'])
-          ) {
-            updates.push({ key, value: JSON.stringify(ports) })
-          }
-        }
-      } else {
-        const defaultKey = key as keyof typeof defaultValues
-        if (value !== defaultValues[defaultKey]) {
-          updates.push({ key, value })
-        }
-      }
-    })
-
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
+    if (updates.length === 0) {
+      toast.info('No changes to save')
+      return
     }
+
+    for (const key of updates) {
+      const value = normalized[key]
+      await updateOption.mutateAsync({
+        key,
+        value: Array.isArray(value) ? JSON.stringify(value) : value,
+      })
+    }
+
+    baselineRef.current = normalized
   }
 
   const domainFilterMode = form.watch('fetch_setting.domain_filter_mode')
