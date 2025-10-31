@@ -170,12 +170,12 @@ func buildRequestBodyWithMappedModel(originalBody []byte, contentType, redirecte
 					return nil, errors.Wrap(err, "copy_file_content_failed")
 				}
 			} else {
-				content, err := io.ReadAll(part)
+				newPart, err := writer.CreatePart(part.Header)
 				if err != nil {
-					return nil, errors.Wrap(err, "read_field_content_failed")
+					return nil, errors.Wrap(err, "create_form_field_failed")
 				}
-				if err := writer.WriteField(fieldName, string(content)); err != nil {
-					return nil, errors.Wrap(err, "write_field_failed")
+				if _, err := io.Copy(newPart, part); err != nil {
+					return nil, errors.Wrap(err, "copy_field_content_failed")
 				}
 			}
 		}
