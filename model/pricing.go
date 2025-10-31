@@ -27,6 +27,8 @@ type Pricing struct {
 	CompletionRatio        float64                 `json:"completion_ratio"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+	CreatedTime            int64                   `json:"created_time,omitempty"`
+	UpdatedTime            int64                   `json:"updated_time,omitempty"`
 }
 
 type PricingVendor struct {
@@ -280,6 +282,8 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.CreatedTime = meta.CreatedTime
+			pricing.UpdatedTime = meta.UpdatedTime
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
