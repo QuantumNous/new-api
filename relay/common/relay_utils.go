@@ -252,6 +252,11 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		}
 	}
 
+	// 模型映射
+	if info.IsModelMapped {
+		req.Model = info.UpstreamModelName
+	}
+
 	storeTaskRequest(c, info, action, req)
 	return nil
 }
