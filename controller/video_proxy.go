@@ -93,8 +93,30 @@ func VideoProxy(c *gin.Context) {
 
 	switch channel.Type {
 	case constant.ChannelTypeGemini:
-		videoURL = fmt.Sprintf("%s&key=%s", c.Query("url"), channel.Key)
-		req.Header.Set("x-goog-api-key", channel.Key)
+		apiKey := task.PrivateData.Key
+		if apiKey == "" {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Missing stored API key for Gemini task %s", taskID))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{
+					"message": "API key not stored for task",
+					"type":    "server_error",
+				},
+			})
+			return
+		}
+
+		videoURL, err = getGeminiVideoURL(channel, task, apiKey)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to resolve Gemini video URL for task %s: %s", taskID, err.Error()))
+			c.JSON(http.StatusBadGateway, gin.H{
+				"error": gin.H{
+					"message": "Failed to resolve Gemini video URL",
+					"type":    "server_error",
+				},
+			})
+			return
+		}
+		req.Header.Set("x-goog-api-key", apiKey)
 	case constant.ChannelTypeAli:
 		// Video URL is directly in task.FailReason
 		videoURL = task.FailReason
