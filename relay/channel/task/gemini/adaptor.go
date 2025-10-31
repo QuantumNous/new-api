@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -248,15 +250,43 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	ti.Status = model.TaskStatusSuccess
 	ti.Progress = "100%"
 
+	taskID := encodeLocalTaskID(op.Name)
+	ti.TaskID = taskID
+	ti.Url = fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, taskID)
+
 	// Extract URL from generateVideoResponse if available
 	if len(op.Response.GenerateVideoResponse.GeneratedSamples) > 0 {
 		if uri := op.Response.GenerateVideoResponse.GeneratedSamples[0].Video.URI; uri != "" {
-			taskID := encodeLocalTaskID(op.Name)
-			ti.Url = fmt.Sprintf("%s/v1/videos/%s/content?url=%s", system_setting.ServerAddress, taskID, uri)
+			ti.RemoteUrl = uri
 		}
 	}
 
 	return ti, nil
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
+	upstreamName, err := decodeLocalTaskID(task.TaskID)
+	if err != nil {
+		upstreamName = ""
+	}
+	modelName := extractModelFromOperationName(upstreamName)
+	if strings.TrimSpace(modelName) == "" {
+		modelName = "veo-3.0-generate-001"
+	}
+
+	video := dto.NewOpenAIVideo()
+	video.ID = task.TaskID
+	video.Model = modelName
+	video.Status = task.Status.ToVideoStatus()
+	video.SetProgressStr(task.Progress)
+	video.CreatedAt = task.CreatedAt
+	if task.FinishTime > 0 {
+		video.CompletedAt = task.FinishTime
+	} else if task.UpdatedAt > 0 {
+		video.CompletedAt = task.UpdatedAt
+	}
+
+	return common.Marshal(video)
 }
 
 // ============================
@@ -273,4 +303,22 @@ func decodeLocalTaskID(local string) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+var modelRe = regexp.MustCompile(`models/([^/]+)/operations/`)
+
+func extractModelFromOperationName(name string) string {
+	if name == "" {
+		return ""
+	}
+	if m := modelRe.FindStringSubmatch(name); len(m) == 2 {
+		return m[1]
+	}
+	if idx := strings.Index(name, "models/"); idx >= 0 {
+		s := name[idx+len("models/"):]
+		if p := strings.Index(s, "/operations/"); p > 0 {
+			return s[:p]
+		}
+	}
+	return ""
 }
