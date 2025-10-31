@@ -32,7 +32,7 @@ export function CopyButton({
   successTooltip = 'Copied!',
   'aria-label': ariaLabel = 'Copy to clipboard',
 }: CopyButtonProps) {
-  const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const isCopied = copiedText === value
 
   const button = (

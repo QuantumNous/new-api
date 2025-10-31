@@ -24,7 +24,7 @@ export function PromptDialog({
   open,
   onOpenChange,
 }: PromptDialogProps) {
-  const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

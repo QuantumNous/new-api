@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { CopyIcon, CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -56,8 +57,12 @@ function ResetPasswordConfirm() {
       if (res?.data?.success) {
         const password = res.data.data
         setNewPassword(password)
-        await navigator.clipboard.writeText(password)
-        toast.success(`Password reset and copied to clipboard: ${password}`)
+        const copySuccess = await copyToClipboard(password)
+        if (copySuccess) {
+          toast.success(`Password reset and copied to clipboard: ${password}`)
+        } else {
+          toast.success(`Password reset: ${password}`)
+        }
       }
     } catch {
       // Errors handled by global interceptor
@@ -68,10 +73,12 @@ function ResetPasswordConfirm() {
 
   async function handleCopy() {
     if (newPassword) {
-      await navigator.clipboard.writeText(newPassword)
-      setCopied(true)
-      toast.success(`Password copied to clipboard: ${newPassword}`)
-      setTimeout(() => setCopied(false), 2000)
+      const copySuccess = await copyToClipboard(newPassword)
+      if (copySuccess) {
+        setCopied(true)
+        toast.success(`Password copied to clipboard: ${newPassword}`)
+        setTimeout(() => setCopied(false), 2000)
+      }
     }
   }
 

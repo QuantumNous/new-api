@@ -22,7 +22,7 @@ export function FailReasonDialog({
   open,
   onOpenChange,
 }: FailReasonDialogProps) {
-  const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

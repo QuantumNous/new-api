@@ -10,7 +10,7 @@ import { generateAccessToken } from '../api'
 export function useAccessToken() {
   const [token, setToken] = useState<string>('')
   const [generating, setGenerating] = useState(false)
-  const { copyToClipboard } = useCopyToClipboard()
+  const { copyToClipboard } = useCopyToClipboard({ notify: false })
 
   // Generate new access token
   const generate = useCallback(async (): Promise<boolean> => {

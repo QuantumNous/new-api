@@ -24,7 +24,7 @@ export function DetailsDialog({
   open,
   onOpenChange,
 }: DetailsDialogProps) {
-  const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   // Get log type label
   const getLogTypeLabel = (type: number): string => {

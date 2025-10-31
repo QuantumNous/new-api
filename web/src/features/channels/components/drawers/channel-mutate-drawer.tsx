@@ -441,15 +441,14 @@ export function ChannelMutateDrawer({
     toast.success('Cleared all models')
   }, [form])
 
-  const handleCopyModels = useCallback(() => {
+  const handleCopyModels = useCallback(async () => {
     const models = form.getValues('models')
     if (!models?.trim()) {
       toast.info('No models to copy')
       return
     }
-    navigator.clipboard.writeText(models)
-    toast.success('Models copied to clipboard')
-  }, [form])
+    await copyToClipboard(models)
+  }, [form, copyToClipboard])
 
   // Handle adding prefill group models
   const handleAddPrefillGroup = useCallback(

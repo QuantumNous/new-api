@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Trash2, Copy } from 'lucide-react'
 import { toast } from 'sonner'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -69,10 +70,10 @@ export function DataTableBulkActions<TData>({
 
   const handleCopyNames = async () => {
     const names = selectedModels.map((m) => m.model_name).join(',')
-    try {
-      await navigator.clipboard.writeText(names)
+    const success = await copyToClipboard(names)
+    if (success) {
       toast.success('Model names copied to clipboard')
-    } catch (error) {
+    } else {
       toast.error('Failed to copy model names')
     }
   }

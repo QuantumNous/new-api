@@ -1,22 +1,48 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
+import { copyToClipboard as copyToClipboardUtil } from '@/lib/copy-to-clipboard'
 
-export function useCopyToClipboard() {
+type UseCopyToClipboardOptions = {
+  /** Whether to show a global toast notification (default: true) */
+  notify?: boolean
+  /** Success message (default: 'Copied to clipboard') */
+  successMessage?: string
+  /** Error message (default: 'Failed to copy to clipboard') */
+  errorMessage?: string
+  /** Time to automatically reset copiedText (milliseconds, default: 2000) */
+  resetAfterMs?: number
+}
+
+export function useCopyToClipboard(options?: UseCopyToClipboardOptions) {
+  const {
+    notify = true,
+    successMessage = 'Copied to clipboard',
+    errorMessage = 'Failed to copy to clipboard',
+    resetAfterMs = 2000,
+  } = options || {}
+
   const [copiedText, setCopiedText] = useState<string | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
 
   const copyToClipboard = useCallback(
     async (text: string): Promise<boolean> => {
-      if (!navigator?.clipboard) {
-        console.warn('Clipboard not supported')
-        toast.error('Clipboard not supported in your browser')
-        return false
-      }
+      const success = await copyToClipboardUtil(text)
 
-      try {
-        await navigator.clipboard.writeText(text)
+      if (success) {
         setCopiedText(text)
-        toast.success('Copied to clipboard')
+        if (notify) {
+          toast.success(successMessage)
+        }
 
         // Clear previous timeout
         if (timeoutRef.current) {
@@ -26,17 +52,19 @@ export function useCopyToClipboard() {
         // Auto-reset after 2 seconds
         timeoutRef.current = setTimeout(() => {
           setCopiedText(null)
-        }, 2000)
+        }, resetAfterMs)
 
         return true
-      } catch (error) {
-        console.warn('Copy failed', error)
-        toast.error('Failed to copy to clipboard')
+      } else {
+        console.warn('All copy methods failed')
+        if (notify) {
+          toast.error(errorMessage)
+        }
         setCopiedText(null)
         return false
       }
     },
-    []
+    [notify, successMessage, errorMessage, resetAfterMs]
   )
 
   return { copiedText, copyToClipboard }
