@@ -1,8 +1,8 @@
 import { type LinkProps } from '@tanstack/react-router'
 
 /**
- * Workspace 工作区类型
- * 用于顶部切换器显示不同的工作空间
+ * Workspace type
+ * Used for top switcher to display different workspaces
  */
 export type Workspace = {
   name: string
@@ -11,7 +11,7 @@ export type Workspace = {
 }
 
 /**
- * 导航项基础类型
+ * Base navigation item type
  */
 type BaseNavItem = {
   title: string
@@ -20,28 +20,39 @@ type BaseNavItem = {
 }
 
 /**
- * 导航链接类型 - 单个链接项
+ * Navigation link type - single link item
  */
 export type NavLink = BaseNavItem & {
   url: LinkProps['to'] | (string & {})
   items?: never
+  type?: never
 }
 
 /**
- * 导航折叠类型 - 包含子项的可折叠导航
+ * Navigation collapsible type - collapsible navigation with sub-items
  */
 export type NavCollapsible = BaseNavItem & {
   items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[]
   url?: never
+  type?: never
 }
 
 /**
- * 导航项联合类型
+ * Dynamic chat presets type - dynamically loaded chat preset list from API
  */
-export type NavItem = NavCollapsible | NavLink
+export type NavChatPresets = BaseNavItem & {
+  type: 'chat-presets'
+  url?: never
+  items?: never
+}
 
 /**
- * 导航组类型 - 侧边栏中的一组导航项
+ * Navigation item union type
+ */
+export type NavItem = NavCollapsible | NavLink | NavChatPresets
+
+/**
+ * Navigation group type - a group of navigation items in sidebar
  */
 export type NavGroup = {
   title: string
@@ -49,7 +60,7 @@ export type NavGroup = {
 }
 
 /**
- * 侧边栏数据类型
+ * Sidebar data type
  */
 export type SidebarData = {
   workspaces: Workspace[]
@@ -57,7 +68,7 @@ export type SidebarData = {
 }
 
 /**
- * 顶部导航链接类型
+ * Top navigation link type
  */
 export type TopNavLink = {
   title: string

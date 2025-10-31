@@ -36,7 +36,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()((set) => {
-  // 从 localStorage 恢复 user 信息
+  // Restore user info from localStorage
   const initUser = (() => {
     try {
       if (typeof window !== 'undefined') {
@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthState>()((set) => {
         return saved ? JSON.parse(saved) : null
       }
     } catch {
-      // 解析失败时清除脏数据
+      // Clear dirty data when parsing fails
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('user')
       }
@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthState>()((set) => {
       user: initUser,
       setUser: (user) =>
         set((state) => {
-          // 持久化 user 到 localStorage
+          // Persist user to localStorage
           if (typeof window !== 'undefined') {
             if (user) {
               window.localStorage.setItem('user', JSON.stringify(user))

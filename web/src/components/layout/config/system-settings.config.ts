@@ -10,8 +10,8 @@ import {
 import { type NavGroup } from '../types'
 
 /**
- * 系统设置侧边栏配置
- * 当切换到 "System Settings" 工作区时显示
+ * System settings sidebar configuration
+ * Displayed when switching to "System Settings" workspace
  */
 export const systemSettingsConfig: NavGroup[] = [
   {

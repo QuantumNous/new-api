@@ -29,10 +29,10 @@ type WorkspaceSwitcherProps = {
 }
 
 /**
- * 工作区切换器组件
- * 允许用户在不同的工作区（workspace）之间切换
- * - 普通用户只能看到默认工作区
- * - 超级管理员可以看到系统设置工作区
+ * Workspace switcher component
+ * Allows users to switch between different workspaces
+ * - Regular users can only see the default workspace
+ * - Super administrators can see the system settings workspace
  */
 export function WorkspaceSwitcher({
   workspaces,
@@ -49,9 +49,9 @@ export function WorkspaceSwitcher({
   )
   const { activeWorkspace, setActiveWorkspace } = useWorkspace()
 
-  // 处理工作区列表：
-  // 1. 用系统信息填充第一个工作区
-  // 2. 根据用户权限过滤（非超级管理员看不到系统设置）
+  // Handle workspace list:
+  // 1. Populate first workspace with system info
+  // 2. Filter based on user permissions (non-super admins cannot see system settings)
   const availableWorkspaces = React.useMemo(
     () =>
       workspaces
@@ -77,14 +77,14 @@ export function WorkspaceSwitcher({
     ]
   )
 
-  // 初始化和同步激活的工作区
-  // 优先从 URL 检测，然后从 activeWorkspace 同步
+  // Initialize and synchronize active workspace
+  // Detect from URL first, then sync from activeWorkspace
   React.useEffect(() => {
-    // 从工作区注册表检测当前应该在哪个工作区
+    // Detect which workspace should be active from workspace registry
     const detectedWorkspace = getWorkspaceByPath(pathname)
 
     if (detectedWorkspace.name === 'System Settings') {
-      // 当前在系统设置路由中，应该激活 System Settings 工作区
+      // Currently in system settings route, should activate System Settings workspace
       const systemSettingsWorkspace = availableWorkspaces.find(
         (w) => w.name === 'System Settings'
       )
@@ -92,7 +92,7 @@ export function WorkspaceSwitcher({
         setActiveWorkspace(systemSettingsWorkspace)
       }
     } else {
-      // 当前在主工作区路由中，应该激活主工作区
+      // Currently in main workspace route, should activate main workspace
       const mainWorkspace = availableWorkspaces[0]
       if (mainWorkspace) {
         setActiveWorkspace(mainWorkspace)
@@ -101,8 +101,8 @@ export function WorkspaceSwitcher({
   }, [pathname, availableWorkspaces, setActiveWorkspace])
 
   const handleWorkspaceChange = (workspace: Workspace) => {
-    // 仅导航，让 useEffect 根据新的 pathname 来同步工作区状态
-    // 这样可以避免竞态条件和上下文丢失的问题
+    // Only navigate, let useEffect synchronize workspace state based on new pathname
+    // This avoids race conditions and context loss issues
     if (workspace.name === 'System Settings') {
       navigate({ to: '/system-settings/general' })
     } else {

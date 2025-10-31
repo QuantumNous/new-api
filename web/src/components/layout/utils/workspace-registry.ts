@@ -3,26 +3,26 @@ import { systemSettingsConfig } from '../config/system-settings.config'
 import type { NavGroup } from '../types'
 
 /**
- * 工作区配置类型
- * 每个工作区包含名称、路径匹配规则和对应的导航组配置
+ * Workspace configuration type
+ * Each workspace contains name, path matching rules, and corresponding navigation group configuration
  */
 export type WorkspaceConfig = {
-  /** 工作区名称 */
+  /** Workspace name */
   name: string
-  /** 路径匹配规则，支持字符串（包含匹配）或正则表达式 */
+  /** Path matching rule, supports string (contains match) or regular expression */
   pathPattern: string | RegExp
-  /** 该工作区对应的侧边栏导航组配置 */
+  /** Sidebar navigation group configuration for this workspace */
   navGroups: NavGroup[]
 }
 
 /**
- * 工作区注册表
+ * Workspace registry
  *
- * 按优先级排序，第一个匹配的工作区将被使用
- * 最后一个应该是默认工作区（匹配所有路径）
+ * Sorted by priority, first matched workspace will be used
+ * Last one should be default workspace (matches all paths)
  *
  * @example
- * // 添加新工作区
+ * // Add new workspace
  * {
  *   name: 'User Management',
  *   pathPattern: /^\/user-management/,
@@ -30,13 +30,13 @@ export type WorkspaceConfig = {
  * }
  */
 const workspaceRegistry: WorkspaceConfig[] = [
-  // System Settings 工作区
+  // System Settings workspace
   {
     name: 'System Settings',
     pathPattern: /^\/system-settings/,
     navGroups: systemSettingsConfig,
   },
-  // 默认工作区（必须放在最后）
+  // Default workspace (must be last)
   {
     name: 'Default',
     pathPattern: /.*/,
@@ -45,9 +45,9 @@ const workspaceRegistry: WorkspaceConfig[] = [
 ]
 
 /**
- * 根据路径获取匹配的工作区配置
- * @param pathname - 当前路由路径
- * @returns 匹配的工作区配置
+ * Get matched workspace configuration based on path
+ * @param pathname - Current route path
+ * @returns Matched workspace configuration
  */
 export function getWorkspaceByPath(pathname: string): WorkspaceConfig {
   const workspace = workspaceRegistry.find((ws) => {
@@ -57,24 +57,24 @@ export function getWorkspaceByPath(pathname: string): WorkspaceConfig {
     return ws.pathPattern.test(pathname)
   })
 
-  // 如果没有匹配，返回默认工作区（最后一个）
+  // If no match, return default workspace (last one)
   return workspace || workspaceRegistry[workspaceRegistry.length - 1]
 }
 
 /**
- * 根据路径获取对应的侧边栏导航组配置
- * @param pathname - 当前路由路径
- * @returns 对应工作区的导航组配置
+ * Get corresponding sidebar navigation group configuration based on path
+ * @param pathname - Current route path
+ * @returns Navigation group configuration for corresponding workspace
  */
 export function getNavGroupsForPath(pathname: string): NavGroup[] {
   return getWorkspaceByPath(pathname).navGroups
 }
 
 /**
- * 判断是否在指定工作区
- * @param pathname - 当前路由路径
- * @param workspaceName - 工作区名称
- * @returns 是否在指定工作区
+ * Determine if in specified workspace
+ * @param pathname - Current route path
+ * @param workspaceName - Workspace name
+ * @returns Whether in specified workspace
  */
 export function isInWorkspace(
   pathname: string,
@@ -84,8 +84,8 @@ export function isInWorkspace(
 }
 
 /**
- * 获取所有注册的工作区配置
- * @returns 工作区配置数组
+ * Get all registered workspace configurations
+ * @returns Array of workspace configurations
  */
 export function getAllWorkspaces(): WorkspaceConfig[] {
   return workspaceRegistry

@@ -12,27 +12,27 @@ import { Header } from './header'
 import { TopNav } from './top-nav'
 
 /**
- * 通用的应用程序 Header 组件
- * 集成了导航栏、搜索、主题切换、配置和个人信息等功能
+ * General application Header component
+ * Integrates navigation bar, search, theme switch, configuration and profile functions
  *
  * @example
- * // 基础用法
+ * // Basic usage
  * <AppHeader />
  *
  * @example
- * // 自定义导航链接
+ * // Custom navigation links
  * <AppHeader navLinks={customLinks} />
  *
  * @example
- * // 不显示导航栏和搜索框
+ * // Hide navigation bar and search box
  * <AppHeader showTopNav={false} showSearch={false} />
  *
  * @example
- * // 固定在顶部
+ * // Fixed at top
  * <AppHeader fixed />
  *
  * @example
- * // 完全自定义左侧和右侧内容
+ * // Fully customize left and right content
  * <AppHeader
  *   leftContent={<CustomLeft />}
  *   rightContent={<CustomRight />}
@@ -40,49 +40,49 @@ import { TopNav } from './top-nav'
  */
 type AppHeaderProps = {
   /**
-   * 自定义导航链接，不提供则使用默认全局导航或从后端动态生成
+   * Custom navigation links, uses default global navigation or dynamically generated from backend if not provided
    */
   navLinks?: TopNavLink[]
   /**
-   * 是否显示顶部导航栏
+   * Whether to show top navigation bar
    * @default true
    */
   showTopNav?: boolean
   /**
-   * 左侧内容，如果提供则覆盖 TopNav
+   * Left content, overrides TopNav if provided
    */
   leftContent?: React.ReactNode
   /**
-   * 是否显示搜索框
+   * Whether to show search box
    * @default true
    */
   showSearch?: boolean
   /**
-   * 是否固定在顶部
+   * Whether to fix at top
    * @default false
    */
   fixed?: boolean
   /**
-   * 自定义右侧内容，如果提供则覆盖默认的右侧内容
+   * Custom right content, overrides default right content if provided
    */
   rightContent?: React.ReactNode
   /**
-   * 是否显示主题切换
+   * Whether to show theme switch
    * @default true
    */
   showThemeSwitch?: boolean
   /**
-   * 是否显示通知按钮
+   * Whether to show notification button
    * @default true
    */
   showNotifications?: boolean
   /**
-   * 是否显示配置抽屉
+   * Whether to show config drawer
    * @default true
    */
   showConfigDrawer?: boolean
   /**
-   * 是否显示个人信息下拉
+   * Whether to show profile dropdown
    * @default true
    */
   showProfileDropdown?: boolean
@@ -100,14 +100,14 @@ export function AppHeader({
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  // 优先使用从后端生成的动态链接
+  // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
   // Notifications hook
   const notifications = useNotifications()
 
-  // 决定左侧内容：自定义内容 > 导航栏 > null
+  // Determine left content: custom content > navigation bar > null
   const leftSection =
     leftContent || (showTopNav ? <TopNav links={links} /> : null)
 

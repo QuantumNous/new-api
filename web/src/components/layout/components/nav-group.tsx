@@ -26,16 +26,18 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { checkIsActive } from '../lib/url-utils'
 import {
   type NavCollapsible,
-  type NavItem,
+  type NavChatPresets,
   type NavLink,
   type NavGroup as NavGroupProps,
 } from '../types'
+import { ChatPresetsItem } from './chat-presets-item'
 
 /**
- * 侧边栏导航组组件
- * 渲染一组导航项，支持普通链接和可折叠的子菜单
+ * Sidebar navigation group component
+ * Renders a group of navigation items, supporting regular links and collapsible submenus
  */
 export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()
@@ -46,22 +48,39 @@ export function NavGroup({ title, items }: NavGroupProps) {
       <SidebarGroupLabel>{title}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
-          const key = `${item.title}-${item.url}`
+          const key = `${item.title}-${item.url || item.type}`
 
-          // 如果没有子项，渲染普通链接
-          if (!item.items) {
-            return <SidebarMenuLink key={key} item={item} href={href} />
+          // Special handling: dynamic chat presets list
+          if (item.type === 'chat-presets') {
+            return <ChatPresetsItem key={key} item={item as NavChatPresets} />
           }
 
-          // 在折叠状态且非移动端，渲染下拉菜单
-          if (state === 'collapsed' && !isMobile) {
+          // If no sub-items, render regular link
+          if (!item.items) {
             return (
-              <SidebarMenuCollapsedDropdown key={key} item={item} href={href} />
+              <SidebarMenuLink key={key} item={item as NavLink} href={href} />
             )
           }
 
-          // 渲染可折叠菜单
-          return <SidebarMenuCollapsible key={key} item={item} href={href} />
+          // In collapsed state on non-mobile, render dropdown menu
+          if (state === 'collapsed' && !isMobile) {
+            return (
+              <SidebarMenuCollapsedDropdown
+                key={key}
+                item={item as NavCollapsible}
+                href={href}
+              />
+            )
+          }
+
+          // Render collapsible menu
+          return (
+            <SidebarMenuCollapsible
+              key={key}
+              item={item as NavCollapsible}
+              href={href}
+            />
+          )
         })}
       </SidebarMenu>
     </SidebarGroup>
@@ -69,14 +88,14 @@ export function NavGroup({ title, items }: NavGroupProps) {
 }
 
 /**
- * 导航徽章组件
+ * Navigation badge component
  */
 function NavBadge({ children }: { children: ReactNode }) {
   return <Badge className='rounded-full px-1 py-0 text-xs'>{children}</Badge>
 }
 
 /**
- * 侧边栏菜单链接项
+ * Sidebar menu link item
  */
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   const { setOpenMobile } = useSidebar()
@@ -98,7 +117,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
 }
 
 /**
- * 侧边栏可折叠菜单项
+ * Sidebar collapsible menu item
  */
 function SidebarMenuCollapsible({
   item,
@@ -147,7 +166,7 @@ function SidebarMenuCollapsible({
 }
 
 /**
- * 侧边栏折叠时的下拉菜单项
+ * Sidebar dropdown menu item when collapsed
  */
 function SidebarMenuCollapsedDropdown({
   item,
@@ -192,19 +211,5 @@ function SidebarMenuCollapsedDropdown({
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>
-  )
-}
-
-/**
- * 检查导航项是否处于激活状态
- */
-function checkIsActive(href: string, item: NavItem, mainNav = false) {
-  return (
-    href === item.url || // 完全匹配
-    href.split('?')[0] === item.url || // 忽略查询参数匹配
-    !!item?.items?.filter((i) => i.url === href).length || // 子项激活
-    (mainNav && // 主导航匹配（匹配第一级路径）
-      href.split('/')[1] !== '' &&
-      href.split('/')[1] === item?.url?.split('/')[1])
   )
 }

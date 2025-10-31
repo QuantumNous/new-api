@@ -11,20 +11,21 @@ import {
   Command,
   Radio,
   FlaskConical,
+  MessageSquare,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 /**
- * 侧边栏配置
- * - workspaces: 工作区列表，第一个为默认工作区（动态获取系统信息）
- * - navGroups: 侧边栏导航组
+ * Sidebar configuration
+ * - workspaces: List of workspaces, first one is default workspace (dynamically fetches system info)
+ * - navGroups: Sidebar navigation groups (includes all navigation items, including Chat)
  */
 export const sidebarConfig: SidebarData = {
   workspaces: [
     {
-      name: '', // 动态获取系统名称
+      name: '', // Dynamically fetches system name
       logo: Command,
-      plan: '', // 动态获取系统版本
+      plan: '', // Dynamically fetches system version
     },
     {
       name: 'System Settings',
@@ -34,17 +35,27 @@ export const sidebarConfig: SidebarData = {
   ],
   navGroups: [
     {
+      title: 'Chat',
+      items: [
+        {
+          title: 'Playground',
+          url: '/playground',
+          icon: FlaskConical,
+        },
+        {
+          title: 'Chat',
+          icon: MessageSquare,
+          type: 'chat-presets',
+        },
+      ],
+    },
+    {
       title: 'General',
       items: [
         {
           title: 'Dashboard',
           url: '/dashboard',
           icon: LayoutDashboard,
-        },
-        {
-          title: 'Playground',
-          url: '/playground',
-          icon: FlaskConical,
         },
         {
           title: 'API Keys',

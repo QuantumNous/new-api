@@ -9,8 +9,15 @@ type SidebarSectionConfig = {
 
 type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 
-// Default configuration
+/**
+ * Default sidebar modules configuration
+ */
 const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
+  chat: {
+    enabled: true,
+    playground: true,
+    chat: true,
+  },
   console: {
     enabled: true,
     detail: true,
@@ -34,8 +41,11 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   },
 }
 
-// Mapping from URL to configuration keys
+/**
+ * Mapping from URL to configuration keys
+ */
 const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
+  '/playground': { section: 'chat', module: 'playground' },
   '/dashboard': { section: 'console', module: 'detail' },
   '/keys': { section: 'console', module: 'token' },
   '/usage-logs': { section: 'console', module: 'log' },
@@ -59,7 +69,16 @@ function parseSidebarConfig(
   }
 
   try {
-    return JSON.parse(value) as SidebarModulesAdminConfig
+    const parsed = JSON.parse(value) as SidebarModulesAdminConfig
+    // Ensure chat section and its modules are correctly initialized if missing
+    if (!parsed.chat) {
+      parsed.chat = { enabled: true, playground: true, chat: true }
+    } else {
+      if (parsed.chat.enabled === undefined) parsed.chat.enabled = true
+      if (parsed.chat.playground === undefined) parsed.chat.playground = true
+      if (parsed.chat.chat === undefined) parsed.chat.chat = true
+    }
+    return parsed
   } catch {
     console.error('Failed to parse sidebar modules configuration')
     return DEFAULT_SIDEBAR_MODULES
@@ -67,48 +86,51 @@ function parseSidebarConfig(
 }
 
 /**
- * Check if navigation item should be visible
+ * Check if a module is enabled
+ */
+function isModuleEnabled(
+  url: string,
+  config: SidebarModulesAdminConfig
+): boolean {
+  const mapping = URL_TO_CONFIG_MAP[url]
+  if (!mapping) {
+    // No mapping config, default to visible (e.g. system settings and new features)
+    return true
+  }
+
+  const { section, module } = mapping
+  const sectionConfig = config[section]
+
+  // Check if both section and module are enabled
+  return Boolean(
+    sectionConfig && sectionConfig.enabled && sectionConfig[module] === true
+  )
+}
+
+/**
+ * Check if a navigation item should be visible
  */
 function isNavItemVisible(
   item: NavItem,
   config: SidebarModulesAdminConfig
 ): boolean {
-  // Handle NavLink type (direct link)
-  if ('url' in item && item.url) {
-    const mapping = URL_TO_CONFIG_MAP[item.url as string]
-    if (!mapping) {
-      // If no mapping config, default to visible (e.g., system settings and new features)
-      return true
-    }
-
-    const { section, module } = mapping
-    const sectionConfig = config[section]
-
-    // Check if section is enabled
-    if (!sectionConfig || !sectionConfig.enabled) {
-      return false
-    }
-
-    // Check if module is enabled
-    return sectionConfig[module] === true
+  // Handle dynamic chat presets type
+  if ('type' in item && item.type === 'chat-presets') {
+    const chatConfig = config.chat
+    return Boolean(chatConfig?.enabled && chatConfig.chat === true)
   }
 
-  // Handle NavCollapsible type (collapsible with sub-items)
+  // Handle direct link type
+  if ('url' in item && item.url) {
+    return isModuleEnabled(item.url as string, config)
+  }
+
+  // Handle collapsible type (with sub-items)
   if ('items' in item && item.items) {
     // If has sub-items, show this collapsible item if at least one sub-item is visible
-    return item.items.some((subItem) => {
-      const mapping = URL_TO_CONFIG_MAP[subItem.url as string]
-      if (!mapping) return true
-
-      const { section, module } = mapping
-      const sectionConfig = config[section]
-
-      if (!sectionConfig || !sectionConfig.enabled) {
-        return false
-      }
-
-      return sectionConfig[module] === true
-    })
+    return item.items.some((subItem) =>
+      isModuleEnabled(subItem.url as string, config)
+    )
   }
 
   return true
@@ -125,19 +147,9 @@ function filterNavItems(
     .map((item) => {
       // If collapsible item, also filter its sub-items
       if ('items' in item && item.items) {
-        const filteredSubItems = item.items.filter((subItem) => {
-          const mapping = URL_TO_CONFIG_MAP[subItem.url as string]
-          if (!mapping) return true
-
-          const { section, module } = mapping
-          const sectionConfig = config[section]
-
-          if (!sectionConfig || !sectionConfig.enabled) {
-            return false
-          }
-
-          return sectionConfig[module] === true
-        })
+        const filteredSubItems = item.items.filter((subItem) =>
+          isModuleEnabled(subItem.url as string, config)
+        )
 
         return {
           ...item,
@@ -155,18 +167,21 @@ function filterNavItems(
 export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   const { status } = useStatus()
 
-  const config = useMemo(() => {
-    return parseSidebarConfig(status?.SidebarModulesAdmin)
-  }, [status?.SidebarModulesAdmin])
+  const config = useMemo(
+    () => parseSidebarConfig(status?.SidebarModulesAdmin),
+    [status?.SidebarModulesAdmin]
+  )
 
-  const filteredNavGroups = useMemo(() => {
-    return navGroups
-      .map((group) => ({
-        ...group,
-        items: filterNavItems(group.items, config),
-      }))
-      .filter((group) => group.items.length > 0) // Only show navigation groups with visible items
-  }, [navGroups, config])
+  const filteredNavGroups = useMemo(
+    () =>
+      navGroups
+        .map((group) => ({
+          ...group,
+          items: filterNavItems(group.items, config),
+        }))
+        .filter((group) => group.items.length > 0), // Only show navigation groups with visible items
+    [navGroups, config]
+  )
 
   return filteredNavGroups
 }

@@ -11,32 +11,31 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { sidebarConfig } from '../config/sidebar.config'
-import { getNavGroupsForPath, isInWorkspace } from '../utils/workspace-registry'
-import { ChatSection } from './chat-section'
+import { getNavGroupsForPath } from '../utils/workspace-registry'
 import { NavGroup } from './nav-group'
 import { WorkspaceSwitcher } from './workspace-switcher'
 
 /**
- * 应用侧边栏组件
- * 根据当前路径从工作区注册表获取对应的导航菜单
- * 根据后端 SidebarModulesAdmin 配置动态过滤导航项
+ * Application sidebar component
+ * Fetches corresponding navigation menu from workspace registry based on current path
+ * Dynamically filters navigation items based on backend SidebarModulesAdmin configuration
  *
- * 通过工作区注册表系统自动匹配当前路径对应的工作区配置
- * 添加新工作区只需在 workspace-registry.ts 中注册即可
+ * Automatically matches workspace configuration for current path through workspace registry system
+ * Adding new workspaces only requires registration in workspace-registry.ts
  */
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { pathname } = useLocation()
   const userRole = useAuthStore((state) => state.auth.user?.role)
 
-  // 从工作区注册表获取当前路径对应的导航组配置
+  // Get navigation group configuration corresponding to current path from workspace registry
   const allNavGroups = getNavGroupsForPath(pathname)
 
-  // 根据后端配置过滤侧边栏导航项
+  // Filter sidebar navigation items based on backend configuration
   const configFilteredNavGroups = useSidebarConfig(allNavGroups)
 
-  // 根据用户角色过滤导航组
-  // 非 Admin 用户不显示 Admin 导航组
+  // Filter navigation groups based on user role
+  // Non-Admin users cannot see Admin navigation group
   const currentNavGroups = useMemo(() => {
     const isAdmin = userRole && userRole >= ROLE.ADMIN
     return configFilteredNavGroups.filter((group) => {
@@ -47,15 +46,12 @@ export function AppSidebar() {
     })
   }, [configFilteredNavGroups, userRole])
 
-  const showChatSection = isInWorkspace(pathname, 'Default')
-
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
         <WorkspaceSwitcher workspaces={sidebarConfig.workspaces} />
       </SidebarHeader>
       <SidebarContent>
-        {showChatSection && <ChatSection />}
         {currentNavGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
