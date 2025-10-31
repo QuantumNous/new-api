@@ -9,7 +9,7 @@ interface TableSkeletonProps<TData> {
   table: Table<TData>
   /**
    * Number of skeleton rows to display
-   * If not provided, will be calculated from table's pageSize (max 10)
+   * If not provided, will be calculated from table's pageSize (max 20)
    */
   rowCount?: number
   /**
@@ -49,7 +49,7 @@ export function TableSkeleton<TData>({
 
   // Auto-calculate rowCount from table's pageSize if not provided
   const finalRowCount =
-    rowCount ?? Math.min(table.getState().pagination?.pageSize || 10, 10)
+    rowCount ?? Math.min(table.getState().pagination?.pageSize || 20, 20)
 
   return (
     <>

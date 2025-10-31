@@ -57,7 +57,7 @@ export function ApiKeysTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: 10 },
+    pagination: { defaultPage: 1, defaultPageSize: 20 },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
   })

@@ -4,7 +4,7 @@ import type { NameRule, ModelStatus, SyncSource } from './types'
 // Pagination
 // ============================================================================
 
-export const DEFAULT_PAGE_SIZE = 10
+export const DEFAULT_PAGE_SIZE = 20
 
 // ============================================================================
 // Name Rule Options
