@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 
@@ -36,7 +38,7 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 	if !exists || task == nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to get task %s: %s", taskID, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to get task %s: %v", taskID, err))
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": gin.H{
 				"message": "Task not found",
@@ -58,7 +60,7 @@ func VideoProxy(c *gin.Context) {
 
 	channel, err := model.CacheGetChannel(task.ChannelId)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to get channel %d: %s", task.ChannelId, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to get task %s: not found", taskID))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"message": "Failed to retrieve channel information",
@@ -71,15 +73,15 @@ func VideoProxy(c *gin.Context) {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
-	videoURL := fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.TaskID)
 
+	var videoURL string
 	client := &http.Client{
 		Timeout: 60 * time.Second,
 	}
 
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, videoURL, nil)
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, "", nil)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to create request for %s: %s", videoURL, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to create request: %s", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"message": "Failed to create proxy request",
@@ -89,7 +91,52 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
-	req.Header.Set("Authorization", "Bearer "+channel.Key)
+	switch channel.Type {
+	case constant.ChannelTypeGemini:
+		apiKey := task.PrivateData.Key
+		if apiKey == "" {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Missing stored API key for Gemini task %s", taskID))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{
+					"message": "API key not stored for task",
+					"type":    "server_error",
+				},
+			})
+			return
+		}
+
+		videoURL, err = getGeminiVideoURL(channel, task, apiKey)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to resolve Gemini video URL for task %s: %s", taskID, err.Error()))
+			c.JSON(http.StatusBadGateway, gin.H{
+				"error": gin.H{
+					"message": "Failed to resolve Gemini video URL",
+					"type":    "server_error",
+				},
+			})
+			return
+		}
+		req.Header.Set("x-goog-api-key", apiKey)
+	case constant.ChannelTypeAli:
+		// Video URL is directly in task.FailReason
+		videoURL = task.FailReason
+	default:
+		// Default (Sora, etc.): Use original logic
+		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.TaskID)
+		req.Header.Set("Authorization", "Bearer "+channel.Key)
+	}
+
+	req.URL, err = url.Parse(videoURL)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to parse URL %s: %s", videoURL, err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
+				"message": "Failed to create proxy request",
+				"type":    "server_error",
+			},
+		})
+		return
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

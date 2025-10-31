@@ -2,7 +2,6 @@ package common
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -41,11 +40,11 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	//}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
-		err = Unmarshal(requestBody, &v)
+		err = Unmarshal(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
-		err = parseFormData(requestBody, &v)
+		err = parseFormData(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
-		err = parseMultipartFormData(c, requestBody, &v)
+		err = parseMultipartFormData(c, requestBody, v)
 	} else {
 		// skip for now
 		// TODO: someday non json request have variant model, we will need to implementation this
@@ -145,6 +144,20 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	return form, nil
 }
 
+func processFormMap(formMap map[string]any, v any) error {
+	jsonData, err := Marshal(formMap)
+	if err != nil {
+		return err
+	}
+
+	err = Unmarshal(jsonData, v)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func parseFormData(data []byte, v any) error {
 	values, err := url.ParseQuery(string(data))
 	if err != nil {
@@ -158,12 +171,8 @@ func parseFormData(data []byte, v any) error {
 			formMap[key] = vals
 		}
 	}
-	jsonData, err := json.Marshal(formMap)
-	if err != nil {
-		return err
-	}
 
-	return Unmarshal(jsonData, v)
+	return processFormMap(formMap, v)
 }
 
 func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
@@ -191,10 +200,6 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 			formMap[key] = vals
 		}
 	}
-	jsonData, err := Marshal(formMap)
-	if err != nil {
-		return err
-	}
 
-	return Unmarshal(jsonData, v)
+	return processFormMap(formMap, v)
 }

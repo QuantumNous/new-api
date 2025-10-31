@@ -31,7 +31,7 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	group := c.GetString("group")
+	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	modelName := c.GetString("original_model")
 
 	userId := c.GetInt("id")

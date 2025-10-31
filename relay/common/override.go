@@ -238,6 +238,11 @@ func compareGjsonValues(jsonValue, targetValue gjson.Result, mode string) (bool,
 }
 
 func compareEqual(jsonValue, targetValue gjson.Result) (bool, error) {
+	// 对null值特殊处理：两个都是null返回true，一个是null另一个不是返回false
+	if jsonValue.Type == gjson.Null || targetValue.Type == gjson.Null {
+		return jsonValue.Type == gjson.Null && targetValue.Type == gjson.Null, nil
+	}
+
 	// 对布尔值特殊处理
 	if (jsonValue.Type == gjson.True || jsonValue.Type == gjson.False) &&
 		(targetValue.Type == gjson.True || targetValue.Type == gjson.False) {
