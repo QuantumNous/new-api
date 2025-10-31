@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -129,7 +130,15 @@ func buildRequestBodyWithMappedModel(originalBody []byte, contentType, redirecte
 	newBuffer := &bytes.Buffer{}
 	writer := multipart.NewWriter(newBuffer)
 
-	r := multipart.NewReader(bytes.NewReader(originalBody), strings.TrimPrefix(contentType, "multipart/form-data; boundary="))
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse_content_type_failed")
+	}
+	boundary, ok := params["boundary"]
+	if !ok {
+		return nil, errors.New("boundary_not_found_in_content_type")
+	}
+	r := multipart.NewReader(bytes.NewReader(originalBody), boundary)
 
 	for {
 		part, err := r.NextPart()
