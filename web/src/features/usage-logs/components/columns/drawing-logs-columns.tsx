@@ -58,6 +58,11 @@ export function getDrawingLogsColumns(
       header: 'Task ID',
       cell: ({ row }) => {
         const mjId = row.getValue('mj_id') as string
+        
+        if (!mjId) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
+        
         return (
           <StatusBadge
             label={mjId}
