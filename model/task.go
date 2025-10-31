@@ -72,7 +72,10 @@ func (t *Task) GetData(v any) error {
 }
 
 type Properties struct {
-	Input string `json:"input"`
+	Input             string `json:"input"`
+	IsModelMapped     bool   `json:"is_model_mapped,omitempty"`
+	OriginModelName   string `json:"origin_model_name,omitempty"`
+	UpstreamModelName string `json:"upstream_model_name,omitempty"`
 }
 
 func (m *Properties) Scan(val interface{}) error {
