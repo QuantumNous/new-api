@@ -12,7 +12,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { getNavGroupsForPath } from './layout/utils/workspace-registry'
+import { getNavGroupsForPath } from './layout/lib/workspace-registry'
 import { ScrollArea } from './ui/scroll-area'
 
 export function CommandMenu() {

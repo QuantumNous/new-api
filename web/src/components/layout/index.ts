@@ -35,7 +35,7 @@ export {
   getNavGroupsForPath,
   isInWorkspace,
   getAllWorkspaces,
-} from './utils/workspace-registry'
+} from './lib/workspace-registry'
 
 // 类型导出（使用 type-only 导出避免与组件冲突）
 export type {
@@ -47,4 +47,4 @@ export type {
   SidebarData,
   TopNavLink,
 } from './types'
-export type { WorkspaceConfig } from './utils/workspace-registry'
+export type { WorkspaceConfig } from './lib/workspace-registry'
