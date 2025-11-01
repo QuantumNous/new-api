@@ -11,7 +11,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { sidebarConfig } from '../config/sidebar.config'
-import { getNavGroupsForPath } from '../utils/workspace-registry'
+import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
 import { WorkspaceSwitcher } from './workspace-switcher'
 

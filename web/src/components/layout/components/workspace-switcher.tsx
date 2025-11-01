@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useWorkspace } from '../context/workspace-context'
 import { type Workspace } from '../types'
-import { getWorkspaceByPath } from '../utils/workspace-registry'
+import { getWorkspaceByPath } from '../lib/workspace-registry'
 
 type WorkspaceSwitcherProps = {
   workspaces: Workspace[]
