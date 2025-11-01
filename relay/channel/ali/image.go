@@ -98,9 +98,9 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 		return nil, errors.New("image is required")
 	}
 
-	if len(imageFiles) > 1 {
-		return nil, errors.New("only one image is supported for qwen edit")
-	}
+	//if len(imageFiles) > 1 {
+	//	return nil, errors.New("only one image is supported for qwen edit")
+	//}
 
 	// 获取base64编码的图片
 	var imageBase64s []string
