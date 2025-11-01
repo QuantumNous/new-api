@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { SSE } from 'sse.js'
+import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
 import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
 
@@ -8,6 +9,7 @@ import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
  */
 export function useStreamRequest() {
   const sseSourceRef = useRef<SSE | null>(null)
+  const isStreamCompleteRef = useRef(false)
 
   const sendStreamRequest = useCallback(
     (
@@ -16,30 +18,31 @@ export function useStreamRequest() {
       onComplete: () => void,
       onError: (error: string) => void
     ) => {
-      // Get user ID from localStorage for authentication
-      const uid =
-        typeof window !== 'undefined'
-          ? window.localStorage.getItem('uid') || ''
-          : ''
-
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
-        headers: {
-          'Content-Type': 'application/json',
-          'New-Api-User': uid,
-        },
+        headers: getCommonHeaders(),
         method: 'POST',
         payload: JSON.stringify(payload),
       })
 
       sseSourceRef.current = source
+      isStreamCompleteRef.current = false
 
-      let isStreamComplete = false
+      const closeSource = () => {
+        source.close()
+        sseSourceRef.current = null
+      }
+
+      const handleError = (errorMessage: string) => {
+        if (!isStreamCompleteRef.current) {
+          onError(errorMessage)
+          closeSource()
+        }
+      }
 
       source.addEventListener('message', (e: any) => {
         if (e.data === '[DONE]') {
-          isStreamComplete = true
-          source.close()
-          sseSourceRef.current = null
+          isStreamCompleteRef.current = true
+          closeSource()
           onComplete()
           return
         }
@@ -58,35 +61,23 @@ export function useStreamRequest() {
           }
         } catch (error) {
           console.error('Failed to parse SSE message:', error)
-          onError(ERROR_MESSAGES.PARSE_ERROR)
-          source.close()
-          sseSourceRef.current = null
+          handleError(ERROR_MESSAGES.PARSE_ERROR)
         }
       })
 
       source.addEventListener('error', (e: any) => {
         // Only handle errors if stream didn't complete normally
-        if (!isStreamComplete && source.readyState !== 2) {
+        if (source.readyState !== 2) {
           console.error('SSE Error:', e)
-          const errorMessage = e.data || ERROR_MESSAGES.API_REQUEST_ERROR
-          onError(errorMessage)
-          source.close()
-          sseSourceRef.current = null
+          handleError(e.data || ERROR_MESSAGES.API_REQUEST_ERROR)
         }
       })
 
       source.addEventListener('readystatechange', (e: any) => {
         // Check for HTTP status errors
-        if (
-          e.readyState >= 2 &&
-          (source as any).status !== undefined &&
-          (source as any).status !== 200 &&
-          !isStreamComplete
-        ) {
-          const errorMessage = `HTTP ${(source as any).status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`
-          onError(errorMessage)
-          source.close()
-          sseSourceRef.current = null
+        const status = (source as any).status
+        if (e.readyState >= 2 && status !== undefined && status !== 200) {
+          handleError(`HTTP ${status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`)
         }
       })
 
@@ -108,9 +99,11 @@ export function useStreamRequest() {
     }
   }, [])
 
+  const isStreaming = sseSourceRef.current !== null
+
   return {
     sendStreamRequest,
     stopStream,
-    isStreaming: () => sseSourceRef.current !== null,
+    isStreaming,
   }
 }

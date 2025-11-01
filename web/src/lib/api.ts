@@ -92,20 +92,48 @@ api.interceptors.response.use(
 )
 
 // ============================================================================
+// Common Headers Utility
+// ============================================================================
+
+/**
+ * Get user ID from localStorage
+ */
+function getUserId(): string | null {
+  try {
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem('uid')
+    }
+  } catch {}
+  return null
+}
+
+/**
+ * Get common request headers (for both axios and SSE requests)
+ */
+export function getCommonHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  const uid = getUserId()
+  if (uid) {
+    headers['New-Api-User'] = uid
+  }
+
+  return headers
+}
+
+// ============================================================================
 // Request Interceptor
 // ============================================================================
 
 // Attach user ID header for all requests
 api.interceptors.request.use((config) => {
-  try {
-    if (typeof window !== 'undefined') {
-      const uid = window.localStorage.getItem('uid')
-      if (uid) {
-        // Custom header for user identification
-        ;(config.headers as any)['New-Api-User'] = uid
-      }
-    }
-  } catch {}
+  const uid = getUserId()
+  if (uid) {
+    // Custom header for user identification
+    ;(config.headers as any)['New-Api-User'] = uid
+  }
   return config
 })
 

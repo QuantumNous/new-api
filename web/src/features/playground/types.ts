@@ -18,6 +18,8 @@ export interface Message {
     duration: number
   }
   isReasoningStreaming?: boolean
+  isReasoningComplete?: boolean
+  isContentComplete?: boolean
   status?: MessageStatus
 }
 
@@ -117,5 +119,4 @@ export interface GroupOption {
   label: string
   value: string
   ratio: number
-  fullLabel?: string
 }

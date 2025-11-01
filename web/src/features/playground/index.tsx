@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
-import { PlaygroundHeader } from './components/playground-header'
 import { PlaygroundInput } from './components/playground-input'
+import { DEFAULT_GROUP } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 
@@ -13,6 +13,7 @@ export function Playground() {
     parameterEnabled,
     messages,
     models,
+    groups,
     updateMessages,
     setModels,
     setGroups,
@@ -37,21 +38,34 @@ export function Playground() {
     queryFn: getUserGroups,
   })
 
-  // Update models and groups when data changes
+  // Update models when data changes
   useEffect(() => {
-    if (modelsData) {
-      setModels(modelsData)
+    if (!modelsData) return
 
-      if (
-        modelsData.length > 0 &&
-        !modelsData.some((model) => model.value === config.model)
-      ) {
-        updateConfig('model', modelsData[0].value)
-      }
+    setModels(modelsData)
+
+    // Set default model if current model is not available
+    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
+    if (modelsData.length > 0 && !isCurrentModelValid) {
+      updateConfig('model', modelsData[0].value)
     }
+  }, [modelsData, config.model, setModels, updateConfig])
 
-    if (groupsData) setGroups(groupsData)
-  }, [modelsData, groupsData, setModels, setGroups, config.model, updateConfig])
+  // Update groups when data changes
+  useEffect(() => {
+    if (!groupsData) return
+
+    // Add auto group if not present
+    const hasAutoGroup = groupsData.some((g) => g.value === DEFAULT_GROUP)
+    const processedGroups = hasAutoGroup
+      ? groupsData
+      : [
+          { value: DEFAULT_GROUP, label: 'Auto (Circuit Breaker)', ratio: 1 },
+          ...groupsData,
+        ]
+
+    setGroups(processedGroups)
+  }, [groupsData, setGroups])
 
   const handleSendMessage = (text: string) => {
     const userMessage = createUserMessage(text)
@@ -64,24 +78,20 @@ export function Playground() {
     sendChat(newMessages)
   }
 
-  const handleStopGeneration = () => {
-    stopGeneration()
-  }
-
   return (
     <div className='relative flex size-full flex-col divide-y overflow-hidden'>
-      <PlaygroundHeader
-        disabled={isGenerating}
-        isModelLoading={isLoadingModels}
-        modelValue={config.model}
-        models={models}
-        onModelChange={(value) => updateConfig('model', value)}
-      />
       <PlaygroundChat messages={messages} />
       <PlaygroundInput
         disabled={isGenerating}
+        groups={groups}
+        groupValue={config.group}
         isGenerating={isGenerating}
-        onStop={handleStopGeneration}
+        isModelLoading={isLoadingModels}
+        modelValue={config.model}
+        models={models}
+        onGroupChange={(value) => updateConfig('group', value)}
+        onModelChange={(value) => updateConfig('model', value)}
+        onStop={stopGeneration}
         onSubmit={handleSendMessage}
       />
     </div>

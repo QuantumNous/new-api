@@ -25,6 +25,7 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
+import { MESSAGE_ROLES } from '../constants'
 import type { Message as MessageType } from '../types'
 
 interface PlaygroundChatProps {
@@ -61,7 +62,7 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
                     )}
 
                     {/* Reasoning - Only show for assistant with reasoning content */}
-                    {message.from === 'assistant' &&
+                    {message.from === MESSAGE_ROLES.ASSISTANT &&
                       message.reasoning?.content && (
                         <Reasoning
                           defaultOpen={true}
@@ -76,7 +77,7 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
                       )}
 
                     {/* Message Content - Show when not streaming reasoning or for user messages */}
-                    {(message.from === 'user' ||
+                    {(message.from === MESSAGE_ROLES.USER ||
                       !message.isReasoningStreaming) &&
                       version.content && (
                         <MessageContent

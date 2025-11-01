@@ -8,8 +8,6 @@ import {
   GlobeIcon,
   AudioWaveformIcon,
   SquareIcon,
-} from 'lucide-react'
-import {
   BarChartIcon,
   BoxIcon,
   NotepadTextIcon,
@@ -30,14 +28,27 @@ import {
   PromptInputTextarea,
   PromptInputTools,
   type PromptInputMessage,
+  PromptInputModelSelect,
+  PromptInputModelSelectContent,
+  PromptInputModelSelectItem,
+  PromptInputModelSelectTrigger,
+  PromptInputModelSelectValue,
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
+import type { ModelOption, GroupOption } from '../types'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
+  models: ModelOption[]
+  modelValue: string
+  onModelChange: (value: string) => void
+  isModelLoading?: boolean
+  groups: GroupOption[]
+  groupValue: string
+  onGroupChange: (value: string) => void
 }
 
 const suggestions = [
@@ -54,8 +65,19 @@ export function PlaygroundInput({
   onStop,
   disabled,
   isGenerating,
+  models,
+  modelValue,
+  onModelChange,
+  isModelLoading = false,
+  groups,
+  groupValue,
+  onGroupChange,
 }: PlaygroundInputProps) {
   const [text, setText] = useState('')
+
+  const isModelSelectDisabled =
+    disabled || isModelLoading || models.length === 0
+  const isGroupSelectDisabled = disabled || groups.length === 0
 
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || disabled) return
@@ -97,7 +119,8 @@ export function PlaygroundInput({
                   variant='outline'
                 >
                   <PaperclipIcon size={16} />
-                  <span>Attach</span>
+                  <span className='hidden sm:inline'>Attach</span>
+                  <span className='sr-only sm:hidden'>Attach</span>
                 </PromptInputButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
@@ -135,37 +158,94 @@ export function PlaygroundInput({
               variant='outline'
             >
               <GlobeIcon size={16} />
-              <span>Search</span>
+              <span className='hidden sm:inline'>Search</span>
+              <span className='sr-only sm:hidden'>Search</span>
             </PromptInputButton>
           </PromptInputTools>
 
-          {isGenerating && onStop ? (
-            <PromptInputButton
-              className='text-foreground rounded-full font-medium'
-              onClick={onStop}
-              variant='secondary'
+          <div className='flex items-center gap-1.5 md:gap-2'>
+            <PromptInputModelSelect
+              disabled={isModelSelectDisabled}
+              onValueChange={onModelChange}
+              value={modelValue}
             >
-              <SquareIcon className='fill-current' size={16} />
-              <span>Stop</span>
-            </PromptInputButton>
-          ) : (
-            <PromptInputButton
-              className='text-foreground rounded-full font-medium'
-              disabled={disabled}
-              onClick={() => toast.info('语音功能开发中')}
-              variant='secondary'
+              <PromptInputModelSelectTrigger className='max-w-[100px] text-xs sm:max-w-[140px] sm:text-sm md:max-w-none md:text-base'>
+                <PromptInputModelSelectValue
+                  className='truncate'
+                  placeholder={isModelLoading ? 'Loading…' : 'Model'}
+                />
+              </PromptInputModelSelectTrigger>
+              <PromptInputModelSelectContent>
+                {models.map((model) => (
+                  <PromptInputModelSelectItem
+                    key={model.value}
+                    value={model.value}
+                  >
+                    <span className='block truncate' title={model.label}>
+                      {model.label}
+                    </span>
+                  </PromptInputModelSelectItem>
+                ))}
+              </PromptInputModelSelectContent>
+            </PromptInputModelSelect>
+
+            <PromptInputModelSelect
+              disabled={isGroupSelectDisabled}
+              onValueChange={onGroupChange}
+              value={groupValue}
             >
-              <AudioWaveformIcon size={16} />
-              <span>Voice</span>
-            </PromptInputButton>
-          )}
+              <PromptInputModelSelectTrigger className='max-w-[80px] text-xs sm:max-w-[120px] sm:text-sm md:max-w-none md:text-base'>
+                <PromptInputModelSelectValue
+                  className='truncate'
+                  placeholder='Group'
+                />
+              </PromptInputModelSelectTrigger>
+              <PromptInputModelSelectContent>
+                {groups.map((group) => (
+                  <PromptInputModelSelectItem
+                    key={group.value}
+                    value={group.value}
+                  >
+                    <span className='block truncate' title={group.label}>
+                      {group.label}
+                    </span>
+                  </PromptInputModelSelectItem>
+                ))}
+              </PromptInputModelSelectContent>
+            </PromptInputModelSelect>
+
+            {isGenerating && onStop ? (
+              <PromptInputButton
+                className='text-foreground rounded-full font-medium'
+                onClick={onStop}
+                variant='secondary'
+              >
+                <SquareIcon className='fill-current' size={16} />
+                <span className='hidden sm:inline'>Stop</span>
+                <span className='sr-only sm:hidden'>Stop</span>
+              </PromptInputButton>
+            ) : (
+              <PromptInputButton
+                className='text-foreground rounded-full font-medium'
+                disabled={disabled}
+                onClick={() => toast.info('语音功能开发中')}
+                variant='secondary'
+              >
+                <AudioWaveformIcon size={16} />
+                <span className='hidden sm:inline'>Voice</span>
+                <span className='sr-only sm:hidden'>Voice</span>
+              </PromptInputButton>
+            )}
+          </div>
         </PromptInputFooter>
       </PromptInput>
 
-      <Suggestions className='px-4'>
+      <Suggestions>
         {suggestions.map(({ icon: Icon, text, color }) => (
           <Suggestion
-            className='font-normal'
+            className={`text-xs font-normal sm:text-sm ${
+              text === 'More' ? 'hidden sm:flex' : ''
+            }`}
             key={text}
             onClick={() => handleSuggestionClick(text)}
             suggestion={text}

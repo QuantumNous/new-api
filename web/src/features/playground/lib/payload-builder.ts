@@ -27,26 +27,23 @@ export function buildChatCompletionPayload(
   }
 
   // Add enabled parameters
-  const parameterMappings: Array<{
-    key: keyof ParameterEnabled
-    apiKey: keyof ChatCompletionRequest
-  }> = [
-    { key: 'temperature', apiKey: 'temperature' },
-    { key: 'top_p', apiKey: 'top_p' },
-    { key: 'max_tokens', apiKey: 'max_tokens' },
-    { key: 'frequency_penalty', apiKey: 'frequency_penalty' },
-    { key: 'presence_penalty', apiKey: 'presence_penalty' },
-    { key: 'seed', apiKey: 'seed' },
+  const parameterKeys: Array<keyof ParameterEnabled> = [
+    'temperature',
+    'top_p',
+    'max_tokens',
+    'frequency_penalty',
+    'presence_penalty',
+    'seed',
   ]
 
-  for (const { key, apiKey } of parameterMappings) {
+  parameterKeys.forEach((key) => {
     if (parameterEnabled[key]) {
-      const value = config[apiKey as keyof PlaygroundConfig]
+      const value = config[key as keyof PlaygroundConfig]
       if (value !== undefined && value !== null) {
-        ;(payload as any)[apiKey] = value
+        ;(payload as any)[key] = value
       }
     }
-  }
+  })
 
   return payload
 }

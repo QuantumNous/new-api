@@ -21,10 +21,13 @@ export const API_ENDPOINTS = {
   USER_GROUPS: '/api/user/self/groups',
 } as const
 
+// Default group
+export const DEFAULT_GROUP = 'auto' as const
+
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {
   model: 'gpt-4o',
-  group: '',
+  group: DEFAULT_GROUP,
   temperature: 0.7,
   top_p: 1,
   max_tokens: 4096,
@@ -58,6 +61,3 @@ export const ERROR_MESSAGES = {
   STREAM_START_ERROR: '建立连接时发生错误',
   CONNECTION_CLOSED: '连接已断开',
 } as const
-
-// Regex patterns
-export const THINK_TAG_REGEX = /<think>([\s\S]*?)<\/think>/g

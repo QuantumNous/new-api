@@ -13,52 +13,45 @@ import type {
 export async function sendChatCompletion(
   payload: ChatCompletionRequest
 ): Promise<ChatCompletionResponse> {
-  const response = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+  const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
     skipErrorHandler: true,
   } as any)
-  return response.data
+  return res.data
 }
 
 /**
  * Get user available models
  */
 export async function getUserModels(): Promise<ModelOption[]> {
-  const response = await api.get(API_ENDPOINTS.USER_MODELS)
-  const data = response.data
+  const res = await api.get(API_ENDPOINTS.USER_MODELS)
+  const { data } = res
 
-  if (data.success && Array.isArray(data.data)) {
-    return data.data.map((model: string) => ({
-      label: model,
-      value: model,
-    }))
+  if (!data.success || !Array.isArray(data.data)) {
+    return []
   }
 
-  return []
+  return data.data.map((model: string) => ({
+    label: model,
+    value: model,
+  }))
 }
 
 /**
  * Get user groups
  */
 export async function getUserGroups(): Promise<GroupOption[]> {
-  const response = await api.get(API_ENDPOINTS.USER_GROUPS)
-  const data = response.data
+  const res = await api.get(API_ENDPOINTS.USER_GROUPS)
+  const { data } = res
 
-  if (data.success && data.data) {
-    const groupData = data.data as Record<
-      string,
-      { desc: string; ratio: number }
-    >
-
-    const groups = Object.entries(groupData).map(([group, info]) => ({
-      label:
-        info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
-      value: group,
-      ratio: info.ratio,
-      fullLabel: info.desc,
-    }))
-
-    return groups
+  if (!data.success || !data.data) {
+    return []
   }
 
-  return []
+  const groupData = data.data as Record<string, { desc: string; ratio: number }>
+
+  return Object.entries(groupData).map(([group, info]) => ({
+    label: `${group} - ${info.desc}`,
+    value: group,
+    ratio: info.ratio,
+  }))
 }

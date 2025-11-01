@@ -1,8 +1,15 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
-import { buildChatCompletionPayload } from '../lib'
+import {
+  buildChatCompletionPayload,
+  updateAssistantMessageWithError,
+  updateLastAssistantMessage,
+  processMessageWithThinkTags,
+  finalizeMessageReasoning,
+  handleIncompleteThinkTags,
+} from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
 
@@ -10,63 +17,6 @@ interface UseChatHandlerOptions {
   config: PlaygroundConfig
   parameterEnabled: ParameterEnabled
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
-}
-
-/**
- * Extract and remove <think> tags from content, move to reasoning
- */
-function extractThinkTags(content: string): {
-  cleanContent: string
-  thinkingContent: string
-} {
-  if (!content.includes('<think>')) {
-    return { cleanContent: content, thinkingContent: '' }
-  }
-
-  const thinkRegex = /<think>([\s\S]*?)<\/think>/g
-  const thoughts: string[] = []
-  let cleanContent = content
-
-  let match
-  while ((match = thinkRegex.exec(content)) !== null) {
-    thoughts.push(match[1].trim())
-  }
-
-  // Remove all think tags from content
-  cleanContent = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-
-  return {
-    cleanContent,
-    thinkingContent: thoughts.join('\n\n'),
-  }
-}
-
-/**
- * Update assistant message with error
- */
-function updateAssistantMessageError(
-  onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void,
-  errorMessage: string
-) {
-  onMessageUpdate((prev) => {
-    const last = prev[prev.length - 1]
-    if (!last || last.from !== 'assistant') return prev
-
-    const updated = [...prev]
-    const lastMessage = { ...last }
-
-    lastMessage.status = MESSAGE_STATUS.ERROR
-    lastMessage.versions = [
-      {
-        ...lastMessage.versions[0],
-        content: `${ERROR_MESSAGES.API_REQUEST_ERROR}: ${errorMessage}`,
-      },
-    ]
-    lastMessage.isReasoningStreaming = false
-
-    updated[updated.length - 1] = lastMessage
-    return updated
-  })
 }
 
 /**
@@ -79,6 +29,64 @@ export function useChatHandler({
 }: UseChatHandlerOptions) {
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
 
+  // Handle stream update
+  const handleStreamUpdate = useCallback(
+    (type: 'reasoning' | 'content', chunk: string) => {
+      onMessageUpdate((prev) =>
+        updateLastAssistantMessage(prev, (message) => {
+          if (message.status === MESSAGE_STATUS.ERROR) return message
+
+          if (type === 'reasoning') {
+            return {
+              ...message,
+              reasoning: {
+                content: (message.reasoning?.content || '') + chunk,
+                duration: message.reasoning?.duration || 0,
+              },
+              isReasoningStreaming: true,
+              status: MESSAGE_STATUS.STREAMING,
+            }
+          }
+
+          // Handle content - extract <think> tags in real-time
+          return {
+            ...processMessageWithThinkTags(message, chunk),
+            status: MESSAGE_STATUS.STREAMING,
+          }
+        })
+      )
+    },
+    [onMessageUpdate]
+  )
+
+  // Handle stream complete
+  const handleStreamComplete = useCallback(() => {
+    onMessageUpdate((prev) =>
+      updateLastAssistantMessage(prev, (message) => {
+        if (
+          message.status === MESSAGE_STATUS.COMPLETE ||
+          message.status === MESSAGE_STATUS.ERROR
+        ) {
+          return message
+        }
+
+        return {
+          ...finalizeMessageReasoning(message),
+          status: MESSAGE_STATUS.COMPLETE,
+        }
+      })
+    )
+  }, [onMessageUpdate])
+
+  // Handle stream error
+  const handleStreamError = useCallback(
+    (error: string) => {
+      toast.error(error)
+      onMessageUpdate((prev) => updateAssistantMessageWithError(prev, error))
+    },
+    [onMessageUpdate]
+  )
+
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     (messages: Message[]) => {
@@ -88,122 +96,21 @@ export function useChatHandler({
         parameterEnabled
       )
 
-      const onUpdate = (type: 'reasoning' | 'content', chunk: string) => {
-        onMessageUpdate((prev) => {
-          const last = prev[prev.length - 1]
-          if (!last || last.from !== 'assistant') return prev
-          if (last.status === MESSAGE_STATUS.ERROR) return prev
-
-          const updated = [...prev]
-          const lastMessage = { ...last }
-
-          if (type === 'reasoning') {
-            // Handle reasoning_content from backend (native field)
-            if (!lastMessage.reasoning) {
-              lastMessage.reasoning = { content: '', duration: 0 }
-            }
-            lastMessage.reasoning.content += chunk
-            lastMessage.isReasoningStreaming = true
-            lastMessage.status = MESSAGE_STATUS.STREAMING
-          } else if (type === 'content') {
-            // Handle regular content - extract <think> tags in real-time
-            const currentVersion = lastMessage.versions[0] || {
-              id: 'default',
-              content: '',
-            }
-            const newContent = currentVersion.content + chunk
-
-            // Extract <think> tags from accumulated content in real-time
-            const { cleanContent, thinkingContent } =
-              extractThinkTags(newContent)
-
-            // Update content (always show clean content without tags)
-            lastMessage.versions = [
-              {
-                ...currentVersion,
-                content: cleanContent,
-              },
-            ]
-            lastMessage.status = MESSAGE_STATUS.STREAMING
-
-            // If <think> tags found, move to reasoning
-            if (thinkingContent) {
-              if (!lastMessage.reasoning) {
-                lastMessage.reasoning = { content: '', duration: 0 }
-              }
-              // Update reasoning content with extracted thinking
-              lastMessage.reasoning.content = thinkingContent
-              lastMessage.isReasoningStreaming = true
-            } else {
-              // Mark reasoning as complete when content starts (no more think tags)
-              if (
-                lastMessage.reasoning &&
-                lastMessage.isReasoningStreaming &&
-                cleanContent
-              ) {
-                lastMessage.isReasoningStreaming = false
-              }
-            }
-          }
-
-          updated[updated.length - 1] = lastMessage
-          return updated
-        })
-      }
-
-      const onComplete = () => {
-        onMessageUpdate((prev) => {
-          const last = prev[prev.length - 1]
-          if (!last || last.from !== 'assistant') return prev
-          if (
-            last.status === MESSAGE_STATUS.COMPLETE ||
-            last.status === MESSAGE_STATUS.ERROR
-          ) {
-            return prev
-          }
-
-          const updated = [...prev]
-          const lastMessage = { ...last }
-
-          // Extract any <think> tags from content and move to reasoning
-          const currentContent = lastMessage.versions[0]?.content || ''
-          const { cleanContent, thinkingContent } =
-            extractThinkTags(currentContent)
-
-          // Update content without think tags
-          lastMessage.versions = [
-            { ...lastMessage.versions[0], content: cleanContent },
-          ]
-
-          // Merge thinking content with existing reasoning if any
-          if (thinkingContent) {
-            const existingReasoning = lastMessage.reasoning?.content || ''
-            const combinedReasoning = existingReasoning
-              ? `${existingReasoning}\n\n${thinkingContent}`
-              : thinkingContent
-
-            lastMessage.reasoning = {
-              content: combinedReasoning,
-              duration: lastMessage.reasoning?.duration || 0,
-            }
-          }
-
-          lastMessage.status = MESSAGE_STATUS.COMPLETE
-          lastMessage.isReasoningStreaming = false
-
-          updated[updated.length - 1] = lastMessage
-          return updated
-        })
-      }
-
-      const onError = (error: string) => {
-        toast.error(error)
-        updateAssistantMessageError(onMessageUpdate, error)
-      }
-
-      sendStreamRequest(payload, onUpdate, onComplete, onError)
+      sendStreamRequest(
+        payload,
+        handleStreamUpdate,
+        handleStreamComplete,
+        handleStreamError
+      )
     },
-    [config, parameterEnabled, sendStreamRequest, onMessageUpdate]
+    [
+      config,
+      parameterEnabled,
+      sendStreamRequest,
+      handleStreamUpdate,
+      handleStreamComplete,
+      handleStreamError,
+    ]
   )
 
   // Send non-streaming chat request
@@ -220,50 +127,33 @@ export function useChatHandler({
         const choice = response.choices?.[0]
 
         if (choice) {
-          onMessageUpdate((prev) => {
-            const last = prev[prev.length - 1]
-            if (!last || last.from !== 'assistant') return prev
-
-            const updated = [...prev]
-            const lastMessage = { ...last }
-
-            // Extract content and reasoning
-            const rawContent = choice.message?.content || ''
-            const reasoningContent = choice.message?.reasoning_content || ''
-            const { cleanContent, thinkingContent } =
-              extractThinkTags(rawContent)
-
-            // Set clean content
-            lastMessage.versions = [
-              { ...lastMessage.versions[0], content: cleanContent },
-            ]
-
-            // Set reasoning (prefer reasoning_content, fallback to think tags)
-            const finalReasoning = reasoningContent || thinkingContent
-            if (finalReasoning) {
-              lastMessage.reasoning = {
-                content: finalReasoning,
-                duration: 0,
-              }
-            }
-
-            lastMessage.status = MESSAGE_STATUS.COMPLETE
-            lastMessage.isReasoningStreaming = false
-
-            updated[updated.length - 1] = lastMessage
-            return updated
-          })
+          onMessageUpdate((prev) =>
+            updateLastAssistantMessage(prev, (message) => ({
+              ...finalizeMessageReasoning(
+                {
+                  ...message,
+                  versions: [
+                    {
+                      ...message.versions[0],
+                      content: choice.message?.content || '',
+                    },
+                  ],
+                },
+                choice.message?.reasoning_content
+              ),
+              status: MESSAGE_STATUS.COMPLETE,
+            }))
+          )
         }
       } catch (error: any) {
-        const errorMessage =
+        handleStreamError(
           error?.response?.data?.message ||
-          error?.message ||
-          ERROR_MESSAGES.API_REQUEST_ERROR
-        toast.error(errorMessage)
-        updateAssistantMessageError(onMessageUpdate, errorMessage)
+            error?.message ||
+            ERROR_MESSAGES.API_REQUEST_ERROR
+        )
       }
     },
-    [config, parameterEnabled, onMessageUpdate]
+    [config, parameterEnabled, onMessageUpdate, handleStreamError]
   )
 
   // Send chat request (stream or non-stream based on config)
@@ -282,79 +172,26 @@ export function useChatHandler({
   const stopGeneration = useCallback(() => {
     stopStream()
 
-    onMessageUpdate((prev) => {
-      if (prev.length === 0) return prev
-      const last = prev[prev.length - 1]
-
-      if (
-        !last ||
-        last.from !== 'assistant' ||
-        (last.status !== MESSAGE_STATUS.LOADING &&
-          last.status !== MESSAGE_STATUS.STREAMING)
-      ) {
-        return prev
-      }
-
-      const updated = [...prev]
-      const lastMessage = { ...last }
-
-      // Extract any incomplete think tags from content
-      const currentContent = lastMessage.versions[0]?.content || ''
-      const { cleanContent, thinkingContent } = extractThinkTags(currentContent)
-
-      // Update content without think tags
-      lastMessage.versions = [
-        { ...lastMessage.versions[0], content: cleanContent },
-      ]
-
-      // Handle incomplete thinking content
-      if (thinkingContent || currentContent.includes('<think>')) {
-        const existingReasoning = lastMessage.reasoning?.content || ''
-
-        // Handle incomplete <think> tag
-        const lastThinkIndex = currentContent.lastIndexOf('<think>')
-        const hasUnclosedThink =
-          lastThinkIndex !== -1 &&
-          !currentContent.substring(lastThinkIndex).includes('</think>')
-
-        if (hasUnclosedThink) {
-          const unclosedContent = currentContent
-            .substring(lastThinkIndex + 7)
-            .trim()
-          const combinedReasoning = existingReasoning
-            ? `${existingReasoning}\n\n${unclosedContent}`
-            : unclosedContent
-
-          lastMessage.reasoning = {
-            content: combinedReasoning,
-            duration: lastMessage.reasoning?.duration || 0,
-          }
-
-          // Remove unclosed think tag from content
-          lastMessage.versions = [
-            {
-              ...lastMessage.versions[0],
-              content: currentContent.substring(0, lastThinkIndex).trim(),
-            },
-          ]
-        } else if (thinkingContent && !existingReasoning) {
-          lastMessage.reasoning = {
-            content: thinkingContent,
-            duration: lastMessage.reasoning?.duration || 0,
-          }
+    onMessageUpdate((prev) =>
+      updateLastAssistantMessage(prev, (message) => {
+        // Only stop if message is loading or streaming
+        if (
+          message.status !== MESSAGE_STATUS.LOADING &&
+          message.status !== MESSAGE_STATUS.STREAMING
+        ) {
+          return message
         }
-      }
 
-      lastMessage.status = MESSAGE_STATUS.COMPLETE
-      lastMessage.isReasoningStreaming = false
-
-      updated[updated.length - 1] = lastMessage
-      return updated
-    })
+        return {
+          ...handleIncompleteThinkTags(message),
+          status: MESSAGE_STATUS.COMPLETE,
+        }
+      })
+    )
   }, [stopStream, onMessageUpdate])
 
   // Check if currently generating
-  const isGenerating = useMemo(() => isStreaming(), [isStreaming])
+  const isGenerating = isStreaming
 
   return {
     sendChat,
