@@ -79,21 +79,28 @@ export function Playground() {
   }
 
   return (
-    <div className='relative flex size-full flex-col divide-y overflow-hidden'>
-      <PlaygroundChat messages={messages} />
-      <PlaygroundInput
-        disabled={isGenerating}
-        groups={groups}
-        groupValue={config.group}
-        isGenerating={isGenerating}
-        isModelLoading={isLoadingModels}
-        modelValue={config.model}
-        models={models}
-        onGroupChange={(value) => updateConfig('group', value)}
-        onModelChange={(value) => updateConfig('model', value)}
-        onStop={stopGeneration}
-        onSubmit={handleSendMessage}
-      />
+    <div className='relative flex size-full flex-col overflow-hidden'>
+      {/* Full-width scroll container: scrolling works even over side whitespace */}
+      <div className='flex flex-1 flex-col overflow-hidden'>
+        <PlaygroundChat messages={messages} />
+      </div>
+
+      {/* Input area: center content and constrain to the same container width */}
+      <div className='mx-auto w-full max-w-4xl'>
+        <PlaygroundInput
+          disabled={isGenerating}
+          groups={groups}
+          groupValue={config.group}
+          isGenerating={isGenerating}
+          isModelLoading={isLoadingModels}
+          modelValue={config.model}
+          models={models}
+          onGroupChange={(value) => updateConfig('group', value)}
+          onModelChange={(value) => updateConfig('model', value)}
+          onStop={stopGeneration}
+          onSubmit={handleSendMessage}
+        />
+      </div>
     </div>
   )
 }

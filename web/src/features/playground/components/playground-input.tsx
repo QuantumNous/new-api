@@ -13,6 +13,8 @@ import {
   NotepadTextIcon,
   CodeSquareIcon,
   GraduationCapIcon,
+  CpuIcon,
+  LayersIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -86,7 +88,7 @@ export function PlaygroundInput({
   }
 
   const handleFileAction = (action: string) => {
-    toast.info('功能开发中', {
+    toast.info('Feature in development', {
       description: action,
     })
   }
@@ -96,9 +98,9 @@ export function PlaygroundInput({
   }
 
   return (
-    <div className='grid shrink-0 gap-4 p-4'>
+    <div className='grid shrink-0 gap-4 py-4'>
       <PromptInput
-        className='divide-y-0 rounded-[28px]'
+        groupClassName='rounded-[20px] [--radius:20px]'
         onSubmit={handleSubmit}
       >
         <PromptInputTextarea
@@ -154,7 +156,7 @@ export function PlaygroundInput({
             <PromptInputButton
               className='rounded-full border font-medium'
               disabled={disabled}
-              onClick={() => toast.info('搜索功能开发中')}
+              onClick={() => toast.info('Search feature in development')}
               variant='outline'
             >
               <GlobeIcon size={16} />
@@ -169,9 +171,15 @@ export function PlaygroundInput({
               onValueChange={onModelChange}
               value={modelValue}
             >
-              <PromptInputModelSelectTrigger className='max-w-[100px] text-xs sm:max-w-[140px] sm:text-sm md:max-w-none md:text-base'>
+              <PromptInputModelSelectTrigger
+                aria-label='Model'
+                className='text-foreground h-8 w-8 justify-center rounded-full border border-solid p-0 text-sm font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
+              >
+                {/* Mobile: icon-only */}
+                <CpuIcon className='block size-4 sm:hidden' />
+                {/* sm+: show label from value */}
                 <PromptInputModelSelectValue
-                  className='truncate'
+                  className='hidden truncate sm:block'
                   placeholder={isModelLoading ? 'Loading…' : 'Model'}
                 />
               </PromptInputModelSelectTrigger>
@@ -194,9 +202,15 @@ export function PlaygroundInput({
               onValueChange={onGroupChange}
               value={groupValue}
             >
-              <PromptInputModelSelectTrigger className='max-w-[80px] text-xs sm:max-w-[120px] sm:text-sm md:max-w-none md:text-base'>
+              <PromptInputModelSelectTrigger
+                aria-label='Group'
+                className='text-foreground h-8 w-8 justify-center rounded-full border border-solid p-0 text-sm font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
+              >
+                {/* Mobile: icon-only */}
+                <LayersIcon className='block size-4 sm:hidden' />
+                {/* sm+: show label from value */}
                 <PromptInputModelSelectValue
-                  className='truncate'
+                  className='hidden truncate sm:block'
                   placeholder='Group'
                 />
               </PromptInputModelSelectTrigger>
@@ -228,7 +242,7 @@ export function PlaygroundInput({
               <PromptInputButton
                 className='text-foreground rounded-full font-medium'
                 disabled={disabled}
-                onClick={() => toast.info('语音功能开发中')}
+                onClick={() => toast.info('Voice feature in development')}
                 variant='secondary'
               >
                 <AudioWaveformIcon size={16} />

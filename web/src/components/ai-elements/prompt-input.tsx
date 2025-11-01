@@ -420,10 +420,16 @@ export type PromptInputProps = Omit<
     message: PromptInputMessage,
     event: FormEvent<HTMLFormElement>
   ) => void | Promise<void>
+  /**
+   * Optional className applied to the inner InputGroup wrapper
+   * (useful for customizing rounded corners, e.g., rounded-[20px]).
+   */
+  groupClassName?: string
 }
 
 export const PromptInput = ({
   className,
+  groupClassName,
   accept,
   multiple,
   globalDrop,
@@ -736,7 +742,7 @@ export const PromptInput = ({
         onSubmit={handleSubmit}
         {...props}
       >
-        <InputGroup>{children}</InputGroup>
+        <InputGroup className={groupClassName}>{children}</InputGroup>
       </form>
     </>
   )
@@ -790,7 +796,10 @@ export const PromptInputTextarea = ({
       attachments.files.length > 0
     ) {
       e.preventDefault()
-      const lastAttachment = attachments.files.at(-1)
+      const lastAttachment =
+        attachments.files.length > 0
+          ? attachments.files[attachments.files.length - 1]
+          : undefined
       if (lastAttachment) {
         attachments.remove(lastAttachment.id)
       }
@@ -1159,6 +1168,7 @@ export type PromptInputModelSelectTriggerProps = ComponentProps<
 
 export const PromptInputModelSelectTrigger = ({
   className,
+  size = 'sm',
   ...props
 }: PromptInputModelSelectTriggerProps) => (
   <SelectTrigger
@@ -1167,6 +1177,7 @@ export const PromptInputModelSelectTrigger = ({
       'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
       className
     )}
+    size={size}
     {...props}
   />
 )
