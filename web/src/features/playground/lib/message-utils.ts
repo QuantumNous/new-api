@@ -121,44 +121,74 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
 
 /**
  * Check if message is valid for API request
+ * Excludes loading/streaming assistant messages and empty content
  */
 export function isValidMessage(message: Message): boolean {
-  return (
-    message &&
-    message.from &&
-    message.versions.length > 0 &&
-    message.versions[0].content !== undefined
-  )
+  if (!message || !message.from || !message.versions.length) return false
+
+  const content = message.versions[0]?.content
+  if (content === undefined) return false
+
+  // Exclude empty assistant messages (loading/streaming placeholders)
+  if (message.from === 'assistant' && !content.trim()) return false
+
+  return true
 }
 
 /**
- * Extract and remove <think> tags from content
- * @param content - The content to process
- * @returns Object with cleaned content and extracted thinking content
+ * Parse content to separate thinking from visible text
+ * Handles both complete and incomplete <think> tags
  */
-export function extractThinkTags(content: string): {
-  cleanContent: string
-  thinkingContent: string
+export function parseThinkTags(content: string): {
+  visibleContent: string
+  reasoning: string
+  hasUnclosedTag: boolean
 } {
   if (!content.includes('<think>')) {
-    return { cleanContent: content, thinkingContent: '' }
+    return { visibleContent: content, reasoning: '', hasUnclosedTag: false }
   }
 
-  const thinkRegex = /<think>([\s\S]*?)<\/think>/g
-  const thoughts: string[] = []
+  const visibleParts: string[] = []
+  const reasoningParts: string[] = []
+  let currentPos = 0
+  let hasUnclosed = false
 
-  // Extract all thinking content
-  let match
-  while ((match = thinkRegex.exec(content)) !== null) {
-    thoughts.push(match[1].trim())
+  while (true) {
+    // Find next <think> tag
+    const openPos = content.indexOf('<think>', currentPos)
+
+    if (openPos === -1) {
+      // No more think tags, add remaining content
+      if (currentPos < content.length) {
+        visibleParts.push(content.substring(currentPos))
+      }
+      break
+    }
+
+    // Add visible content before this tag
+    if (openPos > currentPos) {
+      visibleParts.push(content.substring(currentPos, openPos))
+    }
+
+    // Look for matching </think> tag
+    const closePos = content.indexOf('</think>', openPos + 7)
+
+    if (closePos === -1) {
+      // Unclosed tag: rest is reasoning buffer
+      reasoningParts.push(content.substring(openPos + 7))
+      hasUnclosed = true
+      break
+    }
+
+    // Extract reasoning content between tags
+    reasoningParts.push(content.substring(openPos + 7, closePos))
+    currentPos = closePos + 8
   }
-
-  // Remove all think tags from content (create new regex to avoid state issues)
-  const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 
   return {
-    cleanContent,
-    thinkingContent: thoughts.join('\n\n'),
+    visibleContent: visibleParts.join('').trim(),
+    reasoning: reasoningParts.join('\n\n').trim(),
+    hasUnclosedTag: hasUnclosed,
   }
 }
 
@@ -205,187 +235,73 @@ export function updateLastAssistantMessage(
 }
 
 /**
- * Merge reasoning content, combining existing and new content
+ * Process content chunk during streaming
+ * Separates <think> reasoning from visible content in real-time
+ * Note: versions[0].content keeps the full raw content (with tags) during streaming
  */
-export function mergeReasoningContent(
-  existingContent: string,
-  newContent: string
-): string {
-  if (!existingContent) return newContent
-  if (!newContent) return existingContent
-  return `${existingContent}\n\n${newContent}`
-}
-
-/**
- * Process message content with think tags
- * Updates content and reasoning based on extracted think tags
- */
-export function processMessageWithThinkTags(
+export function processStreamingContent(
   message: Message,
-  newContentChunk?: string
+  contentChunk?: string
 ): Message {
   const currentVersion = getCurrentVersion(message)
-  const contentToProcess = newContentChunk
-    ? currentVersion.content + newContentChunk
+  const fullContent = contentChunk
+    ? currentVersion.content + contentChunk
     : currentVersion.content
 
-  // First, remove any fully paired <think>...</think> blocks
-  const { cleanContent, thinkingContent } = extractThinkTags(contentToProcess)
+  const { reasoning, hasUnclosedTag } = parseThinkTags(fullContent)
 
-  // Detect an unclosed <think> at the end (streaming case)
-  const lastOpenThinkIndex = cleanContent.lastIndexOf('<think>')
-  const lastCloseThinkIndex = cleanContent.lastIndexOf('</think>')
+  // Preserve existing reasoning if no think tags found (e.g., from API reasoning_content)
+  const finalReasoning = reasoning
+    ? { content: reasoning, duration: 0 }
+    : message.reasoning
 
-  // If there is an open <think> without a matching closing tag after it,
-  // treat everything after it as streaming reasoning content and do not render it in the main message.
-  if (lastOpenThinkIndex !== -1 && lastOpenThinkIndex > lastCloseThinkIndex) {
-    const partialReasoning = cleanContent
-      .substring(lastOpenThinkIndex + 7)
-      .trim()
-    const contentWithoutStreamingThink = cleanContent
-      .substring(0, lastOpenThinkIndex)
-      .trim()
-
-    // Build updated message content without the streaming <think>
-    let nextMessage = updateCurrentVersionContent(
-      message,
-      contentWithoutStreamingThink
-    )
-
-    // Merge partial reasoning with any existing reasoning
-    const mergedReasoning = mergeReasoningContent(
-      nextMessage.reasoning?.content || '',
-      partialReasoning
-    )
-
-    return {
-      ...nextMessage,
-      reasoning: mergedReasoning
-        ? {
-            content: mergedReasoning,
-            duration: nextMessage.reasoning?.duration || 0,
-          }
-        : nextMessage.reasoning,
-      isReasoningStreaming: true,
-    }
+  return {
+    ...updateCurrentVersionContent(message, fullContent),
+    reasoning: finalReasoning,
+    isReasoningStreaming: hasUnclosedTag,
   }
-
-  const updatedMessage = updateCurrentVersionContent(message, cleanContent)
-
-  // Update reasoning if paired think content was extracted
-  if (thinkingContent) {
-    return {
-      ...updatedMessage,
-      reasoning: {
-        content: thinkingContent,
-        duration: message.reasoning?.duration || 0,
-      },
-      isReasoningStreaming: true,
-    }
-  }
-
-  // Mark reasoning as complete when content starts (no more think tags)
-  if (message.reasoning && message.isReasoningStreaming && cleanContent) {
-    return {
-      ...updatedMessage,
-      isReasoningStreaming: false,
-    }
-  }
-
-  return updatedMessage
 }
 
 /**
- * Finalize message with reasoning content
- * Extracts think tags and merges with existing reasoning
+ * Finalize message after streaming completes
+ * Cleans content and consolidates reasoning from all sources
  */
-export function finalizeMessageReasoning(
+export function finalizeMessage(
   message: Message,
-  additionalReasoningContent?: string
+  apiReasoningContent?: string
 ): Message {
-  // Extract any <think> tags from content
   const currentVersion = getCurrentVersion(message)
-  const { cleanContent, thinkingContent } = extractThinkTags(
-    currentVersion.content
-  )
+  const { visibleContent, reasoning } = parseThinkTags(currentVersion.content)
 
-  // Merge thinking content with existing reasoning if any
-  const existingReasoning = message.reasoning?.content || ''
-  const combinedReasoning = mergeReasoningContent(
-    existingReasoning,
-    additionalReasoningContent || thinkingContent
-  )
+  // Priority:
+  // 1. API reasoning_content passed as parameter (non-streaming response)
+  // 2. Existing message.reasoning (from streaming reasoning_content)
+  // 3. Extracted think tags from content
+  const finalReasoning =
+    apiReasoningContent || message.reasoning?.content || reasoning || ''
 
   return {
-    ...updateCurrentVersionContent(message, cleanContent),
-    reasoning: combinedReasoning
-      ? {
-          content: combinedReasoning,
-          duration: message.reasoning?.duration || 0,
-        }
-      : message.reasoning,
-    isReasoningStreaming: false,
-  }
-}
-
-/**
- * Handle incomplete think tags during stream stop
- * Extracts content from unclosed tags
- */
-export function handleIncompleteThinkTags(message: Message): Message {
-  const currentVersion = getCurrentVersion(message)
-  const currentContent = currentVersion.content
-  const { cleanContent, thinkingContent } = extractThinkTags(currentContent)
-
-  // Handle incomplete <think> tag
-  const lastThinkIndex = currentContent.lastIndexOf('<think>')
-  const hasUnclosedThink =
-    lastThinkIndex !== -1 &&
-    !currentContent.substring(lastThinkIndex).includes('</think>')
-
-  const existingReasoning = message.reasoning?.content || ''
-  let finalContent = cleanContent
-  let finalReasoning = existingReasoning
-
-  if (hasUnclosedThink) {
-    // Extract content from unclosed think tag
-    const unclosedContent = currentContent.substring(lastThinkIndex + 7).trim()
-    finalReasoning = mergeReasoningContent(existingReasoning, unclosedContent)
-    finalContent = currentContent.substring(0, lastThinkIndex).trim()
-  } else if (thinkingContent) {
-    // Merge extracted thinking content with existing reasoning
-    finalReasoning = mergeReasoningContent(existingReasoning, thinkingContent)
-  }
-
-  return {
-    ...updateCurrentVersionContent(message, finalContent),
+    ...updateCurrentVersionContent(message, visibleContent),
     reasoning: finalReasoning
-      ? {
-          content: finalReasoning,
-          duration: message.reasoning?.duration || 0,
-        }
-      : message.reasoning,
+      ? { content: finalReasoning, duration: message.reasoning?.duration || 0 }
+      : undefined,
     isReasoningStreaming: false,
   }
 }
 
 /**
- * Sanitize messages loaded from storage.
- * If an assistant message is left in loading/streaming (e.g. after refresh),
- * finalize its content and convert it to a stable state to prevent
- * permanent "Responding..." UI.
+ * Sanitize messages loaded from storage
+ * Converts stuck loading/streaming messages to stable state
  */
 export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
-  // Find the last unfinished assistant message (only explicit loading/streaming)
   let targetIndex = -1
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    const isAssistant = m?.from === MESSAGE_ROLES.ASSISTANT
-    const hasStuckStatus =
-      m?.status === MESSAGE_STATUS.LOADING ||
-      m?.status === MESSAGE_STATUS.STREAMING
-
-    if (isAssistant && hasStuckStatus) {
+    if (
+      m?.from === MESSAGE_ROLES.ASSISTANT &&
+      (m?.status === MESSAGE_STATUS.LOADING ||
+        m?.status === MESSAGE_STATUS.STREAMING)
+    ) {
       targetIndex = i
       break
     }
@@ -393,25 +309,24 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
 
   if (targetIndex === -1) return messages
 
-  const stuck = messages[targetIndex]
-  const finalized = handleIncompleteThinkTags(stuck)
-  const content = (finalized.versions?.[0]?.content || '').trim()
-  const hasReasoning = !!finalized.reasoning?.content?.trim()
+  const finalized = finalizeMessage(messages[targetIndex])
+  const hasContent = finalized.versions?.[0]?.content?.trim()
+  const hasReasoning = finalized.reasoning?.content?.trim()
 
   const sanitized: Message =
-    content || hasReasoning
+    hasContent || hasReasoning
       ? {
           ...finalized,
-          isReasoningStreaming: false,
           status: MESSAGE_STATUS.COMPLETE,
+          isReasoningStreaming: false,
         }
       : {
           ...updateCurrentVersionContent(
             finalized,
             `${ERROR_MESSAGES.API_REQUEST_ERROR}: ${ERROR_MESSAGES.INTERRUPTED}`
           ),
-          isReasoningStreaming: false,
           status: MESSAGE_STATUS.ERROR,
+          isReasoningStreaming: false,
         }
 
   const result = [...messages]

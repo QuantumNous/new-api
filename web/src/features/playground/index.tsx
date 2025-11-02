@@ -125,18 +125,14 @@ export function Playground() {
 
       const updated = messages.map((m) =>
         m.key === editingMessageKey
-          ? {
-              ...m,
-              versions: m.versions.map((v, idx) =>
-                idx === 0 ? { ...v, content: newContent } : v
-              ),
-            }
+          ? { ...m, versions: [{ ...m.versions[0], content: newContent }] }
           : m
       )
 
+      setEditingMessageKey(null)
+
       if (!submit || updated[index].from !== 'user') {
         updateMessages(updated)
-        setEditingMessageKey(null)
         return
       }
 
@@ -146,7 +142,6 @@ export function Playground() {
       ]
       updateMessages(toSubmit)
       sendChat(toSubmit)
-      setEditingMessageKey(null)
     },
     [editingMessageKey, messages, updateMessages, sendChat]
   )

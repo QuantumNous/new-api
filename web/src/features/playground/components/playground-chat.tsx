@@ -32,6 +32,7 @@ import {
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
+import { parseThinkTags } from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
@@ -63,21 +64,21 @@ export function PlaygroundChat({
 }: PlaygroundChatProps) {
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
+
   useEffect(() => {
     if (!editingKey) return
-    const m = messages.find((mm) => mm.key === editingKey)
-    const init = m?.versions?.[0]?.content || ''
-    setEditText(init)
-    setOriginalText(init)
+    const message = messages.find((m) => m.key === editingKey)
+    const content = message?.versions?.[0]?.content || ''
+    setEditText(content)
+    setOriginalText(content)
   }, [editingKey, messages])
 
+  const isEditing = (key: string) => editingKey === key
   const isEmpty = useMemo(() => !editText.trim(), [editText])
   const isChanged = useMemo(
     () => editText !== originalText,
     [editText, originalText]
   )
-
-  const isEditing = (key: string) => editingKey === key
   return (
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
@@ -153,6 +154,11 @@ export function PlaygroundChat({
                                 (message.from === MESSAGE_ROLES.USER ||
                                   !message.isReasoningStreaming) &&
                                 !!version.content
+
+                              // Extract visible content (remove <think> tags for assistant messages)
+                              const displayContent = isAssistant
+                                ? parseThinkTags(version.content).visibleContent
+                                : version.content
 
                               const actions = (
                                 <MessageActions
@@ -230,7 +236,7 @@ export function PlaygroundChat({
                                             getMessageContentStyles()
                                           )}
                                         >
-                                          <Response>{version.content}</Response>
+                                          <Response>{displayContent}</Response>
                                         </MessageContent>
                                         {actions}
                                       </>

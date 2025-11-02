@@ -6,9 +6,8 @@ import {
   buildChatCompletionPayload,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
-  processMessageWithThinkTags,
-  finalizeMessageReasoning,
-  handleIncompleteThinkTags,
+  processStreamingContent,
+  finalizeMessage,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -37,20 +36,21 @@ export function useChatHandler({
           if (message.status === MESSAGE_STATUS.ERROR) return message
 
           if (type === 'reasoning') {
+            // Direct API reasoning_content
             return {
               ...message,
               reasoning: {
                 content: (message.reasoning?.content || '') + chunk,
-                duration: message.reasoning?.duration || 0,
+                duration: 0,
               },
               isReasoningStreaming: true,
               status: MESSAGE_STATUS.STREAMING,
             }
           }
 
-          // Handle content - extract <think> tags in real-time
+          // Content streaming: handle <think> tags
           return {
-            ...processMessageWithThinkTags(message, chunk),
+            ...processStreamingContent(message, chunk),
             status: MESSAGE_STATUS.STREAMING,
           }
         })
@@ -62,19 +62,12 @@ export function useChatHandler({
   // Handle stream complete
   const handleStreamComplete = useCallback(() => {
     onMessageUpdate((prev) =>
-      updateLastAssistantMessage(prev, (message) => {
-        if (
-          message.status === MESSAGE_STATUS.COMPLETE ||
-          message.status === MESSAGE_STATUS.ERROR
-        ) {
-          return message
-        }
-
-        return {
-          ...finalizeMessageReasoning(message),
-          status: MESSAGE_STATUS.COMPLETE,
-        }
-      })
+      updateLastAssistantMessage(prev, (message) =>
+        message.status === MESSAGE_STATUS.COMPLETE ||
+        message.status === MESSAGE_STATUS.ERROR
+          ? message
+          : { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+      )
     )
   }, [onMessageUpdate])
 
@@ -95,7 +88,6 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
-
       sendStreamRequest(
         payload,
         handleStreamUpdate,
@@ -125,26 +117,25 @@ export function useChatHandler({
       try {
         const response = await sendChatCompletion(payload)
         const choice = response.choices?.[0]
+        if (!choice) return
 
-        if (choice) {
-          onMessageUpdate((prev) =>
-            updateLastAssistantMessage(prev, (message) => ({
-              ...finalizeMessageReasoning(
-                {
-                  ...message,
-                  versions: [
-                    {
-                      ...message.versions[0],
-                      content: choice.message?.content || '',
-                    },
-                  ],
-                },
-                choice.message?.reasoning_content
-              ),
-              status: MESSAGE_STATUS.COMPLETE,
-            }))
-          )
-        }
+        onMessageUpdate((prev) =>
+          updateLastAssistantMessage(prev, (message) => ({
+            ...finalizeMessage(
+              {
+                ...message,
+                versions: [
+                  {
+                    ...message.versions[0],
+                    content: choice.message?.content || '',
+                  },
+                ],
+              },
+              choice.message?.reasoning_content
+            ),
+            status: MESSAGE_STATUS.COMPLETE,
+          }))
+        )
       } catch (error: any) {
         handleStreamError(
           error?.response?.data?.message ||
@@ -159,11 +150,9 @@ export function useChatHandler({
   // Send chat request (stream or non-stream based on config)
   const sendChat = useCallback(
     (messages: Message[]) => {
-      if (config.stream) {
-        sendStreamingChat(messages)
-      } else {
-        sendNonStreamingChat(messages)
-      }
+      config.stream
+        ? sendStreamingChat(messages)
+        : sendNonStreamingChat(messages)
     },
     [config.stream, sendStreamingChat, sendNonStreamingChat]
   )
@@ -171,31 +160,19 @@ export function useChatHandler({
   // Stop generation
   const stopGeneration = useCallback(() => {
     stopStream()
-
     onMessageUpdate((prev) =>
-      updateLastAssistantMessage(prev, (message) => {
-        // Only stop if message is loading or streaming
-        if (
-          message.status !== MESSAGE_STATUS.LOADING &&
-          message.status !== MESSAGE_STATUS.STREAMING
-        ) {
-          return message
-        }
-
-        return {
-          ...handleIncompleteThinkTags(message),
-          status: MESSAGE_STATUS.COMPLETE,
-        }
-      })
+      updateLastAssistantMessage(prev, (message) =>
+        message.status === MESSAGE_STATUS.LOADING ||
+        message.status === MESSAGE_STATUS.STREAMING
+          ? { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+          : message
+      )
     )
   }, [stopStream, onMessageUpdate])
-
-  // Check if currently generating
-  const isGenerating = isStreaming
 
   return {
     sendChat,
     stopGeneration,
-    isGenerating,
+    isGenerating: isStreaming,
   }
 }

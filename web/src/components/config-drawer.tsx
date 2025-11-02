@@ -48,7 +48,7 @@ export function ConfigDrawer() {
           variant='ghost'
           aria-label='Open theme settings'
           aria-describedby='config-drawer-description'
-          className='max-md:hidden rounded-full'
+          className='rounded-full max-md:hidden'
         >
           <Settings aria-hidden='true' />
         </Button>
