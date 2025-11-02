@@ -70,54 +70,25 @@ export function PlaygroundChat({
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
                       <div className='w-full min-w-0 flex-1 basis-full'>
-                        {/* Sources */}
-                        {message.sources?.length && (
-                          <Sources>
-                            <SourcesTrigger count={message.sources.length} />
-                            <SourcesContent>
-                              {message.sources.map((source, sourceIndex) => (
-                                <Source
-                                  href={source.href}
-                                  key={`${message.key}-source-${sourceIndex}`}
-                                  title={source.title}
-                                />
-                              ))}
-                            </SourcesContent>
-                          </Sources>
-                        )}
+                        {/* Compute and render sections without duplication */}
+                        {(() => {
+                          const isAssistant =
+                            message.from === MESSAGE_ROLES.ASSISTANT
+                          const hasSources = !!message.sources?.length
+                          const showReasoning =
+                            isAssistant && !!message.reasoning?.content
+                          const showLoader =
+                            isAssistant &&
+                            !message.isReasoningStreaming &&
+                            (message.status === 'loading' ||
+                              (message.status === 'streaming' &&
+                                !version.content))
+                          const showMessageContent =
+                            (message.from === MESSAGE_ROLES.USER ||
+                              !message.isReasoningStreaming) &&
+                            !!version.content
 
-                        {/* Reasoning - Only show for assistant with reasoning content */}
-                        {message.from === MESSAGE_ROLES.ASSISTANT &&
-                          message.reasoning?.content && (
-                            <Reasoning
-                              defaultOpen={true}
-                              isStreaming={message.isReasoningStreaming}
-                            >
-                              <ReasoningTrigger />
-                              <ReasoningContent>
-                                {message.reasoning.content}
-                              </ReasoningContent>
-                            </Reasoning>
-                          )}
-
-                        {/* Loading indicator - Show when loading or streaming without content */}
-                        {message.from === MESSAGE_ROLES.ASSISTANT &&
-                          (message.status === 'loading' ||
-                            (message.status === 'streaming' &&
-                              !version.content)) && (
-                            <div className='flex items-center gap-2 py-2'>
-                              <Loader />
-                              <Shimmer className='text-sm' duration={1}>
-                                Responding...
-                              </Shimmer>
-                            </div>
-                          )}
-
-                        {/* Error Alert - Show for error messages */}
-                        {message.status === 'error' ? (
-                          <>
-                            <MessageError message={message} className='mb-2' />
-                            {/* Message Actions - Always show for error messages */}
+                          const actions = (
                             <MessageActions
                               message={message}
                               onCopy={onCopyMessage}
@@ -128,34 +99,78 @@ export function PlaygroundChat({
                               alwaysVisible={isLastAssistantMessage}
                               className='mt-2'
                             />
-                          </>
-                        ) : (
-                          /* Message Content - Show when not streaming reasoning or for user messages */
-                          (message.from === MESSAGE_ROLES.USER ||
-                            !message.isReasoningStreaming) &&
-                          version.content && (
-                            <>
-                              <MessageContent
-                                variant='flat'
-                                className={cn(getMessageContentStyles())}
-                              >
-                                <Response>{version.content}</Response>
-                              </MessageContent>
+                          )
 
-                              {/* Message Actions - Show on hover, always visible for last assistant message */}
-                              <MessageActions
-                                message={message}
-                                onCopy={onCopyMessage}
-                                onRegenerate={onRegenerateMessage}
-                                onEdit={onEditMessage}
-                                onDelete={onDeleteMessage}
-                                isGenerating={isGenerating}
-                                alwaysVisible={isLastAssistantMessage}
-                                className='mt-2'
-                              />
+                          return (
+                            <>
+                              {/* Sources */}
+                              {hasSources && (
+                                <Sources>
+                                  <SourcesTrigger
+                                    count={message.sources!.length}
+                                  />
+                                  <SourcesContent>
+                                    {message.sources!.map(
+                                      (source, sourceIndex) => (
+                                        <Source
+                                          href={source.href}
+                                          key={`${message.key}-source-${sourceIndex}`}
+                                          title={source.title}
+                                        />
+                                      )
+                                    )}
+                                  </SourcesContent>
+                                </Sources>
+                              )}
+
+                              {/* Reasoning */}
+                              {showReasoning && (
+                                <Reasoning
+                                  defaultOpen={true}
+                                  isStreaming={message.isReasoningStreaming}
+                                >
+                                  <ReasoningTrigger />
+                                  <ReasoningContent>
+                                    {message.reasoning!.content}
+                                  </ReasoningContent>
+                                </Reasoning>
+                              )}
+
+                              {/* Loader */}
+                              {showLoader && (
+                                <div className='flex items-center gap-2 py-2'>
+                                  <Loader />
+                                  <Shimmer className='text-sm' duration={1}>
+                                    Responding...
+                                  </Shimmer>
+                                </div>
+                              )}
+
+                              {/* Error or Content */}
+                              {message.status === 'error' ? (
+                                <>
+                                  <MessageError
+                                    message={message}
+                                    className='mb-2'
+                                  />
+                                  {actions}
+                                </>
+                              ) : (
+                                showMessageContent && (
+                                  <>
+                                    <MessageContent
+                                      variant='flat'
+                                      className={cn(getMessageContentStyles())}
+                                    >
+                                      <Response>{version.content}</Response>
+                                    </MessageContent>
+                                    {actions}
+                                  </>
+                                )
+                              )}
                             </>
                           )
-                        )}
+                        })()}
                       </div>
                     </Message>
                   ))}
