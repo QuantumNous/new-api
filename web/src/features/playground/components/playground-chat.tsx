@@ -12,6 +12,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
+import { Loader } from '@/components/ai-elements/loader'
 import { Message, MessageContent } from '@/components/ai-elements/message'
 import {
   Reasoning,
@@ -19,6 +20,7 @@ import {
   ReasoningTrigger,
 } from '@/components/ai-elements/reasoning'
 import { Response } from '@/components/ai-elements/response'
+import { Shimmer } from '@/components/ai-elements/shimmer'
 import {
   Source,
   Sources,
@@ -26,95 +28,150 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
+import { getMessageContentStyles } from '../lib/message-styles'
 import type { Message as MessageType } from '../types'
+import { MessageActions } from './message-actions'
+import { MessageError } from './message-error'
 
 interface PlaygroundChatProps {
   messages: MessageType[]
+  onCopyMessage?: (message: MessageType) => void
+  onRegenerateMessage?: (message: MessageType) => void
+  onEditMessage?: (message: MessageType) => void
+  onDeleteMessage?: (message: MessageType) => void
+  isGenerating?: boolean
 }
 
-export function PlaygroundChat({ messages }: PlaygroundChatProps) {
+export function PlaygroundChat({
+  messages,
+  onCopyMessage,
+  onRegenerateMessage,
+  onEditMessage,
+  onDeleteMessage,
+  isGenerating = false,
+}: PlaygroundChatProps) {
   return (
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
       <ConversationContent className='p-0'>
         <div className='mx-auto w-full max-w-4xl px-4 py-4'>
-          {messages.map(({ versions = [], ...message }) => (
-            <Branch defaultBranch={0} key={message.key}>
-              <BranchMessages>
-                {versions.map((version, versionIndex) => (
-                  <Message
-                    className='flex-row-reverse py-6 sm:py-7'
-                    from={message.from}
-                    key={`${message.key}-${version.id}-${versionIndex}`}
-                  >
-                    <div className='w-full min-w-0 flex-1 basis-full'>
-                      {/* Sources */}
-                      {message.sources?.length && (
-                        <Sources>
-                          <SourcesTrigger count={message.sources.length} />
-                          <SourcesContent>
-                            {message.sources.map((source, sourceIndex) => (
-                              <Source
-                                href={source.href}
-                                key={`${message.key}-source-${sourceIndex}`}
-                                title={source.title}
+          {messages.map((message, messageIndex) => {
+            const { versions = [] } = message
+            const isLastAssistantMessage =
+              messageIndex === messages.length - 1 &&
+              message.from === MESSAGE_ROLES.ASSISTANT
+            return (
+              <Branch defaultBranch={0} key={message.key}>
+                <BranchMessages>
+                  {versions.map((version, versionIndex) => (
+                    <Message
+                      className='group flex-row-reverse'
+                      from={message.from}
+                      key={`${message.key}-${version.id}-${versionIndex}`}
+                    >
+                      <div className='w-full min-w-0 flex-1 basis-full'>
+                        {/* Sources */}
+                        {message.sources?.length && (
+                          <Sources>
+                            <SourcesTrigger count={message.sources.length} />
+                            <SourcesContent>
+                              {message.sources.map((source, sourceIndex) => (
+                                <Source
+                                  href={source.href}
+                                  key={`${message.key}-source-${sourceIndex}`}
+                                  title={source.title}
+                                />
+                              ))}
+                            </SourcesContent>
+                          </Sources>
+                        )}
+
+                        {/* Reasoning - Only show for assistant with reasoning content */}
+                        {message.from === MESSAGE_ROLES.ASSISTANT &&
+                          message.reasoning?.content && (
+                            <Reasoning
+                              defaultOpen={true}
+                              isStreaming={message.isReasoningStreaming}
+                            >
+                              <ReasoningTrigger />
+                              <ReasoningContent>
+                                {message.reasoning.content}
+                              </ReasoningContent>
+                            </Reasoning>
+                          )}
+
+                        {/* Loading indicator - Show when loading or streaming without content */}
+                        {message.from === MESSAGE_ROLES.ASSISTANT &&
+                          (message.status === 'loading' ||
+                            (message.status === 'streaming' &&
+                              !version.content)) && (
+                            <div className='flex items-center gap-2 py-2'>
+                              <Loader />
+                              <Shimmer className='text-sm' duration={1}>
+                                Responding...
+                              </Shimmer>
+                            </div>
+                          )}
+
+                        {/* Error Alert - Show for error messages */}
+                        {message.status === 'error' ? (
+                          <>
+                            <MessageError message={message} className='mb-2' />
+                            {/* Message Actions - Always show for error messages */}
+                            <MessageActions
+                              message={message}
+                              onCopy={onCopyMessage}
+                              onRegenerate={onRegenerateMessage}
+                              onEdit={onEditMessage}
+                              onDelete={onDeleteMessage}
+                              isGenerating={isGenerating}
+                              alwaysVisible={isLastAssistantMessage}
+                              className='mt-2'
+                            />
+                          </>
+                        ) : (
+                          /* Message Content - Show when not streaming reasoning or for user messages */
+                          (message.from === MESSAGE_ROLES.USER ||
+                            !message.isReasoningStreaming) &&
+                          version.content && (
+                            <>
+                              <MessageContent
+                                variant='flat'
+                                className={cn(getMessageContentStyles())}
+                              >
+                                <Response>{version.content}</Response>
+                              </MessageContent>
+
+                              {/* Message Actions - Show on hover, always visible for last assistant message */}
+                              <MessageActions
+                                message={message}
+                                onCopy={onCopyMessage}
+                                onRegenerate={onRegenerateMessage}
+                                onEdit={onEditMessage}
+                                onDelete={onDeleteMessage}
+                                isGenerating={isGenerating}
+                                alwaysVisible={isLastAssistantMessage}
+                                className='mt-2'
                               />
-                            ))}
-                          </SourcesContent>
-                        </Sources>
-                      )}
-
-                      {/* Reasoning - Only show for assistant with reasoning content */}
-                      {message.from === MESSAGE_ROLES.ASSISTANT &&
-                        message.reasoning?.content && (
-                          <Reasoning
-                            defaultOpen={true}
-                            isStreaming={message.isReasoningStreaming}
-                          >
-                            <ReasoningTrigger />
-                            <ReasoningContent>
-                              {message.reasoning.content}
-                            </ReasoningContent>
-                          </Reasoning>
+                            </>
+                          )
                         )}
+                      </div>
+                    </Message>
+                  ))}
+                </BranchMessages>
 
-                      {/* Message Content - Show when not streaming reasoning or for user messages */}
-                      {(message.from === MESSAGE_ROLES.USER ||
-                        !message.isReasoningStreaming) &&
-                        version.content && (
-                          <MessageContent
-                            variant='flat'
-                            className={cn(
-                              // Assistant content fills the row; user bubble auto-width
-                              'group-[.is-assistant]:w-full group-[.is-assistant]:max-w-none group-[.is-user]:w-fit',
-                              // User bubble: rounded and themed background
-                              'group-[.is-user]:text-foreground group-[.is-user]:bg-secondary dark:group-[.is-user]:bg-muted group-[.is-user]:rounded-[24px]',
-                              // Assistant bubble: flat serif style (one-sided style)
-                              'group-[.is-assistant]:text-foreground group-[.is-assistant]:bg-transparent group-[.is-assistant]:p-0 group-[.is-assistant]:font-serif',
-                              // Preferred readable widths and wrapping
-                              'leading-relaxed break-words whitespace-pre-wrap sm:leading-7',
-                              // Cap user bubble width so it does not look like a banner
-                              'group-[.is-user]:max-w-[85%] sm:group-[.is-user]:max-w-[62ch] md:group-[.is-user]:max-w-[68ch] lg:group-[.is-user]:max-w-[72ch]'
-                            )}
-                          >
-                            <Response>{version.content}</Response>
-                          </MessageContent>
-                        )}
-                    </div>
-                  </Message>
-                ))}
-              </BranchMessages>
-
-              {/* Branch selector for multiple versions */}
-              {versions.length > 1 && (
-                <BranchSelector className='px-0' from={message.from}>
-                  <BranchPrevious />
-                  <BranchPage />
-                  <BranchNext />
-                </BranchSelector>
-              )}
-            </Branch>
-          ))}
+                {/* Branch selector for multiple versions */}
+                {versions.length > 1 && (
+                  <BranchSelector className='px-0' from={message.from}>
+                    <BranchPrevious />
+                    <BranchPage />
+                    <BranchNext />
+                  </BranchSelector>
+                )}
+              </Branch>
+            )
+          })}
         </div>
       </ConversationContent>
       <ConversationScrollButton />

@@ -6,6 +6,7 @@ import { PlaygroundInput } from './components/playground-input'
 import { DEFAULT_GROUP } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
+import type { Message as MessageType } from './types'
 
 export function Playground() {
   const {
@@ -83,11 +84,47 @@ export function Playground() {
     sendChat(newMessages)
   }
 
+  const handleCopyMessage = (message: MessageType) => {
+    // Copy is handled in MessageActions component
+    console.log('Message copied:', message.key)
+  }
+
+  const handleRegenerateMessage = (message: MessageType) => {
+    // Find the message index and regenerate from there
+    const messageIndex = messages.findIndex((m) => m.key === message.key)
+    if (messageIndex === -1) return
+
+    // Remove messages after this one and regenerate
+    const messagesUpToHere = messages.slice(0, messageIndex)
+    const loadingMessage = createLoadingAssistantMessage()
+    const newMessages = [...messagesUpToHere, loadingMessage]
+
+    updateMessages(newMessages)
+    sendChat(newMessages)
+  }
+
+  const handleEditMessage = (message: MessageType) => {
+    // TODO: Implement edit functionality
+    console.log('Edit message:', message.key)
+  }
+
+  const handleDeleteMessage = (message: MessageType) => {
+    const newMessages = messages.filter((m) => m.key !== message.key)
+    updateMessages(newMessages)
+  }
+
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex flex-1 flex-col overflow-hidden'>
-        <PlaygroundChat messages={messages} />
+        <PlaygroundChat
+          messages={messages}
+          onCopyMessage={handleCopyMessage}
+          onRegenerateMessage={handleRegenerateMessage}
+          onEditMessage={handleEditMessage}
+          onDeleteMessage={handleDeleteMessage}
+          isGenerating={isGenerating}
+        />
       </div>
 
       {/* Input area: center content and constrain to the same container width */}

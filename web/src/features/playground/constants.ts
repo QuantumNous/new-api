@@ -55,9 +55,27 @@ export const STORAGE_KEYS = {
 
 // Error messages
 export const ERROR_MESSAGES = {
-  API_REQUEST_ERROR: '请求发生错误',
-  NETWORK_ERROR: '网络连接失败或服务器无响应',
-  PARSE_ERROR: '解析响应数据时发生错误',
-  STREAM_START_ERROR: '建立连接时发生错误',
-  CONNECTION_CLOSED: '连接已断开',
+  API_REQUEST_ERROR: 'Request error occurred',
+  NETWORK_ERROR: 'Network connection failed or server not responding',
+  PARSE_ERROR: 'Error parsing response data',
+  STREAM_START_ERROR: 'Error establishing connection',
+  CONNECTION_CLOSED: 'Connection closed',
+} as const
+
+// Message action button styles
+export const MESSAGE_ACTION_BUTTON_STYLES = {
+  BASE: 'size-7 text-muted-foreground hover:text-foreground',
+  DELETE: 'size-7 text-muted-foreground hover:text-destructive',
+  ICON: 'size-4',
+} as const
+
+// Message action labels
+export const MESSAGE_ACTION_LABELS = {
+  COPY: 'Copy',
+  COPIED: 'Copied!',
+  REGENERATE: 'Regenerate',
+  EDIT: 'Edit',
+  DELETE: 'Delete',
+  NO_CONTENT: 'No content to copy',
+  WAIT_GENERATION: 'Please wait for the current generation to complete',
 } as const
