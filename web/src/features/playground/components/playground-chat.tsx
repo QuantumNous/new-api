@@ -43,11 +43,11 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
               <BranchMessages>
                 {versions.map((version, versionIndex) => (
                   <Message
-                    className='flex-row-reverse'
+                    className='flex-row-reverse py-6 sm:py-7'
                     from={message.from}
                     key={`${message.key}-${version.id}-${versionIndex}`}
                   >
-                    <div className='min-w-0 flex-1'>
+                    <div className='w-full min-w-0 flex-1 basis-full'>
                       {/* Sources */}
                       {message.sources?.length && (
                         <Sources>
@@ -86,13 +86,13 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
                             variant='flat'
                             className={cn(
                               // Assistant content fills the row; user bubble auto-width
-                              'group-[.is-assistant]:w-full group-[.is-user]:w-fit',
+                              'group-[.is-assistant]:w-full group-[.is-assistant]:max-w-none group-[.is-user]:w-fit',
                               // User bubble: rounded and themed background
                               'group-[.is-user]:text-foreground group-[.is-user]:bg-secondary dark:group-[.is-user]:bg-muted group-[.is-user]:rounded-[24px]',
                               // Assistant bubble: flat serif style (one-sided style)
                               'group-[.is-assistant]:text-foreground group-[.is-assistant]:bg-transparent group-[.is-assistant]:p-0 group-[.is-assistant]:font-serif',
                               // Preferred readable widths and wrapping
-                              'leading-relaxed break-keep whitespace-pre-wrap sm:leading-7 sm:break-words',
+                              'leading-relaxed break-words whitespace-pre-wrap sm:leading-7',
                               // Cap user bubble width so it does not look like a banner
                               'group-[.is-user]:max-w-[85%] sm:group-[.is-user]:max-w-[62ch] md:group-[.is-user]:max-w-[68ch] lg:group-[.is-user]:max-w-[72ch]'
                             )}
