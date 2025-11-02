@@ -53,7 +53,7 @@ export function MessageActions({
 
   const visibilityClass = alwaysVisible
     ? 'opacity-100'
-    : 'opacity-0 group-hover:opacity-100'
+    : 'opacity-0 group-hover:opacity-100 max-md:opacity-100'
 
   return (
     <TooltipProvider delayDuration={300}>
