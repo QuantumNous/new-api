@@ -229,11 +229,50 @@ export function processMessageWithThinkTags(
     ? currentVersion.content + newContentChunk
     : currentVersion.content
 
+  // First, remove any fully paired <think>...</think> blocks
   const { cleanContent, thinkingContent } = extractThinkTags(contentToProcess)
+
+  // Detect an unclosed <think> at the end (streaming case)
+  const lastOpenThinkIndex = cleanContent.lastIndexOf('<think>')
+  const lastCloseThinkIndex = cleanContent.lastIndexOf('</think>')
+
+  // If there is an open <think> without a matching closing tag after it,
+  // treat everything after it as streaming reasoning content and do not render it in the main message.
+  if (lastOpenThinkIndex !== -1 && lastOpenThinkIndex > lastCloseThinkIndex) {
+    const partialReasoning = cleanContent
+      .substring(lastOpenThinkIndex + 7)
+      .trim()
+    const contentWithoutStreamingThink = cleanContent
+      .substring(0, lastOpenThinkIndex)
+      .trim()
+
+    // Build updated message content without the streaming <think>
+    let nextMessage = updateCurrentVersionContent(
+      message,
+      contentWithoutStreamingThink
+    )
+
+    // Merge partial reasoning with any existing reasoning
+    const mergedReasoning = mergeReasoningContent(
+      nextMessage.reasoning?.content || '',
+      partialReasoning
+    )
+
+    return {
+      ...nextMessage,
+      reasoning: mergedReasoning
+        ? {
+            content: mergedReasoning,
+            duration: nextMessage.reasoning?.duration || 0,
+          }
+        : nextMessage.reasoning,
+      isReasoningStreaming: true,
+    }
+  }
 
   const updatedMessage = updateCurrentVersionContent(message, cleanContent)
 
-  // Update reasoning if think content found
+  // Update reasoning if paired think content was extracted
   if (thinkingContent) {
     return {
       ...updatedMessage,
