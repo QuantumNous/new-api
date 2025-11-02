@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getUserModels, getUserGroups } from './api'
+import { MessageEditDialog } from './components/message-edit-dialog'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { DEFAULT_GROUP } from './constants'
@@ -26,6 +27,17 @@ export function Playground() {
     parameterEnabled,
     onMessageUpdate: updateMessages,
   })
+
+  // Edit dialog state
+  const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
+    null
+  )
+  const isEditOpen = !!editingMessageKey
+  const editingMessage = useMemo(
+    () => messages.find((m) => m.key === editingMessageKey) || null,
+    [messages, editingMessageKey]
+  )
+  const editingInitialContent = editingMessage?.versions?.[0]?.content || ''
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
@@ -103,10 +115,32 @@ export function Playground() {
     sendChat(newMessages)
   }
 
-  const handleEditMessage = (message: MessageType) => {
-    // TODO: Implement edit functionality
-    console.log('Edit message:', message.key)
-  }
+  const handleEditMessage = useCallback((message: MessageType) => {
+    setEditingMessageKey(message.key)
+  }, [])
+
+  const handleEditOpenChange = useCallback((open: boolean) => {
+    if (!open) setEditingMessageKey(null)
+  }, [])
+
+  const handleSaveEditedContent = useCallback(
+    (newContent: string) => {
+      if (!editingMessageKey) return
+      updateMessages((prev) =>
+        prev.map((m) =>
+          m.key === editingMessageKey
+            ? {
+                ...m,
+                versions: m.versions.map((v, idx) =>
+                  idx === 0 ? { ...v, content: newContent } : v
+                ),
+              }
+            : m
+        )
+      )
+    },
+    [editingMessageKey, updateMessages]
+  )
 
   const handleDeleteMessage = (message: MessageType) => {
     const newMessages = messages.filter((m) => m.key !== message.key)
@@ -143,6 +177,19 @@ export function Playground() {
           onSubmit={handleSendMessage}
         />
       </div>
+
+      {/* Edit Message Dialog */}
+      <MessageEditDialog
+        open={isEditOpen}
+        onOpenChange={handleEditOpenChange}
+        initialContent={editingInitialContent}
+        title={
+          editingMessage?.from === 'user'
+            ? 'Edit User Message'
+            : 'Edit Assistant Message'
+        }
+        onSave={handleSaveEditedContent}
+      />
     </div>
   )
 }
