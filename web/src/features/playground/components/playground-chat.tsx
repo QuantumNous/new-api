@@ -68,7 +68,6 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
                         message.reasoning?.content && (
                           <Reasoning
                             defaultOpen={true}
-                            duration={message.reasoning.duration}
                             isStreaming={message.isReasoningStreaming}
                           >
                             <ReasoningTrigger />
