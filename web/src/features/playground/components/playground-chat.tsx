@@ -1,4 +1,7 @@
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Branch,
   BranchMessages,
@@ -40,6 +43,10 @@ interface PlaygroundChatProps {
   onEditMessage?: (message: MessageType) => void
   onDeleteMessage?: (message: MessageType) => void
   isGenerating?: boolean
+  editingKey?: string | null
+  onSaveEdit?: (newContent: string) => void
+  onCancelEdit?: (open: boolean) => void
+  onSaveEditAndSubmit?: (newContent: string) => void
 }
 
 export function PlaygroundChat({
@@ -49,7 +56,28 @@ export function PlaygroundChat({
   onEditMessage,
   onDeleteMessage,
   isGenerating = false,
+  editingKey,
+  onSaveEdit,
+  onCancelEdit,
+  onSaveEditAndSubmit,
 }: PlaygroundChatProps) {
+  const [editText, setEditText] = useState('')
+  const [originalText, setOriginalText] = useState('')
+  useEffect(() => {
+    if (!editingKey) return
+    const m = messages.find((mm) => mm.key === editingKey)
+    const init = m?.versions?.[0]?.content || ''
+    setEditText(init)
+    setOriginalText(init)
+  }, [editingKey, messages])
+
+  const isEmpty = useMemo(() => !editText.trim(), [editText])
+  const isChanged = useMemo(
+    () => editText !== originalText,
+    [editText, originalText]
+  )
+
+  const isEditing = (key: string) => editingKey === key
   return (
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
@@ -69,108 +97,150 @@ export function PlaygroundChat({
                       from={message.from}
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
-                      <div className='w-full min-w-0 flex-1 basis-full'>
-                        {/* Compute and render sections without duplication */}
-                        {(() => {
-                          const isAssistant =
-                            message.from === MESSAGE_ROLES.ASSISTANT
-                          const hasSources = !!message.sources?.length
-                          const showReasoning =
-                            isAssistant && !!message.reasoning?.content
-                          const showLoader =
-                            isAssistant &&
-                            !message.isReasoningStreaming &&
-                            (message.status === 'loading' ||
-                              (message.status === 'streaming' &&
-                                !version.content))
-                          const showMessageContent =
-                            (message.from === MESSAGE_ROLES.USER ||
-                              !message.isReasoningStreaming) &&
-                            !!version.content
-
-                          const actions = (
-                            <MessageActions
-                              message={message}
-                              onCopy={onCopyMessage}
-                              onRegenerate={onRegenerateMessage}
-                              onEdit={onEditMessage}
-                              onDelete={onDeleteMessage}
-                              isGenerating={isGenerating}
-                              alwaysVisible={isLastAssistantMessage}
-                              className='mt-2'
+                      <div className='w-full min-w-0 flex-1 basis-full py-1'>
+                        {isEditing(message.key) ? (
+                          <div className='space-y-2'>
+                            <Textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              className='font-mono text-sm'
+                              rows={8}
                             />
-                          )
-
-                          return (
-                            <>
-                              {/* Sources */}
-                              {hasSources && (
-                                <Sources>
-                                  <SourcesTrigger
-                                    count={message.sources!.length}
-                                  />
-                                  <SourcesContent>
-                                    {message.sources!.map(
-                                      (source, sourceIndex) => (
-                                        <Source
-                                          href={source.href}
-                                          key={`${message.key}-source-${sourceIndex}`}
-                                          title={source.title}
-                                        />
-                                      )
-                                    )}
-                                  </SourcesContent>
-                                </Sources>
-                              )}
-
-                              {/* Reasoning */}
-                              {showReasoning && (
-                                <Reasoning
-                                  defaultOpen={true}
-                                  isStreaming={message.isReasoningStreaming}
+                            <div className='flex gap-2'>
+                              {/* Save & Submit only makes sense for user messages */}
+                              {message.from === MESSAGE_ROLES.USER && (
+                                <Button
+                                  size='sm'
+                                  onClick={() =>
+                                    onSaveEditAndSubmit?.(editText)
+                                  }
+                                  disabled={isEmpty || !isChanged}
                                 >
-                                  <ReasoningTrigger />
-                                  <ReasoningContent>
-                                    {message.reasoning!.content}
-                                  </ReasoningContent>
-                                </Reasoning>
+                                  Save & Submit
+                                </Button>
                               )}
+                              <Button
+                                size='sm'
+                                onClick={() => onSaveEdit?.(editText)}
+                                disabled={isEmpty || !isChanged}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() => onCancelEdit?.(false)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {(() => {
+                              const isAssistant =
+                                message.from === MESSAGE_ROLES.ASSISTANT
+                              const hasSources = !!message.sources?.length
+                              const showReasoning =
+                                isAssistant && !!message.reasoning?.content
+                              const showLoader =
+                                isAssistant &&
+                                !message.isReasoningStreaming &&
+                                (message.status === 'loading' ||
+                                  (message.status === 'streaming' &&
+                                    !version.content))
+                              const showMessageContent =
+                                (message.from === MESSAGE_ROLES.USER ||
+                                  !message.isReasoningStreaming) &&
+                                !!version.content
 
-                              {/* Loader */}
-                              {showLoader && (
-                                <div className='flex items-center gap-2 py-2'>
-                                  <Loader />
-                                  <Shimmer className='text-sm' duration={1}>
-                                    Responding...
-                                  </Shimmer>
-                                </div>
-                              )}
+                              const actions = (
+                                <MessageActions
+                                  message={message}
+                                  onCopy={onCopyMessage}
+                                  onRegenerate={onRegenerateMessage}
+                                  onEdit={onEditMessage}
+                                  onDelete={onDeleteMessage}
+                                  isGenerating={isGenerating}
+                                  alwaysVisible={isLastAssistantMessage}
+                                  className='mt-1'
+                                />
+                              )
 
-                              {/* Error or Content */}
-                              {message.status === 'error' ? (
+                              return (
                                 <>
-                                  <MessageError
-                                    message={message}
-                                    className='mb-2'
-                                  />
-                                  {actions}
-                                </>
-                              ) : (
-                                showMessageContent && (
-                                  <>
-                                    <MessageContent
-                                      variant='flat'
-                                      className={cn(getMessageContentStyles())}
+                                  {/* Sources */}
+                                  {hasSources && (
+                                    <Sources>
+                                      <SourcesTrigger
+                                        count={message.sources!.length}
+                                      />
+                                      <SourcesContent>
+                                        {message.sources!.map(
+                                          (source, sourceIndex) => (
+                                            <Source
+                                              href={source.href}
+                                              key={`${message.key}-source-${sourceIndex}`}
+                                              title={source.title}
+                                            />
+                                          )
+                                        )}
+                                      </SourcesContent>
+                                    </Sources>
+                                  )}
+
+                                  {/* Reasoning */}
+                                  {showReasoning && (
+                                    <Reasoning
+                                      defaultOpen={true}
+                                      isStreaming={message.isReasoningStreaming}
                                     >
-                                      <Response>{version.content}</Response>
-                                    </MessageContent>
-                                    {actions}
-                                  </>
-                                )
-                              )}
-                            </>
-                          )
-                        })()}
+                                      <ReasoningTrigger />
+                                      <ReasoningContent>
+                                        {message.reasoning!.content}
+                                      </ReasoningContent>
+                                    </Reasoning>
+                                  )}
+
+                                  {/* Loader */}
+                                  {showLoader && (
+                                    <div className='flex items-center gap-2 py-2'>
+                                      <Loader />
+                                      <Shimmer className='text-sm' duration={1}>
+                                        Responding...
+                                      </Shimmer>
+                                    </div>
+                                  )}
+
+                                  {/* Error or Content */}
+                                  {message.status === 'error' ? (
+                                    <>
+                                      <MessageError
+                                        message={message}
+                                        className='mb-2'
+                                      />
+                                      {actions}
+                                    </>
+                                  ) : (
+                                    showMessageContent && (
+                                      <>
+                                        <MessageContent
+                                          variant='flat'
+                                          className={cn(
+                                            getMessageContentStyles()
+                                          )}
+                                        >
+                                          <Response>{version.content}</Response>
+                                        </MessageContent>
+                                        {actions}
+                                      </>
+                                    )
+                                  )}
+                                </>
+                              )
+                            })()}
+                          </>
+                        )}
                       </div>
                     </Message>
                   ))}

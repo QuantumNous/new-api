@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getUserModels, getUserGroups } from './api'
-import { MessageEditDialog } from './components/message-edit-dialog'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { DEFAULT_GROUP } from './constants'
@@ -32,12 +31,6 @@ export function Playground() {
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
     null
   )
-  const isEditOpen = !!editingMessageKey
-  const editingMessage = useMemo(
-    () => messages.find((m) => m.key === editingMessageKey) || null,
-    [messages, editingMessageKey]
-  )
-  const editingInitialContent = editingMessage?.versions?.[0]?.content || ''
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
@@ -123,23 +116,39 @@ export function Playground() {
     if (!open) setEditingMessageKey(null)
   }, [])
 
-  const handleSaveEditedContent = useCallback(
-    (newContent: string) => {
+  // Apply edit and optionally re-submit from the edited user message
+  const applyEdit = useCallback(
+    (newContent: string, submit: boolean) => {
       if (!editingMessageKey) return
-      updateMessages((prev) =>
-        prev.map((m) =>
-          m.key === editingMessageKey
-            ? {
-                ...m,
-                versions: m.versions.map((v, idx) =>
-                  idx === 0 ? { ...v, content: newContent } : v
-                ),
-              }
-            : m
-        )
+      const index = messages.findIndex((m) => m.key === editingMessageKey)
+      if (index === -1) return
+
+      const updated = messages.map((m) =>
+        m.key === editingMessageKey
+          ? {
+              ...m,
+              versions: m.versions.map((v, idx) =>
+                idx === 0 ? { ...v, content: newContent } : v
+              ),
+            }
+          : m
       )
+
+      if (!submit || updated[index].from !== 'user') {
+        updateMessages(updated)
+        setEditingMessageKey(null)
+        return
+      }
+
+      const toSubmit = [
+        ...updated.slice(0, index + 1),
+        createLoadingAssistantMessage(),
+      ]
+      updateMessages(toSubmit)
+      sendChat(toSubmit)
+      setEditingMessageKey(null)
     },
-    [editingMessageKey, updateMessages]
+    [editingMessageKey, messages, updateMessages, sendChat]
   )
 
   const handleDeleteMessage = (message: MessageType) => {
@@ -158,6 +167,10 @@ export function Playground() {
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
           isGenerating={isGenerating}
+          editingKey={editingMessageKey}
+          onCancelEdit={handleEditOpenChange}
+          onSaveEdit={(newContent) => applyEdit(newContent, false)}
+          onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
         />
       </div>
 
@@ -177,19 +190,6 @@ export function Playground() {
           onSubmit={handleSendMessage}
         />
       </div>
-
-      {/* Edit Message Dialog */}
-      <MessageEditDialog
-        open={isEditOpen}
-        onOpenChange={handleEditOpenChange}
-        initialContent={editingInitialContent}
-        title={
-          editingMessage?.from === 'user'
-            ? 'Edit User Message'
-            : 'Edit Assistant Message'
-        }
-        onSave={handleSaveEditedContent}
-      />
     </div>
   )
 }

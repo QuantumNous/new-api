@@ -173,7 +173,7 @@ export function PlaygroundInput({
             >
               <PromptInputModelSelectTrigger
                 aria-label='Model'
-                className='text-foreground h-8 w-8 justify-center rounded-full border border-solid p-0 text-sm font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
+                className='text-muted-foreground hover:text-foreground h-8 w-8 justify-center rounded-full border p-0 font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
               >
                 {/* Mobile: icon-only */}
                 <CpuIcon className='block size-4 sm:hidden' />
@@ -204,7 +204,7 @@ export function PlaygroundInput({
             >
               <PromptInputModelSelectTrigger
                 aria-label='Group'
-                className='text-foreground h-8 w-8 justify-center rounded-full border border-solid p-0 text-sm font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
+                className='text-muted-foreground hover:text-foreground h-8 w-8 justify-center rounded-full border p-0 font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
               >
                 {/* Mobile: icon-only */}
                 <LayersIcon className='block size-4 sm:hidden' />
