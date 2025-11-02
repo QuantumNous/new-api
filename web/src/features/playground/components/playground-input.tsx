@@ -6,7 +6,7 @@ import {
   ScreenShareIcon,
   CameraIcon,
   GlobeIcon,
-  AudioWaveformIcon,
+  SendIcon,
   SquareIcon,
   BarChartIcon,
   BoxIcon,
@@ -248,13 +248,13 @@ export function PlaygroundInput({
             ) : (
               <PromptInputButton
                 className='text-foreground rounded-full font-medium'
-                disabled={disabled}
-                onClick={() => toast.info('Voice feature in development')}
+                disabled={disabled || !text.trim()}
+                type='submit'
                 variant='secondary'
               >
-                <AudioWaveformIcon size={16} />
-                <span className='hidden sm:inline'>Voice</span>
-                <span className='sr-only sm:hidden'>Voice</span>
+                <SendIcon size={16} />
+                <span className='hidden sm:inline'>Send</span>
+                <span className='sr-only sm:hidden'>Send</span>
               </PromptInputButton>
             )}
           </div>
