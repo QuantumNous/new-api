@@ -13,8 +13,6 @@ import {
   NotepadTextIcon,
   CodeSquareIcon,
   GraduationCapIcon,
-  CpuIcon,
-  LayersIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -30,13 +28,9 @@ import {
   PromptInputTextarea,
   PromptInputTools,
   type PromptInputMessage,
-  PromptInputModelSelect,
-  PromptInputModelSelectContent,
-  PromptInputModelSelectItem,
-  PromptInputModelSelectTrigger,
-  PromptInputModelSelectValue,
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import type { ModelOption, GroupOption } from '../types'
 
 interface PlaygroundInputProps {
@@ -166,74 +160,15 @@ export function PlaygroundInput({
           </PromptInputTools>
 
           <div className='flex items-center gap-1.5 md:gap-2'>
-            <PromptInputModelSelect
-              disabled={isModelSelectDisabled}
-              onValueChange={onModelChange}
-              value={modelValue}
-            >
-              <PromptInputModelSelectTrigger
-                aria-label='Model'
-                className='text-muted-foreground hover:text-foreground h-8 w-8 justify-center rounded-full border p-0 font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
-              >
-                {/* Mobile: icon-only */}
-                <CpuIcon className='block size-4 sm:hidden' />
-                {/* sm+: show label from value */}
-                <PromptInputModelSelectValue
-                  className='hidden truncate sm:block'
-                  placeholder={isModelLoading ? 'Loading…' : 'Model'}
-                />
-              </PromptInputModelSelectTrigger>
-              <PromptInputModelSelectContent>
-                {models.map((model) => (
-                  <PromptInputModelSelectItem
-                    key={model.value}
-                    value={model.value}
-                  >
-                    <span className='block truncate' title={model.label}>
-                      {model.label}
-                    </span>
-                  </PromptInputModelSelectItem>
-                ))}
-              </PromptInputModelSelectContent>
-            </PromptInputModelSelect>
-
-            <PromptInputModelSelect
-              disabled={isGroupSelectDisabled}
-              onValueChange={onGroupChange}
-              value={groupValue}
-            >
-              <PromptInputModelSelectTrigger
-                aria-label='Group'
-                className='text-muted-foreground hover:text-foreground h-8 w-8 justify-center rounded-full border p-0 font-medium sm:w-auto sm:px-3 [&_[data-slot=select-value]]:hidden sm:[&_[data-slot=select-value]]:flex [&_svg:last-child]:hidden sm:[&_svg:last-child]:block'
-              >
-                {/* Mobile: icon-only */}
-                <LayersIcon className='block size-4 sm:hidden' />
-                {/* sm+: show only group name (label) */}
-                <span
-                  className='hidden truncate sm:block'
-                  data-slot='select-value'
-                >
-                  {groups.find((g) => g.value === groupValue)?.label || 'Group'}
-                </span>
-              </PromptInputModelSelectTrigger>
-              <PromptInputModelSelectContent>
-                {groups.map((group) => (
-                  <PromptInputModelSelectItem
-                    key={group.value}
-                    value={group.value}
-                  >
-                    <div className='flex flex-col'>
-                      <span className='font-medium'>{group.label}</span>
-                      {group.desc && (
-                        <span className='text-muted-foreground text-xs'>
-                          {group.desc} · Ratio: {group.ratio}
-                        </span>
-                      )}
-                    </div>
-                  </PromptInputModelSelectItem>
-                ))}
-              </PromptInputModelSelectContent>
-            </PromptInputModelSelect>
+            <ModelGroupSelector
+              selectedModel={modelValue}
+              models={models}
+              onModelChange={onModelChange}
+              selectedGroup={groupValue}
+              groups={groups}
+              onGroupChange={onGroupChange}
+              disabled={isModelSelectDisabled || isGroupSelectDisabled}
+            />
 
             {isGenerating && onStop ? (
               <PromptInputButton
