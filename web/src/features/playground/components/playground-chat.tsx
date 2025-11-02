@@ -43,10 +43,11 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
               <BranchMessages>
                 {versions.map((version, versionIndex) => (
                   <Message
+                    className='flex-row-reverse'
                     from={message.from}
                     key={`${message.key}-${version.id}-${versionIndex}`}
                   >
-                    <div className='min-w-0'>
+                    <div className='min-w-0 flex-1'>
                       {/* Sources */}
                       {message.sources?.length && (
                         <Sources>
@@ -82,16 +83,18 @@ export function PlaygroundChat({ messages }: PlaygroundChatProps) {
                         !message.isReasoningStreaming) &&
                         version.content && (
                           <MessageContent
+                            variant='flat'
                             className={cn(
-                              // User bubble: rounded and colored
-                              'group-[.is-user]:bg-secondary group-[.is-user]:text-foreground group-[.is-user]:rounded-[24px]',
-                              // Assistant bubble: flat style
-                              'group-[.is-assistant]:text-foreground group-[.is-assistant]:bg-transparent group-[.is-assistant]:p-0',
-                              // Width & wrapping: follow chat best practices (~45–75 chars/line)
-                              // Mobile: keep-all for CJK; Desktop: allow word-wrapping for long tokens
-                              'max-w-[95%] leading-relaxed break-keep whitespace-pre-wrap sm:max-w-[62ch] sm:leading-7 sm:break-words md:max-w-[68ch] lg:max-w-[72ch]',
-                              // Avoid ultra-narrow bubbles for very short messages while staying subtle
-                              'min-w-[4ch]'
+                              // Assistant content fills the row; user bubble auto-width
+                              'group-[.is-assistant]:w-full group-[.is-user]:w-fit',
+                              // User bubble: rounded and themed background
+                              'group-[.is-user]:text-foreground group-[.is-user]:bg-secondary dark:group-[.is-user]:bg-muted group-[.is-user]:rounded-[24px]',
+                              // Assistant bubble: flat serif style (one-sided style)
+                              'group-[.is-assistant]:text-foreground group-[.is-assistant]:bg-transparent group-[.is-assistant]:p-0 group-[.is-assistant]:font-serif',
+                              // Preferred readable widths and wrapping
+                              'leading-relaxed break-keep whitespace-pre-wrap sm:leading-7 sm:break-words',
+                              // Cap user bubble width so it does not look like a banner
+                              'group-[.is-user]:max-w-[85%] sm:group-[.is-user]:max-w-[62ch] md:group-[.is-user]:max-w-[68ch] lg:group-[.is-user]:max-w-[72ch]'
                             )}
                           >
                             <Response>{version.content}</Response>
