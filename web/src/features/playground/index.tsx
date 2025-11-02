@@ -60,7 +60,12 @@ export function Playground() {
     const processedGroups = hasAutoGroup
       ? groupsData
       : [
-          { value: DEFAULT_GROUP, label: 'Auto (Circuit Breaker)', ratio: 1 },
+          {
+            value: DEFAULT_GROUP,
+            label: 'Auto',
+            ratio: 1,
+            desc: 'Circuit Breaker',
+          },
           ...groupsData,
         ]
 

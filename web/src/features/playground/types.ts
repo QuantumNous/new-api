@@ -119,4 +119,5 @@ export interface GroupOption {
   label: string
   value: string
   ratio: number
+  desc?: string
 }

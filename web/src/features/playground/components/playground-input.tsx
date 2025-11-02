@@ -208,11 +208,13 @@ export function PlaygroundInput({
               >
                 {/* Mobile: icon-only */}
                 <LayersIcon className='block size-4 sm:hidden' />
-                {/* sm+: show label from value */}
-                <PromptInputModelSelectValue
+                {/* sm+: show only group name (label) */}
+                <span
                   className='hidden truncate sm:block'
-                  placeholder='Group'
-                />
+                  data-slot='select-value'
+                >
+                  {groups.find((g) => g.value === groupValue)?.label || 'Group'}
+                </span>
               </PromptInputModelSelectTrigger>
               <PromptInputModelSelectContent>
                 {groups.map((group) => (
@@ -220,9 +222,14 @@ export function PlaygroundInput({
                     key={group.value}
                     value={group.value}
                   >
-                    <span className='block truncate' title={group.label}>
-                      {group.label}
-                    </span>
+                    <div className='flex flex-col'>
+                      <span className='font-medium'>{group.label}</span>
+                      {group.desc && (
+                        <span className='text-muted-foreground text-xs'>
+                          {group.desc} · Ratio: {group.ratio}
+                        </span>
+                      )}
+                    </div>
                   </PromptInputModelSelectItem>
                 ))}
               </PromptInputModelSelectContent>
