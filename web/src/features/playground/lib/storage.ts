@@ -1,5 +1,6 @@
 import { STORAGE_KEYS } from '../constants'
 import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
+import { sanitizeMessagesOnLoad } from './message-utils'
 
 /**
  * Load playground config from localStorage
@@ -65,7 +66,13 @@ export function loadMessages(): Message[] | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES)
     if (saved) {
-      return JSON.parse(saved)
+      const parsed: Message[] = JSON.parse(saved)
+      const sanitized = sanitizeMessagesOnLoad(parsed)
+      // Persist sanitized result to avoid re-sanitizing on subsequent loads
+      if (sanitized !== parsed) {
+        saveMessages(sanitized)
+      }
+      return sanitized
     }
   } catch (error) {
     console.error('Failed to load messages:', error)

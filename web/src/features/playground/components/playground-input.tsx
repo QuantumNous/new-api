@@ -98,7 +98,7 @@ export function PlaygroundInput({
   }
 
   return (
-    <div className='grid shrink-0 gap-4 py-4'>
+    <div className='grid shrink-0 gap-4 px-1 py-4'>
       <PromptInput
         groupClassName='rounded-[20px] [--radius:20px]'
         onSubmit={handleSubmit}

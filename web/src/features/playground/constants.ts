@@ -60,6 +60,7 @@ export const ERROR_MESSAGES = {
   PARSE_ERROR: 'Error parsing response data',
   STREAM_START_ERROR: 'Error establishing connection',
   CONNECTION_CLOSED: 'Connection closed',
+  INTERRUPTED: 'Generation was interrupted',
 } as const
 
 // Message action button styles

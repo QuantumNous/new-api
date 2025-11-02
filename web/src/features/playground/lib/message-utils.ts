@@ -368,3 +368,53 @@ export function handleIncompleteThinkTags(message: Message): Message {
     isReasoningStreaming: false,
   }
 }
+
+/**
+ * Sanitize messages loaded from storage.
+ * If an assistant message is left in loading/streaming (e.g. after refresh),
+ * finalize its content and convert it to a stable state to prevent
+ * permanent "Responding..." UI.
+ */
+export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
+  // Find the last unfinished assistant message (only explicit loading/streaming)
+  let targetIndex = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    const isAssistant = m?.from === MESSAGE_ROLES.ASSISTANT
+    const hasStuckStatus =
+      m?.status === MESSAGE_STATUS.LOADING ||
+      m?.status === MESSAGE_STATUS.STREAMING
+
+    if (isAssistant && hasStuckStatus) {
+      targetIndex = i
+      break
+    }
+  }
+
+  if (targetIndex === -1) return messages
+
+  const stuck = messages[targetIndex]
+  const finalized = handleIncompleteThinkTags(stuck)
+  const content = (finalized.versions?.[0]?.content || '').trim()
+  const hasReasoning = !!finalized.reasoning?.content?.trim()
+
+  const sanitized: Message =
+    content || hasReasoning
+      ? {
+          ...finalized,
+          isReasoningStreaming: false,
+          status: MESSAGE_STATUS.COMPLETE,
+        }
+      : {
+          ...updateCurrentVersionContent(
+            finalized,
+            `${ERROR_MESSAGES.API_REQUEST_ERROR}: ${ERROR_MESSAGES.INTERRUPTED}`
+          ),
+          isReasoningStreaming: false,
+          status: MESSAGE_STATUS.ERROR,
+        }
+
+  const result = [...messages]
+  result[targetIndex] = sanitized
+  return result
+}
