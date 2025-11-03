@@ -92,11 +92,23 @@ func GenerateAudioOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 }
 
 func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
-	cacheTokens int, cacheRatio float64, cacheCreationTokens int, cacheCreationRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
+	cacheTokens int, cacheRatio float64,
+	cacheCreationTokens int, cacheCreationRatio float64,
+	cacheCreationTokens5m int, cacheCreationRatio5m float64,
+	cacheCreationTokens1h int, cacheCreationRatio1h float64,
+	modelPrice float64, userGroupRatio float64) map[string]interface{} {
 	info := GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice, userGroupRatio)
 	info["claude"] = true
 	info["cache_creation_tokens"] = cacheCreationTokens
 	info["cache_creation_ratio"] = cacheCreationRatio
+	if cacheCreationTokens5m != 0 {
+		info["cache_creation_tokens_5m"] = cacheCreationTokens5m
+		info["cache_creation_ratio_5m"] = cacheCreationRatio5m
+	}
+	if cacheCreationTokens1h != 0 {
+		info["cache_creation_tokens_1h"] = cacheCreationTokens1h
+		info["cache_creation_ratio_1h"] = cacheCreationRatio1h
+	}
 	return info
 }
 

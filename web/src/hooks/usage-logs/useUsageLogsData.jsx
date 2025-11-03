@@ -361,6 +361,10 @@ export const useLogsData = () => {
                 other?.user_group_ratio,
                 other.cache_ratio || 1.0,
                 other.cache_creation_ratio || 1.0,
+                other.cache_creation_tokens_5m || 0,
+                other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+                other.cache_creation_tokens_1h || 0,
+                other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
               )
             : renderLogContent(
                 other?.model_ratio,
@@ -429,6 +433,10 @@ export const useLogsData = () => {
             other.cache_ratio || 1.0,
             other.cache_creation_tokens || 0,
             other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_5m || 0,
+            other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_1h || 0,
+            other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
           );
         } else {
           content = renderModelPrice(
