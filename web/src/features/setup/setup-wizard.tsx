@@ -1,0 +1,386 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { Loader2, RefreshCcw } from 'lucide-react'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Form } from '@/components/ui/form'
+import { SkeletonWrapper } from '@/components/skeleton-wrapper'
+import { buildSetupPayload, getSetupStatus, submitSetup } from './api'
+import { AdminStep } from './components/admin-step'
+import { CompleteStep } from './components/complete-step'
+import { DatabaseStep } from './components/database-step'
+import { StepNavigation } from './components/step-navigation'
+import { UsageModeStep } from './components/usage-mode-step'
+import type { SetupFormValues, SetupStatus } from './types'
+
+const STEPS = [
+  {
+    title: 'Database check',
+    description: 'Verify your database connection',
+  },
+  {
+    title: 'Administrator account',
+    description: 'Create credentials for the root user',
+  },
+  {
+    title: 'Usage mode',
+    description: 'Choose how the platform will operate',
+  },
+  {
+    title: 'Review & initialize',
+    description: 'Confirm settings and finish setup',
+  },
+]
+
+const DEFAULT_FORM_VALUES: SetupFormValues = {
+  username: '',
+  password: '',
+  confirmPassword: '',
+  usageMode: 'external',
+}
+
+export function SetupWizard() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { systemName, logo, loading: systemConfigLoading } = useSystemConfig()
+
+  const [currentStep, setCurrentStep] = useState(0)
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | undefined>()
+
+  const form = useForm<SetupFormValues>({
+    defaultValues: DEFAULT_FORM_VALUES,
+    mode: 'onBlur',
+  })
+
+  const watchedValues = form.watch()
+
+  const {
+    data: statusResponse,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: getSetupStatus,
+    retry: false,
+  })
+
+  const mutation = useMutation({
+    mutationKey: ['setup-submit'],
+    mutationFn: submitSetup,
+    onSuccess: async (response) => {
+      if (response.success) {
+        toast.success('System initialized successfully! Redirecting…')
+        await queryClient.invalidateQueries({ queryKey: ['setup-status'] })
+        setTimeout(() => {
+          navigate({ to: '/' })
+        }, 1200)
+      } else {
+        toast.error(
+          response.message || 'Initialization failed, please try again.'
+        )
+      }
+    },
+    onError: () => {
+      toast.error('Failed to initialize system')
+    },
+  })
+
+  useEffect(() => {
+    if (!statusResponse) return
+
+    if (!statusResponse.success) {
+      toast.error(statusResponse.message || 'Failed to load setup status')
+      return
+    }
+
+    const status = statusResponse.data
+    if (!status) return
+
+    if (status.status) {
+      navigate({ to: '/' })
+      return
+    }
+
+    setSetupStatus(status)
+    setCurrentStep(0)
+
+    // Pre-fill usage mode if backend echoes it
+    if (status.SelfUseModeEnabled) {
+      form.setValue('usageMode', 'self', {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      })
+    } else if (status.DemoSiteEnabled) {
+      form.setValue('usageMode', 'demo', {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      })
+    } else {
+      form.setValue('usageMode', 'external', {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      })
+    }
+  }, [statusResponse, navigate, form])
+
+  useEffect(() => {
+    if (!setupStatus) return
+
+    // Reset admin fields when backend reports they are already initialized
+    if (setupStatus.root_init) {
+      form.setValue('username', '', {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      })
+      form.setValue('password', '', {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      })
+      form.setValue('confirmPassword', '', {
+        shouldDirty: false,
+        shouldTouch: false,
+        shouldValidate: false,
+      })
+    }
+  }, [setupStatus, form])
+
+  const currentStepComponent = useMemo(() => {
+    if (currentStep === 0) {
+      return <DatabaseStep status={setupStatus} />
+    }
+    if (currentStep === 1) {
+      return (
+        <AdminStep
+          form={form}
+          rootInitialized={Boolean(setupStatus?.root_init)}
+        />
+      )
+    }
+    if (currentStep === 2) {
+      return <UsageModeStep form={form} />
+    }
+    return <CompleteStep status={setupStatus} values={watchedValues} />
+  }, [currentStep, setupStatus, form, watchedValues])
+
+  const validateAdminStep = () => {
+    if (setupStatus?.root_init) return true
+
+    const username = form.getValues('username')?.trim()
+    const password = form.getValues('password')?.trim()
+    const confirmPassword = form.getValues('confirmPassword')?.trim()
+
+    if (!username) {
+      form.setError('username', {
+        type: 'manual',
+        message: 'Please enter an administrator username',
+      })
+      toast.error('Please enter an administrator username')
+      return false
+    }
+
+    if (!password || password.length < 8) {
+      form.setError('password', {
+        type: 'manual',
+        message: 'Password must be at least 8 characters long',
+      })
+      toast.error('Password must be at least 8 characters long')
+      return false
+    }
+
+    if (password !== confirmPassword) {
+      form.setError('confirmPassword', {
+        type: 'manual',
+        message: 'Passwords do not match',
+      })
+      toast.error('Passwords do not match')
+      return false
+    }
+
+    return true
+  }
+
+  const validateUsageModeStep = () => {
+    const usageMode = form.getValues('usageMode')
+    if (!usageMode) {
+      form.setError('usageMode', {
+        type: 'manual',
+        message: 'Select a usage mode to continue',
+      })
+      toast.error('Select a usage mode to continue')
+      return false
+    }
+    return true
+  }
+
+  const handleNextStep = () => {
+    if (currentStep === 1 && !validateAdminStep()) return
+    if (currentStep === 2 && !validateUsageModeStep()) return
+
+    setCurrentStep((step) => Math.min(step + 1, STEPS.length - 1))
+  }
+
+  const handlePreviousStep = () => {
+    setCurrentStep((step) => Math.max(step - 1, 0))
+  }
+
+  const handleSubmit = async () => {
+    const adminValid = validateAdminStep()
+    const usageValid = validateUsageModeStep()
+    if (!adminValid || !usageValid) return
+
+    const payload = buildSetupPayload(
+      form.getValues(),
+      Boolean(setupStatus?.root_init)
+    )
+
+    mutation.mutate(payload)
+  }
+
+  return (
+    <div className='bg-muted/40 min-h-svh py-10'>
+      <div className='container mx-auto flex max-w-5xl flex-col gap-8 px-4 sm:px-6'>
+        <div className='flex flex-col items-center gap-3'>
+          <div className='relative h-12 w-12'>
+            <SkeletonWrapper loading={systemConfigLoading} type='image' />
+            {!systemConfigLoading && (
+              <img
+                src={logo}
+                alt='System logo'
+                className='h-12 w-12 rounded-full object-cover shadow-sm'
+              />
+            )}
+          </div>
+          <SkeletonWrapper
+            loading={systemConfigLoading}
+            type='title'
+            width={160}
+          >
+            <h1 className='text-2xl font-semibold tracking-tight'>
+              Initialize {systemName}
+            </h1>
+          </SkeletonWrapper>
+          <p className='text-muted-foreground text-center text-sm sm:text-base'>
+            Follow the guided steps to prepare your workspace before the first
+            login.
+          </p>
+        </div>
+
+        <Card className='shadow-lg'>
+          <CardHeader className='space-y-2'>
+            <CardTitle className='text-xl font-semibold'>
+              System setup wizard
+            </CardTitle>
+            <CardDescription>
+              Complete these steps to finish the initial installation.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className='space-y-6'>
+            <ol className='grid gap-3 sm:grid-cols-4'>
+              {STEPS.map((step, index) => {
+                const isActive = currentStep === index
+                const isCompleted = currentStep > index
+                return (
+                  <li
+                    key={step.title}
+                    className={cn(
+                      'rounded-xl border p-3',
+                      isActive
+                        ? 'border-primary ring-primary/20 ring-2'
+                        : isCompleted
+                          ? 'border-primary/40 bg-primary/5'
+                          : 'border-muted bg-card'
+                    )}
+                  >
+                    <div className='flex items-start gap-3'>
+                      <span
+                        className={cn(
+                          'flex size-6 items-center justify-center rounded-full border text-xs font-semibold',
+                          isActive
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : isCompleted
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-muted-foreground/40 text-muted-foreground'
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                      <div className='space-y-1'>
+                        <p className='text-sm font-semibold'>{step.title}</p>
+                        <p className='text-muted-foreground text-xs'>
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+
+            {isLoading ? (
+              <div className='text-muted-foreground flex min-h-[200px] flex-col items-center justify-center gap-3 py-10'>
+                <Loader2 className='size-6 animate-spin' />
+                Loading setup status…
+              </div>
+            ) : isError ? (
+              <div className='flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center'>
+                <p className='text-sm font-medium'>
+                  We could not load the setup status.
+                </p>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => refetch()}
+                  className='inline-flex items-center gap-2'
+                >
+                  <RefreshCcw className='size-4' />
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <Form {...form}>
+                <form
+                  className='space-y-6'
+                  onSubmit={(event) => event.preventDefault()}
+                >
+                  {currentStepComponent}
+                </form>
+              </Form>
+            )}
+          </CardContent>
+
+          {!isLoading && !isError && (
+            <CardFooter className='w-full justify-end border-t'>
+              <StepNavigation
+                currentStep={currentStep}
+                totalSteps={STEPS.length}
+                onBack={handlePreviousStep}
+                onNext={handleNextStep}
+                onSubmit={handleSubmit}
+                isSubmitting={mutation.isPending}
+              />
+            </CardFooter>
+          )}
+        </Card>
+      </div>
+    </div>
+  )
+}
