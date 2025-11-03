@@ -232,10 +232,13 @@ func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
 	return "system"
 }
 
+const CustomType = "custom"
+
 type ToolCallRequest struct {
 	ID       string          `json:"id,omitempty"`
 	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function"`
+	Function FunctionRequest `json:"function,omitempty"`
+	Custom   json.RawMessage `json:"custom,omitempty"`
 }
 
 type FunctionRequest struct {
