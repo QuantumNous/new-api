@@ -649,13 +649,15 @@ func DeleteDisabledChannel(c *gin.Context) {
 }
 
 type ChannelTag struct {
-	Tag          string  `json:"tag"`
-	NewTag       *string `json:"new_tag"`
-	Priority     *int64  `json:"priority"`
-	Weight       *uint   `json:"weight"`
-	ModelMapping *string `json:"model_mapping"`
-	Models       *string `json:"models"`
-	Groups       *string `json:"groups"`
+	Tag            string  `json:"tag"`
+	NewTag         *string `json:"new_tag"`
+	Priority       *int64  `json:"priority"`
+	Weight         *uint   `json:"weight"`
+	ModelMapping   *string `json:"model_mapping"`
+	Models         *string `json:"models"`
+	Groups         *string `json:"groups"`
+	ParamOverride  *string `json:"param_override"`
+	HeaderOverride *string `json:"header_override"`
 }
 
 func DisableTagChannels(c *gin.Context) {
@@ -721,7 +723,29 @@ func EditTagChannels(c *gin.Context) {
 		})
 		return
 	}
-	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight)
+	if channelTag.ParamOverride != nil {
+		trimmed := strings.TrimSpace(*channelTag.ParamOverride)
+		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "参数覆盖必须是合法的 JSON 格式",
+			})
+			return
+		}
+		channelTag.ParamOverride = common.GetPointer[string](trimmed)
+	}
+	if channelTag.HeaderOverride != nil {
+		trimmed := strings.TrimSpace(*channelTag.HeaderOverride)
+		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "请求头覆盖必须是合法的 JSON 格式",
+			})
+			return
+		}
+		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
+	}
+	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
 		return
