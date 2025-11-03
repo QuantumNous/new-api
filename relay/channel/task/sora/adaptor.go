@@ -13,11 +13,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
-
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 // ============================
@@ -85,18 +82,17 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if info != nil && info.UpstreamModelName != "" {
+		if err := common.ReplaceRequestField(c, "model", info.UpstreamModelName); err != nil {
+			return nil, errors.Wrap(err, "replace_request_model_failed")
+		}
+	}
+
 	cachedBody, err := common.GetRequestBody(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
 	}
 
-	if len(cachedBody) > 0 && info != nil && info.UpstreamModelName != "" && gjson.GetBytes(cachedBody, "model").Exists() {
-		updatedBody, err := sjson.SetBytes(cachedBody, "model", info.UpstreamModelName)
-		if err != nil {
-			return nil, errors.Wrap(err, "set_request_model_failed")
-		}
-		cachedBody = updatedBody
-	}
 	return bytes.NewReader(cachedBody), nil
 }
 
@@ -114,21 +110,22 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
-	if info != nil && info.UpstreamModelName != "" && gjson.GetBytes(responseBody, "model").Exists() {
-		updatedBody, setErr := sjson.SetBytes(responseBody, "model", info.UpstreamModelName)
-		if setErr != nil {
-			taskErr = service.TaskErrorWrapper(errors.Wrap(setErr, "set_response_model_failed"), "set_response_model_failed", http.StatusInternalServerError)
-			return
-		}
-		responseBody = updatedBody
-	}
-
 	// Parse Sora response
 	var dResp responseTask
 	if err := common.Unmarshal(responseBody, &dResp); err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
+
+	//if info.OriginModelName != "" {
+	//    dResp.Model = info.OriginModelName
+	//    if modifiedBody, marshalErr := common.Marshal(dResp); marshalErr == nil {
+	//        responseBody = modifiedBody
+	//    } else {
+	//        taskErr = service.TaskErrorWrapper(errors.Wrap(marshalErr, "marshal_response_body_failed"), "marshal_response_body_failed", http.StatusInternalServerError)
+	//        return
+	//    }
+	//}
 
 	if dResp.ID == "" {
 		if dResp.TaskID == "" {

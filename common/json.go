@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+
+	"github.com/tidwall/sjson"
 )
 
 func Unmarshal(data []byte, v any) error {
@@ -42,4 +44,40 @@ func GetJsonType(data json.RawMessage) string {
 	default:
 		return "number"
 	}
+}
+
+func SetJsonRawMessageAttr(p *json.RawMessage, path string, val any) error {
+	if len(*p) == 0 {
+		*p = json.RawMessage("{}")
+	}
+	b, err := sjson.SetBytes(*p, path, val) // 如 "profile.name"
+	if err != nil {
+		return err
+	}
+	*p = json.RawMessage(b)
+	return nil
+}
+
+func SetJsonRawMessageRaw(p *json.RawMessage, path string, rawJSON []byte) error {
+	if len(*p) == 0 {
+		*p = json.RawMessage("{}")
+	}
+	b, err := sjson.SetRawBytes(*p, path, rawJSON)
+	if err != nil {
+		return err
+	}
+	*p = json.RawMessage(b)
+	return nil
+}
+
+func DelJsonRawMessageAttr(p *json.RawMessage, path string) error {
+	if len(*p) == 0 {
+		return nil
+	}
+	b, err := sjson.DeleteBytes(*p, path)
+	if err != nil {
+		return err
+	}
+	*p = json.RawMessage(b)
+	return nil
 }

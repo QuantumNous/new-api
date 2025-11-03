@@ -320,6 +320,15 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	// model mapper
+	if originTask.Properties.OriginModelName != "" && originTask.Properties.OriginModelName != originTask.Properties.UpstreamModelName {
+		err := common.SetJsonRawMessageAttr(&originTask.Data, "model", originTask.Properties.OriginModelName)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "set_model_failed", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	func() {
 		channelModel, err2 := model.GetChannelById(originTask.ChannelId, true)
 		if err2 != nil {
