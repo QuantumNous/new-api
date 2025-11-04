@@ -1046,6 +1046,10 @@ function renderPriceSimpleCore({
   cacheRatio = 1.0,
   cacheCreationTokens = 0,
   cacheCreationRatio = 1.0,
+  cacheCreationTokens5m = 0,
+  cacheCreationRatio5m = 1.0,
+  cacheCreationTokens1h = 0,
+  cacheCreationRatio1h = 1.0,
   image = false,
   imageRatio = 1.0,
   isSystemPromptOverride = false,
@@ -1064,17 +1068,40 @@ function renderPriceSimpleCore({
     });
   }
 
+  const hasSplitCacheCreation =
+    cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
+
+  const shouldShowLegacyCacheCreation =
+    !hasSplitCacheCreation && cacheCreationTokens !== 0;
+
+  const shouldShowCache = cacheTokens !== 0;
+  const shouldShowCacheCreation5m =
+    hasSplitCacheCreation && cacheCreationTokens5m > 0;
+  const shouldShowCacheCreation1h =
+    hasSplitCacheCreation && cacheCreationTokens1h > 0;
+
   const parts = [];
   // base: model ratio
   parts.push(i18next.t('模型: {{ratio}}'));
 
   // cache part (label differs when with image)
-  if (cacheTokens !== 0) {
+  if (shouldShowCache) {
     parts.push(i18next.t('缓存: {{cacheRatio}}'));
   }
 
-  // cache creation part (Claude specific if passed)
-  if (cacheCreationTokens !== 0) {
+  if (hasSplitCacheCreation) {
+    if (shouldShowCacheCreation5m && shouldShowCacheCreation1h) {
+      parts.push(
+        i18next.t(
+          '缓存创建: 5m {{cacheCreationRatio5m}} / 1h {{cacheCreationRatio1h}}',
+        ),
+      );
+    } else if (shouldShowCacheCreation5m) {
+      parts.push(i18next.t('缓存创建: 5m {{cacheCreationRatio5m}}'));
+    } else if (shouldShowCacheCreation1h) {
+      parts.push(i18next.t('缓存创建: 1h {{cacheCreationRatio1h}}'));
+    }
+  } else if (shouldShowLegacyCacheCreation) {
     parts.push(i18next.t('缓存创建: {{cacheCreationRatio}}'));
   }
 
@@ -1091,6 +1118,8 @@ function renderPriceSimpleCore({
     groupRatio: finalGroupRatio,
     cacheRatio: cacheRatio,
     cacheCreationRatio: cacheCreationRatio,
+    cacheCreationRatio5m: cacheCreationRatio5m,
+    cacheCreationRatio1h: cacheCreationRatio1h,
     imageRatio: imageRatio,
   });
 
@@ -1450,6 +1479,10 @@ export function renderModelPriceSimple(
   cacheRatio = 1.0,
   cacheCreationTokens = 0,
   cacheCreationRatio = 1.0,
+  cacheCreationTokens5m = 0,
+  cacheCreationRatio5m = 1.0,
+  cacheCreationTokens1h = 0,
+  cacheCreationRatio1h = 1.0,
   image = false,
   imageRatio = 1.0,
   isSystemPromptOverride = false,
@@ -1464,6 +1497,10 @@ export function renderModelPriceSimple(
     cacheRatio,
     cacheCreationTokens,
     cacheCreationRatio,
+    cacheCreationTokens5m,
+    cacheCreationRatio5m,
+    cacheCreationTokens1h,
+    cacheCreationRatio1h,
     image,
     imageRatio,
     isSystemPromptOverride,
@@ -1681,6 +1718,10 @@ export function renderClaudeModelPrice(
   cacheRatio = 1.0,
   cacheCreationTokens = 0,
   cacheCreationRatio = 1.0,
+  cacheCreationTokens5m = 0,
+  cacheCreationRatio5m = 1.0,
+  cacheCreationTokens1h = 0,
+  cacheCreationRatio1h = 1.0,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1710,19 +1751,120 @@ export function renderClaudeModelPrice(
     const completionRatioValue = completionRatio || 0;
     const inputRatioPrice = modelRatio * 2.0;
     const completionRatioPrice = modelRatio * 2.0 * completionRatioValue;
-    let cacheRatioPrice = (modelRatio * 2.0 * cacheRatio).toFixed(2);
-    let cacheCreationRatioPrice = modelRatio * 2.0 * cacheCreationRatio;
+    const cacheRatioPrice = modelRatio * 2.0 * cacheRatio;
+    const cacheCreationRatioPrice = modelRatio * 2.0 * cacheCreationRatio;
+    const cacheCreationRatioPrice5m = modelRatio * 2.0 * cacheCreationRatio5m;
+    const cacheCreationRatioPrice1h = modelRatio * 2.0 * cacheCreationRatio1h;
+
+    const hasSplitCacheCreation =
+      cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
+
+    const shouldShowCache = cacheTokens > 0;
+    const shouldShowLegacyCacheCreation =
+      !hasSplitCacheCreation && cacheCreationTokens > 0;
+    const shouldShowCacheCreation5m =
+      hasSplitCacheCreation && cacheCreationTokens5m > 0;
+    const shouldShowCacheCreation1h =
+      hasSplitCacheCreation && cacheCreationTokens1h > 0;
 
     // Calculate effective input tokens (non-cached + cached with ratio applied + cache creation with ratio applied)
     const nonCachedTokens = inputTokens;
     const effectiveInputTokens =
       nonCachedTokens +
       cacheTokens * cacheRatio +
-      cacheCreationTokens * cacheCreationRatio;
+      cacheCreationTokens * cacheCreationRatio +
+      cacheCreationTokens5m * cacheCreationRatio5m +
+      cacheCreationTokens1h * cacheCreationRatio1h;
 
     let price =
       (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
       (completionTokens / 1000000) * completionRatioPrice * groupRatio;
+
+    const inputUnitPrice = inputRatioPrice * rate;
+    const completionUnitPrice = completionRatioPrice * rate;
+    const cacheUnitPrice = cacheRatioPrice * rate;
+    const cacheCreationUnitPrice = cacheCreationRatioPrice * rate;
+    const cacheCreationUnitPrice5m = cacheCreationRatioPrice5m * rate;
+    const cacheCreationUnitPrice1h = cacheCreationRatioPrice1h * rate;
+    const cacheCreationUnitPriceTotal =
+      cacheCreationUnitPrice5m + cacheCreationUnitPrice1h;
+
+    const breakdownSegments = [
+      i18next.t('提示 {{input}} tokens / 1M tokens * {{symbol}}{{price}}', {
+        input: inputTokens,
+        symbol,
+        price: inputUnitPrice.toFixed(6),
+      }),
+    ];
+
+    if (shouldShowCache) {
+      breakdownSegments.push(
+        i18next.t(
+          '缓存 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}} (倍率: {{ratio}})',
+          {
+            tokens: cacheTokens,
+            symbol,
+            price: cacheUnitPrice.toFixed(6),
+            ratio: cacheRatio,
+          },
+        ),
+      );
+    }
+
+    if (shouldShowLegacyCacheCreation) {
+      breakdownSegments.push(
+        i18next.t(
+          '缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}} (倍率: {{ratio}})',
+          {
+            tokens: cacheCreationTokens,
+            symbol,
+            price: cacheCreationUnitPrice.toFixed(6),
+            ratio: cacheCreationRatio,
+          },
+        ),
+      );
+    }
+
+    if (shouldShowCacheCreation5m) {
+      breakdownSegments.push(
+        i18next.t(
+          '5m缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}} (倍率: {{ratio}})',
+          {
+            tokens: cacheCreationTokens5m,
+            symbol,
+            price: cacheCreationUnitPrice5m.toFixed(6),
+            ratio: cacheCreationRatio5m,
+          },
+        ),
+      );
+    }
+
+    if (shouldShowCacheCreation1h) {
+      breakdownSegments.push(
+        i18next.t(
+          '1h缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}} (倍率: {{ratio}})',
+          {
+            tokens: cacheCreationTokens1h,
+            symbol,
+            price: cacheCreationUnitPrice1h.toFixed(6),
+            ratio: cacheCreationRatio1h,
+          },
+        ),
+      );
+    }
+
+    breakdownSegments.push(
+      i18next.t(
+        '补全 {{completion}} tokens / 1M tokens * {{symbol}}{{price}}',
+        {
+          completion: completionTokens,
+          symbol,
+          price: completionUnitPrice.toFixed(6),
+        },
+      ),
+    );
+
+    const breakdownText = breakdownSegments.join(' + ');
 
     return (
       <>
@@ -1744,7 +1886,7 @@ export function renderClaudeModelPrice(
               },
             )}
           </p>
-          {cacheTokens > 0 && (
+          {shouldShowCache && (
             <p>
               {i18next.t(
                 '缓存价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (缓存倍率: {{cacheRatio}})',
@@ -1752,13 +1894,13 @@ export function renderClaudeModelPrice(
                   symbol: symbol,
                   price: (inputRatioPrice * rate).toFixed(6),
                   ratio: cacheRatio,
-                  total: (cacheRatioPrice * rate).toFixed(2),
+                  total: cacheUnitPrice.toFixed(6),
                   cacheRatio: cacheRatio,
                 },
               )}
             </p>
           )}
-          {cacheCreationTokens > 0 && (
+          {shouldShowLegacyCacheCreation && (
             <p>
               {i18next.t(
                 '缓存创建价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (缓存创建倍率: {{cacheCreationRatio}})',
@@ -1766,49 +1908,65 @@ export function renderClaudeModelPrice(
                   symbol: symbol,
                   price: (inputRatioPrice * rate).toFixed(6),
                   ratio: cacheCreationRatio,
-                  total: (cacheCreationRatioPrice * rate).toFixed(6),
+                  total: cacheCreationUnitPrice.toFixed(6),
                   cacheCreationRatio: cacheCreationRatio,
+                },
+              )}
+            </p>
+          )}
+          {shouldShowCacheCreation5m && (
+            <p>
+              {i18next.t(
+                '5m缓存创建价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (5m缓存创建倍率: {{cacheCreationRatio5m}})',
+                {
+                  symbol: symbol,
+                  price: (inputRatioPrice * rate).toFixed(6),
+                  ratio: cacheCreationRatio5m,
+                  total: cacheCreationUnitPrice5m.toFixed(6),
+                  cacheCreationRatio5m: cacheCreationRatio5m,
+                },
+              )}
+            </p>
+          )}
+          {shouldShowCacheCreation1h && (
+            <p>
+              {i18next.t(
+                '1h缓存创建价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (1h缓存创建倍率: {{cacheCreationRatio1h}})',
+                {
+                  symbol: symbol,
+                  price: (inputRatioPrice * rate).toFixed(6),
+                  ratio: cacheCreationRatio1h,
+                  total: cacheCreationUnitPrice1h.toFixed(6),
+                  cacheCreationRatio1h: cacheCreationRatio1h,
+                },
+              )}
+            </p>
+          )}
+          {shouldShowCacheCreation5m && shouldShowCacheCreation1h && (
+            <p>
+              {i18next.t(
+                '缓存创建价格合计：5m {{symbol}}{{five}} + 1h {{symbol}}{{one}} = {{symbol}}{{total}} / 1M tokens',
+                {
+                  symbol: symbol,
+                  five: cacheCreationUnitPrice5m.toFixed(6),
+                  one: cacheCreationUnitPrice1h.toFixed(6),
+                  total: cacheCreationUnitPriceTotal.toFixed(6),
                 },
               )}
             </p>
           )}
           <p></p>
           <p>
-            {cacheTokens > 0 || cacheCreationTokens > 0
-              ? i18next.t(
-                  '提示 {{nonCacheInput}} tokens / 1M tokens * {{symbol}}{{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * {{symbol}}{{cachePrice}} + 缓存创建 {{cacheCreationInput}} tokens / 1M tokens * {{symbol}}{{cacheCreationPrice}} + 补全 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
-                  {
-                    nonCacheInput: nonCachedTokens,
-                    cacheInput: cacheTokens,
-                    cacheRatio: cacheRatio,
-                    cacheCreationInput: cacheCreationTokens,
-                    cacheCreationRatio: cacheCreationRatio,
-                    symbol: symbol,
-                    cachePrice: (cacheRatioPrice * rate).toFixed(2),
-                    cacheCreationPrice: (
-                      cacheCreationRatioPrice * rate
-                    ).toFixed(6),
-                    price: (inputRatioPrice * rate).toFixed(6),
-                    completion: completionTokens,
-                    compPrice: (completionRatioPrice * rate).toFixed(6),
-                    ratio: groupRatio,
-                    ratioType: ratioLabel,
-                    total: (price * rate).toFixed(6),
-                  },
-                )
-              : i18next.t(
-                  '提示 {{input}} tokens / 1M tokens * {{symbol}}{{price}} + 补全 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
-                  {
-                    input: inputTokens,
-                    symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
-                    completion: completionTokens,
-                    compPrice: (completionRatioPrice * rate).toFixed(6),
-                    ratio: groupRatio,
-                    ratioType: ratioLabel,
-                    total: (price * rate).toFixed(6),
-                  },
-                )}
+            {i18next.t(
+              '{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
+              {
+                breakdown: breakdownText,
+                ratioType: ratioLabel,
+                ratio: groupRatio,
+                symbol: symbol,
+                total: (price * rate).toFixed(6),
+              },
+            )}
           </p>
           <p>{i18next.t('仅供参考，以实际扣费为准')}</p>
         </article>
@@ -1825,6 +1983,10 @@ export function renderClaudeLogContent(
   user_group_ratio,
   cacheRatio = 1.0,
   cacheCreationRatio = 1.0,
+  cacheCreationTokens5m = 0,
+  cacheCreationRatio5m = 1.0,
+  cacheCreationTokens1h = 0,
+  cacheCreationRatio1h = 1.0,
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
     groupRatio,
@@ -1843,17 +2005,58 @@ export function renderClaudeLogContent(
       ratio: groupRatio,
     });
   } else {
-    return i18next.t(
-      '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，缓存倍率 {{cacheRatio}}，缓存创建倍率 {{cacheCreationRatio}}，{{ratioType}} {{ratio}}',
-      {
-        modelRatio: modelRatio,
-        completionRatio: completionRatio,
-        cacheRatio: cacheRatio,
-        cacheCreationRatio: cacheCreationRatio,
+    const hasSplitCacheCreation =
+      cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
+    const shouldShowCacheCreation5m =
+      hasSplitCacheCreation && cacheCreationTokens5m > 0;
+    const shouldShowCacheCreation1h =
+      hasSplitCacheCreation && cacheCreationTokens1h > 0;
+
+    let cacheCreationPart = null;
+    if (hasSplitCacheCreation) {
+      if (shouldShowCacheCreation5m && shouldShowCacheCreation1h) {
+        cacheCreationPart = i18next.t(
+          '缓存创建倍率 5m {{cacheCreationRatio5m}} / 1h {{cacheCreationRatio1h}}',
+          {
+            cacheCreationRatio5m,
+            cacheCreationRatio1h,
+          },
+        );
+      } else if (shouldShowCacheCreation5m) {
+        cacheCreationPart = i18next.t(
+          '缓存创建倍率 5m {{cacheCreationRatio5m}}',
+          {
+            cacheCreationRatio5m,
+          },
+        );
+      } else if (shouldShowCacheCreation1h) {
+        cacheCreationPart = i18next.t(
+          '缓存创建倍率 1h {{cacheCreationRatio1h}}',
+          {
+            cacheCreationRatio1h,
+          },
+        );
+      }
+    }
+
+    if (!cacheCreationPart) {
+      cacheCreationPart = i18next.t('缓存创建倍率 {{cacheCreationRatio}}', {
+        cacheCreationRatio,
+      });
+    }
+
+    const parts = [
+      i18next.t('模型倍率 {{modelRatio}}', { modelRatio }),
+      i18next.t('输出倍率 {{completionRatio}}', { completionRatio }),
+      i18next.t('缓存倍率 {{cacheRatio}}', { cacheRatio }),
+      cacheCreationPart,
+      i18next.t('{{ratioType}} {{ratio}}', {
         ratioType: ratioLabel,
         ratio: groupRatio,
-      },
-    );
+      }),
+    ];
+
+    return parts.join('，');
   }
 }
 

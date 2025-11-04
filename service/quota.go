@@ -251,7 +251,11 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
 
 	cacheCreationRatio := relayInfo.PriceData.CacheCreationRatio
+	cacheCreationRatio5m := relayInfo.PriceData.CacheCreation5mRatio
+	cacheCreationRatio1h := relayInfo.PriceData.CacheCreation1hRatio
 	cacheCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
+	cacheCreationTokens5m := usage.ClaudeCacheCreation5mTokens
+	cacheCreationTokens1h := usage.ClaudeCacheCreation1hTokens
 
 	if relayInfo.ChannelType == constant.ChannelTypeOpenRouter {
 		promptTokens -= cacheTokens
@@ -269,7 +273,12 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	if !relayInfo.PriceData.UsePrice {
 		calculateQuota = float64(promptTokens)
 		calculateQuota += float64(cacheTokens) * cacheRatio
-		calculateQuota += float64(cacheCreationTokens) * cacheCreationRatio
+		calculateQuota += float64(cacheCreationTokens5m) * cacheCreationRatio5m
+		calculateQuota += float64(cacheCreationTokens1h) * cacheCreationRatio1h
+		remainingCacheCreationTokens := cacheCreationTokens - cacheCreationTokens5m - cacheCreationTokens1h
+		if remainingCacheCreationTokens > 0 {
+			calculateQuota += float64(remainingCacheCreationTokens) * cacheCreationRatio
+		}
 		calculateQuota += float64(completionTokens) * completionRatio
 		calculateQuota = calculateQuota * groupRatio * modelRatio
 	} else {
@@ -322,7 +331,11 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	}
 
 	other := GenerateClaudeOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio,
-		cacheTokens, cacheRatio, cacheCreationTokens, cacheCreationRatio, modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		cacheTokens, cacheRatio,
+		cacheCreationTokens, cacheCreationRatio,
+		cacheCreationTokens5m, cacheCreationRatio5m,
+		cacheCreationTokens1h, cacheCreationRatio1h,
+		modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     promptTokens,

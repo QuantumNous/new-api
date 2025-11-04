@@ -510,11 +510,44 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 }
 
 type ClaudeUsage struct {
-	InputTokens              int                  `json:"input_tokens"`
-	CacheCreationInputTokens int                  `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int                  `json:"cache_read_input_tokens"`
-	OutputTokens             int                  `json:"output_tokens"`
-	ServerToolUse            *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
+	InputTokens              int                       `json:"input_tokens"`
+	CacheCreationInputTokens int                       `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int                       `json:"cache_read_input_tokens"`
+	OutputTokens             int                       `json:"output_tokens"`
+	CacheCreation            *ClaudeCacheCreationUsage `json:"cache_creation,omitempty"`
+	// claude cache 1h
+	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
+	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
+	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
+}
+
+type ClaudeCacheCreationUsage struct {
+	Ephemeral5mInputTokens int `json:"ephemeral_5m_input_tokens,omitempty"`
+	Ephemeral1hInputTokens int `json:"ephemeral_1h_input_tokens,omitempty"`
+}
+
+func (u *ClaudeUsage) GetCacheCreation5mTokens() int {
+	if u == nil || u.CacheCreation == nil {
+		return 0
+	}
+	return u.CacheCreation.Ephemeral5mInputTokens
+}
+
+func (u *ClaudeUsage) GetCacheCreation1hTokens() int {
+	if u == nil || u.CacheCreation == nil {
+		return 0
+	}
+	return u.CacheCreation.Ephemeral1hInputTokens
+}
+
+func (u *ClaudeUsage) GetCacheCreationTotalTokens() int {
+	if u == nil {
+		return 0
+	}
+	if u.CacheCreationInputTokens > 0 {
+		return u.CacheCreationInputTokens
+	}
+	return u.GetCacheCreation5mTokens() + u.GetCacheCreation1hTokens()
 }
 
 type ClaudeServerToolUse struct {
