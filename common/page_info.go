@@ -39,9 +39,15 @@ func (p *PageInfo) SetItems(items any) {
 }
 
 func GetPageQuery(c *gin.Context) *PageInfo {
+	pParam := c.Query("p")
+	if pParam == "" {
+		// 没有分页参数，返回nil表示不需要分页
+		return nil
+	}
+
 	pageInfo := &PageInfo{}
 	// 手动获取并处理每个参数
-	if page, err := strconv.Atoi(c.Query("p")); err == nil {
+	if page, err := strconv.Atoi(pParam); err == nil {
 		pageInfo.Page = page
 	}
 	if pageSize, err := strconv.Atoi(c.Query("page_size")); err == nil {
@@ -49,7 +55,7 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 	}
 	if pageInfo.Page < 1 {
 		// 兼容
-		page, _ := strconv.Atoi(c.Query("p"))
+		page, _ := strconv.Atoi(pParam)
 		if page != 0 {
 			pageInfo.Page = page
 		} else {

@@ -14,16 +14,31 @@ import (
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	if pageInfo != nil {
+		// 有分页参数，使用分页查询
+		tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		total, _ := model.CountUserTokens(userId)
+		pageInfo.SetTotal(int(total))
+		pageInfo.SetItems(tokens)
+		common.ApiSuccess(c, pageInfo)
+	} else {
+		// 无分页参数，返回所有数据
+		tokens, err := model.GetAllUserTokensWithoutPagination(userId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		total, _ := model.CountUserTokens(userId)
+		common.ApiSuccess(c, gin.H{
+			"items": tokens,
+			"total": total,
+		})
+
 	}
-	total, _ := model.CountUserTokens(userId)
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(tokens)
-	common.ApiSuccess(c, pageInfo)
-	return
 }
 
 func SearchTokens(c *gin.Context) {
