@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,6 +8,14 @@ import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Form,
   FormControl,
   FormField,
@@ -16,9 +24,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { register } from '@/features/auth/api'
+import { register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
@@ -34,6 +43,9 @@ export function SignUpForm({
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
+  const [wechatCode, setWeChatCode] = useState('')
+  const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
+  const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
 
   const { status } = useStatus()
   const {
@@ -43,7 +55,7 @@ export function SignUpForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const { redirectToLogin } = useAuthRedirect()
+  const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
     secondsLeft,
@@ -73,6 +85,21 @@ export function SignUpForm({
     status?.oauth_register_enabled ??
     status?.data?.oauth_register_enabled ??
     true
+  const hasWeChatLogin = Boolean(status?.wechat_login)
+
+  const wechatQrCodeUrl = useMemo(() => {
+    return (
+      status?.wechat_qrcode ||
+      status?.wechat_qr_code ||
+      status?.wechat_qrcode_image_url ||
+      status?.wechat_qr_code_image_url ||
+      status?.wechat_account_qrcode_image_url ||
+      status?.WeChatAccountQRCodeImageURL ||
+      status?.data?.wechat_qrcode ||
+      status?.data?.WeChatAccountQRCodeImageURL ||
+      ''
+    )
+  }, [status])
 
   useEffect(() => {
     if (requiresLegalConsent) {
@@ -124,6 +151,46 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     await sendCode(emailValue || '')
+  }
+
+  const handleOpenWeChatDialog = () => {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error('Please agree to the legal terms first')
+      return
+    }
+
+    setIsWeChatDialogOpen(true)
+  }
+
+  const handleWeChatDialogChange = (open: boolean) => {
+    setIsWeChatDialogOpen(open)
+    if (!open) {
+      setWeChatCode('')
+      setIsWeChatSubmitting(false)
+    }
+  }
+
+  async function handleWeChatLogin() {
+    if (!wechatCode.trim()) {
+      toast.error('Please enter the verification code')
+      return
+    }
+
+    setIsWeChatSubmitting(true)
+    try {
+      const res = await wechatLoginByCode(wechatCode)
+      if (res?.success) {
+        await handleLoginSuccess(res.data)
+        toast.success('Signed in via WeChat')
+        handleWeChatDialogChange(false)
+      } else {
+        toast.error(res?.message || 'Login failed')
+      }
+    } catch (error) {
+      toast.error('Login failed')
+    } finally {
+      setIsWeChatSubmitting(false)
+    }
   }
 
   return (
@@ -260,10 +327,80 @@ export function SignUpForm({
           <OAuthProviders
             status={status}
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+            onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+            isWeChatLoading={isWeChatSubmitting}
             className='pt-2'
           />
         )}
       </form>
+
+      {hasWeChatLogin && (
+        <Dialog
+          open={isWeChatDialogOpen}
+          onOpenChange={handleWeChatDialogChange}
+        >
+          <DialogContent className='max-w-sm'>
+            <DialogHeader className='text-left'>
+              <DialogTitle>WeChat sign in</DialogTitle>
+              <DialogDescription>
+                Scan the QR code to follow the official account and reply with
+                “验证码” to receive your verification code.
+              </DialogDescription>
+            </DialogHeader>
+
+            {wechatQrCodeUrl ? (
+              <div className='flex justify-center'>
+                <img
+                  src={wechatQrCodeUrl}
+                  alt='WeChat login QR code'
+                  className='h-40 w-40 rounded-md border object-contain'
+                />
+              </div>
+            ) : (
+              <p className='text-muted-foreground text-sm'>
+                QR code is not configured. Please contact support.
+              </p>
+            )}
+
+            <div className='grid gap-2'>
+              <Label htmlFor='wechat-code'>Verification code</Label>
+              <Input
+                id='wechat-code'
+                placeholder='Enter the verification code'
+                value={wechatCode}
+                onChange={(event) => setWeChatCode(event.target.value)}
+                autoComplete='one-time-code'
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => handleWeChatDialogChange(false)}
+                disabled={isWeChatSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type='button'
+                onClick={handleWeChatLogin}
+                disabled={
+                  isWeChatSubmitting ||
+                  !wechatCode.trim() ||
+                  (requiresLegalConsent && !agreedToLegal)
+                }
+                className='gap-2'
+              >
+                {isWeChatSubmitting ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : null}
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </Form>
   )
 }
