@@ -1,13 +1,5 @@
 import { Link } from '@tanstack/react-router'
 import { useStatus } from '@/hooks/use-status'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
@@ -17,29 +9,31 @@ export function SignUp() {
 
   return (
     <AuthLayout>
-      <Card className='gap-4'>
-        <CardHeader>
-          <CardTitle className='text-lg tracking-tight'>
+      <div className='w-full space-y-8'>
+        <div className='space-y-2'>
+          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             Create an account
-          </CardTitle>
-          <CardDescription>
-            Enter your information to create an account. <br />
-            Already have an account?{' '}
+          </h2>
+          <p className='text-muted-foreground text-left text-sm sm:text-base'>
+            Enter your details to get started. Already have an account?{' '}
             <Link
               to='/sign-in'
-              className='hover:text-primary underline underline-offset-4'
+              className='hover:text-primary font-medium underline underline-offset-4'
             >
-              Sign In
+              Sign in
             </Link>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SignUpForm />
-        </CardContent>
-        <CardFooter>
-          <TermsFooter variant='sign-up' status={status} />
-        </CardFooter>
-      </Card>
+            .
+          </p>
+        </div>
+
+        <SignUpForm />
+
+        <TermsFooter
+          variant='sign-up'
+          status={status}
+          className='text-center'
+        />
+      </div>
     </AuthLayout>
   )
 }

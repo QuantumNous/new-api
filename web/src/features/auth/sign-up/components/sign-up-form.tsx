@@ -20,6 +20,7 @@ import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { register } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
+import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
@@ -68,6 +69,10 @@ export function SignUpForm({
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
+  const oauthRegisterEnabled =
+    status?.oauth_register_enabled ??
+    status?.data?.oauth_register_enabled ??
+    true
 
   useEffect(() => {
     if (requiresLegalConsent) {
@@ -125,7 +130,7 @@ export function SignUpForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-3', className)}
+        className={cn('grid gap-4', className)}
         {...props}
       >
         {/* Username Field */}
@@ -244,12 +249,20 @@ export function SignUpForm({
 
         {/* Submit Button */}
         <Button
-          className='mt-2'
+          className='mt-2 w-full justify-center gap-2'
           disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Create account
         </Button>
+
+        {oauthRegisterEnabled && (
+          <OAuthProviders
+            status={status}
+            disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+            className='pt-2'
+          />
+        )}
       </form>
     </Form>
   )

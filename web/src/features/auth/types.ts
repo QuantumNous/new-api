@@ -84,6 +84,12 @@ export interface SystemStatus {
     telegram_oauth?: boolean
     passkey_login?: boolean
     wechat_login?: boolean
+    wechat_qrcode?: string
+    wechat_qr_code?: string
+    wechat_qrcode_image_url?: string
+    wechat_qr_code_image_url?: string
+    wechat_account_qrcode_image_url?: string
+    WeChatAccountQRCodeImageURL?: string
     turnstile_check?: boolean
     turnstile_site_key?: string
     email_verification?: boolean
@@ -98,6 +104,9 @@ export interface SystemStatus {
     demo_site_enabled?: boolean
     user_agreement_enabled?: boolean
     privacy_policy_enabled?: boolean
+    oauth_register_enabled?: boolean
+    register_enabled?: boolean
+    password_register_enabled?: boolean
     [key: string]: any
   }
   // Allow direct access to common properties
@@ -114,6 +123,12 @@ export interface SystemStatus {
   telegram_oauth?: boolean
   passkey_login?: boolean
   wechat_login?: boolean
+  wechat_qrcode?: string
+  wechat_qr_code?: string
+  wechat_qrcode_image_url?: string
+  wechat_qr_code_image_url?: string
+  wechat_account_qrcode_image_url?: string
+  WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
   turnstile_site_key?: string
   email_verification?: boolean
@@ -128,6 +143,9 @@ export interface SystemStatus {
   demo_site_enabled?: boolean
   user_agreement_enabled?: boolean
   privacy_policy_enabled?: boolean
+  oauth_register_enabled?: boolean
+  register_enabled?: boolean
+  password_register_enabled?: boolean
   [key: string]: any
 }
 

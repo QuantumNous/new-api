@@ -20,6 +20,10 @@ export function TermsFooter({
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
 
+  if (!hasUserAgreement && !hasPrivacyPolicy) {
+    return null
+  }
+
   const agreementLink = {
     label: 'User Agreement',
     href: '/user-agreement',
@@ -40,12 +44,7 @@ export function TermsFooter({
   const [firstLink, secondLink] = activeLinks
 
   return (
-    <p
-      className={cn(
-        'text-muted-foreground px-8 text-center text-xs',
-        className
-      )}
-    >
+    <p className={cn('text-muted-foreground text-center text-xs', className)}>
       {text}{' '}
       {firstLink && (
         <a
