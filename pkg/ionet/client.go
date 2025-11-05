@@ -110,7 +110,6 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*HTTPRe
 	headers := map[string]string{
 		"X-API-KEY":    c.APIKey,
 		"Content-Type": "application/json",
-		"Accept":       "application/json",
 	}
 
 	req := &HTTPRequest{

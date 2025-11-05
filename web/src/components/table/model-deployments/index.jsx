@@ -49,7 +49,6 @@ const DeploymentsPage = () => {
     setEditingDeployment,
     setShowEdit,
     batchDeleteDeployments,
-    batchStartDeployments,
 
     // Filters state
     formInitValues,
@@ -108,7 +107,6 @@ const DeploymentsPage = () => {
           setEditingDeployment={setEditingDeployment}
           setShowEdit={setShowEdit}
           batchDeleteDeployments={batchDeleteDeployments}
-          batchStartDeployments={batchStartDeployments}
           compactMode={compactMode}
           setCompactMode={setCompactMode}
           showCreateModal={showCreateModal}

@@ -47,10 +47,11 @@ const DeploymentsFilters = ({
   const statusOptions = [
     { label: t('全部状态'), value: '' },
     { label: t('运行中'), value: 'running' },
-    { label: t('部署中'), value: 'deploying' },
-    { label: t('已停止'), value: 'stopped' },
-    { label: t('错误'), value: 'error' },
-    { label: t('待部署'), value: 'pending' },
+    { label: t('已完成'), value: 'completed' },
+    { label: t('失败'), value: 'failed' },
+    { label: t('部署请求中'), value: 'deployment requested' },
+    { label: t('终止请求中'), value: 'termination requested' },
+    { label: t('已销毁'), value: 'destroyed' },
   ];
 
   return (

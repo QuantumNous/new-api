@@ -118,11 +118,11 @@ func mapIoNetDeployment(d ionet.Deployment) map[string]interface{} {
 	timeRemainingMins := d.ComputeMinutesRemaining % 60
 	var timeRemaining string
 	if timeRemainingHours > 0 {
-		timeRemaining = fmt.Sprintf("%d小时%d分钟", timeRemainingHours, timeRemainingMins)
+		timeRemaining = fmt.Sprintf("%d hour %d minutes", timeRemainingHours, timeRemainingMins)
 	} else if timeRemainingMins > 0 {
-		timeRemaining = fmt.Sprintf("%d分钟", timeRemainingMins)
+		timeRemaining = fmt.Sprintf("%d minutes", timeRemainingMins)
 	} else {
-		timeRemaining = "已完成"
+		timeRemaining = "completed"
 	}
 
 	hardwareInfo := fmt.Sprintf("%s %s x%d", d.BrandName, d.HardwareName, d.HardwareQuantity)
@@ -615,7 +615,7 @@ func CheckClusterNameAvailability(c *gin.Context) {
 }
 
 func GetDeploymentLogs(c *gin.Context) {
-	client, ok := getIoEnterpriseClient(c)
+	client, ok := getIoClient(c)
 	if !ok {
 		return
 	}

@@ -27,7 +27,6 @@ const DeploymentsActions = ({
   setEditingDeployment,
   setShowEdit,
   batchDeleteDeployments,
-  batchStartDeployments,
   compactMode,
   setCompactMode,
   showCreateModal,
@@ -50,10 +49,6 @@ const DeploymentsActions = ({
     batchDeleteDeployments();
   };
 
-  const handleBatchStart = () => {
-    batchStartDeployments();
-  };
-
   const handleDeselectAll = () => {
     setSelectedKeys([]);
   };
@@ -72,17 +67,6 @@ const DeploymentsActions = ({
 
       {hasSelected && (
         <>
-          <Button
-            theme='solid'
-            type='primary'
-            className='w-full md:w-auto'
-            onClick={handleBatchStart}
-            disabled={selectedKeys.length === 0}
-            size='small'
-          >
-            {t('批量启动')} ({selectedKeys.length})
-          </Button>
-
           <Popconfirm
             title={t('确认删除')}
             content={`${t('确定要删除选中的')} ${selectedKeys.length} ${t('个部署吗？此操作不可逆。')}`}

@@ -50,6 +50,7 @@ import {
   FaHourglassHalf,
   FaGlobe,
 } from 'react-icons/fa';
+import {t} from "i18next";
 
 const normalizeStatus = (status) =>
   typeof status === 'string' ? status.trim().toLowerCase() : '';
@@ -57,52 +58,52 @@ const normalizeStatus = (status) =>
 const STATUS_TAG_CONFIG = {
   running: {
     color: 'green',
-    label: '运行中',
+    label: t('运行中'),
     icon: <FaPlay size={12} className='text-green-600' />,
   },
   deploying: {
     color: 'blue',
-    label: '部署中',
+    label: t('部署中'),
     icon: <FaSpinner size={12} className='text-blue-600' />,
   },
   pending: {
     color: 'orange',
-    label: '待部署',
+    label: t('待部署'),
     icon: <FaClock size={12} className='text-orange-600' />,
   },
   stopped: {
     color: 'grey',
-    label: '已停止',
+    label: t('已停止'),
     icon: <FaStop size={12} className='text-gray-500' />,
   },
   error: {
     color: 'red',
-    label: '错误',
+    label: t('错误'),
     icon: <FaExclamationCircle size={12} className='text-red-500' />,
   },
   failed: {
     color: 'red',
-    label: '失败',
+    label: t('失败'),
     icon: <FaExclamationCircle size={12} className='text-red-500' />,
   },
   destroyed: {
     color: 'red',
-    label: '已销毁',
+    label: t('已销毁'),
     icon: <FaBan size={12} className='text-red-500' />,
   },
   completed: {
     color: 'green',
-    label: '已完成',
+    label: t('已完成'),
     icon: <FaCheckCircle size={12} className='text-green-600' />,
   },
   'deployment requested': {
     color: 'blue',
-    label: '部署请求中',
+    label: t('部署请求中'),
     icon: <FaSpinner size={12} className='text-blue-600' />,
   },
   'termination requested': {
     color: 'orange',
-    label: '终止请求中',
+    label: t('终止请求中'),
     icon: <FaClock size={12} className='text-orange-600' />,
   },
 };
@@ -309,7 +310,7 @@ export const getDeploymentsColumns = ({
       title: t('状态'),
       dataIndex: 'status',
       key: COLUMN_KEYS.status,
-      width: 200,
+      width: 140,
       render: (status) => (
         <div className="flex items-center gap-2">
           {renderStatus(status, t)}
@@ -344,19 +345,39 @@ export const getDeploymentsColumns = ({
       title: t('剩余时间'),
       dataIndex: 'time_remaining',
       key: COLUMN_KEYS.time_remaining,
-      minWidth: 160,
+      width: 140,
       render: (text, record) => {
+        const normalizedStatus = normalizeStatus(record?.status);
         const percentUsedRaw = parsePercentValue(record?.completed_percent);
         const percentUsed = clampPercent(percentUsedRaw);
         const percentRemaining =
           percentUsed === null ? null : clampPercent(100 - percentUsed);
         const theme = getRemainingTheme(percentRemaining);
-        const timeDisplay =
+        const statusDisplayMap = {
+          completed: t('已完成'),
+          destroyed: t('已销毁'),
+          failed: t('失败'),
+          error: t('失败'),
+          stopped: t('已停止'),
+          pending: t('待部署'),
+          deploying: t('部署中'),
+          'deployment requested': t('部署请求中'),
+          'termination requested': t('终止中'),
+        };
+        const statusOverride = statusDisplayMap[normalizedStatus];
+        const baseTimeDisplay =
           text && String(text).trim() !== '' ? text : t('计算中');
+        const timeDisplay = baseTimeDisplay;
         const humanReadable = formatRemainingMinutes(
           record.compute_minutes_remaining,
           t,
         );
+        const showProgress = !statusOverride && normalizedStatus === 'running';
+        const showExtraInfo = Boolean(humanReadable || percentUsed !== null);
+        const showRemainingMeta =
+          record.compute_minutes_remaining !== undefined &&
+          record.compute_minutes_remaining !== null &&
+          percentRemaining !== null;
 
         return (
           <div className="flex flex-col gap-1 leading-tight text-xs">
@@ -368,27 +389,33 @@ export const getDeploymentsColumns = ({
               <Typography.Text className="text-sm font-medium text-[var(--semi-color-text-0)]">
                 {timeDisplay}
               </Typography.Text>
-              {percentRemaining !== null && (
+              {showProgress && percentRemaining !== null ? (
                 <Tag size="small" color={theme.tagColor}>
                   {percentRemaining}%
                 </Tag>
-              )}
+              ) : statusOverride ? (
+                <Tag size="small" color="grey">
+                  {statusOverride}
+                </Tag>
+              ) : null}
             </div>
-            <div className="flex items-center gap-3 text-[var(--semi-color-text-2)]">
-              {humanReadable && (
-                <span className="flex items-center gap-1">
-                  <FaClock className="text-[11px]" />
-                  {t('约')} {humanReadable}
-                </span>
-              )}
-              {percentUsed !== null && (
-                <span className="flex items-center gap-1">
-                  <FaCheckCircle className="text-[11px]" />
-                  {t('已用')} {percentUsed}%
-                </span>
-              )}
-            </div>
-            {record.compute_minutes_remaining !== undefined && percentRemaining !== null && (
+            {showExtraInfo && (
+              <div className="flex items-center gap-3 text-[var(--semi-color-text-2)]">
+                {humanReadable && (
+                  <span className="flex items-center gap-1">
+                    <FaClock className="text-[11px]" />
+                    {t('约')} {humanReadable}
+                  </span>
+                )}
+                {percentUsed !== null && (
+                  <span className="flex items-center gap-1">
+                    <FaCheckCircle className="text-[11px]" />
+                    {t('已用')} {percentUsed}%
+                  </span>
+                )}
+              </div>
+            )}
+            {showProgress && showRemainingMeta && (
               <div className="text-[10px]" style={{ color: theme.textColor }}>
                 {t('剩余')} {record.compute_minutes_remaining} {t('分钟')}
               </div>
@@ -515,15 +542,17 @@ export const getDeploymentsColumns = ({
 
         if (isEnded) {
           return (
-            <Button
-              size="small"
-              type="tertiary"
-              theme="borderless"
-              onClick={() => onViewDetails?.(record)}
-              icon={<FaInfoCircle className="text-xs" />}
-            >
-              {t('查看详情')}
-            </Button>
+            <div className="flex w-full items-center justify-start gap-1 pr-2">
+              <Button
+                size="small"
+                type="tertiary"
+                theme="borderless"
+                onClick={() => onViewDetails?.(record)}
+                icon={<FaInfoCircle className="text-xs" />}
+              >
+                {t('查看详情')}
+              </Button>
+            </div>
           );
         }
 
@@ -605,7 +634,7 @@ export const getDeploymentsColumns = ({
         const hasDropdown = dropdownItems.length > 0;
 
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex w-full items-center justify-start gap-1 pr-2">
             <Button
               size="small"
               theme={primaryTheme}

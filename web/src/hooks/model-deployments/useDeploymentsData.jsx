@@ -432,25 +432,6 @@ export const useDeploymentsData = () => {
     }
   };
 
-  const batchStartDeployments = async () => {
-    if (selectedKeys.length === 0) return;
-    
-    try {
-      const ids = selectedKeys.map(deployment => deployment.id);
-      const res = await API.post('/api/deployments/batch_start', { ids });
-      if (res.data.success) {
-        showSuccess(t('批量启动成功'));
-        setSelectedKeys([]);
-        await refresh();
-      } else {
-        showError(res.data.message);
-      }
-    } catch (error) {
-      console.error(error);
-      showError(t('批量启动失败'));
-    }
-  };
-
   // Table row click handler
   const handleRow = (record) => ({
     onClick: () => {
@@ -519,7 +500,6 @@ export const useDeploymentsData = () => {
 
     // Batch operations
     batchDeleteDeployments,
-    batchStartDeployments,
 
     // Translation
     t,

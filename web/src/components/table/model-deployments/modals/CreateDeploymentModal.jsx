@@ -1009,7 +1009,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   label={t('每容器GPU数量')}
                   placeholder={1}
                   min={1}
-                  max={selectedHardwareId ? hardwareTypes.find(h => h.id === selectedHardwareId)?.max_gpus : 8}
+                  max={selectedHardwareId ? hardwareTypes.find((h) => h.id === selectedHardwareId)?.max_gpus : 8}
+                  step={1}
+                  innerButtons
                   rules={[{ required: true, message: t('请输入GPU数量') }]}
                   onChange={(value) => setGpusPerContainer(value)}
                   style={{ width: '100%' }}
@@ -1361,74 +1363,82 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               </div>
 
               {priceEstimation ? (
-                <Space
-                  direction="vertical"
-                  spacing={12}
-                  style={{ marginTop: 16, width: '100%' }}
-                >
-                  <div>
-                    <Text size="small" type="tertiary">
-                      {t('预估总费用')}
-                    </Text>
+                <div className="mt-4 flex w-full flex-col gap-4">
+                  <div className="grid w-full gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <div
+                      className="flex flex-col gap-1 rounded-md px-4 py-3"
                       style={{
-                        fontSize: 24,
-                        fontWeight: 600,
-                        color: 'var(--semi-color-text-0)',
-                        marginTop: 4,
+                        border: '1px solid var(--semi-color-border)',
+                        backgroundColor: 'var(--semi-color-fill-0)',
                       }}
                     >
-                      {typeof priceEstimation.estimated_cost === 'number'
-                        ? priceEstimation.estimated_cost.toFixed(4)
-                        : '--'}{' '}
-                      {currencyLabel}
+                      <Text size="small" type="tertiary">
+                        {t('预估总费用')}
+                      </Text>
+                      <div
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 600,
+                          color: 'var(--semi-color-text-0)',
+                        }}
+                      >
+                        {typeof priceEstimation.estimated_cost === 'number'
+                          ? `${priceEstimation.estimated_cost.toFixed(4)} ${currencyLabel}`
+                          : '--'}
+                      </div>
                     </div>
-                  </div>
-
-                  <Divider style={{ margin: '4px 0 8px' }} />
-
-                  <Row gutter={16}>
-                    <Col xs={24} sm={12}>
-                      <Text strong>{t('小时费率')}</Text>
-                      <div>
+                    <div
+                      className="flex flex-col gap-1 rounded-md px-4 py-3"
+                      style={{
+                        border: '1px solid var(--semi-color-border)',
+                        backgroundColor: 'var(--semi-color-fill-0)',
+                      }}
+                    >
+                      <Text size="small" type="tertiary">
+                        {t('小时费率')}
+                      </Text>
+                      <Text strong>
                         {typeof priceEstimation.price_breakdown?.hourly_rate === 'number'
                           ? `${priceEstimation.price_breakdown.hourly_rate.toFixed(4)} ${currencyLabel}/h`
                           : '--'}
-                      </div>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Text strong>{t('计算成本')}</Text>
-                      <div>
+                      </Text>
+                    </div>
+                    <div
+                      className="flex flex-col gap-1 rounded-md px-4 py-3"
+                      style={{
+                        border: '1px solid var(--semi-color-border)',
+                        backgroundColor: 'var(--semi-color-fill-0)',
+                      }}
+                    >
+                      <Text size="small" type="tertiary">
+                        {t('计算成本')}
+                      </Text>
+                      <Text strong>
                         {typeof priceEstimation.price_breakdown?.compute_cost === 'number'
                           ? `${priceEstimation.price_breakdown.compute_cost.toFixed(4)} ${currencyLabel}`
                           : '--'}
-                      </div>
-                    </Col>
-                  </Row>
+                      </Text>
+                    </div>
+                  </div>
 
-                  <Divider style={{ margin: '4px 0 8px' }} />
-
-                  <Row gutter={12} wrap>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {priceSummaryItems.map((item) => (
-                      <Col key={item.key} xs={24} sm={12} lg={8}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: 12,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <Text size="small" type="tertiary">
-                            {item.label}
-                          </Text>
-                          <Text strong>{item.value}</Text>
-                        </div>
-                      </Col>
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-3 rounded-md px-3 py-2"
+                        style={{
+                          border: '1px solid var(--semi-color-border)',
+                          backgroundColor: 'var(--semi-color-fill-0)',
+                        }}
+                      >
+                        <Text size="small" type="tertiary">
+                          {item.label}
+                        </Text>
+                        <Text strong>{item.value}</Text>
+                      </div>
                     ))}
-                  </Row>
-                </Space>
+                  </div>
+                </div>
               ) : (
                 priceUnavailableContent
               )}
