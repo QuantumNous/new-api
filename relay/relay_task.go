@@ -74,14 +74,19 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	}
 	// FIXME: 临时修补，支持任务仅按次计费
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
+		// seconds 参数不作为倍率相乘，只有 size 等参数才作为倍率
 		if len(info.PriceData.OtherRatios) > 0 {
-			for _, ra := range info.PriceData.OtherRatios {
+			for key, ra := range info.PriceData.OtherRatios {
+				if key == "seconds" {
+					continue
+				}
 				if 1.0 != ra {
 					ratio *= ra
 				}
 			}
 		}
 	}
+
 	println(fmt.Sprintf("model: %s, model_price: %.4f, group: %s, group_ratio: %.4f, final_ratio: %.4f", modelName, modelPrice, info.UsingGroup, groupRatio, ratio))
 	userQuota, err := model.GetUserQuota(info.UserId, false)
 	if err != nil {
@@ -163,6 +168,10 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 					if len(info.PriceData.OtherRatios) > 0 {
 						var contents []string
 						for key, ra := range info.PriceData.OtherRatios {
+							// seconds 参数不参与计费倍率计算，不在日志中显示
+							if key == "seconds" {
+								continue
+							}
 							if 1.0 != ra {
 								contents = append(contents, fmt.Sprintf("%s: %.2f", key, ra))
 							}
@@ -319,7 +328,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		if err2 != nil {
 			return
 		}
-		if channelModel.Type != constant.ChannelTypeVertexAi && channelModel.Type != constant.ChannelTypeGemini {
+		if channelModel.Type != constant.ChannelTypeVertexAi {
 			return
 		}
 		baseURL := constant.ChannelBaseURLs[channelModel.Type]
@@ -351,10 +360,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				originTask.Progress = ti.Progress
 			}
 			if ti.Url != "" {
-				if strings.HasPrefix(ti.Url, "data:") {
-				} else {
-					originTask.FailReason = ti.Url
-				}
+				originTask.FailReason = ti.Url
 			}
 			_ = originTask.Update()
 			var raw map[string]any
@@ -382,20 +388,18 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 			case model.TaskStatusQueued, model.TaskStatusSubmitted:
 				status = "queued"
 			}
-			if !strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") {
-				out := map[string]any{
-					"error":    nil,
-					"format":   format,
-					"metadata": nil,
-					"status":   status,
-					"task_id":  originTask.TaskID,
-					"url":      originTask.FailReason,
-				}
-				respBody, _ = json.Marshal(dto.TaskResponse[any]{
-					Code: "success",
-					Data: out,
-				})
+			out := map[string]any{
+				"error":    nil,
+				"format":   format,
+				"metadata": nil,
+				"status":   status,
+				"task_id":  originTask.TaskID,
+				"url":      originTask.FailReason,
 			}
+			respBody, _ = json.Marshal(dto.TaskResponse[any]{
+				Code: "success",
+				Data: out,
+			})
 		}
 	}()
 
