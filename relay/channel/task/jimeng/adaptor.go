@@ -406,7 +406,10 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	// 即梦视频3.0 ReqKey转换
 	// https://www.volcengine.com/docs/85621/1792707
 	if strings.Contains(r.ReqKey, "jimeng_v30") {
-		if len(req.Images) > 1 {
+		if r.ReqKey == "jimeng_v30_pro" {
+			// 3.0 pro只有固定的jimeng_ti2v_v30_pro
+			r.ReqKey = "jimeng_ti2v_v30_pro"
+		} else if len(req.Images) > 1 {
 			// 多张图片：首尾帧生成
 			r.ReqKey = strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_tail_v30", 1)
 		} else if len(req.Images) == 1 {

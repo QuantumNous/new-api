@@ -67,8 +67,10 @@ func LogError(ctx context.Context, msg string) {
 }
 
 func LogDebug(ctx context.Context, msg string, args ...any) {
-	msg = fmt.Sprintf(msg, args...)
 	if common.DebugEnabled {
+		if len(args) > 0 {
+			msg = fmt.Sprintf(msg, args...)
+		}
 		logHelper(ctx, loggerDebug, msg)
 	}
 }
