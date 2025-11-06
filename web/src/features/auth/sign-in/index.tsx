@@ -17,8 +17,7 @@ export function SignIn() {
           </h2>
           {!status?.self_use_mode_enabled && (
             <p className='text-muted-foreground text-left text-sm sm:text-base'>
-              Enter your credentials to access your account. Don't have an
-              account?{' '}
+              Don't have an account?{' '}
               <Link
                 to='/sign-up'
                 className='hover:text-primary font-medium underline underline-offset-4'

@@ -15,7 +15,7 @@ export function SignUp() {
             Create an account
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            Enter your details to get started. Already have an account?{' '}
+            Already have an account?{' '}
             <Link
               to='/sign-in'
               className='hover:text-primary font-medium underline underline-offset-4'
