@@ -141,6 +141,7 @@ New API提供了丰富的功能，详细特性请参考[特性说明](https://do
 - `NOTIFICATION_LIMIT_DURATION_MINUTE`：邮件等通知限制持续时间，默认 `10`分钟
 - `NOTIFY_LIMIT_COUNT`：用户通知在指定持续时间内的最大数量，默认 `2`
 - `ERROR_LOG_ENABLED=true`: 是否记录并显示错误日志，默认`false`
+- `TASK_PRICE_PATCH=sora-2-all,sora-2-pro-all`: 异步任务设置某些模型按次计费，多个模型用逗号分隔，例如`sora-2-all,sora-2-pro-all`，表示sora-2-all和sora-2-pro-all模型异步任务仅按次计费，不按秒等计费。
 
 ## 部署
 

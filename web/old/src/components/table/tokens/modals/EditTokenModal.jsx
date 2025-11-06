@@ -66,9 +66,9 @@ const EditTokenModal = (props) => {
 
   const getInitValues = () => ({
     name: '',
-    remain_quota: 500000,
+    remain_quota: 0,
     expired_time: -1,
-    unlimited_quota: false,
+    unlimited_quota: true,
     model_limits_enabled: false,
     model_limits: [],
     allow_ips: '',

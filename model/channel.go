@@ -688,7 +688,7 @@ func DisableChannelByTag(tag string) error {
 	return err
 }
 
-func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint) error {
+func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag
@@ -713,6 +713,12 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	}
 	if weight != nil {
 		updateData.Weight = weight
+	}
+	if paramOverride != nil {
+		updateData.ParamOverride = paramOverride
+	}
+	if headerOverride != nil {
+		updateData.HeaderOverride = headerOverride
 	}
 
 	err := DB.Model(&Channel{}).Where("tag = ?", tag).Updates(updateData).Error
