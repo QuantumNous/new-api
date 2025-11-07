@@ -212,6 +212,7 @@ docker run --name new-api -d --restart always -p 3000:3000 -e SQL_DSN="root:1234
 - [One API](https://github.com/songquanpeng/one-api)：原版项目
 - [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)：Midjourney接口支持
 - [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool)：用key查询使用额度
+- [aiproxy](https://github.com/labring/aiproxy)：下一代AI网关
 
 其他基于New API的项目：
 - [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)：New API高性能优化版
