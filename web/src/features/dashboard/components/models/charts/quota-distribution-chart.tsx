@@ -87,7 +87,7 @@ export function QuotaDistributionChart({
       emptyMessage='No quota data available'
       height='h-[30rem] sm:h-96'
     >
-      <ChartContainer config={chartConfig} className='h-[30rem] sm:h-96 w-full'>
+      <ChartContainer config={chartConfig} className='h-[30rem] w-full sm:h-96'>
         <BarChart
           accessibilityLayer
           data={data}
@@ -118,7 +118,7 @@ export function QuotaDistributionChart({
             }
           />
           <ChartLegend
-            content={<PaginatedChartLegendContent className='pt-8 sm:pt-3' />}
+            content={<PaginatedChartLegendContent className='pt-2 sm:pt-3' />}
           />
           {uniqueModels.map((model, index) => (
             <Bar

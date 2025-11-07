@@ -31,8 +31,7 @@ export function CallProportionChart({
 }: CallProportionChartProps) {
   const isEmpty = !data || data.length === 0
   const totalValue = useMemo(
-    () =>
-      data.reduce((sum, point) => sum + Number(point.value ?? 0), 0),
+    () => data.reduce((sum, point) => sum + Number(point.value ?? 0), 0),
     [data]
   )
 
@@ -105,11 +104,19 @@ export function CallProportionChart({
       }
 
       const centerX =
-        typeof cx === 'number' ? cx : typeof cx === 'string' ? parseFloat(cx) || 0 : 0
+        typeof cx === 'number'
+          ? cx
+          : typeof cx === 'string'
+            ? parseFloat(cx) || 0
+            : 0
       const centerY =
-        typeof cy === 'number' ? cy : typeof cy === 'string' ? parseFloat(cy) || 0 : 0
+        typeof cy === 'number'
+          ? cy
+          : typeof cy === 'string'
+            ? parseFloat(cy) || 0
+            : 0
       const radius = outerRadius + LABEL_OFFSET
-      const angle = (-midAngle * RADIAN) || 0
+      const angle = -midAngle * RADIAN || 0
       const x = centerX + radius * Math.cos(angle)
       const y = centerY + radius * Math.sin(angle)
 
@@ -146,8 +153,8 @@ export function CallProportionChart({
       }
 
       const path = points
-        .map((point, index) =>
-          `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`
+        .map(
+          (point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`
         )
         .join(' ')
 
@@ -197,19 +204,14 @@ export function CallProportionChart({
       emptyMessage='No call data available'
       height='h-[36rem] sm:h-96'
     >
-      <ChartContainer
-        config={chartConfig}
-        className='h-[36rem] sm:h-96 w-full'
-      >
+      <ChartContainer config={chartConfig} className='h-[36rem] w-full sm:h-96'>
         <PieChart margin={{ top: 40, right: 0, bottom: 0, left: 0 }}>
           <Pie
             data={data}
             cx='50%'
             cy='48%'
             labelLine={
-              shouldShowLabelLines
-                ? (renderSliceLabelLine as any)
-                : undefined
+              shouldShowLabelLines ? (renderSliceLabelLine as any) : undefined
             }
             label={renderSliceLabel}
             outerRadius={105}

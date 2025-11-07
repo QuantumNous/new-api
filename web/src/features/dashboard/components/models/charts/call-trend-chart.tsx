@@ -41,7 +41,7 @@ export function CallTrendChart({
       emptyMessage='No trend data available'
       height='h-[30rem] sm:h-96'
     >
-      <ChartContainer config={chartConfig} className='h-[30rem] sm:h-96 w-full'>
+      <ChartContainer config={chartConfig} className='h-[30rem] w-full sm:h-96'>
         <AreaChart
           accessibilityLayer
           data={data}
@@ -71,7 +71,7 @@ export function CallTrendChart({
             }
           />
           <ChartLegend
-            content={<PaginatedChartLegendContent className='pt-8 sm:pt-3' />}
+            content={<PaginatedChartLegendContent className='pt-2 sm:pt-3' />}
           />
           {uniqueModels.map((model) => (
             <Area
