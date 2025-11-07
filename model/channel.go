@@ -138,9 +138,11 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 			enabledIdx = append(enabledIdx, i)
 		}
 	}
-	// If no specific status list or none enabled, fall back to first key
+	// If no specific status list or none enabled, return an explicit error so caller can
+	// properly handle a channel with no available keys (e.g. mark channel disabled).
+	// Returning the first key here caused requests to keep using an already-disabled key.
 	if len(enabledIdx) == 0 {
-		return keys[0], 0, nil
+		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
 	switch channel.ChannelInfo.MultiKeyMode {
