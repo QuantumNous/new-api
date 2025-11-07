@@ -189,7 +189,9 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 		// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
 		claudeRequest.TopP = 0
 		claudeRequest.Temperature = common.GetPointer[float64](1.0)
-		claudeRequest.Model = strings.TrimSuffix(textRequest.Model, "-thinking")
+		if !model_setting.ShouldPreserveThinkingSuffix(textRequest.Model) {
+			claudeRequest.Model = strings.TrimSuffix(textRequest.Model, "-thinking")
+		}
 	}
 
 	if textRequest.ReasoningEffort != "" {
