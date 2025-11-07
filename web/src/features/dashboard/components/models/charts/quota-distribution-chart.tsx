@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { Coins } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { formatCurrencyUSD } from '@/lib/format'
 import { sanitizeCssVariableName } from '@/lib/utils'
 import {
@@ -11,6 +13,7 @@ import {
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import { calculateNiceCeiling } from '@/features/dashboard/lib/math'
 import type { ChartDataPoint } from '@/features/dashboard/types'
 
 interface QuotaDistributionChartProps {
@@ -27,6 +30,49 @@ export function QuotaDistributionChart({
   loading = false,
 }: QuotaDistributionChartProps) {
   const isEmpty = !data || data.length === 0
+  const { meta } = getCurrencyDisplay()
+  const usesExchangeRate = meta.kind === 'currency' || meta.kind === 'custom'
+  const axisExchangeRate = usesExchangeRate ? meta.exchangeRate : 1
+
+  // Calculate Y-axis domain for elegant ticks
+  const yAxisProps = useMemo(() => {
+    if (isEmpty) return { domain: [0, 0], ticks: [0] }
+
+    const maxValueInUSD = Math.max(
+      ...data.map((item) =>
+        uniqueModels.reduce((acc, model) => acc + (Number(item[model]) || 0), 0)
+      )
+    )
+
+    if (maxValueInUSD === 0) return { domain: [0, 0], ticks: [0] }
+
+    const maxValueInDisplayCurrency = maxValueInUSD * axisExchangeRate
+    const tickCount = 5
+
+    const niceMax = calculateNiceCeiling(maxValueInDisplayCurrency, tickCount)
+
+    if (niceMax === 0) {
+      return { domain: [0, 0], ticks: [0] }
+    }
+
+    const increment = niceMax / (tickCount - 1)
+
+    const displayTicks = Array.from({ length: tickCount }, (_, i) => {
+      return increment * i
+    })
+
+    const canScale = usesExchangeRate && axisExchangeRate !== 0
+    const usdTicks = canScale
+      ? displayTicks.map((t) => t / axisExchangeRate)
+      : displayTicks
+
+    const domainMax = canScale ? niceMax / axisExchangeRate : niceMax
+
+    return {
+      domain: [0, domainMax],
+      ticks: usdTicks,
+    }
+  }, [data, uniqueModels, isEmpty, axisExchangeRate, usesExchangeRate])
 
   return (
     <PanelWrapper
@@ -51,6 +97,7 @@ export function QuotaDistributionChart({
             axisLine={false}
           />
           <YAxis
+            {...yAxisProps}
             tickLine={false}
             tickMargin={10}
             axisLine={false}
