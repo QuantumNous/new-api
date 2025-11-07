@@ -4,13 +4,14 @@ import {
   type ResetPasswordSearchParams,
 } from '@/features/auth/reset-password-confirm'
 
-export const Route = createFileRoute('/(auth)/reset')({
-  component: ResetPassword,
+export const Route = createFileRoute('/(auth)/user/reset')({
+  component: UserResetPassword,
 })
 
-function ResetPassword() {
+function UserResetPassword() {
   const search = useSearch({
-    from: '/(auth)/reset',
+    from: '/(auth)/user/reset',
   }) as ResetPasswordSearchParams
+
   return <ResetPasswordConfirm email={search?.email} token={search?.token} />
 }

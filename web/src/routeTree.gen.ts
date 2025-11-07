@@ -51,6 +51,7 @@ import { Route as AuthenticatedSystemSettingsContentRouteImport } from './routes
 import { Route as AuthenticatedSystemSettingsAuthRouteImport } from './routes/_authenticated/system-settings/auth'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
+import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 
 const UserAgreementRoute = UserAgreementRouteImport.update({
   id: '/user-agreement',
@@ -278,6 +279,11 @@ const AuthenticatedChatChatIdRoute = AuthenticatedChatChatIdRouteImport.update({
   path: '/chat/$chatId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const authUserResetRoute = authUserResetRouteImport.update({
+  id: '/user/reset',
+  path: '/user/reset',
+  getParentRoute: () => authRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -299,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/setup': typeof SetupIndexRoute
+  '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/setup': typeof SetupIndexRoute
+  '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
@@ -385,6 +393,7 @@ export interface FileRoutesById {
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/system-settings/auth': typeof AuthenticatedSystemSettingsAuthRoute
@@ -429,6 +438,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/pricing'
     | '/setup'
+    | '/user/reset'
     | '/chat/$chatId'
     | '/errors/$error'
     | '/system-settings/auth'
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/pricing'
     | '/setup'
+    | '/user/reset'
     | '/chat/$chatId'
     | '/errors/$error'
     | '/system-settings/auth'
@@ -514,6 +525,7 @@ export interface FileRouteTypes {
     | '/about/'
     | '/pricing/'
     | '/setup/'
+    | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/errors/$error'
     | '/_authenticated/system-settings/auth'
@@ -851,6 +863,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatChatIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/(auth)/user/reset': {
+      id: '/(auth)/user/reset'
+      path: '/user/reset'
+      fullPath: '/user/reset'
+      preLoaderRoute: typeof authUserResetRouteImport
+      parentRoute: typeof authRouteRoute
+    }
   }
 }
 
@@ -861,6 +880,7 @@ interface authRouteRouteChildren {
   authResetRoute: typeof authResetRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
+  authUserResetRoute: typeof authUserResetRoute
 }
 
 const authRouteRouteChildren: authRouteRouteChildren = {
@@ -870,6 +890,7 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authResetRoute: authResetRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
+  authUserResetRoute: authUserResetRoute,
 }
 
 const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
