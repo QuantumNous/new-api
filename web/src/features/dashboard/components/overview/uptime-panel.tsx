@@ -8,13 +8,16 @@ import { Separator } from '@/components/ui/separator'
 import { getUptimeStatus } from '@/features/dashboard/api'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
+const STATUS_COLOR_MAP: Record<number, string> = {
+  1: 'bg-emerald-500', // UP
+  0: 'bg-red-500', // DOWN
+  2: 'bg-amber-500', // HIGH LATENCY
+  3: 'bg-blue-500', // MAINTENANCE
+}
+const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
+
 function StatusDot({ status }: { status: number }) {
-  const color =
-    status === 1
-      ? 'bg-emerald-500'
-      : status === 0
-        ? 'bg-amber-500'
-        : 'bg-rose-500'
+  const color = STATUS_COLOR_MAP[status] ?? DEFAULT_STATUS_COLOR
   return <span className={cn('inline-block h-2 w-2 rounded-full', color)} />
 }
 
