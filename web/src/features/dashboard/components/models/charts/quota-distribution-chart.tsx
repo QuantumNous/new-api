@@ -85,10 +85,14 @@ export function QuotaDistributionChart({
       loading={loading}
       empty={isEmpty}
       emptyMessage='No quota data available'
-      height='h-96'
+      height='h-[30rem] sm:h-96'
     >
-      <ChartContainer config={chartConfig} className='h-96 w-full'>
-        <BarChart accessibilityLayer data={data}>
+      <ChartContainer config={chartConfig} className='h-[30rem] sm:h-96 w-full'>
+        <BarChart
+          accessibilityLayer
+          data={data}
+          margin={{ top: 0, right: 0, bottom: 40, left: 0 }}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey='time'
@@ -113,7 +117,9 @@ export function QuotaDistributionChart({
               />
             }
           />
-          <ChartLegend content={<PaginatedChartLegendContent />} />
+          <ChartLegend
+            content={<PaginatedChartLegendContent className='pt-8 sm:pt-3' />}
+          />
           {uniqueModels.map((model, index) => (
             <Bar
               key={model}

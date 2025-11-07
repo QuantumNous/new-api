@@ -39,10 +39,14 @@ export function CallTrendChart({
       loading={loading}
       empty={isEmpty}
       emptyMessage='No trend data available'
-      height='h-96'
+      height='h-[30rem] sm:h-96'
     >
-      <ChartContainer config={chartConfig} className='h-96 w-full'>
-        <AreaChart accessibilityLayer data={data}>
+      <ChartContainer config={chartConfig} className='h-[30rem] sm:h-96 w-full'>
+        <AreaChart
+          accessibilityLayer
+          data={data}
+          margin={{ top: 0, right: 0, bottom: 40, left: 0 }}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey='time'
@@ -66,7 +70,9 @@ export function CallTrendChart({
               />
             }
           />
-          <ChartLegend content={<PaginatedChartLegendContent />} />
+          <ChartLegend
+            content={<PaginatedChartLegendContent className='pt-8 sm:pt-3' />}
+          />
           {uniqueModels.map((model) => (
             <Area
               key={model}
