@@ -200,10 +200,9 @@ export function ChannelTestDialog({
 
       setIsBatchTesting(true)
       try {
-        for (const modelName of modelsToTest) {
-          // eslint-disable-next-line no-await-in-loop
-          await testSingleModel(modelName)
-        }
+        await Promise.allSettled(
+          modelsToTest.map((modelName) => testSingleModel(modelName))
+        )
       } finally {
         setIsBatchTesting(false)
         setRowSelection({})
