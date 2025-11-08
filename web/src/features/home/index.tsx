@@ -16,7 +16,7 @@ export function Home() {
     return (
       <PublicLayout showMainContainer={false}>
         <main
-          className={`${MAIN_BASE_CLASSES} flex min-h-screen items-center justify-center`}
+          className={`${MAIN_BASE_CLASSES} -mt-16 flex min-h-screen items-center justify-center`}
         >
           <div className='text-muted-foreground'>Loading...</div>
         </main>
