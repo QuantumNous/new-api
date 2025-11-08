@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -129,6 +130,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	aliReq, err := a.convertToAliRequest(info, taskReq)
 	if err != nil {
 		return service.TaskErrorWrapper(err, "convert_to_ali_request_failed", http.StatusInternalServerError)
+	}
+	hasImage := aliReq.Input.ImgURL != ""
+	if hasImage {
+		info.Action = constant.TaskActionGenerate
+	} else if strings.Contains(aliReq.Model, "i2v") { // 无图像自动切换为文本生视频
+		aliReq.Model = strings.ReplaceAll(aliReq.Model, "i2v", "t2v")
+		info.Action = constant.TaskActionTextGenerate
 	}
 	a.aliReq = aliReq
 	logger.LogJson(c, "ali video request body", aliReq)
