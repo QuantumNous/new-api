@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Github } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface HeroButtonsProps {
@@ -29,10 +29,7 @@ export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
         </Link>
       </Button>
       <Button size='lg' variant='outline' asChild>
-        <Link to='/sign-in'>
-          <Github className='mr-2 h-4 w-4' />
-          Sign In
-        </Link>
+        <Link to='/sign-in'>Sign In</Link>
       </Button>
     </>
   )
