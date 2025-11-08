@@ -180,26 +180,27 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           )}
         />
 
-        <Button className='w-full' disabled={!isFormValid || isLoading}>
+        <Button className='mt-2 w-full' disabled={!isFormValid || isLoading}>
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           Verify and Sign In
         </Button>
 
-        <div className='flex items-center justify-center gap-4 text-sm'>
+        <div className='flex items-center justify-center gap-2 text-sm'>
           <Button
             type='button'
             variant='link'
             size='sm'
-            className='text-primary'
+            className='text-primary h-auto p-0'
             onClick={handleToggleMode}
           >
             {useBackupCode ? 'Use authenticator code' : 'Use backup code'}
           </Button>
+          <span className='text-muted-foreground'>·</span>
           <Button
             type='button'
             variant='link'
             size='sm'
-            className='text-primary'
+            className='text-primary h-auto p-0'
             onClick={handleBackToLogin}
           >
             Back to login

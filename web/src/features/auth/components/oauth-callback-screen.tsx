@@ -2,13 +2,6 @@ import { useMemo } from 'react'
 import { Github, Loader2, Send, Shield, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { SiLinux, SiWechat } from 'react-icons/si'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
 
 type OAuthCallbackScreenProps = {
@@ -70,15 +63,22 @@ export function OAuthCallbackScreen({
 
   return (
     <AuthLayout>
-      <Card className='gap-4'>
-        <CardHeader className='items-center text-center'>
-          <div className='bg-muted flex h-12 w-12 items-center justify-center rounded-full'>
-            <Icon className='h-6 w-6' />
+      <div className='w-full space-y-8'>
+        <div className='flex flex-col items-center space-y-4 text-center'>
+          <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-full'>
+            <Icon className='h-8 w-8' />
           </div>
-          <CardTitle className='text-xl font-semibold'>{headline}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4 text-center'>
+          <div className='space-y-2'>
+            <h2 className='text-center text-2xl font-semibold tracking-tight'>
+              {headline}
+            </h2>
+            <p className='text-muted-foreground text-sm sm:text-base'>
+              {description}
+            </p>
+          </div>
+        </div>
+
+        <div className='space-y-4 text-center'>
           <div className='flex items-center justify-center gap-2 text-sm font-medium'>
             <Loader2 className='h-4 w-4 animate-spin' />
             <span>Processing OAuth response...</span>
@@ -88,8 +88,8 @@ export function OAuthCallbackScreen({
             This may take a few moments while we validate the request and update
             your session.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </AuthLayout>
   )
 }
