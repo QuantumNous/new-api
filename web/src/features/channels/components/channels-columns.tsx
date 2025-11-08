@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ListOrdered, Shuffle } from 'lucide-react'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,
@@ -415,10 +415,35 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
         const typeName = getChannelTypeLabel(type)
         const iconName = getChannelTypeIcon(type)
         const icon = getLobeIcon(`${iconName}.Color`, 20)
+        const channel = row.original as Channel
+        const isMultiKey = isMultiKeyChannel(channel)
+        const multiKeyMode = channel.channel_info?.multi_key_mode ?? 'random'
+        const MultiKeyModeIcon =
+          multiKeyMode === 'random' ? Shuffle : ListOrdered
+        const multiKeyTooltip =
+          multiKeyMode === 'random'
+            ? 'Multi-key: Random rotation'
+            : 'Multi-key: Polling rotation'
 
         return (
           <div className='flex items-center gap-2'>
-            {icon}
+            <div className='flex items-center gap-1.5'>
+              {isMultiKey && (
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className='border-border bg-muted text-primary inline-flex h-6 w-6 items-center justify-center rounded-full border'>
+                        <MultiKeyModeIcon className='h-3.5 w-3.5' />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side='top'>
+                      {multiKeyTooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {icon}
+            </div>
             <StatusBadge
               label={typeName}
               autoColor={typeName}
