@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
+import { ThemeQuickSwitcher } from './theme-quick-switcher'
 
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
@@ -52,6 +53,8 @@ export function ProfileDropdown() {
               </div>
             </div>
           </DropdownMenuLabel>
+          {/* Theme segmented control */}
+          <ThemeQuickSwitcher />
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>

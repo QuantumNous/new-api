@@ -5,7 +5,6 @@ import { NotificationButton } from '@/components/notification-button'
 import { NotificationDialog } from '@/components/notification-dialog'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import { type TopNavLink } from '../types'
 import { Header } from './header'
@@ -13,7 +12,7 @@ import { TopNav } from './top-nav'
 
 /**
  * General application Header component
- * Integrates navigation bar, search, theme switch, configuration and profile functions
+ * Integrates navigation bar, search, configuration and profile functions
  *
  * @example
  * // Basic usage
@@ -67,11 +66,6 @@ type AppHeaderProps = {
    */
   rightContent?: React.ReactNode
   /**
-   * Whether to show theme switch
-   * @default true
-   */
-  showThemeSwitch?: boolean
-  /**
    * Whether to show notification button
    * @default true
    */
@@ -95,7 +89,6 @@ export function AppHeader({
   showSearch = true,
   fixed = false,
   rightContent,
-  showThemeSwitch = true,
   showNotifications = true,
   showConfigDrawer = true,
   showProfileDropdown = true,
@@ -116,9 +109,8 @@ export function AppHeader({
       <Header fixed={fixed}>
         {leftSection}
         {rightContent ?? (
-          <div className='ms-auto flex items-center md:space-x-4'>
+          <div className='ms-auto flex items-center space-x-4'>
             {showSearch && <Search />}
-            {showThemeSwitch && <ThemeSwitch />}
             {showNotifications && (
               <NotificationButton
                 unreadCount={notifications.unreadCount}
