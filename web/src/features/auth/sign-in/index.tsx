@@ -1,5 +1,6 @@
 import { Link, useSearch } from '@tanstack/react-router'
 import { useStatus } from '@/hooks/use-status'
+import { Shimmer } from '@/components/ai-elements/shimmer'
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { UserAuthForm } from './components/user-auth-form'
@@ -12,9 +13,13 @@ export function SignIn() {
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+          <Shimmer
+            as='h2'
+            className='text-center text-2xl font-semibold tracking-tight sm:text-left'
+            duration={2}
+          >
             Sign in
-          </h2>
+          </Shimmer>
           {!status?.self_use_mode_enabled && (
             <p className='text-muted-foreground text-left text-sm sm:text-base'>
               Don't have an account?{' '}
