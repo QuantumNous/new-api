@@ -69,7 +69,7 @@ export function AffiliateRewardsCard({
         {/* Statistics */}
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6'>
           <div className='space-y-2'>
-            <div className='text-muted-foreground min-h-[2.5rem] text-xs font-medium tracking-wider uppercase'>
+            <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               Pending
             </div>
             <div className='text-2xl font-semibold'>
@@ -78,7 +78,7 @@ export function AffiliateRewardsCard({
           </div>
 
           <div className='space-y-2'>
-            <div className='text-muted-foreground min-h-[2.5rem] text-xs font-medium tracking-wider uppercase'>
+            <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               Total Earned
             </div>
             <div className='text-2xl font-semibold'>
@@ -87,7 +87,7 @@ export function AffiliateRewardsCard({
           </div>
 
           <div className='space-y-2'>
-            <div className='text-muted-foreground min-h-[2.5rem] text-xs font-medium tracking-wider uppercase'>
+            <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               Invites
             </div>
             <div className='text-2xl font-semibold'>{user?.aff_count ?? 0}</div>
