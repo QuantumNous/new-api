@@ -122,7 +122,9 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	// 阿里通义万相支持 JSON 格式，不使用 multipart
+	if taskErr = relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return
+	}
 	var taskReq relaycommon.TaskSubmitReq
 	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
 		return service.TaskErrorWrapper(err, "unmarshal_task_request_failed", http.StatusBadRequest)
@@ -140,7 +142,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	}
 	a.aliReq = aliReq
 	logger.LogJson(c, "ali video request body", aliReq)
-	return relaycommon.ValidateMultipartDirect(c, info)
+	return
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
