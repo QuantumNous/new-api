@@ -9,7 +9,7 @@ export function Section({
     <section
       data-slot='section'
       className={cn(
-        'bg-background text-foreground px-4 py-12 sm:py-24 md:py-32',
+        'bg-background text-foreground px-4 py-6 sm:py-12 md:py-20',
         className
       )}
       {...props}
