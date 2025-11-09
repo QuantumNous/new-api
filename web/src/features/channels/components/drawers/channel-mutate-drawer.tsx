@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowRight,
+  HelpCircle,
   Loader2,
   Sparkles,
   Trash2,
@@ -47,6 +49,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
 import {
@@ -98,6 +105,13 @@ type ChannelMutateDrawerProps = {
   currentRow?: Channel | null
 }
 
+type ModelMappingGuardrail = {
+  invalidJson: boolean
+  entries: Array<{ source: string; target: string }>
+  missingSourceModels: string[]
+  exposedTargetModels: string[]
+}
+
 // Helper functions for model operations
 const parseModelsString = (modelsStr: string): string[] => {
   return modelsStr
@@ -111,6 +125,21 @@ const parseModelsString = (modelsStr: string): string[] => {
 const formatModelsArray = (models: string[]): string => {
   return Array.from(new Set(models)).join(',')
 }
+
+const createEmptyModelMappingGuardrail = (): ModelMappingGuardrail => ({
+  invalidJson: false,
+  entries: [],
+  missingSourceModels: [],
+  exposedTargetModels: [],
+})
+
+const formatModelNames = (models: string[]): string =>
+  models.map((model) => `"${model}"`).join(', ')
+
+const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
+  source: string
+  target: string
+}> = [{ source: 'client-model', target: 'upstream-model' }]
 
 export function ChannelMutateDrawer({
   open,
@@ -194,6 +223,7 @@ export function ChannelMutateDrawer({
   const currentType = form.watch('type')
   const currentBaseUrl = form.watch('base_url')
   const currentModels = form.watch('models')
+  const currentModelMapping = form.watch('model_mapping')
 
   // Helper computed values
   const isBatchMode =
@@ -247,6 +277,75 @@ export function ChannelMutateDrawer({
       label: model,
     }))
   }, [allModelsList, currentModelsArray])
+
+  const modelMappingGuardrail = useMemo<ModelMappingGuardrail>(() => {
+    if (!currentModelMapping?.trim()) {
+      return createEmptyModelMappingGuardrail()
+    }
+
+    try {
+      const parsed = JSON.parse(currentModelMapping)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { ...createEmptyModelMappingGuardrail(), invalidJson: true }
+      }
+
+      const entries = Object.entries(parsed).reduce<
+        Array<{ source: string; target: string }>
+      >((acc, [rawSource, rawTarget]) => {
+        const source = String(rawSource).trim()
+        const target = String(rawTarget ?? '').trim()
+
+        if (!source || !target) {
+          return acc
+        }
+
+        acc.push({ source, target })
+        return acc
+      }, [])
+
+      const missingSourceModels = Array.from(
+        new Set(
+          entries
+            .filter(
+              (entry) =>
+                Boolean(entry.source) &&
+                !currentModelsArray.includes(entry.source)
+            )
+            .map((entry) => entry.source)
+        )
+      )
+
+      const exposedTargetModels = Array.from(
+        new Set(
+          entries
+            .filter(
+              (entry) =>
+                Boolean(entry.target) &&
+                currentModelsArray.includes(entry.target)
+            )
+            .map((entry) => entry.target)
+        )
+      )
+
+      return {
+        invalidJson: false,
+        entries,
+        missingSourceModels,
+        exposedTargetModels,
+      }
+    } catch {
+      return { ...createEmptyModelMappingGuardrail(), invalidJson: true }
+    }
+  }, [currentModelMapping, currentModelsArray])
+
+  const mappingPreviewPairs =
+    modelMappingGuardrail.entries.length > 0
+      ? modelMappingGuardrail.entries.slice(0, 3)
+      : MODEL_MAPPING_PREVIEW_FALLBACK
+  const remainingMappingCount =
+    modelMappingGuardrail.entries.length > 3
+      ? modelMappingGuardrail.entries.length - 3
+      : 0
 
   // Load channel data into form when editing
   useEffect(() => {
@@ -1406,6 +1505,19 @@ export function ChannelMutateDrawer({
                           </div>
                         </div>
                       </FormDescription>
+                      {modelMappingGuardrail.exposedTargetModels.length > 0 && (
+                        <Alert className='mt-3 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                          <AlertDescription>
+                            The mapped upstream model(s){' '}
+                            {formatModelNames(
+                              modelMappingGuardrail.exposedTargetModels
+                            )}{' '}
+                            are also listed here. Remove them from Models to
+                            keep the `/v1/models` response user-friendly and
+                            hide vendor-specific names.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1439,7 +1551,52 @@ export function ChannelMutateDrawer({
                   name='model_mapping'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Model Mapping</FormLabel>
+                      <div className='flex items-center gap-2'>
+                        <FormLabel className='mb-0'>Model Mapping</FormLabel>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type='button'
+                              className='text-muted-foreground hover:text-foreground transition'
+                              aria-label='How model mapping works'
+                            >
+                              <HelpCircle className='h-4 w-4' />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side='top'
+                            align='start'
+                            className='max-w-xs space-y-2 text-left'
+                          >
+                            <p className='text-xs font-semibold tracking-wide uppercase'>
+                              Request flow
+                            </p>
+                            <div className='space-y-1 font-mono text-xs'>
+                              {mappingPreviewPairs.map((pair) => (
+                                <div
+                                  key={`${pair.source}-${pair.target}`}
+                                  className='flex items-center gap-1'
+                                >
+                                  <span>{pair.source}</span>
+                                  <ArrowRight className='h-3.5 w-3.5 opacity-70' />
+                                  <span>{pair.target}</span>
+                                </div>
+                              ))}
+                              {remainingMappingCount > 0 && (
+                                <div className='text-[11px] opacity-70'>
+                                  +{remainingMappingCount} more mapping
+                                  {remainingMappingCount > 1 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                            <p className='text-[11px] leading-relaxed opacity-80'>
+                              Users call the model on the left. The platform
+                              forwards the request to the upstream model on the
+                              right.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                       <FormControl>
                         <ModelMappingEditor
                           value={field.value || ''}
@@ -1450,6 +1607,29 @@ export function ChannelMutateDrawer({
                       <FormDescription>
                         {FIELD_DESCRIPTIONS.MODEL_MAPPING}
                       </FormDescription>
+                      {modelMappingGuardrail.invalidJson && (
+                        <Alert variant='destructive' className='mt-3'>
+                          <AlertDescription>
+                            Model Mapping must be a JSON object like{' '}
+                            <code className='font-mono'>
+                              {'{"gpt-4":"Azure-GPT4"}'}
+                            </code>
+                            . Please fix the JSON before saving.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {modelMappingGuardrail.missingSourceModels.length > 0 && (
+                        <Alert className='mt-3 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                          <AlertDescription>
+                            Add{' '}
+                            {formatModelNames(
+                              modelMappingGuardrail.missingSourceModels
+                            )}{' '}
+                            to the Models list so users can use them before the
+                            mapping sends traffic upstream.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
