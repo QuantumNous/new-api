@@ -98,6 +98,10 @@ export function PlaygroundInput({
         onSubmit={handleSubmit}
       >
         <PromptInputTextarea
+          autoComplete='off'
+          autoCorrect='off'
+          autoCapitalize='off'
+          spellCheck={false}
           className='px-5 md:text-base'
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
