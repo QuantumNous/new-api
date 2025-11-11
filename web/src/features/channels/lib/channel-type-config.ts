@@ -105,6 +105,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Use model IDs from OpenRouter',
     },
   },
+  56: {
+    id: 56,
+    name: CHANNEL_TYPES[56],
+    icon: 'replicate',
+    defaultBaseUrl: 'https://api.replicate.com',
+    hints: {
+      key: 'Replicate API Token',
+      models: 'Replicate model IDs',
+      baseUrl: 'Default: https://api.replicate.com',
+    },
+  },
 }
 
 /**

@@ -80,12 +80,16 @@ export function getChannelTypeIcon(type: number): string {
     Jimeng: 'Jimeng',
     Vidu: 'Vidu',
     SunoAPI: 'Suno',
+    Sora: 'OpenAI',
+    DoubaoVideo: 'Doubao',
+    Replicate: 'Replicate',
 
     // Tools & Platforms
     Dify: 'Dify',
     Jina: 'Jina',
     FastGPT: 'FastGPT',
     Xinference: 'Xinference',
+    Submodel: 'OpenAI',
 
     // AI Proxy services
     'AI Proxy': 'OpenAI',

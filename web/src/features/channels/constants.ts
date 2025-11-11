@@ -52,13 +52,16 @@ export const CHANNEL_TYPES = {
   50: 'Kling',
   51: 'Jimeng',
   52: 'Vidu',
-  53: 'Dummy',
+  53: 'Submodel',
+  54: 'DoubaoVideo',
+  55: 'Sora',
+  56: 'Replicate',
 } as const
 
 export const CHANNEL_TYPE_OPTIONS = Object.entries(CHANNEL_TYPES)
   .filter(([value]) => {
     const num = Number(value)
-    return num !== 0 && num !== 53 // Exclude Unknown and Dummy
+    return num !== 0 // Exclude Unknown
   })
   .map(([value, label]) => ({
     value: Number(value),
