@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Modal,
@@ -53,7 +53,10 @@ const ModelSelectModal = ({
     return String(model ?? '');
   };
 
-  const normalizedSelected = (selected || []).map(getModelName);
+  const normalizedSelected = useMemo(
+    () => (selected || []).map(getModelName),
+    [selected],
+  );
 
   const [checkedList, setCheckedList] = useState(normalizedSelected);
   const [keyword, setKeyword] = useState('');
