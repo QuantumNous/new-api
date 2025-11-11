@@ -53,6 +53,7 @@ const (
 	ChannelTypeSubmodel       = 53
 	ChannelTypeDoubaoVideo    = 54
 	ChannelTypeSora           = 55
+	ChannelTypeReplicate      = 56
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -114,6 +115,7 @@ var ChannelBaseURLs = []string{
 	"https://llm.submodel.ai",                   //53
 	"https://ark.cn-beijing.volces.com",         //54
 	"https://api.openai.com",                    //55
+	"https://api.replicate.com",                 //56
 }
 
 var ChannelTypeNames = map[int]string{
@@ -169,6 +171,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSubmodel:       "Submodel",
 	ChannelTypeDoubaoVideo:    "DoubaoVideo",
 	ChannelTypeSora:           "Sora",
+	ChannelTypeReplicate:      "Replicate",
 }
 
 func GetChannelTypeName(channelType int) string {

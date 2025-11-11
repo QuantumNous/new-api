@@ -26,6 +26,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/channel/palm"
 	"github.com/QuantumNous/new-api/relay/channel/perplexity"
+	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
@@ -113,6 +114,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &submodel.Adaptor{}
 	case constant.APITypeMiniMax:
 		return &minimax.Adaptor{}
+	case constant.APITypeReplicate:
+		return &replicate.Adaptor{}
 	}
 	return nil
 }
