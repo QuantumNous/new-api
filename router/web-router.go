@@ -13,12 +13,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+func SetWebRouter(engine *gin.Engine, router gin.IRouter, buildFS embed.FS, indexPage []byte) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 	router.Use(static.Serve("/", common.EmbedFolder(buildFS, "web/dist")))
-	router.NoRoute(func(c *gin.Context) {
+	engine.NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
 			controller.RelayNotFound(c)
 			return

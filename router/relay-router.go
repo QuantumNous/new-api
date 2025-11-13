@@ -10,12 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetRelayRouter(router *gin.Engine) {
-	router.Use(middleware.CORS())
-	router.Use(middleware.DecompressRequestMiddleware())
-	router.Use(middleware.StatsMiddleware())
+func SetRelayRouter(engine *gin.Engine) {
+	relayRouter := engine.Group("")
+	relayRouter.Use(middleware.CORS())
+	relayRouter.Use(middleware.DecompressRequestMiddleware())
+	relayRouter.Use(middleware.StatsMiddleware())
 	// https://platform.openai.com/docs/api-reference/introduction
-	modelsRouter := router.Group("/v1/models")
+	modelsRouter := relayRouter.Group("/v1/models")
 	modelsRouter.Use(middleware.TokenAuth())
 	{
 		modelsRouter.GET("", func(c *gin.Context) {
@@ -39,7 +40,7 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
-	geminiRouter := router.Group("/v1beta/models")
+	geminiRouter := relayRouter.Group("/v1beta/models")
 	geminiRouter.Use(middleware.TokenAuth())
 	{
 		geminiRouter.GET("", func(c *gin.Context) {
@@ -47,7 +48,7 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
-	geminiCompatibleRouter := router.Group("/v1beta/openai/models")
+	geminiCompatibleRouter := relayRouter.Group("/v1beta/openai/models")
 	geminiCompatibleRouter.Use(middleware.TokenAuth())
 	{
 		geminiCompatibleRouter.GET("", func(c *gin.Context) {
@@ -55,12 +56,12 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
-	playgroundRouter := router.Group("/pg")
+	playgroundRouter := relayRouter.Group("/pg")
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
-	relayV1Router := router.Group("/v1")
+	relayV1Router := relayRouter.Group("/v1")
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{
@@ -154,14 +155,14 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 
-	relayMjRouter := router.Group("/mj")
+	relayMjRouter := relayRouter.Group("/mj")
 	registerMjRouterGroup(relayMjRouter)
 
-	relayMjModeRouter := router.Group("/:mode/mj")
+	relayMjModeRouter := relayRouter.Group("/:mode/mj")
 	registerMjRouterGroup(relayMjModeRouter)
 	//relayMjRouter.Use()
 
-	relaySunoRouter := router.Group("/suno")
+	relaySunoRouter := relayRouter.Group("/suno")
 	relaySunoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
 		relaySunoRouter.POST("/submit/:action", controller.RelayTask)
@@ -169,7 +170,7 @@ func SetRelayRouter(router *gin.Engine) {
 		relaySunoRouter.GET("/fetch/:id", controller.RelayTask)
 	}
 
-	relayGeminiRouter := router.Group("/v1beta")
+	relayGeminiRouter := relayRouter.Group("/v1beta")
 	relayGeminiRouter.Use(middleware.TokenAuth())
 	relayGeminiRouter.Use(middleware.ModelRequestRateLimit())
 	relayGeminiRouter.Use(middleware.Distribute())

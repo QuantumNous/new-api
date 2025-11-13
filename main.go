@@ -138,7 +138,6 @@ func main() {
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
-	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
 	store.Options(sessions.Options{
@@ -148,13 +147,13 @@ func main() {
 		Secure:   false,
 		SameSite: http.SameSiteStrictMode,
 	})
-	server.Use(sessions.Sessions("session", store))
+	sessionMiddleware := sessions.Sessions("session", store)
 
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
 	// 设置路由
-	router.SetRouter(server, buildFS, indexPage)
+	router.SetRouter(server, buildFS, indexPage, sessionMiddleware)
 	var port = os.Getenv("PORT")
 	if port == "" {
 		port = strconv.Itoa(*common.Port)

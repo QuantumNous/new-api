@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetDashboardRouter(router *gin.Engine) {
+func SetDashboardRouter(router gin.IRouter) {
 	apiRouter := router.Group("/")
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.GlobalAPIRateLimit())

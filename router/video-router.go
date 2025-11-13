@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetVideoRouter(router *gin.Engine) {
+func SetVideoRouter(router gin.IRouter) {
 	videoV1Router := router.Group("/v1")
 	videoV1Router.GET("/videos/:task_id/content", controller.VideoProxy)
 	videoV1Router.Use(middleware.TokenAuth(), middleware.Distribute())
