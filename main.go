@@ -27,6 +27,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
 	_ "net/http/pprof"
 )
 
@@ -162,7 +165,12 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: h2c.NewHandler(server, &http2.Server{}),
+	}
+
+	err = srv.ListenAndServe()
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
