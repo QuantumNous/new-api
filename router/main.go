@@ -17,6 +17,11 @@ func SetRouter(engine *gin.Engine, buildFS embed.FS, indexPage []byte, sessionMi
 	SetRelayRouter(engine)
 
 	dataPlaneRouter := engine.Group("")
+	dataPlaneRouter.Use(
+		middleware.CORS(),
+		middleware.DecompressRequestMiddleware(),
+		middleware.StatsMiddleware(),
+	)
 	SetVideoRouter(dataPlaneRouter)
 
 	appRouter := engine.Group("")
