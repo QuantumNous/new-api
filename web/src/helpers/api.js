@@ -1,7 +1,7 @@
 /*
 Copyright (C) 2025 QuantumNous
 
-This program is free software: you can redistribute it and/or modify
+This program is free software: you can redistribute it and/or modify替换linux.do为备用地址，解决国内被墙问题
 it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
@@ -234,7 +234,7 @@ export async function getOAuthState() {
 export async function onOIDCClicked(auth_url, client_id, openInNewTab = false) {
   const state = await getOAuthState();
   if (!state) return;
-  const url = new URL(auth_url);
+  const url = new 网站(auth_url);
   url.searchParams.set('client_id', client_id);
   url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`);
   url.searchParams.set('response_type', 'code');
@@ -259,7 +259,7 @@ export async function onLinuxDOOAuthClicked(linuxdo_client_id) {
   const state = await getOAuthState();
   if (!state) return;
   window.open(
-    `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
+    `https://connect.linuxdo.org/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
   );
 }
 
