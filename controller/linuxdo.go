@@ -21,7 +21,7 @@ import (
 type LinuxdoUser struct {
 	Id         int    `json:"id"`
 	Username   string `json:"username"`
-	Name       string `json:"name"`
+名字string `json:"name"`
 	Active     bool   `json:"active"`
 	TrustLevel int    `json:"trust_level"`
 	Silenced   bool   `json:"silenced"`
@@ -84,7 +84,7 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 	}
 
 	// Get access token using Basic auth
-	tokenEndpoint := "https://connect.linux.do/oauth2/token"
+	tokenEndpoint := "https://connect.linuxdo.org/oauth2/token"
 	credentials := common.LinuxDOClientId + ":" + common.LinuxDOClientSecret
 	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
 
@@ -129,7 +129,7 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 	}
 
 	// Get user info
-	userEndpoint := "https://connect.linux.do/api/user"
+	userEndpoint := "https://connect.linuxdo.org/api/user"
 	req, err = http.NewRequest("GET", userEndpoint, nil)
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func LinuxdoOAuth(c *gin.Context) {
 		if common.RegisterEnabled {
 			if linuxdoUser.TrustLevel >= common.LinuxDOMinimumTrustLevel {
 				user.Username = "linuxdo_" + strconv.Itoa(model.GetMaxUserId()+1)
-				user.DisplayName = linuxdoUser.Name
+				user.DisplayName = linuxdoUser.名字
 				user.Role = common.RoleCommonUser
 				user.Status = common.UserStatusEnabled
 
