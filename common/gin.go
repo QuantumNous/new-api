@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
 
 const KeyRequestBody = "key_request_body"
@@ -202,4 +204,108 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 	}
 
 	return processFormMap(formMap, v)
+}
+
+func ReplaceRequestField(c *gin.Context, field, value string) error {
+	if field == "" || value == "" {
+		return nil
+	}
+
+	requestBody, err := GetRequestBody(c)
+	if err != nil {
+		return err
+	}
+	if len(requestBody) == 0 {
+		return nil
+	}
+
+	contentType := c.Request.Header.Get("Content-Type")
+	var patchedContentType string
+	changed := false
+
+	switch {
+	case strings.HasPrefix(contentType, gin.MIMEJSON):
+		updatedBody, err := sjson.SetBytes(requestBody, field, value)
+		if err != nil {
+			return err
+		}
+		requestBody = updatedBody
+		changed = true
+	case strings.Contains(contentType, gin.MIMEPOSTForm):
+		values, err := url.ParseQuery(string(requestBody))
+		if err != nil {
+			return err
+		}
+		values.Set(field, value)
+		requestBody = []byte(values.Encode())
+		changed = true
+	case strings.Contains(contentType, gin.MIMEMultipartPOSTForm):
+		boundary := ""
+		if idx := strings.Index(contentType, "boundary="); idx != -1 {
+			boundary = strings.Trim(strings.TrimSpace(contentType[idx+9:]), "\"")
+		}
+		if boundary == "" {
+			return nil
+		}
+
+		reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
+		form, err := reader.ReadForm(32 << 20)
+		if err != nil {
+			return err
+		}
+		defer form.RemoveAll()
+
+		form.Value[field] = []string{value}
+
+		buf := &bytes.Buffer{}
+		writer := multipart.NewWriter(buf)
+		newBoundary := writer.Boundary()
+		for key, vals := range form.Value {
+			for _, val := range vals {
+				if err := writer.WriteField(key, val); err != nil {
+					return err
+				}
+			}
+		}
+		for key, files := range form.File {
+			for _, fileHeader := range files {
+				file, err := fileHeader.Open()
+				if err != nil {
+					return err
+				}
+				part, err := writer.CreateFormFile(key, fileHeader.Filename)
+				if err != nil {
+					_ = file.Close()
+					return err
+				}
+				if _, err := io.Copy(part, file); err != nil {
+					_ = file.Close()
+					return err
+				}
+				_ = file.Close()
+			}
+		}
+		if err := writer.Close(); err != nil {
+			return err
+		}
+
+		requestBody = buf.Bytes()
+		patchedContentType = fmt.Sprintf("multipart/form-data; boundary=%s", newBoundary)
+		changed = true
+	default:
+		return nil
+	}
+
+	if !changed {
+		return nil
+	}
+
+	c.Set(KeyRequestBody, requestBody)
+	c.Request.Body = io.NopCloser(bytes.NewReader(requestBody))
+	c.Request.ContentLength = int64(len(requestBody))
+	c.Request.Header.Set("Content-Length", fmt.Sprintf("%d", len(requestBody)))
+	if patchedContentType != "" {
+		c.Request.Header.Set("Content-Type", patchedContentType)
+	}
+	return nil
 }

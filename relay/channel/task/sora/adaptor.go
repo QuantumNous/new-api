@@ -13,7 +13,6 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
-
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
@@ -83,10 +82,17 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if info != nil && info.UpstreamModelName != "" {
+		if err := common.ReplaceRequestField(c, "model", info.UpstreamModelName); err != nil {
+			return nil, errors.Wrap(err, "replace_request_model_failed")
+		}
+	}
+
 	cachedBody, err := common.GetRequestBody(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
 	}
+
 	return bytes.NewReader(cachedBody), nil
 }
 
@@ -96,7 +102,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 // DoResponse handles upstream response, returns taskID etc.
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
@@ -110,6 +116,16 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relayco
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
+
+	//if info.OriginModelName != "" {
+	//    dResp.Model = info.OriginModelName
+	//    if modifiedBody, marshalErr := common.Marshal(dResp); marshalErr == nil {
+	//        responseBody = modifiedBody
+	//    } else {
+	//        taskErr = service.TaskErrorWrapper(errors.Wrap(marshalErr, "marshal_response_body_failed"), "marshal_response_body_failed", http.StatusInternalServerError)
+	//        return
+	//    }
+	//}
 
 	if dResp.ID == "" {
 		if dResp.TaskID == "" {

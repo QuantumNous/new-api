@@ -17,9 +17,9 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -115,11 +115,18 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 			}
 			c.Set("base_url", channel.GetBaseURL())
 			c.Set("channel_id", originTask.ChannelId)
+			c.Set("model_mapping", channel.GetModelMapping())
 			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
 
 			info.ChannelBaseUrl = channel.GetBaseURL()
 			info.ChannelId = originTask.ChannelId
 		}
+	}
+
+	//// model mapper
+	err = helper.ModelMappedHelper(c, info, nil)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "model_mapper_failed", http.StatusInternalServerError)
 	}
 
 	// build body
@@ -312,6 +319,15 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	if !exist {
 		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
 		return
+	}
+
+	// model mapper
+	if originTask.Properties.OriginModelName != "" && originTask.Properties.OriginModelName != originTask.Properties.UpstreamModelName {
+		err := common.SetJsonRawMessageAttr(&originTask.Data, "model", originTask.Properties.OriginModelName)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "set_model_failed", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	func() {
