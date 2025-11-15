@@ -16,6 +16,7 @@ new-api
 tiktoken_cache
 .eslintcache
 .gocache
+.cache
 
 electron/node_modules
 electron/dist
