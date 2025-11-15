@@ -20,6 +20,7 @@ type AwsKeyType string
 
 const (
 	AwsKeyTypeAKSK   AwsKeyType = "ak_sk" // 默认
+	AwsKeyTypeAKSKRegionPrefix AwsKeyType = "ak_sk_region_prefix"
 	AwsKeyTypeApiKey AwsKeyType = "api_key"
 )
 
