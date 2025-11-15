@@ -30,6 +30,25 @@ type ParamOperation struct {
 	Logic      string               `json:"logic,omitempty"`      // AND, OR (默认OR)
 }
 
+func ApplyParamOverrideWithInfo(jsonData []byte, info *RelayInfo) ([]byte, error) {
+	// 记录覆盖前的模型名
+	beforeModel := gjson.GetBytes(jsonData, "model").String()
+	// 复用原有参数覆盖逻辑
+	result, err := ApplyParamOverride(jsonData, info.paramOverride)
+	if err != nil {
+        return nil, err
+    }
+	if info != nil {
+        // 覆盖后的模型名
+        afterModel := gjson.GetBytes(result, "model").String()
+        if afterModel != "" && afterModel != beforeModel {
+            // 视作一次“模型映射”（来源于 override）
+            info.IsModelMapped = true
+            info.UpstreamModelName = afterModel
+        }
+    }
+	return result, nil
+}
 func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}) ([]byte, error) {
 	if len(paramOverride) == 0 {
 		return jsonData, nil
