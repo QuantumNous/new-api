@@ -81,18 +81,37 @@ export default function ModelRatioNotSetEditor(props) {
   }, []);
 
   useEffect(() => {
+    const loadUnsetModels = async () => {
     try {
       const modelPrice = JSON.parse(props.options.ModelPrice || '{}');
       const modelRatio = JSON.parse(props.options.ModelRatio || '{}');
       const completionRatio = JSON.parse(props.options.CompletionRatio || '{}');
 
+        // 获取分段倍率配置
+        let segmentedRatioModels = new Set();
+        try {
+          const segmentedRes = await API.get('/api/segmented_ratio/');
+          if (segmentedRes.data.success) {
+            const configs = segmentedRes.data.data || {};
+            Object.entries(configs).forEach(([modelName, config]) => {
+              if (config?.enabled) {
+                segmentedRatioModels.add(modelName);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('获取分段倍率配置失败:', error);
+        }
+
       // 找出所有未设置价格和倍率的模型
       const unsetModels = enabledModels.filter((modelName) => {
         const hasPrice = modelPrice[modelName] !== undefined;
         const hasRatio = modelRatio[modelName] !== undefined;
+          const hasCompletionRatio = completionRatio[modelName] !== undefined;
+          const hasSegmentedRatio = segmentedRatioModels.has(modelName);
 
         // 如果模型没有价格或者没有倍率设置，则显示
-        return !hasPrice && !hasRatio;
+          return !hasPrice && !hasRatio && !hasCompletionRatio && !hasSegmentedRatio;
       });
 
       // 创建模型数据
@@ -109,6 +128,9 @@ export default function ModelRatioNotSetEditor(props) {
     } catch (error) {
       console.error(t('JSON解析错误:'), error);
     }
+    };
+
+    loadUnsetModels();
   }, [props.options, enabledModels]);
 
   // 首先声明分页相关的工具函数
@@ -210,6 +232,7 @@ export default function ModelRatioNotSetEditor(props) {
     {
       title: t('模型名称'),
       dataIndex: 'name',
+      width: 360,
       key: 'name',
     },
     {

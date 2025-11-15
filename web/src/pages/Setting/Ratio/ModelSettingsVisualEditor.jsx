@@ -180,6 +180,7 @@ export default function ModelSettingsVisualEditor(props) {
     {
       title: t('模型名称'),
       dataIndex: 'name',
+            width: 360,
       key: 'name',
       render: (text, record) => (
         <span>

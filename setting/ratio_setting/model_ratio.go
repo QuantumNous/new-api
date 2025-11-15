@@ -365,6 +365,9 @@ func InitRatioSettings() {
 	audioCompletionRatioMapMutex.Lock()
 	audioCompletionRatioMap = defaultAudioCompletionRatio
 	audioCompletionRatioMapMutex.Unlock()
+
+	// initialize segmented ratio map
+	InitSegmentedRatio()
 }
 
 func GetModelPriceMap() map[string]float64 {

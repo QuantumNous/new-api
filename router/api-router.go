@@ -121,6 +121,16 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 		}
+		segmentedRatioRoute := apiRouter.Group("/segmented_ratio")
+		segmentedRatioRoute.Use(middleware.RootAuth())
+		{
+			segmentedRatioRoute.GET("/", controller.GetAllSegmentedRatios)
+			segmentedRatioRoute.GET("/:model_name", controller.GetSegmentedRatio)
+			segmentedRatioRoute.POST("/", controller.CreateOrUpdateSegmentedRatio)
+			segmentedRatioRoute.DELETE("/:model_name", controller.DeleteSegmentedRatio)
+			segmentedRatioRoute.GET("/export", controller.ExportSegmentedRatios)
+			segmentedRatioRoute.POST("/import", controller.ImportSegmentedRatios)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{

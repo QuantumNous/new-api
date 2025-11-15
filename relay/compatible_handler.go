@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/shopspring/decimal"
@@ -216,6 +217,19 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
 	cachedCreationRatio := relayInfo.PriceData.CacheCreationRatio
+
+	// If segmented ratio is enabled, recalculate ratios based on actual token usage
+	if relayInfo.PriceData.UseSegmentedRatio {
+		segModelRatio, segCompletionRatio, segMatched := ratio_setting.EvaluateSegmentedRatio(
+			modelName,
+			promptTokens,
+			completionTokens,
+		)
+		if segMatched {
+			modelRatio = segModelRatio
+			completionRatio = segCompletionRatio
+		}
+	}
 
 	// Convert values to decimal for precise calculation
 	dPromptTokens := decimal.NewFromInt(int64(promptTokens))

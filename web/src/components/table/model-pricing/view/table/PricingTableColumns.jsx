@@ -25,6 +25,7 @@ import {
   stringToColor,
   calculateModelPrice,
   getLobeHubIcon,
+  formatSegmentRuleDescription,
 } from '../../../../../helpers';
 import {
   renderLimitedItems,
@@ -142,6 +143,7 @@ export const getPricingTableColumns = ({
   const modelNameColumn = {
     title: t('模型名称'),
     dataIndex: 'model_name',
+    width: 360, // 设置一个宽度，防止名称过长时表格布局被破坏
     render: (text, record, index) => {
       return renderModelTag(text, {
         onClick: () => {
@@ -228,10 +230,44 @@ export const getPricingTableColumns = ({
   const priceColumn = {
     title: t('模型价格'),
     dataIndex: 'model_price',
+    width: 360,
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
       const priceData = getPriceData(record);
 
+      // 添加调试日志
+      if (record.model_name === 'gemini-2.5-pro' || record.model_name === 'doubao-seed-1.6') {
+        console.log(`[priceColumn] 模型: ${record.model_name}`);
+        console.log(`[priceColumn] record.use_segmented_pricing:`, record.use_segmented_pricing);
+        console.log(`[priceColumn] record.segmented_rules:`, record.segmented_rules);
+        console.log(`[priceColumn] priceData:`, priceData);
+      }
+
+      // 分段定价显示
+      if (priceData.isPerToken && priceData.useSegmentedPricing && priceData.segmentedPrices) {
+        return (
+          <div className='space-y-2'>
+            {priceData.segmentedPrices.map((segment, idx) => {
+              const description = formatSegmentRuleDescription(segment.rule, t);
+              return (
+                <div key={idx} className='border-b border-gray-200 pb-2 last:border-b-0 last:pb-0'>
+                  <div className='text-xs text-gray-500 mb-1'>
+                    {description}
+                  </div>
+                  <div className='text-gray-700'>
+                    {t('输入')} {segment.inputPrice} / 1{segment.unitLabel} tokens
+                  </div>
+                  <div className='text-gray-700'>
+                    {t('输出')} {segment.completionPrice} / 1{segment.unitLabel} tokens
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
+      // 普通按量计费显示
       if (priceData.isPerToken) {
         return (
           <div className='space-y-1'>
@@ -245,6 +281,7 @@ export const getPricingTableColumns = ({
           </div>
         );
       } else {
+        // 按次计费显示
         return (
           <div className='text-gray-700'>
             {t('模型价格')}：{priceData.price}

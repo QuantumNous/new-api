@@ -61,24 +61,45 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var audioRatio float64
 	var audioCompletionRatio float64
 	var freeModel bool
+	var useSegmentedRatio bool
+
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
 		if meta.MaxTokens != 0 {
 			preConsumedTokens += meta.MaxTokens
 		}
-		var success bool
-		var matchName string
-		modelRatio, success, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
-		if !success {
-			acceptUnsetRatio := false
-			if info.UserSetting.AcceptUnsetRatioModel {
-				acceptUnsetRatio = true
+
+		// Check if segmented ratio is enabled for this model
+		// For pre-consumption, we estimate using the maximum segment or first segment
+		// The actual ratio will be calculated in PostConsumeTextQuota when actual tokens are known
+		segModelRatio, segCompletionRatio, segMatched := ratio_setting.EvaluateSegmentedRatio(
+			info.OriginModelName,
+			promptTokens,
+			meta.MaxTokens, // Use MaxTokens as estimated completion tokens
+		)
+
+		if segMatched {
+			// Use segmented ratios
+			modelRatio = segModelRatio
+			completionRatio = segCompletionRatio
+			useSegmentedRatio = true
+		} else {
+			// Use traditional fixed ratios
+			var success bool
+			var matchName string
+			modelRatio, success, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
+			if !success {
+				acceptUnsetRatio := false
+				if info.UserSetting.AcceptUnsetRatioModel {
+					acceptUnsetRatio = true
+				}
+				if !acceptUnsetRatio {
+					return types.PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", matchName, matchName)
+				}
 			}
-			if !acceptUnsetRatio {
-				return types.PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", matchName, matchName)
-			}
+			completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
 		}
-		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
+
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
 		cacheCreationRatio5m = cacheCreationRatio
@@ -127,6 +148,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		UseSegmentedRatio:    useSegmentedRatio,
 	}
 
 	if common.DebugEnabled {

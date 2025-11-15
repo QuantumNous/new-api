@@ -15,18 +15,20 @@ import (
 )
 
 type Pricing struct {
-	ModelName              string                  `json:"model_name"`
-	Description            string                  `json:"description,omitempty"`
-	Icon                   string                  `json:"icon,omitempty"`
-	Tags                   string                  `json:"tags,omitempty"`
-	VendorID               int                     `json:"vendor_id,omitempty"`
-	QuotaType              int                     `json:"quota_type"`
-	ModelRatio             float64                 `json:"model_ratio"`
-	ModelPrice             float64                 `json:"model_price"`
-	OwnerBy                string                  `json:"owner_by"`
-	CompletionRatio        float64                 `json:"completion_ratio"`
-	EnableGroup            []string                `json:"enable_groups"`
-	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+	ModelName              string                      `json:"model_name"`
+	Description            string                      `json:"description,omitempty"`
+	Icon                   string                      `json:"icon,omitempty"`
+	Tags                   string                      `json:"tags,omitempty"`
+	VendorID               int                         `json:"vendor_id,omitempty"`
+	QuotaType              int                         `json:"quota_type"`
+	ModelRatio             float64                     `json:"model_ratio"`
+	ModelPrice             float64                     `json:"model_price"`
+	OwnerBy                string                      `json:"owner_by"`
+	CompletionRatio        float64                     `json:"completion_ratio"`
+	EnableGroup            []string                    `json:"enable_groups"`
+	SupportedEndpointTypes []constant.EndpointType     `json:"supported_endpoint_types"`
+	SegmentedRules         []ratio_setting.SegmentRule `json:"segmented_rules,omitempty"`
+	UseSegmentedPricing    bool                        `json:"use_segmented_pricing"`
 }
 
 type PricingVendor struct {
@@ -286,10 +288,25 @@ func updatePricing() {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
-			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
-			pricing.ModelRatio = modelRatio
-			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
-			pricing.QuotaType = 0
+			// 尝试从分段倍率获取
+			segmentedConfig, hasSegmented := ratio_setting.GetSegmentedRatio(model)
+			if hasSegmented && segmentedConfig.Enabled && len(segmentedConfig.Rules) > 0 {
+				// 使用第一条规则（优先级最高）作为默认显示值
+				firstRule := segmentedConfig.Rules[0]
+				pricing.ModelRatio = firstRule.ModelRatio
+				pricing.CompletionRatio = firstRule.CompletionRatio
+				pricing.QuotaType = 0
+				// 添加所有分段规则，以便前端显示所有分段定价
+				pricing.SegmentedRules = segmentedConfig.Rules
+				pricing.UseSegmentedPricing = true
+			} else {
+				// 使用普通倍率
+				modelRatio, _, _ := ratio_setting.GetModelRatio(model)
+				pricing.ModelRatio = modelRatio
+				pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
+				pricing.QuotaType = 0
+				pricing.UseSegmentedPricing = false
+			}
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

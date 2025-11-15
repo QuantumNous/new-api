@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice } from '../../../../../helpers';
+import { calculateModelPrice, formatSegmentRuleDescription } from '../../../../../helpers';
 
 const { Text } = Typography;
 
@@ -39,6 +39,94 @@ const ModelPricingTable = ({
     ? modelData.enable_groups
     : [];
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
+
+  // 渲染分段定价表
+  const renderSegmentedPricingTable = (group) => {
+    const priceData = calculateModelPrice({
+      record: modelData,
+      selectedGroup: group,
+      groupRatio,
+      tokenUnit,
+      displayPrice,
+      currency,
+    });
+
+    if (!priceData.useSegmentedPricing || !priceData.segmentedPrices) {
+      return null;
+    }
+
+    const tableData = priceData.segmentedPrices.map((segment, index) => ({
+      key: index,
+      rule: formatSegmentRuleDescription(segment.rule, t),
+      inputPrice: segment.inputPrice,
+      outputPrice: segment.completionPrice,
+      priority: segment.rule.priority,
+    }));
+
+    const columns = [
+      {
+        title: t('规则条件'),
+        dataIndex: 'rule',
+        render: (text) => (
+          <Text className='text-sm'>{text || t('默认规则')}</Text>
+        ),
+      },
+      /*{
+        title: t('优先级'),
+        dataIndex: 'priority',
+        width: 80,
+        render: (text) => (
+          <Tag color='white' size='small'>{text}</Tag>
+        ),
+      },*/
+      {
+        title: t('提示'),
+        dataIndex: 'inputPrice',
+        render: (text) => (
+          <>
+            <div className='font-semibold text-orange-600'>{text}</div>
+            <div className='text-xs text-gray-500'>
+              / {tokenUnit === 'K' ? '1K' : '1M'} tokens
+            </div>
+          </>
+        ),
+      },
+      {
+        title: t('补全'),
+        dataIndex: 'outputPrice',
+        render: (text) => (
+          <>
+            <div className='font-semibold text-orange-600'>{text}</div>
+            <div className='text-xs text-gray-500'>
+              / {tokenUnit === 'K' ? '1K' : '1M'} tokens
+            </div>
+          </>
+        ),
+      },
+    ];
+
+    return (
+      <div className='mb-4'>
+        <div className='mb-2'>
+          <Tag color='violet' size='small' shape='circle'>
+            {group}{t('分组')}
+          </Tag>
+          <Text className='text-sm text-gray-600 ml-2'>
+            {t('分段定价规则')}（{t('倍率')}: {groupRatio[group] || 1}x）
+          </Text>
+        </div>
+        <Table
+          dataSource={tableData}
+          columns={columns}
+          pagination={false}
+          size='small'
+          bordered={false}
+          className='!rounded-lg'
+        />
+      </div>
+    );
+  };
+
   const renderGroupPriceTable = () => {
     // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
@@ -209,7 +297,19 @@ const ModelPricingTable = ({
           ))}
         </div>
       )}
-      {renderGroupPriceTable()}
+      {/* 检查是否使用分段定价 */}
+      {modelData?.use_segmented_pricing ? (
+        // 显示分段定价表
+        <>
+          {Object.keys(usableGroup || {})
+            .filter((g) => g !== '' && g !== 'auto')
+            .filter((g) => modelEnableGroups.includes(g))
+            .map((group) => renderSegmentedPricingTable(group))}
+        </>
+      ) : (
+        // 显示普通价格表
+        renderGroupPriceTable()
+      )}
     </Card>
   );
 };
