@@ -2167,6 +2167,10 @@ const EditChannelModal = (props) => {
                                 label:
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
+                                {
+                                    value: 'doubao-coding-plan',
+                                    label: 'Doubao Coding Plan',
+                                },
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
                           />

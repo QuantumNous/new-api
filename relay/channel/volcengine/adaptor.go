@@ -23,8 +23,11 @@ import (
 )
 
 const (
-	contextKeyTTSRequest     = "volcengine_tts_request"
-	contextKeyResponseFormat = "response_format"
+	contextKeyTTSRequest          = "volcengine_tts_request"
+	contextKeyResponseFormat      = "response_format"
+	DoubaoCodingPlan              = "doubao-coding-plan"
+	DoubaoCodingPlanClaudeBaseURL = "https://ark.cn-beijing.volces.com/api/coding"
+	DoubaoCodingPlanOpenAIBaseURL = "https://ark.cn-beijing.volces.com/api/coding/v3"
 )
 
 type Adaptor struct {
@@ -238,6 +241,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
+		if baseUrl == DoubaoCodingPlan {
+			return fmt.Sprintf("%s/v1/messages", DoubaoCodingPlanClaudeBaseURL), nil
+		}
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
 			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
 		}
@@ -245,6 +251,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeChatCompletions:
+			if baseUrl == DoubaoCodingPlan {
+				return fmt.Sprintf("%s/chat/completions", DoubaoCodingPlanOpenAIBaseURL), nil
+			}
 			if strings.HasPrefix(info.UpstreamModelName, "bot") {
 				return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
 			}
