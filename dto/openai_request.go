@@ -66,10 +66,11 @@ type GeneralOpenAIRequest struct {
 	// 注意：默认过滤此字段以保护用户隐私，但过滤后可能导致 Codex 无法正常使用
 	Store json.RawMessage `json:"store,omitempty"`
 	// Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field
-	PromptCacheKey string          `json:"prompt_cache_key,omitempty"`
-	LogitBias      json.RawMessage `json:"logit_bias,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	Prediction     json.RawMessage `json:"prediction,omitempty"`
+	PromptCacheKey       string          `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
+	LogitBias            json.RawMessage `json:"logit_bias,omitempty"`
+	Metadata             json.RawMessage `json:"metadata,omitempty"`
+	Prediction           json.RawMessage `json:"prediction,omitempty"`
 	// gemini
 	ExtraBody json.RawMessage `json:"extra_body,omitempty"`
 	//xai
@@ -798,19 +799,20 @@ type OpenAIResponsesRequest struct {
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
 	// 服务层级字段，用于指定 API 服务等级。允许透传可能导致实际计费高于预期，默认应过滤
-	ServiceTier    string          `json:"service_tier,omitempty"`
-	Store          json.RawMessage `json:"store,omitempty"`
-	PromptCacheKey json.RawMessage `json:"prompt_cache_key,omitempty"`
-	Stream         bool            `json:"stream,omitempty"`
-	Temperature    float64         `json:"temperature,omitempty"`
-	Text           json.RawMessage `json:"text,omitempty"`
-	ToolChoice     json.RawMessage `json:"tool_choice,omitempty"`
-	Tools          json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
-	TopP           float64         `json:"top_p,omitempty"`
-	Truncation     string          `json:"truncation,omitempty"`
-	User           string          `json:"user,omitempty"`
-	MaxToolCalls   uint            `json:"max_tool_calls,omitempty"`
-	Prompt         json.RawMessage `json:"prompt,omitempty"`
+	ServiceTier          string          `json:"service_tier,omitempty"`
+	Store                json.RawMessage `json:"store,omitempty"`
+	PromptCacheKey       json.RawMessage `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
+	Stream               bool            `json:"stream,omitempty"`
+	Temperature          float64         `json:"temperature,omitempty"`
+	Text                 json.RawMessage `json:"text,omitempty"`
+	ToolChoice           json.RawMessage `json:"tool_choice,omitempty"`
+	Tools                json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
+	TopP                 float64         `json:"top_p,omitempty"`
+	Truncation           string          `json:"truncation,omitempty"`
+	User                 string          `json:"user,omitempty"`
+	MaxToolCalls         uint            `json:"max_tool_calls,omitempty"`
+	Prompt               json.RawMessage `json:"prompt,omitempty"`
 }
 
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {

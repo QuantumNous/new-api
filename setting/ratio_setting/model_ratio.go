@@ -823,3 +823,16 @@ func FormatMatchingModelName(name string) string {
 	}
 	return name
 }
+
+// result: 倍率or价格， usePrice， exist
+func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or ratio
+	price, usePrice := GetModelPrice(model, false)
+	if usePrice {
+		return price, true, true
+	}
+	modelRatio, success, _ := GetModelRatio(model)
+	if success {
+		return modelRatio, false, true
+	}
+	return 37.5, false, false
+}

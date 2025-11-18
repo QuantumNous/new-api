@@ -112,6 +112,19 @@ type AliImageInput struct {
 	Messages       []AliMessage `json:"messages,omitempty"`
 }
 
+type WanImageInput struct {
+	Prompt         string   `json:"prompt"`                    // 必需：文本提示词，描述生成图像中期望包含的元素和视觉特点
+	Images         []string `json:"images"`                    // 必需：图像URL数组，长度不超过2，支持HTTP/HTTPS URL或Base64编码
+	NegativePrompt string   `json:"negative_prompt,omitempty"` // 可选：反向提示词，描述不希望在画面中看到的内容
+}
+
+type WanImageParameters struct {
+	N         int     `json:"n,omitempty"`         // 生成图片数量，取值范围1-4，默认4
+	Watermark *bool   `json:"watermark,omitempty"` // 是否添加水印标识，默认false
+	Seed      int     `json:"seed,omitempty"`      // 随机数种子，取值范围[0, 2147483647]
+	Strength  float64 `json:"strength,omitempty"`  // 修改幅度 0.0-1.0，默认0.5（部分模型支持）
+}
+
 type AliRerankParameters struct {
 	TopN            *int  `json:"top_n,omitempty"`
 	ReturnDocuments *bool `json:"return_documents,omitempty"`

@@ -145,8 +145,9 @@ export const getModelCategories = (() => {
           model.model_name.toLowerCase().includes('gpt') ||
           model.model_name.toLowerCase().includes('dall-e') ||
           model.model_name.toLowerCase().includes('whisper') ||
-          model.model_name.toLowerCase().includes('tts') ||
-          model.model_name.toLowerCase().includes('text-') ||
+          model.model_name.toLowerCase().includes('tts-1') ||
+          model.model_name.toLowerCase().includes('text-embedding-3') ||
+          model.model_name.toLowerCase().includes('text-moderation') ||
           model.model_name.toLowerCase().includes('babbage') ||
           model.model_name.toLowerCase().includes('davinci') ||
           model.model_name.toLowerCase().includes('curie') ||
@@ -163,19 +164,31 @@ export const getModelCategories = (() => {
       gemini: {
         label: 'Gemini',
         icon: <Gemini.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('gemini'),
+        filter: (model) => 
+          model.model_name.toLowerCase().includes('gemini') || 
+          model.model_name.toLowerCase().includes('gemma') ||
+          model.model_name.toLowerCase().includes('learnlm') || 
+          model.model_name.toLowerCase().startsWith('embedding-') ||
+          model.model_name.toLowerCase().includes('text-embedding-004') ||
+          model.model_name.toLowerCase().includes('imagen-4') || 
+          model.model_name.toLowerCase().includes('veo-') || 
+          model.model_name.toLowerCase().includes('aqa') ,
       },
       moonshot: {
         label: 'Moonshot',
         icon: <Moonshot />,
-        filter: (model) => model.model_name.toLowerCase().includes('moonshot'),
+        filter: (model) => 
+          model.model_name.toLowerCase().includes('moonshot') || 
+          model.model_name.toLowerCase().includes('kimi'),
       },
       zhipu: {
         label: t('智谱'),
         icon: <Zhipu.Color />,
         filter: (model) =>
           model.model_name.toLowerCase().includes('chatglm') ||
-          model.model_name.toLowerCase().includes('glm-'),
+          model.model_name.toLowerCase().includes('glm-') || 
+          model.model_name.toLowerCase().includes('cogview') || 
+          model.model_name.toLowerCase().includes('cogvideo'),
       },
       qwen: {
         label: t('通义千问'),
@@ -190,7 +203,9 @@ export const getModelCategories = (() => {
       minimax: {
         label: 'MiniMax',
         icon: <Minimax.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('abab'),
+        filter: (model) => 
+          model.model_name.toLowerCase().includes('abab') || 
+          model.model_name.toLowerCase().includes('minimax'),
       },
       baidu: {
         label: t('文心一言'),
@@ -215,7 +230,10 @@ export const getModelCategories = (() => {
       cohere: {
         label: 'Cohere',
         icon: <Cohere.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('command'),
+        filter: (model) => 
+          model.model_name.toLowerCase().includes('command') ||
+          model.model_name.toLowerCase().includes('c4ai-') ||
+          model.model_name.toLowerCase().includes('embed-'),
       },
       cloudflare: {
         label: 'Cloudflare',
@@ -227,11 +245,6 @@ export const getModelCategories = (() => {
         icon: <Ai360.Color />,
         filter: (model) => model.model_name.toLowerCase().includes('360'),
       },
-      yi: {
-        label: t('零一万物'),
-        icon: <Yi.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('yi'),
-      },
       jina: {
         label: 'Jina',
         icon: <Jina />,
@@ -240,7 +253,12 @@ export const getModelCategories = (() => {
       mistral: {
         label: 'Mistral AI',
         icon: <Mistral.Color />,
-        filter: (model) => model.model_name.toLowerCase().includes('mistral'),
+        filter: (model) => 
+          model.model_name.toLowerCase().includes('mistral') ||
+          model.model_name.toLowerCase().includes('codestral') ||
+          model.model_name.toLowerCase().includes('pixtral') ||
+          model.model_name.toLowerCase().includes('voxtral') ||
+          model.model_name.toLowerCase().includes('magistral'),
       },
       xai: {
         label: 'xAI',
@@ -256,6 +274,11 @@ export const getModelCategories = (() => {
         label: t('豆包'),
         icon: <Doubao.Color />,
         filter: (model) => model.model_name.toLowerCase().includes('doubao'),
+      },
+      yi: {
+        label: t('零一万物'),
+        icon: <Yi.Color />,
+        filter: (model) => model.model_name.toLowerCase().includes('yi'),
       },
     };
 

@@ -50,9 +50,18 @@ func GetClaudeSettings() *ClaudeSettings {
 func (c *ClaudeSettings) WriteHeaders(originModel string, httpHeader *http.Header) {
 	if headers, ok := c.HeadersSettings[originModel]; ok {
 		for headerKey, headerValues := range headers {
-			httpHeader.Del(headerKey)
+			// get existing values for this header key
+			existingValues := httpHeader.Values(headerKey)
+			existingValuesMap := make(map[string]bool)
+			for _, v := range existingValues {
+				existingValuesMap[v] = true
+			}
+
+			// add only values that don't already exist
 			for _, headerValue := range headerValues {
-				httpHeader.Add(headerKey, headerValue)
+				if !existingValuesMap[headerValue] {
+					httpHeader.Add(headerKey, headerValue)
+				}
 			}
 		}
 	}

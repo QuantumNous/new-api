@@ -429,3 +429,14 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	_ = query.Count(&total).Error
 	return total
 }
+func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = t.TaskID
+	openAIVideo.Status = t.Status.ToVideoStatus()
+	openAIVideo.Model = t.Properties.OriginModelName
+	openAIVideo.SetProgressStr(t.Progress)
+	openAIVideo.CreatedAt = t.CreatedAt
+	openAIVideo.CompletedAt = t.UpdatedAt
+	openAIVideo.SetMetadata("url", t.FailReason)
+	return openAIVideo
+}

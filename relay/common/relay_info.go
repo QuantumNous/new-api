@@ -498,11 +498,11 @@ type TaskSubmitReq struct {
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 
-func (t TaskSubmitReq) GetPrompt() string {
+func (t *TaskSubmitReq) GetPrompt() string {
 	return t.Prompt
 }
 
-func (t TaskSubmitReq) HasImage() bool {
+func (t *TaskSubmitReq) HasImage() bool {
 	return len(t.Images) > 0
 }
 
@@ -535,6 +535,20 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	return nil
+}
+func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
+	metadata := t.Metadata
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return fmt.Errorf("marshal metadata failed: %w", err)
+		}
+		err = json.Unmarshal(metadataBytes, v)
+		if err != nil {
+			return fmt.Errorf("unmarshal metadata to target failed: %w", err)
+		}
+	}
 	return nil
 }
 

@@ -229,7 +229,7 @@ export const useApiRequest = (
         if (data.choices?.[0]) {
           const choice = data.choices[0];
           let content = choice.message?.content || '';
-          let reasoningContent = choice.message?.reasoning_content || '';
+          let reasoningContent = choice.message?.reasoning_content || choice.message?.reasoning || '';
 
           const processed = processThinkTags(content, reasoningContent);
 
@@ -332,6 +332,9 @@ export const useApiRequest = (
           if (delta) {
             if (delta.reasoning_content) {
               streamMessageUpdate(delta.reasoning_content, 'reasoning');
+            }
+            if (delta.reasoning) {
+              streamMessageUpdate(delta.reasoning, 'reasoning');
             }
             if (delta.content) {
               streamMessageUpdate(delta.content, 'content');
