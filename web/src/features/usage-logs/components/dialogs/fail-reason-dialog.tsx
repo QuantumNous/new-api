@@ -1,4 +1,5 @@
 import { Copy, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,29 +23,32 @@ export function FailReasonDialog({
   open,
   onOpenChange,
 }: FailReasonDialogProps) {
+  const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Fail Reason Details</DialogTitle>
+          <DialogTitle>{t('Fail Reason Details')}</DialogTitle>
           <DialogDescription>
-            View the complete error message and details
+            {t('View the complete error message and details')}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className='max-h-[500px] pr-4'>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
-              <Label className='text-sm font-semibold'>Error Message</Label>
+              <Label className='text-sm font-semibold'>
+                {t('Error Message')}
+              </Label>
               <div className='bg-muted/50 relative rounded-md border border-red-200 p-3'>
                 <Button
                   variant='ghost'
                   size='sm'
                   className='absolute top-2 right-2 h-8 w-8 p-0'
                   onClick={() => copyToClipboard(failReason)}
-                  title='Copy to clipboard'
+                  title={t('Copy to clipboard')}
                 >
                   {copiedText === failReason ? (
                     <Check className='size-4 text-green-600' />

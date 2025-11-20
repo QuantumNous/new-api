@@ -11,6 +11,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -70,6 +71,7 @@ export const ModelRatioVisualEditor = memo(
     audioCompletionRatio,
     onChange,
   }: ModelRatioVisualEditorProps) {
+    const { t } = useTranslation()
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editData, setEditData] = useState<ModelRatioData | null>(null)
     const [sorting, setSorting] = useState<SortingState>([])
@@ -266,14 +268,14 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'name',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Model name' />
+            <DataTableColumnHeader column={column} title={t('Model name')} />
           ),
           cell: ({ row }) => (
             <div className='flex items-center gap-2 font-medium'>
               {row.getValue('name')}
               {row.original.hasConflict && (
                 <Badge variant='destructive' className='text-xs'>
-                  Conflict
+                  {t('Conflict')}
                 </Badge>
               )}
             </div>
@@ -283,7 +285,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'price',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Fixed price' />
+            <DataTableColumnHeader column={column} title={t('Fixed price')} />
           ),
           cell: ({ row }) => formatValue(row.getValue('price')),
           meta: { label: 'Fixed price' },
@@ -291,7 +293,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'ratio',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Ratio' />
+            <DataTableColumnHeader column={column} title={t('Ratio')} />
           ),
           cell: ({ row }) => (
             <span className={row.original.price ? 'text-muted-foreground' : ''}>
@@ -303,7 +305,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'completionRatio',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Completion' />
+            <DataTableColumnHeader column={column} title={t('Completion')} />
           ),
           cell: ({ row }) => (
             <span className={row.original.price ? 'text-muted-foreground' : ''}>
@@ -315,7 +317,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'cacheRatio',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Cache' />
+            <DataTableColumnHeader column={column} title={t('Cache')} />
           ),
           cell: ({ row }) => (
             <span className={row.original.price ? 'text-muted-foreground' : ''}>
@@ -327,7 +329,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'imageRatio',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Image' />
+            <DataTableColumnHeader column={column} title={t('Image')} />
           ),
           cell: ({ row }) => (
             <span className={row.original.price ? 'text-muted-foreground' : ''}>
@@ -339,7 +341,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'audioRatio',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Audio' />
+            <DataTableColumnHeader column={column} title={t('Audio')} />
           ),
           cell: ({ row }) => (
             <span className={row.original.price ? 'text-muted-foreground' : ''}>
@@ -351,7 +353,7 @@ export const ModelRatioVisualEditor = memo(
         {
           accessorKey: 'audioCompletionRatio',
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title='Audio comp.' />
+            <DataTableColumnHeader column={column} title={t('Audio comp.')} />
           ),
           cell: ({ row }) => (
             <span className={row.original.price ? 'text-muted-foreground' : ''}>
@@ -501,7 +503,7 @@ export const ModelRatioVisualEditor = memo(
           />
           <Button onClick={handleAdd}>
             <Plus className='mr-2 h-4 w-4' />
-            Add model
+            {t('Add model')}
           </Button>
         </div>
 

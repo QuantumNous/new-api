@@ -1,4 +1,5 @@
 import { SearchIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useSearch } from '@/context/search-provider'
 import { Button } from './ui/button'
@@ -13,6 +14,7 @@ export function Search({
   className = '',
   placeholder = 'Search',
 }: SearchProps) {
+  const { t } = useTranslation()
   const { setOpen } = useSearch()
   return (
     <Button
@@ -30,7 +32,8 @@ export function Search({
       />
       <span className='ms-4'>{placeholder}</span>
       <kbd className='bg-muted group-hover:bg-accent pointer-events-none absolute end-[0.3rem] top-[0.3rem] hidden h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex'>
-        <span className='text-xs'>⌘</span>K
+        <span className='text-xs'>⌘</span>
+        {t('K')}
       </kbd>
     </Button>
   )

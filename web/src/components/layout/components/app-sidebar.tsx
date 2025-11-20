@@ -1,16 +1,17 @@
 import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+import { useSidebarData } from '@/hooks/use-sidebar-data'
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { sidebarConfig } from '../config/sidebar.config'
 import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
 import { WorkspaceSwitcher } from './workspace-switcher'
@@ -24,12 +25,14 @@ import { WorkspaceSwitcher } from './workspace-switcher'
  * Adding new workspaces only requires registration in workspace-registry.ts
  */
 export function AppSidebar() {
+  const { t } = useTranslation()
   const { collapsible, variant } = useLayout()
   const { pathname } = useLocation()
   const userRole = useAuthStore((state) => state.auth.user?.role)
+  const sidebarData = useSidebarData()
 
   // Get navigation group configuration corresponding to current path from workspace registry
-  const allNavGroups = getNavGroupsForPath(pathname)
+  const allNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
 
   // Filter sidebar navigation items based on backend configuration
   const configFilteredNavGroups = useSidebarConfig(allNavGroups)
@@ -39,7 +42,7 @@ export function AppSidebar() {
   const currentNavGroups = useMemo(() => {
     const isAdmin = userRole && userRole >= ROLE.ADMIN
     return configFilteredNavGroups.filter((group) => {
-      if (group.title === 'Admin') {
+      if (group.id === 'admin') {
         return isAdmin
       }
       return true
@@ -49,12 +52,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
-        <WorkspaceSwitcher workspaces={sidebarConfig.workspaces} />
+        <WorkspaceSwitcher workspaces={sidebarData.workspaces} />
       </SidebarHeader>
       <SidebarContent>
-        {currentNavGroups.map((props) => (
-          <NavGroup key={props.title} {...props} />
-        ))}
+        {currentNavGroups.map((props) => {
+          const key = props.id || props.title
+          return <NavGroup key={key} {...props} />
+        })}
       </SidebarContent>
       <SidebarRail />
     </Sidebar>

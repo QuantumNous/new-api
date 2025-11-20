@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { UsageLogsFilterDialog } from './dialogs/usage-logs-filter-dialog'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 export function UsageLogsPrimaryButtons() {
+  const { t } = useTranslation()
   const [filterDialogOpen, setFilterDialogOpen] = useState(false)
   const { logCategory } = useUsageLogsContext()
 
@@ -15,7 +17,7 @@ export function UsageLogsPrimaryButtons() {
         onClick={() => setFilterDialogOpen(true)}
         variant='default'
       >
-        <span>Search</span> <Search size={18} />
+        <span>{t('Search')}</span> <Search size={18} />
       </Button>
 
       <UsageLogsFilterDialog

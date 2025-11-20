@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatDistanceToNowStrict } from 'date-fns'
 import { KeyRound, ShieldAlert, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +24,7 @@ interface PasskeyCardProps {
 }
 
 export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
+  const { t } = useTranslation()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const {
     status,
@@ -63,10 +65,10 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
       <Card>
         <CardHeader>
           <h3 className='text-xl font-semibold tracking-tight'>
-            Passkey Login
+            {t('Passkey Login')}
           </h3>
           <p className='text-muted-foreground mt-2 text-sm'>
-            Use Passkey to sign in without entering your password.
+            {t('Use Passkey to sign in without entering your password.')}
           </p>
         </CardHeader>
 
@@ -78,7 +80,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
               </div>
               <div className='space-y-1'>
                 <div className='flex flex-wrap items-center gap-2'>
-                  <p className='font-medium'>Passkey Authentication</p>
+                  <p className='font-medium'>{t('Passkey Authentication')}</p>
                   <StatusBadge
                     label={enabled ? 'Enabled' : 'Disabled'}
                     variant={enabled ? 'success' : 'neutral'}
@@ -107,7 +109,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                   )}
                 </div>
                 <p className='text-muted-foreground text-sm'>
-                  Last used: {formattedLastUsed}
+                  {t('Last used:')} {formattedLastUsed}
                 </p>
               </div>
             </div>
@@ -121,7 +123,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                 {registering && (
                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                 )}
-                Register Passkey
+                {t('Register Passkey')}
               </Button>
             ) : (
               <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -131,20 +133,21 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                     className='w-full sm:w-auto'
                     disabled={removing}
                   >
-                    Remove Passkey
+                    {t('Remove Passkey')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Remove Passkey?</AlertDialogTitle>
+                    <AlertDialogTitle>{t('Remove Passkey?')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Removing Passkey will require you to sign in with your
-                      password next time. You can re-register anytime.
+                      {t(
+                        'Removing Passkey will require you to sign in with your password next time. You can re-register anytime.'
+                      )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel disabled={removing}>
-                      Cancel
+                      {t('Cancel')}
                     </AlertDialogCancel>
                     <AlertDialogAction
                       className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
@@ -156,7 +159,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                         }
                       }}
                     >
-                      Remove
+                      {t('Remove')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -169,11 +172,12 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
               <ShieldAlert className='mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500' />
               <div>
                 <p className='text-foreground font-medium'>
-                  Passkey not supported on this device
+                  {t('Passkey not supported on this device')}
                 </p>
                 <p>
-                  Use a compatible browser or device with biometric
-                  authentication or a security key to register a Passkey.
+                  {t(
+                    'Use a compatible browser or device with biometric authentication or a security key to register a Passkey.'
+                  )}
                 </p>
               </div>
             </div>

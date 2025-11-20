@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Code2, Palette } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -56,6 +57,7 @@ type RateLimitSectionProps = {
 }
 
 export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [useVisualEditor, setUseVisualEditor] = useState(true)
 
@@ -83,8 +85,10 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
   return (
     <SettingsAccordion
       value='rate-limit'
-      title='Rate Limiting'
-      description='Control request frequency to prevent abuse and manage system load.'
+      title={t('Rate Limiting')}
+      description={t(
+        'Control request frequency to prevent abuse and manage system load.'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -95,11 +99,12 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Enable rate limiting
+                    {t('Enable rate limiting')}
                   </FormLabel>
                   <FormDescription>
-                    Restrict user model request frequency (may impact high
-                    concurrency performance)
+                    {t(
+                      'Restrict user model request frequency (may impact high concurrency performance)'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -118,7 +123,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               name='ModelRequestRateLimitDurationMinutes'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Limit period</FormLabel>
+                  <FormLabel>{t('Limit period')}</FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Input
@@ -131,12 +136,12 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
-                        minutes
+                        {t('minutes')}
                       </span>
                     </div>
                   </FormControl>
                   <FormDescription>
-                    Time window for rate limiting
+                    {t('Time window for rate limiting')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -148,7 +153,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               name='ModelRequestRateLimitCount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Max requests per period</FormLabel>
+                  <FormLabel>{t('Max requests per period')}</FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Input
@@ -162,12 +167,12 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
-                        times
+                        {t('times')}
                       </span>
                     </div>
                   </FormControl>
                   <FormDescription>
-                    Including failed requests, 0 = unlimited
+                    {t('Including failed requests, 0 = unlimited')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -179,7 +184,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               name='ModelRequestRateLimitSuccessCount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Max successful requests</FormLabel>
+                  <FormLabel>{t('Max successful requests')}</FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Input
@@ -193,11 +198,13 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
-                        times
+                        {t('times')}
                       </span>
                     </div>
                   </FormControl>
-                  <FormDescription>Only successful requests</FormDescription>
+                  <FormDescription>
+                    {t('Only successful requests')}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -210,7 +217,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <div className='flex items-center justify-between'>
-                  <FormLabel>Group-based rate limits</FormLabel>
+                  <FormLabel>{t('Group-based rate limits')}</FormLabel>
                   <Button
                     type='button'
                     variant='outline'
@@ -220,12 +227,12 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                     {useVisualEditor ? (
                       <>
                         <Code2 className='mr-2 h-4 w-4' />
-                        JSON Mode
+                        {t('JSON Mode')}
                       </>
                     ) : (
                       <>
                         <Palette className='mr-2 h-4 w-4' />
-                        Visual Mode
+                        {t('Visual Mode')}
                       </>
                     )}
                   </Button>
@@ -248,21 +255,25 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                 {!useVisualEditor && (
                   <FormDescription>
                     <div className='space-y-1 text-xs'>
-                      <p className='font-semibold'>Format:</p>
+                      <p className='font-semibold'>{t('Format:')}</p>
                       <ul className='list-inside list-disc space-y-0.5 pl-2'>
                         <li>
-                          JSON object:{' '}
+                          {t('JSON object:')}{' '}
                           {`{"groupName": [maxRequests, maxSuccess]}`}
                         </li>
                         <li>
-                          Example: {`{"default": [200, 100], "vip": [0, 1000]}`}
+                          {t('Example:')}{' '}
+                          {`{"default": [200, 100], "vip": [0, 1000]}`}
                         </li>
                         <li>
-                          maxRequests ≥ 0, maxSuccess ≥ 1, both ≤ 2,147,483,647
+                          {t(
+                            'maxRequests ≥ 0, maxSuccess ≥ 1, both ≤ 2,147,483,647'
+                          )}
                         </li>
                         <li>
-                          Group config overrides global limits, shares the same
-                          period
+                          {t(
+                            'Group config overrides global limits, shares the same period'
+                          )}
                         </li>
                       </ul>
                     </div>

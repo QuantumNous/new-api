@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Row } from '@tanstack/react-table'
 import { MoreHorizontal, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ interface DataTableRowActionsProps {
 }
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
+  const { t } = useTranslation()
   const model = row.original
   const { setOpen, setCurrentRow } = useModels()
   const queryClient = useQueryClient()
@@ -49,13 +51,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
         >
           <MoreHorizontal className='h-4 w-4' />
-          <span className='sr-only'>Open menu</span>
+          <span className='sr-only'>{t('Open menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-48'>
         {/* Edit */}
         <DropdownMenuItem onClick={handleEdit}>
-          Edit
+          {t('Edit')}
           <DropdownMenuShortcut>
             <Pencil size={16} />
           </DropdownMenuShortcut>
@@ -67,14 +69,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuItem onClick={handleToggleStatus}>
           {isEnabled ? (
             <>
-              Disable
+              {t('Disable')}
               <DropdownMenuShortcut>
                 <PowerOff size={16} />
               </DropdownMenuShortcut>
             </>
           ) : (
             <>
-              Enable
+              {t('Enable')}
               <DropdownMenuShortcut>
                 <Power size={16} />
               </DropdownMenuShortcut>
@@ -92,7 +94,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           }}
           className='text-destructive focus:text-destructive'
         >
-          Delete
+          {t('Delete')}
           <DropdownMenuShortcut>
             <Trash2 size={16} />
           </DropdownMenuShortcut>
@@ -102,7 +104,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title='Delete Model'
+        title={t('Delete Model')}
         desc={`Are you sure you want to delete "${model.model_name}"? This action cannot be undone.`}
         confirmText='Delete'
         destructive

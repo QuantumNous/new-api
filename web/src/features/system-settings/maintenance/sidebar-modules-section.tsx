@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -121,6 +122,7 @@ export function SidebarModulesSection({
   config,
   initialSerialized,
 }: SidebarModulesSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const formDefaults = useMemo(() => config, [config])
 
@@ -153,8 +155,10 @@ export function SidebarModulesSection({
   return (
     <SettingsAccordion
       value='sidebar-modules'
-      title='Sidebar modules'
-      description='Control which sidebar areas and modules are available to all users.'
+      title={t('Sidebar modules')}
+      description={t(
+        'Control which sidebar areas and modules are available to all users.'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -176,10 +180,10 @@ export function SidebarModulesSection({
                     <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5 pe-4'>
                         <FormLabel className='text-base'>
-                          {sectionInfo.title}
+                          {t(sectionInfo.title)}
                         </FormLabel>
                         <FormDescription>
-                          {sectionInfo.description}
+                          {t(sectionInfo.description)}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -207,10 +211,10 @@ export function SidebarModulesSection({
                           <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                             <div className='space-y-0.5 pe-4'>
                               <FormLabel className='text-base'>
-                                {moduleInfo.title}
+                                {t(moduleInfo.title)}
                               </FormLabel>
                               <FormDescription>
-                                {moduleInfo.description}
+                                {t(moduleInfo.description)}
                               </FormDescription>
                             </div>
                             <FormControl>
@@ -234,7 +238,7 @@ export function SidebarModulesSection({
 
           <div className='flex flex-wrap gap-3'>
             <Button type='button' variant='outline' onClick={resetToDefault}>
-              Reset to default
+              {t('Reset to default')}
             </Button>
             <Button type='submit' disabled={updateOption.isPending}>
               {updateOption.isPending ? 'Saving...' : 'Save sidebar modules'}

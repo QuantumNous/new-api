@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Route, Info } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import {
   formatTokens,
   formatUseTime,
@@ -40,6 +41,7 @@ function DetailsCell({
   content?: string | null
   logType: number
 }) {
+  const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
 
   if (content == null) {
@@ -52,7 +54,7 @@ function DetailsCell({
         variant='ghost'
         className='h-auto max-w-[200px] justify-start overflow-hidden p-0 text-left text-sm font-normal hover:underline'
         onClick={() => setDialogOpen(true)}
-        title='Click to view full details'
+        title={t('Click to view full details')}
       >
         <span className='truncate'>{content}</span>
       </Button>
@@ -66,7 +68,8 @@ function DetailsCell({
   )
 }
 
-export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
+export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
+  const { t } = useTranslation()
   const columns: ColumnDef<UsageLog>[] = [
     // Time column
     {
@@ -83,7 +86,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       enableHiding: false,
-      meta: { label: 'Time' },
+      meta: { label: t('Time') },
     },
 
     // Type column
@@ -109,7 +112,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         if (!value || value.length === 0) return true
         return value.includes(String(row.getValue(id)))
       },
-      meta: { label: 'Type' },
+      meta: { label: t('Type') },
     },
   ]
 
@@ -148,7 +151,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{log.channel_name || 'Unknown Channel'}</p>
+                    <p>{log.channel_name || t('Unknown Channel')}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -164,7 +167,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
           )
         },
-        meta: { label: 'Channel' },
+        meta: { label: t('Channel') },
       },
 
       // Username column
@@ -197,7 +200,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
           )
         },
-        meta: { label: 'User' },
+        meta: { label: t('User') },
       }
     )
   }
@@ -219,7 +222,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           ? renderBadge(tokenName, { className: 'truncate' })
           : null
       },
-      meta: { label: 'Token' },
+      meta: { label: t('Token') },
     },
 
     // Group column
@@ -235,7 +238,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const group = row.getValue('group') as string
         return group ? renderBadge(group) : null
       },
-      meta: { label: 'Group' },
+      meta: { label: t('Group') },
     },
 
     // Model column
@@ -284,7 +287,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </Popover>
         )
       },
-      meta: { label: 'Model' },
+      meta: { label: t('Model') },
     },
 
     // Use time column
@@ -328,7 +331,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: 'Time / FRT' },
+      meta: { label: t('Time / FRT') },
     },
 
     // Tokens column
@@ -399,7 +402,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: 'Tokens' },
+      meta: { label: t('Tokens') },
     },
 
     // Cost column
@@ -429,7 +432,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: 'Cost' },
+      meta: { label: t('Cost') },
     },
 
     // IP column
@@ -445,7 +448,9 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               </TooltipTrigger>
               <TooltipContent>
                 <span>
-                  IP is only recorded when user enables IP logging in settings
+                  {t(
+                    'IP is only recorded when user enables IP logging in settings'
+                  )}
                 </span>
               </TooltipContent>
             </Tooltip>
@@ -459,13 +464,13 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const ip = row.getValue('ip') as string
         return ip ? renderBadge(ip, { mono: true }) : null
       },
-      meta: { label: 'IP' },
+      meta: { label: t('IP') },
     },
 
     // Details column
     {
       accessorKey: 'content',
-      header: 'Details',
+      header: t('Details'),
       cell: ({ row }) => {
         const log = row.original
         const content = row.getValue('content') as string | null
@@ -488,7 +493,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           />
         )
       },
-      meta: { label: 'Details' },
+      meta: { label: t('Details') },
     }
   )
 
@@ -496,7 +501,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   if (isAdmin) {
     columns.push({
       accessorKey: 'retry',
-      header: 'Retry',
+      header: t('Retry'),
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) {
@@ -517,7 +522,7 @@ export function getCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: 'Retry' },
+      meta: { label: t('Retry') },
     })
   }
 

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -94,6 +95,7 @@ export function ModelMutateDrawer({
   onOpenChange,
   currentRow,
 }: ModelMutateDrawerProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isEditing = Boolean(currentRow?.id)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -590,11 +592,15 @@ export function ModelMutateDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
         <SheetHeader className='text-start'>
-          <SheetTitle>{isEditing ? 'Edit Model' : 'Create Model'}</SheetTitle>
+          <SheetTitle>
+            {isEditing ? t('Edit Model') : t('Create Model')}
+          </SheetTitle>
           <SheetDescription>
             {isEditing
-              ? 'Update model configuration and click save when you&apos;re done.'
-              : 'Add a new model to the system by providing the necessary information.'}
+              ? t("Update model configuration and click save when you're done.")
+              : t(
+                  'Add a new model to the system by providing the necessary information.'
+                )}
           </SheetDescription>
         </SheetHeader>
 
@@ -606,22 +612,24 @@ export function ModelMutateDrawer({
           >
             {/* Basic Information */}
             <div className='space-y-4'>
-              <h3 className='text-sm font-semibold'>Basic Information</h3>
+              <h3 className='text-sm font-semibold'>
+                {t('Basic Information')}
+              </h3>
 
               <FormField
                 control={form.control}
                 name='model_name'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Model Name *</FormLabel>
+                    <FormLabel>{t('Model Name *')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='gpt-4, claude-3-opus, etc.'
+                        placeholder={t('gpt-4, claude-3-opus, etc.')}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      The unique identifier for this model
+                      {t('The unique identifier for this model')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -633,10 +641,10 @@ export function ModelMutateDrawer({
                 name='description'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>{t('Description')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder='Describe this model...'
+                        placeholder={t('Describe this model...')}
                         rows={3}
                         {...field}
                       />
@@ -651,12 +659,15 @@ export function ModelMutateDrawer({
                 name='icon'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Icon</FormLabel>
+                    <FormLabel>{t('Icon')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='OpenAI, Anthropic, etc.' {...field} />
+                      <Input
+                        placeholder={t('OpenAI, Anthropic, etc.')}
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription className='text-xs'>
-                      @lobehub/icons key
+                      {t('@lobehub/icons key')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -668,7 +679,7 @@ export function ModelMutateDrawer({
                 name='vendor_id'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vendor</FormLabel>
+                    <FormLabel>{t('Vendor')}</FormLabel>
                     <Select
                       onValueChange={(value) =>
                         field.onChange(value ? parseInt(value) : undefined)
@@ -677,7 +688,7 @@ export function ModelMutateDrawer({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder='Select vendor' />
+                          <SelectValue placeholder={t('Select vendor')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -698,16 +709,16 @@ export function ModelMutateDrawer({
                 name='tags'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tags</FormLabel>
+                    <FormLabel>{t('Tags')}</FormLabel>
                     <FormControl>
                       <TagInput
                         value={field.value || []}
                         onChange={field.onChange}
-                        placeholder='Add tags...'
+                        placeholder={t('Add tags...')}
                       />
                     </FormControl>
                     <FormDescription>
-                      Press Enter or comma to add tags
+                      {t('Press Enter or comma to add tags')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -719,14 +730,14 @@ export function ModelMutateDrawer({
 
             {/* Matching Configuration */}
             <div className='space-y-4'>
-              <h3 className='text-sm font-semibold'>Matching Rules</h3>
+              <h3 className='text-sm font-semibold'>{t('Matching Rules')}</h3>
 
               <FormField
                 control={form.control}
                 name='name_rule'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name Rule</FormLabel>
+                    <FormLabel>{t('Name Rule')}</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={(value) =>
@@ -755,7 +766,7 @@ export function ModelMutateDrawer({
                       </RadioGroup>
                     </FormControl>
                     <FormDescription>
-                      How this model name should match requests
+                      {t('How this model name should match requests')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -768,10 +779,10 @@ export function ModelMutateDrawer({
             {/* Endpoints Configuration */}
             <div className='space-y-4'>
               <div className='flex items-center justify-between'>
-                <h3 className='text-sm font-semibold'>Endpoints</h3>
+                <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
                 <Select onValueChange={handleFillEndpointTemplate}>
                   <SelectTrigger size='sm' className='w-[200px]'>
-                    <SelectValue placeholder='Load template...' />
+                    <SelectValue placeholder={t('Load template...')} />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
@@ -788,7 +799,7 @@ export function ModelMutateDrawer({
                 name='endpoints'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Endpoint Configuration</FormLabel>
+                    <FormLabel>{t('Endpoint Configuration')}</FormLabel>
                     <FormControl>
                       <JsonEditor
                         value={field.value || ''}
@@ -798,11 +809,13 @@ export function ModelMutateDrawer({
                         keyLabel='Endpoint Type'
                         valueLabel='Configuration'
                         valueType='any'
-                        emptyMessage='No endpoints configured. Switch to JSON mode or add rows to define endpoints.'
+                        emptyMessage={t(
+                          'No endpoints configured. Switch to JSON mode or add rows to define endpoints.'
+                        )}
                       />
                     </FormControl>
                     <FormDescription>
-                      Define API endpoints for this model (JSON format)
+                      {t('Define API endpoints for this model (JSON format)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -814,10 +827,12 @@ export function ModelMutateDrawer({
 
             {/* Pricing Configuration */}
             <div className='space-y-4'>
-              <h3 className='text-sm font-semibold'>Pricing Configuration</h3>
+              <h3 className='text-sm font-semibold'>
+                {t('Pricing Configuration')}
+              </h3>
 
               <div className='space-y-4'>
-                <Label>Pricing mode</Label>
+                <Label>{t('Pricing mode')}</Label>
                 <RadioGroup
                   value={pricingMode}
                   onValueChange={(value) =>
@@ -827,13 +842,13 @@ export function ModelMutateDrawer({
                   <div className='flex items-center space-x-2'>
                     <RadioGroupItem value='per-token' id='per-token' />
                     <Label htmlFor='per-token' className='font-normal'>
-                      Per-token (ratio based)
+                      {t('Per-token (ratio based)')}
                     </Label>
                   </div>
                   <div className='flex items-center space-x-2'>
                     <RadioGroupItem value='per-request' id='per-request' />
                     <Label htmlFor='per-request' className='font-normal'>
-                      Per-request (fixed price)
+                      {t('Per-request (fixed price)')}
                     </Label>
                   </div>
                 </RadioGroup>
@@ -845,7 +860,7 @@ export function ModelMutateDrawer({
                   name='price'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fixed price (USD)</FormLabel>
+                      <FormLabel>{t('Fixed price (USD)')}</FormLabel>
                       <FormControl>
                         <Input
                           type='text'
@@ -860,7 +875,9 @@ export function ModelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        Cost in USD per request, regardless of tokens used.
+                        {t(
+                          'Cost in USD per request, regardless of tokens used.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -869,7 +886,7 @@ export function ModelMutateDrawer({
               ) : (
                 <>
                   <div className='space-y-4'>
-                    <Label>Input mode</Label>
+                    <Label>{t('Input mode')}</Label>
                     <RadioGroup
                       value={pricingSubMode}
                       onValueChange={(value) =>
@@ -879,13 +896,13 @@ export function ModelMutateDrawer({
                       <div className='flex items-center space-x-2'>
                         <RadioGroupItem value='ratio' id='ratio' />
                         <Label htmlFor='ratio' className='font-normal'>
-                          Ratio mode
+                          {t('Ratio mode')}
                         </Label>
                       </div>
                       <div className='flex items-center space-x-2'>
                         <RadioGroupItem value='price' id='price' />
                         <Label htmlFor='price' className='font-normal'>
-                          Price mode (USD per 1M tokens)
+                          {t('Price mode (USD per 1M tokens)')}
                         </Label>
                       </div>
                     </RadioGroup>
@@ -898,7 +915,7 @@ export function ModelMutateDrawer({
                         name='ratio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Model ratio</FormLabel>
+                            <FormLabel>{t('Model ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -922,7 +939,7 @@ export function ModelMutateDrawer({
                             <FormDescription>
                               {field.value && !isNaN(parseFloat(field.value))
                                 ? `Calculated price: $${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
-                                : 'Multiplier for prompt tokens.'}
+                                : t('Multiplier for prompt tokens.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -934,7 +951,7 @@ export function ModelMutateDrawer({
                         name='completionRatio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Completion ratio</FormLabel>
+                            <FormLabel>{t('Completion ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -964,7 +981,7 @@ export function ModelMutateDrawer({
                               promptPrice &&
                               !isNaN(parseFloat(promptPrice))
                                 ? `Calculated price: $${(parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4)} per 1M tokens`
-                                : 'Multiplier for completion tokens.'}
+                                : t('Multiplier for completion tokens.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -975,7 +992,7 @@ export function ModelMutateDrawer({
                     <>
                       <div className='space-y-4'>
                         <div className='space-y-2'>
-                          <Label>Prompt price ($/1M tokens)</Label>
+                          <Label>{t('Prompt price ($/1M tokens)')}</Label>
                           <Input
                             type='text'
                             placeholder='2.0'
@@ -987,12 +1004,12 @@ export function ModelMutateDrawer({
                           <p className='text-muted-foreground text-sm'>
                             {promptPrice && !isNaN(parseFloat(promptPrice))
                               ? `Calculated ratio: ${(parseFloat(promptPrice) / 2).toFixed(4)}`
-                              : 'Enter Input price to calculate ratio'}
+                              : t('Enter Input price to calculate ratio')}
                           </p>
                         </div>
 
                         <div className='space-y-2'>
-                          <Label>Completion price ($/1M tokens)</Label>
+                          <Label>{t('Completion price ($/1M tokens)')}</Label>
                           <Input
                             type='text'
                             placeholder='4.0'
@@ -1008,7 +1025,7 @@ export function ModelMutateDrawer({
                             !isNaN(parseFloat(promptPrice)) &&
                             parseFloat(promptPrice) > 0
                               ? `Calculated ratio: ${(parseFloat(completionPrice) / parseFloat(promptPrice)).toFixed(4)}`
-                              : 'Enter Completion price to calculate ratio'}
+                              : t('Enter Completion price to calculate ratio')}
                           </p>
                         </div>
                       </div>
@@ -1025,7 +1042,7 @@ export function ModelMutateDrawer({
                         variant='outline'
                         className='flex w-full items-center justify-between'
                       >
-                        Advanced options
+                        {t('Advanced options')}
                         <ChevronDown
                           className={`h-4 w-4 transition-transform duration-200 ${
                             advancedOpen ? 'rotate-180' : ''
@@ -1039,7 +1056,7 @@ export function ModelMutateDrawer({
                         name='cacheRatio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Cache ratio</FormLabel>
+                            <FormLabel>{t('Cache ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -1054,7 +1071,7 @@ export function ModelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              Discount ratio for cache hits.
+                              {t('Discount ratio for cache hits.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1066,7 +1083,7 @@ export function ModelMutateDrawer({
                         name='imageRatio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Image ratio</FormLabel>
+                            <FormLabel>{t('Image ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -1081,7 +1098,7 @@ export function ModelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              Multiplier for image processing.
+                              {t('Multiplier for image processing.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1093,7 +1110,7 @@ export function ModelMutateDrawer({
                         name='audioRatio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Audio ratio</FormLabel>
+                            <FormLabel>{t('Audio ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -1108,7 +1125,7 @@ export function ModelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              Multiplier for audio inputs.
+                              {t('Multiplier for audio inputs.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1120,7 +1137,7 @@ export function ModelMutateDrawer({
                         name='audioCompletionRatio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Audio completion ratio</FormLabel>
+                            <FormLabel>{t('Audio completion ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -1135,7 +1152,7 @@ export function ModelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              Multiplier for audio outputs.
+                              {t('Multiplier for audio outputs.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1151,7 +1168,7 @@ export function ModelMutateDrawer({
 
             {/* Status & Sync */}
             <div className='space-y-4'>
-              <h3 className='text-sm font-semibold'>Status & Sync</h3>
+              <h3 className='text-sm font-semibold'>{t('Status & Sync')}</h3>
 
               <FormField
                 control={form.control}
@@ -1159,9 +1176,11 @@ export function ModelMutateDrawer({
                 render={({ field }) => (
                   <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>Enabled</FormLabel>
+                      <FormLabel className='text-base'>
+                        {t('Enabled')}
+                      </FormLabel>
                       <FormDescription>
-                        Enable or disable this model
+                        {t('Enable or disable this model')}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -1180,9 +1199,11 @@ export function ModelMutateDrawer({
                 render={({ field }) => (
                   <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>Official Sync</FormLabel>
+                      <FormLabel className='text-base'>
+                        {t('Official Sync')}
+                      </FormLabel>
                       <FormDescription>
-                        Sync this model with official upstream
+                        {t('Sync this model with official upstream')}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -1201,7 +1222,7 @@ export function ModelMutateDrawer({
         <SheetFooter className='gap-2'>
           <SheetClose asChild>
             <Button variant='outline' disabled={isSubmitting}>
-              Cancel
+              {t('Cancel')}
             </Button>
           </SheetClose>
           <Button form='model-form' type='submit' disabled={isSubmitting}>

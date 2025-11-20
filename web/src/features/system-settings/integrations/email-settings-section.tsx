@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -43,6 +44,7 @@ type EmailSettingsSectionProps = {
 export function EmailSettingsSection({
   defaultValues,
 }: EmailSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm<EmailFormValues>({
@@ -108,8 +110,8 @@ export function EmailSettingsSection({
   return (
     <SettingsAccordion
       value='email-settings'
-      title='SMTP Email'
-      description='Configure outgoing email server for notifications'
+      title={t('SMTP Email')}
+      description={t('Configure outgoing email server for notifications')}
     >
       <Form {...form}>
         <form
@@ -122,17 +124,17 @@ export function EmailSettingsSection({
             name='SMTPServer'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>SMTP Host</FormLabel>
+                <FormLabel>{t('SMTP Host')}</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete='off'
-                    placeholder='smtp.example.com'
+                    placeholder={t('smtp.example.com')}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  Hostname or IP of your SMTP provider
+                  {t('Hostname or IP of your SMTP provider')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -145,7 +147,7 @@ export function EmailSettingsSection({
               name='SMTPPort'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Port</FormLabel>
+                  <FormLabel>{t('Port')}</FormLabel>
                   <FormControl>
                     <Input
                       autoComplete='off'
@@ -156,7 +158,7 @@ export function EmailSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    Common ports include 25, 465, and 587
+                    {t('Common ports include 25, 465, and 587')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -169,9 +171,11 @@ export function EmailSettingsSection({
               render={({ field }) => (
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>Enable SSL/TLS</FormLabel>
+                    <FormLabel className='text-base'>
+                      {t('Enable SSL/TLS')}
+                    </FormLabel>
                     <FormDescription>
-                      Use secure connection when sending emails
+                      {t('Use secure connection when sending emails')}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -190,17 +194,17 @@ export function EmailSettingsSection({
             name='SMTPAccount'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Username</FormLabel>
+                <FormLabel>{t('Username')}</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete='off'
-                    placeholder='noreply@example.com'
+                    placeholder={t('noreply@example.com')}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  Account used when authenticating with the SMTP server
+                  {t('Account used when authenticating with the SMTP server')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -212,17 +216,17 @@ export function EmailSettingsSection({
             name='SMTPFrom'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>From Address</FormLabel>
+                <FormLabel>{t('From Address')}</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete='off'
-                    placeholder='New API &lt;noreply@example.com&gt;'
+                    placeholder={t('New API &lt;noreply@example.com&gt;')}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  Display name and email used in outgoing messages
+                  {t('Display name and email used in outgoing messages')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -234,18 +238,18 @@ export function EmailSettingsSection({
             name='SMTPToken'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password / Access Token</FormLabel>
+                <FormLabel>{t('Password / Access Token')}</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete='off'
                     type='password'
-                    placeholder='Enter new token to update'
+                    placeholder={t('Enter new token to update')}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  Leave blank to keep the existing credential
+                  {t('Leave blank to keep the existing credential')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

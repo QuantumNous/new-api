@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { PieChart as PieChartIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { PieChart, Pie, Cell } from 'recharts'
 import { formatCompactNumber } from '@/lib/format'
 import {
@@ -29,6 +30,7 @@ export function CallProportionChart({
   chartConfig,
   loading = false,
 }: CallProportionChartProps) {
+  const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
   const totalValue = useMemo(
     () => data.reduce((sum, point) => sum + Number(point.value ?? 0), 0),
@@ -196,12 +198,12 @@ export function CallProportionChart({
       title={
         <span className='flex items-center gap-2'>
           <PieChartIcon className='h-5 w-5' />
-          Call Proportion
+          {t('Call Proportion')}
         </span>
       }
       loading={loading}
       empty={isEmpty}
-      emptyMessage='No call data available'
+      emptyMessage={t('No call data available')}
       height='h-[36rem] sm:h-96'
     >
       <ChartContainer config={chartConfig} className='h-[36rem] w-full sm:h-96'>

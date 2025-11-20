@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -53,6 +54,7 @@ export function AmountDiscountDialog({
   onSave,
   editData,
 }: AmountDiscountDialogProps) {
+  const { t } = useTranslation()
   const isEditMode = !!editData
 
   const form = useForm<AmountDiscountDialogFormValues>({
@@ -98,7 +100,7 @@ export function AmountDiscountDialog({
             {isEditMode ? 'Edit discount tier' : 'Add discount tier'}
           </DialogTitle>
           <DialogDescription>
-            Set a discount rate for a specific recharge amount threshold.
+            {t('Set a discount rate for a specific recharge amount threshold.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,13 +114,13 @@ export function AmountDiscountDialog({
               name='amount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Recharge Amount (USD)</FormLabel>
+                  <FormLabel>{t('Recharge Amount (USD)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
                       step='1'
                       min='1'
-                      placeholder='e.g., 100'
+                      placeholder={t('e.g., 100')}
                       {...field}
                       onChange={(e) =>
                         field.onChange(parseInt(e.target.value) || 0)
@@ -128,8 +130,10 @@ export function AmountDiscountDialog({
                   </FormControl>
                   <FormDescription>
                     {isEditMode
-                      ? 'Amount cannot be changed when editing.'
-                      : 'Minimum recharge amount to qualify for this discount.'}
+                      ? t('Amount cannot be changed when editing.')
+                      : t(
+                          'Minimum recharge amount to qualify for this discount.'
+                        )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -141,14 +145,14 @@ export function AmountDiscountDialog({
               name='discountRate'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Discount Rate</FormLabel>
+                  <FormLabel>{t('Discount Rate')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
                       step='0.01'
                       min='0.01'
                       max='1'
-                      placeholder='e.g., 0.95'
+                      placeholder={t('e.g., 0.95')}
                       {...field}
                       onChange={(e) =>
                         field.onChange(parseFloat(e.target.value) || 0)
@@ -156,10 +160,11 @@ export function AmountDiscountDialog({
                     />
                   </FormControl>
                   <FormDescription>
-                    Final price multiplier (0.95 = 5% discount
+                    {t('Final price multiplier (0.95 = 5% discount')}
                     {discountPercentage > 0 && (
                       <span className='ml-1 font-medium text-green-600 dark:text-green-400'>
-                        = {discountPercentage}% off
+                        = {discountPercentage}
+                        {t('% off')}
                       </span>
                     )}
                     )
@@ -175,7 +180,7 @@ export function AmountDiscountDialog({
                 variant='outline'
                 onClick={() => onOpenChange(false)}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
             </DialogFooter>

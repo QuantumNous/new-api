@@ -14,6 +14,7 @@ import {
   CodeSquareIcon,
   GraduationCapIcon,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -69,6 +70,7 @@ export function PlaygroundInput({
   groupValue,
   onGroupChange,
 }: PlaygroundInputProps) {
+  const { t } = useTranslation()
   const [text, setText] = useState('')
 
   const isModelSelectDisabled =
@@ -105,7 +107,7 @@ export function PlaygroundInput({
           className='px-5 md:text-base'
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
-          placeholder='Ask anything'
+          placeholder={t('Ask anything')}
           value={text}
         />
 
@@ -119,8 +121,8 @@ export function PlaygroundInput({
                   variant='outline'
                 >
                   <PaperclipIcon size={16} />
-                  <span className='hidden sm:inline'>Attach</span>
-                  <span className='sr-only sm:hidden'>Attach</span>
+                  <span className='hidden sm:inline'>{t('Attach')}</span>
+                  <span className='sr-only sm:hidden'>{t('Attach')}</span>
                 </PromptInputButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
@@ -128,25 +130,25 @@ export function PlaygroundInput({
                   onClick={() => handleFileAction('upload-file')}
                 >
                   <FileIcon className='mr-2' size={16} />
-                  Upload file
+                  {t('Upload file')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleFileAction('upload-photo')}
                 >
                   <ImageIcon className='mr-2' size={16} />
-                  Upload photo
+                  {t('Upload photo')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleFileAction('take-screenshot')}
                 >
                   <ScreenShareIcon className='mr-2' size={16} />
-                  Take screenshot
+                  {t('Take screenshot')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleFileAction('take-photo')}
                 >
                   <CameraIcon className='mr-2' size={16} />
-                  Take photo
+                  {t('Take photo')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -158,8 +160,8 @@ export function PlaygroundInput({
               variant='outline'
             >
               <GlobeIcon size={16} />
-              <span className='hidden sm:inline'>Search</span>
-              <span className='sr-only sm:hidden'>Search</span>
+              <span className='hidden sm:inline'>{t('Search')}</span>
+              <span className='sr-only sm:hidden'>{t('Search')}</span>
             </PromptInputButton>
           </PromptInputTools>
 
@@ -181,8 +183,8 @@ export function PlaygroundInput({
                 variant='secondary'
               >
                 <SquareIcon className='fill-current' size={16} />
-                <span className='hidden sm:inline'>Stop</span>
-                <span className='sr-only sm:hidden'>Stop</span>
+                <span className='hidden sm:inline'>{t('Stop')}</span>
+                <span className='sr-only sm:hidden'>{t('Stop')}</span>
               </PromptInputButton>
             ) : (
               <PromptInputButton
@@ -192,8 +194,8 @@ export function PlaygroundInput({
                 variant='secondary'
               >
                 <SendIcon size={16} />
-                <span className='hidden sm:inline'>Send</span>
-                <span className='sr-only sm:hidden'>Send</span>
+                <span className='hidden sm:inline'>{t('Send')}</span>
+                <span className='sr-only sm:hidden'>{t('Send')}</span>
               </PromptInputButton>
             )}
           </div>

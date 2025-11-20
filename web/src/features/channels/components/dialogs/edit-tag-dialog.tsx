@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ type EditTagDialogProps = {
 }
 
 export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
+  const { t } = useTranslation()
   const { currentTag } = useChannels()
   const queryClient = useQueryClient()
 
@@ -196,10 +198,13 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className='max-h-[90vh] max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>Edit Tag: {currentTag}</DialogTitle>
+          <DialogTitle>
+            {t('Edit Tag:')} {currentTag}
+          </DialogTitle>
           <DialogDescription>
-            Batch edit all channels with this tag. Leave fields empty to keep
-            current values.
+            {t(
+              'Batch edit all channels with this tag. Leave fields empty to keep current values.'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -208,16 +213,16 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
             {/* Tag Name */}
             <div className='space-y-2'>
               <Label htmlFor='new-tag'>
-                Tag Name
+                {t('Tag Name')}
                 <span className='text-muted-foreground ml-2 text-xs'>
-                  (Leave empty to dissolve tag)
+                  {t('(Leave empty to dissolve tag)')}
                 </span>
               </Label>
               <Input
                 id='new-tag'
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                placeholder='Enter new tag name or leave empty'
+                placeholder={t('Enter new tag name or leave empty')}
               />
             </div>
 
@@ -226,9 +231,9 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
             {/* Models */}
             <div className='space-y-2'>
               <Label>
-                Models
+                {t('Models')}
                 <span className='text-muted-foreground ml-2 text-xs'>
-                  (Override all channels' models)
+                  {t("(Override all channels' models)")}
                 </span>
               </Label>
 
@@ -236,7 +241,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                 <div className='flex items-center gap-2 py-4'>
                   <Loader2 className='h-4 w-4 animate-spin' />
                   <span className='text-muted-foreground text-sm'>
-                    Loading current models...
+                    {t('Loading current models...')}
                   </span>
                 </div>
               ) : (
@@ -255,7 +260,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                       ))
                     ) : (
                       <span className='text-muted-foreground text-sm'>
-                        No models selected
+                        {t('No models selected')}
                       </span>
                     )}
                   </div>
@@ -269,7 +274,9 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                       }}
                     >
                       <SelectTrigger className='flex-1'>
-                        <SelectValue placeholder='Add from available models...' />
+                        <SelectValue
+                          placeholder={t('Add from available models...')}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         <ScrollArea className='h-60'>
@@ -285,7 +292,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
                   <div className='flex gap-2'>
                     <Input
-                      placeholder='Custom model (comma-separated)'
+                      placeholder={t('Custom model (comma-separated)')}
                       value={customModel}
                       onChange={(e) => setCustomModel(e.target.value)}
                       onKeyDown={(e) => {
@@ -300,7 +307,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                       variant='secondary'
                       onClick={handleAddCustomModel}
                     >
-                      Add
+                      {t('Add')}
                     </Button>
                   </div>
                 </>
@@ -312,9 +319,9 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
             {/* Model Mapping */}
             <div className='space-y-2'>
               <Label htmlFor='model-mapping'>
-                Model Mapping (JSON)
+                {t('Model Mapping (JSON)')}
                 <span className='text-muted-foreground ml-2 text-xs'>
-                  (Optional: redirect model names)
+                  {t('(Optional: redirect model names)')}
                 </span>
               </Label>
               <Textarea
@@ -340,7 +347,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                     )
                   }
                 >
-                  Example
+                  {t('Example')}
                 </Button>
                 <Button
                   type='button'
@@ -348,7 +355,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                   size='sm'
                   onClick={() => setModelMapping(JSON.stringify({}, null, 2))}
                 >
-                  Clear Mapping
+                  {t('Clear Mapping')}
                 </Button>
                 <Button
                   type='button'
@@ -356,7 +363,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                   size='sm'
                   onClick={() => setModelMapping('')}
                 >
-                  No Change
+                  {t('No Change')}
                 </Button>
               </div>
             </div>
@@ -366,9 +373,9 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
             {/* Groups */}
             <div className='space-y-2'>
               <Label>
-                Groups
+                {t('Groups')}
                 <span className='text-muted-foreground ml-2 text-xs'>
-                  (Override all channels' groups)
+                  {t("(Override all channels' groups)")}
                 </span>
               </Label>
               <div className='flex min-h-[60px] flex-wrap gap-2 rounded-md border p-3'>
@@ -391,11 +398,11 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
         <DialogFooter>
           <Button variant='outline' onClick={handleClose}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            Save Changes
+            {t('Save Changes')}
           </Button>
         </DialogFooter>
       </DialogContent>

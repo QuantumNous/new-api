@@ -1,4 +1,5 @@
 import { AlertCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { MESSAGE_STATUS } from '../constants'
 import type { Message } from '../types'
@@ -13,6 +14,7 @@ interface MessageErrorProps {
  * Following ai-elements pattern for error handling
  */
 export function MessageError({ message, className = '' }: MessageErrorProps) {
+  const { t } = useTranslation()
   // Only show for error status
   if (message.status !== MESSAGE_STATUS.ERROR) {
     return null
@@ -25,7 +27,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
   return (
     <Alert variant='destructive' className={className}>
       <AlertCircle />
-      <AlertTitle>Error</AlertTitle>
+      <AlertTitle>{t('Error')}</AlertTitle>
       <AlertDescription>{errorContent}</AlertDescription>
     </Alert>
   )

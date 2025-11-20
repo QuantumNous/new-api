@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { AppHeader, Main } from '@/components/layout'
 import { ChannelsDialogs } from './components/channels-dialogs'
 import { ChannelsPrimaryButtons } from './components/channels-primary-buttons'
@@ -5,6 +6,7 @@ import { ChannelsProvider } from './components/channels-provider'
 import { ChannelsTable } from './components/channels-table'
 
 export function Channels() {
+  const { t } = useTranslation()
   return (
     <ChannelsProvider>
       <AppHeader fixed />
@@ -14,9 +16,11 @@ export function Channels() {
           {/* Header: Title + Actions */}
           <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
             <div>
-              <h2 className='text-2xl font-bold tracking-tight'>Channels</h2>
+              <h2 className='text-2xl font-bold tracking-tight'>
+                {t('Channels')}
+              </h2>
               <p className='text-muted-foreground text-sm'>
-                Manage API channels and provider configurations
+                {t('Manage API channels and provider configurations')}
               </p>
             </div>
             <ChannelsPrimaryButtons />

@@ -5,6 +5,7 @@ import { type LinkProps } from '@tanstack/react-router'
  * Used for top switcher to display different workspaces
  */
 export type Workspace = {
+  id: string
   name: string
   logo: React.ElementType
   plan: string
@@ -55,6 +56,7 @@ export type NavItem = NavCollapsible | NavLink | NavChatPresets
  * Navigation group type - a group of navigation items in sidebar
  */
 export type NavGroup = {
+  id?: string
   title: string
   items: NavItem[]
 }

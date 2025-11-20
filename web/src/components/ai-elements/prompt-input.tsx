@@ -34,6 +34,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { nanoid } from 'nanoid'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -262,6 +263,7 @@ export function PromptInputAttachment({
   className,
   ...props
 }: PromptInputAttachmentProps) {
+  const { t } = useTranslation()
   const attachments = usePromptInputAttachments()
 
   const filename = data.filename || ''
@@ -300,7 +302,7 @@ export function PromptInputAttachment({
               )}
             </div>
             <Button
-              aria-label='Remove attachment'
+              aria-label={t('Remove attachment')}
               className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
               onClick={(e) => {
                 e.stopPropagation()
@@ -310,7 +312,7 @@ export function PromptInputAttachment({
               variant='ghost'
             >
               <XIcon />
-              <span className='sr-only'>Remove</span>
+              <span className='sr-only'>{t('Remove')}</span>
             </Button>
           </div>
 
@@ -441,6 +443,7 @@ export const PromptInput = ({
   children,
   ...props
 }: PromptInputProps) => {
+  const { t } = useTranslation()
   // Try to use a provider controller if present
   const controller = useOptionalPromptInputController()
   const usingProvider = !!controller
@@ -729,12 +732,12 @@ export const PromptInput = ({
       <span aria-hidden='true' className='hidden' ref={anchorRef} />
       <input
         accept={accept}
-        aria-label='Upload files'
+        aria-label={t('Upload files')}
         className='hidden'
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}
-        title='Upload files'
+        title={t('Upload files')}
         type='file'
       />
       <form
@@ -974,6 +977,7 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
+  const { t } = useTranslation()
   let Icon = <SendIcon className='size-4' />
 
   if (status === 'submitted') {
@@ -986,7 +990,7 @@ export const PromptInputSubmit = ({
 
   return (
     <InputGroupButton
-      aria-label='Submit'
+      aria-label={t('Submit')}
       className={cn(className)}
       size={size}
       type='submit'

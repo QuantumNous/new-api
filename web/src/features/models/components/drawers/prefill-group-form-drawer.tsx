@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,6 +65,7 @@ export function PrefillGroupFormDrawer({
   onClose,
   currentGroup,
 }: PrefillGroupFormDrawerProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isEdit = Boolean(currentGroup?.id)
   const [isSaving, setIsSaving] = useState(false)
@@ -162,12 +164,12 @@ export function PrefillGroupFormDrawer({
       <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
         <SheetHeader className='text-start'>
           <SheetTitle>
-            {isEdit ? 'Edit Prefill Group' : 'Create Prefill Group'}
+            {isEdit ? t('Edit Prefill Group') : t('Create Prefill Group')}
           </SheetTitle>
           <SheetDescription>
             {isEdit
-              ? 'Update the reusable bundle below.'
-              : 'Capture a reusable bundle of models, tags, or endpoints.'}
+              ? t('Update the reusable bundle below.')
+              : t('Capture a reusable bundle of models, tags, or endpoints.')}
           </SheetDescription>
         </SheetHeader>
 
@@ -179,9 +181,11 @@ export function PrefillGroupFormDrawer({
           >
             <div className='space-y-4'>
               <div className='space-y-1'>
-                <h3 className='text-sm font-semibold'>Group details</h3>
+                <h3 className='text-sm font-semibold'>{t('Group details')}</h3>
                 <p className='text-muted-foreground text-sm'>
-                  Give the group a recognizable name and optional description.
+                  {t(
+                    'Give the group a recognizable name and optional description.'
+                  )}
                 </p>
               </div>
 
@@ -190,12 +194,15 @@ export function PrefillGroupFormDrawer({
                 name='name'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Group Name</FormLabel>
+                    <FormLabel>{t('Group Name')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='Premium chat models' {...field} />
+                      <Input
+                        placeholder={t('Premium chat models')}
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription>
-                      Give this group a recognizable name.
+                      {t('Give this group a recognizable name.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -207,16 +214,20 @@ export function PrefillGroupFormDrawer({
                 name='description'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>{t('Description')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder='Optional notes about when to use this group'
+                        placeholder={t(
+                          'Optional notes about when to use this group'
+                        )}
                         rows={3}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Make it easier for teammates to pick the right group.
+                      {t(
+                        'Make it easier for teammates to pick the right group.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -228,9 +239,9 @@ export function PrefillGroupFormDrawer({
 
             <div className='space-y-4'>
               <div className='space-y-1'>
-                <h3 className='text-sm font-semibold'>Configuration</h3>
+                <h3 className='text-sm font-semibold'>{t('Configuration')}</h3>
                 <p className='text-muted-foreground text-sm'>
-                  Choose the bundle type and define the items inside it.
+                  {t('Choose the bundle type and define the items inside it.')}
                 </p>
               </div>
 
@@ -248,7 +259,7 @@ export function PrefillGroupFormDrawer({
                     >
                       <FormControl>
                         <SelectTrigger className='[&_[data-slot=select-value]_[data-prefill-description]]:hidden'>
-                          <SelectValue placeholder='Select a group type' />
+                          <SelectValue placeholder={t('Select a group type')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -268,7 +279,7 @@ export function PrefillGroupFormDrawer({
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      Determines how this group is applied elsewhere.
+                      {t('Determines how this group is applied elsewhere.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -277,7 +288,7 @@ export function PrefillGroupFormDrawer({
 
               <div className='space-y-2 rounded-lg border p-4'>
                 <div className='flex items-center gap-2'>
-                  <h4 className='text-sm font-medium'>Project</h4>
+                  <h4 className='text-sm font-medium'>{t('Project')}</h4>
                   <StatusBadge
                     label={meta.label}
                     variant={meta.badge}
@@ -290,7 +301,7 @@ export function PrefillGroupFormDrawer({
                   name='items'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className='sr-only'>Items</FormLabel>
+                      <FormLabel className='sr-only'>{t('Items')}</FormLabel>
                       <FormControl>
                         {selectedType === 'endpoint' ? (
                           <JsonEditor
@@ -298,11 +309,13 @@ export function PrefillGroupFormDrawer({
                             onChange={field.onChange}
                             keyPlaceholder='provider'
                             valuePlaceholder='{"path": "/v1/...","method": "POST"}'
-                            keyLabel='Provider'
-                            valueLabel='Endpoint config'
+                            keyLabel={t('Provider')}
+                            valueLabel={t('Endpoint config')}
                             valueType='any'
                             template={ENDPOINT_TEMPLATES}
-                            emptyMessage='Define endpoint mappings for each provider.'
+                            emptyMessage={t(
+                              'Define endpoint mappings for each provider.'
+                            )}
                           />
                         ) : (
                           <TagInput
@@ -310,14 +323,16 @@ export function PrefillGroupFormDrawer({
                               Array.isArray(field.value) ? field.value : []
                             }
                             onChange={field.onChange}
-                            placeholder='Enter a value and press Enter'
+                            placeholder={t('Enter a value and press Enter')}
                           />
                         )}
                       </FormControl>
                       <FormDescription>
                         {selectedType === 'endpoint'
-                          ? 'Provide a JSON object where each key maps to an endpoint definition.'
-                          : 'Add each model or tag you want to include.'}
+                          ? t(
+                              'Provide a JSON object where each key maps to an endpoint definition.'
+                            )
+                          : t('Add each model or tag you want to include.')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -331,7 +346,7 @@ export function PrefillGroupFormDrawer({
         <SheetFooter className='gap-2'>
           <SheetClose asChild>
             <Button type='button' variant='outline' disabled={isSaving}>
-              Cancel
+              {t('Cancel')}
             </Button>
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>

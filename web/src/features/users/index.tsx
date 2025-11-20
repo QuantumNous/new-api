@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { AppHeader, Main } from '@/components/layout'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
@@ -6,6 +7,7 @@ import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
 
 function UsersContent() {
+  const { t } = useTranslation()
   const { open, setOpen, currentRow } = useUsers()
 
   return (
@@ -15,9 +17,9 @@ function UsersContent() {
       <Main>
         <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
           <div>
-            <h2 className='text-2xl font-bold tracking-tight'>Users</h2>
+            <h2 className='text-2xl font-bold tracking-tight'>{t('Users')}</h2>
             <p className='text-muted-foreground'>
-              Manage users and their permissions
+              {t('Manage users and their permissions')}
             </p>
           </div>
           <UsersPrimaryButtons />

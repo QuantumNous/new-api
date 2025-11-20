@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckSquare, RefreshCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,6 +51,7 @@ function getBillingCategory(ratioType: RatioType): 'price' | 'ratio' {
 }
 
 export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [channelDialogOpen, setChannelDialogOpen] = useState(false)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
@@ -363,7 +365,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
             disabled={fetchMutation.isPending}
           >
             <RefreshCcw className='mr-2 h-4 w-4' />
-            Select Sync Channels
+            {t('Select Sync Channels')}
           </Button>
           <Button
             variant='secondary'
@@ -371,7 +373,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
             disabled={!hasSelections || syncMutation.isPending}
           >
             <CheckSquare className='mr-2 h-4 w-4' />
-            Apply Sync
+            {t('Apply Sync')}
           </Button>
         </div>
       </div>
@@ -380,7 +382,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         <div className='flex h-64 items-center justify-center rounded-md border'>
           <div className='text-center'>
             <p className='text-muted-foreground text-sm'>
-              Fetching upstream ratios...
+              {t('Fetching upstream ratios...')}
             </p>
           </div>
         </div>

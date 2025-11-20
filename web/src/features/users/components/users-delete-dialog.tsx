@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -16,6 +17,7 @@ import { getUserActionMessage } from '../lib'
 import { useUsers } from './users-provider'
 
 export function UsersDeleteDialog() {
+  const { t } = useTranslation()
   const { open, setOpen, currentRow, triggerRefresh } = useUsers()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -46,15 +48,17 @@ export function UsersDeleteDialog() {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete user{' '}
-            <span className='font-semibold'>{currentRow?.username}</span>. This
-            action cannot be undone.
+            {t('This will permanently delete user')}{' '}
+            <span className='font-semibold'>{currentRow?.username}</span>
+            {t('. This action cannot be undone.')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>
+            {t('Cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isDeleting}

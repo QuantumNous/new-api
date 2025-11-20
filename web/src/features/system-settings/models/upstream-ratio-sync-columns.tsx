@@ -1,5 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -23,7 +24,7 @@ export type DifferenceRow = {
 
 type ResolutionsMap = Record<string, Record<RatioType, number>>
 
-export function getUpstreamRatioSyncColumns(
+export function useUpstreamRatioSyncColumns(
   upstreamNames: string[],
   resolutions: ResolutionsMap,
   onSelectValue: (model: string, ratioType: RatioType, value: number) => void,
@@ -31,10 +32,11 @@ export function getUpstreamRatioSyncColumns(
   onBulkSelect: (upstreamName: string, rows: DifferenceRow[]) => void,
   onBulkUnselect: (upstreamName: string, rows: DifferenceRow[]) => void
 ): ColumnDef<DifferenceRow>[] {
+  const { t } = useTranslation()
   const baseColumns: ColumnDef<DifferenceRow>[] = [
     {
       accessorKey: 'model',
-      header: 'Model',
+      header: t('Model'),
       cell: ({ row }) => {
         const model = row.getValue('model') as string
         return (
@@ -50,7 +52,7 @@ export function getUpstreamRatioSyncColumns(
     },
     {
       accessorKey: 'ratioType',
-      header: 'Ratio Type',
+      header: t('Ratio Type'),
       cell: ({ row }) => {
         const ratioType = row.getValue('ratioType') as RatioType
         const billingConflict = row.original.billingConflict
@@ -78,8 +80,9 @@ export function getUpstreamRatioSyncColumns(
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>
-                      This model has both fixed price and ratio billing
-                      conflicts
+                      {t(
+                        'This model has both fixed price and ratio billing conflicts'
+                      )}
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -93,7 +96,7 @@ export function getUpstreamRatioSyncColumns(
     },
     {
       id: 'confidence',
-      header: 'Confidence',
+      header: t('Confidence'),
       cell: ({ row }) => {
         const confidence = row.original.confidence
         const allConfident = Object.values(confidence).every((v) => v !== false)
@@ -104,7 +107,7 @@ export function getUpstreamRatioSyncColumns(
               <Tooltip>
                 <TooltipTrigger>
                   <StatusBadge
-                    label='Trusted'
+                    label={t('Trusted')}
                     variant='success'
                     size='sm'
                     copyable={false}
@@ -112,7 +115,7 @@ export function getUpstreamRatioSyncColumns(
                   />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>All upstream data is trusted</p>
+                  <p>{t('All upstream data is trusted')}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -129,7 +132,7 @@ export function getUpstreamRatioSyncColumns(
             <Tooltip>
               <TooltipTrigger>
                 <StatusBadge
-                  label='Caution'
+                  label={t('Caution')}
                   variant='warning'
                   size='sm'
                   copyable={false}
@@ -137,7 +140,9 @@ export function getUpstreamRatioSyncColumns(
                 />
               </TooltipTrigger>
               <TooltipContent>
-                <p>Untrusted upstream data: {untrustedSources}</p>
+                <p>
+                  {t('Untrusted upstream data:')} {untrustedSources}
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -146,7 +151,7 @@ export function getUpstreamRatioSyncColumns(
     },
     {
       accessorKey: 'current',
-      header: 'Current Value',
+      header: t('Current Value'),
       cell: ({ row }) => {
         const current = row.getValue('current') as number | null
         return (
@@ -214,7 +219,7 @@ export function getUpstreamRatioSyncColumns(
         if (upstreamValue === null || upstreamValue === undefined) {
           return (
             <StatusBadge
-              label='Not Set'
+              label={t('Not Set')}
               variant='neutral'
               size='sm'
               copyable={false}
@@ -225,7 +230,7 @@ export function getUpstreamRatioSyncColumns(
         if (upstreamValue === 'same') {
           return (
             <StatusBadge
-              label='Same as Local'
+              label={t('Same as Local')}
               variant='info'
               size='sm'
               copyable={false}
@@ -261,7 +266,7 @@ export function getUpstreamRatioSyncColumns(
                     <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>This data may be unreliable, use with caution</p>
+                    <p>{t('This data may be unreliable, use with caution')}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

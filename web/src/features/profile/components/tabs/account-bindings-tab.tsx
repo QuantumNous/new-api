@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { Mail, Github, Shield, Send } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { SiWechat, SiLinux } from 'react-icons/si'
 import {
   handleGitHubOAuth,
@@ -31,6 +32,7 @@ export function AccountBindingsTab({
   profile,
   onUpdate,
 }: AccountBindingsTabProps) {
+  const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
   const { status, loading } = useStatus()
 
@@ -69,7 +71,7 @@ export function AccountBindingsTab({
     return [
       {
         id: 'email',
-        label: 'Email',
+        label: t('Email'),
         icon: Mail,
         value: profile.email,
         isBound: Boolean(profile.email),
@@ -78,7 +80,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'wechat',
-        label: 'WeChat',
+        label: t('WeChat'),
         icon: SiWechat as any,
         value: undefined,
         isBound: Boolean((profile as any).wechat_id),
@@ -87,7 +89,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'github',
-        label: 'GitHub',
+        label: t('GitHub'),
         icon: Github,
         value: (profile as any).github_id,
         isBound: Boolean((profile as any).github_id),
@@ -100,7 +102,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'oidc',
-        label: 'OIDC',
+        label: t('OIDC'),
         icon: Shield,
         value: (profile as any).oidc_id,
         isBound: Boolean((profile as any).oidc_id),
@@ -116,7 +118,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'telegram',
-        label: 'Telegram',
+        label: t('Telegram'),
         icon: Send,
         value: (profile as any).telegram_id,
         isBound: Boolean((profile as any).telegram_id),
@@ -125,7 +127,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'linuxdo',
-        label: 'LinuxDO',
+        label: t('LinuxDO'),
         icon: SiLinux as any,
         value: (profile as any).linux_do_id,
         isBound: Boolean((profile as any).linux_do_id),
@@ -137,7 +139,7 @@ export function AccountBindingsTab({
         },
       },
     ].filter((binding) => binding.isEnabled)
-  }, [profile, status])
+  }, [profile, status, t])
 
   if (!profile || loading) return null
 
@@ -158,12 +160,12 @@ export function AccountBindingsTab({
                   <p className='font-medium'>{binding.label}</p>
                   {binding.isBound && (
                     <Badge variant='outline' className='text-xs'>
-                      Bound
+                      {t('Bound')}
                     </Badge>
                   )}
                 </div>
                 <p className='text-muted-foreground text-sm'>
-                  {binding.value || 'Not bound'}
+                  {binding.value || t('Not bound')}
                 </p>
               </div>
             </div>
@@ -175,9 +177,9 @@ export function AccountBindingsTab({
             >
               {binding.isBound
                 ? binding.id === 'email'
-                  ? 'Change'
-                  : 'Bound'
-                : 'Bind'}
+                  ? t('Change')
+                  : t('Bound')
+                : t('Bind')}
             </Button>
           </div>
         ))}

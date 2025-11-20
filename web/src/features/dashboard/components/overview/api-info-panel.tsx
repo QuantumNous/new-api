@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Route } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
 import {
@@ -11,6 +12,7 @@ import { PanelWrapper } from '../ui/panel-wrapper'
 import { ApiInfoItemComponent } from './api-info-item'
 
 export function ApiInfoPanel() {
+  const { t } = useTranslation()
   const { items: list, loading } = useApiInfo()
   const [pingStatus, setPingStatus] = useState<PingStatusMap>({})
 
@@ -30,12 +32,12 @@ export function ApiInfoPanel() {
       title={
         <span className='flex items-center gap-2'>
           <Route className='h-5 w-5' />
-          API Info
+          {t('API Info')}
         </span>
       }
       loading={loading}
       empty={!list.length}
-      emptyMessage='No API routes configured'
+      emptyMessage={t('No API routes configured')}
       height='h-64'
     >
       <ScrollArea className='h-64'>

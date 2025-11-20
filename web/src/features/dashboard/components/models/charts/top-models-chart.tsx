@@ -1,4 +1,5 @@
 import { TrendingUp } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { getChartColor } from '@/lib/colors'
 import {
@@ -17,6 +18,7 @@ interface TopModelsChartProps {
 }
 
 export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
+  const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
 
   return (
@@ -24,12 +26,12 @@ export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
       title={
         <span className='flex items-center gap-2'>
           <TrendingUp className='h-5 w-5' />
-          Top Models
+          {t('Top Models')}
         </span>
       }
       loading={loading}
       empty={isEmpty}
-      emptyMessage='No model ranking data available'
+      emptyMessage={t('No model ranking data available')}
       height='h-96'
     >
       <ChartContainer

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Accordion } from '@/components/ui/accordion'
 import { useAccordionState } from '../hooks/use-accordion-state'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
@@ -42,13 +43,14 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
 }
 
 export function IntegrationSettings() {
+  const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
   const { openItems, handleAccordionChange } = useAccordionState('integrations')
 
   if (isLoading) {
     return (
       <div className='flex items-center justify-center py-12'>
-        <div className='text-muted-foreground'>Loading settings...</div>
+        <div className='text-muted-foreground'>{t('Loading settings...')}</div>
       </div>
     )
   }

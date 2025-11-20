@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Code, Table, Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,7 @@ export function ModelMappingEditor({
   onChange,
   disabled = false,
 }: ModelMappingEditorProps) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
@@ -144,12 +146,12 @@ export function ModelMappingEditor({
             {mode === 'visual' ? (
               <>
                 <Code className='mr-2 h-4 w-4' />
-                JSON Mode
+                {t('JSON Mode')}
               </>
             ) : (
               <>
                 <Table className='mr-2 h-4 w-4' />
-                Visual Mode
+                {t('Visual Mode')}
               </>
             )}
           </Button>
@@ -161,7 +163,7 @@ export function ModelMappingEditor({
             onClick={handleFillTemplate}
             disabled={disabled}
           >
-            Fill Template
+            {t('Fill Template')}
           </Button>
         </div>
       </div>
@@ -171,8 +173,8 @@ export function ModelMappingEditor({
           {rows.length > 0 ? (
             <div className='space-y-2'>
               <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
-                <div>Original Model</div>
-                <div>Replacement Model</div>
+                <div>{t('Original Model')}</div>
+                <div>{t('Replacement Model')}</div>
                 <div className='w-10'></div>
               </div>
               {rows.map((row) => (
@@ -211,7 +213,9 @@ export function ModelMappingEditor({
             </div>
           ) : (
             <div className='text-muted-foreground flex h-24 items-center justify-center rounded-md border border-dashed text-sm'>
-              No model mappings configured. Click "Add Mapping" to get started.
+              {t(
+                'No model mappings configured. Click "Add Mapping" to get started.'
+              )}
             </div>
           )}
           <Button
@@ -223,14 +227,14 @@ export function ModelMappingEditor({
             className='w-full'
           >
             <Plus className='mr-2 h-4 w-4' />
-            Add Mapping
+            {t('Add Mapping')}
           </Button>
         </div>
       ) : (
         <Textarea
           value={jsonValue}
           onChange={(e) => handleJsonChange(e.target.value)}
-          placeholder='{"original-model": "replacement-model"}'
+          placeholder={t('{"original-model": "replacement-model"}')}
           disabled={disabled}
           rows={8}
           className={cn('font-mono text-sm')}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +27,7 @@ interface NotificationTabProps {
 }
 
 export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     notify_type: 'email',
@@ -92,7 +94,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     <div className='space-y-6'>
       {/* Notification Type */}
       <div className='space-y-3'>
-        <Label>Notification Method</Label>
+        <Label>{t('Notification Method')}</Label>
         <RadioGroup
           value={settings.notify_type}
           onValueChange={(value) =>
@@ -112,7 +114,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
       {/* Warning Threshold */}
       <div className='space-y-2'>
-        <Label htmlFor='threshold'>Quota Warning Threshold</Label>
+        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
         <Input
           id='threshold'
           type='number'
@@ -120,23 +122,23 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           onChange={(e) =>
             updateField('quota_warning_threshold', Number(e.target.value))
           }
-          placeholder='Enter threshold'
+          placeholder={t('Enter threshold')}
         />
         <p className='text-muted-foreground text-xs'>
-          Get notified when balance falls below this value
+          {t('Get notified when balance falls below this value')}
         </p>
       </div>
 
       {/* Email Settings */}
       {settings.notify_type === 'email' && (
         <div className='space-y-2'>
-          <Label htmlFor='notifyEmail'>Notification Email</Label>
+          <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
           <Input
             id='notifyEmail'
             type='email'
             value={settings.notification_email}
             onChange={(e) => updateField('notification_email', e.target.value)}
-            placeholder='Leave empty to use account email'
+            placeholder={t('Leave empty to use account email')}
           />
         </div>
       )}
@@ -145,22 +147,22 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       {settings.notify_type === 'webhook' && (
         <>
           <div className='space-y-2'>
-            <Label htmlFor='webhookUrl'>Webhook URL</Label>
+            <Label htmlFor='webhookUrl'>{t('Webhook URL')}</Label>
             <Input
               id='webhookUrl'
               type='url'
               value={settings.webhook_url}
               onChange={(e) => updateField('webhook_url', e.target.value)}
-              placeholder='https://example.com/webhook'
+              placeholder={t('https://example.com/webhook')}
             />
           </div>
           <div className='space-y-2'>
-            <Label htmlFor='webhookSecret'>Webhook Secret</Label>
+            <Label htmlFor='webhookSecret'>{t('Webhook Secret')}</Label>
             <PasswordInput
               id='webhookSecret'
               value={settings.webhook_secret}
               onChange={(e) => updateField('webhook_secret', e.target.value)}
-              placeholder='Enter secret key'
+              placeholder={t('Enter secret key')}
             />
           </div>
         </>
@@ -169,16 +171,16 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       {/* Bark Settings */}
       {settings.notify_type === 'bark' && (
         <div className='space-y-2'>
-          <Label htmlFor='barkUrl'>Bark Push URL</Label>
+          <Label htmlFor='barkUrl'>{t('Bark Push URL')}</Label>
           <Input
             id='barkUrl'
             type='url'
             value={settings.bark_url}
             onChange={(e) => updateField('bark_url', e.target.value)}
-            placeholder='https://api.day.app/yourkey/{{title}}/{{content}}'
+            placeholder={t('https://api.day.app/yourkey/{{title}}/{{content}}')}
           />
           <p className='text-muted-foreground text-xs'>
-            Template variables: {'{{title}}'}, {'{{content}}'}
+            {t('Template variables:')} {'{{title}}'}, {'{{content}}'}
           </p>
         </div>
       )}
@@ -187,32 +189,32 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       {settings.notify_type === 'gotify' && (
         <>
           <div className='space-y-2'>
-            <Label htmlFor='gotifyUrl'>Gotify Server URL</Label>
+            <Label htmlFor='gotifyUrl'>{t('Gotify Server URL')}</Label>
             <Input
               id='gotifyUrl'
               type='url'
               value={settings.gotify_url}
               onChange={(e) => updateField('gotify_url', e.target.value)}
-              placeholder='https://gotify.example.com'
+              placeholder={t('https://gotify.example.com')}
             />
             <p className='text-muted-foreground text-xs'>
-              Enter the full URL of your Gotify server
+              {t('Enter the full URL of your Gotify server')}
             </p>
           </div>
           <div className='space-y-2'>
-            <Label htmlFor='gotifyToken'>Gotify Application Token</Label>
+            <Label htmlFor='gotifyToken'>{t('Gotify Application Token')}</Label>
             <PasswordInput
               id='gotifyToken'
               value={settings.gotify_token}
               onChange={(e) => updateField('gotify_token', e.target.value)}
-              placeholder='Enter application token'
+              placeholder={t('Enter application token')}
             />
             <p className='text-muted-foreground text-xs'>
-              Token obtained from your Gotify application
+              {t('Token obtained from your Gotify application')}
             </p>
           </div>
           <div className='space-y-2'>
-            <Label htmlFor='gotifyPriority'>Message Priority</Label>
+            <Label htmlFor='gotifyPriority'>{t('Message Priority')}</Label>
             <Input
               id='gotifyPriority'
               type='number'
@@ -225,25 +227,29 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
               placeholder='5'
             />
             <p className='text-muted-foreground text-xs'>
-              Priority level from 0 (lowest) to 10 (highest), default is 5
+              {t(
+                'Priority level from 0 (lowest) to 10 (highest), default is 5'
+              )}
             </p>
           </div>
           <div className='bg-muted/50 rounded-lg border p-4'>
-            <h5 className='mb-2 text-sm font-medium'>Setup Instructions</h5>
+            <h5 className='mb-2 text-sm font-medium'>
+              {t('Setup Instructions')}
+            </h5>
             <ol className='text-muted-foreground space-y-1 text-xs'>
-              <li>1. Create an application in your Gotify server</li>
-              <li>2. Copy the application token</li>
-              <li>3. Enter your Gotify server URL and token above</li>
+              <li>{t('1. Create an application in your Gotify server')}</li>
+              <li>{t('2. Copy the application token')}</li>
+              <li>{t('3. Enter your Gotify server URL and token above')}</li>
             </ol>
             <p className='text-muted-foreground mt-3 text-xs'>
-              Learn more:{' '}
+              {t('Learn more:')}{' '}
               <a
                 href='https://gotify.net/'
                 target='_blank'
                 rel='noopener noreferrer'
                 className='text-primary hover:underline'
               >
-                Gotify Documentation
+                {t('Gotify Documentation')}
               </a>
             </p>
           </div>
@@ -256,18 +262,20 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       {/* Preferences Section */}
       <div className='space-y-4'>
         <div>
-          <h4 className='text-sm font-medium'>Preferences</h4>
+          <h4 className='text-sm font-medium'>{t('Preferences')}</h4>
           <p className='text-muted-foreground mt-1 text-xs'>
-            Configure your account behavior preferences
+            {t('Configure your account behavior preferences')}
           </p>
         </div>
 
         {/* Accept Unset Model Price */}
         <div className='flex items-center justify-between rounded-lg border p-4'>
           <div className='space-y-0.5'>
-            <Label htmlFor='acceptUnsetPrice'>Accept Unpriced Models</Label>
+            <Label htmlFor='acceptUnsetPrice'>
+              {t('Accept Unpriced Models')}
+            </Label>
             <p className='text-muted-foreground text-sm'>
-              Allow using models without price configuration
+              {t('Allow using models without price configuration')}
             </p>
           </div>
           <Switch
@@ -282,9 +290,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         {/* Record IP Log */}
         <div className='flex items-center justify-between rounded-lg border p-4'>
           <div className='space-y-0.5'>
-            <Label htmlFor='recordIp'>Record IP Address</Label>
+            <Label htmlFor='recordIp'>{t('Record IP Address')}</Label>
             <p className='text-muted-foreground text-sm'>
-              Log IP address for usage and error logs
+              {t('Log IP address for usage and error logs')}
             </p>
           </div>
           <Switch

@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -70,6 +71,7 @@ export function ModelRatioDialog({
   onSave,
   editData,
 }: ModelRatioDialogProps) {
+  const { t } = useTranslation()
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [pricingSubMode, setPricingSubMode] = useState<PricingSubMode>('ratio')
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -186,7 +188,7 @@ export function ModelRatioDialog({
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit model' : 'Add model'}</DialogTitle>
           <DialogDescription>
-            Configure pricing ratios for a specific model.
+            {t('Configure pricing ratios for a specific model.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -201,16 +203,16 @@ export function ModelRatioDialog({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Model name</FormLabel>
+                  <FormLabel>{t('Model name')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder='gpt-4'
+                      placeholder={t('gpt-4')}
                       {...field}
                       disabled={isEditMode}
                     />
                   </FormControl>
                   <FormDescription>
-                    The exact model identifier as used in API requests.
+                    {t('The exact model identifier as used in API requests.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -218,7 +220,7 @@ export function ModelRatioDialog({
             />
 
             <div className='space-y-4'>
-              <Label>Pricing mode</Label>
+              <Label>{t('Pricing mode')}</Label>
               <RadioGroup
                 value={pricingMode}
                 onValueChange={(value) => setPricingMode(value as PricingMode)}
@@ -226,13 +228,13 @@ export function ModelRatioDialog({
                 <div className='flex items-center space-x-2'>
                   <RadioGroupItem value='per-token' id='per-token' />
                   <Label htmlFor='per-token' className='font-normal'>
-                    Per-token (ratio based)
+                    {t('Per-token (ratio based)')}
                   </Label>
                 </div>
                 <div className='flex items-center space-x-2'>
                   <RadioGroupItem value='per-request' id='per-request' />
                   <Label htmlFor='per-request' className='font-normal'>
-                    Per-request (fixed price)
+                    {t('Per-request (fixed price)')}
                   </Label>
                 </div>
               </RadioGroup>
@@ -244,7 +246,7 @@ export function ModelRatioDialog({
                 name='price'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fixed price (USD)</FormLabel>
+                    <FormLabel>{t('Fixed price (USD)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='text'
@@ -259,7 +261,7 @@ export function ModelRatioDialog({
                       />
                     </FormControl>
                     <FormDescription>
-                      Cost in USD per request, regardless of tokens used.
+                      {t('Cost in USD per request, regardless of tokens used.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -268,7 +270,7 @@ export function ModelRatioDialog({
             ) : (
               <>
                 <div className='space-y-4'>
-                  <Label>Input mode</Label>
+                  <Label>{t('Input mode')}</Label>
                   <RadioGroup
                     value={pricingSubMode}
                     onValueChange={(value) =>
@@ -278,13 +280,13 @@ export function ModelRatioDialog({
                     <div className='flex items-center space-x-2'>
                       <RadioGroupItem value='ratio' id='ratio' />
                       <Label htmlFor='ratio' className='font-normal'>
-                        Ratio mode
+                        {t('Ratio mode')}
                       </Label>
                     </div>
                     <div className='flex items-center space-x-2'>
                       <RadioGroupItem value='price' id='price' />
                       <Label htmlFor='price' className='font-normal'>
-                        Price mode (USD per 1M tokens)
+                        {t('Price mode (USD per 1M tokens)')}
                       </Label>
                     </div>
                   </RadioGroup>
@@ -297,7 +299,7 @@ export function ModelRatioDialog({
                       name='ratio'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Model ratio</FormLabel>
+                          <FormLabel>{t('Model ratio')}</FormLabel>
                           <FormControl>
                             <Input
                               type='text'
@@ -333,7 +335,7 @@ export function ModelRatioDialog({
                       name='completionRatio'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Completion ratio</FormLabel>
+                          <FormLabel>{t('Completion ratio')}</FormLabel>
                           <FormControl>
                             <Input
                               type='text'
@@ -372,7 +374,7 @@ export function ModelRatioDialog({
                   <>
                     <div className='space-y-4'>
                       <div className='space-y-2'>
-                        <Label>Prompt price ($/1M tokens)</Label>
+                        <Label>{t('Prompt price ($/1M tokens)')}</Label>
                         <Input
                           type='text'
                           placeholder='2.0'
@@ -389,7 +391,7 @@ export function ModelRatioDialog({
                       </div>
 
                       <div className='space-y-2'>
-                        <Label>Completion price ($/1M tokens)</Label>
+                        <Label>{t('Completion price ($/1M tokens)')}</Label>
                         <Input
                           type='text'
                           placeholder='4.0'
@@ -419,7 +421,7 @@ export function ModelRatioDialog({
                       variant='outline'
                       className='flex w-full items-center justify-between'
                     >
-                      Advanced options
+                      {t('Advanced options')}
                       <ChevronDown
                         className={`h-4 w-4 transition-transform duration-200 ${
                           advancedOpen ? 'rotate-180' : ''
@@ -433,7 +435,7 @@ export function ModelRatioDialog({
                       name='cacheRatio'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Cache ratio</FormLabel>
+                          <FormLabel>{t('Cache ratio')}</FormLabel>
                           <FormControl>
                             <Input
                               type='text'
@@ -448,7 +450,7 @@ export function ModelRatioDialog({
                             />
                           </FormControl>
                           <FormDescription>
-                            Discount ratio for cache hits.
+                            {t('Discount ratio for cache hits.')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -460,7 +462,7 @@ export function ModelRatioDialog({
                       name='imageRatio'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Image ratio</FormLabel>
+                          <FormLabel>{t('Image ratio')}</FormLabel>
                           <FormControl>
                             <Input
                               type='text'
@@ -475,7 +477,7 @@ export function ModelRatioDialog({
                             />
                           </FormControl>
                           <FormDescription>
-                            Multiplier for image processing.
+                            {t('Multiplier for image processing.')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -487,7 +489,7 @@ export function ModelRatioDialog({
                       name='audioRatio'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Audio ratio</FormLabel>
+                          <FormLabel>{t('Audio ratio')}</FormLabel>
                           <FormControl>
                             <Input
                               type='text'
@@ -502,7 +504,7 @@ export function ModelRatioDialog({
                             />
                           </FormControl>
                           <FormDescription>
-                            Multiplier for audio inputs.
+                            {t('Multiplier for audio inputs.')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -514,7 +516,7 @@ export function ModelRatioDialog({
                       name='audioCompletionRatio'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Audio completion ratio</FormLabel>
+                          <FormLabel>{t('Audio completion ratio')}</FormLabel>
                           <FormControl>
                             <Input
                               type='text'
@@ -529,7 +531,7 @@ export function ModelRatioDialog({
                             />
                           </FormControl>
                           <FormDescription>
-                            Multiplier for audio outputs.
+                            {t('Multiplier for audio outputs.')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -546,7 +548,7 @@ export function ModelRatioDialog({
                 variant='outline'
                 onClick={() => onOpenChange(false)}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
             </DialogFooter>

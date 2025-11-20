@@ -9,6 +9,7 @@ import {
   type RowSelectionState,
 } from '@tanstack/react-table'
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -76,6 +77,7 @@ export function ChannelSelectorDialog({
   onChannelEndpointsChange,
   onConfirm,
 }: ChannelSelectorDialogProps) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
@@ -148,7 +150,7 @@ export function ChannelSelectorDialog({
               <span className='font-medium'>{name}</span>
               {isOfficial && (
                 <StatusBadge
-                  label='Official'
+                  label={t('Official')}
                   variant='success'
                   size='sm'
                   copyable={false}
@@ -184,7 +186,7 @@ export function ChannelSelectorDialog({
           if (!config) {
             return (
               <StatusBadge
-                label='Unknown'
+                label={t('Unknown')}
                 variant='neutral'
                 size='sm'
                 copyable={false}
@@ -237,7 +239,7 @@ export function ChannelSelectorDialog({
                 <Input
                   value={currentEndpoint}
                   onChange={(e) => updateEndpoint(channel.id, e.target.value)}
-                  placeholder='/your/endpoint'
+                  placeholder={t('/your/endpoint')}
                   className='h-8 w-40 font-mono text-xs'
                 />
               )}
@@ -301,9 +303,9 @@ export function ChannelSelectorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='flex max-h-[90vh] max-w-[calc(100%-2rem)] flex-col sm:max-w-[90vw] xl:max-w-[1400px]'>
         <DialogHeader>
-          <DialogTitle>Select Sync Channels</DialogTitle>
+          <DialogTitle>{t('Select Sync Channels')}</DialogTitle>
           <DialogDescription>
-            Choose channels to sync upstream ratio configurations from
+            {t('Choose channels to sync upstream ratio configurations from')}
           </DialogDescription>
         </DialogHeader>
 
@@ -312,7 +314,7 @@ export function ChannelSelectorDialog({
             <div className='relative flex-1'>
               <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
               <Input
-                placeholder='Search by name or URL...'
+                placeholder={t('Search by name or URL...')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className='ps-8'
@@ -361,7 +363,7 @@ export function ChannelSelectorDialog({
                       colSpan={columns.length}
                       className='h-24 text-center'
                     >
-                      No channels found
+                      {t('No channels found')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -374,9 +376,9 @@ export function ChannelSelectorDialog({
 
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
-          <Button onClick={handleConfirm}>Confirm Selection</Button>
+          <Button onClick={handleConfirm}>{t('Confirm Selection')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

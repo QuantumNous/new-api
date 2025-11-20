@@ -1,4 +1,5 @@
 import { List, Table } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { VIEW_MODES, type ViewMode } from '../constants'
 
@@ -17,10 +18,11 @@ export interface ViewToggleProps {
 }
 
 export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
+  const { t } = useTranslation()
   return (
     <div
       role='group'
-      aria-label='Select view mode'
+      aria-label={t('Select view mode')}
       className={cn(
         'bg-background inline-flex w-full items-center gap-1 rounded-md border p-1 text-xs shadow-xs sm:w-auto sm:text-sm',
         className

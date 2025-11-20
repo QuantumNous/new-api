@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { type Row } from '@tanstack/react-table'
 import { MoreHorizontal, Power, PowerOff, Pencil, Edit } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ interface DataTableTagRowActionsProps {
 }
 
 export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
+  const { t } = useTranslation()
   const tag = row.original.tag
   const { setOpen, setCurrentTag } = useChannels()
   const queryClient = useQueryClient()
@@ -51,13 +53,13 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
           className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
         >
           <MoreHorizontal className='h-4 w-4' />
-          <span className='sr-only'>Open menu</span>
+          <span className='sr-only'>{t('Open menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-48'>
         {/* Edit Tag */}
         <DropdownMenuItem onClick={handleEditTag}>
-          Edit Tag
+          {t('Edit Tag')}
           <DropdownMenuShortcut>
             <Edit size={16} />
           </DropdownMenuShortcut>
@@ -65,7 +67,7 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
 
         {/* Batch Edit */}
         <DropdownMenuItem onClick={handleBatchEdit}>
-          Batch Edit
+          {t('Batch Edit')}
           <DropdownMenuShortcut>
             <Pencil size={16} />
           </DropdownMenuShortcut>
@@ -75,7 +77,7 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
 
         {/* Enable All */}
         <DropdownMenuItem onClick={handleEnableAll}>
-          Enable All
+          {t('Enable All')}
           <DropdownMenuShortcut>
             <Power size={16} />
           </DropdownMenuShortcut>
@@ -83,7 +85,7 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
 
         {/* Disable All */}
         <DropdownMenuItem onClick={handleDisableAll}>
-          Disable All
+          {t('Disable All')}
           <DropdownMenuShortcut>
             <PowerOff size={16} />
           </DropdownMenuShortcut>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { Button } from '@/components/ui/button'
 import { PublicLayout } from '@/components/layout'
@@ -39,6 +40,7 @@ import type { TokenUnit } from './types'
 // ----------------------------------------------------------------------------
 
 export function Pricing() {
+  const { t } = useTranslation()
   const search = useSearch({ from: '/pricing/' })
   const navigate = useNavigate({ from: '/pricing' })
   const isMobile = useMediaQuery('(max-width: 640px)')
@@ -223,10 +225,11 @@ export function Pricing() {
               <div className='mb-3 flex items-start justify-between gap-4 sm:mb-0'>
                 <div className='space-y-0.5 sm:space-y-1'>
                   <h2 className='text-xl font-bold tracking-tight sm:text-2xl'>
-                    Models
+                    {t('Models')}
                   </h2>
                   <p className='text-muted-foreground text-xs sm:text-sm'>
-                    Browse and compare {models?.length || 0} AI models
+                    {t('Browse and compare')} {models?.length || 0}{' '}
+                    {t('AI models')}
                   </p>
                 </div>
 
@@ -250,7 +253,7 @@ export function Pricing() {
                   onClick={clearFilters}
                   className='text-muted-foreground hover:text-foreground -mr-2 h-auto p-0 text-sm font-normal'
                 >
-                  Reset Filters
+                  {t('Reset Filters')}
                 </Button>
               )}
             </div>
@@ -275,7 +278,7 @@ export function Pricing() {
                   className='shrink-0 gap-2 sm:hidden'
                 >
                   <Filter className='h-4 w-4' />
-                  <span className='sm:inline'>Filters</span>
+                  <span className='sm:inline'>{t('Filters')}</span>
                   {activeFilterCount > 0 && (
                     <StatusBadge
                       label={String(activeFilterCount)}

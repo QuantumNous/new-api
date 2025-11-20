@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Accordion } from '@/components/ui/accordion'
 import { useAccordionState } from '../hooks/use-accordion-state'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
@@ -37,13 +38,16 @@ const defaultModelSettings: ModelSettings = {
 }
 
 export function ModelSettings() {
+  const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
   const { openItems, handleAccordionChange } = useAccordionState('models')
 
   if (isLoading) {
     return (
       <div className='flex h-full items-center justify-center'>
-        <div className='text-muted-foreground'>Loading model settings…</div>
+        <div className='text-muted-foreground'>
+          {t('Loading model settings…')}
+        </div>
       </div>
     )
   }

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,6 +10,7 @@ interface WalletStatsCardProps {
 }
 
 export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
+  const { t } = useTranslation()
   if (loading) {
     return (
       <Card>
@@ -33,7 +35,7 @@ export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
           {/* Current Balance */}
           <div className='space-y-2'>
             <div className='text-muted-foreground text-sm font-medium'>
-              Current Balance
+              {t('Current Balance')}
             </div>
             <div className='text-4xl font-semibold tracking-tight'>
               {formatQuota(user?.quota ?? 0)}
@@ -43,7 +45,7 @@ export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
           {/* Total Usage */}
           <div className='space-y-2'>
             <div className='text-muted-foreground text-sm font-medium'>
-              Total Usage
+              {t('Total Usage')}
             </div>
             <div className='text-4xl font-semibold tracking-tight'>
               {formatQuota(user?.used_quota ?? 0)}
@@ -53,7 +55,7 @@ export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
           {/* Request Count */}
           <div className='space-y-2'>
             <div className='text-muted-foreground text-sm font-medium'>
-              API Requests
+              {t('API Requests')}
             </div>
             <div className='text-4xl font-semibold tracking-tight'>
               {user?.request_count?.toLocaleString() ?? 0}

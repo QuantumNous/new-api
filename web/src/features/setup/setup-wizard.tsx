@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2, RefreshCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -52,6 +53,7 @@ const DEFAULT_FORM_VALUES: SetupFormValues = {
 }
 
 export function SetupWizard() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { systemName, logo, loading: systemConfigLoading } = useSystemConfig()
@@ -263,7 +265,7 @@ export function SetupWizard() {
             {!systemConfigLoading && (
               <img
                 src={logo}
-                alt='System logo'
+                alt={t('System logo')}
                 className='h-12 w-12 rounded-full object-cover shadow-sm'
               />
             )}
@@ -274,22 +276,23 @@ export function SetupWizard() {
             width={160}
           >
             <h1 className='text-2xl font-semibold tracking-tight'>
-              Initialize {systemName}
+              {t('Initialize')} {systemName}
             </h1>
           </SkeletonWrapper>
           <p className='text-muted-foreground text-center text-sm sm:text-base'>
-            Follow the guided steps to prepare your workspace before the first
-            login.
+            {t(
+              'Follow the guided steps to prepare your workspace before the first login.'
+            )}
           </p>
         </div>
 
         <Card className='shadow-lg'>
           <CardHeader className='space-y-2'>
             <CardTitle className='text-xl font-semibold'>
-              System setup wizard
+              {t('System setup wizard')}
             </CardTitle>
             <CardDescription>
-              Complete these steps to finish the initial installation.
+              {t('Complete these steps to finish the initial installation.')}
             </CardDescription>
           </CardHeader>
 
@@ -338,12 +341,12 @@ export function SetupWizard() {
             {isLoading ? (
               <div className='text-muted-foreground flex min-h-[200px] flex-col items-center justify-center gap-3 py-10'>
                 <Loader2 className='size-6 animate-spin' />
-                Loading setup status…
+                {t('Loading setup status…')}
               </div>
             ) : isError ? (
               <div className='flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center'>
                 <p className='text-sm font-medium'>
-                  We could not load the setup status.
+                  {t('We could not load the setup status.')}
                 </p>
                 <Button
                   type='button'
@@ -352,7 +355,7 @@ export function SetupWizard() {
                   className='inline-flex items-center gap-2'
                 >
                   <RefreshCcw className='size-4' />
-                  Retry
+                  {t('Retry')}
                 </Button>
               </div>
             ) : (

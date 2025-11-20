@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -151,6 +152,7 @@ export function RatioSettingsCard({
   modelDefaults,
   groupDefaults,
 }: RatioSettingsCardProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -332,14 +334,16 @@ export function RatioSettingsCard({
   return (
     <SettingsAccordion
       value='ratio-settings'
-      title='Pricing Ratios'
-      description='Configure model, caching, and group ratios used for billing'
+      title={t('Pricing Ratios')}
+      description={t(
+        'Configure model, caching, and group ratios used for billing'
+      )}
     >
       <Tabs defaultValue='models' className='space-y-6'>
         <TabsList className='grid w-full grid-cols-3'>
-          <TabsTrigger value='models'>Model ratios</TabsTrigger>
-          <TabsTrigger value='groups'>Group ratios</TabsTrigger>
-          <TabsTrigger value='upstream-sync'>Upstream sync</TabsTrigger>
+          <TabsTrigger value='models'>{t('Model ratios')}</TabsTrigger>
+          <TabsTrigger value='groups'>{t('Group ratios')}</TabsTrigger>
+          <TabsTrigger value='upstream-sync'>{t('Upstream sync')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value='models'>
@@ -375,12 +379,14 @@ export function RatioSettingsCard({
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title='Reset all model ratios?'
-        desc='This will clear custom pricing ratios and revert to upstream defaults.'
+        title={t('Reset all model ratios?')}
+        desc={t(
+          'This will clear custom pricing ratios and revert to upstream defaults.'
+        )}
         destructive
         isLoading={resetMutation.isPending}
         handleConfirm={handleConfirmReset}
-        confirmText='Reset'
+        confirmText={t('Reset')}
       />
     </SettingsAccordion>
   )

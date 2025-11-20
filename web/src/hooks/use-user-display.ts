@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { AuthUser } from '@/stores/auth-store'
 import { getRoleLabel } from '@/lib/roles'
 
@@ -7,10 +8,11 @@ import { getRoleLabel } from '@/lib/roles'
  * Centralizes user display logic used across ProfileDropdown and MobileDrawer
  */
 export function useUserDisplay(user: AuthUser | null | undefined) {
+  const { t } = useTranslation()
   return useMemo(() => {
     if (!user) {
       return {
-        displayName: 'User',
+        displayName: t('User'),
         secondaryText: '',
         initials: 'U',
         roleLabel: '',
@@ -18,7 +20,7 @@ export function useUserDisplay(user: AuthUser | null | undefined) {
     }
 
     // Display name: priority order
-    const displayName = user.display_name || user.username || 'User'
+    const displayName = user.display_name || user.username || t('User')
 
     // Secondary text: first available identifier
     const secondaryText = (() => {
@@ -50,5 +52,5 @@ export function useUserDisplay(user: AuthUser | null | undefined) {
       initials,
       roleLabel,
     }
-  }, [user])
+  }, [user, t])
 }

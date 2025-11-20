@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { FILTER_ALL, MAX_FILTER_ITEMS } from '../constants'
 import { FilterButton } from './filter-button'
@@ -23,9 +24,11 @@ export function FilterList({
   isExpanded,
   onToggleExpand,
   showAllOption = true,
-  allOptionLabel = 'All',
+  allOptionLabel,
 }: FilterListProps) {
+  const { t } = useTranslation()
   const displayItems = isExpanded ? items : items.slice(0, MAX_FILTER_ITEMS)
+  const resolvedAllLabel = allOptionLabel || t('All')
 
   return (
     <div className='flex flex-col gap-1'>
@@ -34,7 +37,7 @@ export function FilterList({
           isActive={activeValue === FILTER_ALL}
           onClick={() => onSelect(FILTER_ALL)}
         >
-          {allOptionLabel}
+          {resolvedAllLabel}
         </FilterButton>
       )}
       {displayItems.map((item) => {
@@ -55,7 +58,7 @@ export function FilterList({
           onClick={onToggleExpand}
           className='text-muted-foreground hover:text-foreground px-3 py-1.5 text-left text-sm transition-colors'
         >
-          {isExpanded ? 'Less' : 'More...'}
+          {isExpanded ? t('Less') : t('More...')}
         </button>
       )}
     </div>

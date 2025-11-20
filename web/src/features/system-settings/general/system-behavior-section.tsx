@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -33,6 +34,7 @@ type SystemBehaviorSectionProps = {
 export function SystemBehaviorSection({
   defaultValues,
 }: SystemBehaviorSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm({
@@ -55,8 +57,8 @@ export function SystemBehaviorSection({
   return (
     <SettingsAccordion
       value='system-behavior'
-      title='System Behavior'
-      description='Configure system-wide behavior and defaults'
+      title={t('System Behavior')}
+      description={t('Configure system-wide behavior and defaults')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -65,7 +67,7 @@ export function SystemBehaviorSection({
             name='RetryTimes'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Retry Times</FormLabel>
+                <FormLabel>{t('Retry Times')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -79,7 +81,7 @@ export function SystemBehaviorSection({
                   />
                 </FormControl>
                 <FormDescription>
-                  Number of times to retry failed requests (0-10)
+                  {t('Number of times to retry failed requests (0-10)')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -93,10 +95,10 @@ export function SystemBehaviorSection({
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Default Collapse Sidebar
+                    {t('Default Collapse Sidebar')}
                   </FormLabel>
                   <FormDescription>
-                    Sidebar collapsed by default for new users
+                    {t('Sidebar collapsed by default for new users')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -115,9 +117,11 @@ export function SystemBehaviorSection({
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Demo Site Mode</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Demo Site Mode')}
+                  </FormLabel>
                   <FormDescription>
-                    Enable demo mode with limited functionality
+                    {t('Enable demo mode with limited functionality')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -136,9 +140,11 @@ export function SystemBehaviorSection({
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Self-Use Mode</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Self-Use Mode')}
+                  </FormLabel>
                   <FormDescription>
-                    Optimize system for self-hosted single-user usage
+                    {t('Optimize system for self-hosted single-user usage')}
                   </FormDescription>
                 </div>
                 <FormControl>

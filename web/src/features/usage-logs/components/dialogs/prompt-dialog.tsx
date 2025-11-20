@@ -1,4 +1,5 @@
 import { Copy, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,15 +25,16 @@ export function PromptDialog({
   open,
   onOpenChange,
 }: PromptDialogProps) {
+  const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Prompt Details</DialogTitle>
+          <DialogTitle>{t('Prompt Details')}</DialogTitle>
           <DialogDescription>
-            View the complete prompt and its English translation
+            {t('View the complete prompt and its English translation')}
           </DialogDescription>
         </DialogHeader>
 
@@ -40,14 +42,14 @@ export function PromptDialog({
           <div className='space-y-4 py-4'>
             {/* Original Prompt */}
             <div className='space-y-2'>
-              <Label className='text-sm font-semibold'>Prompt</Label>
+              <Label className='text-sm font-semibold'>{t('Prompt')}</Label>
               <div className='bg-muted/50 relative rounded-md border p-3'>
                 <Button
                   variant='ghost'
                   size='sm'
                   className='absolute top-2 right-2 h-8 w-8 p-0'
                   onClick={() => copyToClipboard(prompt)}
-                  title='Copy to clipboard'
+                  title={t('Copy to clipboard')}
                 >
                   {copiedText === prompt ? (
                     <Check className='size-4 text-green-600' />
@@ -64,14 +66,16 @@ export function PromptDialog({
             {/* English Prompt */}
             {promptEn && (
               <div className='space-y-2'>
-                <Label className='text-sm font-semibold'>Prompt (EN)</Label>
+                <Label className='text-sm font-semibold'>
+                  {t('Prompt (EN)')}
+                </Label>
                 <div className='bg-muted/50 relative rounded-md border p-3'>
                   <Button
                     variant='ghost'
                     size='sm'
                     className='absolute top-2 right-2 h-8 w-8 p-0'
                     onClick={() => copyToClipboard(promptEn)}
-                    title='Copy to clipboard'
+                    title={t('Copy to clipboard')}
                   >
                     {copiedText === promptEn ? (
                       <Check className='size-4 text-green-600' />

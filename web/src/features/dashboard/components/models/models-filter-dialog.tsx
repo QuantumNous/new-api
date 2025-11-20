@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
 import { getNormalizedDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,7 @@ const SectionDivider = ({ label }: { label: string }) => (
 )
 
 export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
+  const { t } = useTranslation()
   const [self, setSelf] = useState<any>(null)
 
   // Load user data to check if admin
@@ -123,14 +125,16 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
       <DialogTrigger asChild>
         <Button variant='outline' size='sm'>
           <Filter className='mr-2 h-4 w-4' />
-          Filter
+          {t('Filter')}
         </Button>
       </DialogTrigger>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Filter Dashboard Models</DialogTitle>
+          <DialogTitle>{t('Filter Dashboard Models')}</DialogTitle>
           <DialogDescription>
-            Set filters to customize your dashboard statistics and charts.
+            {t(
+              'Set filters to customize your dashboard statistics and charts.'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,7 +144,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
             <div className='grid gap-2'>
               <Label className='flex items-center gap-2'>
                 <Calendar className='h-4 w-4' />
-                Quick Range
+                {t('Quick Range')}
               </Label>
               <div className='flex gap-2'>
                 {TIME_RANGE_PRESETS.map((range) => (
@@ -164,37 +168,37 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
               </div>
             </div>
 
-            <SectionDivider label='Custom Time Range' />
+            <SectionDivider label={t('Custom Time Range')} />
 
             {/* 自定义时间范围 */}
             <div className='grid gap-4'>
               <div className='grid gap-2'>
-                <Label htmlFor='start_timestamp'>Start Time</Label>
+                <Label htmlFor='start_timestamp'>{t('Start Time')}</Label>
                 <DateTimePicker
                   value={filters.start_timestamp}
                   onChange={(date) =>
                     handleChange('start_timestamp', date || undefined)
                   }
-                  placeholder='Select start time'
+                  placeholder={t('Select start time')}
                 />
               </div>
 
               <div className='grid gap-2'>
-                <Label htmlFor='end_timestamp'>End Time</Label>
+                <Label htmlFor='end_timestamp'>{t('End Time')}</Label>
                 <DateTimePicker
                   value={filters.end_timestamp}
                   onChange={(date) =>
                     handleChange('end_timestamp', date || undefined)
                   }
-                  placeholder='Select end time'
+                  placeholder={t('Select end time')}
                 />
               </div>
             </div>
 
-            <SectionDivider label='Chart Settings' />
+            <SectionDivider label={t('Chart Settings')} />
 
             <div className='grid gap-2'>
-              <Label htmlFor='time_granularity'>Time Granularity</Label>
+              <Label htmlFor='time_granularity'>{t('Time Granularity')}</Label>
               <Select
                 value={filters.time_granularity}
                 onValueChange={(value) =>
@@ -202,7 +206,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder='Select time granularity' />
+                  <SelectValue placeholder={t('Select time granularity')} />
                 </SelectTrigger>
                 <SelectContent>
                   {TIME_GRANULARITY_OPTIONS.map((option) => (
@@ -217,13 +221,13 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
             {/* 管理员专属字段 */}
             {isAdmin && (
               <>
-                <SectionDivider label='Admin Only' />
+                <SectionDivider label={t('Admin Only')} />
 
                 <div className='grid gap-2'>
-                  <Label htmlFor='username'>Username</Label>
+                  <Label htmlFor='username'>{t('Username')}</Label>
                   <Input
                     id='username'
-                    placeholder='Filter by username'
+                    placeholder={t('Filter by username')}
                     value={filters.username}
                     onChange={(e) => handleChange('username', e.target.value)}
                   />
@@ -236,11 +240,11 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
         <DialogFooter>
           <Button onClick={handleReset} variant='outline' type='button'>
             <RotateCcw className='mr-2 h-4 w-4' />
-            Reset
+            {t('Reset')}
           </Button>
           <Button onClick={handleApply} type='submit'>
             <Search className='mr-2 h-4 w-4' />
-            Apply Filters
+            {t('Apply Filters')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +34,7 @@ export function MissingModelsDialog({
   open,
   onOpenChange,
 }: MissingModelsDialogProps) {
+  const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
   const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState('')
@@ -101,9 +103,9 @@ export function MissingModelsDialog({
         }}
       >
         <DialogHeader className='flex-shrink-0 text-start'>
-          <DialogTitle>Missing Models</DialogTitle>
+          <DialogTitle>{t('Missing Models')}</DialogTitle>
           <DialogDescription>
-            Models that are being used but not configured in the system
+            {t('Models that are being used but not configured in the system')}
           </DialogDescription>
         </DialogHeader>
 
@@ -113,16 +115,17 @@ export function MissingModelsDialog({
           </div>
         ) : missingModels.length === 0 ? (
           <div className='text-muted-foreground py-12 text-center'>
-            <p>No missing models found.</p>
+            <p>{t('No missing models found.')}</p>
             <p className='text-sm'>
-              All models in use are properly configured.
+              {t('All models in use are properly configured.')}
             </p>
           </div>
         ) : (
           <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto'>
             <div className='flex flex-shrink-0 items-center justify-between gap-3'>
               <div className='text-muted-foreground text-sm whitespace-nowrap'>
-                Showing {displayStart}-{displayEnd} of {totalItems}
+                {t('Showing')} {displayStart}-{displayEnd} {t('of')}{' '}
+                {totalItems}
               </div>
               <div className='relative w-48'>
                 <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
@@ -132,9 +135,9 @@ export function MissingModelsDialog({
                     setSearchTerm(event.target.value)
                     setCurrentPage(1)
                   }}
-                  placeholder='Search models...'
+                  placeholder={t('Search models...')}
                   className='pl-9'
-                  aria-label='Search missing models'
+                  aria-label={t('Search missing models')}
                 />
               </div>
             </div>
@@ -145,9 +148,9 @@ export function MissingModelsDialog({
                   <EmptyMedia variant='icon'>
                     <Search className='h-5 w-5' />
                   </EmptyMedia>
-                  <EmptyTitle>No matches found</EmptyTitle>
+                  <EmptyTitle>{t('No matches found')}</EmptyTitle>
                   <EmptyDescription>
-                    Try adjusting your search to locate a missing model.
+                    {t('Try adjusting your search to locate a missing model.')}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -180,7 +183,7 @@ export function MissingModelsDialog({
 
                 <div className='bg-muted/40 flex items-center justify-between border-t px-3 py-2 text-sm'>
                   <div className='text-muted-foreground text-sm'>
-                    Page {currentPage} of {totalPages}
+                    {t('Page')} {currentPage} {t('of')} {totalPages}
                   </div>
                   {showPagination && (
                     <div className='flex items-center gap-2'>
@@ -192,7 +195,7 @@ export function MissingModelsDialog({
                           setCurrentPage((prev) => Math.max(1, prev - 1))
                         }
                         disabled={currentPage === 1}
-                        aria-label='Previous page'
+                        aria-label={t('Previous page')}
                       >
                         <ChevronLeft className='h-4 w-4' />
                       </Button>
@@ -206,7 +209,7 @@ export function MissingModelsDialog({
                           )
                         }
                         disabled={currentPage === totalPages}
-                        aria-label='Next page'
+                        aria-label={t('Next page')}
                       >
                         <ChevronRight className='h-4 w-4' />
                       </Button>

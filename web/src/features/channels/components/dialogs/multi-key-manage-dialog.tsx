@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,7 @@ export function MultiKeyManageDialog({
   open,
   onOpenChange,
 }: MultiKeyManageDialogProps) {
+  const { t } = useTranslation()
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
 
@@ -205,7 +207,7 @@ export function MultiKeyManageDialog({
         <DialogContent className='flex max-h-[90vh] max-w-5xl flex-col'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
-              Multi-Key Management
+              {t('Multi-Key Management')}
               <Badge variant='outline'>{currentRow.name}</Badge>
               {currentRow.channel_info?.multi_key_mode && (
                 <Badge variant='secondary'>
@@ -216,7 +218,7 @@ export function MultiKeyManageDialog({
               )}
             </DialogTitle>
             <DialogDescription>
-              Manage multi-key status and configuration for this channel
+              {t('Manage multi-key status and configuration for this channel')}
             </DialogDescription>
           </DialogHeader>
 
@@ -224,17 +226,17 @@ export function MultiKeyManageDialog({
             {/* Statistics */}
             <div className='grid shrink-0 grid-cols-3 gap-3'>
               <StatisticsCard
-                label='Enabled'
+                label={t('Enabled')}
                 count={enabledCount}
                 total={total}
               />
               <StatisticsCard
-                label='Manual Disabled'
+                label={t('Manual Disabled')}
                 count={manualDisabledCount}
                 total={total}
               />
               <StatisticsCard
-                label='Auto Disabled'
+                label={t('Auto Disabled')}
                 count={autoDisabledCount}
                 total={total}
               />
@@ -249,7 +251,7 @@ export function MultiKeyManageDialog({
                 onValueChange={handleStatusFilterChange}
               >
                 <SelectTrigger className='w-40'>
-                  <SelectValue placeholder='All Status' />
+                  <SelectValue placeholder={t('All Status')} />
                 </SelectTrigger>
                 <SelectContent>
                   {MULTI_KEY_FILTER_OPTIONS.map((option) => (
@@ -277,7 +279,7 @@ export function MultiKeyManageDialog({
                     onClick={() => setConfirmAction({ type: 'enable-all' })}
                   >
                     <Power className='mr-2 h-4 w-4' />
-                    Enable All
+                    {t('Enable All')}
                   </Button>
                 )}
 
@@ -288,7 +290,7 @@ export function MultiKeyManageDialog({
                     onClick={() => setConfirmAction({ type: 'disable-all' })}
                   >
                     <PowerOff className='mr-2 h-4 w-4' />
-                    Disable All
+                    {t('Disable All')}
                   </Button>
                 )}
 
@@ -301,7 +303,7 @@ export function MultiKeyManageDialog({
                     }
                   >
                     <Trash2 className='mr-2 h-4 w-4' />
-                    Delete Auto-Disabled
+                    {t('Delete Auto-Disabled')}
                   </Button>
                 )}
               </div>
@@ -315,21 +317,23 @@ export function MultiKeyManageDialog({
                 </div>
               ) : keys.length === 0 ? (
                 <div className='text-muted-foreground py-12 text-center'>
-                  No keys found
+                  {t('No keys found')}
                 </div>
               ) : (
                 <div className='min-w-[800px]'>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className='w-20'>Index</TableHead>
-                        <TableHead className='w-32'>Status</TableHead>
+                        <TableHead className='w-20'>{t('Index')}</TableHead>
+                        <TableHead className='w-32'>{t('Status')}</TableHead>
                         <TableHead className='min-w-[200px]'>
-                          Disabled Reason
+                          {t('Disabled Reason')}
                         </TableHead>
-                        <TableHead className='w-44'>Disabled Time</TableHead>
+                        <TableHead className='w-44'>
+                          {t('Disabled Time')}
+                        </TableHead>
                         <TableHead className='w-44 text-right'>
-                          Actions
+                          {t('Actions')}
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -365,7 +369,7 @@ export function MultiKeyManageDialog({
             {totalPages > 1 && (
               <div className='flex shrink-0 items-center justify-between'>
                 <div className='text-muted-foreground text-sm'>
-                  Page {currentPage} of {totalPages}
+                  {t('Page')} {currentPage} {t('of')} {totalPages}
                 </div>
                 <div className='flex gap-2'>
                   <Button
@@ -374,7 +378,7 @@ export function MultiKeyManageDialog({
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1 || isLoading}
                   >
-                    Previous
+                    {t('Previous')}
                   </Button>
                   <Button
                     variant='outline'
@@ -382,7 +386,7 @@ export function MultiKeyManageDialog({
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages || isLoading}
                   >
-                    Next
+                    {t('Next')}
                   </Button>
                 </div>
               </div>
@@ -395,7 +399,7 @@ export function MultiKeyManageDialog({
       <ConfirmDialog
         open={confirmAction !== null}
         onOpenChange={(open) => !open && setConfirmAction(null)}
-        title='Confirm Action'
+        title={t('Confirm Action')}
         desc={getMultiKeyConfirmMessage(confirmAction)}
         destructive={isDestructiveAction(confirmAction)}
         isLoading={isPerformingAction}

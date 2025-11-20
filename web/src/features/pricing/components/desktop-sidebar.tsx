@@ -1,10 +1,11 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   FILTER_SECTIONS,
   QUOTA_TYPES,
-  QUOTA_TYPE_LABELS,
+  getQuotaTypeLabels,
   ENDPOINT_TYPES,
-  ENDPOINT_TYPE_LABELS,
+  getEndpointTypeLabels,
   SIDEBAR_WIDTH,
 } from '../constants'
 import type { PricingVendor } from '../types'
@@ -59,6 +60,9 @@ export function DesktopSidebar({
   hasActiveFilters,
   onClearFilters,
 }: DesktopSidebarProps) {
+  const { t } = useTranslation()
+  const quotaTypeLabels = getQuotaTypeLabels(t)
+  const endpointTypeLabels = getEndpointTypeLabels(t)
   return (
     <aside
       className={cn(
@@ -71,21 +75,21 @@ export function DesktopSidebar({
       <div className='space-y-1 pr-2'>
         <div className='mb-4 flex items-center justify-between'>
           <h2 className='text-foreground/60 text-sm font-semibold tracking-wide uppercase'>
-            Filters
+            {t('Filters')}
           </h2>
           {hasActiveFilters && (
             <button
               onClick={onClearFilters}
               className='text-muted-foreground hover:text-foreground text-xs transition-colors'
             >
-              Clear all
+              {t('Clear all')}
             </button>
           )}
         </div>
 
         {/* Pricing Type Filter */}
         <FilterSection
-          title='Pricing Type'
+          title={t('Pricing Type')}
           isOpen={openSections[FILTER_SECTIONS.PRICING_TYPE]}
           onToggle={() => onToggleSection(FILTER_SECTIONS.PRICING_TYPE)}
         >
@@ -96,7 +100,7 @@ export function DesktopSidebar({
                 isActive={quotaTypeFilter === type}
                 onClick={() => onQuotaTypeChange(type)}
               >
-                {QUOTA_TYPE_LABELS[type]}
+                {quotaTypeLabels[type]}
               </FilterButton>
             ))}
           </div>
@@ -104,7 +108,7 @@ export function DesktopSidebar({
 
         {/* Endpoint Type Filter */}
         <FilterSection
-          title='Endpoint Type'
+          title={t('Endpoint Type')}
           isOpen={openSections[FILTER_SECTIONS.ENDPOINT_TYPE]}
           onToggle={() => onToggleSection(FILTER_SECTIONS.ENDPOINT_TYPE)}
         >
@@ -115,7 +119,7 @@ export function DesktopSidebar({
                 isActive={endpointTypeFilter === type}
                 onClick={() => onEndpointTypeChange(type)}
               >
-                {ENDPOINT_TYPE_LABELS[type]}
+                {endpointTypeLabels[type]}
               </FilterButton>
             ))}
           </div>
@@ -124,7 +128,7 @@ export function DesktopSidebar({
         {/* Vendor Filter */}
         {vendors.length > 0 && (
           <FilterSection
-            title='Vendor'
+            title={t('Vendor')}
             isOpen={openSections[FILTER_SECTIONS.VENDOR]}
             onToggle={() => onToggleSection(FILTER_SECTIONS.VENDOR)}
           >
@@ -138,7 +142,7 @@ export function DesktopSidebar({
               onSelect={onVendorChange}
               isExpanded={expandedFilters.vendor}
               onToggleExpand={() => onToggleExpandFilter('vendor')}
-              allOptionLabel='All Vendors'
+              allOptionLabel={t('All Vendors')}
             />
           </FilterSection>
         )}
@@ -146,7 +150,7 @@ export function DesktopSidebar({
         {/* Group Filter */}
         {groups.length > 0 && (
           <FilterSection
-            title='Group'
+            title={t('Group')}
             isOpen={openSections[FILTER_SECTIONS.GROUP]}
             onToggle={() => onToggleSection(FILTER_SECTIONS.GROUP)}
           >
@@ -156,7 +160,7 @@ export function DesktopSidebar({
               onSelect={onGroupChange}
               isExpanded={expandedFilters.group}
               onToggleExpand={() => onToggleExpandFilter('group')}
-              allOptionLabel='All Groups'
+              allOptionLabel={t('All Groups')}
             />
           </FilterSection>
         )}
@@ -164,7 +168,7 @@ export function DesktopSidebar({
         {/* Tag Filter */}
         {tags.length > 0 && (
           <FilterSection
-            title='Tags'
+            title={t('Tags')}
             isOpen={openSections[FILTER_SECTIONS.TAG]}
             onToggle={() => onToggleSection(FILTER_SECTIONS.TAG)}
           >
@@ -174,7 +178,7 @@ export function DesktopSidebar({
               onSelect={onTagChange}
               isExpanded={expandedFilters.tag}
               onToggleExpand={() => onToggleExpandFilter('tag')}
-              allOptionLabel='All Tags'
+              allOptionLabel={t('All Tags')}
             />
           </FilterSection>
         )}

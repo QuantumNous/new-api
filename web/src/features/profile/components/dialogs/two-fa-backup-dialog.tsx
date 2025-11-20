@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { regenerate2FABackupCodes } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -31,6 +32,7 @@ export function TwoFABackupDialog({
   onOpenChange,
   onSuccess,
 }: TwoFABackupDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [code, setCode] = useState('')
   const [backupCodes, setBackupCodes] = useState<string[]>([])
@@ -79,7 +81,7 @@ export function TwoFABackupDialog({
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <RefreshCw className='h-5 w-5' />
-            Regenerate Backup Codes
+            {t('Regenerate Backup Codes')}
           </DialogTitle>
           <DialogDescription>
             {backupCodes.length > 0
@@ -93,18 +95,19 @@ export function TwoFABackupDialog({
             <>
               <Alert>
                 <AlertDescription>
-                  Generating new codes will invalidate all existing backup
-                  codes.
+                  {t(
+                    'Generating new codes will invalidate all existing backup codes.'
+                  )}
                 </AlertDescription>
               </Alert>
 
               <div className='space-y-2'>
-                <Label htmlFor='code'>Verification Code</Label>
+                <Label htmlFor='code'>{t('Verification Code')}</Label>
                 <Input
                   id='code'
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder='Enter authenticator code'
+                  placeholder={t('Enter authenticator code')}
                   maxLength={6}
                   disabled={loading}
                 />
@@ -114,8 +117,9 @@ export function TwoFABackupDialog({
             <>
               <Alert>
                 <AlertDescription>
-                  Save these codes in a safe place. Each code can only be used
-                  once.
+                  {t(
+                    'Save these codes in a safe place. Each code can only be used once.'
+                  )}
                 </AlertDescription>
               </Alert>
 
@@ -138,10 +142,10 @@ export function TwoFABackupDialog({
                 size='default'
                 className='w-full'
                 iconClassName='mr-2 size-4'
-                tooltip='Copy all backup codes'
-                aria-label='Copy all backup codes'
+                tooltip={t('Copy all backup codes')}
+                aria-label={t('Copy all backup codes')}
               >
-                Copy All Codes
+                {t('Copy All Codes')}
               </CopyButton>
             </>
           )}
@@ -155,7 +159,7 @@ export function TwoFABackupDialog({
                 onClick={() => handleOpenChange(false)}
                 disabled={loading}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button onClick={handleRegenerate} disabled={loading || !code}>
                 {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
@@ -163,7 +167,7 @@ export function TwoFABackupDialog({
               </Button>
             </>
           ) : (
-            <Button onClick={handleDone}>Done</Button>
+            <Button onClick={handleDone}>{t('Done')}</Button>
           )}
         </DialogFooter>
       </DialogContent>

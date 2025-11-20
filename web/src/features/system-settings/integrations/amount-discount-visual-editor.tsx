@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,6 +27,7 @@ export function AmountDiscountVisualEditor({
   value,
   onChange,
 }: AmountDiscountVisualEditorProps) {
+  const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<AmountDiscountData | null>(null)
 
@@ -101,7 +103,7 @@ export function AmountDiscountVisualEditor({
     <div className='space-y-4'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <p className='text-muted-foreground text-sm'>
-          Configure discount rates based on recharge amounts
+          {t('Configure discount rates based on recharge amounts')}
         </p>
         <Button
           type='button'
@@ -114,14 +116,15 @@ export function AmountDiscountVisualEditor({
           className='w-full sm:w-auto'
         >
           <Plus className='h-4 w-4 sm:mr-2' />
-          <span className='sm:inline'>Add discount tier</span>
+          <span className='sm:inline'>{t('Add discount tier')}</span>
         </Button>
       </div>
 
       {discounts.length === 0 ? (
         <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
-          No discount tiers configured. Click "Add discount tier" to get
-          started.
+          {t(
+            'No discount tiers configured. Click "Add discount tier" to get started.'
+          )}
         </div>
       ) : (
         <div className='rounded-md border'>
@@ -130,10 +133,10 @@ export function AmountDiscountVisualEditor({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Recharge Amount</TableHead>
-                  <TableHead>Discount Rate</TableHead>
-                  <TableHead>Discount</TableHead>
-                  <TableHead className='text-right'>Actions</TableHead>
+                  <TableHead>{t('Recharge Amount')}</TableHead>
+                  <TableHead>{t('Discount Rate')}</TableHead>
+                  <TableHead>{t('Discount')}</TableHead>
+                  <TableHead className='text-right'>{t('Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -156,7 +159,7 @@ export function AmountDiscountVisualEditor({
                         }
                         className='font-mono text-xs'
                       >
-                        {formatPercentage(discount.discountRate)} off
+                        {formatPercentage(discount.discountRate)} {t('off')}
                       </Badge>
                     </TableCell>
                     <TableCell className='text-right'>
@@ -208,7 +211,7 @@ export function AmountDiscountVisualEditor({
                       }
                       className='font-mono text-xs'
                     >
-                      {formatPercentage(discount.discountRate)} off
+                      {formatPercentage(discount.discountRate)} {t('off')}
                     </Badge>
                   </div>
                   <div className='flex gap-1'>
@@ -239,7 +242,9 @@ export function AmountDiscountVisualEditor({
                   </div>
                 </div>
                 <div className='text-sm'>
-                  <span className='text-muted-foreground'>Discount Rate: </span>
+                  <span className='text-muted-foreground'>
+                    {t('Discount Rate:')}{' '}
+                  </span>
                   <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
                     {discount.discountRate.toFixed(2)}
                   </code>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Code, Table, Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,10 +33,13 @@ export function JsonEditor({
   valuePlaceholder = 'value',
   keyLabel = 'Key',
   valueLabel = 'Value',
-  emptyMessage = 'No mappings configured. Click "Add Row" to get started.',
+  emptyMessage,
   template,
   valueType = 'string',
 }: JsonEditorProps) {
+  const { t } = useTranslation()
+  const resolvedEmptyMessage =
+    emptyMessage ?? t('No mappings configured. Click "Add Row" to get started.')
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<EditorRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
@@ -170,12 +174,12 @@ export function JsonEditor({
             {mode === 'visual' ? (
               <>
                 <Code className='mr-2 h-4 w-4' />
-                JSON Mode
+                {t('JSON Mode')}
               </>
             ) : (
               <>
                 <Table className='mr-2 h-4 w-4' />
-                Visual Mode
+                {t('Visual Mode')}
               </>
             )}
           </Button>
@@ -188,7 +192,7 @@ export function JsonEditor({
               onClick={handleFillTemplate}
               disabled={disabled}
             >
-              Fill Template
+              {t('Fill Template')}
             </Button>
           )}
         </div>
@@ -239,7 +243,7 @@ export function JsonEditor({
             </div>
           ) : (
             <div className='text-muted-foreground flex h-24 items-center justify-center rounded-md border border-dashed text-sm'>
-              {emptyMessage}
+              {resolvedEmptyMessage}
             </div>
           )}
           <Button
@@ -251,7 +255,7 @@ export function JsonEditor({
             className='w-full'
           >
             <Plus className='mr-2 h-4 w-4' />
-            Add Row
+            {t('Add Row')}
           </Button>
         </div>
       ) : (

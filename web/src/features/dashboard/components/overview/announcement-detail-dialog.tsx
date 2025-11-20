@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { formatDateTimeObject } from '@/lib/time'
 import {
   Dialog,
@@ -20,14 +21,15 @@ export function AnnouncementDetailModal({
   onOpenChange,
   announcement,
 }: AnnouncementDetailModalProps) {
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Announcement Details</DialogTitle>
+          <DialogTitle>{t('Announcement Details')}</DialogTitle>
           {announcement?.publishDate && (
             <DialogDescription>
-              Published:{' '}
+              {t('Published:')}{' '}
               {formatDateTimeObject(new Date(announcement.publishDate))}
             </DialogDescription>
           )}
@@ -36,13 +38,15 @@ export function AnnouncementDetailModal({
           <div className='space-y-4'>
             {announcement?.content && (
               <div>
-                <h4 className='mb-2 font-medium'>Content</h4>
+                <h4 className='mb-2 font-medium'>{t('Content')}</h4>
                 <Markdown>{announcement.content}</Markdown>
               </div>
             )}
             {announcement?.extra && (
               <div>
-                <h4 className='mb-2 font-medium'>Additional Information</h4>
+                <h4 className='mb-2 font-medium'>
+                  {t('Additional Information')}
+                </h4>
                 <Markdown className='text-muted-foreground'>
                   {announcement.extra}
                 </Markdown>

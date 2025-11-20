@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -40,11 +41,14 @@ export function PanelWrapper({
   title,
   loading = false,
   empty = false,
-  emptyMessage = 'No data available',
+  emptyMessage,
   height = 'h-64',
   headerActions,
   children,
 }: PanelWrapperProps) {
+  const { t } = useTranslation()
+  const resolvedEmptyMessage = emptyMessage ?? t('No data available')
+
   // Loading state - 返回带骨架屏的卡片
   if (loading) {
     return (
@@ -70,7 +74,7 @@ export function PanelWrapper({
           <div
             className={`text-muted-foreground flex items-center justify-center ${height}`}
           >
-            {emptyMessage}
+            {resolvedEmptyMessage}
           </div>
         </CardContent>
       </Card>

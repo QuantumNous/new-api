@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -131,6 +132,7 @@ const isEqual = (a: unknown, b: unknown) => {
 }
 
 export function SSRFSection({ defaultValues }: SSRFSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const baselineRef = useRef<NormalizedSSRFValues>(
     normalizeDefaults(defaultValues)
@@ -179,8 +181,10 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
   return (
     <SettingsAccordion
       value='ssrf-protection'
-      title='SSRF Protection'
-      description='Prevent server-side request forgery attacks by controlling outbound requests.'
+      title={t('SSRF Protection')}
+      description={t(
+        'Prevent server-side request forgery attacks by controlling outbound requests.'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -191,10 +195,10 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Enable SSRF Protection
+                    {t('Enable SSRF Protection')}
                   </FormLabel>
                   <FormDescription>
-                    Prevent server-side request forgery attacks
+                    {t('Prevent server-side request forgery attacks')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -213,10 +217,13 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Allow Private IPs</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Allow Private IPs')}
+                  </FormLabel>
                   <FormDescription>
-                    Allow requests to private IP ranges (10.0.0.0/8,
-                    172.16.0.0/12, 192.168.0.0/16)
+                    {t(
+                      'Allow requests to private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -234,7 +241,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             name='fetch_setting.domain_filter_mode'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Domain Filter Mode</FormLabel>
+                <FormLabel>{t('Domain Filter Mode')}</FormLabel>
                 <Select
                   onValueChange={(value) => field.onChange(value === 'true')}
                   value={field.value ? 'true' : 'false'}
@@ -246,14 +253,16 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                   </FormControl>
                   <SelectContent>
                     <SelectItem value='false'>
-                      Blacklist (Block listed domains)
+                      {t('Blacklist (Block listed domains)')}
                     </SelectItem>
                     <SelectItem value='true'>
-                      Whitelist (Only allow listed domains)
+                      {t('Whitelist (Only allow listed domains)')}
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <FormDescription>Choose how to filter domains</FormDescription>
+                <FormDescription>
+                  {t('Choose how to filter domains')}
+                </FormDescription>
               </FormItem>
             )}
           />
@@ -264,16 +273,16 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Domain {domainFilterMode ? 'Whitelist' : 'Blacklist'}
+                  {t('Domain')} {domainFilterMode ? 'Whitelist' : 'Blacklist'}
                 </FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder='example.com&#10;blocked-site.com'
+                    placeholder={t('example.com&#10;blocked-site.com')}
                     rows={4}
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>One domain per line</FormDescription>
+                <FormDescription>{t('One domain per line')}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -284,7 +293,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             name='fetch_setting.ip_filter_mode'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>IP Filter Mode</FormLabel>
+                <FormLabel>{t('IP Filter Mode')}</FormLabel>
                 <Select
                   onValueChange={(value) => field.onChange(value === 'true')}
                   value={field.value ? 'true' : 'false'}
@@ -296,15 +305,15 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                   </FormControl>
                   <SelectContent>
                     <SelectItem value='false'>
-                      Blacklist (Block listed IPs)
+                      {t('Blacklist (Block listed IPs)')}
                     </SelectItem>
                     <SelectItem value='true'>
-                      Whitelist (Only allow listed IPs)
+                      {t('Whitelist (Only allow listed IPs)')}
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Choose how to filter IP addresses
+                  {t('Choose how to filter IP addresses')}
                 </FormDescription>
               </FormItem>
             )}
@@ -316,7 +325,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  IP {ipFilterMode ? 'Whitelist' : 'Blacklist'}
+                  {t('IP')} {ipFilterMode ? 'Whitelist' : 'Blacklist'}
                 </FormLabel>
                 <FormControl>
                   <Textarea
@@ -325,7 +334,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>One IP or CIDR range per line</FormDescription>
+                <FormDescription>
+                  {t('One IP or CIDR range per line')}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -336,12 +347,14 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             name='fetch_setting.allowed_ports'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Allowed Ports</FormLabel>
+                <FormLabel>{t('Allowed Ports')}</FormLabel>
                 <FormControl>
                   <Input placeholder='80,443,8080' {...field} />
                 </FormControl>
                 <FormDescription>
-                  Comma-separated list of allowed ports (empty = all ports)
+                  {t(
+                    'Comma-separated list of allowed ports (empty = all ports)'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -355,11 +368,12 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Apply IP Filter to Resolved Domains
+                    {t('Apply IP Filter to Resolved Domains')}
                   </FormLabel>
                   <FormDescription>
-                    Check resolved IPs against IP filters even when accessing by
-                    domain
+                    {t(
+                      'Check resolved IPs against IP filters even when accessing by domain'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>

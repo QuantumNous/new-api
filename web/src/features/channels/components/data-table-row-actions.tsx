@@ -13,6 +13,7 @@ import {
   Key,
   Trash2,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ interface DataTableRowActionsProps {
 }
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
+  const { t } = useTranslation()
   const channel = row.original
   const { setOpen, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
@@ -87,13 +89,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
         >
           <MoreHorizontal className='h-4 w-4' />
-          <span className='sr-only'>Open menu</span>
+          <span className='sr-only'>{t('Open menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-48'>
         {/* Edit */}
         <DropdownMenuItem onClick={handleEdit}>
-          Edit
+          {t('Edit')}
           <DropdownMenuShortcut>
             <Pencil size={16} />
           </DropdownMenuShortcut>
@@ -101,7 +103,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         {/* Test Connection */}
         <DropdownMenuItem onClick={handleTest}>
-          Test Connection
+          {t('Test Connection')}
           <DropdownMenuShortcut>
             <TestTube size={16} />
           </DropdownMenuShortcut>
@@ -109,7 +111,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         {/* Query Balance */}
         <DropdownMenuItem onClick={handleQueryBalance}>
-          Query Balance
+          {t('Query Balance')}
           <DropdownMenuShortcut>
             <DollarSign size={16} />
           </DropdownMenuShortcut>
@@ -117,7 +119,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         {/* Fetch Models */}
         <DropdownMenuItem onClick={handleFetchModels}>
-          Fetch Models
+          {t('Fetch Models')}
           <DropdownMenuShortcut>
             <Download size={16} />
           </DropdownMenuShortcut>
@@ -127,7 +129,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         {/* Copy Channel */}
         <DropdownMenuItem onClick={handleCopy}>
-          Copy Channel
+          {t('Copy Channel')}
           <DropdownMenuShortcut>
             <Copy size={16} />
           </DropdownMenuShortcut>
@@ -136,7 +138,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         {/* Manage Keys (only for multi-key channels) */}
         {isMultiKey && (
           <DropdownMenuItem onClick={handleManageKeys}>
-            Manage Keys
+            {t('Manage Keys')}
             <DropdownMenuShortcut>
               <Key size={16} />
             </DropdownMenuShortcut>
@@ -149,14 +151,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuItem onClick={handleToggleStatus}>
           {isEnabled ? (
             <>
-              Disable
+              {t('Disable')}
               <DropdownMenuShortcut>
                 <PowerOff size={16} />
               </DropdownMenuShortcut>
             </>
           ) : (
             <>
-              Enable
+              {t('Enable')}
               <DropdownMenuShortcut>
                 <Power size={16} />
               </DropdownMenuShortcut>
@@ -174,7 +176,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           }}
           className='text-destructive focus:text-destructive'
         >
-          Delete
+          {t('Delete')}
           <DropdownMenuShortcut>
             <Trash2 size={16} />
           </DropdownMenuShortcut>
@@ -184,7 +186,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title='Delete Channel'
+        title={t('Delete Channel')}
         desc={`Are you sure you want to delete "${channel.name}"? This action cannot be undone.`}
         confirmText='Delete'
         destructive

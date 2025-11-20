@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Github, Loader2, Send, Shield, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { SiLinux, SiWechat } from 'react-icons/si'
 import { AuthLayout } from '../auth-layout'
 
@@ -36,6 +37,7 @@ export function OAuthCallbackScreen({
   provider,
   mode,
 }: OAuthCallbackScreenProps) {
+  const { t } = useTranslation()
   const { label, Icon } = useMemo(() => {
     const normalized = provider?.toLowerCase() ?? ''
     return (
@@ -81,12 +83,13 @@ export function OAuthCallbackScreen({
         <div className='space-y-4 text-center'>
           <div className='flex items-center justify-center gap-2 text-sm font-medium'>
             <Loader2 className='h-4 w-4 animate-spin' />
-            <span>Processing OAuth response...</span>
+            <span>{t('Processing OAuth response...')}</span>
           </div>
           <p className='text-muted-foreground text-sm'>{secondaryNote}</p>
           <p className='text-muted-foreground text-xs'>
-            This may take a few moments while we validate the request and update
-            your session.
+            {t(
+              'This may take a few moments while we validate the request and update your session.'
+            )}
           </p>
         </div>
       </div>

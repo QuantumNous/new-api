@@ -1,4 +1,5 @@
 import { Search, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 
 // ----------------------------------------------------------------------------
@@ -18,6 +19,7 @@ export function SearchBar({
   onClear,
   placeholder = 'Search models...',
 }: SearchBarProps) {
+  const { t } = useTranslation()
   return (
     <div className='relative'>
       <Search className='text-muted-foreground/70 pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
@@ -31,7 +33,7 @@ export function SearchBar({
         <button
           onClick={onClear}
           className='text-muted-foreground/70 hover:text-foreground hover:bg-muted absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 transition-colors'
-          aria-label='Clear search'
+          aria-label={t('Clear search')}
         >
           <X className='h-4 w-4' />
         </button>

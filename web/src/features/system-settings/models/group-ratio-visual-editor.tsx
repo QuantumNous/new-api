@@ -1,5 +1,6 @@
 import { useState, useMemo, memo } from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -65,6 +66,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   autoGroups,
   onChange,
 }: GroupRatioVisualEditorProps) {
+  const { t } = useTranslation()
   const [simpleDialogOpen, setSimpleDialogOpen] = useState(false)
   const [simpleDialogType, setSimpleDialogType] = useState<
     'groupRatio' | 'topupGroupRatio' | null
@@ -368,25 +370,27 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       {/* Group Ratios */}
       <Card>
         <CardHeader>
-          <CardTitle>Group ratios</CardTitle>
+          <CardTitle>{t('Group ratios')}</CardTitle>
           <CardDescription>
-            Base multipliers applied when users select specific groups.
+            {t('Base multipliers applied when users select specific groups.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
             <Button onClick={() => handleSimpleAdd('groupRatio')} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add group
+              {t('Add group')}
             </Button>
             {groupRatioList.length > 0 && (
               <div className='rounded-md border'>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Group name</TableHead>
-                      <TableHead>Ratio</TableHead>
-                      <TableHead className='text-right'>Actions</TableHead>
+                      <TableHead>{t('Group name')}</TableHead>
+                      <TableHead>{t('Ratio')}</TableHead>
+                      <TableHead className='text-right'>
+                        {t('Actions')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -431,9 +435,9 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       {/* Topup Group Ratios */}
       <Card>
         <CardHeader>
-          <CardTitle>Top-up group ratios</CardTitle>
+          <CardTitle>{t('Top-up group ratios')}</CardTitle>
           <CardDescription>
-            Multipliers for recharge pricing based on user groups.
+            {t('Multipliers for recharge pricing based on user groups.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -443,16 +447,18 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               size='sm'
             >
               <Plus className='mr-2 h-4 w-4' />
-              Add group
+              {t('Add group')}
             </Button>
             {topupRatioList.length > 0 && (
               <div className='rounded-md border'>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Group name</TableHead>
-                      <TableHead>Multiplier</TableHead>
-                      <TableHead className='text-right'>Actions</TableHead>
+                      <TableHead>{t('Group name')}</TableHead>
+                      <TableHead>{t('Multiplier')}</TableHead>
+                      <TableHead className='text-right'>
+                        {t('Actions')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -500,18 +506,18 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       {/* Inter-group ratio overrides */}
       <Card>
         <CardHeader>
-          <CardTitle>Inter-group ratio overrides</CardTitle>
+          <CardTitle>{t('Inter-group ratio overrides')}</CardTitle>
           <CardDescription>
-            Custom multipliers when specific user groups use specific token
-            groups. Example: VIP users get 0.9x rate when using "edit_this"
-            group tokens.
+            {t(
+              'Custom multipliers when specific user groups use specific token groups. Example: VIP users get 0.9x rate when using "edit_this" group tokens.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
             <Button onClick={handleUserGroupAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add user group
+              {t('Add user group')}
             </Button>
             {groupGroupRatioList.length > 0 && (
               <div className='space-y-3'>
@@ -529,7 +535,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                             {userGroupData.userGroup}
                           </span>
                           <span className='text-muted-foreground text-sm'>
-                            ({userGroupData.overrides.length} override
+                            ({userGroupData.overrides.length} {t('override')}
                             {userGroupData.overrides.length !== 1 ? 's' : ''})
                           </span>
                         </div>
@@ -560,10 +566,10 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead>Target group</TableHead>
-                                  <TableHead>Ratio</TableHead>
+                                  <TableHead>{t('Target group')}</TableHead>
+                                  <TableHead>{t('Ratio')}</TableHead>
                                   <TableHead className='text-right'>
-                                    Actions
+                                    {t('Actions')}
                                   </TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -621,25 +627,27 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       {/* Usable Groups */}
       <Card>
         <CardHeader>
-          <CardTitle>Selectable groups</CardTitle>
+          <CardTitle>{t('Selectable groups')}</CardTitle>
           <CardDescription>
-            Groups that users can select when creating API keys.
+            {t('Groups that users can select when creating API keys.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
             <Button onClick={handleUsableAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add group
+              {t('Add group')}
             </Button>
             {usableGroupsList.length > 0 && (
               <div className='rounded-md border'>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Group name</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className='text-right'>Actions</TableHead>
+                      <TableHead>{t('Group name')}</TableHead>
+                      <TableHead>{t('Description')}</TableHead>
+                      <TableHead className='text-right'>
+                        {t('Actions')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -680,17 +688,18 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       {/* Auto Groups */}
       <Card>
         <CardHeader>
-          <CardTitle>Auto assignment order</CardTitle>
+          <CardTitle>{t('Auto assignment order')}</CardTitle>
           <CardDescription>
-            Priority order for automatic group assignment. New tokens rotate
-            through this list.
+            {t(
+              'Priority order for automatic group assignment. New tokens rotate through this list.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
             <Button onClick={handleAutoGroupAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add group
+              {t('Add group')}
             </Button>
             {autoGroupsList.length > 0 && (
               <div className='space-y-2'>
@@ -755,18 +764,18 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       <Dialog open={autoGroupDialogOpen} onOpenChange={setAutoGroupDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add auto group</DialogTitle>
+            <DialogTitle>{t('Add auto group')}</DialogTitle>
             <DialogDescription>
-              Add a group identifier to the auto assignment list.
+              {t('Add a group identifier to the auto assignment list.')}
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
-              <Label>Group identifier</Label>
+              <Label>{t('Group identifier')}</Label>
               <Input
                 value={autoGroupInput}
                 onChange={(e) => setAutoGroupInput(e.target.value)}
-                placeholder='default'
+                placeholder={t('default')}
               />
             </div>
           </div>
@@ -775,9 +784,9 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               variant='outline'
               onClick={() => setAutoGroupDialogOpen(false)}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
-            <Button onClick={handleAutoGroupSave}>Add</Button>
+            <Button onClick={handleAutoGroupSave}>{t('Add')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -786,18 +795,18 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       <Dialog open={userGroupDialogOpen} onOpenChange={setUserGroupDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add user group</DialogTitle>
+            <DialogTitle>{t('Add user group')}</DialogTitle>
             <DialogDescription>
-              Create a new user group to configure ratio overrides for.
+              {t('Create a new user group to configure ratio overrides for.')}
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
-              <Label>User group name</Label>
+              <Label>{t('User group name')}</Label>
               <Input
                 value={userGroupInput}
                 onChange={(e) => setUserGroupInput(e.target.value)}
-                placeholder='vip'
+                placeholder={t('vip')}
               />
             </div>
           </div>
@@ -806,9 +815,9 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               variant='outline'
               onClick={() => setUserGroupDialogOpen(false)}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
-            <Button onClick={handleUserGroupSave}>Add</Button>
+            <Button onClick={handleUserGroupSave}>{t('Add')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -841,6 +850,7 @@ function SimpleGroupDialog({
   editData,
   type,
 }: SimpleGroupDialogProps) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [value, setValue] = useState('')
 
@@ -873,21 +883,21 @@ function SimpleGroupDialog({
             {editData ? `Edit ${title}` : `Add ${title}`}
           </DialogTitle>
           <DialogDescription>
-            Configure the ratio for this group.
+            {t('Configure the ratio for this group.')}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
-            <Label>Group name</Label>
+            <Label>{t('Group name')}</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder='default'
+              placeholder={t('default')}
               disabled={!!editData}
             />
           </div>
           <div className='space-y-2'>
-            <Label>Ratio</Label>
+            <Label>{t('Ratio')}</Label>
             <Input
               value={value}
               onChange={(e) => {
@@ -902,7 +912,7 @@ function SimpleGroupDialog({
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleSave}>{editData ? 'Update' : 'Add'}</Button>
         </DialogFooter>
@@ -925,6 +935,7 @@ function UsableGroupDialog({
   onSave,
   editData,
 }: UsableGroupDialogProps) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
@@ -955,31 +966,33 @@ function UsableGroupDialog({
             {editData ? 'Edit selectable group' : 'Add selectable group'}
           </DialogTitle>
           <DialogDescription>
-            Configure a group that users can select when creating API keys.
+            {t(
+              'Configure a group that users can select when creating API keys.'
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
-            <Label>Group name</Label>
+            <Label>{t('Group name')}</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder='vip'
+              placeholder={t('vip')}
               disabled={!!editData}
             />
           </div>
           <div className='space-y-2'>
-            <Label>Description</Label>
+            <Label>{t('Description')}</Label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder='VIP users with premium access'
+              placeholder={t('VIP users with premium access')}
             />
           </div>
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleSave}>{editData ? 'Update' : 'Add'}</Button>
         </DialogFooter>
@@ -1004,6 +1017,7 @@ function GroupOverrideDialog({
   editData,
   userGroup,
 }: GroupOverrideDialogProps) {
+  const { t } = useTranslation()
   const [targetGroup, setTargetGroup] = useState('')
   const [ratio, setRatio] = useState('')
 
@@ -1044,19 +1058,19 @@ function GroupOverrideDialog({
         </DialogHeader>
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
-            <Label>Target group</Label>
+            <Label>{t('Target group')}</Label>
             <Input
               value={targetGroup}
               onChange={(e) => setTargetGroup(e.target.value)}
-              placeholder='edit_this'
+              placeholder={t('edit_this')}
               disabled={!!editData}
             />
             <p className='text-muted-foreground text-xs'>
-              The token group that will have a custom ratio
+              {t('The token group that will have a custom ratio')}
             </p>
           </div>
           <div className='space-y-2'>
-            <Label>Ratio</Label>
+            <Label>{t('Ratio')}</Label>
             <Input
               value={ratio}
               onChange={(e) => {
@@ -1068,14 +1082,14 @@ function GroupOverrideDialog({
               placeholder='0.9'
             />
             <p className='text-muted-foreground text-xs'>
-              Multiplier applied when {userGroup || 'this user group'} uses{' '}
-              {targetGroup || 'this token group'}
+              {t('Multiplier applied when')} {userGroup || 'this user group'}{' '}
+              {t('uses')} {targetGroup || 'this token group'}
             </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleSave}>{editData ? 'Update' : 'Add'}</Button>
         </DialogFooter>

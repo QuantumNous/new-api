@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -58,6 +59,7 @@ export function JsonToggleSection({
   submitLabel = 'Save changes',
   validate,
 }: JsonToggleSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const formattedDefault = useMemo(
@@ -145,10 +147,10 @@ export function JsonToggleSection({
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Module availability
+                    {t('Module availability')}
                   </FormLabel>
                   {toggleDescription && (
-                    <FormDescription>{toggleDescription}</FormDescription>
+                    <FormDescription>{t(toggleDescription)}</FormDescription>
                   )}
                 </div>
                 <FormControl>
@@ -171,7 +173,7 @@ export function JsonToggleSection({
                   <Textarea rows={12} placeholder={placeholder} {...field} />
                 </FormControl>
                 {textareaDescription && (
-                  <FormDescription>{textareaDescription}</FormDescription>
+                  <FormDescription>{t(textareaDescription)}</FormDescription>
                 )}
                 {example && (
                   <div className='text-muted-foreground text-xs'>{example}</div>

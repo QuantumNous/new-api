@@ -1,6 +1,7 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
 import { Trash2, Edit, Power, PowerOff } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { updateRedemptionStatus } from '../api'
-import { REDEMPTION_STATUS, SUCCESS_MESSAGES } from '../constants'
+import { REDEMPTION_STATUS, getRedemptionSuccessMessages } from '../constants'
 import { isRedemptionExpired } from '../lib'
 import { redemptionSchema } from '../types'
 import { useRedemptions } from './redemptions-provider'
@@ -24,6 +25,8 @@ interface DataTableRowActionsProps<TData> {
 export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {
+  const { t } = useTranslation()
+  const successMessages = getRedemptionSuccessMessages(t)
   const redemption = redemptionSchema.parse(row.original)
   const { setOpen, setCurrentRow, triggerRefresh } = useRedemptions()
   const isEnabled = redemption.status === REDEMPTION_STATUS.ENABLED
@@ -41,8 +44,8 @@ export function DataTableRowActions<TData>({
     const result = await updateRedemptionStatus(redemption.id, newStatus)
     if (result.success) {
       const message = isEnabled
-        ? SUCCESS_MESSAGES.REDEMPTION_DISABLED
-        : SUCCESS_MESSAGES.REDEMPTION_ENABLED
+        ? successMessages.REDEMPTION_DISABLED
+        : successMessages.REDEMPTION_ENABLED
       toast.success(message)
       triggerRefresh()
     }
@@ -59,7 +62,7 @@ export function DataTableRowActions<TData>({
           className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
         >
           <DotsHorizontalIcon className='h-4 w-4' />
-          <span className='sr-only'>Open menu</span>
+          <span className='sr-only'>{t('Open menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-[160px]'>
@@ -70,7 +73,7 @@ export function DataTableRowActions<TData>({
           }}
           disabled={!canEdit}
         >
-          Edit
+          {t('Edit')}
           <DropdownMenuShortcut>
             <Edit size={16} />
           </DropdownMenuShortcut>
@@ -79,14 +82,14 @@ export function DataTableRowActions<TData>({
           <DropdownMenuItem onClick={handleToggleStatus}>
             {isEnabled ? (
               <>
-                Disable
+                {t('Disable')}
                 <DropdownMenuShortcut>
                   <PowerOff size={16} />
                 </DropdownMenuShortcut>
               </>
             ) : (
               <>
-                Enable
+                {t('Enable')}
                 <DropdownMenuShortcut>
                   <Power size={16} />
                 </DropdownMenuShortcut>
@@ -102,7 +105,7 @@ export function DataTableRowActions<TData>({
           }}
           className='text-destructive focus:text-destructive'
         >
-          Delete
+          {t('Delete')}
           <DropdownMenuShortcut>
             <Trash2 size={16} />
           </DropdownMenuShortcut>

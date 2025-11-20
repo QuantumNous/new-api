@@ -1,4 +1,5 @@
 import { TrendingUp } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { getChartColor } from '@/lib/colors'
 import { formatCurrencyUSD, formatCompactNumber } from '@/lib/format'
@@ -21,6 +22,7 @@ export function TotalCallsTrendChart({
   data,
   loading = false,
 }: TotalCallsTrendChartProps) {
+  const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
 
   return (
@@ -28,12 +30,12 @@ export function TotalCallsTrendChart({
       title={
         <span className='flex items-center gap-2'>
           <TrendingUp className='h-5 w-5' />
-          Total Calls Trend
+          {t('Total Calls Trend')}
         </span>
       }
       loading={loading}
       empty={isEmpty}
-      emptyMessage='No total calls data available'
+      emptyMessage={t('No total calls data available')}
       height='h-96'
     >
       <ChartContainer

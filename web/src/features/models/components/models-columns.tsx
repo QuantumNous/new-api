@@ -1,4 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -52,7 +53,8 @@ function renderLimitedItems(
 /**
  * Generate models columns configuration
  */
-export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
+export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
+  const { t } = useTranslation()
   const vendorMap: Record<number, Vendor> = {}
   vendors.forEach((v) => {
     vendorMap[v.id] = v
@@ -87,7 +89,7 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // ID column
     {
       accessorKey: 'id',
-      meta: { label: 'ID' },
+      meta: { label: t('ID') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='ID' />
       ),
@@ -109,8 +111,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Icon column
     {
       accessorKey: 'icon',
-      meta: { label: 'Icon' },
-      header: 'Icon',
+      meta: { label: t('Icon') },
+      header: t('Icon'),
       cell: ({ row }) => {
         const model = row.original
         const iconKey =
@@ -129,9 +131,9 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Model Name column
     {
       accessorKey: 'model_name',
-      meta: { label: 'Model Name' },
+      meta: { label: t('Model Name') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Model Name' />
+        <DataTableColumnHeader column={column} title={t('Model Name')} />
       ),
       cell: ({ row }) => {
         const name = row.getValue('model_name') as string
@@ -151,8 +153,10 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Name Rule column
     {
       accessorKey: 'name_rule',
-      meta: { label: 'Match Type' },
-      header: 'Match Type',
+      meta: { label: t('Match Type') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Match Type')} />
+      ),
       cell: ({ row }) => {
         const rule = row.getValue('name_rule') as 0 | 1 | 2 | 3
         const model = row.original
@@ -203,8 +207,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Status column
     {
       accessorKey: 'status',
-      meta: { label: 'Status' },
-      header: 'Status',
+      meta: { label: t('Status') },
+      header: t('Status'),
       cell: ({ row }) => {
         const status = row.getValue('status') as number
         const config =
@@ -234,8 +238,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Vendor column
     {
       accessorKey: 'vendor_id',
-      meta: { label: 'Vendor' },
-      header: 'Vendor',
+      meta: { label: t('Vendor') },
+      header: t('Vendor'),
       cell: ({ row }) => {
         const vendorId = row.getValue('vendor_id') as number
         const vendor = vendorMap[vendorId]
@@ -268,8 +272,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Description column
     {
       accessorKey: 'description',
-      meta: { label: 'Description' },
-      header: 'Description',
+      meta: { label: t('Description') },
+      header: t('Description'),
       cell: ({ row }) => {
         const description = row.getValue('description') as string
         const modelName = row.getValue('model_name') as string
@@ -285,8 +289,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Tags column
     {
       accessorKey: 'tags',
-      meta: { label: 'Tags' },
-      header: 'Tags',
+      meta: { label: t('Tags') },
+      header: t('Tags'),
       cell: ({ row }) => {
         const tags = row.getValue('tags') as string
         const tagArray = parseModelTags(tags)
@@ -324,8 +328,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Endpoints column
     {
       accessorKey: 'endpoints',
-      meta: { label: 'Endpoints' },
-      header: 'Endpoints',
+      meta: { label: t('Endpoints') },
+      header: t('Endpoints'),
       cell: ({ row }) => {
         const endpoints = row.getValue('endpoints') as string
         const endpointArray = formatEndpointsDisplay(endpoints)
@@ -363,8 +367,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Bound Channels column
     {
       accessorKey: 'bound_channels',
-      meta: { label: 'Bound Channels' },
-      header: 'Bound Channels',
+      meta: { label: t('Bound Channels') },
+      header: t('Bound Channels'),
       cell: ({ row }) => {
         const channels = row.getValue('bound_channels') as any[]
 
@@ -406,8 +410,10 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Enable Groups column
     {
       accessorKey: 'enable_groups',
-      meta: { label: 'Enable Groups' },
-      header: 'Enable Groups',
+      meta: { label: t('Enable Groups') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Enable Groups')} />
+      ),
       cell: ({ row }) => {
         const groups = row.getValue('enable_groups') as string[]
 
@@ -444,8 +450,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Quota Types column
     {
       accessorKey: 'quota_types',
-      meta: { label: 'Quota Types' },
-      header: 'Quota Types',
+      meta: { label: t('Quota Types') },
+      header: t('Quota Types'),
       cell: ({ row }) => {
         const quotaTypes = row.getValue('quota_types') as number[]
 
@@ -490,8 +496,8 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Sync Official column
     {
       accessorKey: 'sync_official',
-      meta: { label: 'Official Sync' },
-      header: 'Official Sync',
+      meta: { label: t('Official Sync') },
+      header: t('Official Sync'),
       cell: ({ row }) => {
         const syncOfficial = row.getValue('sync_official') as number
         return (
@@ -517,9 +523,9 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Created Time column
     {
       accessorKey: 'created_time',
-      meta: { label: 'Created' },
+      meta: { label: t('Created') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Created' />
+        <DataTableColumnHeader column={column} title={t('Created')} />
       ),
       cell: ({ row }) => {
         const timestamp = row.getValue('created_time') as number
@@ -535,9 +541,9 @@ export function getModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Updated Time column
     {
       accessorKey: 'updated_time',
-      meta: { label: 'Updated' },
+      meta: { label: t('Updated') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Updated' />
+        <DataTableColumnHeader column={column} title={t('Updated')} />
       ),
       cell: ({ row }) => {
         const timestamp = row.getValue('updated_time') as number

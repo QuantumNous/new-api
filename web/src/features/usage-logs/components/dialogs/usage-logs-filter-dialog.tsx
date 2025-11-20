@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getNormalizedDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
@@ -43,6 +44,7 @@ export function UsageLogsFilterDialog({
   onFilterChange,
   logCategory,
 }: UsageLogsFilterDialogProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const searchParams = route.useSearch()
   const isAdmin = useIsAdmin()
@@ -204,10 +206,10 @@ export function UsageLogsFilterDialog({
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>
-            Filter {getLogCategoryLabel(logCategory)} Logs
+            {t('Filter')} {getLogCategoryLabel(logCategory)} {t('Logs')}
           </DialogTitle>
           <DialogDescription>
-            Set filters to narrow down your log search results.
+            {t('Set filters to narrow down your log search results.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -217,7 +219,7 @@ export function UsageLogsFilterDialog({
             <div className='grid gap-2'>
               <Label className='flex items-center gap-2'>
                 <Calendar className='h-4 w-4' />
-                Quick Range
+                {t('Quick Range')}
               </Label>
               <div className='flex gap-2'>
                 {TIME_RANGE_PRESETS.map((range) => (
@@ -241,34 +243,34 @@ export function UsageLogsFilterDialog({
               </div>
             </div>
 
-            <SectionDivider label='Custom Time Range' />
+            <SectionDivider label={t('Custom Time Range')} />
 
             {/* Custom time range */}
             <div className='grid gap-4'>
               <div className='grid gap-2'>
-                <Label htmlFor='start_time'>Start Time</Label>
+                <Label htmlFor='start_time'>{t('Start Time')}</Label>
                 <DateTimePicker
                   value={filters.startTime}
                   onChange={(date) =>
                     handleChange('startTime', date || undefined)
                   }
-                  placeholder='Select start time'
+                  placeholder={t('Select start time')}
                 />
               </div>
 
               <div className='grid gap-2'>
-                <Label htmlFor='end_time'>End Time</Label>
+                <Label htmlFor='end_time'>{t('End Time')}</Label>
                 <DateTimePicker
                   value={filters.endTime}
                   onChange={(date) =>
                     handleChange('endTime', date || undefined)
                   }
-                  placeholder='Select end time'
+                  placeholder={t('Select end time')}
                 />
               </div>
             </div>
 
-            <SectionDivider label='Filters' />
+            <SectionDivider label={t('Filters')} />
 
             {renderCategoryFilters()}
 
@@ -276,8 +278,8 @@ export function UsageLogsFilterDialog({
             {isAdmin && (
               <FilterInput
                 id='channel'
-                label='Channel ID'
-                placeholder='Filter by channel ID'
+                label={t('Channel ID')}
+                placeholder={t('Filter by channel ID')}
                 value={filters.channel || ''}
                 onChange={(value) => handleChange('channel', value)}
               />
@@ -288,11 +290,11 @@ export function UsageLogsFilterDialog({
         <DialogFooter>
           <Button onClick={handleReset} variant='outline' type='button'>
             <RotateCcw className='mr-2 h-4 w-4' />
-            Reset
+            {t('Reset')}
           </Button>
           <Button onClick={handleApply} type='submit'>
             <Search className='mr-2 h-4 w-4' />
-            Apply Filters
+            {t('Apply Filters')}
           </Button>
         </DialogFooter>
       </DialogContent>

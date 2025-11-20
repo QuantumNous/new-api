@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -6,6 +6,7 @@ import {
   useReactTable,
   type PaginationState,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import {
   Table,
   TableBody,
@@ -18,7 +19,7 @@ import { TableSkeleton, TableEmpty } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
-import { getPricingColumns } from './pricing-columns'
+import { usePricingColumns } from './pricing-columns'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Component
@@ -41,6 +42,7 @@ export function PricingTable({
   tokenUnit = DEFAULT_TOKEN_UNIT,
   showRechargePrice = false,
 }: PricingTableProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate({ from: '/pricing' })
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -48,16 +50,12 @@ export function PricingTable({
   })
 
   // Generate columns with current options
-  const columns = useMemo(
-    () =>
-      getPricingColumns({
-        tokenUnit,
-        priceRate,
-        usdExchangeRate,
-        showRechargePrice,
-      }),
-    [tokenUnit, priceRate, usdExchangeRate, showRechargePrice]
-  )
+  const columns = usePricingColumns({
+    tokenUnit,
+    priceRate,
+    usdExchangeRate,
+    showRechargePrice,
+  })
 
   // React Table instance
   const table = useReactTable({
@@ -115,8 +113,8 @@ export function PricingTable({
             ) : table.getRowModel().rows.length === 0 ? (
               <TableEmpty
                 colSpan={columns.length}
-                title='No Models Found'
-                description='No models match your current filters.'
+                title={t('No Models Found')}
+                description={t('No models match your current filters.')}
               />
             ) : (
               table.getRowModel().rows.map((row) => (

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -47,6 +48,7 @@ interface PasskeySectionProps {
 }
 
 export function PasskeySection({ defaultValues }: PasskeySectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const formDefaults = useMemo<PasskeyFormValues>(
@@ -137,8 +139,8 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
   return (
     <SettingsAccordion
       value='passkey'
-      title='Passkey Authentication'
-      description='Configure Passkey (WebAuthn) login settings'
+      title={t('Passkey Authentication')}
+      description={t('Configure Passkey (WebAuthn) login settings')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -148,9 +150,13 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Enable Passkey</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Enable Passkey')}
+                  </FormLabel>
                   <FormDescription>
-                    Allow users to register and sign in with Passkey (WebAuthn)
+                    {t(
+                      'Allow users to register and sign in with Passkey (WebAuthn)'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -168,16 +174,18 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             name='passkey.rp_display_name'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Relying Party Display Name</FormLabel>
+                <FormLabel>{t('Relying Party Display Name')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder='e.g. New API Console'
+                    placeholder={t('e.g. New API Console')}
                     {...field}
                     value={field.value ?? ''}
                   />
                 </FormControl>
                 <FormDescription>
-                  Human-readable name shown to users during Passkey prompts.
+                  {t(
+                    'Human-readable name shown to users during Passkey prompts.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -189,17 +197,18 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             name='passkey.rp_id'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Relying Party ID</FormLabel>
+                <FormLabel>{t('Relying Party ID')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder='e.g. example.com'
+                    placeholder={t('e.g. example.com')}
                     {...field}
                     value={field.value ?? ''}
                   />
                 </FormControl>
                 <FormDescription>
-                  The effective domain for Passkey registration. Must match the
-                  current domain or be its parent domain.
+                  {t(
+                    'The effective domain for Passkey registration. Must match the current domain or be its parent domain.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -211,22 +220,27 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             name='passkey.user_verification'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>User Verification</FormLabel>
+                <FormLabel>{t('User Verification')}</FormLabel>
                 <FormControl>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder='Select requirement' />
+                      <SelectValue placeholder={t('Select requirement')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='required'>Required</SelectItem>
-                      <SelectItem value='preferred'>Recommended</SelectItem>
-                      <SelectItem value='discouraged'>Discouraged</SelectItem>
+                      <SelectItem value='required'>{t('Required')}</SelectItem>
+                      <SelectItem value='preferred'>
+                        {t('Recommended')}
+                      </SelectItem>
+                      <SelectItem value='discouraged'>
+                        {t('Discouraged')}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </FormControl>
                 <FormDescription>
-                  Controls whether user verification (biometrics/PIN) is
-                  required during Passkey flows.
+                  {t(
+                    'Controls whether user verification (biometrics/PIN) is required during Passkey flows.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -238,24 +252,27 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             name='passkey.attachment_preference'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Device Type Preference</FormLabel>
+                <FormLabel>{t('Device Type Preference')}</FormLabel>
                 <FormControl>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder='No preference' />
+                      <SelectValue placeholder={t('No preference')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='none'>Unlimited</SelectItem>
-                      <SelectItem value='platform'>Built-in Device</SelectItem>
+                      <SelectItem value='none'>{t('Unlimited')}</SelectItem>
+                      <SelectItem value='platform'>
+                        {t('Built-in Device')}
+                      </SelectItem>
                       <SelectItem value='cross-platform'>
-                        External Device
+                        {t('External Device')}
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </FormControl>
                 <FormDescription>
-                  Built-in: phone fingerprint/face, or Windows Hello; External:
-                  USB security key
+                  {t(
+                    'Built-in: phone fingerprint/face, or Windows Hello; External: USB security key'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -269,11 +286,12 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Allow Insecure Origins
+                    {t('Allow Insecure Origins')}
                   </FormLabel>
                   <FormDescription>
-                    Permit Passkey registration on non-HTTPS origins (only
-                    recommended for development)
+                    {t(
+                      'Permit Passkey registration on non-HTTPS origins (only recommended for development)'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -291,25 +309,26 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             name='passkey.origins'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Allowed Origins</FormLabel>
+                <FormLabel>{t('Allowed Origins')}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={4}
-                    placeholder='https://example.com'
+                    placeholder={t('https://example.com')}
                     {...field}
                     value={field.value ?? ''}
                   />
                 </FormControl>
                 <FormDescription>
-                  List of origins (one per line) allowed for Passkey
-                  registration and authentication.
+                  {t(
+                    'List of origins (one per line) allowed for Passkey registration and authentication.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <Button type='submit'>Save changes</Button>
+          <Button type='submit'>{t('Save changes')}</Button>
         </form>
       </Form>
     </SettingsAccordion>

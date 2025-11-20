@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { getUserQuotaDates } from '@/features/dashboard/api'
-import { MODEL_STAT_CARDS_CONFIG } from '@/features/dashboard/constants'
+import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
   buildQueryParams,
   calculateDashboardStats,
@@ -17,6 +17,7 @@ interface LogStatCardsProps {
 }
 
 export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
+  const statCardsConfig = useModelStatCardsConfig()
   const [stats, setStats] = useState<{
     totalQuota: number
     totalCount: number
@@ -69,7 +70,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
     tpm: stats?.totalTokens ?? 0, // 总 tokens
   }
 
-  const items = MODEL_STAT_CARDS_CONFIG.map((config) => ({
+  const items = statCardsConfig.map((config) => ({
     title: config.title,
     value: formatNumber(config.getValue(adaptedStats, timeRangeMinutes)),
     desc: config.description,

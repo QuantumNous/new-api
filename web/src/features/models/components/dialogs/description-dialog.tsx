@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -20,12 +21,13 @@ export function DescriptionDialog({
   modelName,
   description,
 }: DescriptionDialogProps) {
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-2xl'>
         <DialogHeader>
           <DialogTitle>{modelName}</DialogTitle>
-          <DialogDescription>Model Description</DialogDescription>
+          <DialogDescription>{t('Model Description')}</DialogDescription>
         </DialogHeader>
 
         <ScrollArea className='max-h-96'>

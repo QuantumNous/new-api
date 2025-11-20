@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ export function EmailBindDialog({
   currentEmail,
   onSuccess,
 }: EmailBindDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
   const [email, setEmail] = useState('')
@@ -112,7 +114,7 @@ export function EmailBindDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>Bind Email</DialogTitle>
+          <DialogTitle>{t('Bind Email')}</DialogTitle>
           <DialogDescription>
             {currentEmail
               ? `Current email: ${currentEmail}. Enter a new email to change.`
@@ -122,25 +124,25 @@ export function EmailBindDialog({
 
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
-            <Label htmlFor='email'>Email Address</Label>
+            <Label htmlFor='email'>{t('Email Address')}</Label>
             <Input
               id='email'
               type='email'
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder='Enter your email'
+              placeholder={t('Enter your email')}
               disabled={loading}
             />
           </div>
 
           <div className='space-y-2'>
-            <Label htmlFor='code'>Verification Code</Label>
+            <Label htmlFor='code'>{t('Verification Code')}</Label>
             <div className='flex gap-2'>
               <Input
                 id='code'
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder='Enter code'
+                placeholder={t('Enter code')}
                 disabled={loading}
                 maxLength={6}
               />
@@ -167,7 +169,7 @@ export function EmailBindDialog({
             onClick={() => handleOpenChange(false)}
             disabled={loading}
           >
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             type='button'

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,6 +23,7 @@ type DataTableBulkActionsProps<TData> = {
 export function DataTableBulkActions<TData>({
   table,
 }: DataTableBulkActionsProps<TData>) {
+  const { t } = useTranslation()
   const { triggerRefresh } = useRedemptions()
   const [showDeleteInvalidConfirm, setShowDeleteInvalidConfirm] =
     useState(false)
@@ -63,9 +65,9 @@ export function DataTableBulkActions<TData>({
           variant='outline'
           size='icon'
           className='size-8'
-          tooltip='Copy selected codes'
+          tooltip={t('Copy selected codes')}
           successTooltip='Codes copied!'
-          aria-label='Copy selected codes'
+          aria-label={t('Copy selected codes')}
         />
 
         <Tooltip>
@@ -75,15 +77,15 @@ export function DataTableBulkActions<TData>({
               size='icon'
               onClick={() => setShowDeleteInvalidConfirm(true)}
               className='size-8'
-              aria-label='Delete invalid redemption codes'
-              title='Delete invalid redemption codes'
+              aria-label={t('Delete invalid redemption codes')}
+              title={t('Delete invalid redemption codes')}
             >
               <Trash2 />
-              <span className='sr-only'>Delete invalid codes</span>
+              <span className='sr-only'>{t('Delete invalid codes')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Delete invalid codes (used/disabled/expired)</p>
+            <p>{t('Delete invalid codes (used/disabled/expired)')}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
@@ -95,14 +97,15 @@ export function DataTableBulkActions<TData>({
         handleConfirm={handleDeleteInvalid}
         isLoading={isDeleting}
         className='max-w-md'
-        title='Delete Invalid Redemption Codes?'
+        title={t('Delete Invalid Redemption Codes?')}
         desc={
           <>
-            This will delete all <strong>used</strong>,{' '}
-            <strong>disabled</strong>, and <strong>expired</strong> redemption
-            codes.
+            {t('This will delete all')} <strong>{t('used')}</strong>,{' '}
+            <strong>{t('disabled')}</strong>
+            {t(', and')} <strong>{t('expired')}</strong>{' '}
+            {t('redemption codes.')}
             <br />
-            This action cannot be undone.
+            {t('This action cannot be undone.')}
           </>
         }
         confirmText='Delete Invalid'

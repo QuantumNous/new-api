@@ -39,4 +39,4 @@ export {
 } from './mappers'
 
 // Column utilities
-export { getColumnsByCategory } from './columns'
+export { useColumnsByCategory } from './columns'

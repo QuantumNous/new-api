@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Megaphone } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -22,6 +23,7 @@ function AnnouncementStatusDot({ type }: { type?: string }) {
 }
 
 export function AnnouncementsPanel() {
+  const { t } = useTranslation()
   const { items: list, loading } = useAnnouncements()
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -36,12 +38,12 @@ export function AnnouncementsPanel() {
       title={
         <span className='flex items-center gap-2'>
           <Megaphone className='h-5 w-5' />
-          Announcements
+          {t('Announcements')}
         </span>
       }
       loading={loading}
       empty={!list.length}
-      emptyMessage='No announcements at this time'
+      emptyMessage={t('No announcements at this time')}
       height='h-64'
     >
       <ScrollArea className='h-64'>

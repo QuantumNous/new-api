@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
 import { Loader2, LogIn, KeyRound } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   buildAssertionResult,
@@ -47,6 +48,7 @@ export function UserAuthForm({
   redirectTo,
   ...props
 }: AuthFormProps) {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
@@ -302,7 +304,7 @@ export function UserAuthForm({
           disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         >
           {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          Sign in
+          {t('Sign in')}
         </Button>
 
         {/* Turnstile */}
@@ -336,11 +338,11 @@ export function UserAuthForm({
               ) : (
                 <KeyRound className='h-4 w-4' />
               )}
-              Sign in with Passkey
+              {t('Sign in with Passkey')}
             </Button>
             {!passkeySupported && (
               <p className='text-muted-foreground text-xs'>
-                Passkey is not supported on this device.
+                {t('Passkey is not supported on this device.')}
               </p>
             )}
           </div>
@@ -362,10 +364,11 @@ export function UserAuthForm({
         >
           <DialogContent className='max-w-sm'>
             <DialogHeader className='text-left'>
-              <DialogTitle>WeChat sign in</DialogTitle>
+              <DialogTitle>{t('WeChat sign in')}</DialogTitle>
               <DialogDescription>
-                Scan the QR code to follow the official account and reply with
-                “验证码” to receive your verification code.
+                {t(
+                  'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
+                )}
               </DialogDescription>
             </DialogHeader>
 
@@ -373,21 +376,21 @@ export function UserAuthForm({
               <div className='flex justify-center'>
                 <img
                   src={wechatQrCodeUrl}
-                  alt='WeChat login QR code'
+                  alt={t('WeChat login QR code')}
                   className='h-40 w-40 rounded-md border object-contain'
                 />
               </div>
             ) : (
               <p className='text-muted-foreground text-sm'>
-                QR code is not configured. Please contact support.
+                {t('QR code is not configured. Please contact support.')}
               </p>
             )}
 
             <div className='grid gap-2'>
-              <Label htmlFor='wechat-code'>Verification code</Label>
+              <Label htmlFor='wechat-code'>{t('Verification code')}</Label>
               <Input
                 id='wechat-code'
-                placeholder='Enter the verification code'
+                placeholder={t('Enter the verification code')}
                 value={wechatCode}
                 onChange={(event) => setWeChatCode(event.target.value)}
                 autoComplete='one-time-code'
@@ -401,7 +404,7 @@ export function UserAuthForm({
                 onClick={() => handleWeChatDialogChange(false)}
                 disabled={isWeChatSubmitting}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 type='button'
@@ -416,7 +419,7 @@ export function UserAuthForm({
                 {isWeChatSubmitting ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : null}
-                Confirm
+                {t('Confirm')}
               </Button>
             </DialogFooter>
           </DialogContent>

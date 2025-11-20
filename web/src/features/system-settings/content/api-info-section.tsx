@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -94,6 +95,7 @@ const colorOptions = [
 ]
 
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [apiInfoList, setApiInfoList] = useState<ApiInfo[]>([])
   const [isEnabled, setIsEnabled] = useState(enabled)
@@ -254,15 +256,15 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
   return (
     <SettingsAccordion
       value='api-info'
-      title='API Addresses'
-      description='Curate quick links to your different Domains'
+      title={t('API Addresses')}
+      description={t('Curate quick links to your different Domains')}
     >
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add API
+              {t('Add API')}
             </Button>
             <Button
               onClick={handleBatchDelete}
@@ -271,7 +273,8 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               disabled={selectedIds.length === 0}
             >
               <Trash2 className='mr-2 h-4 w-4' />
-              Delete ({selectedIds.length})
+              {t('Delete (')}
+              {selectedIds.length})
             </Button>
             <Button
               onClick={handleSaveAll}
@@ -284,7 +287,9 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
             </Button>
           </div>
           <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>Enabled</span>
+            <span className='text-muted-foreground text-sm'>
+              {t('Enabled')}
+            </span>
             <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
           </div>
         </div>
@@ -302,18 +307,18 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
-                <TableHead>URL</TableHead>
-                <TableHead>Route</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead className='w-32'>Actions</TableHead>
+                <TableHead>{t('URL')}</TableHead>
+                <TableHead>{t('Route')}</TableHead>
+                <TableHead>{t('Description')}</TableHead>
+                <TableHead>{t('Color')}</TableHead>
+                <TableHead className='w-32'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {apiInfoList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className='h-24 text-center'>
-                    No API Domains yet. Click "Add API" to create one.
+                    {t('No API Domains yet. Click "Add API" to create one.')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -390,7 +395,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               {editingApiInfo ? 'Edit API Shortcut' : 'Add API Shortcut'}
             </DialogTitle>
             <DialogDescription>
-              Configure API documentation links for the dashboard
+              {t('Configure API documentation links for the dashboard')}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -403,9 +408,12 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                 name='url'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>API URL</FormLabel>
+                    <FormLabel>{t('API URL')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='https://api.example.com' {...field} />
+                      <Input
+                        placeholder={t('https://api.example.com')}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -416,9 +424,9 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                 name='route'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Route Description</FormLabel>
+                    <FormLabel>{t('Route Description')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='e.g., CN2 GIA' {...field} />
+                      <Input placeholder={t('e.g., CN2 GIA')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -429,10 +437,12 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                 name='description'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>{t('Description')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='e.g., Recommended for China Mainland Users'
+                        placeholder={t(
+                          'e.g., Recommended for China Mainland Users'
+                        )}
                         {...field}
                       />
                     </FormControl>
@@ -445,11 +455,11 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                 name='color'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Badge Color</FormLabel>
+                    <FormLabel>{t('Badge Color')}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder='Select a color' />
+                          <SelectValue placeholder={t('Select a color')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -466,7 +476,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      Visual indicator color for the API card
+                      {t('Visual indicator color for the API card')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -478,7 +488,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                   variant='outline'
                   onClick={() => setShowDialog(false)}
                 >
-                  Cancel
+                  {t('Cancel')}
                 </Button>
                 <Button type='submit'>
                   {editingApiInfo ? 'Update' : 'Add'}
@@ -492,7 +502,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
                 ? 'This API shortcut will be removed from the list.'
@@ -500,9 +510,9 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>
-              Delete
+              {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

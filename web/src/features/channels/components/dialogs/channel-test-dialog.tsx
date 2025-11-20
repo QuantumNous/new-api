@@ -9,6 +9,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -85,6 +86,7 @@ export function ChannelTestDialog({
   open,
   onOpenChange,
 }: ChannelTestDialogProps) {
+  const { t } = useTranslation()
   const { currentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
   const [searchTerm, setSearchTerm] = useState('')
@@ -378,19 +380,19 @@ export function ChannelTestDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className='max-h-[90vh] overflow-hidden sm:max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>Test Channel Connection</DialogTitle>
+          <DialogTitle>{t('Test Channel Connection')}</DialogTitle>
           <DialogDescription>
-            Test connectivity for: <strong>{currentRow.name}</strong>
+            {t('Test connectivity for:')} <strong>{currentRow.name}</strong>
           </DialogDescription>
         </DialogHeader>
 
         <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
-              <Label htmlFor='endpoint-type'>Endpoint Type</Label>
+              <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
               <Select value={endpointType} onValueChange={setEndpointType}>
                 <SelectTrigger id='endpoint-type'>
-                  <SelectValue placeholder='Auto detect (default)' />
+                  <SelectValue placeholder={t('Auto detect (default)')} />
                 </SelectTrigger>
                 <SelectContent>
                   {endpointTypeOptions.map((option) => {
@@ -404,8 +406,9 @@ export function ChannelTestDialog({
                 </SelectContent>
               </Select>
               <p className='text-muted-foreground text-xs'>
-                Override the endpoint used for testing. Leave empty to auto
-                detect.
+                {t(
+                  'Override the endpoint used for testing. Leave empty to auto detect.'
+                )}
               </p>
             </div>
           </div>
@@ -413,13 +416,13 @@ export function ChannelTestDialog({
           <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <div>
-                <p className='text-sm font-medium'>Channel models</p>
+                <p className='text-sm font-medium'>{t('Channel models')}</p>
                 <p className='text-muted-foreground text-xs'>
-                  Select models to run batch tests.
+                  {t('Select models to run batch tests.')}
                 </p>
               </div>
               <Input
-                placeholder='Filter models...'
+                placeholder={t('Filter models...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className='sm:w-64'
@@ -495,7 +498,7 @@ export function ChannelTestDialog({
 
         <DialogFooter>
           <Button variant='outline' onClick={handleClose}>
-            Close
+            {t('Close')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -512,6 +515,7 @@ function TestModelsBulkActions({
   disabled?: boolean
   onTestSelected: (models: string[]) => void
 }) {
+  const { t } = useTranslation()
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedModels = selectedRows.map((row) => row.original.model)
 
@@ -532,7 +536,7 @@ function TestModelsBulkActions({
             {disabled ? (
               <>
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                Testing...
+                {t('Testing...')}
               </>
             ) : (
               buttonLabel
@@ -540,7 +544,7 @@ function TestModelsBulkActions({
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Run tests for the selected models</p>
+          <p>{t('Run tests for the selected models')}</p>
         </TooltipContent>
       </Tooltip>
     </BulkActionsToolbar>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -66,6 +67,7 @@ type ChatSettingsSectionProps = {
 export function ChatSettingsSection({
   defaultValue,
 }: ChatSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
 
@@ -100,8 +102,8 @@ export function ChatSettingsSection({
   return (
     <SettingsAccordion
       value='chat-settings'
-      title='Chat Presets'
-      description='Configure predefined chat links surfaced to end users.'
+      title={t('Chat Presets')}
+      description={t('Configure predefined chat links surfaced to end users.')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -110,8 +112,8 @@ export function ChatSettingsSection({
             onValueChange={(value) => setEditMode(value as 'visual' | 'json')}
           >
             <TabsList className='grid w-full grid-cols-2'>
-              <TabsTrigger value='visual'>Visual</TabsTrigger>
-              <TabsTrigger value='json'>JSON</TabsTrigger>
+              <TabsTrigger value='visual'>{t('Visual')}</TabsTrigger>
+              <TabsTrigger value='json'>{t('JSON')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value='visual' className='mt-6'>
@@ -138,17 +140,20 @@ export function ChatSettingsSection({
                 name='Chats'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Chat configuration JSON</FormLabel>
+                    <FormLabel>{t('Chat configuration JSON')}</FormLabel>
                     <FormControl>
                       <Textarea
                         rows={12}
-                        placeholder='[{"ChatGPT":"https://chat.openai.com"},{"Lobe Chat":"https://chat-preview.lobehub.com/?settings={...}"}]'
+                        placeholder={t(
+                          '[{"ChatGPT":"https://chat.openai.com"},{"Lobe Chat":"https://chat-preview.lobehub.com/?settings={...}"}]'
+                        )}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Array of chat client presets. Each item is an object with
-                      one key-value pair: client name and its URL.
+                      {t(
+                        'Array of chat client presets. Each item is an object with one key-value pair: client name and its URL.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

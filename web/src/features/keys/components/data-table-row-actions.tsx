@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
 import { Trash2, Edit, Power, PowerOff, ExternalLink } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +31,7 @@ type DataTableRowActionsProps<TData> = {
 export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {
+  const { t } = useTranslation()
   const apiKey = apiKeySchema.parse(row.original)
   const { setOpen, setCurrentRow, triggerRefresh } = useApiKeys()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
@@ -102,7 +104,7 @@ export function DataTableRowActions<TData>({
           className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
         >
           <DotsHorizontalIcon className='h-4 w-4' />
-          <span className='sr-only'>Open menu</span>
+          <span className='sr-only'>{t('Open menu')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-[160px]'>
@@ -112,7 +114,7 @@ export function DataTableRowActions<TData>({
             setOpen('update')
           }}
         >
-          Edit
+          {t('Edit')}
           <DropdownMenuShortcut>
             <Edit size={16} />
           </DropdownMenuShortcut>
@@ -120,14 +122,14 @@ export function DataTableRowActions<TData>({
         <DropdownMenuItem onClick={handleToggleStatus}>
           {isEnabled ? (
             <>
-              Disable
+              {t('Disable')}
               <DropdownMenuShortcut>
                 <PowerOff size={16} />
               </DropdownMenuShortcut>
             </>
           ) : (
             <>
-              Enable
+              {t('Enable')}
               <DropdownMenuShortcut>
                 <Power size={16} />
               </DropdownMenuShortcut>
@@ -136,7 +138,7 @@ export function DataTableRowActions<TData>({
         </DropdownMenuItem>
         {hasChatPresets && (
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Chat</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger>{t('Chat')}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {chatPresets.map((preset) => (
                 <DropdownMenuItem
@@ -162,7 +164,7 @@ export function DataTableRowActions<TData>({
           }}
           className='text-destructive focus:text-destructive'
         >
-          Delete
+          {t('Delete')}
           <DropdownMenuShortcut>
             <Trash2 size={16} />
           </DropdownMenuShortcut>

@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
@@ -42,6 +43,7 @@ import type { User } from '@/features/users/types'
 type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
 
 export function OtpForm({ className, ...props }: OtpFormProps) {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [useBackupCode, setUseBackupCode] = useState(false)
 
@@ -172,8 +174,8 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
               </FormControl>
               <FormDescription className='text-muted-foreground text-xs'>
                 {useBackupCode
-                  ? 'Each backup code can only be used once.'
-                  : 'Verification code updates every 30 seconds.'}
+                  ? t('Each backup code can only be used once.')
+                  : t('Verification code updates every 30 seconds.')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -182,7 +184,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
 
         <Button className='mt-2 w-full' disabled={!isFormValid || isLoading}>
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
-          Verify and Sign In
+          {t('Verify and Sign In')}
         </Button>
 
         <div className='flex items-center justify-center gap-2 text-sm'>
@@ -203,7 +205,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
             className='text-primary h-auto p-0'
             onClick={handleBackToLogin}
           >
-            Back to login
+            {t('Back to login')}
           </Button>
         </div>
       </form>

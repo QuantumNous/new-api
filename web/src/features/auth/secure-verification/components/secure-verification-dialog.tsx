@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { ShieldCheck, KeyRound, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -38,6 +39,7 @@ export function SecureVerificationDialog({
   onCodeChange,
   onMethodChange,
 }: SecureVerificationDialogProps) {
+  const { t } = useTranslation()
   const availableTabs: VerificationMethod[] = useMemo(() => {
     const tabs: VerificationMethod[] = []
     if (methods.has2FA) tabs.push('2fa')
@@ -94,8 +96,9 @@ export function SecureVerificationDialog({
                   <ShieldCheck className='text-muted-foreground h-8 w-8' />
                 </div>
                 <p className='text-muted-foreground text-sm'>
-                  Enable Two-factor Authentication or Passkey in your profile to
-                  unlock sensitive operations.
+                  {t(
+                    'Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.'
+                  )}
                 </p>
               </div>
             ) : (
@@ -108,24 +111,27 @@ export function SecureVerificationDialog({
               >
                 <TabsList>
                   {methods.has2FA && (
-                    <TabsTrigger value='2fa'>Authenticator code</TabsTrigger>
+                    <TabsTrigger value='2fa'>
+                      {t('Authenticator code')}
+                    </TabsTrigger>
                   )}
                   {methods.hasPasskey && methods.passkeySupported && (
-                    <TabsTrigger value='passkey'>Passkey</TabsTrigger>
+                    <TabsTrigger value='passkey'>{t('Passkey')}</TabsTrigger>
                   )}
                 </TabsList>
 
                 <TabsContent value='2fa' className='space-y-3'>
                   <p className='text-muted-foreground text-sm'>
-                    Enter the 6-digit Time-based One-Time Password or
-                    8-character backup code from your authenticator app.
+                    {t(
+                      'Enter the 6-digit Time-based One-Time Password or 8-character backup code from your authenticator app.'
+                    )}
                   </p>
                   <Input
                     inputMode='numeric'
                     maxLength={8}
                     value={state.code}
                     onChange={(event) => onCodeChange(event.target.value)}
-                    placeholder='Enter verification code'
+                    placeholder={t('Enter verification code')}
                     disabled={state.loading}
                     autoFocus={activeMethod === '2fa'}
                     onKeyDown={(event) => {
@@ -143,18 +149,19 @@ export function SecureVerificationDialog({
                       <KeyRound className='text-primary h-6 w-6' />
                       <div className='text-left text-sm'>
                         <p className='text-foreground font-medium'>
-                          Use your Passkey
+                          {t('Use your Passkey')}
                         </p>
                         <p>
-                          We will prompt your device to confirm using biometrics
-                          or your hardware key.
+                          {t(
+                            'We will prompt your device to confirm using biometrics or your hardware key.'
+                          )}
                         </p>
                       </div>
                     </div>
                   </div>
                   {!methods.passkeySupported && (
                     <p className='text-destructive text-sm'>
-                      This device does not support Passkey verification.
+                      {t('This device does not support Passkey verification.')}
                     </p>
                   )}
                 </TabsContent>
@@ -169,7 +176,7 @@ export function SecureVerificationDialog({
               disabled={state.loading}
               onClick={onCancel}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               type='button'
@@ -177,7 +184,7 @@ export function SecureVerificationDialog({
               disabled={availableTabs.length === 0 || verifyDisabled}
             >
               {state.loading && <Loader2 className='h-4 w-4 animate-spin' />}
-              Verify
+              {t('Verify')}
             </Button>
           </DialogFooter>
         </div>

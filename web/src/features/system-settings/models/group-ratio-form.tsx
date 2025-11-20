@@ -1,6 +1,7 @@
 import { memo, useCallback, useState } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
 import { Code2, Eye } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -35,6 +36,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   onSave,
   isSaving,
 }: GroupRatioFormProps) {
+  const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
 
   const handleFieldChange = useCallback(
@@ -58,12 +60,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           {editMode === 'visual' ? (
             <>
               <Code2 className='mr-2 h-4 w-4' />
-              Switch to JSON
+              {t('Switch to JSON')}
             </>
           ) : (
             <>
               <Eye className='mr-2 h-4 w-4' />
-              Switch to Visual
+              {t('Switch to Visual')}
             </>
           )}
         </Button>
@@ -90,11 +92,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Default to auto groups
+                      {t('Default to auto groups')}
                     </FormLabel>
                     <FormDescription>
-                      When enabled, newly created tokens start in the first auto
-                      group.
+                      {t(
+                        'When enabled, newly created tokens start in the first auto group.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -118,13 +121,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               name='GroupRatio'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Group ratios</FormLabel>
+                  <FormLabel>{t('Group ratios')}</FormLabel>
                   <FormControl>
                     <Textarea rows={8} {...field} />
                   </FormControl>
                   <FormDescription>
-                    JSON map of group → ratio applied when the user selects the
-                    group explicitly.
+                    {t(
+                      'JSON map of group → ratio applied when the user selects the group explicitly.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -136,13 +140,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               name='TopupGroupRatio'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Top-up group ratios</FormLabel>
+                  <FormLabel>{t('Top-up group ratios')}</FormLabel>
                   <FormControl>
                     <Textarea rows={6} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Optional multiplier per user group used when calculating
-                    recharge pricing. Provide a JSON object such as
+                    {t(
+                      'Optional multiplier per user group used when calculating recharge pricing. Provide a JSON object such as'
+                    )}
                     {` { "default": 1, "vip": 1.2 }`}.
                   </FormDescription>
                   <FormMessage />
@@ -155,13 +160,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               name='UserUsableGroups'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Selectable groups</FormLabel>
+                  <FormLabel>{t('Selectable groups')}</FormLabel>
                   <FormControl>
                     <Textarea rows={6} {...field} />
                   </FormControl>
                   <FormDescription>
-                    JSON map of group → description exposed when users create
-                    API keys.
+                    {t(
+                      'JSON map of group → description exposed when users create API keys.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -173,14 +179,16 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               name='GroupGroupRatio'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Inter-group overrides</FormLabel>
+                  <FormLabel>{t('Inter-group overrides')}</FormLabel>
                   <FormControl>
                     <Textarea rows={8} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Nested JSON: source group → {`{ targetGroup: ratio }`} to
-                    override billing when a user in one group uses a token of
-                    another group.
+                    {t('Nested JSON: source group →')}{' '}
+                    {`{ targetGroup: ratio }`}{' '}
+                    {t(
+                      'to override billing when a user in one group uses a token of another group.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -192,13 +200,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               name='AutoGroups'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Auto assignment order</FormLabel>
+                  <FormLabel>{t('Auto assignment order')}</FormLabel>
                   <FormControl>
                     <Textarea rows={6} {...field} />
                   </FormControl>
                   <FormDescription>
-                    JSON array of group identifiers. When enabled below, new
-                    tokens rotate through this list.
+                    {t(
+                      'JSON array of group identifiers. When enabled below, new tokens rotate through this list.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -212,11 +221,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Default to auto groups
+                      {t('Default to auto groups')}
                     </FormLabel>
                     <FormDescription>
-                      When enabled, newly created tokens start in the first auto
-                      group.
+                      {t(
+                        'When enabled, newly created tokens start in the first auto group.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>

@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -77,6 +78,7 @@ const uptimeKumaSchema = z.object({
 type UptimeKumaFormValues = z.infer<typeof uptimeKumaSchema>
 
 export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [groups, setGroups] = useState<UptimeKumaGroup[]>([])
   const [isEnabled, setIsEnabled] = useState(enabled)
@@ -224,15 +226,17 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
   return (
     <SettingsAccordion
       value='uptime-kuma'
-      title='Uptime Kuma'
-      description='Expose grouped Uptime Kuma status pages directly on the dashboard'
+      title={t('Uptime Kuma')}
+      description={t(
+        'Expose grouped Uptime Kuma status pages directly on the dashboard'
+      )}
     >
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add Group
+              {t('Add Group')}
             </Button>
             <Button
               onClick={handleBatchDelete}
@@ -241,7 +245,8 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
               disabled={selectedIds.length === 0}
             >
               <Trash2 className='mr-2 h-4 w-4' />
-              Delete ({selectedIds.length})
+              {t('Delete (')}
+              {selectedIds.length})
             </Button>
             <Button
               onClick={handleSaveAll}
@@ -254,7 +259,9 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             </Button>
           </div>
           <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>Enabled</span>
+            <span className='text-muted-foreground text-sm'>
+              {t('Enabled')}
+            </span>
             <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
           </div>
         </div>
@@ -271,17 +278,19 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
-                <TableHead>Category Name</TableHead>
-                <TableHead>Uptime Kuma URL</TableHead>
-                <TableHead>Status Page Slug</TableHead>
-                <TableHead className='w-32'>Actions</TableHead>
+                <TableHead>{t('Category Name')}</TableHead>
+                <TableHead>{t('Uptime Kuma URL')}</TableHead>
+                <TableHead>{t('Status Page Slug')}</TableHead>
+                <TableHead className='w-32'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {groups.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className='h-24 text-center'>
-                    No Uptime Kuma groups yet. Click "Add Group" to create one.
+                    {t(
+                      'No Uptime Kuma groups yet. Click "Add Group" to create one.'
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -342,7 +351,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 : 'Add Uptime Kuma Group'}
             </DialogTitle>
             <DialogDescription>
-              Configure monitoring status page groups for the dashboard
+              {t('Configure monitoring status page groups for the dashboard')}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -355,15 +364,17 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 name='categoryName'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Category Name</FormLabel>
+                    <FormLabel>{t('Category Name')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='e.g., Core APIs, OpenAI, Claude'
+                        placeholder={t('e.g., Core APIs, OpenAI, Claude')}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Display name for this monitoring group (max 50 characters)
+                      {t(
+                        'Display name for this monitoring group (max 50 characters)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -374,15 +385,15 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 name='url'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Uptime Kuma URL</FormLabel>
+                    <FormLabel>{t('Uptime Kuma URL')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='https://status.example.com'
+                        placeholder={t('https://status.example.com')}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Base URL of your Uptime Kuma instance
+                      {t('Base URL of your Uptime Kuma instance')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -393,12 +404,13 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 name='slug'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status Page Slug</FormLabel>
+                    <FormLabel>{t('Status Page Slug')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='my-status' {...field} />
+                      <Input placeholder={t('my-status')} {...field} />
                     </FormControl>
                     <FormDescription>
-                      The slug is appended to the URL: {'{url}'}/status/
+                      {t('The slug is appended to the URL:')} {'{url}'}
+                      {t('/status/')}
                       {'{slug}'}
                     </FormDescription>
                     <FormMessage />
@@ -411,7 +423,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                   variant='outline'
                   onClick={() => setShowDialog(false)}
                 >
-                  Cancel
+                  {t('Cancel')}
                 </Button>
                 <Button type='submit'>{editingGroup ? 'Update' : 'Add'}</Button>
               </DialogFooter>
@@ -423,7 +435,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
                 ? 'This Uptime Kuma group will be removed from the list.'
@@ -431,9 +443,9 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>
-              Delete
+              {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

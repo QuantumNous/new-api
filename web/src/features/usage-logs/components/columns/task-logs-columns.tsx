@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
@@ -17,7 +18,8 @@ import {
   createProgressColumn,
 } from './column-helpers'
 
-export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
+export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
+  const { t } = useTranslation()
   const columns: ColumnDef<TaskLog>[] = [
     createTimestampColumn<TaskLog>({
       accessorKey: 'submit_time',
@@ -45,7 +47,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     // Platform
     {
       accessorKey: 'platform',
-      header: 'Platform',
+      header: t('Platform'),
       cell: ({ row }) => {
         const platform = row.getValue('platform') as string
         return (
@@ -57,13 +59,13 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
-      meta: { label: 'Platform' },
+      meta: { label: t('Platform') },
     },
 
     // Type/Action
     {
       accessorKey: 'action',
-      header: 'Type',
+      header: t('Type'),
       cell: ({ row }) => {
         const action = row.getValue('action') as string
         return (
@@ -75,13 +77,13 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
-      meta: { label: 'Type' },
+      meta: { label: t('Type') },
     },
 
     // Task ID
     {
       accessorKey: 'task_id',
-      header: 'Task ID',
+      header: t('Task ID'),
       cell: ({ row }) => {
         const taskId = row.getValue('task_id') as string
         return (
@@ -93,13 +95,13 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
-      meta: { label: 'Task ID' },
+      meta: { label: t('Task ID') },
     },
 
     // Status
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('Status'),
       cell: ({ row }) => {
         const status = row.getValue('status') as string
         return (
@@ -112,7 +114,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
-      meta: { label: 'Status' },
+      meta: { label: t('Status') },
     },
 
     createProgressColumn<TaskLog>(),
@@ -120,7 +122,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     // Result/Fail Reason - Combined column
     {
       accessorKey: 'fail_reason',
-      header: 'Details',
+      header: t('Details'),
       cell: ({ row }) => {
         const log = row.original
         const failReason = row.getValue('fail_reason') as string
@@ -173,7 +175,7 @@ export function getTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </>
         )
       },
-      meta: { label: 'Details' },
+      meta: { label: t('Details') },
     }
   )
 

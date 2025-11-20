@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { LogCategory } from '../types'
 
@@ -7,6 +8,7 @@ interface UsageLogsTabsProps {
 }
 
 export function UsageLogsTabs({ value, onValueChange }: UsageLogsTabsProps) {
+  const { t } = useTranslation()
   const handleValueChange = (newValue: string) => {
     onValueChange(newValue as LogCategory)
   }
@@ -15,13 +17,13 @@ export function UsageLogsTabs({ value, onValueChange }: UsageLogsTabsProps) {
     <Tabs value={value} onValueChange={handleValueChange} className='w-auto'>
       <TabsList className='h-8'>
         <TabsTrigger value='common' className='h-7 px-3'>
-          Common Logs
+          {t('Common Logs')}
         </TabsTrigger>
         <TabsTrigger value='drawing' className='h-7 px-3'>
-          Drawing Logs
+          {t('Drawing Logs')}
         </TabsTrigger>
         <TabsTrigger value='task' className='h-7 px-3'>
-          Task Logs
+          {t('Task Logs')}
         </TabsTrigger>
       </TabsList>
     </Tabs>

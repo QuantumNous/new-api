@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,6 +26,7 @@ export function ChatSettingsVisualEditor({
   value,
   onChange,
 }: ChatSettingsVisualEditorProps) {
+  const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<ChatEntry | null>(null)
@@ -117,7 +119,7 @@ export function ChatSettingsVisualEditor({
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
           <Input
-            placeholder='Search chat presets...'
+            placeholder={t('Search chat presets...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             className='pl-9'
@@ -125,7 +127,7 @@ export function ChatSettingsVisualEditor({
         </div>
         <Button onClick={handleAdd}>
           <Plus className='mr-2 h-4 w-4' />
-          Add chat preset
+          {t('Add chat preset')}
         </Button>
       </div>
 
@@ -140,9 +142,9 @@ export function ChatSettingsVisualEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Chat Client Name</TableHead>
-                <TableHead>URL</TableHead>
-                <TableHead className='text-right'>Actions</TableHead>
+                <TableHead>{t('Chat Client Name')}</TableHead>
+                <TableHead>{t('URL')}</TableHead>
+                <TableHead className='text-right'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

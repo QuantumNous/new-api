@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +30,7 @@ export function ChangePasswordDialog({
   onOpenChange,
   username,
 }: ChangePasswordDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     originalPassword: '',
@@ -99,15 +101,16 @@ export function ChangePasswordDialog({
       <DialogContent className='sm:max-w-md'>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
+            <DialogTitle>{t('Change Password')}</DialogTitle>
             <DialogDescription>
-              Update your password for account: <strong>{username}</strong>
+              {t('Update your password for account:')}{' '}
+              <strong>{username}</strong>
             </DialogDescription>
           </DialogHeader>
 
           <div className='my-6 space-y-4'>
             <div className='space-y-2'>
-              <Label htmlFor='currentPassword'>Current Password</Label>
+              <Label htmlFor='currentPassword'>{t('Current Password')}</Label>
               <PasswordInput
                 id='currentPassword'
                 value={formData.originalPassword}
@@ -121,7 +124,7 @@ export function ChangePasswordDialog({
             </div>
 
             <div className='space-y-2'>
-              <Label htmlFor='newPassword'>New Password</Label>
+              <Label htmlFor='newPassword'>{t('New Password')}</Label>
               <PasswordInput
                 id='newPassword'
                 value={formData.newPassword}
@@ -132,12 +135,14 @@ export function ChangePasswordDialog({
                 autoComplete='new-password'
               />
               <p className='text-muted-foreground text-xs'>
-                Must be at least 8 characters
+                {t('Must be at least 8 characters')}
               </p>
             </div>
 
             <div className='space-y-2'>
-              <Label htmlFor='confirmPassword'>Confirm New Password</Label>
+              <Label htmlFor='confirmPassword'>
+                {t('Confirm New Password')}
+              </Label>
               <PasswordInput
                 id='confirmPassword'
                 value={formData.confirmPassword}
@@ -158,7 +163,7 @@ export function ChangePasswordDialog({
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type='submit' disabled={loading}>
               {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

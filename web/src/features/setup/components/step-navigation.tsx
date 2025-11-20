@@ -1,4 +1,5 @@
 import { CheckCircle2, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 interface StepNavigationProps {
@@ -18,6 +19,7 @@ export function StepNavigation({
   onSubmit,
   isSubmitting = false,
 }: StepNavigationProps) {
+  const { t } = useTranslation()
   const isFirstStep = currentStep === 0
   const isLastStep = currentStep === totalSteps - 1
 
@@ -26,7 +28,7 @@ export function StepNavigation({
       <div className='flex justify-end gap-2 sm:justify-start'>
         {!isFirstStep && (
           <Button type='button' variant='outline' onClick={onBack}>
-            Back
+            {t('Back')}
           </Button>
         )}
       </div>
@@ -34,7 +36,7 @@ export function StepNavigation({
       <div className='flex flex-1 justify-end gap-2'>
         {!isLastStep && (
           <Button type='button' onClick={onNext}>
-            Next
+            {t('Next')}
           </Button>
         )}
 
@@ -43,12 +45,12 @@ export function StepNavigation({
             {isSubmitting ? (
               <>
                 <Loader2 className='mr-2 size-4 animate-spin' />
-                Initializing…
+                {t('Initializing…')}
               </>
             ) : (
               <>
                 <CheckCircle2 className='mr-2 size-4' />
-                Initialize system
+                {t('Initialize system')}
               </>
             )}
           </Button>

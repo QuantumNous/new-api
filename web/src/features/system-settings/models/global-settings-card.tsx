@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -53,6 +54,7 @@ type GlobalSettingsCardProps = {
 }
 
 export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm<
@@ -94,8 +96,10 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   return (
     <SettingsAccordion
       value='global-settings'
-      title='Global Model Configuration'
-      description='Control passthrough behavior and connection keep-alive settings'
+      title={t('Global Model Configuration')}
+      description={t(
+        'Control passthrough behavior and connection keep-alive settings'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -106,11 +110,12 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Enable Request Passthrough
+                    {t('Enable Request Passthrough')}
                   </FormLabel>
                   <FormDescription>
-                    Forward requests directly to upstream providers without any
-                    post-processing.
+                    {t(
+                      'Forward requests directly to upstream providers without any post-processing.'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -129,10 +134,13 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Keep-alive Ping</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Keep-alive Ping')}
+                  </FormLabel>
                   <FormDescription>
-                    Periodically send ping frames to keep streaming connections
-                    active.
+                    {t(
+                      'Periodically send ping frames to keep streaming connections active.'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -150,7 +158,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
             name='general_setting.ping_interval_seconds'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Ping Interval (seconds)</FormLabel>
+                <FormLabel>{t('Ping Interval (seconds)')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -169,7 +177,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                   />
                 </FormControl>
                 <FormDescription>
-                  Recommended to keep this high to avoid upstream throttling.
+                  {t(
+                    'Recommended to keep this high to avoid upstream throttling.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

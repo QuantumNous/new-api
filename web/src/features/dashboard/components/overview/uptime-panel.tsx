@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Activity, RotateCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ function StatusDot({ status }: { status: number }) {
 }
 
 export function UptimePanel() {
+  const { t } = useTranslation()
   const [groups, setGroups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -61,12 +63,12 @@ export function UptimePanel() {
       title={
         <span className='flex items-center gap-2'>
           <Activity className='h-5 w-5' />
-          Uptime
+          {t('Uptime')}
         </span>
       }
       loading={loading}
       empty={!groups.length}
-      emptyMessage='No uptime monitoring configured'
+      emptyMessage={t('No uptime monitoring configured')}
       height='h-80'
       headerActions={
         <Button
@@ -78,7 +80,7 @@ export function UptimePanel() {
         >
           <RotateCw
             className={cn('h-4 w-4', refreshing && 'animate-spin')}
-            aria-label='Refresh'
+            aria-label={t('Refresh')}
           />
         </Button>
       }

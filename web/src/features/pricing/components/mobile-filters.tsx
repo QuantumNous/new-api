@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -9,8 +10,8 @@ import {
 } from '@/components/ui/sheet'
 import {
   FILTER_SECTIONS,
-  QUOTA_TYPE_LABELS,
-  ENDPOINT_TYPE_LABELS,
+  getQuotaTypeLabels,
+  getEndpointTypeLabels,
 } from '../constants'
 import type { PricingVendor } from '../types'
 import { FilterButton } from './filter-button'
@@ -68,6 +69,9 @@ export function MobileFilters({
   expandedFilters,
   onToggleExpandFilter,
 }: MobileFiltersProps) {
+  const { t } = useTranslation()
+  const quotaTypeLabels = getQuotaTypeLabels(t)
+  const endpointTypeLabels = getEndpointTypeLabels(t)
   return (
     <Sheet open={show} onOpenChange={onClose}>
       <SheetContent
@@ -75,9 +79,11 @@ export function MobileFilters({
         className='flex w-full flex-col overflow-hidden p-0 sm:max-w-md'
       >
         <SheetHeader className='border-b px-6 py-4'>
-          <SheetTitle>Filters</SheetTitle>
+          <SheetTitle>{t('Filters')}</SheetTitle>
           <SheetDescription className='sr-only'>
-            Filter models by pricing type, endpoint type, vendor, group and tags
+            {t(
+              'Filter models by pricing type, endpoint type, vendor, group and tags'
+            )}
           </SheetDescription>
         </SheetHeader>
 
@@ -85,12 +91,12 @@ export function MobileFilters({
         <div className='flex-1 space-y-1 overflow-y-auto px-6'>
           {/* Pricing Type Filter */}
           <FilterSection
-            title='Pricing Type'
+            title={t('Pricing Type')}
             isOpen={openSections[FILTER_SECTIONS.PRICING_TYPE]}
             onToggle={() => onToggleSection(FILTER_SECTIONS.PRICING_TYPE)}
           >
             <div className='flex flex-col gap-1'>
-              {Object.entries(QUOTA_TYPE_LABELS).map(([value, label]) => (
+              {Object.entries(quotaTypeLabels).map(([value, label]) => (
                 <FilterButton
                   key={value}
                   isActive={quotaTypeFilter === value}
@@ -104,12 +110,12 @@ export function MobileFilters({
 
           {/* Endpoint Type Filter */}
           <FilterSection
-            title='Endpoint Type'
+            title={t('Endpoint Type')}
             isOpen={openSections[FILTER_SECTIONS.ENDPOINT_TYPE]}
             onToggle={() => onToggleSection(FILTER_SECTIONS.ENDPOINT_TYPE)}
           >
             <div className='flex flex-col gap-1'>
-              {Object.entries(ENDPOINT_TYPE_LABELS).map(([value, label]) => (
+              {Object.entries(endpointTypeLabels).map(([value, label]) => (
                 <FilterButton
                   key={value}
                   isActive={endpointTypeFilter === value}
@@ -124,7 +130,7 @@ export function MobileFilters({
           {/* Vendor Filter */}
           {vendors.length > 0 && (
             <FilterSection
-              title='Vendor'
+              title={t('Vendor')}
               isOpen={openSections[FILTER_SECTIONS.VENDOR]}
               onToggle={() => onToggleSection(FILTER_SECTIONS.VENDOR)}
             >
@@ -138,7 +144,7 @@ export function MobileFilters({
                 onSelect={onVendorChange}
                 isExpanded={expandedFilters.vendor}
                 onToggleExpand={() => onToggleExpandFilter('vendor')}
-                allOptionLabel='All Vendors'
+                allOptionLabel={t('All Vendors')}
               />
             </FilterSection>
           )}
@@ -146,7 +152,7 @@ export function MobileFilters({
           {/* Group Filter */}
           {groups.length > 0 && (
             <FilterSection
-              title='Group'
+              title={t('Group')}
               isOpen={openSections[FILTER_SECTIONS.GROUP]}
               onToggle={() => onToggleSection(FILTER_SECTIONS.GROUP)}
             >
@@ -156,7 +162,7 @@ export function MobileFilters({
                 onSelect={onGroupChange}
                 isExpanded={expandedFilters.group}
                 onToggleExpand={() => onToggleExpandFilter('group')}
-                allOptionLabel='All Groups'
+                allOptionLabel={t('All Groups')}
               />
             </FilterSection>
           )}
@@ -164,7 +170,7 @@ export function MobileFilters({
           {/* Tag Filter */}
           {tags.length > 0 && (
             <FilterSection
-              title='Tags'
+              title={t('Tags')}
               isOpen={openSections[FILTER_SECTIONS.TAG]}
               onToggle={() => onToggleSection(FILTER_SECTIONS.TAG)}
             >
@@ -174,7 +180,7 @@ export function MobileFilters({
                 onSelect={onTagChange}
                 isExpanded={expandedFilters.tag}
                 onToggleExpand={() => onToggleExpandFilter('tag')}
-                allOptionLabel='All Tags'
+                allOptionLabel={t('All Tags')}
               />
             </FilterSection>
           )}
@@ -189,11 +195,11 @@ export function MobileFilters({
                 onClick={onClearFilters}
                 className='flex-1'
               >
-                Reset Filters
+                {t('Reset Filters')}
               </Button>
             )}
             <Button onClick={onClose} className='flex-1'>
-              Close
+              {t('Close')}
             </Button>
           </div>
         </SheetFooter>

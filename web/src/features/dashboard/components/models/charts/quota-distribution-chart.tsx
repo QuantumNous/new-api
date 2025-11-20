@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Coins } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatCurrencyUSD } from '@/lib/format'
@@ -29,6 +30,7 @@ export function QuotaDistributionChart({
   chartConfig,
   loading = false,
 }: QuotaDistributionChartProps) {
+  const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
   const { meta } = getCurrencyDisplay()
   const usesExchangeRate = meta.kind === 'currency' || meta.kind === 'custom'
@@ -79,12 +81,12 @@ export function QuotaDistributionChart({
       title={
         <span className='flex items-center gap-2'>
           <Coins className='h-5 w-5' />
-          Quota Distribution
+          {t('Quota Distribution')}
         </span>
       }
       loading={loading}
       empty={isEmpty}
-      emptyMessage='No quota data available'
+      emptyMessage={t('No quota data available')}
       height='h-[30rem] sm:h-96'
     >
       <ChartContainer config={chartConfig} className='h-[30rem] w-full sm:h-96'>

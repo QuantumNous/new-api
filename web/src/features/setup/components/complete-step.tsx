@@ -1,4 +1,5 @@
 import { CheckCircle2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/status-badge'
 import type { SetupFormValues, SetupStatus } from '../types'
@@ -24,6 +25,7 @@ const DATABASE_VARIANT: Record<
 }
 
 export function CompleteStep({ status, values }: CompleteStepProps) {
+  const { t } = useTranslation()
   const usageLabel = USAGE_MODE_LABELS[values.usageMode]
   const dbType = status?.database_type ?? 'Unknown'
   const databaseVariant = DATABASE_VARIANT[dbType.toLowerCase()] ?? 'neutral'
@@ -35,11 +37,12 @@ export function CompleteStep({ status, values }: CompleteStepProps) {
       </div>
       <div className='space-y-2'>
         <h2 className='text-2xl font-semibold tracking-tight'>
-          Ready to initialize
+          {t('Ready to initialize')}
         </h2>
         <p className='text-muted-foreground max-w-lg text-sm sm:text-base'>
-          Double check the configuration below. Your system will be locked until
-          initialization is complete.
+          {t(
+            'Double check the configuration below. Your system will be locked until initialization is complete.'
+          )}
         </p>
       </div>
 
@@ -47,7 +50,7 @@ export function CompleteStep({ status, values }: CompleteStepProps) {
         <dl className='grid gap-6'>
           <div className='space-y-1.5'>
             <dt className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-              Database
+              {t('Database')}
             </dt>
             <dd className='flex flex-wrap items-center gap-2'>
               <span className='text-sm font-semibold'>{dbType}</span>
@@ -63,7 +66,7 @@ export function CompleteStep({ status, values }: CompleteStepProps) {
 
           <div className='space-y-1.5'>
             <dt className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-              Administrator account
+              {t('Administrator account')}
             </dt>
             <dd className='text-sm font-semibold'>
               {status?.root_init
@@ -76,7 +79,7 @@ export function CompleteStep({ status, values }: CompleteStepProps) {
 
           <div className='space-y-1.5'>
             <dt className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-              Usage mode
+              {t('Usage mode')}
             </dt>
             <dd className='text-sm font-semibold'>{usageLabel}</dd>
           </div>

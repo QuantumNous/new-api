@@ -1,13 +1,17 @@
+import { useTranslation } from 'react-i18next'
 import { getPrivacyPolicy } from './api'
 import { LegalDocument } from './legal-document'
 
 export function PrivacyPolicy() {
+  const { t } = useTranslation()
   return (
     <LegalDocument
-      title='Privacy Policy'
+      title={t('Privacy Policy')}
       queryKey='privacy-policy'
       fetchDocument={getPrivacyPolicy}
-      emptyMessage='The administrator has not configured a privacy policy yet.'
+      emptyMessage={t(
+        'The administrator has not configured a privacy policy yet.'
+      )}
     />
   )
 }

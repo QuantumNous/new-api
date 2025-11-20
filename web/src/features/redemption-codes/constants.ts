@@ -1,3 +1,4 @@
+import { type TFunction } from 'i18next'
 import { type StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
@@ -9,6 +10,10 @@ export const REDEMPTION_STATUS = {
   DISABLED: 2,
   USED: 3,
 } as const
+
+export const REDEMPTION_STATUS_VALUES = Object.values(REDEMPTION_STATUS).map(
+  (value) => String(value)
+) as `${number}`[]
 
 export const REDEMPTION_STATUSES: Record<
   number,
@@ -41,16 +46,38 @@ export const REDEMPTION_STATUSES: Record<
 // Note: "Expired" is not a real DB status, it's computed from expired_time
 export const REDEMPTION_FILTER_EXPIRED = 'expired'
 
-export const REDEMPTION_STATUS_OPTIONS = [
-  ...Object.values(REDEMPTION_STATUSES).map((config) => ({
-    label: config.label,
-    value: String(config.value),
-  })),
-  {
-    label: 'Expired',
-    value: REDEMPTION_FILTER_EXPIRED,
-  },
-]
+export function getRedemptionStatuses(
+  t: TFunction
+): typeof REDEMPTION_STATUSES {
+  return {
+    [REDEMPTION_STATUS.ENABLED]: {
+      ...REDEMPTION_STATUSES[REDEMPTION_STATUS.ENABLED],
+      label: t('Unused'),
+    },
+    [REDEMPTION_STATUS.DISABLED]: {
+      ...REDEMPTION_STATUSES[REDEMPTION_STATUS.DISABLED],
+      label: t('Disabled'),
+    },
+    [REDEMPTION_STATUS.USED]: {
+      ...REDEMPTION_STATUSES[REDEMPTION_STATUS.USED],
+      label: t('Used'),
+    },
+  }
+}
+
+export function getRedemptionStatusOptions(t: TFunction) {
+  const statuses = getRedemptionStatuses(t)
+  return [
+    ...Object.values(statuses).map((config) => ({
+      label: config.label,
+      value: String(config.value),
+    })),
+    {
+      label: t('Expired'),
+      value: REDEMPTION_FILTER_EXPIRED,
+    },
+  ]
+}
 
 // ============================================================================
 // Validation Constants
@@ -81,6 +108,31 @@ export const ERROR_MESSAGES = {
   EXPIRED_TIME_INVALID: 'Expired time cannot be earlier than current time',
 } as const
 
+export function getRedemptionErrorMessages(t: TFunction) {
+  return {
+    UNEXPECTED: t('An unexpected error occurred'),
+    LOAD_FAILED: t('Failed to load redemption codes'),
+    SEARCH_FAILED: t('Failed to search redemption codes'),
+    CREATE_FAILED: t('Failed to create redemption code'),
+    UPDATE_FAILED: t('Failed to update redemption code'),
+    DELETE_FAILED: t('Failed to delete redemption code'),
+    DELETE_INVALID_FAILED: t('Failed to delete invalid redemption codes'),
+    STATUS_UPDATE_FAILED: t('Failed to update redemption code status'),
+    NAME_LENGTH_INVALID: t(
+      'Name must be between {{min}} and {{max}} characters',
+      {
+        min: REDEMPTION_VALIDATION.NAME_MIN_LENGTH,
+        max: REDEMPTION_VALIDATION.NAME_MAX_LENGTH,
+      }
+    ),
+    COUNT_INVALID: t('Count must be between {{min}} and {{max}}', {
+      min: REDEMPTION_VALIDATION.COUNT_MIN,
+      max: REDEMPTION_VALIDATION.COUNT_MAX,
+    }),
+    EXPIRED_TIME_INVALID: t('Expired time cannot be earlier than current time'),
+  } as const
+}
+
 // ============================================================================
 // Success Messages
 // ============================================================================
@@ -93,3 +145,14 @@ export const SUCCESS_MESSAGES = {
   REDEMPTION_DISABLED: 'Redemption code disabled successfully',
   COPY_SUCCESS: 'Copied to clipboard',
 } as const
+
+export function getRedemptionSuccessMessages(t: TFunction) {
+  return {
+    REDEMPTION_CREATED: t('Redemption code(s) created successfully'),
+    REDEMPTION_UPDATED: t('Redemption code updated successfully'),
+    REDEMPTION_DELETED: t('Redemption code deleted successfully'),
+    REDEMPTION_ENABLED: t('Redemption code enabled successfully'),
+    REDEMPTION_DISABLED: t('Redemption code disabled successfully'),
+    COPY_SUCCESS: t('Copied to clipboard'),
+  } as const
+}

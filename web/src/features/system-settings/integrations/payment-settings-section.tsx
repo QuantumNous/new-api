@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Code2, Eye } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -92,6 +93,7 @@ type PaymentSettingsSectionProps = {
 export function PaymentSettingsSection({
   defaultValues,
 }: PaymentSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const initialRef = React.useRef(defaultValues)
   const defaultsSignature = React.useMemo(
@@ -454,8 +456,10 @@ export function PaymentSettingsSection({
   return (
     <SettingsAccordion
       value='payment-settings'
-      title='Payment Gateway'
-      description='Configure recharge pricing and payment gateway integrations'
+      title={t('Payment Gateway')}
+      description={t(
+        'Configure recharge pricing and payment gateway integrations'
+      )}
     >
       <Form {...form}>
         <form
@@ -465,9 +469,9 @@ export function PaymentSettingsSection({
         >
           <div className='space-y-4'>
             <div>
-              <h3 className='text-lg font-medium'>General Settings</h3>
+              <h3 className='text-lg font-medium'>{t('General Settings')}</h3>
               <p className='text-muted-foreground text-sm'>
-                Shared configuration for all payment gateways
+                {t('Shared configuration for all payment gateways')}
               </p>
             </div>
 
@@ -477,7 +481,7 @@ export function PaymentSettingsSection({
                 name='Price'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (local currency / USD)</FormLabel>
+                    <FormLabel>{t('Price (local currency / USD)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -490,7 +494,9 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      How much to charge for each US dollar of balance (Epay)
+                      {t(
+                        'How much to charge for each US dollar of balance (Epay)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -502,7 +508,7 @@ export function PaymentSettingsSection({
                 name='MinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Minimum top-up (USD)</FormLabel>
+                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -515,7 +521,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      Smallest USD amount users can recharge (Epay)
+                      {t('Smallest USD amount users can recharge (Epay)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -529,7 +535,7 @@ export function PaymentSettingsSection({
               render={({ field }) => (
                 <FormItem>
                   <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                    <FormLabel>Payment methods</FormLabel>
+                    <FormLabel>{t('Payment methods')}</FormLabel>
                     <Button
                       type='button'
                       variant='outline'
@@ -542,12 +548,12 @@ export function PaymentSettingsSection({
                       {payMethodsVisualMode ? (
                         <>
                           <Code2 className='mr-2 h-3 w-3' />
-                          JSON Editor
+                          {t('JSON Editor')}
                         </>
                       ) : (
                         <>
                           <Eye className='mr-2 h-3 w-3' />
-                          Visual Editor
+                          {t('Visual Editor')}
                         </>
                       )}
                     </Button>
@@ -561,14 +567,18 @@ export function PaymentSettingsSection({
                     ) : (
                       <Textarea
                         rows={4}
-                        placeholder='[{"name":"支付宝","type":"alipay","color":"#1677FF"}]'
+                        placeholder={t(
+                          '[{"name":"支付宝","type":"alipay","color":"#1677FF"}]'
+                        )}
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     )}
                   </FormControl>
                   <FormDescription>
-                    Configure available payment methods. Provide a JSON array.
+                    {t(
+                      'Configure available payment methods. Provide a JSON array.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -582,7 +592,7 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <FormItem>
                     <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                      <FormLabel>Top-up amount options</FormLabel>
+                      <FormLabel>{t('Top-up amount options')}</FormLabel>
                       <Button
                         type='button'
                         variant='outline'
@@ -595,12 +605,12 @@ export function PaymentSettingsSection({
                         {amountOptionsVisualMode ? (
                           <>
                             <Code2 className='mr-2 h-3 w-3' />
-                            JSON Editor
+                            {t('JSON Editor')}
                           </>
                         ) : (
                           <>
                             <Eye className='mr-2 h-3 w-3' />
-                            Visual Editor
+                            {t('Visual Editor')}
                           </>
                         )}
                       </Button>
@@ -623,7 +633,7 @@ export function PaymentSettingsSection({
                       )}
                     </FormControl>
                     <FormDescription>
-                      Preset recharge amounts (JSON array)
+                      {t('Preset recharge amounts (JSON array)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -636,7 +646,7 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <FormItem>
                     <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                      <FormLabel>Amount discount</FormLabel>
+                      <FormLabel>{t('Amount discount')}</FormLabel>
                       <Button
                         type='button'
                         variant='outline'
@@ -649,12 +659,12 @@ export function PaymentSettingsSection({
                         {amountDiscountVisualMode ? (
                           <>
                             <Code2 className='mr-2 h-3 w-3' />
-                            JSON Editor
+                            {t('JSON Editor')}
                           </>
                         ) : (
                           <>
                             <Eye className='mr-2 h-3 w-3' />
-                            Visual Editor
+                            {t('Visual Editor')}
                           </>
                         )}
                       </Button>
@@ -677,7 +687,7 @@ export function PaymentSettingsSection({
                       )}
                     </FormControl>
                     <FormDescription>
-                      Discount map by recharge amount (JSON object)
+                      {t('Discount map by recharge amount (JSON object)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -702,9 +712,9 @@ export function PaymentSettingsSection({
 
           <div className='space-y-4'>
             <div>
-              <h3 className='text-lg font-medium'>Epay Gateway</h3>
+              <h3 className='text-lg font-medium'>{t('Epay Gateway')}</h3>
               <p className='text-muted-foreground text-sm'>
-                Configuration for Epay payment integration
+                {t('Configuration for Epay payment integration')}
               </p>
             </div>
 
@@ -714,16 +724,16 @@ export function PaymentSettingsSection({
                 name='PayAddress'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Epay endpoint</FormLabel>
+                    <FormLabel>{t('Epay endpoint')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='https://pay.example.com'
+                        placeholder={t('https://pay.example.com')}
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
                     <FormDescription>
-                      Base address provided by your Epay service
+                      {t('Base address provided by your Epay service')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -735,17 +745,18 @@ export function PaymentSettingsSection({
                 name='CustomCallbackAddress'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Callback address</FormLabel>
+                    <FormLabel>{t('Callback address')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='https://gateway.example.com'
+                        placeholder={t('https://gateway.example.com')}
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
                     <FormDescription>
-                      Optional callback override. Leave blank to use server
-                      address
+                      {t(
+                        'Optional callback override. Leave blank to use server address'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -759,7 +770,7 @@ export function PaymentSettingsSection({
                 name='EpayId'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Epay merchant ID</FormLabel>
+                    <FormLabel>{t('Epay merchant ID')}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder='10001'
@@ -778,18 +789,18 @@ export function PaymentSettingsSection({
                 name='EpayKey'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Epay secret key</FormLabel>
+                    <FormLabel>{t('Epay secret key')}</FormLabel>
                     <FormControl>
                       <Input
                         type='password'
-                        placeholder='Enter new key to update'
+                        placeholder={t('Enter new key to update')}
                         autoComplete='new-password'
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
                     <FormDescription>
-                      Leave blank unless rotating the secret
+                      {t('Leave blank unless rotating the secret')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -814,40 +825,40 @@ export function PaymentSettingsSection({
 
           <div className='space-y-4'>
             <div>
-              <h3 className='text-lg font-medium'>Stripe Gateway</h3>
+              <h3 className='text-lg font-medium'>{t('Stripe Gateway')}</h3>
               <p className='text-muted-foreground text-sm'>
-                Configuration for Stripe payment integration
+                {t('Configuration for Stripe payment integration')}
               </p>
             </div>
 
             <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
-              <p className='mb-2 font-medium'>Webhook Configuration:</p>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
               <ul className='list-inside list-disc space-y-1'>
                 <li>
-                  Webhook URL:{' '}
+                  {t('Webhook URL:')}{' '}
                   <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
                     {'<ServerAddress>/api/stripe/webhook'}
                   </code>
                 </li>
                 <li>
-                  Required events:{' '}
+                  {t('Required events:')}{' '}
                   <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                    checkout.session.completed
+                    {t('checkout.session.completed')}
                   </code>{' '}
-                  and{' '}
+                  {t('and')}{' '}
                   <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                    checkout.session.expired
+                    {t('checkout.session.expired')}
                   </code>
                 </li>
                 <li>
-                  Configure at:{' '}
+                  {t('Configure at:')}{' '}
                   <a
                     href='https://dashboard.stripe.com/developers'
                     target='_blank'
                     rel='noreferrer'
                     className='underline hover:no-underline'
                   >
-                    Stripe Dashboard
+                    {t('Stripe Dashboard')}
                   </a>
                 </li>
               </ul>
@@ -859,18 +870,18 @@ export function PaymentSettingsSection({
                 name='StripeApiSecret'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>API secret</FormLabel>
+                    <FormLabel>{t('API secret')}</FormLabel>
                     <FormControl>
                       <Input
                         type='password'
-                        placeholder='sk_xxx or rk_xxx'
+                        placeholder={t('sk_xxx or rk_xxx')}
                         autoComplete='new-password'
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
                     <FormDescription>
-                      Stripe API key (leave blank unless updating)
+                      {t('Stripe API key (leave blank unless updating)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -882,18 +893,20 @@ export function PaymentSettingsSection({
                 name='StripeWebhookSecret'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Webhook secret</FormLabel>
+                    <FormLabel>{t('Webhook secret')}</FormLabel>
                     <FormControl>
                       <Input
                         type='password'
-                        placeholder='whsec_xxx'
+                        placeholder={t('whsec_xxx')}
                         autoComplete='new-password'
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
                     <FormDescription>
-                      Webhook signing secret (leave blank unless updating)
+                      {t(
+                        'Webhook signing secret (leave blank unless updating)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -905,15 +918,17 @@ export function PaymentSettingsSection({
                 name='StripePriceId'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price ID</FormLabel>
+                    <FormLabel>{t('Price ID')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='price_xxx'
+                        placeholder={t('price_xxx')}
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
-                    <FormDescription>Stripe product price ID</FormDescription>
+                    <FormDescription>
+                      {t('Stripe product price ID')}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -926,7 +941,9 @@ export function PaymentSettingsSection({
                 name='StripeUnitPrice'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Unit price (local currency / USD)</FormLabel>
+                    <FormLabel>
+                      {t('Unit price (local currency / USD)')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -939,7 +956,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      e.g., 8 means 8 local currency per USD
+                      {t('e.g., 8 means 8 local currency per USD')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -951,7 +968,7 @@ export function PaymentSettingsSection({
                 name='StripeMinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Minimum top-up (USD)</FormLabel>
+                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -964,7 +981,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      Minimum recharge amount in USD
+                      {t('Minimum recharge amount in USD')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -978,10 +995,10 @@ export function PaymentSettingsSection({
                   <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5'>
                       <FormLabel className='text-base'>
-                        Promotion codes
+                        {t('Promotion codes')}
                       </FormLabel>
                       <FormDescription>
-                        Allow users to enter promo codes
+                        {t('Allow users to enter promo codes')}
                       </FormDescription>
                     </div>
                     <FormControl>

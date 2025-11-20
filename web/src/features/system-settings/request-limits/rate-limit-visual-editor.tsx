@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,6 +26,7 @@ export function RateLimitVisualEditor({
   value,
   onChange,
 }: RateLimitVisualEditorProps) {
+  const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<RateLimitEntry | null>(null)
@@ -110,7 +112,7 @@ export function RateLimitVisualEditor({
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
           <Input
-            placeholder='Search group names...'
+            placeholder={t('Search group names...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             className='pl-9'
@@ -118,7 +120,7 @@ export function RateLimitVisualEditor({
         </div>
         <Button onClick={handleAdd}>
           <Plus className='mr-2 h-4 w-4' />
-          Add group
+          {t('Add group')}
         </Button>
       </div>
 
@@ -133,12 +135,12 @@ export function RateLimitVisualEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Group Name</TableHead>
+                <TableHead>{t('Group Name')}</TableHead>
                 <TableHead className='text-right'>
-                  Max Requests (incl. failures)
+                  {t('Max Requests (incl. failures)')}
                 </TableHead>
-                <TableHead className='text-right'>Max Success</TableHead>
-                <TableHead className='text-right'>Actions</TableHead>
+                <TableHead className='text-right'>{t('Max Success')}</TableHead>
+                <TableHead className='text-right'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

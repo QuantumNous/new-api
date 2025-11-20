@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -67,6 +68,7 @@ type ClaudeSettingsCardProps = {
 }
 
 export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const normalizedDefaultsRef = useRef<FlatClaudeSettings>({
     'claude.model_headers_settings': normalizeJsonString(
@@ -151,8 +153,10 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
   return (
     <SettingsAccordion
       value='claude-settings'
-      title='Claude'
-      description='Override Anthropic headers, defaults, and thinking adapter behavior'
+      title={t('Claude')}
+      description={t(
+        'Override Anthropic headers, defaults, and thinking adapter behavior'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -161,13 +165,14 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
             name='claude.model_headers_settings'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Request Header Overrides</FormLabel>
+                <FormLabel>{t('Request Header Overrides')}</FormLabel>
                 <FormControl>
                   <Textarea rows={8} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Provide per-model header overrides as JSON. Useful for
-                  enabling beta features such as expanded context windows.
+                  {t(
+                    'Provide per-model header overrides as JSON. Useful for enabling beta features such as expanded context windows.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -179,12 +184,12 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
             name='claude.default_max_tokens'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Default Max Tokens</FormLabel>
+                <FormLabel>{t('Default Max Tokens')}</FormLabel>
                 <FormControl>
                   <Textarea rows={8} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Example{' '}
+                  {t('Example')}{' '}
                   {`{ "default": 8192, "claude-3-haiku-20240307": 4096, "claude-3-opus-20240229": 4096, "claude-3-7-sonnet-20250219-thinking": 8192 }`}
                 </FormDescription>
                 <FormMessage />
@@ -200,11 +205,12 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
                 <FormItem className='flex flex-row items-center justify-between'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Thinking Adapter
+                      {t('Thinking Adapter')}
                     </FormLabel>
                     <FormDescription>
-                      Translate `-thinking` suffixes into Anthropic native
-                      thinking models while keeping pricing predictable.
+                      {t(
+                        'Translate `-thinking` suffixes into Anthropic native thinking models while keeping pricing predictable.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -222,7 +228,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
               name='claude.thinking_adapter_budget_tokens_percentage'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Budget Tokens Ratio</FormLabel>
+                  <FormLabel>{t('Budget Tokens Ratio')}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -231,8 +237,9 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
                     />
                   </FormControl>
                   <FormDescription>
-                    Budget tokens = max tokens × ratio. Accepts a decimal
-                    between 0.1 and 1.
+                    {t(
+                      'Budget tokens = max tokens × ratio. Accepts a decimal between 0.1 and 1.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

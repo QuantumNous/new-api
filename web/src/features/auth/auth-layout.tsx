@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { SKELETON_DEFAULTS } from '@/lib/constants'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SkeletonWrapper } from '@/components/skeleton-wrapper'
@@ -8,6 +9,7 @@ type AuthLayoutProps = {
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { t } = useTranslation()
   const { systemName, logo, loading } = useSystemConfig()
 
   return (
@@ -20,7 +22,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <SkeletonWrapper loading={loading} type='image' />
           <img
             src={logo}
-            alt='Logo'
+            alt={t('Logo')}
             className='h-8 w-8 rounded-full object-cover'
           />
         </div>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight, ListOrdered, Shuffle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,
@@ -75,6 +76,7 @@ function renderLimitedItems(
  * Priority cell component with inline editing
  */
 function PriorityCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isTagRow = (channel as any).children !== undefined
   const priority = channel.priority
@@ -99,7 +101,7 @@ function PriorityCell({ channel }: { channel: Channel }) {
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title='Confirm Batch Update'
+          title={t('Confirm Batch Update')}
           desc={`This will update the priority to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
           confirmText='Update'
           handleConfirm={() => {
@@ -129,6 +131,7 @@ function PriorityCell({ channel }: { channel: Channel }) {
  * Weight cell component with inline editing
  */
 function WeightCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isTagRow = (channel as any).children !== undefined
   const weight = channel.weight
@@ -153,7 +156,7 @@ function WeightCell({ channel }: { channel: Channel }) {
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title='Confirm Batch Update'
+          title={t('Confirm Batch Update')}
           desc={`This will update the weight to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
           confirmText='Update'
           handleConfirm={() => {
@@ -183,6 +186,7 @@ function WeightCell({ channel }: { channel: Channel }) {
  * Balance cell component with click to update
  */
 function BalanceCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isTagRow = (channel as any).children !== undefined
   const balance = channel.balance || 0
@@ -234,7 +238,9 @@ function BalanceCell({ channel }: { channel: Channel }) {
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Used: {usedDisplay}</p>
+            <p>
+              {t('Used:')} {usedDisplay}
+            </p>
           </TooltipContent>
         </Tooltip>
 
@@ -250,8 +256,10 @@ function BalanceCell({ channel }: { channel: Channel }) {
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Remaining: {remainingDisplay}</p>
-            <p>Click to update balance</p>
+            <p>
+              {t('Remaining:')} {remainingDisplay}
+            </p>
+            <p>{t('Click to update balance')}</p>
           </TooltipContent>
         </Tooltip>
       </div>
@@ -262,7 +270,8 @@ function BalanceCell({ channel }: { channel: Channel }) {
 /**
  * Generate channels columns configuration
  */
-export function getChannelsColumns(): ColumnDef<Channel>[] {
+export function useChannelsColumns(): ColumnDef<Channel>[] {
+  const { t } = useTranslation()
   return [
     // Checkbox column
     {
@@ -301,7 +310,7 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // ID column
     {
       accessorKey: 'id',
-      meta: { label: 'ID' },
+      meta: { label: t('ID') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='ID' />
       ),
@@ -323,9 +332,9 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Name column
     {
       accessorKey: 'name',
-      meta: { label: 'Name' },
+      meta: { label: t('Name') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Name' />
+        <DataTableColumnHeader column={column} title={t('Name')} />
       ),
       cell: ({ row }) => {
         const isTagRow = (row.original as any).children !== undefined
@@ -395,15 +404,15 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Type column
     {
       accessorKey: 'type',
-      meta: { label: 'Type' },
-      header: 'Type',
+      meta: { label: t('Type') },
+      header: t('Type'),
       cell: ({ row }) => {
         const isTagRow = (row.original as any).children !== undefined
 
         if (isTagRow) {
           return (
             <StatusBadge
-              label='Tag Aggregate'
+              label={t('Tag Aggregate')}
               variant='blue'
               size='sm'
               copyable={false}
@@ -464,8 +473,8 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Status column
     {
       accessorKey: 'status',
-      meta: { label: 'Status' },
-      header: 'Status',
+      meta: { label: t('Status') },
+      header: t('Status'),
       cell: ({ row }) => {
         const isTagRow = (row.original as any).children !== undefined
         const status = row.getValue('status') as number
@@ -526,8 +535,8 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Models column
     {
       accessorKey: 'models',
-      meta: { label: 'Models' },
-      header: 'Models',
+      meta: { label: t('Models') },
+      header: t('Models'),
       cell: ({ row }) => {
         const models = row.getValue('models') as string
         const modelArray = parseModelsList(models)
@@ -571,8 +580,8 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Group column
     {
       accessorKey: 'group',
-      meta: { label: 'Groups' },
-      header: 'Groups',
+      meta: { label: t('Groups') },
+      header: t('Groups'),
       cell: ({ row }) => {
         const group = row.getValue('group') as string
         const groupArray = parseGroupsList(group)
@@ -612,8 +621,8 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Tag column
     {
       accessorKey: 'tag',
-      meta: { label: 'Tag' },
-      header: 'Tag',
+      meta: { label: t('Tag') },
+      header: t('Tag'),
       cell: ({ row }) => {
         const tag = row.getValue('tag') as string | null
         if (!tag)
@@ -628,9 +637,9 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Priority column
     {
       accessorKey: 'priority',
-      meta: { label: 'Priority' },
+      meta: { label: t('Priority') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Priority' />
+        <DataTableColumnHeader column={column} title={t('Priority')} />
       ),
       cell: ({ row }) => <PriorityCell channel={row.original} />,
       size: 100,
@@ -639,8 +648,8 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Weight column
     {
       accessorKey: 'weight',
-      meta: { label: 'Weight' },
-      header: 'Weight',
+      meta: { label: t('Weight') },
+      header: t('Weight'),
       cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
       enableSorting: false,
@@ -649,9 +658,9 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Balance column (Used/Remaining)
     {
       accessorKey: 'balance',
-      meta: { label: 'Used / Remaining' },
+      meta: { label: t('Used / Remaining') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Used / Remaining' />
+        <DataTableColumnHeader column={column} title={t('Used / Remaining')} />
       ),
       cell: ({ row }) => <BalanceCell channel={row.original} />,
       size: 180,
@@ -660,9 +669,9 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Response Time column
     {
       accessorKey: 'response_time',
-      meta: { label: 'Response' },
+      meta: { label: t('Response') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Response' />
+        <DataTableColumnHeader column={column} title={t('Response')} />
       ),
       cell: ({ row }) => {
         const responseTime = row.getValue('response_time') as number
@@ -683,8 +692,10 @@ export function getChannelsColumns(): ColumnDef<Channel>[] {
     // Test Time column
     {
       accessorKey: 'test_time',
-      meta: { label: 'Last Tested' },
-      header: 'Last Tested',
+      meta: { label: t('Last Tested') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Last Tested')} />
+      ),
       cell: ({ row }) => {
         const testTime = row.getValue('test_time') as number
 

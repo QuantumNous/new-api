@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Glow } from '@/components/layout/components/glow'
@@ -20,6 +21,7 @@ export function CTA({
   className,
   isAuthenticated = false,
 }: CTAProps) {
+  const { t } = useTranslation()
   if (isAuthenticated) {
     return null
   }
@@ -39,11 +41,11 @@ export function CTA({
           <div className='flex justify-center gap-4'>
             <Button size='lg' asChild>
               <Link to='/sign-up'>
-                Sign Up Free <ArrowRight className='ml-2 h-5 w-5' />
+                {t('Sign Up Free')} <ArrowRight className='ml-2 h-5 w-5' />
               </Link>
             </Button>
             <Button size='lg' variant='outline' asChild>
-              <Link to='/pricing'>View Pricing</Link>
+              <Link to='/pricing'>{t('View Pricing')}</Link>
             </Button>
           </div>
         )}

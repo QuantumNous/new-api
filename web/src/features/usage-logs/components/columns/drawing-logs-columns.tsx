@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/status-badge'
 import {
@@ -18,9 +19,10 @@ import {
   createFailReasonColumn,
 } from './column-helpers'
 
-export function getDrawingLogsColumns(
+export function useDrawingLogsColumns(
   isAdmin: boolean
 ): ColumnDef<MidjourneyLog>[] {
+  const { t } = useTranslation()
   const columns: ColumnDef<MidjourneyLog>[] = [
     createTimestampColumn<MidjourneyLog>({
       accessorKey: 'submit_time',
@@ -41,7 +43,7 @@ export function getDrawingLogsColumns(
     // Type (using 'action' field from backend)
     {
       accessorKey: 'action',
-      header: 'Type',
+      header: t('Type'),
       cell: ({ row }) => {
         const action = row.getValue('action') as string
         return (
@@ -53,13 +55,13 @@ export function getDrawingLogsColumns(
           />
         )
       },
-      meta: { label: 'Type' },
+      meta: { label: t('Type') },
     },
 
     // Task ID
     {
       accessorKey: 'mj_id',
-      header: 'Task ID',
+      header: t('Task ID'),
       cell: ({ row }) => {
         const mjId = row.getValue('mj_id') as string
 
@@ -76,7 +78,7 @@ export function getDrawingLogsColumns(
           />
         )
       },
-      meta: { label: 'Task ID' },
+      meta: { label: t('Task ID') },
     }
   )
 
@@ -84,7 +86,7 @@ export function getDrawingLogsColumns(
   if (isAdmin) {
     columns.push({
       accessorKey: 'code',
-      header: 'Submit Result',
+      header: t('Submit Result'),
       cell: ({ row }) => {
         const code = row.getValue('code') as number
 
@@ -98,7 +100,7 @@ export function getDrawingLogsColumns(
           />
         )
       },
-      meta: { label: 'Submit Result' },
+      meta: { label: t('Submit Result') },
     })
   }
 
@@ -106,7 +108,7 @@ export function getDrawingLogsColumns(
     // Status
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('Status'),
       cell: ({ row }) => {
         const status = row.getValue('status') as string
         return (
@@ -119,7 +121,7 @@ export function getDrawingLogsColumns(
           />
         )
       },
-      meta: { label: 'Status' },
+      meta: { label: t('Status') },
     },
 
     createProgressColumn<MidjourneyLog>(),
@@ -127,7 +129,7 @@ export function getDrawingLogsColumns(
     // Image
     {
       accessorKey: 'image_url',
-      header: 'Image',
+      header: t('Image'),
       cell: ({ row }) => {
         const log = row.original
         const imageUrl = row.getValue('image_url') as string
@@ -155,13 +157,13 @@ export function getDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: 'Image' },
+      meta: { label: t('Image') },
     },
 
     // Prompt (clickable)
     {
       accessorKey: 'prompt',
-      header: 'Prompt',
+      header: t('Prompt'),
       cell: ({ row }) => {
         const log = row.original
         const prompt = row.getValue('prompt') as string
@@ -190,7 +192,7 @@ export function getDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: 'Prompt' },
+      meta: { label: t('Prompt') },
     },
 
     createFailReasonColumn<MidjourneyLog>()

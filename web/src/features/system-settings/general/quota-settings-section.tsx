@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -38,6 +39,7 @@ type QuotaSettingsSectionProps = {
 export function QuotaSettingsSection({
   defaultValues,
 }: QuotaSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const { form, handleSubmit, isDirty, isSubmitting } =
@@ -61,8 +63,8 @@ export function QuotaSettingsSection({
   return (
     <SettingsAccordion
       value='quota-settings'
-      title='Quota Settings'
-      description='Configure user quota allocation and rewards'
+      title={t('Quota Settings')}
+      description={t('Configure user quota allocation and rewards')}
     >
       <FormNavigationGuard when={isDirty} />
 
@@ -74,7 +76,7 @@ export function QuotaSettingsSection({
             name='QuotaForNewUser'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>New User Quota</FormLabel>
+                <FormLabel>{t('New User Quota')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -86,7 +88,7 @@ export function QuotaSettingsSection({
                   />
                 </FormControl>
                 <FormDescription>
-                  Initial quota given to new users
+                  {t('Initial quota given to new users')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -98,7 +100,7 @@ export function QuotaSettingsSection({
             name='PreConsumedQuota'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Pre-Consumed Quota</FormLabel>
+                <FormLabel>{t('Pre-Consumed Quota')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -110,7 +112,7 @@ export function QuotaSettingsSection({
                   />
                 </FormControl>
                 <FormDescription>
-                  Quota consumed before charging users
+                  {t('Quota consumed before charging users')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -122,7 +124,7 @@ export function QuotaSettingsSection({
             name='QuotaForInviter'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Inviter Reward</FormLabel>
+                <FormLabel>{t('Inviter Reward')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -134,7 +136,7 @@ export function QuotaSettingsSection({
                   />
                 </FormControl>
                 <FormDescription>
-                  Quota given to users who invite others
+                  {t('Quota given to users who invite others')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -146,7 +148,7 @@ export function QuotaSettingsSection({
             name='QuotaForInvitee'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Invitee Reward</FormLabel>
+                <FormLabel>{t('Invitee Reward')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -157,7 +159,9 @@ export function QuotaSettingsSection({
                     ref={field.ref}
                   />
                 </FormControl>
-                <FormDescription>Quota given to invited users</FormDescription>
+                <FormDescription>
+                  {t('Quota given to invited users')}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -170,11 +174,12 @@ export function QuotaSettingsSection({
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Pre-Consume for Free Models
+                    {t('Pre-Consume for Free Models')}
                   </FormLabel>
                   <FormDescription>
-                    When enabled, zero-cost models also pre-consume quota before
-                    final settlement.
+                    {t(
+                      'When enabled, zero-cost models also pre-consume quota before final settlement.'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -193,12 +198,15 @@ export function QuotaSettingsSection({
             name='TopUpLink'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Top-Up Link</FormLabel>
+                <FormLabel>{t('Top-Up Link')}</FormLabel>
                 <FormControl>
-                  <Input placeholder='https://example.com/topup' {...field} />
+                  <Input
+                    placeholder={t('https://example.com/topup')}
+                    {...field}
+                  />
                 </FormControl>
                 <FormDescription>
-                  External link for users to purchase quota
+                  {t('External link for users to purchase quota')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -210,12 +218,15 @@ export function QuotaSettingsSection({
             name='general_setting.docs_link'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Documentation Link</FormLabel>
+                <FormLabel>{t('Documentation Link')}</FormLabel>
                 <FormControl>
-                  <Input placeholder='https://docs.example.com' {...field} />
+                  <Input
+                    placeholder={t('https://docs.example.com')}
+                    {...field}
+                  />
                 </FormControl>
                 <FormDescription>
-                  Link to your documentation site
+                  {t('Link to your documentation site')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

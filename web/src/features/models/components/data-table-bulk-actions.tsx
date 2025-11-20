@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Trash2, Copy } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ interface DataTableBulkActionsProps<TData> {
 export function DataTableBulkActions<TData>({
   table,
 }: DataTableBulkActionsProps<TData>) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -88,15 +90,15 @@ export function DataTableBulkActions<TData>({
               size='icon'
               onClick={handleEnableAll}
               className='size-8'
-              aria-label='Enable selected models'
-              title='Enable selected models'
+              aria-label={t('Enable selected models')}
+              title={t('Enable selected models')}
             >
               <Power />
-              <span className='sr-only'>Enable selected models</span>
+              <span className='sr-only'>{t('Enable selected models')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Enable selected models</p>
+            <p>{t('Enable selected models')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -107,15 +109,15 @@ export function DataTableBulkActions<TData>({
               size='icon'
               onClick={handleDisableAll}
               className='size-8'
-              aria-label='Disable selected models'
-              title='Disable selected models'
+              aria-label={t('Disable selected models')}
+              title={t('Disable selected models')}
             >
               <PowerOff />
-              <span className='sr-only'>Disable selected models</span>
+              <span className='sr-only'>{t('Disable selected models')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Disable selected models</p>
+            <p>{t('Disable selected models')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -126,15 +128,15 @@ export function DataTableBulkActions<TData>({
               size='icon'
               onClick={handleCopyNames}
               className='size-8'
-              aria-label='Copy model names'
-              title='Copy model names'
+              aria-label={t('Copy model names')}
+              title={t('Copy model names')}
             >
               <Copy />
-              <span className='sr-only'>Copy model names</span>
+              <span className='sr-only'>{t('Copy model names')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Copy model names</p>
+            <p>{t('Copy model names')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -145,15 +147,15 @@ export function DataTableBulkActions<TData>({
               size='icon'
               onClick={() => setShowDeleteConfirm(true)}
               className='size-8'
-              aria-label='Delete selected models'
-              title='Delete selected models'
+              aria-label={t('Delete selected models')}
+              title={t('Delete selected models')}
             >
               <Trash2 />
-              <span className='sr-only'>Delete selected models</span>
+              <span className='sr-only'>{t('Delete selected models')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Delete selected models</p>
+            <p>{t('Delete selected models')}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
@@ -162,10 +164,10 @@ export function DataTableBulkActions<TData>({
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Models?</DialogTitle>
+            <DialogTitle>{t('Delete Models?')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedIds.length} model(s)?
-              This action cannot be undone.
+              {t('Are you sure you want to delete')} {selectedIds.length}{' '}
+              {t('model(s)? This action cannot be undone.')}
             </DialogDescription>
           </DialogHeader>
 
@@ -174,10 +176,10 @@ export function DataTableBulkActions<TData>({
               variant='outline'
               onClick={() => setShowDeleteConfirm(false)}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button variant='destructive' onClick={handleDeleteAll}>
-              Delete
+              {t('Delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

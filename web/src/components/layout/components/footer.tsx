@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -115,6 +116,7 @@ export function Footer({
   showThemeToggle = false,
   className,
 }: FooterProps) {
+  const { t } = useTranslation()
   const {
     systemName,
     logo: systemLogo,
@@ -156,7 +158,7 @@ export function Footer({
                 <h3 className='text-xl font-bold'>{displayName}</h3>
               </div>
               <p className='text-muted-foreground text-sm'>
-                Powerful API Management Platform
+                {t('Powerful API Management Platform')}
               </p>
             </div>
 
@@ -190,7 +192,7 @@ export function Footer({
             ))}
             {showThemeToggle && <ThemeSwitch />}
             <span className='text-muted-foreground text-sm'>
-              Designed and Developed by{' '}
+              {t('Designed and Developed by')}{' '}
             </span>
             <a
               href='https://github.com/QuantumNous/new-api'
@@ -198,7 +200,7 @@ export function Footer({
               rel='noopener noreferrer'
               className='text-primary text-sm font-medium hover:underline'
             >
-              New API
+              {t('New API')}
             </a>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppHeader, Main } from '@/components/layout'
 import { LogStatCards } from './components/models/log-stat-cards'
@@ -12,6 +13,7 @@ import { UptimePanel } from './components/overview/uptime-panel'
 import { type DashboardFilters } from './types'
 
 export function Dashboard() {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('overview')
   const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
   const [modelData, setModelData] = useState<any[]>([])
@@ -38,7 +40,9 @@ export function Dashboard() {
       {/* ===== Main ===== */}
       <Main>
         <div className='mb-2 flex items-center justify-between space-y-2'>
-          <h1 className='text-2xl font-bold tracking-tight'>Dashboard</h1>
+          <h1 className='text-2xl font-bold tracking-tight'>
+            {t('Dashboard')}
+          </h1>
           <div className='flex items-center space-x-2'>
             {activeTab === 'models' && (
               <ModelsFilter
@@ -57,8 +61,8 @@ export function Dashboard() {
         >
           <div className='w-full overflow-x-auto pb-2'>
             <TabsList>
-              <TabsTrigger value='overview'>Overview</TabsTrigger>
-              <TabsTrigger value='models'>Models</TabsTrigger>
+              <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
+              <TabsTrigger value='models'>{t('Models')}</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value='overview' className='space-y-4'>

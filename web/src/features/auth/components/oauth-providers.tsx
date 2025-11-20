@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { IconGithub, IconLinuxDo, IconWeChat } from '@/assets/brand-icons'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ export function OAuthProviders({
   onWeChatLogin,
   isWeChatLoading = false,
 }: OAuthProvidersProps) {
+  const { t } = useTranslation()
   const {
     isLoading,
     handleGitHubLogin,
@@ -92,7 +94,7 @@ export function OAuthProviders({
         </div>
         <div className='relative flex justify-center text-xs uppercase'>
           <span className='bg-background text-muted-foreground px-2'>
-            Or continue with
+            {t('Or continue with')}
           </span>
         </div>
       </div>

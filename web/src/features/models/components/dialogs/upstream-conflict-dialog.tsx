@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -104,6 +105,7 @@ export function UpstreamConflictDialog({
   open,
   onOpenChange,
 }: UpstreamConflictDialogProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const {
     upstreamConflicts = [],
@@ -443,29 +445,30 @@ export function UpstreamConflictDialog({
       >
         <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-hidden'>
           <DialogHeader className='flex-shrink-0 text-start'>
-            <DialogTitle>Resolve Conflicts</DialogTitle>
+            <DialogTitle>{t('Resolve Conflicts')}</DialogTitle>
             <DialogDescription>
-              Select the fields you want to overwrite with upstream data.
-              Unselected fields keep their local values.
+              {t(
+                'Select the fields you want to overwrite with upstream data. Unselected fields keep their local values.'
+              )}
             </DialogDescription>
           </DialogHeader>
 
           {!hasConflicts ? (
             <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
-              No conflict entries available.
+              {t('No conflict entries available.')}
             </div>
           ) : (
             <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-hidden'>
               <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='space-y-1'>
                   <div className='text-sm font-medium'>
-                    {visibleModelCount} model
-                    {visibleModelCount === 1 ? '' : 's'} with conflicts
+                    {visibleModelCount} {t('model')}
+                    {visibleModelCount === 1 ? '' : 's'} {t('with conflicts')}
                   </div>
                   <div className='text-muted-foreground text-xs'>
-                    {visibleFieldCount} field
-                    {visibleFieldCount === 1 ? '' : 's'} showing •{' '}
-                    {totalSelectedFields} selected
+                    {visibleFieldCount} {t('field')}
+                    {visibleFieldCount === 1 ? '' : 's'} {t('showing •')}{' '}
+                    {totalSelectedFields} {t('selected')}
                   </div>
                 </div>
                 <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
@@ -477,9 +480,9 @@ export function UpstreamConflictDialog({
                         setSearch(event.target.value)
                         setPageIndex(0)
                       }}
-                      placeholder='Search models or fields...'
+                      placeholder={t('Search models or fields...')}
                       className='pl-9'
-                      aria-label='Search conflicting models or fields'
+                      aria-label={t('Search conflicting models or fields')}
                     />
                   </div>
                   <Button
@@ -488,14 +491,14 @@ export function UpstreamConflictDialog({
                     onClick={clearSelections}
                     disabled={!hasSelection}
                   >
-                    Clear selection
+                    {t('Clear selection')}
                   </Button>
                 </div>
               </div>
 
               {showSearchEmptyState ? (
                 <div className='text-muted-foreground flex flex-1 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm'>
-                  No conflicts match your search.
+                  {t('No conflicts match your search.')}
                 </div>
               ) : (
                 <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border'>
@@ -541,12 +544,15 @@ export function UpstreamConflictDialog({
 
                   <div className='bg-muted/40 flex flex-col gap-2 border-t px-2 py-1.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-3 sm:py-2'>
                     <div className='text-muted-foreground text-xs'>
-                      Showing {displayStart}-{displayEnd} of {visibleFieldCount}{' '}
-                      field{visibleFieldCount === 1 ? '' : 's'}
+                      {t('Showing')} {displayStart}-{displayEnd} {t('of')}{' '}
+                      {visibleFieldCount} {t('field')}
+                      {visibleFieldCount === 1 ? '' : 's'}
                     </div>
                     <div className='flex items-center justify-between gap-2 sm:flex-wrap sm:gap-3'>
                       <div className='flex items-center gap-1.5 text-xs sm:gap-2'>
-                        <span className='hidden sm:inline'>Rows per page</span>
+                        <span className='hidden sm:inline'>
+                          {t('Rows per page')}
+                        </span>
                         <Select
                           value={String(pageSize)}
                           onValueChange={(value) => {
@@ -575,12 +581,13 @@ export function UpstreamConflictDialog({
                             setPageIndex((prev) => Math.max(0, prev - 1))
                           }
                           disabled={pageIndex === 0}
-                          aria-label='Previous page'
+                          aria-label={t('Previous page')}
                         >
                           <ChevronLeft className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                         </Button>
                         <span className='text-xs font-medium'>
-                          Page {currentPageDisplay} of {totalPagesDisplay}
+                          {t('Page')} {currentPageDisplay} {t('of')}{' '}
+                          {totalPagesDisplay}
                         </span>
                         <Button
                           variant='outline'
@@ -595,7 +602,7 @@ export function UpstreamConflictDialog({
                             pageIndex >= totalPages - 1 ||
                             totalFilteredFields === 0
                           }
-                          aria-label='Next page'
+                          aria-label={t('Next page')}
                         >
                           <ChevronRight className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                         </Button>
@@ -612,8 +619,9 @@ export function UpstreamConflictDialog({
             <div className='text-muted-foreground flex flex-1 items-start gap-2 text-xs'>
               <Info className='h-4 w-4 flex-shrink-0' />
               <span>
-                Only selected fields will be overwritten. You can re-run the
-                sync wizard if new conflicts appear.
+                {t(
+                  'Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.'
+                )}
               </span>
             </div>
             <div className='flex flex-col gap-2 sm:flex-row sm:justify-end'>
@@ -624,7 +632,7 @@ export function UpstreamConflictDialog({
                   onOpenChange(false)
                 }}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 onClick={handleApplyOverwrite}

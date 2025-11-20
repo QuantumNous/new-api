@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -49,6 +50,7 @@ export function BillingHistoryDialog({
   open,
   onOpenChange,
 }: BillingHistoryDialogProps) {
+  const { t } = useTranslation()
   const {
     records,
     total,
@@ -83,9 +85,9 @@ export function BillingHistoryDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className='max-w-4xl'>
           <DialogHeader>
-            <DialogTitle>Billing History</DialogTitle>
+            <DialogTitle>{t('Billing History')}</DialogTitle>
             <DialogDescription>
-              View your topup transaction records and payment history
+              {t('View your topup transaction records and payment history')}
             </DialogDescription>
           </DialogHeader>
 
@@ -95,7 +97,7 @@ export function BillingHistoryDialog({
               <div className='relative flex-1'>
                 <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
                 <Input
-                  placeholder='Search by order number...'
+                  placeholder={t('Search by order number...')}
                   value={keyword}
                   onChange={(e) => handleSearch(e.target.value)}
                   className='pl-10'
@@ -109,10 +111,10 @@ export function BillingHistoryDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='10'>10 / page</SelectItem>
-                  <SelectItem value='20'>20 / page</SelectItem>
-                  <SelectItem value='50'>50 / page</SelectItem>
-                  <SelectItem value='100'>100 / page</SelectItem>
+                  <SelectItem value='10'>{t('10 / page')}</SelectItem>
+                  <SelectItem value='20'>{t('20 / page')}</SelectItem>
+                  <SelectItem value='50'>{t('50 / page')}</SelectItem>
+                  <SelectItem value='100'>{t('100 / page')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -141,7 +143,7 @@ export function BillingHistoryDialog({
               ) : records.length === 0 ? (
                 <div className='text-muted-foreground flex h-[400px] flex-col items-center justify-center text-center'>
                   <p className='text-sm font-medium'>
-                    No billing records found
+                    {t('No billing records found')}
                   </p>
                   <p className='mt-1 text-xs'>
                     {keyword
@@ -246,8 +248,8 @@ export function BillingHistoryDialog({
             {!loading && records.length > 0 && (
               <div className='flex flex-col items-center gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='text-muted-foreground text-xs sm:text-sm'>
-                  Showing {(page - 1) * pageSize + 1}-
-                  {Math.min(page * pageSize, total)} of {total}
+                  {t('Showing')} {(page - 1) * pageSize + 1}-
+                  {Math.min(page * pageSize, total)} {t('of')} {total}
                 </div>
                 <div className='flex items-center gap-2'>
                   <Button
@@ -287,14 +289,17 @@ export function BillingHistoryDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Complete Order</AlertDialogTitle>
+            <AlertDialogTitle>{t('Complete Order')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to manually complete this order? The user
-              will be credited with the corresponding quota.
+              {t(
+                'Are you sure you want to manually complete this order? The user will be credited with the corresponding quota.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={completing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={completing}>
+              {t('Cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmComplete}
               disabled={completing}

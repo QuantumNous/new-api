@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -34,6 +35,7 @@ type DrawingSettingsSectionProps = {
 export function DrawingSettingsSection({
   defaultValues,
 }: DrawingSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<DrawingFormValues>({
     resolver: zodResolver(drawingSchema),
@@ -100,8 +102,8 @@ export function DrawingSettingsSection({
   return (
     <SettingsAccordion
       value='drawing-settings'
-      title='Drawing'
-      description='Fine-tune Midjourney integration and guardrails.'
+      title={t('Drawing')}
+      description={t('Fine-tune Midjourney integration and guardrails.')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -114,8 +116,10 @@ export function DrawingSettingsSection({
                 render={({ field }) => (
                   <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5 pe-4'>
-                      <FormLabel className='text-base'>{item.label}</FormLabel>
-                      <FormDescription>{item.description}</FormDescription>
+                      <FormLabel className='text-base'>
+                        {t(item.label)}
+                      </FormLabel>
+                      <FormDescription>{t(item.description)}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch
@@ -131,7 +135,9 @@ export function DrawingSettingsSection({
           </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save drawing settings'}
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save drawing settings')}
           </Button>
         </form>
       </Form>

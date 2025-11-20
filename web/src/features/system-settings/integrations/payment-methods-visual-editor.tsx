@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Lightbulb, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -67,6 +68,7 @@ export function PaymentMethodsVisualEditor({
   value,
   onChange,
 }: PaymentMethodsVisualEditorProps) {
+  const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<PaymentMethodData | null>(null)
@@ -203,7 +205,7 @@ export function PaymentMethodsVisualEditor({
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
           <Input
-            placeholder='Search payment methods...'
+            placeholder={t('Search payment methods...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             className='pl-9'
@@ -214,13 +216,13 @@ export function PaymentMethodsVisualEditor({
             <PopoverTrigger asChild>
               <Button variant='outline' className='flex-1 sm:flex-none'>
                 <Lightbulb className='h-4 w-4 sm:mr-2' />
-                <span className='sm:inline'>Templates</span>
+                <span className='sm:inline'>{t('Templates')}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className='w-60'>
               <div className='space-y-2'>
                 <p className='text-muted-foreground text-xs'>
-                  Quick insert common payment methods
+                  {t('Quick insert common payment methods')}
                 </p>
                 <div className='space-y-1'>
                   {PAYMENT_TEMPLATES.map((item) => (
@@ -253,7 +255,7 @@ export function PaymentMethodsVisualEditor({
             className='flex-1 sm:flex-none'
           >
             <Plus className='h-4 w-4 sm:mr-2' />
-            <span className='sm:inline'>Add method</span>
+            <span className='sm:inline'>{t('Add method')}</span>
           </Button>
         </div>
       </div>
@@ -271,11 +273,11 @@ export function PaymentMethodsVisualEditor({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Min Top-up</TableHead>
-                  <TableHead className='text-right'>Actions</TableHead>
+                  <TableHead>{t('Name')}</TableHead>
+                  <TableHead>{t('Type')}</TableHead>
+                  <TableHead>{t('Color')}</TableHead>
+                  <TableHead>{t('Min Top-up')}</TableHead>
+                  <TableHead className='text-right'>{t('Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -393,7 +395,7 @@ export function PaymentMethodsVisualEditor({
                   <div className='space-y-2 text-sm'>
                     <div className='flex items-center gap-2'>
                       <span className='text-muted-foreground min-w-20'>
-                        Color:
+                        {t('Color:')}
                       </span>
                       <div className='flex items-center gap-2'>
                         {colorPreview && (
@@ -410,7 +412,7 @@ export function PaymentMethodsVisualEditor({
                     {method.min_topup && (
                       <div className='flex items-center gap-2'>
                         <span className='text-muted-foreground min-w-20'>
-                          Min Top-up:
+                          {t('Min Top-up:')}
                         </span>
                         <span className='font-mono'>{method.min_topup}</span>
                       </div>

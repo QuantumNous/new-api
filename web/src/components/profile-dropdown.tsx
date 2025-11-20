@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { User, Wallet, LogOut } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
@@ -20,6 +21,7 @@ import { SignOutDialog } from '@/components/sign-out-dialog'
 import { ThemeQuickSwitcher } from './theme-quick-switcher'
 
 export function ProfileDropdown() {
+  const { t } = useTranslation()
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, secondaryText, initials, roleLabel } =
@@ -59,7 +61,7 @@ export function ProfileDropdown() {
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
               <Link to='/profile'>
-                Profile
+                {t('Profile')}
                 <DropdownMenuShortcut>
                   <User size={16} />
                 </DropdownMenuShortcut>
@@ -67,7 +69,7 @@ export function ProfileDropdown() {
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to='/wallet'>
-                Wallet
+                {t('Wallet')}
                 <DropdownMenuShortcut>
                   <Wallet size={16} />
                 </DropdownMenuShortcut>
@@ -76,7 +78,7 @@ export function ProfileDropdown() {
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setOpen(true)}>
-            Sign out
+            {t('Sign out')}
             <DropdownMenuShortcut>
               <LogOut size={16} />
             </DropdownMenuShortcut>

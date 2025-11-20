@@ -11,9 +11,17 @@ import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 
+// Workaround for missing types in 'ai' package
+type ExtendedToolState =
+  | ToolUIPart['state']
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'output-denied'
+type ExtendedToolApproval = { approved: boolean }
+
 type ConfirmationContextValue = {
-  approval: ToolUIPart['approval']
-  state: ToolUIPart['state']
+  approval: ExtendedToolApproval | undefined
+  state: ExtendedToolState
 }
 
 const ConfirmationContext = createContext<ConfirmationContextValue | null>(null)
@@ -29,8 +37,8 @@ const useConfirmation = () => {
 }
 
 export type ConfirmationProps = ComponentProps<typeof Alert> & {
-  approval?: ToolUIPart['approval']
-  state: ToolUIPart['state']
+  approval?: ExtendedToolApproval
+  state: ExtendedToolState
 }
 
 export const Confirmation = ({

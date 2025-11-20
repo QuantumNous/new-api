@@ -1,4 +1,5 @@
 import { Shield, Key, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -23,6 +24,7 @@ export function ProfileSecurityCard({
   profile,
   loading,
 }: ProfileSecurityCardProps) {
+  const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
 
   if (loading) {
@@ -46,22 +48,22 @@ export function ProfileSecurityCard({
   const securityActions = [
     {
       icon: Shield,
-      title: 'Change Password',
-      description: 'Update your password to keep your account secure',
+      title: t('Change Password'),
+      description: t('Update your password to keep your account secure'),
       action: () => dialogs.open('password'),
       variant: 'default' as const,
     },
     {
       icon: Key,
-      title: 'Access Token',
-      description: 'Generate and manage your API access token',
+      title: t('Access Token'),
+      description: t('Generate and manage your API access token'),
       action: () => dialogs.open('token'),
       variant: 'default' as const,
     },
     {
       icon: Trash2,
-      title: 'Delete Account',
-      description: 'Permanently delete your account and all data',
+      title: t('Delete Account'),
+      description: t('Permanently delete your account and all data'),
       action: () => dialogs.open('delete'),
       variant: 'destructive' as const,
     },
@@ -71,9 +73,11 @@ export function ProfileSecurityCard({
     <>
       <Card>
         <CardHeader>
-          <h3 className='text-xl font-semibold tracking-tight'>Security</h3>
+          <h3 className='text-xl font-semibold tracking-tight'>
+            {t('Security')}
+          </h3>
           <p className='text-muted-foreground mt-2 text-sm'>
-            Manage your security settings and account access
+            {t('Manage your security settings and account access')}
           </p>
         </CardHeader>
 
@@ -95,7 +99,7 @@ export function ProfileSecurityCard({
                 </div>
               </div>
               <Button variant={item.variant} size='sm' onClick={item.action}>
-                {item.variant === 'destructive' ? 'Delete' : 'Manage'}
+                {item.variant === 'destructive' ? t('Delete') : t('Manage')}
               </Button>
             </div>
           ))}

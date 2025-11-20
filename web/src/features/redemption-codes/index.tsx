@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { AppHeader, Main } from '@/components/layout'
 import { RedemptionsDialogs } from './components/redemptions-dialogs'
 import { RedemptionsPrimaryButtons } from './components/redemptions-primary-buttons'
@@ -5,6 +6,7 @@ import { RedemptionsProvider } from './components/redemptions-provider'
 import { RedemptionsTable } from './components/redemptions-table'
 
 export function Redemptions() {
+  const { t } = useTranslation()
   return (
     <RedemptionsProvider>
       <AppHeader fixed />
@@ -13,10 +15,10 @@ export function Redemptions() {
         <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
           <div>
             <h2 className='text-2xl font-bold tracking-tight'>
-              Redemption Codes
+              {t('Redemption Codes')}
             </h2>
             <p className='text-muted-foreground'>
-              Manage redemption codes for quota top-up
+              {t('Manage redemption codes for quota top-up')}
             </p>
           </div>
           <RedemptionsPrimaryButtons />

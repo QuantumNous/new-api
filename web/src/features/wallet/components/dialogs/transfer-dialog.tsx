@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +30,7 @@ export function TransferDialog({
   availableQuota,
   transferring,
 }: TransferDialogProps) {
+  const { t } = useTranslation()
   const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
 
   useEffect(() => {
@@ -49,17 +51,17 @@ export function TransferDialog({
       <DialogContent className='max-w-md'>
         <DialogHeader>
           <DialogTitle className='text-xl font-semibold'>
-            Transfer Rewards
+            {t('Transfer Rewards')}
           </DialogTitle>
           <DialogDescription>
-            Move affiliate rewards to your main balance
+            {t('Move affiliate rewards to your main balance')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-6 py-4'>
           <div className='space-y-2'>
             <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              Available Rewards
+              {t('Available Rewards')}
             </Label>
             <div className='text-2xl font-semibold'>
               {formatQuota(availableQuota)}
@@ -71,7 +73,7 @@ export function TransferDialog({
               htmlFor='transfer-amount'
               className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
             >
-              Transfer Amount
+              {t('Transfer Amount')}
             </Label>
             <Input
               id='transfer-amount'
@@ -84,7 +86,7 @@ export function TransferDialog({
               className='font-mono text-lg'
             />
             <p className='text-muted-foreground text-xs'>
-              Minimum: {formatQuota(QUOTA_PER_DOLLAR)}
+              {t('Minimum:')} {formatQuota(QUOTA_PER_DOLLAR)}
             </p>
           </div>
         </div>
@@ -95,11 +97,11 @@ export function TransferDialog({
             onClick={() => onOpenChange(false)}
             disabled={transferring}
           >
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={transferring}>
             {transferring && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            Transfer
+            {t('Transfer')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/status-badge'
@@ -28,6 +29,7 @@ export function ModelRow({
   tokenUnit = DEFAULT_TOKEN_UNIT,
   showRechargePrice = false,
 }: ModelRowProps) {
+  const { t } = useTranslation()
   const tags = parseTags(model.tags).slice(0, MAX_TAGS_DISPLAY)
   const isTokenBased = isTokenBasedModel(model)
   const vendorIcon = model.vendor_icon
@@ -88,7 +90,7 @@ export function ModelRow({
               <div className='flex items-center gap-2 sm:gap-3'>
                 <div className='flex flex-col items-start gap-0.5 sm:items-end'>
                   <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
-                    Input
+                    {t('Input')}
                   </span>
                   <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
                     {formatPrice(
@@ -108,7 +110,7 @@ export function ModelRow({
                 />
                 <div className='flex flex-col items-start gap-0.5 sm:items-end'>
                   <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
-                    Output
+                    {t('Output')}
                   </span>
                   <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
                     {formatPrice(
@@ -123,14 +125,14 @@ export function ModelRow({
                 </div>
               </div>
               <span className='text-muted-foreground text-[10px] sm:text-xs'>
-                per {tokenUnitLabel} tokens
+                {t('per')} {tokenUnitLabel} {t('tokens')}
               </span>
             </>
           ) : (
             <>
               <div className='flex flex-col items-start gap-0.5 sm:items-end'>
                 <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
-                  Price
+                  {t('Price')}
                 </span>
                 <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
                   {formatRequestPrice(
@@ -142,7 +144,7 @@ export function ModelRow({
                 </span>
               </div>
               <span className='text-muted-foreground text-[10px] sm:text-xs'>
-                per request
+                {t('per request')}
               </span>
             </>
           )}

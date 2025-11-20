@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ export function UserQuotaDialog({
   currentQuotaDollars,
   onConfirm,
 }: UserQuotaDialogProps) {
+  const { t } = useTranslation()
   const [quotaDelta, setQuotaDelta] = useState('')
 
   const deltaValue = parseFloat(quotaDelta) || 0
@@ -57,14 +59,15 @@ export function UserQuotaDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Quota</DialogTitle>
+          <DialogTitle>{t('Add Quota')}</DialogTitle>
           <DialogDescription>
-            Enter a positive or negative amount to adjust the quota
+            {t('Enter a positive or negative amount to adjust the quota')}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4'>
           <div className='text-muted-foreground text-sm'>
-            Current: {formatQuota(parseQuotaFromDollars(currentQuotaDollars))}
+            {t('Current:')}{' '}
+            {formatQuota(parseQuotaFromDollars(currentQuotaDollars))}
             {quotaDelta && (
               <>
                 {' + '}
@@ -89,9 +92,9 @@ export function UserQuotaDialog({
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={handleCancel}>
-            Cancel
+            {t('Cancel')}
           </Button>
-          <Button onClick={handleConfirm}>Add</Button>
+          <Button onClick={handleConfirm}>{t('Add')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

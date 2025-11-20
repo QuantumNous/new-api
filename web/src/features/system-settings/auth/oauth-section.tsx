@@ -4,6 +4,7 @@ import axios from 'axios'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -54,6 +55,7 @@ type OAuthSectionProps = {
 }
 
 export function OAuthSection({ defaultValues }: OAuthSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [activeTab, setActiveTab] = useState('github')
 
@@ -201,8 +203,8 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
       <SettingsAccordion
         value='oauth-integrations'
-        title='OAuth Integrations'
-        description='Configure third-party authentication providers'
+        title={t('OAuth Integrations')}
+        description={t('Configure third-party authentication providers')}
       >
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -210,11 +212,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className='grid w-full grid-cols-5'>
-                <TabsTrigger value='github'>GitHub</TabsTrigger>
-                <TabsTrigger value='oidc'>OIDC</TabsTrigger>
-                <TabsTrigger value='telegram'>Telegram</TabsTrigger>
-                <TabsTrigger value='linuxdo'>LinuxDO</TabsTrigger>
-                <TabsTrigger value='wechat'>WeChat</TabsTrigger>
+                <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
+                <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
+                <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
+                <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
+                <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value='github' className='space-y-4'>
@@ -225,10 +227,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          Enable GitHub OAuth
+                          {t('Enable GitHub OAuth')}
                         </FormLabel>
                         <FormDescription>
-                          Allow users to sign in with GitHub
+                          {t('Allow users to sign in with GitHub')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -246,10 +248,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='GitHubClientId'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client ID</FormLabel>
+                      <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='Your GitHub OAuth Client ID'
+                          placeholder={t('Your GitHub OAuth Client ID')}
                           autoComplete='off'
                           {...field}
                         />
@@ -264,11 +266,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='GitHubClientSecret'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client Secret</FormLabel>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
                       <FormControl>
                         <Input
                           type='password'
-                          placeholder='Your GitHub OAuth Client Secret'
+                          placeholder={t('Your GitHub OAuth Client Secret')}
                           autoComplete='new-password'
                           {...field}
                         />
@@ -286,9 +288,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   render={({ field }) => (
                     <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>Enable OIDC</FormLabel>
+                        <FormLabel className='text-base'>
+                          {t('Enable OIDC')}
+                        </FormLabel>
                         <FormDescription>
-                          Allow users to sign in with OpenID Connect
+                          {t('Allow users to sign in with OpenID Connect')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -306,10 +310,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name={'oidc.client_id' as any}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client ID</FormLabel>
+                      <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='OIDC Client ID'
+                          placeholder={t('OIDC Client ID')}
                           autoComplete='off'
                           {...field}
                         />
@@ -324,11 +328,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='oidc.client_secret'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client Secret</FormLabel>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
                       <FormControl>
                         <Input
                           type='password'
-                          placeholder='OIDC Client Secret'
+                          placeholder={t('OIDC Client Secret')}
                           autoComplete='new-password'
                           {...field}
                         />
@@ -343,16 +347,18 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='oidc.well_known'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Well-Known URL</FormLabel>
+                      <FormLabel>{t('Well-Known URL')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='https://provider.com/.well-known/openid-configuration'
+                          placeholder={t(
+                            'https://provider.com/.well-known/openid-configuration'
+                          )}
                           autoComplete='off'
                           {...field}
                         />
                       </FormControl>
                       <FormDescription>
-                        Auto-discovers endpoints from the provider
+                        {t('Auto-discovers endpoints from the provider')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -364,10 +370,12 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='oidc.authorization_endpoint'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Authorization Endpoint (Optional)</FormLabel>
+                      <FormLabel>
+                        {t('Authorization Endpoint (Optional)')}
+                      </FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='Override auto-discovered endpoint'
+                          placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
                           {...field}
                         />
@@ -382,10 +390,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='oidc.token_endpoint'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Token Endpoint (Optional)</FormLabel>
+                      <FormLabel>{t('Token Endpoint (Optional)')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='Override auto-discovered endpoint'
+                          placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
                           {...field}
                         />
@@ -400,10 +408,12 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='oidc.user_info_endpoint'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>User Info Endpoint (Optional)</FormLabel>
+                      <FormLabel>
+                        {t('User Info Endpoint (Optional)')}
+                      </FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='Override auto-discovered endpoint'
+                          placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
                           {...field}
                         />
@@ -422,10 +432,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          Enable Telegram OAuth
+                          {t('Enable Telegram OAuth')}
                         </FormLabel>
                         <FormDescription>
-                          Allow users to sign in with Telegram
+                          {t('Allow users to sign in with Telegram')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -443,11 +453,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='TelegramBotToken'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Bot Token</FormLabel>
+                      <FormLabel>{t('Bot Token')}</FormLabel>
                       <FormControl>
                         <Input
                           type='password'
-                          placeholder='Your Telegram Bot Token'
+                          placeholder={t('Your Telegram Bot Token')}
                           autoComplete='new-password'
                           {...field}
                         />
@@ -462,10 +472,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='TelegramBotName'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Bot Name</FormLabel>
+                      <FormLabel>{t('Bot Name')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='Your Bot Name'
+                          placeholder={t('Your Bot Name')}
                           autoComplete='off'
                           {...field}
                         />
@@ -484,10 +494,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          Enable LinuxDO OAuth
+                          {t('Enable LinuxDO OAuth')}
                         </FormLabel>
                         <FormDescription>
-                          Allow users to sign in with LinuxDO
+                          {t('Allow users to sign in with LinuxDO')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -505,10 +515,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='LinuxDOClientId'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client ID</FormLabel>
+                      <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='LinuxDO Client ID'
+                          placeholder={t('LinuxDO Client ID')}
                           autoComplete='off'
                           {...field}
                         />
@@ -523,11 +533,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='LinuxDOClientSecret'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client Secret</FormLabel>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
                       <FormControl>
                         <Input
                           type='password'
-                          placeholder='LinuxDO Client Secret'
+                          placeholder={t('LinuxDO Client Secret')}
                           autoComplete='new-password'
                           {...field}
                         />
@@ -542,12 +552,12 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='LinuxDOMinimumTrustLevel'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Minimum Trust Level</FormLabel>
+                      <FormLabel>{t('Minimum Trust Level')}</FormLabel>
                       <FormControl>
                         <Input placeholder='0' autoComplete='off' {...field} />
                       </FormControl>
                       <FormDescription>
-                        Minimum LinuxDO trust level required
+                        {t('Minimum LinuxDO trust level required')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -563,10 +573,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          Enable WeChat Auth
+                          {t('Enable WeChat Auth')}
                         </FormLabel>
                         <FormDescription>
-                          Allow users to sign in with WeChat
+                          {t('Allow users to sign in with WeChat')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -584,10 +594,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='WeChatServerAddress'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Server Address</FormLabel>
+                      <FormLabel>{t('Server Address')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='https://wechat-server.example.com'
+                          placeholder={t('https://wechat-server.example.com')}
                           autoComplete='off'
                           {...field}
                         />
@@ -602,11 +612,11 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='WeChatServerToken'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Server Token</FormLabel>
+                      <FormLabel>{t('Server Token')}</FormLabel>
                       <FormControl>
                         <Input
                           type='password'
-                          placeholder='Server Token'
+                          placeholder={t('Server Token')}
                           autoComplete='new-password'
                           {...field}
                         />
@@ -621,10 +631,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                   name='WeChatAccountQRCodeImageURL'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>QR Code Image URL</FormLabel>
+                      <FormLabel>{t('QR Code Image URL')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='https://example.com/qr-code.png'
+                          placeholder={t('https://example.com/qr-code.png')}
                           autoComplete='off'
                           {...field}
                         />
@@ -647,7 +657,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 disabled={!form.formState.isDirty || updateOption.isPending}
               >
                 <RotateCcw className='mr-2 h-4 w-4' />
-                Reset
+                {t('Reset')}
               </Button>
             </div>
           </form>

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -64,6 +65,7 @@ export function HeaderNavigationSection({
   config,
   initialSerialized,
 }: HeaderNavigationSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const formDefaults = useMemo(() => toFormValues(config), [config])
 
@@ -135,8 +137,8 @@ export function HeaderNavigationSection({
   return (
     <SettingsAccordion
       value='header-navigation'
-      title='Header navigation'
-      description='Enable or disable top navigation modules globally.'
+      title={t('Header navigation')}
+      description={t('Enable or disable top navigation modules globally.')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -150,9 +152,9 @@ export function HeaderNavigationSection({
                   <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5 pe-4'>
                       <FormLabel className='text-base'>
-                        {module.title}
+                        {t(module.title)}
                       </FormLabel>
-                      <FormDescription>{module.description}</FormDescription>
+                      <FormDescription>{t(module.description)}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch
@@ -175,10 +177,12 @@ export function HeaderNavigationSection({
                 <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5 pe-4'>
                     <FormLabel className='text-base'>
-                      Models directory
+                      {t('Models directory')}
                     </FormLabel>
                     <FormDescription>
-                      Exposes the pricing/models catalog in the top navigation.
+                      {t(
+                        'Exposes the pricing/models catalog in the top navigation.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -199,11 +203,12 @@ export function HeaderNavigationSection({
                 <FormItem className='mt-4 flex flex-row items-start justify-between rounded-lg border border-dashed p-4'>
                   <div className='space-y-0.5 pe-4'>
                     <FormLabel className='text-base'>
-                      Require login to view models
+                      {t('Require login to view models')}
                     </FormLabel>
                     <FormDescription>
-                      Visitors must authenticate before accessing the pricing
-                      directory.
+                      {t(
+                        'Visitors must authenticate before accessing the pricing directory.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -221,7 +226,7 @@ export function HeaderNavigationSection({
 
           <div className='flex flex-wrap gap-3'>
             <Button type='button' variant='outline' onClick={resetToDefault}>
-              Reset to default
+              {t('Reset to default')}
             </Button>
             <Button type='submit' disabled={updateOption.isPending}>
               {updateOption.isPending ? 'Saving...' : 'Save navigation'}
