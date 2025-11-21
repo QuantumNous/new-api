@@ -66,6 +66,7 @@ export interface LogOtherData {
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]
+    local_count_tokens?: boolean
   }
   ws?: boolean
   audio?: boolean

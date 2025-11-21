@@ -64,6 +64,7 @@ const schema = z.object({
       .number()
       .min(0.002, { message: 'Must be at least 0.002' })
       .max(1, { message: 'Must be 1 or less' }),
+    function_call_thought_signature_enabled: z.boolean(),
   }),
 })
 
@@ -76,6 +77,7 @@ type FlatGeminiSettings = {
   'gemini.supported_imagine_models': string
   'gemini.thinking_adapter_enabled': boolean
   'gemini.thinking_adapter_budget_tokens_percentage': number
+  'gemini.function_call_thought_signature_enabled': boolean
 }
 
 type GeminiSettingsCardProps = {
@@ -100,6 +102,8 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
     'gemini.thinking_adapter_budget_tokens_percentage': Number(
       defaultValues.gemini.thinking_adapter_budget_tokens_percentage
     ),
+    'gemini.function_call_thought_signature_enabled':
+      defaultValues.gemini.function_call_thought_signature_enabled ?? true,
   })
 
   const buildFormDefaults = (
@@ -114,6 +118,8 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
       thinking_adapter_enabled: values.gemini.thinking_adapter_enabled,
       thinking_adapter_budget_tokens_percentage:
         values.gemini.thinking_adapter_budget_tokens_percentage,
+      function_call_thought_signature_enabled:
+        values.gemini.function_call_thought_signature_enabled ?? true,
     },
   })
 
@@ -138,6 +144,8 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
       'gemini.thinking_adapter_budget_tokens_percentage': Number(
         defaultValues.gemini.thinking_adapter_budget_tokens_percentage
       ),
+      'gemini.function_call_thought_signature_enabled':
+        defaultValues.gemini.function_call_thought_signature_enabled ?? true,
     }
 
     form.reset(buildFormDefaults(defaultValues))
@@ -159,6 +167,8 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
       'gemini.thinking_adapter_enabled': values.gemini.thinking_adapter_enabled,
       'gemini.thinking_adapter_budget_tokens_percentage':
         values.gemini.thinking_adapter_budget_tokens_percentage,
+      'gemini.function_call_thought_signature_enabled':
+        values.gemini.function_call_thought_signature_enabled,
     }
 
     const updates = (
@@ -313,6 +323,31 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
               </p>
             )}
           </div>
+
+          <FormField
+            control={form.control}
+            name='gemini.function_call_thought_signature_enabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Enable FunctionCall thoughtSignature Fill')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Fill thoughtSignature only for Gemini/Vertex channels using the OpenAI format'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
 
           <Button type='submit' disabled={updateOption.isPending}>
             {updateOption.isPending ? 'Saving...' : 'Save changes'}

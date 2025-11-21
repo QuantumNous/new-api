@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { AxiosRequestConfig } from 'axios'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
@@ -19,8 +20,22 @@ type LogoutRequestConfig = AxiosRequestConfig & {
  * Hook for managing OAuth login
  */
 export function useOAuthLogin(status: SystemStatus | null) {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [githubButtonText, setGithubButtonText] = useState('')
+  const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
+  const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { auth } = useAuthStore()
+
+  useEffect(() => {
+    setGithubButtonText(t('Continue with GitHub'))
+
+    return () => {
+      if (githubTimeoutRef.current) {
+        clearTimeout(githubTimeoutRef.current)
+      }
+    }
+  }, [t])
 
   const resetSession = async () => {
     try {
@@ -39,13 +54,35 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   const handleGitHubLogin = async () => {
     if (!status?.github_client_id) return
+    if (githubButtonDisabled) return
 
     setIsLoading(true)
+    setGithubButtonDisabled(true)
+    setGithubButtonText(t('Redirecting to GitHub...'))
+
+    if (githubTimeoutRef.current) {
+      clearTimeout(githubTimeoutRef.current)
+    }
+
+    githubTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false)
+      setGithubButtonText(
+        t('Request timed out, please refresh and restart GitHub login')
+      )
+      setGithubButtonDisabled(true)
+    }, 20000)
+
     try {
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
         toast.error('Failed to initialize OAuth')
+        if (githubTimeoutRef.current) {
+          clearTimeout(githubTimeoutRef.current)
+        }
+        setIsLoading(false)
+        setGithubButtonText(t('Continue with GitHub'))
+        setGithubButtonDisabled(false)
         return
       }
 
@@ -53,8 +90,12 @@ export function useOAuthLogin(status: SystemStatus | null) {
       window.open(url, '_self')
     } catch (_error) {
       toast.error('Failed to start GitHub login')
-    } finally {
+      if (githubTimeoutRef.current) {
+        clearTimeout(githubTimeoutRef.current)
+      }
       setIsLoading(false)
+      setGithubButtonText(t('Continue with GitHub'))
+      setGithubButtonDisabled(false)
     }
   }
 
@@ -110,6 +151,8 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   return {
     isLoading,
+    githubButtonText,
+    githubButtonDisabled,
     handleGitHubLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,

@@ -418,10 +418,31 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const quota = row.getValue('quota') as number
         const other = parseLogOther(log.other)
         const groupRatio = other?.group_ratio
+        const localCountTokens = other?.admin_info?.local_count_tokens
 
         return (
           <div className='flex flex-col'>
-            <span className='font-mono text-sm font-medium'>
+            <span className='flex items-center gap-1.5 font-mono text-sm font-medium'>
+              {isAdmin && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={`size-2 flex-shrink-0 rounded-full ${
+                          localCountTokens ? 'bg-blue-500' : 'bg-green-500'
+                        }`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <span>
+                        {localCountTokens
+                          ? t('Local Billing')
+                          : t('Upstream Response')}
+                      </span>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {formatLogQuota(quota)}
             </span>
             {groupRatio && groupRatio !== 1 && (
