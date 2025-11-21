@@ -268,24 +268,30 @@ type OpenAIResponsesResponse struct {
 	Object             string             `json:"object"`
 	CreatedAt          int                `json:"created_at"`
 	Status             string             `json:"status"`
+	Background         bool               `json:"background"`
 	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
 	Instructions       string             `json:"instructions"`
 	MaxOutputTokens    int                `json:"max_output_tokens"`
+	MaxToolCalls       *uint              `json:"max_tool_calls,omitempty"`
 	Model              string             `json:"model"`
 	Output             []ResponsesOutput  `json:"output"`
+	Include            json.RawMessage    `json:"include,omitempty"`
 	ParallelToolCalls  bool               `json:"parallel_tool_calls"`
 	PreviousResponseID string             `json:"previous_response_id"`
 	Reasoning          *Reasoning         `json:"reasoning"`
+	Conversation       json.RawMessage    `json:"conversation,omitempty"`
 	Store              bool               `json:"store"`
 	Temperature        float64            `json:"temperature"`
 	ToolChoice         string             `json:"tool_choice"`
 	Tools              []map[string]any   `json:"tools"`
 	TopP               float64            `json:"top_p"`
 	Truncation         string             `json:"truncation"`
+	Text               json.RawMessage    `json:"text,omitempty"`
 	Usage              *Usage             `json:"usage"`
 	User               json.RawMessage    `json:"user"`
 	Metadata           json.RawMessage    `json:"metadata"`
+	ServiceTier        string             `json:"service_tier"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构

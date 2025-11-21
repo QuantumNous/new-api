@@ -5,8 +5,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -40,8 +42,18 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		c.Set("image_generation_call_size", responsesResponse.GetSize())
 	}
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		// 写入新的 response body
+		service.IOCopyBytesGracefully(c, resp, responseBody)
+	} else {
+		chatResp := ResponsesResponseToChat(&responsesResponse, info.ShouldIncludeUsage)
+		if chatResp == nil {
+			return nil, types.NewOpenAIError(fmt.Errorf("failed to convert responses to chat format"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		if err := helper.ObjectData(c, chatResp); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+	}
 
 	// compute usage
 	usage := dto.Usage{}
@@ -69,6 +81,13 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 }
 
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatOpenAI {
+		return streamResponsesAsChat(c, info, resp)
+	}
+	return streamResponsesRaw(c, info, resp)
+}
+
+func streamResponsesRaw(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
 		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
@@ -147,4 +166,160 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func streamResponsesAsChat(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		logger.LogError(c, "invalid response or response body")
+		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
+	}
+
+	defer service.CloseResponseBodyGracefully(resp)
+
+	state := newResponsesStreamChatBridge(info)
+	var usage = &dto.Usage{}
+
+	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		var streamResponse dto.ResponsesStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
+			return true
+		}
+
+		switch streamResponse.Type {
+		case "response.completed":
+			if streamResponse.Response != nil {
+				state.applyResponse(streamResponse.Response)
+				if streamResponse.Response.Usage != nil {
+					usage = streamResponse.Response.Usage
+				}
+				if streamResponse.Response.HasImageGenerationCall() {
+					c.Set("image_generation_call", true)
+					c.Set("image_generation_call_quality", streamResponse.Response.GetQuality())
+					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
+				}
+			}
+		case "response.output_text.delta":
+			state.appendText(streamResponse.Delta)
+			if err := state.sendDelta(c, streamResponse.Delta); err != nil {
+				logger.LogError(c, "failed to send chat delta: "+err.Error())
+				return false
+			}
+		case dto.ResponsesOutputTypeItemDone:
+			if streamResponse.Item != nil {
+				if streamResponse.Item.Type == dto.BuildInCallWebSearchCall {
+					if info != nil && info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools != nil {
+						if webSearchTool, exists := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool != nil {
+							webSearchTool.CallCount++
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	if !service.ValidUsage(usage) {
+		textUsage := service.ResponseText2Usage(c, state.textBuilder.String(), info.UpstreamModelName, info.PromptTokens)
+		usage = textUsage
+	}
+
+	applyUsagePostProcessing(info, usage, nil)
+
+	if err := state.finalize(c, info, usage); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	return usage, nil
+}
+
+type responsesStreamChatBridge struct {
+	info        *relaycommon.RelayInfo
+	responseID  string
+	model       string
+	createdAt   int64
+	textBuilder strings.Builder
+}
+
+func newResponsesStreamChatBridge(info *relaycommon.RelayInfo) *responsesStreamChatBridge {
+	return &responsesStreamChatBridge{
+		info:  info,
+		model: info.UpstreamModelName,
+	}
+}
+
+func (b *responsesStreamChatBridge) appendText(delta string) {
+	if delta != "" {
+		b.textBuilder.WriteString(delta)
+	}
+}
+
+func (b *responsesStreamChatBridge) sendDelta(c *gin.Context, delta string) error {
+	if delta == "" {
+		return nil
+	}
+	if b.responseID == "" {
+		b.responseID = helper.GetResponseID(c)
+	}
+	if b.createdAt == 0 {
+		b.createdAt = time.Now().Unix()
+	}
+	chunk := dto.ChatCompletionsStreamResponse{
+		Id:      b.responseID,
+		Object:  "chat.completion.chunk",
+		Created: b.createdAt,
+		Model:   b.model,
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Role:    "assistant",
+					Content: common.GetPointer(delta),
+				},
+			},
+		},
+	}
+	b.info.SendResponseCount++
+	return helper.ObjectData(c, chunk)
+}
+
+func (b *responsesStreamChatBridge) applyResponse(resp *dto.OpenAIResponsesResponse) {
+	if resp == nil {
+		return
+	}
+	if resp.ID != "" {
+		b.responseID = resp.ID
+	}
+	if resp.Model != "" {
+		b.model = resp.Model
+	}
+	if resp.CreatedAt != 0 {
+		b.createdAt = int64(resp.CreatedAt)
+	}
+}
+
+func (b *responsesStreamChatBridge) finalize(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) error {
+	if b.responseID == "" {
+		b.responseID = helper.GetResponseID(c)
+	}
+	if b.createdAt == 0 {
+		b.createdAt = time.Now().Unix()
+	}
+
+	stopChunk := helper.GenerateStopResponse(b.responseID, b.createdAt, b.model, constant.FinishReasonStop)
+	if stopChunk != nil {
+		if err := helper.ObjectData(c, stopChunk); err != nil {
+			return err
+		}
+	}
+
+	if info.ShouldIncludeUsage && usage != nil {
+		if final := helper.GenerateFinalUsageResponse(b.responseID, b.createdAt, b.model, *usage); final != nil {
+			if err := helper.ObjectData(c, final); err != nil {
+				return err
+			}
+		}
+	}
+
+	helper.Done(c)
+	return nil
 }

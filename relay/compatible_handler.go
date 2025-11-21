@@ -13,7 +13,9 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -47,6 +49,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	shouldBridgeToResponses := info.ChannelType == constant.ChannelTypeOpenAI &&
+		!info.DisableBridge &&
+		openai.ShouldBridgeChatToResponses(info.UpstreamModelName)
+
 	includeUsage := true
 	// 判断用户是否需要返回使用情况
 	if request.StreamOptions != nil {
@@ -74,7 +80,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	adaptor.Init(info)
 	var requestBody io.Reader
 
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	passThroughEnabled := (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) &&
+		!shouldBridgeToResponses && !info.ForceDisablePassThrough
+
+	if passThroughEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -129,6 +138,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 					}
 				}
 			}
+		}
+
+		if shouldBridgeToResponses {
+			bridgeReq, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
+			if !ok {
+				return types.NewError(fmt.Errorf("bridge requires openai format request"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			return bridgeChatToResponses(c, info, bridgeReq)
 		}
 
 		jsonData, err := common.Marshal(convertedRequest)
@@ -187,6 +204,64 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		postConsumeQuota(c, info, usage.(*dto.Usage), "")
 	}
 	return nil
+}
+
+func bridgeChatToResponses(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) *types.NewAPIError {
+	if common.DebugEnabled || c.GetBool("channel_test_mode") {
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("bridge chat->responses | before: %s", common.GetJsonString(request)))
+	}
+
+	responsesReq, err := openai.GeneralRequestToResponses(request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	if common.DebugEnabled || c.GetBool("channel_test_mode") {
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("bridge chat->responses | after: %s", common.GetJsonString(responsesReq)))
+	}
+
+	originalRequest := info.Request
+	originalRelayMode := info.RelayMode
+	originalPath := info.RequestURLPath
+	originalForcePass := info.ForceDisablePassThrough
+
+	info.Request = responsesReq
+	info.RelayMode = relayconstant.RelayModeResponses
+	info.RequestURLPath = "/v1/responses"
+	info.ForceDisablePassThrough = true
+
+	defer func() {
+		info.Request = originalRequest
+		info.RelayMode = originalRelayMode
+		info.RequestURLPath = originalPath
+		info.ForceDisablePassThrough = originalForcePass
+	}()
+
+	return ResponsesHelper(c, info)
+}
+
+func bridgeResponsesToChat(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) *types.NewAPIError {
+	originalRequest := info.Request
+	originalRelayMode := info.RelayMode
+	originalPath := info.RequestURLPath
+	originalDisableBridge := info.DisableBridge
+	originalForcePass := info.ForceDisablePassThrough
+
+	info.Request = request
+	info.RelayMode = relayconstant.RelayModeChatCompletions
+	info.RequestURLPath = "/v1/chat/completions"
+	info.DisableBridge = true
+	info.ForceDisablePassThrough = true
+
+	defer func() {
+		info.Request = originalRequest
+		info.RelayMode = originalRelayMode
+		info.RequestURLPath = originalPath
+		info.DisableBridge = originalDisableBridge
+		info.ForceDisablePassThrough = originalForcePass
+	}()
+
+	return TextHelper(c, info)
 }
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent string) {

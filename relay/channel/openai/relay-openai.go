@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -105,6 +106,10 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 }
 
 func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		return streamChatAsResponses(c, info, resp)
+	}
+
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -192,6 +197,145 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
+}
+
+func streamChatAsResponses(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		logger.LogError(c, "invalid response or response body")
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	defer service.CloseResponseBodyGracefully(resp)
+
+	state := newChatStreamResponsesBridge(info)
+	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data == "" {
+			return true
+		}
+		var streamResponse dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
+			return true
+		}
+		state.captureChunk(streamResponse)
+		if err := state.sendDeltaEvents(c, streamResponse); err != nil {
+			logger.LogError(c, "failed to send responses delta: "+err.Error())
+			return false
+		}
+		return true
+	})
+
+	usage := state.computeUsage(c, info)
+	applyUsagePostProcessing(info, usage, nil)
+
+	if err := state.finalize(c, usage, info.ShouldIncludeUsage); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	return usage, nil
+}
+
+type chatStreamResponsesBridge struct {
+	info        *relaycommon.RelayInfo
+	responseID  string
+	model       string
+	createdAt   int64
+	textBuilder strings.Builder
+}
+
+func newChatStreamResponsesBridge(info *relaycommon.RelayInfo) *chatStreamResponsesBridge {
+	return &chatStreamResponsesBridge{
+		info:  info,
+		model: info.UpstreamModelName,
+	}
+}
+
+func (b *chatStreamResponsesBridge) captureChunk(chunk dto.ChatCompletionsStreamResponse) {
+	if chunk.Id != "" {
+		b.responseID = chunk.Id
+	}
+	if chunk.Model != "" {
+		b.model = chunk.Model
+	}
+	if chunk.Created != 0 {
+		b.createdAt = chunk.Created
+	}
+	for _, choice := range chunk.Choices {
+		if delta := choice.Delta.GetContentString(); delta != "" {
+			b.textBuilder.WriteString(delta)
+		}
+	}
+}
+
+func (b *chatStreamResponsesBridge) sendDeltaEvents(c *gin.Context, chunk dto.ChatCompletionsStreamResponse) error {
+	for _, choice := range chunk.Choices {
+		delta := choice.Delta.GetContentString()
+		if delta == "" {
+			continue
+		}
+		event := dto.ResponsesStreamResponse{
+			Type:  "response.output_text.delta",
+			Delta: delta,
+		}
+		payload, err := common.Marshal(event)
+		if err != nil {
+			return err
+		}
+		helper.ResponseChunkData(c, event, string(payload))
+	}
+	return nil
+}
+
+func (b *chatStreamResponsesBridge) computeUsage(c *gin.Context, info *relaycommon.RelayInfo) *dto.Usage {
+	text := b.textBuilder.String()
+	if text == "" {
+		return &dto.Usage{}
+	}
+	return service.ResponseText2Usage(c, text, info.UpstreamModelName, info.PromptTokens)
+}
+
+func (b *chatStreamResponsesBridge) finalize(c *gin.Context, usage *dto.Usage, includeUsage bool) error {
+	if b.responseID == "" {
+		b.responseID = helper.GetResponseID(c)
+	}
+	if b.createdAt == 0 {
+		b.createdAt = time.Now().Unix()
+	}
+	output := []dto.ResponsesOutput{{
+		Type:   "message",
+		Status: "completed",
+		Role:   "assistant",
+		Content: []dto.ResponsesOutputContent{
+			{
+				Type: "output_text",
+				Text: b.textBuilder.String(),
+			},
+		},
+	}}
+
+	response := &dto.OpenAIResponsesResponse{
+		ID:        b.responseID,
+		Object:    "response",
+		CreatedAt: int(b.createdAt),
+		Status:    "completed",
+		Model:     b.model,
+		Output:    output,
+	}
+
+	if includeUsage && usage != nil {
+		response.Usage = usage
+	}
+
+	event := dto.ResponsesStreamResponse{
+		Type:     "response.completed",
+		Response: response,
+	}
+	payload, err := common.Marshal(event)
+	if err != nil {
+		return err
+	}
+	helper.ResponseChunkData(c, event, string(payload))
+	return nil
 }
 
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -287,6 +431,15 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		responseBody = geminiRespStr
+	case types.RelayFormatOpenAIResponses:
+		responsesResp := ChatResponseToResponses(&simpleResponse, info.ShouldIncludeUsage)
+		if responsesResp == nil {
+			return nil, types.NewOpenAIError(fmt.Errorf("failed to convert chat response to responses format"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+		responseBody, err = common.Marshal(responsesResp)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
