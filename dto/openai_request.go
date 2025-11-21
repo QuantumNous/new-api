@@ -897,6 +897,12 @@ type Reasoning struct {
 	Summary string `json:"summary,omitempty"`
 }
 
+type Input struct {
+	Type    string          `json:"type,omitempty"`
+	Role    string          `json:"role,omitempty"`
+	Content json.RawMessage `json:"content,omitempty"`
+}
+
 type MediaInput struct {
 	Type     string `json:"type"`
 	Text     string `json:"text,omitempty"`
@@ -915,7 +921,7 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 		return nil
 	}
 
-	var inputs []MediaInput
+	var mediaInputs []MediaInput
 
 	// Try string first
 	// if str, ok := common.GetJsonType(r.Input); ok {
@@ -925,60 +931,74 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 	if common.GetJsonType(r.Input) == "string" {
 		var str string
 		_ = common.Unmarshal(r.Input, &str)
-		inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
-		return inputs
+		mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: str})
+		return mediaInputs
 	}
 
 	// Try array of parts
 	if common.GetJsonType(r.Input) == "array" {
-		var array []any
-		_ = common.Unmarshal(r.Input, &array)
-		for _, itemAny := range array {
-			// Already parsed MediaInput
-			if media, ok := itemAny.(MediaInput); ok {
-				inputs = append(inputs, media)
-				continue
+		var inputs []Input
+		_ = common.Unmarshal(r.Input, &inputs)
+		for _, input := range inputs {
+			if common.GetJsonType(input.Content) == "string" {
+				var str string
+				_ = common.Unmarshal(input.Content, &str)
+				mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: str})
 			}
-			// Generic map
-			item, ok := itemAny.(map[string]any)
-			if !ok {
-				continue
-			}
-			typeVal, ok := item["type"].(string)
-			if !ok {
-				continue
-			}
-			switch typeVal {
-			case "input_text":
-				text, _ := item["text"].(string)
-				inputs = append(inputs, MediaInput{Type: "input_text", Text: text})
-			case "input_image":
-				// image_url may be string or object with url field
-				var imageUrl string
-				switch v := item["image_url"].(type) {
-				case string:
-					imageUrl = v
-				case map[string]any:
-					if url, ok := v["url"].(string); ok {
-						imageUrl = url
+
+			if common.GetJsonType(input.Content) == "array" {
+				var array []any
+				_ = common.Unmarshal(input.Content, &array)
+				for _, itemAny := range array {
+					// Already parsed MediaContent
+					if media, ok := itemAny.(MediaInput); ok {
+						mediaInputs = append(mediaInputs, media)
+						continue
+					}
+
+					// Generic map
+					item, ok := itemAny.(map[string]any)
+					if !ok {
+						continue
+					}
+
+					typeVal, ok := item["type"].(string)
+					if !ok {
+						continue
+					}
+					switch typeVal {
+					case "input_text":
+						text, _ := item["text"].(string)
+						mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+					case "input_image":
+						// image_url may be string or object with url field
+						var imageUrl string
+						switch v := item["image_url"].(type) {
+						case string:
+							imageUrl = v
+						case map[string]any:
+							if url, ok := v["url"].(string); ok {
+								imageUrl = url
+							}
+						}
+						mediaInputs = append(mediaInputs, MediaInput{Type: "input_image", ImageUrl: imageUrl})
+					case "input_file":
+						// file_url may be string or object with url field
+						var fileUrl string
+						switch v := item["file_url"].(type) {
+						case string:
+							fileUrl = v
+						case map[string]any:
+							if url, ok := v["url"].(string); ok {
+								fileUrl = url
+							}
+						}
+						mediaInputs = append(mediaInputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
 					}
 				}
-				inputs = append(inputs, MediaInput{Type: "input_image", ImageUrl: imageUrl})
-			case "input_file":
-				// file_url may be string or object with url field
-				var fileUrl string
-				switch v := item["file_url"].(type) {
-				case string:
-					fileUrl = v
-				case map[string]any:
-					if url, ok := v["url"].(string); ok {
-						fileUrl = url
-					}
-				}
-				inputs = append(inputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
 			}
 		}
 	}
 
-	return inputs
+	return mediaInputs
 }
