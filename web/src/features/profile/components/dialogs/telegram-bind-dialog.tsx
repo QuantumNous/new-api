@@ -1,4 +1,5 @@
 import { Send } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -24,13 +25,14 @@ export function TelegramBindDialog({
   onOpenChange,
   botName,
 }: TelegramBindDialogProps) {
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>Bind Telegram Account</DialogTitle>
+          <DialogTitle>{t('Bind Telegram Account')}</DialogTitle>
           <DialogDescription>
-            Click the button below to bind your Telegram account
+            {t('Click the button below to bind your Telegram account')}
           </DialogDescription>
         </DialogHeader>
 
@@ -38,8 +40,9 @@ export function TelegramBindDialog({
           <Alert>
             <Send className='h-4 w-4' />
             <AlertDescription>
-              You will be redirected to Telegram to complete the binding
-              process.
+              {t(
+                'You will be redirected to Telegram to complete the binding process.'
+              )}
             </AlertDescription>
           </Alert>
 
@@ -50,10 +53,13 @@ export function TelegramBindDialog({
 
             <div className='text-center'>
               <p className='text-muted-foreground text-sm'>
-                Bot: <span className='font-mono font-semibold'>@{botName}</span>
+                {t('Bot:')}{' '}
+                <span className='font-mono font-semibold'>@{botName}</span>
               </p>
               <p className='text-muted-foreground mt-1 text-xs'>
-                After clicking the button, you'll be asked to authorize the bot
+                {t(
+                  "After clicking the button, you'll be asked to authorize the bot"
+                )}
               </p>
             </div>
 
@@ -61,13 +67,13 @@ export function TelegramBindDialog({
             <div id='telegram-login-widget' className='flex justify-center'>
               {/* This would require the react-telegram-login library */}
               <div className='text-muted-foreground rounded-lg border border-dashed px-6 py-3 text-sm'>
-                Telegram Login Widget
+                {t('Telegram Login Widget')}
               </div>
             </div>
           </div>
 
           <p className='text-muted-foreground text-center text-xs'>
-            The binding will complete automatically after authorization
+            {t('The binding will complete automatically after authorization')}
           </p>
         </div>
       </DialogContent>

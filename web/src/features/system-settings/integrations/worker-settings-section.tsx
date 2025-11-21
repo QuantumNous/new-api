@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -37,6 +38,7 @@ type WorkerSettingsSectionProps = {
 export function WorkerSettingsSection({
   defaultValues,
 }: WorkerSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm<WorkerFormValues>({
@@ -80,8 +82,10 @@ export function WorkerSettingsSection({
   return (
     <SettingsAccordion
       value='worker-settings'
-      title='Worker Proxy'
-      description='Configure upstream worker or proxy service for outbound requests'
+      title={t('Worker Proxy')}
+      description={t(
+        'Configure upstream worker or proxy service for outbound requests'
+      )}
     >
       <Form {...form}>
         <form
@@ -94,20 +98,21 @@ export function WorkerSettingsSection({
             name='WorkerUrl'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Worker URL</FormLabel>
+                <FormLabel>{t('Worker URL')}</FormLabel>
                 <FormControl>
                   <Input
                     type='url'
                     inputMode='url'
-                    placeholder='https://worker.example.workers.dev'
+                    placeholder={t('https://worker.example.workers.dev')}
                     autoComplete='off'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  Requests will be forwarded to this worker. Trailing slashes
-                  are removed automatically.
+                  {t(
+                    'Requests will be forwarded to this worker. Trailing slashes are removed automatically.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -119,19 +124,20 @@ export function WorkerSettingsSection({
             name='WorkerValidKey'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Worker Access Key</FormLabel>
+                <FormLabel>{t('Worker Access Key')}</FormLabel>
                 <FormControl>
                   <Input
                     type='password'
-                    placeholder='Enter new key to update'
+                    placeholder={t('Enter new key to update')}
                     autoComplete='new-password'
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  Used to authenticate with the worker. Leave blank to keep the
-                  existing secret.
+                  {t(
+                    'Used to authenticate with the worker. Leave blank to keep the existing secret.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -145,10 +151,12 @@ export function WorkerSettingsSection({
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Allow HTTP image requests
+                    {t('Allow HTTP image requests')}
                   </FormLabel>
                   <FormDescription>
-                    Enable when proxying workers that fetch images over HTTP.
+                    {t(
+                      'Enable when proxying workers that fetch images over HTTP.'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>

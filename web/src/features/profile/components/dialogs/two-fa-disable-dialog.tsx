@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { disable2FA } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -31,6 +32,7 @@ export function TwoFADisableDialog({
   onOpenChange,
   onSuccess,
 }: TwoFADisableDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [code, setCode] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -83,11 +85,12 @@ export function TwoFADisableDialog({
         <DialogHeader>
           <DialogTitle className='text-destructive flex items-center gap-2'>
             <AlertTriangle className='h-5 w-5' />
-            Disable Two-Factor Authentication
+            {t('Disable Two-Factor Authentication')}
           </DialogTitle>
           <DialogDescription>
-            This action will permanently remove 2FA protection from your
-            account.
+            {t(
+              'This action will permanently remove 2FA protection from your account.'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -95,21 +98,21 @@ export function TwoFADisableDialog({
           <Alert variant='destructive'>
             <AlertTriangle className='h-4 w-4' />
             <AlertDescription>
-              Warning: Disabling 2FA will make your account less secure.
+              {t('Warning: Disabling 2FA will make your account less secure.')}
             </AlertDescription>
           </Alert>
 
           <div className='space-y-2'>
-            <Label htmlFor='code'>Verification Code</Label>
+            <Label htmlFor='code'>{t('Verification Code')}</Label>
             <Input
               id='code'
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder='Enter code or backup code'
+              placeholder={t('Enter code or backup code')}
               disabled={loading}
             />
             <p className='text-muted-foreground text-xs'>
-              Enter your authenticator code or a backup code
+              {t('Enter your authenticator code or a backup code')}
             </p>
           </div>
 
@@ -123,8 +126,9 @@ export function TwoFADisableDialog({
               htmlFor='confirm'
               className='text-sm leading-tight font-normal'
             >
-              I understand that disabling 2FA will remove all protection and
-              backup codes
+              {t(
+                'I understand that disabling 2FA will remove all protection and backup codes'
+              )}
             </Label>
           </div>
         </div>
@@ -135,7 +139,7 @@ export function TwoFADisableDialog({
             onClick={() => handleOpenChange(false)}
             disabled={loading}
           >
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             variant='destructive'

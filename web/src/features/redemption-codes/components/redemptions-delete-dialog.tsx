@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -11,10 +12,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { deleteRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { getRedemptionSuccessMessages } from '../constants'
 import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsDeleteDialog() {
+  const { t } = useTranslation()
+  const successMessages = getRedemptionSuccessMessages(t)
   const { open, setOpen, currentRow, triggerRefresh } = useRedemptions()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -25,7 +28,7 @@ export function RedemptionsDeleteDialog() {
     try {
       const result = await deleteRedemption(currentRow.id)
       if (result.success) {
-        toast.success(SUCCESS_MESSAGES.REDEMPTION_DELETED)
+        toast.success(successMessages.REDEMPTION_DELETED)
         setOpen(null)
         triggerRefresh()
       }
@@ -41,15 +44,17 @@ export function RedemptionsDeleteDialog() {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete redemption code{' '}
-            <span className='font-semibold'>{currentRow?.name}</span>. This
-            action cannot be undone.
+            {t('This will permanently delete redemption code')}{' '}
+            <span className='font-semibold'>{currentRow?.name}</span>
+            {t('. This action cannot be undone.')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>
+            {t('Cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isDeleting}

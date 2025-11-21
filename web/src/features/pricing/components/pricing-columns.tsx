@@ -1,4 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import {
   Tooltip,
@@ -61,9 +62,10 @@ function renderLimitedItems(
 /**
  * Generate pricing columns configuration
  */
-export function getPricingColumns(
+export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {
+  const { t } = useTranslation()
   const {
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
@@ -77,7 +79,7 @@ export function getPricingColumns(
     // Model column (1st)
     {
       accessorKey: 'model_name',
-      meta: { label: 'Model' },
+      meta: { label: t('Model') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Model' />
       ),
@@ -106,7 +108,7 @@ export function getPricingColumns(
     // Price column (2nd)
     {
       accessorKey: 'price',
-      meta: { label: 'Price' },
+      meta: { label: t('Price') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='Price' />
       ),
@@ -173,8 +175,8 @@ export function getPricingColumns(
     // Vendor column
     {
       accessorKey: 'vendor_name',
-      meta: { label: 'Vendor' },
-      header: 'Vendor',
+      meta: { label: t('Vendor') },
+      header: t('Vendor'),
       cell: ({ row }) => {
         const model = row.original
         const vendorIcon = model.vendor_icon
@@ -203,8 +205,8 @@ export function getPricingColumns(
     // Tags column
     {
       accessorKey: 'tags',
-      meta: { label: 'Tags' },
-      header: 'Tags',
+      meta: { label: t('Tags') },
+      header: t('Tags'),
       cell: ({ row }) => {
         const model = row.original
         const tags = parseTags(model.tags)
@@ -242,8 +244,8 @@ export function getPricingColumns(
     // Endpoints column
     {
       accessorKey: 'supported_endpoint_types',
-      meta: { label: 'Endpoints' },
-      header: 'Endpoints',
+      meta: { label: t('Endpoints') },
+      header: t('Endpoints'),
       cell: ({ row }) => {
         const model = row.original
         const endpoints = model.supported_endpoint_types || []
@@ -281,8 +283,8 @@ export function getPricingColumns(
     // Enable Groups column
     {
       accessorKey: 'enable_groups',
-      meta: { label: 'Enable Groups' },
-      header: 'Enable Groups',
+      meta: { label: t('Enable Groups') },
+      header: t('Enable Groups'),
       cell: ({ row }) => {
         const model = row.original
         const groups = model.enable_groups || []

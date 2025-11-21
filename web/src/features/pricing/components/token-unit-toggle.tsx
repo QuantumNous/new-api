@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import type { TokenUnit } from '../types'
 
@@ -17,10 +18,11 @@ export function TokenUnitToggle({
   onChange,
   className,
 }: TokenUnitToggleProps) {
+  const { t } = useTranslation()
   return (
     <div
       role='group'
-      aria-label='Select token display unit'
+      aria-label={t('Select token display unit')}
       className={cn(
         'bg-background inline-flex w-full items-center gap-1 rounded-md border p-1 text-xs shadow-xs sm:w-auto sm:text-sm',
         className

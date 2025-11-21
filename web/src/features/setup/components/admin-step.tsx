@@ -1,5 +1,6 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { ShieldCheck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   FormControl,
@@ -18,13 +19,15 @@ interface AdminStepProps {
 }
 
 export function AdminStep({ form, rootInitialized }: AdminStepProps) {
+  const { t } = useTranslation()
   if (rootInitialized) {
     return (
       <Alert className='border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/40'>
         <AlertDescription className='flex items-start gap-2'>
           <ShieldCheck className='mt-0.5 size-4 text-sky-500' />
-          The administrator account is already initialized. You can keep your
-          existing credentials and continue to the next step.
+          {t(
+            'The administrator account is already initialized. You can keep your existing credentials and continue to the next step.'
+          )}
         </AlertDescription>
       </Alert>
     )

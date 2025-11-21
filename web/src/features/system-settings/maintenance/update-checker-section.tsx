@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ export function UpdateCheckerSection({
   currentVersion,
   startTime,
 }: UpdateCheckerSectionProps) {
+  const { t } = useTranslation()
   const [checking, setChecking] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [release, setRelease] = useState<ReleaseInfo | null>(null)
@@ -86,19 +88,21 @@ export function UpdateCheckerSection({
     <>
       <SettingsAccordion
         value='update-checker'
-        title='System maintenance'
-        description='Review current version and fetch release notes.'
+        title={t('System maintenance')}
+        description={t('Review current version and fetch release notes.')}
       >
         <div className='space-y-6'>
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='rounded-lg border p-4'>
               <div className='text-muted-foreground text-sm'>
-                Current version
+                {t('Current version')}
               </div>
               <div className='text-lg font-semibold'>{version}</div>
             </div>
             <div className='rounded-lg border p-4'>
-              <div className='text-muted-foreground text-sm'>Uptime since</div>
+              <div className='text-muted-foreground text-sm'>
+                {t('Uptime since')}
+              </div>
               <div className='text-lg font-semibold'>{uptime}</div>
             </div>
           </div>
@@ -109,7 +113,7 @@ export function UpdateCheckerSection({
             ) : (
               <>
                 <RefreshCcwIcon className='me-2 h-4 w-4' />
-                Check for updates
+                {t('Check for updates')}
               </>
             )}
           </Button>
@@ -126,7 +130,7 @@ export function UpdateCheckerSection({
             </DialogTitle>
             {release?.published_at && (
               <DialogDescription>
-                Published{' '}
+                {t('Published')}{' '}
                 {formatTimestampToDate(
                   new Date(release.published_at).getTime(),
                   'milliseconds'
@@ -140,7 +144,7 @@ export function UpdateCheckerSection({
               <Markdown>{release.body}</Markdown>
             ) : (
               <p className='text-muted-foreground text-sm'>
-                No release notes provided.
+                {t('No release notes provided.')}
               </p>
             )}
           </div>
@@ -151,12 +155,12 @@ export function UpdateCheckerSection({
               variant='secondary'
               onClick={() => setDialogOpen(false)}
             >
-              Close
+              {t('Close')}
             </Button>
             {release?.html_url && (
               <Button type='button' onClick={goToRelease}>
                 <ExternalLinkIcon className='me-2 h-4 w-4' />
-                Open release
+                {t('Open release')}
               </Button>
             )}
           </DialogFooter>

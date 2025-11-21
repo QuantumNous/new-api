@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -55,6 +56,7 @@ export function RateLimitDialog({
   onSave,
   editData,
 }: RateLimitDialogProps) {
+  const { t } = useTranslation()
   const isEditMode = !!editData
 
   const form = useForm<RateLimitDialogFormValues>({
@@ -89,10 +91,12 @@ export function RateLimitDialog({
       <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>
-            {isEditMode ? 'Edit group rate limit' : 'Add group rate limit'}
+            {isEditMode
+              ? t('Edit group rate limit')
+              : t('Add group rate limit')}
           </DialogTitle>
           <DialogDescription>
-            Configure rate limiting rules for a specific user group.
+            {t('Configure rate limiting rules for a specific user group.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -106,18 +110,18 @@ export function RateLimitDialog({
               name='groupName'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Group Name</FormLabel>
+                  <FormLabel>{t('Group Name')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder='e.g., default, vip, premium'
+                      placeholder={t('e.g., default, vip, premium')}
                       {...field}
                       disabled={isEditMode}
                     />
                   </FormControl>
                   <FormDescription>
                     {isEditMode
-                      ? 'Group name cannot be changed when editing.'
-                      : 'Unique identifier for this group.'}
+                      ? t('Group name cannot be changed when editing.')
+                      : t('Unique identifier for this group.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -129,7 +133,9 @@ export function RateLimitDialog({
               name='maxRequests'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Max Requests (including failures)</FormLabel>
+                  <FormLabel>
+                    {t('Max Requests (including failures)')}
+                  </FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Input
@@ -143,12 +149,12 @@ export function RateLimitDialog({
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
-                        times
+                        {t('times')}
                       </span>
                     </div>
                   </FormControl>
                   <FormDescription>
-                    Total requests allowed per period. 0 = unlimited.
+                    {t('Total requests allowed per period. 0 = unlimited.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -160,7 +166,7 @@ export function RateLimitDialog({
               name='maxSuccess'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Max Successful Requests</FormLabel>
+                  <FormLabel>{t('Max Successful Requests')}</FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Input
@@ -174,12 +180,12 @@ export function RateLimitDialog({
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
-                        times
+                        {t('times')}
                       </span>
                     </div>
                   </FormControl>
                   <FormDescription>
-                    Only successful requests count toward this limit.
+                    {t('Only successful requests count toward this limit.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -192,9 +198,11 @@ export function RateLimitDialog({
                 variant='outline'
                 onClick={() => onOpenChange(false)}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
-              <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
+              <Button type='submit'>
+                {isEditMode ? t('Update') : t('Add')}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

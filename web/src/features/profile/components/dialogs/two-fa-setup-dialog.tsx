@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { setup2FA, enable2FA } from '@/lib/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -33,6 +34,7 @@ export function TwoFASetupDialog({
   onOpenChange,
   onSuccess,
 }: TwoFASetupDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [initializing, setInitializing] = useState(false)
   const [step, setStep] = useState(0)
@@ -113,9 +115,9 @@ export function TwoFASetupDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Setup Two-Factor Authentication</DialogTitle>
+          <DialogTitle>{t('Setup Two-Factor Authentication')}</DialogTitle>
           <DialogDescription>
-            Step {step + 1} of 3: {step === 0 && 'Scan QR Code'}
+            {t('Step')} {step + 1} {t('of 3:')} {step === 0 && 'Scan QR Code'}
             {step === 1 && 'Save Backup Codes'}
             {step === 2 && 'Verify Setup'}
           </DialogDescription>
@@ -126,13 +128,13 @@ export function TwoFASetupDialog({
             <div className='flex flex-col items-center justify-center gap-3 py-8'>
               <div className='border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent' />
               <div className='text-muted-foreground text-sm'>
-                Setting up 2FA...
+                {t('Setting up 2FA...')}
               </div>
             </div>
           ) : !setupData ? (
             <div className='flex justify-center py-8'>
               <div className='text-muted-foreground'>
-                Failed to load setup data
+                {t('Failed to load setup data')}
               </div>
             </div>
           ) : (
@@ -141,8 +143,9 @@ export function TwoFASetupDialog({
               {step === 0 && (
                 <div className='space-y-4'>
                   <p className='text-muted-foreground text-sm'>
-                    Scan this QR code with your authenticator app (Google
-                    Authenticator, Microsoft Authenticator, etc.)
+                    {t(
+                      'Scan this QR code with your authenticator app (Google Authenticator, Microsoft Authenticator, etc.)'
+                    )}
                   </p>
                   <div className='flex justify-center rounded-lg bg-white p-4'>
                     <QRCodeSVG value={setupData.qr_code_data} size={200} />
@@ -151,7 +154,7 @@ export function TwoFASetupDialog({
                     <div className='flex items-center justify-between'>
                       <div>
                         <p className='text-muted-foreground text-xs'>
-                          Or enter this key manually:
+                          {t('Or enter this key manually:')}
                         </p>
                         <code className='font-mono text-sm'>
                           {setupData.secret}
@@ -160,8 +163,8 @@ export function TwoFASetupDialog({
                       <CopyButton
                         value={setupData.secret}
                         variant='ghost'
-                        tooltip='Copy secret key'
-                        aria-label='Copy secret key'
+                        tooltip={t('Copy secret key')}
+                        aria-label={t('Copy secret key')}
                       />
                     </div>
                   </div>
@@ -173,8 +176,9 @@ export function TwoFASetupDialog({
                 <div className='space-y-4'>
                   <Alert>
                     <AlertDescription>
-                      Save these backup codes in a safe place. Each code can
-                      only be used once.
+                      {t(
+                        'Save these backup codes in a safe place. Each code can only be used once.'
+                      )}
                     </AlertDescription>
                   </Alert>
                   <div className='rounded-lg border p-4'>
@@ -195,10 +199,10 @@ export function TwoFASetupDialog({
                     size='default'
                     className='w-full'
                     iconClassName='mr-2 size-4'
-                    tooltip='Copy all backup codes'
-                    aria-label='Copy all backup codes'
+                    tooltip={t('Copy all backup codes')}
+                    aria-label={t('Copy all backup codes')}
                   >
-                    Copy All Codes
+                    {t('Copy All Codes')}
                   </CopyButton>
                 </div>
               )}
@@ -207,17 +211,17 @@ export function TwoFASetupDialog({
               {step === 2 && (
                 <div className='space-y-4'>
                   <div className='space-y-2'>
-                    <Label htmlFor='code'>Verification Code</Label>
+                    <Label htmlFor='code'>{t('Verification Code')}</Label>
                     <Input
                       id='code'
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
-                      placeholder='Enter 6-digit code'
+                      placeholder={t('Enter 6-digit code')}
                       maxLength={6}
                       disabled={loading}
                     />
                     <p className='text-muted-foreground text-xs'>
-                      Enter the 6-digit code from your authenticator app
+                      {t('Enter the 6-digit code from your authenticator app')}
                     </p>
                   </div>
                 </div>
@@ -233,7 +237,7 @@ export function TwoFASetupDialog({
               onClick={() => setStep(step - 1)}
               disabled={initializing || loading}
             >
-              Back
+              {t('Back')}
             </Button>
           )}
           {step < 2 ? (
@@ -241,7 +245,7 @@ export function TwoFASetupDialog({
               onClick={() => setStep(step + 1)}
               disabled={initializing || !setupData}
             >
-              Next
+              {t('Next')}
             </Button>
           ) : (
             <Button

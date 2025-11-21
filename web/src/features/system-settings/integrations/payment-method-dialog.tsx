@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -100,6 +101,7 @@ export function PaymentMethodDialog({
   onSave,
   editData,
 }: PaymentMethodDialogProps) {
+  const { t } = useTranslation()
   const isEditMode = !!editData
 
   const form = useForm<PaymentMethodDialogFormValues>({
@@ -163,7 +165,7 @@ export function PaymentMethodDialog({
             {isEditMode ? 'Edit payment method' : 'Add payment method'}
           </DialogTitle>
           <DialogDescription>
-            Configure a payment method for user recharge options.
+            {t('Configure a payment method for user recharge options.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -177,12 +179,12 @@ export function PaymentMethodDialog({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t('Name')}</FormLabel>
                   <FormControl>
-                    <Input placeholder='e.g., Alipay, WeChat' {...field} />
+                    <Input placeholder={t('e.g., Alipay, WeChat')} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Display name for this payment method.
+                    {t('Display name for this payment method.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -194,19 +196,19 @@ export function PaymentMethodDialog({
               name='type'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Type</FormLabel>
+                  <FormLabel>{t('Type')}</FormLabel>
                   <FormControl>
                     <Combobox
                       options={PAYMENT_TYPES}
                       value={field.value}
                       onValueChange={field.onChange}
-                      placeholder='Select or enter payment type'
+                      placeholder={t('Select or enter payment type')}
                       searchPlaceholder='Search payment types...'
                       allowCustomValue
                     />
                   </FormControl>
                   <FormDescription>
-                    Select from presets or type custom identifier.
+                    {t('Select from presets or type custom identifier.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -218,14 +220,14 @@ export function PaymentMethodDialog({
               name='color'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Color</FormLabel>
+                  <FormLabel>{t('Color')}</FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Combobox
                         options={COLOR_PRESETS}
                         value={field.value}
                         onValueChange={field.onChange}
-                        placeholder='Select or enter color value'
+                        placeholder={t('Select or enter color value')}
                         searchPlaceholder='Search colors...'
                         allowCustomValue
                         className='flex-1'
@@ -240,7 +242,7 @@ export function PaymentMethodDialog({
                     </div>
                   </FormControl>
                   <FormDescription>
-                    Select preset or enter custom CSS color value.
+                    {t('Select preset or enter custom CSS color value.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -252,17 +254,17 @@ export function PaymentMethodDialog({
               name='min_topup'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Minimum top-up (optional)</FormLabel>
+                  <FormLabel>{t('Minimum top-up (optional)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
                       step='0.01'
-                      placeholder='e.g., 50'
+                      placeholder={t('e.g., 50')}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Optional minimum recharge amount for this method.
+                    {t('Optional minimum recharge amount for this method.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -275,7 +277,7 @@ export function PaymentMethodDialog({
                 variant='outline'
                 onClick={() => onOpenChange(false)}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
             </DialogFooter>

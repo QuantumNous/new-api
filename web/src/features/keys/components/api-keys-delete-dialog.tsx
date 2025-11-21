@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -15,6 +16,7 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeysDeleteDialog() {
+  const { t } = useTranslation()
   const { open, setOpen, currentRow, triggerRefresh } = useApiKeys()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -45,15 +47,17 @@ export function ApiKeysDeleteDialog() {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete API key{' '}
-            <span className='font-semibold'>{currentRow?.name}</span>. This
-            action cannot be undone.
+            {t('This will permanently delete API key')}{' '}
+            <span className='font-semibold'>{currentRow?.name}</span>
+            {t('. This action cannot be undone.')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>
+            {t('Cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isDeleting}

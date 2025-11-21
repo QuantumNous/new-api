@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { SKELETON_DEFAULTS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -9,6 +10,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationButton } from '@/components/notification-button'
 import { NotificationDialog } from '@/components/notification-dialog'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -74,6 +76,7 @@ function DesktopAuthButton({
   isAuthenticated,
   loading,
 }: DesktopAuthButtonProps) {
+  const { t } = useTranslation()
   return (
     <div className='hidden h-9 items-center md:flex'>
       {loading ? (
@@ -82,7 +85,7 @@ function DesktopAuthButton({
         <ProfileDropdown />
       ) : (
         <Button variant='ghost' size='sm' asChild className='h-9'>
-          <Link to='/sign-in'>Sign in</Link>
+          <Link to='/sign-in'>{t('Sign in')}</Link>
         </Button>
       )}
     </div>
@@ -109,6 +112,11 @@ export interface PublicHeaderProps {
    * @default true
    */
   showThemeSwitch?: boolean
+  /**
+   * Show language switcher
+   * @default true
+   */
+  showLanguageSwitcher?: boolean
   /**
    * Custom logo component (overrides system logo from backend)
    * @default undefined - uses logo from backend
@@ -191,6 +199,7 @@ export function PublicHeader({
   mobileLinks,
   navContent,
   showThemeSwitch = true,
+  showLanguageSwitcher = true,
   logo: customLogo,
   siteName: customSiteName,
   homeUrl = '/',
@@ -201,6 +210,7 @@ export function PublicHeader({
   showNotifications = true,
   className,
 }: PublicHeaderProps) {
+  const { t } = useTranslation()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const { auth } = useAuthStore()
   const {
@@ -263,6 +273,7 @@ export function PublicHeader({
           <NavbarRight>
             {rightContent || (
               <>
+                {showLanguageSwitcher && <LanguageSwitcher />}
                 {showThemeSwitch && <ThemeSwitch />}
                 {showNotifications && (
                   <NotificationButton
@@ -287,7 +298,7 @@ export function PublicHeader({
                   ) : (
                     <Menu className='size-5' />
                   )}
-                  <span className='sr-only'>Toggle navigation menu</span>
+                  <span className='sr-only'>{t('Toggle navigation menu')}</span>
                 </Button>
               </>
             )}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota, formatCompactNumber } from '@/lib/format'
 import {
@@ -24,6 +25,7 @@ export function UserInfoDialog({
   open,
   onOpenChange,
 }: UserInfoDialogProps) {
+  const { t } = useTranslation()
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -67,10 +69,11 @@ export function UserInfoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>User Information</DialogTitle>
+          <DialogTitle>{t('User Information')}</DialogTitle>
           <DialogDescription>
-            View detailed information about this user including balance, usage
-            statistics, and invitation details.
+            {t(
+              'View detailed information about this user including balance, usage statistics, and invitation details.'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -82,17 +85,23 @@ export function UserInfoDialog({
           <div className='space-y-4 py-4'>
             {/* Basic Info */}
             <div className='grid grid-cols-2 gap-4'>
-              <InfoItem label='Username' value={userInfo.username} />
+              <InfoItem label={t('Username')} value={userInfo.username} />
               {userInfo.display_name && (
-                <InfoItem label='Display Name' value={userInfo.display_name} />
+                <InfoItem
+                  label={t('Display Name')}
+                  value={userInfo.display_name}
+                />
               )}
             </div>
 
             {/* Balance Info */}
             <div className='grid grid-cols-2 gap-4'>
-              <InfoItem label='Balance' value={formatQuota(userInfo.quota)} />
               <InfoItem
-                label='Used Quota'
+                label={t('Balance')}
+                value={formatQuota(userInfo.quota)}
+              />
+              <InfoItem
+                label={t('Used Quota')}
                 value={formatQuota(userInfo.used_quota)}
               />
             </div>
@@ -100,11 +109,11 @@ export function UserInfoDialog({
             {/* Statistics */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
-                label='Request Count'
+                label={t('Request Count')}
                 value={formatCompactNumber(userInfo.request_count)}
               />
               {userInfo.group && (
-                <InfoItem label='User Group' value={userInfo.group} />
+                <InfoItem label={t('User Group')} value={userInfo.group} />
               )}
             </div>
 
@@ -116,13 +125,13 @@ export function UserInfoDialog({
                 <div className='grid grid-cols-2 gap-4'>
                   {userInfo.aff_code && (
                     <InfoItem
-                      label='Invitation Code'
+                      label={t('Invitation Code')}
                       value={userInfo.aff_code}
                     />
                   )}
                   {userInfo.aff_count !== undefined && (
                     <InfoItem
-                      label='Invited Users'
+                      label={t('Invited Users')}
                       value={formatCompactNumber(userInfo.aff_count)}
                     />
                   )}
@@ -130,7 +139,7 @@ export function UserInfoDialog({
 
                 {userInfo.aff_quota !== undefined && userInfo.aff_quota > 0 && (
                   <InfoItem
-                    label='Invitation Quota'
+                    label={t('Invitation Quota')}
                     value={formatQuota(userInfo.aff_quota)}
                   />
                 )}
@@ -140,7 +149,9 @@ export function UserInfoDialog({
             {/* Remark */}
             {userInfo.remark && (
               <div className='space-y-1.5'>
-                <Label className='text-muted-foreground text-xs'>Remark</Label>
+                <Label className='text-muted-foreground text-xs'>
+                  {t('Remark')}
+                </Label>
                 <div className='text-sm leading-relaxed font-semibold break-words'>
                   {userInfo.remark}
                 </div>
@@ -149,7 +160,7 @@ export function UserInfoDialog({
           </div>
         ) : (
           <div className='text-muted-foreground py-8 text-center text-sm'>
-            No user information available
+            {t('No user information available')}
           </div>
         )}
       </DialogContent>

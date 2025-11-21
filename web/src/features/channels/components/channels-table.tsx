@@ -11,6 +11,7 @@ import {
   type Row,
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
+import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
@@ -41,13 +42,14 @@ import {
   isTagAggregateRow,
 } from '../lib'
 import type { Channel } from '../types'
-import { getChannelsColumns } from './channels-columns'
+import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
 
 export function ChannelsTable() {
+  const { t } = useTranslation()
   const { enableTagMode, idSort } = useChannels()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
@@ -216,7 +218,7 @@ export function ChannelsTable() {
   const typeCounts = data?.data?.type_counts
 
   // Columns configuration
-  const columns = getChannelsColumns()
+  const columns = useChannelsColumns()
 
   // React Table instance
   const table = useReactTable({
@@ -276,10 +278,10 @@ export function ChannelsTable() {
       {/* Toolbar with Filters */}
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter by name, ID, or key...'
+        searchPlaceholder={t('Filter by name, ID, or key...')}
         additionalSearch={
           <Input
-            placeholder='Filter by model...'
+            placeholder={t('Filter by model...')}
             value={modelFilterInput}
             onChange={(e) => setModelFilterInput(e.target.value)}
             className='h-8 w-full sm:w-[150px] lg:w-[200px]'
@@ -344,8 +346,10 @@ export function ChannelsTable() {
                 ) : table.getRowModel().rows.length === 0 ? (
                   <TableEmpty
                     colSpan={columns.length}
-                    title='No Channels Found'
-                    description='No channels available. Create your first channel to get started.'
+                    title={t('No Channels Found')}
+                    description={t(
+                      'No channels available. Create your first channel to get started.'
+                    )}
                   />
                 ) : (
                   table.getRowModel().rows.map((row) => (

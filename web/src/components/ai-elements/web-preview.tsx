@@ -3,6 +3,7 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { ChevronDownIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -132,6 +133,7 @@ export const WebPreviewUrl = ({
   onKeyDown,
   ...props
 }: WebPreviewUrlProps) => {
+  const { t } = useTranslation()
   const { url, setUrl } = useWebPreview()
   const [inputValue, setInputValue] = useState(url)
 
@@ -158,7 +160,7 @@ export const WebPreviewUrl = ({
       className='h-8 flex-1 text-sm'
       onChange={onChange ?? handleChange}
       onKeyDown={handleKeyDown}
-      placeholder='Enter URL...'
+      placeholder={t('Enter URL...')}
       value={value ?? inputValue}
       {...props}
     />
@@ -175,6 +177,7 @@ export const WebPreviewBody = ({
   src,
   ...props
 }: WebPreviewBodyProps) => {
+  const { t } = useTranslation()
   const { url } = useWebPreview()
 
   return (
@@ -183,7 +186,7 @@ export const WebPreviewBody = ({
         className={cn('size-full', className)}
         sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'
         src={(src ?? url) || undefined}
-        title='Preview'
+        title={t('Preview')}
         {...props}
       />
       {loading}
@@ -205,6 +208,7 @@ export const WebPreviewConsole = ({
   children,
   ...props
 }: WebPreviewConsoleProps) => {
+  const { t } = useTranslation()
   const { consoleOpen, setConsoleOpen } = useWebPreview()
 
   return (
@@ -219,7 +223,7 @@ export const WebPreviewConsole = ({
           className='hover:bg-muted/50 flex w-full items-center justify-between p-4 text-left font-medium'
           variant='ghost'
         >
-          Console
+          {t('Console')}
           <ChevronDownIcon
             className={cn(
               'h-4 w-4 transition-transform duration-200',
@@ -236,7 +240,7 @@ export const WebPreviewConsole = ({
       >
         <div className='max-h-48 space-y-1 overflow-y-auto'>
           {logs.length === 0 ? (
-            <p className='text-muted-foreground'>No console output</p>
+            <p className='text-muted-foreground'>{t('No console output')}</p>
           ) : (
             logs.map((log, index) => (
               <div

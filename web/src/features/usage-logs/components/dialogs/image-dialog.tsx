@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ export function ImageDialog({
   open,
   onOpenChange,
 }: ImageDialogProps) {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
@@ -48,7 +50,7 @@ export function ImageDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className='sm:max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>Image Preview</DialogTitle>
+          <DialogTitle>{t('Image Preview')}</DialogTitle>
           <DialogDescription>
             {taskId ? `Task ID: ${taskId}` : 'View the generated image'}
           </DialogDescription>
@@ -65,7 +67,7 @@ export function ImageDialog({
               {/* Actual Image */}
               <img
                 src={imageUrl}
-                alt='Generated image'
+                alt={t('Generated image')}
                 className={`max-h-[550px] w-full rounded-lg object-contain ${
                   isLoading || hasError ? 'opacity-0' : 'opacity-100'
                 }`}
@@ -78,7 +80,7 @@ export function ImageDialog({
               {hasError && (
                 <div className='absolute inset-0 flex items-center justify-center'>
                   <p className='text-muted-foreground text-sm'>
-                    Failed to load image
+                    {t('Failed to load image')}
                   </p>
                 </div>
               )}

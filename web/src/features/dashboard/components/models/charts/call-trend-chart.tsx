@@ -1,4 +1,5 @@
 import { Activity } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { formatCompactNumber } from '@/lib/format'
 import { sanitizeCssVariableName } from '@/lib/utils'
@@ -26,6 +27,7 @@ export function CallTrendChart({
   chartConfig,
   loading = false,
 }: CallTrendChartProps) {
+  const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
 
   return (
@@ -33,12 +35,12 @@ export function CallTrendChart({
       title={
         <span className='flex items-center gap-2'>
           <Activity className='h-5 w-5' />
-          Call Trend
+          {t('Call Trend')}
         </span>
       }
       loading={loading}
       empty={isEmpty}
-      emptyMessage='No trend data available'
+      emptyMessage={t('No trend data available')}
       height='h-[30rem] sm:h-96'
     >
       <ChartContainer config={chartConfig} className='h-[30rem] w-full sm:h-96'>

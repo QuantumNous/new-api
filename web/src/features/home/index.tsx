@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
@@ -7,6 +8,7 @@ import { MAIN_BASE_CLASSES } from './constants'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
+  const { t } = useTranslation()
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
   const { content, isLoaded, isUrl } = useHomePageContent()
@@ -18,7 +20,7 @@ export function Home() {
         <main
           className={`${MAIN_BASE_CLASSES} -mt-16 flex min-h-screen items-center justify-center`}
         >
-          <div className='text-muted-foreground'>Loading...</div>
+          <div className='text-muted-foreground'>{t('Loading...')}</div>
         </main>
       </PublicLayout>
     )
@@ -33,7 +35,7 @@ export function Home() {
             <iframe
               src={content}
               className='h-screen w-full border-none'
-              title='Custom Home Page'
+              title={t('Custom Home Page')}
             />
           ) : (
             <div className='container mx-auto py-8'>

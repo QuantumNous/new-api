@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { ChevronsUpDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { useStatus } from '@/hooks/use-status'
@@ -19,7 +20,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useWorkspace } from '../context/workspace-context'
-import { getWorkspaceByPath } from '../lib/workspace-registry'
+import { getWorkspaceByPath, WORKSPACE_IDS } from '../lib/workspace-registry'
 import { type Workspace } from '../types'
 
 type WorkspaceSwitcherProps = {
@@ -39,6 +40,7 @@ export function WorkspaceSwitcher({
   defaultName = 'New API',
   defaultVersion = 'Unknown version',
 }: WorkspaceSwitcherProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const { isMobile } = useSidebar()
@@ -65,7 +67,8 @@ export function WorkspaceSwitcher({
             : workspace
         )
         .filter(
-          (workspace) => isSuperAdmin || workspace.name !== 'System Settings'
+          (workspace) =>
+            isSuperAdmin || workspace.id !== WORKSPACE_IDS.SYSTEM_SETTINGS
         ),
     [
       workspaces,
@@ -83,17 +86,19 @@ export function WorkspaceSwitcher({
     // Detect which workspace should be active from workspace registry
     const detectedWorkspace = getWorkspaceByPath(pathname)
 
-    if (detectedWorkspace.name === 'System Settings') {
+    if (detectedWorkspace.id === WORKSPACE_IDS.SYSTEM_SETTINGS) {
       // Currently in system settings route, should activate System Settings workspace
       const systemSettingsWorkspace = availableWorkspaces.find(
-        (w) => w.name === 'System Settings'
+        (w) => w.id === WORKSPACE_IDS.SYSTEM_SETTINGS
       )
       if (systemSettingsWorkspace) {
         setActiveWorkspace(systemSettingsWorkspace)
       }
     } else {
       // Currently in main workspace route, should activate main workspace
-      const mainWorkspace = availableWorkspaces[0]
+      const mainWorkspace =
+        availableWorkspaces.find((w) => w.id === WORKSPACE_IDS.DEFAULT) ||
+        availableWorkspaces[0]
       if (mainWorkspace) {
         setActiveWorkspace(mainWorkspace)
       }
@@ -103,7 +108,7 @@ export function WorkspaceSwitcher({
   const handleWorkspaceChange = (workspace: Workspace) => {
     // Only navigate, let useEffect synchronize workspace state based on new pathname
     // This avoids race conditions and context loss issues
-    if (workspace.name === 'System Settings') {
+    if (workspace.id === WORKSPACE_IDS.SYSTEM_SETTINGS) {
       navigate({ to: '/system-settings/general' })
     } else {
       navigate({ to: '/dashboard' })
@@ -123,7 +128,7 @@ export function WorkspaceSwitcher({
               size='lg'
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
-              {activeWorkspace.name === 'System Settings' ? (
+              {activeWorkspace.id === WORKSPACE_IDS.SYSTEM_SETTINGS ? (
                 <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
                   <activeWorkspace.logo className='size-4' />
                 </div>
@@ -131,7 +136,7 @@ export function WorkspaceSwitcher({
                 <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
                   <img
                     src={logo}
-                    alt='Logo'
+                    alt={t('Logo')}
                     className='size-full rounded-lg object-cover'
                   />
                 </div>
@@ -152,11 +157,11 @@ export function WorkspaceSwitcher({
             sideOffset={4}
           >
             <DropdownMenuLabel className='text-muted-foreground text-xs'>
-              Workspaces
+              {t('Workspaces')}
             </DropdownMenuLabel>
             {availableWorkspaces.map((workspace, index) => (
               <DropdownMenuItem
-                key={workspace.name}
+                key={workspace.id}
                 onClick={() => handleWorkspaceChange(workspace)}
                 className='gap-2 p-2'
               >

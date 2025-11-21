@@ -1,4 +1,5 @@
 import { Copy, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +25,7 @@ export function DetailsDialog({
   open,
   onOpenChange,
 }: DetailsDialogProps) {
+  const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
 
   // Get log type label
@@ -48,23 +50,24 @@ export function DetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>Log Details</DialogTitle>
+          <DialogTitle>{t('Log Details')}</DialogTitle>
           <DialogDescription>
-            View the complete details for this {getLogTypeLabel(logType)} log
+            {t('View the complete details for this')} {getLogTypeLabel(logType)}{' '}
+            {t('log')}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className='max-h-[500px] pr-4'>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
-              <Label className='text-sm font-semibold'>Content</Label>
+              <Label className='text-sm font-semibold'>{t('Content')}</Label>
               <div className='bg-muted/50 relative rounded-md border p-3'>
                 <Button
                   variant='ghost'
                   size='sm'
                   className='absolute top-2 right-2 h-8 w-8 p-0'
                   onClick={() => copyToClipboard(details)}
-                  title='Copy to clipboard'
+                  title={t('Copy to clipboard')}
                 >
                   {copiedText === details ? (
                     <Check className='size-4 text-green-600' />

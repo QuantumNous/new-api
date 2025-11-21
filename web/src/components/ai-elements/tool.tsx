@@ -11,6 +11,7 @@ import {
   WrenchIcon,
   XCircleIcon,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -19,6 +20,13 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { CodeBlock } from './code-block'
+
+// Workaround for missing types in 'ai' package
+type ExtendedToolState =
+  | ToolUIPart['state']
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'output-denied'
 
 export type ToolProps = ComponentProps<typeof Collapsible>
 
@@ -32,12 +40,12 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 export type ToolHeaderProps = {
   title?: string
   type: ToolUIPart['type']
-  state: ToolUIPart['state']
+  state: ExtendedToolState
   className?: string
 }
 
-const getStatusBadge = (status: ToolUIPart['state']) => {
-  const labels: Record<ToolUIPart['state'], string> = {
+const getStatusBadge = (status: ExtendedToolState) => {
+  const labels: Record<ExtendedToolState, string> = {
     'input-streaming': 'Pending',
     'input-available': 'Running',
     'approval-requested': 'Awaiting Approval',
@@ -47,7 +55,7 @@ const getStatusBadge = (status: ToolUIPart['state']) => {
     'output-denied': 'Denied',
   }
 
-  const icons: Record<ToolUIPart['state'], ReactNode> = {
+  const icons: Record<ExtendedToolState, ReactNode> = {
     'input-streaming': <CircleIcon className='size-4' />,
     'input-available': <ClockIcon className='size-4 animate-pulse' />,
     'approval-requested': <ClockIcon className='size-4 text-yellow-600' />,
@@ -106,16 +114,19 @@ export type ToolInputProps = ComponentProps<'div'> & {
   input: ToolUIPart['input']
 }
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
-    <h4 className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
-      Parameters
-    </h4>
-    <div className='bg-muted/50 rounded-md'>
-      <CodeBlock code={JSON.stringify(input, null, 2)} language='json' />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  const { t } = useTranslation()
+  return (
+    <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
+      <h4 className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
+        {t('Parameters')}
+      </h4>
+      <div className='bg-muted/50 rounded-md'>
+        <CodeBlock code={JSON.stringify(input, null, 2)} language='json' />
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export type ToolOutputProps = ComponentProps<'div'> & {
   output: ToolUIPart['output']

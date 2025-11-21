@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { Accordion } from '@/components/ui/accordion'
 import { useAccordionState } from '../hooks/use-accordion-state'
@@ -17,6 +18,7 @@ import { SidebarModulesSection } from './sidebar-modules-section'
 import { UpdateCheckerSection } from './update-checker-section'
 
 export function MaintenanceSettings() {
+  const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
   const { openItems, handleAccordionChange } = useAccordionState('maintenance')
   const { status } = useStatus()
@@ -49,7 +51,7 @@ export function MaintenanceSettings() {
   if (isLoading) {
     return (
       <div className='text-muted-foreground flex h-full w-full flex-1 items-center justify-center'>
-        Loading maintenance settings...
+        {t('Loading maintenance settings...')}
       </div>
     )
   }

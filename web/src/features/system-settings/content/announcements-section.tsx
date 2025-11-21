@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -96,6 +97,7 @@ export function AnnouncementsSection({
   enabled,
   data,
 }: AnnouncementsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [isEnabled, setIsEnabled] = useState(enabled)
@@ -276,15 +278,15 @@ export function AnnouncementsSection({
   return (
     <SettingsAccordion
       value='announcements'
-      title='Announcements'
-      description='Broadcast short system notices on the dashboard'
+      title={t('Announcements')}
+      description={t('Broadcast short system notices on the dashboard')}
     >
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add Announcement
+              {t('Add Announcement')}
             </Button>
             <Button
               onClick={handleBatchDelete}
@@ -293,7 +295,8 @@ export function AnnouncementsSection({
               disabled={selectedIds.length === 0}
             >
               <Trash2 className='mr-2 h-4 w-4' />
-              Delete ({selectedIds.length})
+              {t('Delete (')}
+              {selectedIds.length})
             </Button>
             <Button
               onClick={handleSaveAll}
@@ -306,7 +309,9 @@ export function AnnouncementsSection({
             </Button>
           </div>
           <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>Enabled</span>
+            <span className='text-muted-foreground text-sm'>
+              {t('Enabled')}
+            </span>
             <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
           </div>
         </div>
@@ -324,19 +329,20 @@ export function AnnouncementsSection({
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
-                <TableHead>Content</TableHead>
-                <TableHead>Publish Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Extra</TableHead>
-                <TableHead className='w-32'>Actions</TableHead>
+                <TableHead>{t('Content')}</TableHead>
+                <TableHead>{t('Publish Date')}</TableHead>
+                <TableHead>{t('Type')}</TableHead>
+                <TableHead>{t('Extra')}</TableHead>
+                <TableHead className='w-32'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedAnnouncements.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className='h-24 text-center'>
-                    No announcements yet. Click "Add Announcement" to create
-                    one.
+                    {t(
+                      'No announcements yet. Click "Add Announcement" to create one.'
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -416,7 +422,7 @@ export function AnnouncementsSection({
               {editingAnnouncement ? 'Edit Announcement' : 'Add Announcement'}
             </DialogTitle>
             <DialogDescription>
-              Create or update system announcements for the dashboard
+              {t('Create or update system announcements for the dashboard')}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -429,16 +435,18 @@ export function AnnouncementsSection({
                 name='content'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Content</FormLabel>
+                    <FormLabel>{t('Content')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder='Enter announcement content (supports Markdown/HTML)'
+                        placeholder={t(
+                          'Enter announcement content (supports Markdown/HTML)'
+                        )}
                         rows={4}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Maximum 500 characters. Supports Markdown and HTML.
+                      {t('Maximum 500 characters. Supports Markdown and HTML.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -449,7 +457,7 @@ export function AnnouncementsSection({
                 name='publishDate'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Publish Date</FormLabel>
+                    <FormLabel>{t('Publish Date')}</FormLabel>
                     <FormControl>
                       <Input
                         type='datetime-local'
@@ -458,7 +466,9 @@ export function AnnouncementsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      Date and time when this announcement should be displayed
+                      {t(
+                        'Date and time when this announcement should be displayed'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -469,11 +479,13 @@ export function AnnouncementsSection({
                 name='type'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Type</FormLabel>
+                    <FormLabel>{t('Type')}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder='Select announcement type' />
+                          <SelectValue
+                            placeholder={t('Select announcement type')}
+                          />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -498,12 +510,17 @@ export function AnnouncementsSection({
                 name='extra'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Extra Notes (Optional)</FormLabel>
+                    <FormLabel>{t('Extra Notes (Optional)')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='Additional information' {...field} />
+                      <Input
+                        placeholder={t('Additional information')}
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription>
-                      Optional supplementary information (max 100 characters)
+                      {t(
+                        'Optional supplementary information (max 100 characters)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -515,7 +532,7 @@ export function AnnouncementsSection({
                   variant='outline'
                   onClick={() => setShowDialog(false)}
                 >
-                  Cancel
+                  {t('Cancel')}
                 </Button>
                 <Button type='submit'>
                   {editingAnnouncement ? 'Update' : 'Add'}
@@ -529,7 +546,7 @@ export function AnnouncementsSection({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
                 ? 'This announcement will be removed from the list.'
@@ -537,9 +554,9 @@ export function AnnouncementsSection({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>
-              Delete
+              {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

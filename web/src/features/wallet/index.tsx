@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -15,6 +16,7 @@ import { getDefaultPaymentType, getMinTopupAmount } from './lib'
 import type { UserWalletData, PaymentMethod, PresetAmount } from './types'
 
 export function Wallet() {
+  const { t } = useTranslation()
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
@@ -166,9 +168,9 @@ export function Wallet() {
       <AppHeader fixed />
       <Main>
         <div className='mb-6'>
-          <h2 className='text-2xl font-bold tracking-tight'>Wallet</h2>
+          <h2 className='text-2xl font-bold tracking-tight'>{t('Wallet')}</h2>
           <p className='text-muted-foreground'>
-            Manage your balance and payment methods
+            {t('Manage your balance and payment methods')}
           </p>
         </div>
 

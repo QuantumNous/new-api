@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,6 +40,7 @@ export function VendorMutateDialog({
   onOpenChange,
   currentVendor,
 }: VendorMutateDialogProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isEdit = Boolean(currentVendor?.id)
   const [isSaving, setIsSaving] = useState(false)
@@ -101,11 +103,15 @@ export function VendorMutateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Vendor' : 'Create Vendor'}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? t('Edit Vendor') : t('Create Vendor')}
+          </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? `Update vendor information for ${currentVendor?.name}`
-              : 'Add a new vendor to the system'}
+              ? t('Update vendor information for {{name}}', {
+                  name: currentVendor?.name,
+                })
+              : t('Add a new vendor to the system')}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,12 +122,15 @@ export function VendorMutateDialog({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vendor Name *</FormLabel>
+                  <FormLabel>{t('Vendor Name *')}</FormLabel>
                   <FormControl>
-                    <Input placeholder='OpenAI, Anthropic, etc.' {...field} />
+                    <Input
+                      placeholder={t('OpenAI, Anthropic, etc.')}
+                      {...field}
+                    />
                   </FormControl>
                   <FormDescription>
-                    The unique name for this vendor
+                    {t('The unique name for this vendor')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -133,10 +142,10 @@ export function VendorMutateDialog({
               name='description'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{t('Description')}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder='Describe this vendor...'
+                      placeholder={t('Describe this vendor...')}
                       rows={3}
                       {...field}
                     />
@@ -151,14 +160,16 @@ export function VendorMutateDialog({
               name='icon'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Icon</FormLabel>
+                  <FormLabel>{t('Icon')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder='OpenAI, Anthropic, Google, etc.'
+                      placeholder={t('OpenAI, Anthropic, Google, etc.')}
                       {...field}
                     />
                   </FormControl>
-                  <FormDescription>@lobehub/icons key name</FormDescription>
+                  <FormDescription>
+                    {t('@lobehub/icons key name')}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -171,7 +182,7 @@ export function VendorMutateDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isSaving}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type='submit' disabled={isSaving}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

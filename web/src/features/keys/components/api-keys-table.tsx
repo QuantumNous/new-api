@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
@@ -33,14 +34,16 @@ import {
 } from '@/components/data-table'
 import { getApiKeys, searchApiKeys } from '../api'
 import { API_KEY_STATUS_OPTIONS, ERROR_MESSAGES } from '../constants'
-import { apiKeysColumns as columns } from './api-keys-columns'
+import { useApiKeysColumns } from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
 
 export function ApiKeysTable() {
+  const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
+  const columns = useApiKeysColumns()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -197,8 +200,10 @@ export function ApiKeysTable() {
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableEmpty
                   colSpan={columns.length}
-                  title='No API Keys Found'
-                  description='No API keys available. Create your first API key to get started.'
+                  title={t('No API Keys Found')}
+                  description={t(
+                    'No API keys available. Create your first API key to get started.'
+                  )}
                 />
               ) : (
                 table.getRowModel().rows.map((row) => (

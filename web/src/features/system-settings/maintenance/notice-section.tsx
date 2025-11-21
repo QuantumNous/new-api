@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -26,6 +27,7 @@ type NoticeSectionProps = {
 }
 
 export function NoticeSection({ defaultValue }: NoticeSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<NoticeFormValues>({
     resolver: zodResolver(noticeSchema),
@@ -52,8 +54,10 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
   return (
     <SettingsAccordion
       value='notice'
-      title='System Notice'
-      description='Broadcast a global banner to users. Markdown is supported.'
+      title={t('System Notice')}
+      description={t(
+        'Broadcast a global banner to users. Markdown is supported.'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -62,11 +66,13 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
             name='Notice'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Announcement content</FormLabel>
+                <FormLabel>{t('Announcement content')}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={8}
-                    placeholder='Planned maintenance on Friday at 22:00 UTC...'
+                    placeholder={t(
+                      'Planned maintenance on Friday at 22:00 UTC...'
+                    )}
                     {...field}
                   />
                 </FormControl>

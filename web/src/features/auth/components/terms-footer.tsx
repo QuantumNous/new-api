@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import type { SystemStatus } from '../types'
 
@@ -12,6 +13,7 @@ export function TermsFooter({
   className,
   status,
 }: TermsFooterProps) {
+  const { t } = useTranslation()
   const text =
     variant === 'sign-in'
       ? 'By clicking sign in, you agree to our'
@@ -57,7 +59,7 @@ export function TermsFooter({
       {secondLink && (
         <>
           {' '}
-          and{' '}
+          {t('and')}{' '}
           <a
             href={secondLink.href}
             className='hover:text-primary underline underline-offset-4'

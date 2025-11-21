@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -32,6 +33,7 @@ type BotProtectionSectionProps = {
 export function BotProtectionSection({
   defaultValues,
 }: BotProtectionSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm<BotProtectionFormValues>({
@@ -57,8 +59,10 @@ export function BotProtectionSection({
   return (
     <SettingsAccordion
       value='bot-protection'
-      title='Bot Protection'
-      description='Protect login and registration with Cloudflare Turnstile'
+      title={t('Bot Protection')}
+      description={t(
+        'Protect login and registration with Cloudflare Turnstile'
+      )}
     >
       <Form {...form}>
         <form
@@ -72,9 +76,13 @@ export function BotProtectionSection({
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Enable Turnstile</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Enable Turnstile')}
+                  </FormLabel>
                   <FormDescription>
-                    Protect login and registration with Cloudflare Turnstile
+                    {t(
+                      'Protect login and registration with Cloudflare Turnstile'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -92,10 +100,10 @@ export function BotProtectionSection({
             name='TurnstileSiteKey'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Site Key</FormLabel>
+                <FormLabel>{t('Site Key')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder='Your Turnstile site key'
+                    placeholder={t('Your Turnstile site key')}
                     autoComplete='off'
                     {...field}
                   />
@@ -110,11 +118,11 @@ export function BotProtectionSection({
             name='TurnstileSecretKey'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Secret Key</FormLabel>
+                <FormLabel>{t('Secret Key')}</FormLabel>
                 <FormControl>
                   <Input
                     type='password'
-                    placeholder='Your Turnstile secret key'
+                    placeholder={t('Your Turnstile secret key')}
                     autoComplete='new-password'
                     {...field}
                   />

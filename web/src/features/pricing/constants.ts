@@ -1,3 +1,4 @@
+import { type TFunction } from 'i18next'
 import type { TokenUnit } from './types'
 
 // ----------------------------------------------------------------------------
@@ -13,11 +14,12 @@ export const SORT_OPTIONS = {
 
 export type SortOption = (typeof SORT_OPTIONS)[keyof typeof SORT_OPTIONS]
 
-/** Sort option labels */
-export const SORT_LABELS: Record<SortOption, string> = {
-  [SORT_OPTIONS.NAME]: 'Name',
-  [SORT_OPTIONS.PRICE_LOW]: 'Price: Low to High',
-  [SORT_OPTIONS.PRICE_HIGH]: 'Price: High to Low',
+export function getSortLabels(t: TFunction): Record<SortOption, string> {
+  return {
+    [SORT_OPTIONS.NAME]: t('Name'),
+    [SORT_OPTIONS.PRICE_LOW]: t('Price: Low to High'),
+    [SORT_OPTIONS.PRICE_HIGH]: t('Price: High to Low'),
+  }
 }
 
 /** Filter values */
@@ -33,10 +35,14 @@ export const QUOTA_TYPES = {
 export type QuotaTypeOption = (typeof QUOTA_TYPES)[keyof typeof QUOTA_TYPES]
 
 /** Quota type labels */
-export const QUOTA_TYPE_LABELS: Record<QuotaTypeOption, string> = {
-  [QUOTA_TYPES.ALL]: 'All Models',
-  [QUOTA_TYPES.TOKEN]: 'Token-based',
-  [QUOTA_TYPES.REQUEST]: 'Per Request',
+export function getQuotaTypeLabels(
+  t: TFunction
+): Record<QuotaTypeOption, string> {
+  return {
+    [QUOTA_TYPES.ALL]: t('All Models'),
+    [QUOTA_TYPES.TOKEN]: t('Token-based'),
+    [QUOTA_TYPES.REQUEST]: t('Per Request'),
+  }
 }
 
 /** Endpoint type options */
@@ -56,16 +62,20 @@ export type EndpointTypeOption =
   (typeof ENDPOINT_TYPES)[keyof typeof ENDPOINT_TYPES]
 
 /** Endpoint type labels */
-export const ENDPOINT_TYPE_LABELS: Record<EndpointTypeOption, string> = {
-  [ENDPOINT_TYPES.ALL]: 'All Types',
-  [ENDPOINT_TYPES.OPENAI]: 'Chat',
-  [ENDPOINT_TYPES.OPENAI_RESPONSE]: 'Response',
-  [ENDPOINT_TYPES.ANTHROPIC]: 'Anthropic',
-  [ENDPOINT_TYPES.GEMINI]: 'Gemini',
-  [ENDPOINT_TYPES.JINA_RERANK]: 'Rerank',
-  [ENDPOINT_TYPES.IMAGE_GENERATION]: 'Image',
-  [ENDPOINT_TYPES.EMBEDDINGS]: 'Embeddings',
-  [ENDPOINT_TYPES.OPENAI_VIDEO]: 'Video',
+export function getEndpointTypeLabels(
+  t: TFunction
+): Record<EndpointTypeOption, string> {
+  return {
+    [ENDPOINT_TYPES.ALL]: t('All Types'),
+    [ENDPOINT_TYPES.OPENAI]: 'Chat',
+    [ENDPOINT_TYPES.OPENAI_RESPONSE]: 'Response',
+    [ENDPOINT_TYPES.ANTHROPIC]: 'Anthropic',
+    [ENDPOINT_TYPES.GEMINI]: 'Gemini',
+    [ENDPOINT_TYPES.JINA_RERANK]: 'Rerank',
+    [ENDPOINT_TYPES.IMAGE_GENERATION]: t('Image'),
+    [ENDPOINT_TYPES.EMBEDDINGS]: t('Embeddings'),
+    [ENDPOINT_TYPES.OPENAI_VIDEO]: t('Video'),
+  }
 }
 
 /** Filter section keys */

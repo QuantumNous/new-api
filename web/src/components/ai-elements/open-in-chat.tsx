@@ -4,6 +4,7 @@ import {
   ExternalLinkIcon,
   MessageCircleIcon,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -231,16 +232,19 @@ export const OpenInSeparator = (props: OpenInSeparatorProps) => (
 
 export type OpenInTriggerProps = ComponentProps<typeof DropdownMenuTrigger>
 
-export const OpenInTrigger = ({ children, ...props }: OpenInTriggerProps) => (
-  <DropdownMenuTrigger {...props} asChild>
-    {children ?? (
-      <Button type='button' variant='outline'>
-        Open in chat
-        <ChevronDownIcon className='ml-2 size-4' />
-      </Button>
-    )}
-  </DropdownMenuTrigger>
-)
+export const OpenInTrigger = ({ children, ...props }: OpenInTriggerProps) => {
+  const { t } = useTranslation()
+  return (
+    <DropdownMenuTrigger {...props} asChild>
+      {children ?? (
+        <Button type='button' variant='outline'>
+          {t('Open in chat')}
+          <ChevronDownIcon className='ml-2 size-4' />
+        </Button>
+      )}
+    </DropdownMenuTrigger>
+  )
+}
 
 export type OpenInChatGPTProps = ComponentProps<typeof DropdownMenuItem>
 

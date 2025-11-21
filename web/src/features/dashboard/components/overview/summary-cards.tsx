@@ -5,7 +5,7 @@ import { getSelf, getStatus } from '@/lib/api'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
-import { createSummaryCardsConfig } from '@/features/dashboard/constants'
+import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import { StatCard } from '../ui/stat-card'
 
 export function SummaryCards() {
@@ -53,7 +53,7 @@ export function SummaryCards() {
       : currencyEnabledFromStore
   const currencyLabel = currencyEnabled ? getCurrencyLabel() : 'Tokens'
 
-  const items = createSummaryCardsConfig({
+  const items = useSummaryCardsConfig({
     ...summaryValues,
     currencyEnabled,
     currencyLabel,

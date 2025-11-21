@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 interface HeroButtonsProps {
@@ -10,11 +11,12 @@ interface HeroButtonsProps {
  * Hero section action buttons
  */
 export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
+  const { t } = useTranslation()
   if (isAuthenticated) {
     return (
       <Button size='lg' asChild>
         <Link to='/dashboard'>
-          Go to Dashboard <ArrowRight className='ml-2 h-5 w-5' />
+          {t('Go to Dashboard')} <ArrowRight className='ml-2 h-5 w-5' />
         </Link>
       </Button>
     )
@@ -24,12 +26,12 @@ export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
     <>
       <Button size='lg' asChild>
         <Link to='/sign-up'>
-          Get Started
+          {t('Get Started')}
           <ArrowRight className='ml-2 h-5 w-5' />
         </Link>
       </Button>
       <Button size='lg' variant='outline' asChild>
-        <Link to='/sign-in'>Sign In</Link>
+        <Link to='/sign-in'>{t('Sign In')}</Link>
       </Button>
     </>
   )

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import type { MultiKeyConfirmAction } from '../../types'
 
@@ -12,6 +13,7 @@ export function MultiKeyTableRowActions({
   status,
   onAction,
 }: MultiKeyTableRowActionsProps) {
+  const { t } = useTranslation()
   const isEnabled = status === 1
 
   return (
@@ -22,7 +24,7 @@ export function MultiKeyTableRowActions({
           size='sm'
           onClick={() => onAction({ type: 'disable', keyIndex })}
         >
-          Disable
+          {t('Disable')}
         </Button>
       ) : (
         <Button
@@ -30,7 +32,7 @@ export function MultiKeyTableRowActions({
           size='sm'
           onClick={() => onAction({ type: 'enable', keyIndex })}
         >
-          Enable
+          {t('Enable')}
         </Button>
       )}
       <Button
@@ -38,7 +40,7 @@ export function MultiKeyTableRowActions({
         size='sm'
         onClick={() => onAction({ type: 'delete', keyIndex })}
       >
-        Delete
+        {t('Delete')}
       </Button>
     </div>
   )

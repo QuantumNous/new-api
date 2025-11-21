@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AlertTriangle, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
@@ -33,6 +34,7 @@ export function DeleteAccountDialog({
   onOpenChange,
   username,
 }: DeleteAccountDialogProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { reset } = useAuthStore((state) => state.auth)
   const [loading, setLoading] = useState(false)
@@ -86,11 +88,12 @@ export function DeleteAccountDialog({
         <DialogHeader>
           <DialogTitle className='text-destructive flex items-center gap-2'>
             <AlertTriangle className='h-5 w-5' />
-            Delete Account
+            {t('Delete Account')}
           </DialogTitle>
           <DialogDescription>
-            This action cannot be undone. This will permanently delete your
-            account and remove all your data from our servers.
+            {t(
+              'This action cannot be undone. This will permanently delete your account and remove all your data from our servers.'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -98,13 +101,13 @@ export function DeleteAccountDialog({
           <Alert variant='destructive'>
             <AlertTriangle className='h-4 w-4' />
             <AlertDescription>
-              Warning: This action is permanent and irreversible!
+              {t('Warning: This action is permanent and irreversible!')}
             </AlertDescription>
           </Alert>
 
           <div className='space-y-2'>
             <Label htmlFor='confirmation'>
-              Type <strong>{username}</strong> to confirm
+              {t('Type')} <strong>{username}</strong> {t('to confirm')}
             </Label>
             <Input
               id='confirmation'
@@ -125,7 +128,7 @@ export function DeleteAccountDialog({
             onClick={() => handleOpenChange(false)}
             disabled={loading}
           >
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             type='button'

@@ -6,6 +6,7 @@ import {
   Building2,
   AlertCircle,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,6 +19,7 @@ import {
 import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
+  const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
 
   const handleCreateModel = () => {
@@ -46,7 +48,7 @@ export function ModelsPrimaryButtons() {
       {/* Create Model */}
       <Button onClick={handleCreateModel} size='sm'>
         <Plus className='h-4 w-4' />
-        Add Model
+        {t('Add Model')}
       </Button>
 
       {/* More Actions */}
@@ -58,14 +60,14 @@ export function ModelsPrimaryButtons() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>
           <DropdownMenuItem onClick={handleMissingModels}>
-            Missing Models
+            {t('Missing Models')}
             <DropdownMenuShortcut>
               <AlertCircle className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleSync}>
-            Sync Upstream
+            {t('Sync Upstream')}
             <DropdownMenuShortcut>
               <RefreshCw className='h-4 w-4' />
             </DropdownMenuShortcut>
@@ -74,14 +76,14 @@ export function ModelsPrimaryButtons() {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem onClick={handlePrefillGroups}>
-            Prefill Groups
+            {t('Prefill Groups')}
             <DropdownMenuShortcut>
               <List className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleManageVendors}>
-            Manage Vendors
+            {t('Manage Vendors')}
             <DropdownMenuShortcut>
               <Building2 className='h-4 w-4' />
             </DropdownMenuShortcut>

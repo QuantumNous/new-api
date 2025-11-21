@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useParams, useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
@@ -18,6 +19,7 @@ import { formatGroupPrice, formatFixedPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 
 function ModelHeader({ model }: { model: PricingModel }) {
+  const { t } = useTranslation()
   return (
     <div className='border-b pb-4 sm:pb-6'>
       <div className='flex items-start justify-between gap-4'>
@@ -30,14 +32,14 @@ function ModelHeader({ model }: { model: PricingModel }) {
               value={model.model_name || ''}
               className='size-7 sm:size-8'
               iconClassName='size-3.5 sm:size-4'
-              tooltip='Copy model name'
+              tooltip={t('Copy model name')}
               successTooltip='Copied!'
-              aria-label='Copy model name'
+              aria-label={t('Copy model name')}
             />
           </div>
           {model.vendor_name && (
             <p className='text-muted-foreground text-sm sm:text-base'>
-              by {model.vendor_name}
+              {t('by')} {model.vendor_name}
             </p>
           )}
         </div>
@@ -47,6 +49,7 @@ function ModelHeader({ model }: { model: PricingModel }) {
 }
 
 function BasicInfoSection({ model }: { model: PricingModel }) {
+  const { t } = useTranslation()
   const description =
     model.description || model.vendor_description || 'No description available'
 
@@ -56,7 +59,7 @@ function BasicInfoSection({ model }: { model: PricingModel }) {
     <div className='space-y-3 border-b py-4 sm:space-y-4 sm:py-6'>
       <div>
         <h2 className='mb-2 text-lg font-semibold sm:mb-3 sm:text-xl'>
-          Overview
+          {t('Overview')}
         </h2>
         <p className='text-muted-foreground text-sm leading-relaxed sm:text-base'>
           {description}
@@ -87,6 +90,7 @@ function EndpointsSection({
   model: PricingModel
   endpointMap: Record<string, { path?: string; method?: string }>
 }) {
+  const { t } = useTranslation()
   const endpoints = useMemo(() => {
     const types = model.supported_endpoint_types || []
     return types.map((type) => {
@@ -106,7 +110,7 @@ function EndpointsSection({
 
   return (
     <div className='space-y-2 border-b py-4 sm:space-y-3 sm:py-6'>
-      <h2 className='text-lg font-semibold sm:text-xl'>API Endpoints</h2>
+      <h2 className='text-lg font-semibold sm:text-xl'>{t('API Endpoints')}</h2>
       <div className='space-y-2'>
         {endpoints.map(({ type, path, method }) => (
           <div key={type} className='rounded-md border p-2.5 sm:p-3'>
@@ -151,6 +155,7 @@ function GroupPricingSection({
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
 }) {
+  const { t } = useTranslation()
   const availableGroups = useMemo(() => {
     return getAvailableGroups(model, usableGroup || {})
   }, [model, usableGroup])
@@ -162,11 +167,14 @@ function GroupPricingSection({
   if (availableGroups.length === 0) {
     return (
       <div className='space-y-2 py-4 sm:space-y-3 sm:py-6'>
-        <h2 className='text-lg font-semibold sm:text-xl'>Pricing by Group</h2>
+        <h2 className='text-lg font-semibold sm:text-xl'>
+          {t('Pricing by Group')}
+        </h2>
         <div className='border-border/40 text-muted-foreground rounded-lg border p-4 text-center sm:p-6'>
           <p className='text-xs sm:text-sm'>
-            This model is not available in any group, or no group pricing
-            information is configured.
+            {t(
+              'This model is not available in any group, or no group pricing information is configured.'
+            )}
           </p>
         </div>
       </div>
@@ -175,29 +183,31 @@ function GroupPricingSection({
 
   return (
     <div className='space-y-2 py-4 sm:space-y-3 sm:py-6'>
-      <h2 className='text-lg font-semibold sm:text-xl'>Pricing by Group</h2>
+      <h2 className='text-lg font-semibold sm:text-xl'>
+        {t('Pricing by Group')}
+      </h2>
       <div className='overflow-x-auto'>
         <table className='w-full text-xs sm:text-sm'>
           <thead>
             <tr className='border-b'>
               <th className='pr-2 pb-2 text-left text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                Group
+                {t('Group')}
               </th>
               <th className='pr-2 pb-2 text-left text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                Ratio
+                {t('Ratio')}
               </th>
               {isTokenBased ? (
                 <>
                   <th className='pr-2 pb-2 text-right text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                    Input / {tokenUnitLabel} tokens
+                    {t('Input /')} {tokenUnitLabel} {t('tokens')}
                   </th>
                   <th className='pb-2 text-right text-xs font-medium sm:pb-3 sm:text-sm'>
-                    Output / {tokenUnitLabel} tokens
+                    {t('Output /')} {tokenUnitLabel} {t('tokens')}
                   </th>
                 </>
               ) : (
                 <th className='pb-2 text-right text-xs font-medium sm:pb-3 sm:text-sm'>
-                  Price / request
+                  {t('Price / request')}
                 </th>
               )}
             </tr>
@@ -274,6 +284,7 @@ function GroupPricingSection({
 }
 
 export function ModelDetails() {
+  const { t } = useTranslation()
   const { modelId } = useParams({ from: '/pricing/$modelId/' })
   const search = useSearch({ from: '/pricing/$modelId/' })
   const navigate = useNavigate()
@@ -327,13 +338,13 @@ export function ModelDetails() {
       <PublicLayout>
         <div className='mx-auto max-w-4xl text-center'>
           <h2 className='mb-2 text-lg font-semibold sm:text-xl'>
-            Model not found
+            {t('Model not found')}
           </h2>
           <p className='text-muted-foreground mb-4 text-sm sm:text-base'>
-            The model you're looking for doesn't exist.
+            {t("The model you're looking for doesn't exist.")}
           </p>
           <Button onClick={handleBack} variant='outline' size='sm'>
-            Back to Models
+            {t('Back to Models')}
           </Button>
         </div>
       </PublicLayout>
@@ -350,7 +361,7 @@ export function ModelDetails() {
           className='mb-4 sm:mb-6'
         >
           <ArrowLeft className='mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4' />
-          <span className='text-sm sm:text-base'>Back</span>
+          <span className='text-sm sm:text-base'>{t('Back')}</span>
         </Button>
 
         <ModelHeader model={model} />

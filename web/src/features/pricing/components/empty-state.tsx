@@ -1,4 +1,5 @@
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -24,13 +25,14 @@ export function EmptyState({
   hasActiveFilters,
   onClearFilters,
 }: EmptyStateProps) {
+  const { t } = useTranslation()
   return (
     <Empty className='min-h-[400px] border'>
       <EmptyHeader>
         <EmptyMedia variant='icon'>
           <Search />
         </EmptyMedia>
-        <EmptyTitle>No models found</EmptyTitle>
+        <EmptyTitle>{t('No models found')}</EmptyTitle>
         <EmptyDescription>
           {searchQuery
             ? "Try adjusting your search or filters to find what you're looking for."
@@ -40,7 +42,7 @@ export function EmptyState({
       {hasActiveFilters && (
         <EmptyContent>
           <Button variant='outline' onClick={onClearFilters} size='sm'>
-            Clear filters
+            {t('Clear filters')}
           </Button>
         </EmptyContent>
       )}

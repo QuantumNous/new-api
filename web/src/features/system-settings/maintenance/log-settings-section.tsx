@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatTimestampToDate } from '@/lib/format'
 import {
@@ -68,6 +69,7 @@ const quickSelectOptions = [
 export function LogSettingsSection({
   defaultEnabled,
 }: LogSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
@@ -143,8 +145,8 @@ export function LogSettingsSection({
   return (
     <SettingsAccordion
       value='log-settings'
-      title='Log Maintenance'
-      description='Control log retention and clean historical data.'
+      title={t('Log Maintenance')}
+      description={t('Control log retention and clean historical data.')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -155,11 +157,12 @@ export function LogSettingsSection({
               <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5 pe-4'>
                   <FormLabel className='text-base'>
-                    Record quota usage
+                    {t('Record quota usage')}
                   </FormLabel>
                   <FormDescription>
-                    Track per-request consumption to power usage analytics.
-                    Keeping this on increases database writes.
+                    {t(
+                      'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -175,9 +178,11 @@ export function LogSettingsSection({
 
           <div className='space-y-4 rounded-lg border p-4'>
             <div>
-              <h4 className='text-sm font-medium'>Clean history logs</h4>
+              <h4 className='text-sm font-medium'>{t('Clean history logs')}</h4>
               <p className='text-muted-foreground text-sm'>
-                Remove all log entries created before the selected timestamp.
+                {t(
+                  'Remove all log entries created before the selected timestamp.'
+                )}
               </p>
             </div>
             <DateTimePicker value={purgeDate} onChange={setPurgeDate} />
@@ -211,16 +216,18 @@ export function LogSettingsSection({
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm log cleanup</AlertDialogTitle>
+            <AlertDialogTitle>{t('Confirm log cleanup')}</AlertDialogTitle>
             <AlertDialogDescription>
               {formattedPurgeDate
                 ? `This will permanently remove all log entries created before ${formattedPurgeDate}.`
                 : 'This will permanently remove log entries before the selected timestamp.'}{' '}
-              This action cannot be undone.
+              {t('This action cannot be undone.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isCleaning}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isCleaning}>
+              {t('Cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction onClick={handleCleanLogs} disabled={isCleaning}>
               {isCleaning ? 'Cleaning...' : 'Delete logs'}
             </AlertDialogAction>

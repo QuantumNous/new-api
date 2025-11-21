@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link2, Settings } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -22,6 +23,7 @@ export function ProfileSettingsCard({
   loading,
   onProfileUpdate,
 }: ProfileSettingsCardProps) {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('bindings')
 
   if (loading) {
@@ -44,9 +46,11 @@ export function ProfileSettingsCard({
   return (
     <Card>
       <CardHeader>
-        <h3 className='text-xl font-semibold tracking-tight'>Settings</h3>
+        <h3 className='text-xl font-semibold tracking-tight'>
+          {t('Settings')}
+        </h3>
         <p className='text-muted-foreground mt-2 text-sm'>
-          Configure your account preferences and integrations
+          {t('Configure your account preferences and integrations')}
         </p>
       </CardHeader>
 
@@ -55,13 +59,15 @@ export function ProfileSettingsCard({
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='bindings' className='gap-2'>
               <Link2 className='h-4 w-4' />
-              <span className='hidden sm:inline'>Account Bindings</span>
-              <span className='sm:hidden'>Bindings</span>
+              <span className='hidden sm:inline'>{t('Account Bindings')}</span>
+              <span className='sm:hidden'>{t('Bindings')}</span>
             </TabsTrigger>
             <TabsTrigger value='settings' className='gap-2'>
               <Settings className='h-4 w-4' />
-              <span className='hidden sm:inline'>Settings & Preferences</span>
-              <span className='sm:hidden'>Settings</span>
+              <span className='hidden sm:inline'>
+                {t('Settings & Preferences')}
+              </span>
+              <span className='sm:hidden'>{t('Settings')}</span>
             </TabsTrigger>
           </TabsList>
 

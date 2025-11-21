@@ -1,4 +1,5 @@
 import { Bell } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ export function NotificationButton({
   onClick,
   className,
 }: NotificationButtonProps) {
+  const { t } = useTranslation()
   return (
     <div className='relative'>
       <Button
@@ -25,7 +27,7 @@ export function NotificationButton({
         size='icon'
         onClick={onClick}
         className={cn('h-9 w-9 rounded-full', className)}
-        aria-label='Notifications'
+        aria-label={t('Notifications')}
       >
         <Bell className='size-[1.2rem]' />
       </Button>

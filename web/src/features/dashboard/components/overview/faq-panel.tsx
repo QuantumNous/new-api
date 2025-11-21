@@ -1,4 +1,5 @@
 import { HelpCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import {
   Accordion,
   AccordionContent,
@@ -11,6 +12,7 @@ import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 export function FAQPanel() {
+  const { t } = useTranslation()
   const { items: list, loading } = useFAQ()
 
   return (
@@ -18,12 +20,12 @@ export function FAQPanel() {
       title={
         <span className='flex items-center gap-2'>
           <HelpCircle className='h-5 w-5' />
-          FAQ
+          {t('FAQ')}
         </span>
       }
       loading={loading}
       empty={!list.length}
-      emptyMessage='No FAQ entries available'
+      emptyMessage={t('No FAQ entries available')}
       height='h-80'
     >
       <ScrollArea className='h-80'>

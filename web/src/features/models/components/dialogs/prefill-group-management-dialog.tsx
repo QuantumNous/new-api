@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -68,6 +69,7 @@ export function PrefillGroupManagementDialog({
   onCreateGroup,
   onEditGroup,
 }: PrefillGroupManagementDialogProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
   const [deleteState, setDeleteState] = useState<{
@@ -172,11 +174,12 @@ export function PrefillGroupManagementDialog({
               <DialogHeader className='max-w-3xl gap-3 pr-12 text-start sm:pr-0'>
                 <DialogTitle className='flex flex-wrap items-center gap-2 text-xl'>
                   <Layers3 className='text-foreground/80 h-5 w-5' />
-                  Prefill Group Management
+                  {t('Prefill Group Management')}
                 </DialogTitle>
                 <DialogDescription className='text-base leading-relaxed sm:text-sm'>
-                  Create reusable bundles of models, tags, endpoints, and user
-                  groups to speed up configuration elsewhere in the console.
+                  {t(
+                    'Create reusable bundles of models, tags, endpoints, and user groups to speed up configuration elsewhere in the console.'
+                  )}
                 </DialogDescription>
               </DialogHeader>
 
@@ -186,7 +189,7 @@ export function PrefillGroupManagementDialog({
                   size='icon'
                   className='text-muted-foreground hover:text-foreground absolute top-4 right-4 rounded-full border border-transparent sm:top-5 sm:right-6'
                 >
-                  <span className='sr-only'>Close dialog</span>
+                  <span className='sr-only'>{t('Close dialog')}</span>
                   <X className='h-4 w-4' />
                 </Button>
               </DialogClose>
@@ -196,7 +199,7 @@ export function PrefillGroupManagementDialog({
               <div className='flex flex-wrap items-center gap-2'>
                 <Button size='sm' onClick={onCreateGroup}>
                   <Plus className='mr-2 h-4 w-4' />
-                  New Group
+                  {t('New Group')}
                 </Button>
                 <Button
                   size='sm'
@@ -209,7 +212,7 @@ export function PrefillGroupManagementDialog({
                   ) : (
                     <RefreshCcw className='mr-2 h-4 w-4' />
                   )}
-                  Refresh
+                  {t('Refresh')}
                 </Button>
               </div>
               <StatusBadge
@@ -229,7 +232,7 @@ export function PrefillGroupManagementDialog({
                 <div className='flex flex-col gap-4'>
                   {error && (
                     <Alert variant='destructive'>
-                      <AlertTitle>Unable to load groups</AlertTitle>
+                      <AlertTitle>{t('Unable to load groups')}</AlertTitle>
                       <AlertDescription>
                         {(error as Error).message ||
                           'Please retry or refresh the page.'}
@@ -241,7 +244,7 @@ export function PrefillGroupManagementDialog({
                     <div className='flex flex-col items-center justify-center gap-2 py-16 text-center'>
                       <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
                       <p className='text-muted-foreground text-sm'>
-                        Fetching prefill groups...
+                        {t('Fetching prefill groups...')}
                       </p>
                     </div>
                   ) : normalizedGroups.length === 0 ? (
@@ -250,15 +253,17 @@ export function PrefillGroupManagementDialog({
                         <Layers3 className='h-6 w-6' />
                       </EmptyMedia>
                       <EmptyHeader>
-                        <EmptyTitle>No prefill groups yet</EmptyTitle>
+                        <EmptyTitle>{t('No prefill groups yet')}</EmptyTitle>
                         <EmptyDescription>
-                          Create your first group to reuse model, tag, or
-                          endpoint selections anywhere in the dashboard.
+                          {t(
+                            'Create your first group to reuse model, tag, or endpoint selections anywhere in the dashboard.'
+                          )}
                         </EmptyDescription>
                       </EmptyHeader>
                       <EmptyDescription>
-                        Prefill groups help you keep complex configurations in
-                        sync.
+                        {t(
+                          'Prefill groups help you keep complex configurations in sync.'
+                        )}
                       </EmptyDescription>
                     </Empty>
                   ) : isMobile ? (
@@ -359,13 +364,13 @@ export function PrefillGroupManagementDialog({
                         <Table className='min-w-[720px]'>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Group</TableHead>
-                              <TableHead>Type</TableHead>
+                              <TableHead>{t('Group')}</TableHead>
+                              <TableHead>{t('Type')}</TableHead>
                               <TableHead className='min-w-[280px]'>
-                                Items
+                                {t('Items')}
                               </TableHead>
                               <TableHead className='w-[120px] text-right'>
-                                Actions
+                                {t('Actions')}
                               </TableHead>
                             </TableRow>
                           </TableHeader>
@@ -485,12 +490,12 @@ export function PrefillGroupManagementDialog({
       <ConfirmDialog
         open={deleteState.open}
         onOpenChange={(next) => setDeleteState({ open: next, group: null })}
-        title='Delete group'
+        title={t('Delete group')}
         desc={
           <p>
-            Are you sure you want to delete{' '}
-            <span className='font-medium'>{deleteState.group?.name}</span>? This
-            action cannot be undone.
+            {t('Are you sure you want to delete')}{' '}
+            <span className='font-medium'>{deleteState.group?.name}</span>
+            {t('? This action cannot be undone.')}
           </p>
         }
         destructive

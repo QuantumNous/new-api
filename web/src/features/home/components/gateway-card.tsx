@@ -1,4 +1,5 @@
-import { GATEWAY_FEATURES } from '../constants'
+import { useTranslation } from 'react-i18next'
+import { getGatewayFeatures } from '../constants'
 
 interface GatewayCardProps {
   logo: string
@@ -9,6 +10,9 @@ interface GatewayCardProps {
  * Central gateway card with features grid
  */
 export function GatewayCard({ logo, systemName }: GatewayCardProps) {
+  const { t } = useTranslation()
+  const features = getGatewayFeatures(t)
+
   return (
     <div className='glass-3 group border-border/50 dark:border-border/20 relative overflow-hidden rounded-[32px] border p-10 shadow-2xl transition-all duration-500 sm:p-12 dark:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)]'>
       {/* Top gradient border effect */}
@@ -32,7 +36,7 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
 
         {/* Features Grid */}
         <div className='grid grid-cols-2 gap-3'>
-          {GATEWAY_FEATURES.map((feature, i) => (
+          {features.map((feature, i) => (
             <div
               key={i}
               className='glass-morphism group/item border-border/40 dark:border-border/20 relative overflow-hidden rounded-xl border px-4 py-3.5 text-center shadow-sm transition-all duration-300 hover:scale-[1.02] hover:border-amber-500/40 hover:shadow-md'

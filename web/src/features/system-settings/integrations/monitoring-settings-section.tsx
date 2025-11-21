@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -123,6 +124,7 @@ const normalizeFormValues = (
 export function MonitoringSettingsSection({
   defaultValues,
 }: MonitoringSettingsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const baselineRef = useRef<NormalizedMonitoringValues>(
     normalizeDefaults(defaultValues)
@@ -165,8 +167,10 @@ export function MonitoringSettingsSection({
   return (
     <SettingsAccordion
       value='monitoring-settings'
-      title='Monitoring & Alerts'
-      description='Automatically test channels and notify users when limits are hit'
+      title={t('Monitoring & Alerts')}
+      description={t(
+        'Automatically test channels and notify users when limits are hit'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -178,10 +182,10 @@ export function MonitoringSettingsSection({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Scheduled channel tests
+                      {t('Scheduled channel tests')}
                     </FormLabel>
                     <FormDescription>
-                      Automatically probe all channels in the background
+                      {t('Automatically probe all channels in the background')}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -199,7 +203,7 @@ export function MonitoringSettingsSection({
               name='monitor_setting.auto_test_channel_minutes'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Test interval (minutes)</FormLabel>
+                  <FormLabel>{t('Test interval (minutes)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -220,7 +224,7 @@ export function MonitoringSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    How frequently the system tests all channels
+                    {t('How frequently the system tests all channels')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -234,7 +238,7 @@ export function MonitoringSettingsSection({
               name='ChannelDisableThreshold'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Disable threshold (seconds)</FormLabel>
+                  <FormLabel>{t('Disable threshold (seconds)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -245,7 +249,9 @@ export function MonitoringSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    Automatically disable channels exceeding this response time
+                    {t(
+                      'Automatically disable channels exceeding this response time'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -257,7 +263,7 @@ export function MonitoringSettingsSection({
               name='QuotaRemindThreshold'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Quota reminder (tokens)</FormLabel>
+                  <FormLabel>{t('Quota reminder (tokens)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -268,7 +274,7 @@ export function MonitoringSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    Send email alerts when a user falls below this quota
+                    {t('Send email alerts when a user falls below this quota')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -284,10 +290,10 @@ export function MonitoringSettingsSection({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Disable on failure
+                      {t('Disable on failure')}
                     </FormLabel>
                     <FormDescription>
-                      Automatically disable channels when tests fail
+                      {t('Automatically disable channels when tests fail')}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -307,10 +313,10 @@ export function MonitoringSettingsSection({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Re-enable on success
+                      {t('Re-enable on success')}
                     </FormLabel>
                     <FormDescription>
-                      Bring channels back online after successful checks
+                      {t('Bring channels back online after successful checks')}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -329,18 +335,19 @@ export function MonitoringSettingsSection({
             name='AutomaticDisableKeywords'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Failure keywords</FormLabel>
+                <FormLabel>{t('Failure keywords')}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={6}
-                    placeholder='one keyword per line'
+                    placeholder={t('one keyword per line')}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
                 </FormControl>
                 <FormDescription>
-                  If an upstream error contains any of these keywords (case
-                  insensitive), the channel will be disabled automatically.
+                  {t(
+                    'If an upstream error contains any of these keywords (case insensitive), the channel will be disabled automatically.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

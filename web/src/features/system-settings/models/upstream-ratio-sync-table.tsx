@@ -8,6 +8,7 @@ import {
   type ColumnFiltersState,
 } from '@tanstack/react-table'
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -28,7 +29,7 @@ import { DataTablePagination } from '@/components/data-table/pagination'
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import {
-  getUpstreamRatioSyncColumns,
+  useUpstreamRatioSyncColumns,
   type DifferenceRow,
 } from './upstream-ratio-sync-columns'
 
@@ -45,6 +46,7 @@ export function UpstreamRatioSyncTable({
   onSelectValue,
   onUnselectValue,
 }: UpstreamRatioSyncTableProps) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [ratioTypeFilter, setRatioTypeFilter] = useState<string>('')
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -117,17 +119,13 @@ export function UpstreamRatioSyncTable({
     })
   }
 
-  const columns = useMemo(
-    () =>
-      getUpstreamRatioSyncColumns(
-        upstreamNames,
-        resolutions,
-        onSelectValue,
-        onUnselectValue,
-        handleBulkSelect,
-        handleBulkUnselect
-      ),
-    [upstreamNames, resolutions, onSelectValue, onUnselectValue]
+  const columns = useUpstreamRatioSyncColumns(
+    upstreamNames,
+    resolutions,
+    onSelectValue,
+    onUnselectValue,
+    handleBulkSelect,
+    handleBulkUnselect
   )
 
   const table = useReactTable({
@@ -152,10 +150,10 @@ export function UpstreamRatioSyncTable({
       <div className='flex h-64 items-center justify-center rounded-md border'>
         <div className='text-center'>
           <p className='text-muted-foreground text-sm'>
-            No upstream ratio differences found
+            {t('No upstream ratio differences found')}
           </p>
           <p className='text-muted-foreground mt-1 text-xs'>
-            Select sync channels to compare ratios
+            {t('Select sync channels to compare ratios')}
           </p>
         </div>
       </div>
@@ -168,7 +166,7 @@ export function UpstreamRatioSyncTable({
         <div className='relative flex-1'>
           <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
           <Input
-            placeholder='Search model name...'
+            placeholder={t('Search model name...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className='ps-8'
@@ -176,10 +174,10 @@ export function UpstreamRatioSyncTable({
         </div>
         <Select value={ratioTypeFilter} onValueChange={setRatioTypeFilter}>
           <SelectTrigger className='w-full sm:w-48'>
-            <SelectValue placeholder='Filter by ratio type' />
+            <SelectValue placeholder={t('Filter by ratio type')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='__all__'>All Types</SelectItem>
+            <SelectItem value='__all__'>{t('All Types')}</SelectItem>
             {RATIO_TYPE_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -228,7 +226,7 @@ export function UpstreamRatioSyncTable({
                     colSpan={columns.length}
                     className='h-24 text-center'
                   >
-                    No results found
+                    {t('No results found')}
                   </TableCell>
                 </TableRow>
               )}

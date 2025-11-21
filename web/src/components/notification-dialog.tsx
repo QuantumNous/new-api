@@ -1,4 +1,5 @@
 import { Bell, Megaphone } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -196,22 +197,23 @@ export function NotificationDialog({
   loading,
   onCloseToday,
 }: NotificationDialogProps) {
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[90vh] sm:max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>System Announcements</DialogTitle>
+          <DialogTitle>{t('System Announcements')}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={onTabChange as any}>
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='notice' className='gap-1.5'>
               <Bell className='h-3.5 w-3.5' />
-              Notice
+              {t('Notice')}
             </TabsTrigger>
             <TabsTrigger value='announcements' className='gap-1.5'>
               <Megaphone className='h-3.5 w-3.5' />
-              Timeline
+              {t('Timeline')}
             </TabsTrigger>
           </TabsList>
 
@@ -229,9 +231,9 @@ export function NotificationDialog({
 
         <DialogFooter className='gap-2'>
           <Button variant='outline' onClick={onCloseToday}>
-            Close Today
+            {t('Close Today')}
           </Button>
-          <Button onClick={() => onOpenChange(false)}>Close</Button>
+          <Button onClick={() => onOpenChange(false)}>{t('Close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

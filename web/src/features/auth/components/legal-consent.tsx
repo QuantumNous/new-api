@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -16,6 +17,7 @@ export function LegalConsent({
   onCheckedChange,
   className,
 }: LegalConsentProps) {
+  const { t } = useTranslation()
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
 
@@ -45,7 +47,7 @@ export function LegalConsent({
         className='text-muted-foreground items-start gap-1 text-left text-xs leading-5 font-normal'
       >
         <span>
-          I have read and agree to the{' '}
+          {t('I have read and agree to the')}{' '}
           {hasUserAgreement && (
             <a
               href='/user-agreement'
@@ -53,7 +55,7 @@ export function LegalConsent({
               rel='noopener noreferrer'
               className='text-primary hover:underline'
             >
-              User Agreement
+              {t('User Agreement')}
             </a>
           )}
           {hasUserAgreement && hasPrivacyPolicy && ' and the '}
@@ -64,7 +66,7 @@ export function LegalConsent({
               rel='noopener noreferrer'
               className='text-primary hover:underline'
             >
-              Privacy Policy
+              {t('Privacy Policy')}
             </a>
           )}
           .

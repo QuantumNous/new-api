@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -43,6 +44,7 @@ const granularityOptions = [
 ]
 
 export function DashboardSection({ defaultValues }: DashboardSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm<DataDashboardFormValues>({
@@ -70,8 +72,8 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
   return (
     <SettingsAccordion
       value='dashboard'
-      title='Data Dashboard'
-      description='Configure experimental data export for the dashboard'
+      title={t('Data Dashboard')}
+      description={t('Configure experimental data export for the dashboard')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -82,7 +84,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Enable Data Dashboard
+                    {t('Enable Data Dashboard')}
                   </FormLabel>
                 </div>
                 <FormControl>
@@ -101,7 +103,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
               name='DataExportInterval'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Refresh interval (minutes)</FormLabel>
+                  <FormLabel>{t('Refresh interval (minutes)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -114,7 +116,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                     />
                   </FormControl>
                   <FormDescription>
-                    Keep this above 1 minute to avoid heavy database load
+                    {t('Keep this above 1 minute to avoid heavy database load')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -126,7 +128,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
               name='DataExportDefaultTime'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Default time granularity</FormLabel>
+                  <FormLabel>{t('Default time granularity')}</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
@@ -134,7 +136,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder='Select granularity' />
+                        <SelectValue placeholder={t('Select granularity')} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -146,7 +148,9 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    UI granularity only &mdash; data is still aggregated hourly
+                    {t(
+                      'UI granularity only &mdash; data is still aggregated hourly'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

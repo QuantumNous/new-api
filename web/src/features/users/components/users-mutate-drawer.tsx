@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
@@ -58,6 +59,7 @@ export function UsersMutateDrawer({
   onOpenChange,
   currentRow,
 }: UsersMutateDrawerProps) {
+  const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -151,12 +153,14 @@ export function UsersMutateDrawer({
       >
         <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
           <SheetHeader className='text-start'>
-            <SheetTitle>{isUpdate ? 'Update' : 'Create'} User</SheetTitle>
+            <SheetTitle>
+              {isUpdate ? t('Update') : t('Create')} {t('User')}
+            </SheetTitle>
             <SheetDescription>
               {isUpdate
-                ? 'Update the user by providing necessary info.'
-                : 'Add a new user by providing necessary info.'}
-              Click save when you&apos;re done.
+                ? t('Update the user by providing necessary info.')
+                : t('Add a new user by providing necessary info.')}
+              {t('Click save when you&apos;re done.')}
             </SheetDescription>
           </SheetHeader>
           <Form {...form}>
@@ -167,18 +171,20 @@ export function UsersMutateDrawer({
             >
               {/* Basic Information */}
               <div className='space-y-4'>
-                <h3 className='text-sm font-medium'>Basic Information</h3>
+                <h3 className='text-sm font-medium'>
+                  {t('Basic Information')}
+                </h3>
 
                 <FormField
                   control={form.control}
                   name='username'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Username</FormLabel>
+                      <FormLabel>{t('Username')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder='Enter username'
+                          placeholder={t('Enter username')}
                           disabled={isUpdate}
                         />
                       </FormControl>
@@ -193,7 +199,7 @@ export function UsersMutateDrawer({
                     name='role'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Role</FormLabel>
+                        <FormLabel>{t('Role')}</FormLabel>
                         <Select
                           onValueChange={(value) =>
                             field.onChange(parseInt(value))
@@ -202,16 +208,18 @@ export function UsersMutateDrawer({
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder='Select a role' />
+                              <SelectValue placeholder={t('Select a role')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value='1'>Common User</SelectItem>
-                            <SelectItem value='10'>Admin</SelectItem>
+                            <SelectItem value='1'>
+                              {t('Common User')}
+                            </SelectItem>
+                            <SelectItem value='10'>{t('Admin')}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          Set the user's role (cannot be Root)
+                          {t("Set the user's role (cannot be Root)")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -224,12 +232,15 @@ export function UsersMutateDrawer({
                   name='display_name'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Display Name</FormLabel>
+                      <FormLabel>{t('Display Name')}</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder='Enter display name' />
+                        <Input
+                          {...field}
+                          placeholder={t('Enter display name')}
+                        />
                       </FormControl>
                       <FormDescription>
-                        Leave empty to use username
+                        {t('Leave empty to use username')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -241,7 +252,7 @@ export function UsersMutateDrawer({
                   name='password'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>{t('Password')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -262,21 +273,21 @@ export function UsersMutateDrawer({
               {/* Group & Quota Settings (Update only) */}
               {isUpdate && (
                 <div className='space-y-4'>
-                  <h3 className='text-sm font-medium'>Group & Quota</h3>
+                  <h3 className='text-sm font-medium'>{t('Group & Quota')}</h3>
 
                   <FormField
                     control={form.control}
                     name='group'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Group</FormLabel>
+                        <FormLabel>{t('Group')}</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder='Select a group' />
+                              <SelectValue placeholder={t('Select a group')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -321,7 +332,7 @@ export function UsersMutateDrawer({
                           </Button>
                         </div>
                         <FormDescription>
-                          Current:{' '}
+                          {t('Current:')}{' '}
                           {formatQuota(parseQuotaFromDollars(field.value || 0))}
                         </FormDescription>
                         <FormMessage />
@@ -334,11 +345,13 @@ export function UsersMutateDrawer({
                     name='remark'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Remark</FormLabel>
+                        <FormLabel>{t('Remark')}</FormLabel>
                         <FormControl>
                           <Textarea
                             {...field}
-                            placeholder='Admin notes (only visible to admins)'
+                            placeholder={t(
+                              'Admin notes (only visible to admins)'
+                            )}
                             rows={3}
                           />
                         </FormControl>
@@ -352,10 +365,13 @@ export function UsersMutateDrawer({
               {/* Binding Information (Read-only) */}
               {isUpdate && (
                 <div className='space-y-4'>
-                  <h3 className='text-sm font-medium'>Binding Information</h3>
+                  <h3 className='text-sm font-medium'>
+                    {t('Binding Information')}
+                  </h3>
                   <p className='text-muted-foreground text-xs'>
-                    Third-party account bindings (read-only, managed by user in
-                    profile settings)
+                    {t(
+                      'Third-party account bindings (read-only, managed by user in profile settings)'
+                    )}
                   </p>
 
                   <div className='space-y-3'>
@@ -380,10 +396,10 @@ export function UsersMutateDrawer({
           </Form>
           <SheetFooter className='gap-2'>
             <SheetClose asChild>
-              <Button variant='outline'>Close</Button>
+              <Button variant='outline'>{t('Close')}</Button>
             </SheetClose>
             <Button form='user-form' type='submit' disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save changes'}
+              {isSubmitting ? t('Saving...') : t('Save changes')}
             </Button>
           </SheetFooter>
         </SheetContent>

@@ -4,6 +4,7 @@ import type { ComponentProps, HTMLAttributes, ReactElement } from 'react'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { UIMessage } from 'ai'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -140,11 +141,12 @@ export const BranchPrevious = ({
   children,
   ...props
 }: BranchPreviousProps) => {
+  const { t } = useTranslation()
   const { goToPrevious, totalBranches } = useBranch()
 
   return (
     <Button
-      aria-label='Previous branch'
+      aria-label={t('Previous branch')}
       className={cn(
         'text-muted-foreground size-7 shrink-0 rounded-full transition-colors',
         'hover:bg-accent hover:text-foreground',
@@ -170,11 +172,12 @@ export const BranchNext = ({
   children,
   ...props
 }: BranchNextProps) => {
+  const { t } = useTranslation()
   const { goToNext, totalBranches } = useBranch()
 
   return (
     <Button
-      aria-label='Next branch'
+      aria-label={t('Next branch')}
       className={cn(
         'text-muted-foreground size-7 shrink-0 rounded-full transition-colors',
         'hover:bg-accent hover:text-foreground',
@@ -196,6 +199,7 @@ export const BranchNext = ({
 export type BranchPageProps = HTMLAttributes<HTMLSpanElement>
 
 export const BranchPage = ({ className, ...props }: BranchPageProps) => {
+  const { t } = useTranslation()
   const { currentBranch, totalBranches } = useBranch()
 
   return (
@@ -206,7 +210,7 @@ export const BranchPage = ({ className, ...props }: BranchPageProps) => {
       )}
       {...props}
     >
-      {currentBranch + 1} of {totalBranches}
+      {currentBranch + 1} {t('of')} {totalBranches}
     </span>
   )
 }

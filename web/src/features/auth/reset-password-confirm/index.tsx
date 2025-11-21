@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { CheckIcon, CopyIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
@@ -22,6 +23,7 @@ export function ResetPasswordConfirm({
   email,
   token,
 }: ResetPasswordConfirmProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -80,7 +82,7 @@ export function ResetPasswordConfirm({
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            Reset password
+            {t('Reset password')}
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {newPassword
@@ -93,25 +95,25 @@ export function ResetPasswordConfirm({
           {!isValidResetLink && (
             <Alert variant='destructive'>
               <AlertDescription>
-                Invalid reset link, please request a new password reset.
+                {t('Invalid reset link, please request a new password reset.')}
               </AlertDescription>
             </Alert>
           )}
 
           <div className='space-y-2'>
-            <Label htmlFor='email'>Email</Label>
+            <Label htmlFor='email'>{t('Email')}</Label>
             <Input
               id='email'
               type='email'
               value={email || ''}
               disabled
-              placeholder='Waiting for email...'
+              placeholder={t('Waiting for email...')}
             />
           </div>
 
           {newPassword && (
             <div className='space-y-2'>
-              <Label htmlFor='password'>New password</Label>
+              <Label htmlFor='password'>{t('New password')}</Label>
               <div className='flex gap-2'>
                 <Input
                   id='password'
@@ -133,7 +135,7 @@ export function ResetPasswordConfirm({
                 </Button>
               </div>
               <p className='text-muted-foreground text-xs'>
-                Password has been copied to clipboard
+                {t('Password has been copied to clipboard')}
               </p>
             </div>
           )}
@@ -162,7 +164,7 @@ export function ResetPasswordConfirm({
               className='w-full'
               onClick={() => navigate({ to: '/sign-in', replace: true })}
             >
-              Back to login
+              {t('Back to login')}
             </Button>
           )}
         </div>

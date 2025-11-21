@@ -14,6 +14,7 @@ import {
   Plus,
   Eye,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -146,6 +147,7 @@ export function ChannelMutateDrawer({
   onOpenChange,
   currentRow,
 }: ChannelMutateDrawerProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { setOpen } = useChannels()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -650,12 +652,16 @@ export function ChannelMutateDrawer({
         <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
           <SheetHeader className='text-start'>
             <SheetTitle>
-              {isEditing ? 'Edit Channel' : 'Create Channel'}
+              {isEditing ? t('Edit Channel') : t('Create Channel')}
             </SheetTitle>
             <SheetDescription>
               {isEditing
-                ? 'Update channel configuration and click save when you&apos;re done.'
-                : 'Add a new channel by providing the necessary information.'}
+                ? t(
+                    "Update channel configuration and click save when you're done."
+                  )
+                : t(
+                    'Add a new channel by providing the necessary information.'
+                  )}
             </SheetDescription>
           </SheetHeader>
 
@@ -667,14 +673,16 @@ export function ChannelMutateDrawer({
             >
               {/* Basic Info Section */}
               <div className='space-y-4'>
-                <h3 className='text-sm font-semibold'>Basic Information</h3>
+                <h3 className='text-sm font-semibold'>
+                  {t('Basic Information')}
+                </h3>
 
                 <FormField
                   control={form.control}
                   name='name'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name *</FormLabel>
+                      <FormLabel>{t('Name *')}</FormLabel>
                       <FormControl>
                         <Input
                           placeholder={FIELD_PLACEHOLDERS.NAME}
@@ -682,7 +690,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.NAME}
+                        {t(FIELD_DESCRIPTIONS.NAME)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -694,14 +702,16 @@ export function ChannelMutateDrawer({
                   name='type'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Type *</FormLabel>
+                      <FormLabel>{t('Type *')}</FormLabel>
                       <Select
                         onValueChange={(value) => field.onChange(Number(value))}
                         value={String(field.value)}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder='Select channel type' />
+                            <SelectValue
+                              placeholder={t('Select channel type')}
+                            />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -722,7 +732,7 @@ export function ChannelMutateDrawer({
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.TYPE}
+                        {t(FIELD_DESCRIPTIONS.TYPE)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -735,9 +745,11 @@ export function ChannelMutateDrawer({
                   render={({ field }) => (
                     <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>Enabled</FormLabel>
+                        <FormLabel className='text-base'>
+                          {t('Enabled')}
+                        </FormLabel>
                         <FormDescription>
-                          Enable or disable this channel
+                          {t('Enable or disable this channel')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -759,12 +771,12 @@ export function ChannelMutateDrawer({
                     name='openai_organization'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>OpenAI Organization</FormLabel>
+                        <FormLabel>{t('OpenAI Organization')}</FormLabel>
                         <FormControl>
-                          <Input placeholder='org-...' {...field} />
+                          <Input placeholder={t('org-...')} {...field} />
                         </FormControl>
                         <FormDescription>
-                          {FIELD_DESCRIPTIONS.OPENAI_ORG}
+                          {t(FIELD_DESCRIPTIONS.OPENAI_ORG)}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -778,7 +790,7 @@ export function ChannelMutateDrawer({
               {/* Type-Specific Settings Section - Moved up for better UX */}
               <div className='space-y-4'>
                 <h3 className='text-sm font-semibold'>
-                  Type-Specific Settings
+                  {t('Type-Specific Settings')}
                 </h3>
 
                 {/* Show warning if applicable */}
@@ -798,15 +810,17 @@ export function ChannelMutateDrawer({
                       name='base_url'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>AZURE_OPENAI_ENDPOINT *</FormLabel>
+                          <FormLabel>{t('AZURE_OPENAI_ENDPOINT *')}</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder='e.g., https://docs-test-001.openai.azure.com'
+                              placeholder={t(
+                                'e.g., https://docs-test-001.openai.azure.com'
+                              )}
                               {...field}
                             />
                           </FormControl>
                           <FormDescription>
-                            Your Azure OpenAI endpoint URL
+                            {t('Your Azure OpenAI endpoint URL')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -817,15 +831,15 @@ export function ChannelMutateDrawer({
                       name='other'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Default API Version *</FormLabel>
+                          <FormLabel>{t('Default API Version *')}</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder='e.g., 2025-04-01-preview'
+                              placeholder={t('e.g., 2025-04-01-preview')}
                               {...field}
                             />
                           </FormControl>
                           <FormDescription>
-                            Default API version for this channel
+                            {t('Default API version for this channel')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -836,13 +850,17 @@ export function ChannelMutateDrawer({
                       name='azure_responses_version'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Responses API Version</FormLabel>
+                          <FormLabel>{t('Responses API Version')}</FormLabel>
                           <FormControl>
-                            <Input placeholder='e.g., preview' {...field} />
+                            <Input
+                              placeholder={t('e.g., preview')}
+                              {...field}
+                            />
                           </FormControl>
                           <FormDescription>
-                            Default Responses API version, if empty, will use
-                            the API version above
+                            {t(
+                              'Default Responses API version, if empty, will use the API version above'
+                            )}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -859,17 +877,22 @@ export function ChannelMutateDrawer({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          Full Base URL (supports {'{'}model{'}'} variable) *
+                          {t('Full Base URL (supports')} {'{'}
+                          {t('model')}
+                          {'}'} {t('variable) *')}
                         </FormLabel>
                         <FormControl>
                           <Input
-                            placeholder='e.g., https://api.openai.com/v1/chat/completions'
+                            placeholder={t(
+                              'e.g., https://api.openai.com/v1/chat/completions'
+                            )}
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          Enter the complete URL, supports {'{'}model{'}'}{' '}
-                          variable
+                          {t('Enter the complete URL, supports')} {'{'}
+                          {t('model')}
+                          {'}'} {t('variable')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -884,13 +907,14 @@ export function ChannelMutateDrawer({
                     name='other'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Model Version *</FormLabel>
+                        <FormLabel>{t('Model Version *')}</FormLabel>
                         <FormControl>
-                          <Input placeholder='e.g., v2.1' {...field} />
+                          <Input placeholder={t('e.g., v2.1')} {...field} />
                         </FormControl>
                         <FormDescription>
-                          Spark model version, e.g., v2.1 (version number in API
-                          URL)
+                          {t(
+                            'Spark model version, e.g., v2.1 (version number in API URL)'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -907,11 +931,12 @@ export function ChannelMutateDrawer({
                       <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                         <div className='space-y-0.5'>
                           <FormLabel className='text-base'>
-                            Enterprise Account
+                            {t('Enterprise Account')}
                           </FormLabel>
                           <FormDescription>
-                            Enable if this is an OpenRouter enterprise account
-                            with special response format
+                            {t(
+                              'Enable if this is an OpenRouter enterprise account with special response format'
+                            )}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -932,12 +957,12 @@ export function ChannelMutateDrawer({
                     name='other'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Knowledge Base ID *</FormLabel>
+                        <FormLabel>{t('Knowledge Base ID *')}</FormLabel>
                         <FormControl>
-                          <Input placeholder='e.g., 123456' {...field} />
+                          <Input placeholder={t('e.g., 123456')} {...field} />
                         </FormControl>
                         <FormDescription>
-                          Enter the knowledge base ID
+                          {t('Enter the knowledge base ID')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -952,16 +977,19 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Private Deployment URL</FormLabel>
+                        <FormLabel>{t('Private Deployment URL')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder='e.g., https://fastgpt.run/api/openapi'
+                            placeholder={t(
+                              'e.g., https://fastgpt.run/api/openapi'
+                            )}
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          For private deployments, format:
-                          https://fastgpt.run/api/openapi
+                          {t(
+                            'For private deployments, format: https://fastgpt.run/api/openapi'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -977,16 +1005,20 @@ export function ChannelMutateDrawer({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          API Base URL (Important: Not Chat API) *
+                          {t('API Base URL (Important: Not Chat API) *')}
                         </FormLabel>
                         <FormControl>
                           <Input
-                            placeholder='e.g., https://api.example.com (path before /suno)'
+                            placeholder={t(
+                              'e.g., https://api.example.com (path before /suno)'
+                            )}
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          Enter the path before /suno, usually just the domain
+                          {t(
+                            'Enter the path before /suno, usually just the domain'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1001,15 +1033,15 @@ export function ChannelMutateDrawer({
                     name='other'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Account ID *</FormLabel>
+                        <FormLabel>{t('Account ID *')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder='e.g., d6b5da8hk1awo8nap34ube6gh'
+                            placeholder={t('e.g., d6b5da8hk1awo8nap34ube6gh')}
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          Your Cloudflare Account ID
+                          {t('Your Cloudflare Account ID')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1021,14 +1053,14 @@ export function ChannelMutateDrawer({
                 {currentType === 40 && (
                   <Alert>
                     <AlertDescription>
-                      Referral link:{' '}
+                      {t('Referral link:')}{' '}
                       <a
                         href='https://cloud.siliconflow.cn/i/hij0YNTZ'
                         target='_blank'
                         rel='noopener noreferrer'
                         className='text-primary underline'
                       >
-                        https://cloud.siliconflow.cn/i/hij0YNTZ
+                        {t('https://cloud.siliconflow.cn/i/hij0YNTZ')}
                       </a>
                     </AlertDescription>
                   </Alert>
@@ -1042,7 +1074,7 @@ export function ChannelMutateDrawer({
                       name='vertex_key_type'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Vertex AI Key Format</FormLabel>
+                          <FormLabel>{t('Vertex AI Key Format')}</FormLabel>
                           <Select
                             onValueChange={field.onChange}
                             value={field.value}
@@ -1053,14 +1085,20 @@ export function ChannelMutateDrawer({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value='json'>JSON</SelectItem>
-                              <SelectItem value='api_key'>API Key</SelectItem>
+                              <SelectItem value='json'>{t('JSON')}</SelectItem>
+                              <SelectItem value='api_key'>
+                                {t('API Key')}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <FormDescription>
                             {field.value === 'json'
-                              ? 'JSON format supports service account JSON files'
-                              : 'API Key mode (does not support batch creation)'}
+                              ? t(
+                                  'JSON format supports service account JSON files'
+                                )
+                              : t(
+                                  'API Key mode (does not support batch creation)'
+                                )}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -1071,18 +1109,23 @@ export function ChannelMutateDrawer({
                       name='other'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Deployment Region *</FormLabel>
+                          <FormLabel>{t('Deployment Region *')}</FormLabel>
                           <FormControl>
                             <Textarea
-                              placeholder='e.g., us-central1 or JSON format for model-specific regions'
+                              placeholder={t(
+                                'e.g., us-central1 or JSON format for model-specific regions'
+                              )}
                               rows={3}
                               {...field}
                             />
                           </FormControl>
                           <FormDescription>
-                            Enter deployment region or JSON mapping: {'{'}
-                            "default": "us-central1",
-                            "claude-3-5-sonnet-20240620": "europe-west1"{'}'}
+                            {t('Enter deployment region or JSON mapping:')}{' '}
+                            {'{'}
+                            {t(
+                              '"default": "us-central1", "claude-3-5-sonnet-20240620": "europe-west1"'
+                            )}
+                            {'}'}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -1098,7 +1141,7 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>API Base URL *</FormLabel>
+                        <FormLabel>{t('API Base URL *')}</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={
@@ -1112,15 +1155,15 @@ export function ChannelMutateDrawer({
                           </FormControl>
                           <SelectContent>
                             <SelectItem value='https://ark.cn-beijing.volces.com'>
-                              https://ark.cn-beijing.volces.com
+                              {t('https://ark.cn-beijing.volces.com')}
                             </SelectItem>
                             <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
-                              https://ark.ap-southeast.bytepluses.com
+                              {t('https://ark.ap-southeast.bytepluses.com')}
                             </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          Select the API endpoint region
+                          {t('Select the API endpoint region')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1135,12 +1178,15 @@ export function ChannelMutateDrawer({
                     name='other'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Agent ID *</FormLabel>
+                        <FormLabel>{t('Agent ID *')}</FormLabel>
                         <FormControl>
-                          <Input placeholder='e.g., 7342866812345' {...field} />
+                          <Input
+                            placeholder={t('e.g., 7342866812345')}
+                            {...field}
+                          />
                         </FormControl>
                         <FormDescription>
-                          Enter the Coze agent ID
+                          {t('Enter the Coze agent ID')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1155,7 +1201,7 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Base URL</FormLabel>
+                        <FormLabel>{t('Base URL')}</FormLabel>
                         <FormControl>
                           <Input
                             placeholder={FIELD_PLACEHOLDERS.BASE_URL}
@@ -1163,10 +1209,9 @@ export function ChannelMutateDrawer({
                           />
                         </FormControl>
                         <FormDescription>
-                          Custom API base URL. For official channels, New API
-                          has built-in addresses. Only fill this for third-party
-                          proxy sites or special endpoints. Do not add /v1 or
-                          trailing slash.
+                          {t(
+                            'Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1179,7 +1224,9 @@ export function ChannelMutateDrawer({
                   currentType
                 ) && (
                   <p className='text-muted-foreground text-sm'>
-                    No additional type-specific settings for this channel type.
+                    {t(
+                      'No additional type-specific settings for this channel type.'
+                    )}
                   </p>
                 )}
               </div>
@@ -1188,7 +1235,7 @@ export function ChannelMutateDrawer({
 
               {/* Authentication Section */}
               <div className='space-y-4'>
-                <h3 className='text-sm font-semibold'>Authentication</h3>
+                <h3 className='text-sm font-semibold'>{t('Authentication')}</h3>
 
                 {!isEditing && (
                   <FormField
@@ -1196,7 +1243,7 @@ export function ChannelMutateDrawer({
                     name='multi_key_mode'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Add Mode</FormLabel>
+                        <FormLabel>{t('Add Mode')}</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={field.value}
@@ -1218,7 +1265,7 @@ export function ChannelMutateDrawer({
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          {FIELD_DESCRIPTIONS.BATCH_ADD}
+                          {t(FIELD_DESCRIPTIONS.BATCH_ADD)}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1231,7 +1278,7 @@ export function ChannelMutateDrawer({
                   name='key'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>API Key *</FormLabel>
+                      <FormLabel>{t('API Key *')}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder={
@@ -1250,21 +1297,22 @@ export function ChannelMutateDrawer({
                           <span>
                             {isEditing ? (
                               <>
-                                Enter new key to update, or leave empty to keep
-                                current key
+                                {t(
+                                  'Enter new key to update, or leave empty to keep current key'
+                                )}
                                 {isMultiKeyChannel && (
                                   <span className='text-warning mt-1 block'>
-                                    Multi-key channel: Keys will be{' '}
+                                    {t('Multi-key channel: Keys will be')}{' '}
                                     {keyMode === 'replace'
-                                      ? 'replaced'
-                                      : 'appended'}
+                                      ? t('replaced')
+                                      : t('appended')}
                                   </span>
                                 )}
                               </>
                             ) : isBatchMode ? (
-                              'Enter one API key per line for batch creation'
+                              t('Enter one API key per line for batch creation')
                             ) : (
-                              FIELD_DESCRIPTIONS.KEY
+                              t(FIELD_DESCRIPTIONS.KEY)
                             )}
                           </span>
                           {isBatchMode && (
@@ -1276,7 +1324,7 @@ export function ChannelMutateDrawer({
                               className='w-fit'
                             >
                               <Trash2 className='mr-2 h-4 w-4' />
-                              Remove Duplicates
+                              {t('Remove Duplicates')}
                             </Button>
                           )}
                         </div>
@@ -1285,9 +1333,13 @@ export function ChannelMutateDrawer({
                         <div className='mt-4 space-y-3 rounded-lg border border-dashed p-4'>
                           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
                             <div>
-                              <p className='text-sm font-medium'>Current key</p>
+                              <p className='text-sm font-medium'>
+                                {t('Current key')}
+                              </p>
                               <p className='text-muted-foreground text-xs'>
-                                Verification required to reveal the saved key.
+                                {t(
+                                  'Verification required to reveal the saved key.'
+                                )}
                               </p>
                             </div>
                             <div className='flex items-center gap-2'>
@@ -1307,7 +1359,7 @@ export function ChannelMutateDrawer({
                                 ) : (
                                   <Eye className='mr-2 h-4 w-4' />
                                 )}
-                                Reveal key
+                                {t('Reveal key')}
                               </Button>
                               <Button
                                 type='button'
@@ -1321,14 +1373,14 @@ export function ChannelMutateDrawer({
                                 disabled={!channelKey}
                               >
                                 <Copy className='mr-2 h-4 w-4' />
-                                Copy
+                                {t('Copy')}
                               </Button>
                             </div>
                           </div>
                           <Input
                             readOnly
                             value={channelKey ?? ''}
-                            placeholder='Hidden — verify to reveal'
+                            placeholder={t('Hidden — verify to reveal')}
                             className='font-mono'
                           />
                         </div>
@@ -1344,7 +1396,7 @@ export function ChannelMutateDrawer({
                     name='key_mode'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Key Update Mode</FormLabel>
+                        <FormLabel>{t('Key Update Mode')}</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={field.value}
@@ -1356,17 +1408,21 @@ export function ChannelMutateDrawer({
                           </FormControl>
                           <SelectContent>
                             <SelectItem value='append'>
-                              Append to existing keys
+                              {t('Append to existing keys')}
                             </SelectItem>
                             <SelectItem value='replace'>
-                              Replace all existing keys
+                              {t('Replace all existing keys')}
                             </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
                           {field.value === 'replace'
-                            ? 'Replace mode: Will completely replace all existing keys'
-                            : 'Append mode: New keys will be added to the end of the existing key list'}
+                            ? t(
+                                'Replace mode: Will completely replace all existing keys'
+                              )
+                            : t(
+                                'Append mode: New keys will be added to the end of the existing key list'
+                              )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1380,7 +1436,7 @@ export function ChannelMutateDrawer({
                     name='multi_key_type'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Multi-Key Strategy</FormLabel>
+                        <FormLabel>{t('Multi-Key Strategy')}</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={field.value}
@@ -1391,19 +1447,25 @@ export function ChannelMutateDrawer({
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value='random'>Random</SelectItem>
-                            <SelectItem value='polling'>Polling</SelectItem>
+                            <SelectItem value='random'>
+                              {t('Random')}
+                            </SelectItem>
+                            <SelectItem value='polling'>
+                              {t('Polling')}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
                           {multiKeyType === 'polling' ? (
                             <span className='text-warning'>
-                              Polling mode requires Redis and memory cache,
-                              otherwise performance will be significantly
-                              degraded
+                              {t(
+                                'Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded'
+                              )}
                             </span>
                           ) : (
-                            'Randomly select a key from the pool for each request'
+                            t(
+                              'Randomly select a key from the pool for each request'
+                            )
                           )}
                         </FormDescription>
                         <FormMessage />
@@ -1417,25 +1479,27 @@ export function ChannelMutateDrawer({
 
               {/* Models & Groups Section */}
               <div className='space-y-4'>
-                <h3 className='text-sm font-semibold'>Models & Groups</h3>
+                <h3 className='text-sm font-semibold'>
+                  {t('Models & Groups')}
+                </h3>
 
                 <FormField
                   control={form.control}
                   name='models'
                   render={() => (
                     <FormItem>
-                      <FormLabel>Models *</FormLabel>
+                      <FormLabel>{t('Models *')}</FormLabel>
                       <FormControl>
                         <MultiSelect
                           options={modelOptions}
                           selected={currentModelsArray}
                           onChange={handleModelsChange}
-                          placeholder='Select models or add custom ones'
+                          placeholder={t('Select models or add custom ones')}
                         />
                       </FormControl>
                       <FormDescription>
                         <div className='flex flex-col gap-2'>
-                          <span>{FIELD_DESCRIPTIONS.MODELS}</span>
+                          <span>{t(FIELD_DESCRIPTIONS.MODELS)}</span>
                           <div className='flex flex-wrap gap-2'>
                             <Button
                               type='button'
@@ -1445,7 +1509,7 @@ export function ChannelMutateDrawer({
                               disabled={!basicModels.length}
                             >
                               <FileText className='mr-2 h-4 w-4' />
-                              Fill Related Models
+                              {t('Fill Related Models')}
                             </Button>
                             <Button
                               type='button'
@@ -1455,7 +1519,7 @@ export function ChannelMutateDrawer({
                               disabled={!allModelsList.length}
                             >
                               <Plus className='mr-2 h-4 w-4' />
-                              Fill All Models
+                              {t('Fill All Models')}
                             </Button>
                             {MODEL_FETCHABLE_TYPES.has(currentType) && (
                               <Button
@@ -1470,7 +1534,7 @@ export function ChannelMutateDrawer({
                                 ) : (
                                   <Sparkles className='mr-2 h-4 w-4' />
                                 )}
-                                Fetch from Upstream
+                                {t('Fetch from Upstream')}
                               </Button>
                             )}
                             <Button
@@ -1480,7 +1544,7 @@ export function ChannelMutateDrawer({
                               onClick={handleClearModels}
                             >
                               <Eraser className='mr-2 h-4 w-4' />
-                              Clear All
+                              {t('Clear All')}
                             </Button>
                             <Button
                               type='button'
@@ -1489,7 +1553,7 @@ export function ChannelMutateDrawer({
                               onClick={handleCopyModels}
                             >
                               <Copy className='mr-2 h-4 w-4' />
-                              Copy All
+                              {t('Copy All')}
                             </Button>
                             {prefillGroups.map((group) => (
                               <Button
@@ -1508,13 +1572,13 @@ export function ChannelMutateDrawer({
                       {modelMappingGuardrail.exposedTargetModels.length > 0 && (
                         <Alert className='mt-3 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
                           <AlertDescription>
-                            The mapped upstream model(s){' '}
+                            {t('The mapped upstream model(s)')}{' '}
                             {formatModelNames(
                               modelMappingGuardrail.exposedTargetModels
                             )}{' '}
-                            are also listed here. Remove them from Models to
-                            keep the `/v1/models` response user-friendly and
-                            hide vendor-specific names.
+                            {t(
+                              'are also listed here. Remove them from Models to keep the `/v1/models` response user-friendly and hide vendor-specific names.'
+                            )}
                           </AlertDescription>
                         </Alert>
                       )}
@@ -1526,7 +1590,7 @@ export function ChannelMutateDrawer({
                 {/* Custom Model Input */}
                 <div className='flex gap-2'>
                   <Input
-                    placeholder='Add custom model(s), comma-separated'
+                    placeholder={t('Add custom model(s), comma-separated')}
                     value={customModel}
                     onChange={(e) => setCustomModel(e.target.value)}
                     onKeyDown={(e) => {
@@ -1542,7 +1606,7 @@ export function ChannelMutateDrawer({
                     onClick={handleAddCustomModels}
                     disabled={!customModel}
                   >
-                    Add
+                    {t('Add')}
                   </Button>
                 </div>
 
@@ -1552,7 +1616,9 @@ export function ChannelMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <div className='flex items-center gap-2'>
-                        <FormLabel className='mb-0'>Model Mapping</FormLabel>
+                        <FormLabel className='mb-0'>
+                          {t('Model Mapping')}
+                        </FormLabel>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
@@ -1569,7 +1635,7 @@ export function ChannelMutateDrawer({
                             className='max-w-xs space-y-2 text-left'
                           >
                             <p className='text-xs font-semibold tracking-wide uppercase'>
-                              Request flow
+                              {t('Request flow')}
                             </p>
                             <div className='space-y-1 font-mono text-xs'>
                               {mappingPreviewPairs.map((pair) => (
@@ -1584,15 +1650,15 @@ export function ChannelMutateDrawer({
                               ))}
                               {remainingMappingCount > 0 && (
                                 <div className='text-[11px] opacity-70'>
-                                  +{remainingMappingCount} more mapping
+                                  +{remainingMappingCount} {t('more mapping')}
                                   {remainingMappingCount > 1 ? 's' : ''}
                                 </div>
                               )}
                             </div>
                             <p className='text-[11px] leading-relaxed opacity-80'>
-                              Users call the model on the left. The platform
-                              forwards the request to the upstream model on the
-                              right.
+                              {t(
+                                'Users call the model on the left. The platform forwards the request to the upstream model on the right.'
+                              )}
                             </p>
                           </TooltipContent>
                         </Tooltip>
@@ -1605,28 +1671,29 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.MODEL_MAPPING}
+                        {t(FIELD_DESCRIPTIONS.MODEL_MAPPING)}
                       </FormDescription>
                       {modelMappingGuardrail.invalidJson && (
                         <Alert variant='destructive' className='mt-3'>
                           <AlertDescription>
-                            Model Mapping must be a JSON object like{' '}
+                            {t('Model Mapping must be a JSON object like')}{' '}
                             <code className='font-mono'>
                               {'{"gpt-4":"Azure-GPT4"}'}
                             </code>
-                            . Please fix the JSON before saving.
+                            {t('. Please fix the JSON before saving.')}
                           </AlertDescription>
                         </Alert>
                       )}
                       {modelMappingGuardrail.missingSourceModels.length > 0 && (
                         <Alert className='mt-3 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
                           <AlertDescription>
-                            Add{' '}
+                            {t('Add')}{' '}
                             {formatModelNames(
                               modelMappingGuardrail.missingSourceModels
                             )}{' '}
-                            to the Models list so users can use them before the
-                            mapping sends traffic upstream.
+                            {t(
+                              'to the Models list so users can use them before the mapping sends traffic upstream.'
+                            )}
                           </AlertDescription>
                         </Alert>
                       )}
@@ -1640,7 +1707,7 @@ export function ChannelMutateDrawer({
                   name='group'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Groups *</FormLabel>
+                      <FormLabel>{t('Groups *')}</FormLabel>
                       <FormControl>
                         {isLoadingGroups ? (
                           <Skeleton className='h-10 w-full' />
@@ -1654,7 +1721,7 @@ export function ChannelMutateDrawer({
                         )}
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.GROUP}
+                        {t(FIELD_DESCRIPTIONS.GROUP)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1666,14 +1733,16 @@ export function ChannelMutateDrawer({
 
               {/* Advanced Settings Section */}
               <div className='space-y-4'>
-                <h3 className='text-sm font-semibold'>Advanced Settings</h3>
+                <h3 className='text-sm font-semibold'>
+                  {t('Advanced Settings')}
+                </h3>
 
                 <FormField
                   control={form.control}
                   name='priority'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Priority</FormLabel>
+                      <FormLabel>{t('Priority')}</FormLabel>
                       <FormControl>
                         <Input
                           type='number'
@@ -1685,7 +1754,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.PRIORITY}
+                        {t(FIELD_DESCRIPTIONS.PRIORITY)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1697,7 +1766,7 @@ export function ChannelMutateDrawer({
                   name='weight'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Weight</FormLabel>
+                      <FormLabel>{t('Weight')}</FormLabel>
                       <FormControl>
                         <Input
                           type='number'
@@ -1709,7 +1778,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.WEIGHT}
+                        {t(FIELD_DESCRIPTIONS.WEIGHT)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1721,7 +1790,7 @@ export function ChannelMutateDrawer({
                   name='test_model'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Test Model</FormLabel>
+                      <FormLabel>{t('Test Model')}</FormLabel>
                       <FormControl>
                         <Input
                           placeholder={FIELD_PLACEHOLDERS.TEST_MODEL}
@@ -1729,7 +1798,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.TEST_MODEL}
+                        {t(FIELD_DESCRIPTIONS.TEST_MODEL)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1742,9 +1811,11 @@ export function ChannelMutateDrawer({
                   render={({ field }) => (
                     <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>Auto Ban</FormLabel>
+                        <FormLabel className='text-base'>
+                          {t('Auto Ban')}
+                        </FormLabel>
                         <FormDescription>
-                          {FIELD_DESCRIPTIONS.AUTO_BAN}
+                          {t(FIELD_DESCRIPTIONS.AUTO_BAN)}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -1764,7 +1835,7 @@ export function ChannelMutateDrawer({
                   name='tag'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tag</FormLabel>
+                      <FormLabel>{t('Tag')}</FormLabel>
                       <FormControl>
                         <Input
                           placeholder={FIELD_PLACEHOLDERS.TAG}
@@ -1772,7 +1843,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.TAG}
+                        {t(FIELD_DESCRIPTIONS.TAG)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1784,7 +1855,7 @@ export function ChannelMutateDrawer({
                   name='remark'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Remark</FormLabel>
+                      <FormLabel>{t('Remark')}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder={FIELD_PLACEHOLDERS.REMARK}
@@ -1793,7 +1864,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {FIELD_DESCRIPTIONS.REMARK}
+                        {t(FIELD_DESCRIPTIONS.REMARK)}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1805,7 +1876,7 @@ export function ChannelMutateDrawer({
                   name='status_code_mapping'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status Code Mapping</FormLabel>
+                      <FormLabel>{t('Status Code Mapping')}</FormLabel>
                       <FormControl>
                         <JsonEditor
                           value={field.value || ''}
@@ -1815,13 +1886,15 @@ export function ChannelMutateDrawer({
                           valuePlaceholder='500'
                           keyLabel='Original Code'
                           valueLabel='Mapped Code'
-                          emptyMessage='No status code mappings configured.'
+                          emptyMessage={t(
+                            'No status code mappings configured.'
+                          )}
                           template={{ '400': '500', '429': '503' }}
                           valueType='string'
                         />
                       </FormControl>
                       <FormDescription>
-                        Map upstream status codes to different codes
+                        {t('Map upstream status codes to different codes')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1833,7 +1906,7 @@ export function ChannelMutateDrawer({
                   name='param_override'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Parameter Override</FormLabel>
+                      <FormLabel>{t('Parameter Override')}</FormLabel>
                       <FormControl>
                         <JsonEditor
                           value={field.value || ''}
@@ -1843,7 +1916,7 @@ export function ChannelMutateDrawer({
                           valuePlaceholder='0.7'
                           keyLabel='Parameter'
                           valueLabel='Value'
-                          emptyMessage='No parameter overrides configured.'
+                          emptyMessage={t('No parameter overrides configured.')}
                           template={{
                             temperature: 0.7,
                             max_tokens: 2000,
@@ -1855,8 +1928,8 @@ export function ChannelMutateDrawer({
                       <FormDescription>
                         <div className='flex flex-col gap-2'>
                           <span>
-                            Override request parameters. Cannot override{' '}
-                            <code>stream</code> parameter.
+                            {t('Override request parameters. Cannot override')}{' '}
+                            <code>{t('stream')}</code> {t('parameter.')}
                           </span>
                           <div className='flex flex-wrap gap-2'>
                             <Button
@@ -1870,7 +1943,7 @@ export function ChannelMutateDrawer({
                                 )
                               }}
                             >
-                              Old Format Template
+                              {t('Old Format Template')}
                             </Button>
                             <Button
                               type='button'
@@ -1903,12 +1976,13 @@ export function ChannelMutateDrawer({
                                 )
                               }}
                             >
-                              New Format Template
+                              {t('New Format Template')}
                             </Button>
                           </div>
                           <span className='text-muted-foreground text-xs'>
-                            Old format: Direct override. New format: Supports
-                            conditional judgment and custom JSON operations.
+                            {t(
+                              'Old format: Direct override. New format: Supports conditional judgment and custom JSON operations.'
+                            )}
                           </span>
                         </div>
                       </FormDescription>
@@ -1922,7 +1996,7 @@ export function ChannelMutateDrawer({
                   name='header_override'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Header Override</FormLabel>
+                      <FormLabel>{t('Header Override')}</FormLabel>
                       <FormControl>
                         <JsonEditor
                           value={field.value || ''}
@@ -1932,7 +2006,7 @@ export function ChannelMutateDrawer({
                           valuePlaceholder='value'
                           keyLabel='Header Name'
                           valueLabel='Header Value'
-                          emptyMessage='No header overrides configured.'
+                          emptyMessage={t('No header overrides configured.')}
                           template={{
                             'X-Custom-Header': 'custom-value',
                             'X-API-Version': '2024-01',
@@ -1941,7 +2015,7 @@ export function ChannelMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        Override request headers
+                        {t('Override request headers')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1954,7 +2028,7 @@ export function ChannelMutateDrawer({
               {/* Channel Extra Settings Section */}
               <div className='space-y-4'>
                 <h3 className='text-sm font-semibold'>
-                  Channel Extra Settings
+                  {t('Channel Extra Settings')}
                 </h3>
 
                 {currentType === 1 && (
@@ -1965,11 +2039,12 @@ export function ChannelMutateDrawer({
                       <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                         <div className='space-y-0.5'>
                           <FormLabel className='text-base'>
-                            Force Format
+                            {t('Force Format')}
                           </FormLabel>
                           <FormDescription>
-                            Force format response to OpenAI standard (OpenAI
-                            channel only)
+                            {t(
+                              'Force format response to OpenAI standard (OpenAI channel only)'
+                            )}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -1990,11 +2065,12 @@ export function ChannelMutateDrawer({
                     <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          Thinking to Content
+                          {t('Thinking to Content')}
                         </FormLabel>
                         <FormDescription>
-                          Convert reasoning_content to &lt;think&gt; tag in
-                          content
+                          {t(
+                            'Convert reasoning_content to &lt;think&gt; tag in content'
+                          )}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -2014,10 +2090,10 @@ export function ChannelMutateDrawer({
                     <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          Pass Through Body
+                          {t('Pass Through Body')}
                         </FormLabel>
                         <FormDescription>
-                          Pass request body directly to upstream
+                          {t('Pass request body directly to upstream')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -2035,16 +2111,17 @@ export function ChannelMutateDrawer({
                   name='proxy'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Proxy Address</FormLabel>
+                      <FormLabel>{t('Proxy Address')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder='socks5://user:pass@host:port'
+                          placeholder={t('socks5://user:pass@host:port')}
                           {...field}
                         />
                       </FormControl>
                       <FormDescription>
-                        Network proxy for this channel (supports socks5
-                        protocol)
+                        {t(
+                          'Network proxy for this channel (supports socks5 protocol)'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -2056,16 +2133,18 @@ export function ChannelMutateDrawer({
                   name='system_prompt'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>System Prompt</FormLabel>
+                      <FormLabel>{t('System Prompt')}</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder='Enter system prompt (user prompt takes priority)'
+                          placeholder={t(
+                            'Enter system prompt (user prompt takes priority)'
+                          )}
                           rows={3}
                           {...field}
                         />
                       </FormControl>
                       <FormDescription>
-                        Default system prompt for this channel
+                        {t('Default system prompt for this channel')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -2079,11 +2158,12 @@ export function ChannelMutateDrawer({
                     <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-base'>
-                          System Prompt Concatenation
+                          {t('System Prompt Concatenation')}
                         </FormLabel>
                         <FormDescription>
-                          Concatenate channel system prompt with user&apos;s
-                          prompt
+                          {t(
+                            'Concatenate channel system prompt with user&apos;s prompt'
+                          )}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -2102,7 +2182,7 @@ export function ChannelMutateDrawer({
           <SheetFooter className='gap-2'>
             <SheetClose asChild>
               <Button variant='outline' disabled={isSubmitting}>
-                Cancel
+                {t('Cancel')}
               </Button>
             </SheetClose>
             <Button form='channel-form' type='submit' disabled={isSubmitting}>

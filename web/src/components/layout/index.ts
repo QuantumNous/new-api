@@ -22,8 +22,10 @@ export { MobileDrawer } from './components/mobile-drawer'
 export { WorkspaceProvider, useWorkspace } from './context/workspace-context'
 
 // 配置
-export { sidebarConfig } from './config/sidebar.config'
-export { systemSettingsConfig } from './config/system-settings.config'
+export {
+  getSystemSettingsNavGroups,
+  WORKSPACE_SYSTEM_SETTINGS_ID,
+} from './config/system-settings.config'
 export { defaultTopNavLinks } from './config/top-nav.config'
 
 // 常量
@@ -35,6 +37,7 @@ export {
   getNavGroupsForPath,
   isInWorkspace,
   getAllWorkspaces,
+  WORKSPACE_IDS,
 } from './lib/workspace-registry'
 
 // 类型导出（使用 type-only 导出避免与组件冲突）
@@ -47,4 +50,4 @@ export type {
   SidebarData,
   TopNavLink,
 } from './types'
-export type { WorkspaceConfig } from './lib/workspace-registry'
+export type { WorkspaceConfig, WorkspaceId } from './lib/workspace-registry'

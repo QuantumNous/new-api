@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -28,6 +29,7 @@ export function PaginatedChartLegendContent({
   verticalAlign = 'bottom',
   itemsPerPage = 12,
 }: PaginatedChartLegendContentProps) {
+  const { t } = useTranslation()
   const [currentPage, setCurrentPage] = React.useState(0)
 
   // Filter valid legend items
@@ -84,7 +86,7 @@ export function PaginatedChartLegendContent({
         className
       )}
       role='group'
-      aria-label='Chart legend'
+      aria-label={t('Chart legend')}
     >
       {/* Legend items */}
       <div
@@ -122,7 +124,7 @@ export function PaginatedChartLegendContent({
         <div
           className='flex items-center gap-1'
           role='navigation'
-          aria-label='Legend pagination'
+          aria-label={t('Legend pagination')}
           onKeyDown={handleKeyDown}
         >
           <Button

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -31,6 +32,7 @@ export function SyncWizardDialog({
   open,
   onOpenChange,
 }: SyncWizardDialogProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const {
     setOpen,
@@ -111,18 +113,18 @@ export function SyncWizardDialog({
         }}
       >
         <DialogHeader className='flex-shrink-0 text-start'>
-          <DialogTitle>Sync Upstream Models</DialogTitle>
+          <DialogTitle>{t('Sync Upstream Models')}</DialogTitle>
           <DialogDescription>
-            Synchronize models and vendors from an upstream source
+            {t('Synchronize models and vendors from an upstream source')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto'>
           <div className='space-y-3'>
             <div>
-              <Label className='text-base'>Select Sync Source</Label>
+              <Label className='text-base'>{t('Select Sync Source')}</Label>
               <p className='text-muted-foreground text-sm'>
-                Choose where to fetch upstream metadata.
+                {t('Choose where to fetch upstream metadata.')}
               </p>
             </div>
             <RadioGroup
@@ -178,7 +180,7 @@ export function SyncWizardDialog({
           </div>
 
           <div className='space-y-2'>
-            <Label className='text-base'>Select Language</Label>
+            <Label className='text-base'>{t('Select Language')}</Label>
             <RadioGroup
               value={locale}
               onValueChange={(v) => setLocale(v as SyncLocale)}
@@ -206,9 +208,9 @@ export function SyncWizardDialog({
 
           <div className='bg-muted/50 rounded-lg border p-4'>
             <p className='text-muted-foreground text-sm'>
-              The sync will fetch missing models and vendors from the selected
-              source. Existing records are updated only when you approve
-              conflicts.
+              {t(
+                'The sync will fetch missing models and vendors from the selected source. Existing records are updated only when you approve conflicts.'
+              )}
             </p>
           </div>
         </div>
@@ -219,7 +221,7 @@ export function SyncWizardDialog({
             onClick={() => onOpenChange(false)}
             disabled={isSyncing}
           >
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleSync} disabled={isSyncing}>
             {isSyncing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useBlocker } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 type FormNavigationGuardProps = {
@@ -28,6 +29,7 @@ export function FormNavigationGuard({
   title = 'Unsaved changes',
   message = 'You have unsaved changes. Are you sure you want to leave?',
 }: FormNavigationGuardProps) {
+  const { t } = useTranslation()
   const blocker = useBlocker({ condition: when })
   const [showDialog, setShowDialog] = useState(false)
 
@@ -70,7 +72,7 @@ export function FormNavigationGuard({
       }}
       title={title}
       desc={message}
-      confirmText='Leave'
+      confirmText={t('Leave')}
       cancelBtnText='Stay'
       destructive
       handleConfirm={handleConfirm}

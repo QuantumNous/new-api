@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -82,6 +83,7 @@ type GeminiSettingsCardProps = {
 }
 
 export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const normalizedDefaultsRef = useRef<FlatGeminiSettings>({
     'gemini.safety_settings': normalizeJsonString(
@@ -184,8 +186,10 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
   return (
     <SettingsAccordion
       value='gemini-settings'
-      title='Gemini'
-      description='Configure Gemini safety behavior, version overrides, and thinking adapter'
+      title={t('Gemini')}
+      description={t(
+        'Configure Gemini safety behavior, version overrides, and thinking adapter'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -194,13 +198,14 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
             name='gemini.safety_settings'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Safety Settings</FormLabel>
+                <FormLabel>{t('Safety Settings')}</FormLabel>
                 <FormControl>
                   <Textarea rows={8} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Provide per-category safety overrides as JSON. Use `default`
-                  for fallback values.
+                  {t(
+                    'Provide per-category safety overrides as JSON. Use `default` for fallback values.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -212,13 +217,14 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
             name='gemini.version_settings'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Version Overrides</FormLabel>
+                <FormLabel>{t('Version Overrides')}</FormLabel>
                 <FormControl>
                   <Textarea rows={8} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Map model identifiers to Gemini API versions. A `default`
-                  entry applies when no specific match is found.
+                  {t(
+                    'Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -230,7 +236,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
             name='gemini.supported_imagine_models'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Supported Imagine Models</FormLabel>
+                <FormLabel>{t('Supported Imagine Models')}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={6}
@@ -239,8 +245,9 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
                   />
                 </FormControl>
                 <FormDescription>
-                  Accepts a JSON array of model identifiers that support the
-                  Imagine API.
+                  {t(
+                    'Accepts a JSON array of model identifiers that support the Imagine API.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -255,12 +262,14 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
                 <FormItem className='flex flex-row items-center justify-between'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Thinking Adapter
+                      {t('Thinking Adapter')}
                     </FormLabel>
                     <FormDescription>
-                      Supports `-thinking`, `-thinking-{'{{budget}}'}`, and
-                      `-nothinking` suffixes while routing to the correct Gemini
-                      variant.
+                      {t('Supports `-thinking`, `-thinking-')}
+                      {'{{budget}}'}
+                      {t(
+                        '`, and `-nothinking` suffixes while routing to the correct Gemini variant.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -278,7 +287,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
               name='gemini.thinking_adapter_budget_tokens_percentage'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Budget Tokens Ratio</FormLabel>
+                  <FormLabel>{t('Budget Tokens Ratio')}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -287,9 +296,9 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
                     />
                   </FormControl>
                   <FormDescription>
-                    Budget tokens = max tokens × ratio. Accepts a decimal
-                    between 0.002 and 1. Recommended to keep aligned with
-                    upstream billing.
+                    {t(
+                      'Budget tokens = max tokens × ratio. Accepts a decimal between 0.002 and 1. Recommended to keep aligned with upstream billing.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -298,9 +307,9 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
 
             {!isAdapterEnabled && (
               <p className='text-muted-foreground text-sm'>
-                Gemini will continue to auto-detect thinking mode even with the
-                adapter disabled. Enable this only when you need finer control
-                over pricing and budgeting.
+                {t(
+                  'Gemini will continue to auto-detect thinking mode even with the adapter disabled. Enable this only when you need finer control over pricing and budgeting.'
+                )}
               </p>
             )}
           </div>

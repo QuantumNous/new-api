@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { AppHeader, Main } from '@/components/layout'
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
@@ -5,6 +6,7 @@ import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
 
 export function ApiKeys() {
+  const { t } = useTranslation()
   return (
     <ApiKeysProvider>
       <AppHeader fixed />
@@ -12,9 +14,11 @@ export function ApiKeys() {
       <Main>
         <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
           <div>
-            <h2 className='text-2xl font-bold tracking-tight'>API Keys</h2>
+            <h2 className='text-2xl font-bold tracking-tight'>
+              {t('API Keys')}
+            </h2>
             <p className='text-muted-foreground'>
-              Manage your API keys for accessing the service
+              {t('Manage your API keys for accessing the service')}
             </p>
           </div>
           <ApiKeysPrimaryButtons />

@@ -1,4 +1,5 @@
 import { Zap, ExternalLink, Gauge } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getBgColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +22,7 @@ export function ApiInfoItemComponent({
   status,
   onTest,
 }: ApiInfoItemProps) {
+  const { t } = useTranslation()
   return (
     <div className='group relative flex items-center justify-between gap-3 py-2.5 text-sm'>
       {/* 左侧：状态点 + 内容区 */}
@@ -56,7 +58,7 @@ export function ApiInfoItemComponent({
               variant='outline'
               className='text-muted-foreground h-5 animate-pulse px-2 text-xs'
             >
-              Testing...
+              {t('Testing...')}
             </Badge>
           )}
           {status.latency !== null && !status.testing && (
@@ -67,7 +69,8 @@ export function ApiInfoItemComponent({
                 getLatencyColorClass(status.latency)
               )}
             >
-              {status.latency}ms
+              {status.latency}
+              {t('ms')}
             </Badge>
           )}
           {status.error && (
@@ -75,7 +78,7 @@ export function ApiInfoItemComponent({
               variant='outline'
               className='text-muted-foreground h-5 px-2 text-xs'
             >
-              N/A
+              {t('N/A')}
             </Badge>
           )}
         </div>
@@ -88,7 +91,7 @@ export function ApiInfoItemComponent({
             onClick={() => onTest(item.url)}
             disabled={status.testing}
             className='hover:bg-accent h-7 w-7 p-0 transition-all'
-            title='Test Latency'
+            title={t('Test Latency')}
           >
             <Zap
               className={cn('h-3.5 w-3.5', status.testing && 'animate-pulse')}
@@ -100,7 +103,7 @@ export function ApiInfoItemComponent({
             size='sm'
             onClick={() => openExternalSpeedTest(item.url)}
             className='hover:bg-accent h-7 w-7 p-0 transition-all'
-            title='External Speed Test'
+            title={t('External Speed Test')}
           >
             <Gauge className='h-3.5 w-3.5' />
           </Button>
@@ -111,8 +114,8 @@ export function ApiInfoItemComponent({
             size='sm'
             className='hover:bg-accent h-7 w-7 p-0 transition-all'
             iconClassName='h-3.5 w-3.5'
-            tooltip='Copy URL'
-            aria-label='Copy URL'
+            tooltip={t('Copy URL')}
+            aria-label={t('Copy URL')}
           />
 
           <Button
@@ -120,7 +123,7 @@ export function ApiInfoItemComponent({
             size='sm'
             asChild
             className='hover:bg-accent h-7 w-7 p-0 transition-all'
-            title='Open in New Tab'
+            title={t('Open in New Tab')}
           >
             <a href={item.url} target='_blank' rel='noreferrer'>
               <ExternalLink className='h-3.5 w-3.5' />

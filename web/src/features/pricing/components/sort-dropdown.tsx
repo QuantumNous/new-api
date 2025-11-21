@@ -1,4 +1,5 @@
 import { ChevronsUpDown, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -7,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { SORT_LABELS, type SortOption } from '../constants'
+import { getSortLabels, type SortOption } from '../constants'
 
 // ----------------------------------------------------------------------------
 // Sort Dropdown Component
@@ -19,7 +20,9 @@ export interface SortDropdownProps {
 }
 
 export function SortDropdown({ value, onValueChange }: SortDropdownProps) {
-  const currentLabel = SORT_LABELS[value as SortOption] || 'Sort'
+  const { t } = useTranslation()
+  const sortLabels = getSortLabels(t)
+  const currentLabel = sortLabels[value as SortOption] || t('Sort')
 
   return (
     <DropdownMenu>
@@ -33,7 +36,7 @@ export function SortDropdown({ value, onValueChange }: SortDropdownProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-[200px]'>
-        {Object.entries(SORT_LABELS).map(([sortValue, label]) => (
+        {Object.entries(sortLabels).map(([sortValue, label]) => (
           <DropdownMenuItem
             key={sortValue}
             onClick={() => onValueChange(sortValue)}

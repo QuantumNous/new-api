@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -65,6 +66,7 @@ export function RechargeFormCard({
   usdExchangeRate = 1,
   onOpenBilling,
 }: RechargeFormCardProps) {
+  const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
   useEffect(() => {
@@ -137,9 +139,11 @@ export function RechargeFormCard({
       <CardHeader>
         <div className='flex items-center justify-between'>
           <div>
-            <h3 className='text-xl font-semibold tracking-tight'>Add Funds</h3>
+            <h3 className='text-xl font-semibold tracking-tight'>
+              {t('Add Funds')}
+            </h3>
             <p className='text-muted-foreground mt-2 text-sm'>
-              Choose an amount and payment method
+              {t('Choose an amount and payment method')}
             </p>
           </div>
           {onOpenBilling && (
@@ -150,7 +154,7 @@ export function RechargeFormCard({
               className='gap-2'
             >
               <Receipt className='h-4 w-4' />
-              Billing
+              {t('Billing')}
             </Button>
           )}
         </div>
@@ -163,7 +167,7 @@ export function RechargeFormCard({
             {presetAmounts.length > 0 && (
               <div className='space-y-3'>
                 <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                  Amount
+                  {t('Amount')}
                 </Label>
                 <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
                   {presetAmounts.map((preset, index) => {
@@ -224,7 +228,7 @@ export function RechargeFormCard({
                 htmlFor='topup-amount'
                 className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
               >
-                Custom Amount
+                {t('Custom Amount')}
               </Label>
               <div className='relative'>
                 <Input
@@ -238,7 +242,7 @@ export function RechargeFormCard({
                 />
                 <div className='absolute end-3 top-1/2 flex -translate-y-1/2 items-center gap-2'>
                   <span className='text-muted-foreground text-xs'>
-                    Amount to pay:
+                    {t('Amount to pay:')}
                   </span>
                   {calculating ? (
                     <Skeleton className='h-5 w-16' />
@@ -254,7 +258,7 @@ export function RechargeFormCard({
             {/* Payment Methods */}
             <div className='space-y-3'>
               <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                Payment Method
+                {t('Payment Method')}
               </Label>
               {topupInfo?.pay_methods && topupInfo.pay_methods.length > 0 ? (
                 <div className='flex flex-wrap gap-3'>
@@ -284,7 +288,9 @@ export function RechargeFormCard({
                         <Tooltip>
                           <TooltipTrigger asChild>{button}</TooltipTrigger>
                           <TooltipContent>
-                            Minimum topup amount: {minTopup}
+                            {t('Minimum topup amount: {{amount}}', {
+                              amount: minTopup,
+                            })}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -296,7 +302,9 @@ export function RechargeFormCard({
               ) : (
                 <Alert>
                   <AlertDescription>
-                    No payment methods available. Please contact administrator.
+                    {t(
+                      'No payment methods available. Please contact administrator.'
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
@@ -305,8 +313,9 @@ export function RechargeFormCard({
         ) : (
           <Alert>
             <AlertDescription>
-              Online topup is not enabled. Please use redemption code or contact
-              administrator.
+              {t(
+                'Online topup is not enabled. Please use redemption code or contact administrator.'
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -319,7 +328,7 @@ export function RechargeFormCard({
               htmlFor='redemption-code'
               className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
             >
-              Have a Code?
+              {t('Have a Code?')}
             </Label>
           </div>
           <div className='flex gap-2'>
@@ -327,24 +336,24 @@ export function RechargeFormCard({
               id='redemption-code'
               value={redemptionCode}
               onChange={(e) => onRedemptionCodeChange(e.target.value)}
-              placeholder='Enter your redemption code'
+              placeholder={t('Enter your redemption code')}
               className='flex-1'
             />
             <Button onClick={onRedeem} disabled={redeeming} variant='outline'>
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              Redeem
+              {t('Redeem')}
             </Button>
           </div>
           {topupLink && (
             <p className='text-muted-foreground text-xs'>
-              Need a code?{' '}
+              {t('Need a code?')}{' '}
               <a
                 href={topupLink}
                 target='_blank'
                 rel='noopener noreferrer'
                 className='inline-flex items-center gap-1 underline-offset-4 hover:underline'
               >
-                Purchase here
+                {t('Purchase here')}
                 <ExternalLink className='h-3 w-3' />
               </a>
             </p>

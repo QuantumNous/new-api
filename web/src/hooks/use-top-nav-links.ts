@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
 
@@ -30,6 +31,7 @@ const DEFAULT_HEADER_NAV_MODULES = {
  * }
  */
 export function useTopNavLinks(): TopNavLink[] {
+  const { t } = useTranslation()
   const { status } = useStatus()
   const { auth } = useAuthStore()
 
@@ -57,33 +59,33 @@ export function useTopNavLinks(): TopNavLink[] {
 
   // Home
   if (modules?.home !== false) {
-    links.push({ title: 'Home', href: '/' })
+    links.push({ title: t('Home'), href: '/' })
   }
 
   // Console -> /dashboard (new console path)
   if (modules?.console !== false) {
-    links.push({ title: 'Console', href: '/dashboard' })
+    links.push({ title: t('Console'), href: '/dashboard' })
   }
 
   // Pricing
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const disabled = pricing.requireAuth && !isAuthed
-    links.push({ title: 'Pricing', href: '/pricing', disabled })
+    links.push({ title: t('Pricing'), href: '/pricing', disabled })
   }
 
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {
-      links.push({ title: 'Docs', href: docsLink, external: true })
+      links.push({ title: t('Docs'), href: docsLink, external: true })
     } else {
-      links.push({ title: 'Docs', href: '/docs' })
+      links.push({ title: t('Docs'), href: '/docs' })
     }
   }
 
   // About
   if (modules?.about !== false) {
-    links.push({ title: 'About', href: '/about' })
+    links.push({ title: t('About'), href: '/about' })
   }
 
   return links

@@ -1,61 +1,63 @@
+import i18n from '@/i18n/config'
+
 // ============================================================================
 // Channel Types (from constant/channel.go)
 // ============================================================================
 
 export const CHANNEL_TYPES = {
-  0: 'Unknown',
-  1: 'OpenAI',
-  2: 'Midjourney',
-  3: 'Azure',
-  4: 'Ollama',
-  5: 'MidjourneyPlus',
-  6: 'OpenAIMax',
-  7: 'OhMyGPT',
-  8: 'Custom',
-  9: 'AILS',
-  10: 'AI Proxy',
-  11: 'PaLM',
-  12: 'API2GPT',
-  13: 'AIGC2D',
-  14: 'Anthropic',
-  15: 'Baidu',
-  16: 'Zhipu',
-  17: 'Ali',
-  18: 'Xunfei',
-  19: '360',
-  20: 'OpenRouter',
-  21: 'AI Proxy Library',
-  22: 'FastGPT',
-  23: 'Tencent',
-  24: 'Gemini',
-  25: 'Moonshot',
-  26: 'Zhipu V4',
-  27: 'Perplexity',
-  31: 'LingYiWanWu',
-  33: 'AWS',
-  34: 'Cohere',
-  35: 'MiniMax',
-  36: 'SunoAPI',
-  37: 'Dify',
-  38: 'Jina',
-  39: 'Cloudflare',
-  40: 'SiliconFlow',
-  41: 'Vertex AI',
-  42: 'Mistral',
-  43: 'DeepSeek',
-  44: 'MokaAI',
-  45: 'VolcEngine',
-  46: 'Baidu V2',
-  47: 'Xinference',
-  48: 'xAI',
-  49: 'Coze',
-  50: 'Kling',
-  51: 'Jimeng',
-  52: 'Vidu',
-  53: 'Submodel',
-  54: 'DoubaoVideo',
-  55: 'Sora',
-  56: 'Replicate',
+  0: i18n.t('Unknown'),
+  1: i18n.t('OpenAI'),
+  2: i18n.t('Midjourney'),
+  3: i18n.t('Azure'),
+  4: i18n.t('Ollama'),
+  5: i18n.t('MidjourneyPlus'),
+  6: i18n.t('OpenAIMax'),
+  7: i18n.t('OhMyGPT'),
+  8: i18n.t('Custom'),
+  9: i18n.t('AILS'),
+  10: i18n.t('AI Proxy'),
+  11: i18n.t('PaLM'),
+  12: i18n.t('API2GPT'),
+  13: i18n.t('AIGC2D'),
+  14: i18n.t('Anthropic'),
+  15: i18n.t('Baidu'),
+  16: i18n.t('Zhipu'),
+  17: i18n.t('Ali'),
+  18: i18n.t('Xunfei'),
+  19: i18n.t('360'),
+  20: i18n.t('OpenRouter'),
+  21: i18n.t('AI Proxy Library'),
+  22: i18n.t('FastGPT'),
+  23: i18n.t('Tencent'),
+  24: i18n.t('Gemini'),
+  25: i18n.t('Moonshot'),
+  26: i18n.t('Zhipu V4'),
+  27: i18n.t('Perplexity'),
+  31: i18n.t('LingYiWanWu'),
+  33: i18n.t('AWS'),
+  34: i18n.t('Cohere'),
+  35: i18n.t('MiniMax'),
+  36: i18n.t('SunoAPI'),
+  37: i18n.t('Dify'),
+  38: i18n.t('Jina'),
+  39: i18n.t('Cloudflare'),
+  40: i18n.t('SiliconFlow'),
+  41: i18n.t('Vertex AI'),
+  42: i18n.t('Mistral'),
+  43: i18n.t('DeepSeek'),
+  44: i18n.t('MokaAI'),
+  45: i18n.t('VolcEngine'),
+  46: i18n.t('Baidu V2'),
+  47: i18n.t('Xinference'),
+  48: i18n.t('xAI'),
+  49: i18n.t('Coze'),
+  50: i18n.t('Kling'),
+  51: i18n.t('Jimeng'),
+  52: i18n.t('Vidu'),
+  53: i18n.t('Submodel'),
+  54: i18n.t('DoubaoVideo'),
+  55: i18n.t('Sora'),
+  56: i18n.t('Replicate'),
 } as const
 
 export const CHANNEL_TYPE_OPTIONS = Object.entries(CHANNEL_TYPES)
@@ -80,38 +82,38 @@ export const CHANNEL_STATUS = {
 } as const
 
 export const CHANNEL_STATUS_LABELS = {
-  [CHANNEL_STATUS.UNKNOWN]: 'Unknown',
-  [CHANNEL_STATUS.ENABLED]: 'Enabled',
-  [CHANNEL_STATUS.MANUAL_DISABLED]: 'Disabled',
-  [CHANNEL_STATUS.AUTO_DISABLED]: 'Auto Disabled',
+  [CHANNEL_STATUS.UNKNOWN]: i18n.t('Unknown'),
+  [CHANNEL_STATUS.ENABLED]: i18n.t('Enabled'),
+  [CHANNEL_STATUS.MANUAL_DISABLED]: i18n.t('Disabled'),
+  [CHANNEL_STATUS.AUTO_DISABLED]: i18n.t('Auto Disabled'),
 } as const
 
 export const CHANNEL_STATUS_OPTIONS = [
-  { value: 'all', label: 'All Status' },
-  { value: 'enabled', label: 'Enabled' },
-  { value: 'disabled', label: 'Disabled' },
+  { value: 'all', label: i18n.t('All Status') },
+  { value: 'enabled', label: i18n.t('Enabled') },
+  { value: 'disabled', label: i18n.t('Disabled') },
 ] as const
 
 // Status badge configurations
 export const CHANNEL_STATUS_CONFIG = {
   [CHANNEL_STATUS.UNKNOWN]: {
     variant: 'neutral' as const,
-    label: 'Unknown',
+    label: i18n.t('Unknown'),
     showDot: true,
   },
   [CHANNEL_STATUS.ENABLED]: {
     variant: 'success' as const,
-    label: 'Enabled',
+    label: i18n.t('Enabled'),
     showDot: true,
   },
   [CHANNEL_STATUS.MANUAL_DISABLED]: {
     variant: 'neutral' as const,
-    label: 'Disabled',
+    label: i18n.t('Disabled'),
     showDot: true,
   },
   [CHANNEL_STATUS.AUTO_DISABLED]: {
     variant: 'danger' as const,
-    label: 'Auto Disabled',
+    label: i18n.t('Auto Disabled'),
     showDot: true,
   },
 }
@@ -127,23 +129,23 @@ export const MULTI_KEY_STATUS = {
 } as const
 
 export const MULTI_KEY_STATUS_LABELS = {
-  [MULTI_KEY_STATUS.ENABLED]: 'Enabled',
-  [MULTI_KEY_STATUS.MANUAL_DISABLED]: 'Manual Disabled',
-  [MULTI_KEY_STATUS.AUTO_DISABLED]: 'Auto Disabled',
+  [MULTI_KEY_STATUS.ENABLED]: i18n.t('Enabled'),
+  [MULTI_KEY_STATUS.MANUAL_DISABLED]: i18n.t('Manual Disabled'),
+  [MULTI_KEY_STATUS.AUTO_DISABLED]: i18n.t('Auto Disabled'),
 } as const
 
 export const MULTI_KEY_STATUS_CONFIG = {
   [MULTI_KEY_STATUS.ENABLED]: {
     variant: 'success' as const,
-    label: 'Enabled',
+    label: i18n.t('Enabled'),
   },
   [MULTI_KEY_STATUS.MANUAL_DISABLED]: {
     variant: 'neutral' as const,
-    label: 'Manual Disabled',
+    label: i18n.t('Manual Disabled'),
   },
   [MULTI_KEY_STATUS.AUTO_DISABLED]: {
     variant: 'danger' as const,
-    label: 'Auto Disabled',
+    label: i18n.t('Auto Disabled'),
   },
 }
 
@@ -152,16 +154,16 @@ export const MULTI_KEY_STATUS_CONFIG = {
 // ============================================================================
 
 export const MULTI_KEY_MODES = [
-  { value: 'random', label: 'Random' },
-  { value: 'polling', label: 'Polling' },
+  { value: 'random', label: i18n.t('Random') },
+  { value: 'polling', label: i18n.t('Polling') },
 ] as const
 
 export const ADD_MODE_OPTIONS = [
-  { value: 'single', label: 'Single Key' },
-  { value: 'batch', label: 'Batch Add (one key per line)' },
+  { value: 'single', label: i18n.t('Single Key') },
+  { value: 'batch', label: i18n.t('Batch Add (one key per line)') },
   {
     value: 'multi_to_single',
-    label: 'Multi-Key Mode (multiple keys, one channel)',
+    label: i18n.t('Multi-Key Mode (multiple keys, one channel)'),
   },
 ] as const
 
@@ -170,21 +172,23 @@ export const ADD_MODE_OPTIONS = [
 // ============================================================================
 
 export const MULTI_KEY_FILTER_OPTIONS = [
-  { value: 'all', label: 'All Status' },
-  { value: '1', label: 'Enabled' },
-  { value: '2', label: 'Manual Disabled' },
-  { value: '3', label: 'Auto Disabled' },
+  { value: 'all', label: i18n.t('All Status') },
+  { value: '1', label: i18n.t('Enabled') },
+  { value: '2', label: i18n.t('Manual Disabled') },
+  { value: '3', label: i18n.t('Auto Disabled') },
 ] as const
 
 export const MULTI_KEY_CONFIRM_MESSAGES = {
-  DELETE:
-    'Are you sure you want to delete this key? This action cannot be undone.',
-  ENABLE: 'Enable this key?',
-  DISABLE: 'Disable this key?',
-  ENABLE_ALL: 'Are you sure you want to enable all keys?',
-  DISABLE_ALL: 'Are you sure you want to disable all enabled keys?',
-  DELETE_DISABLED:
-    'Are you sure you want to delete all auto-disabled keys? This action cannot be undone.',
+  DELETE: i18n.t(
+    'Are you sure you want to delete this key? This action cannot be undone.'
+  ),
+  ENABLE: i18n.t('Enable this key?'),
+  DISABLE: i18n.t('Disable this key?'),
+  ENABLE_ALL: i18n.t('Are you sure you want to enable all keys?'),
+  DISABLE_ALL: i18n.t('Are you sure you want to disable all enabled keys?'),
+  DELETE_DISABLED: i18n.t(
+    'Are you sure you want to delete all auto-disabled keys? This action cannot be undone.'
+  ),
 } as const
 
 // ============================================================================
@@ -192,8 +196,8 @@ export const MULTI_KEY_CONFIRM_MESSAGES = {
 // ============================================================================
 
 export const AUTO_BAN_OPTIONS = [
-  { value: 1, label: 'Enabled' },
-  { value: 0, label: 'Disabled' },
+  { value: 1, label: i18n.t('Enabled') },
+  { value: 0, label: i18n.t('Disabled') },
 ] as const
 
 // ============================================================================
@@ -201,33 +205,33 @@ export const AUTO_BAN_OPTIONS = [
 // ============================================================================
 
 export const ERROR_MESSAGES = {
-  REQUIRED_NAME: 'Channel name is required',
-  REQUIRED_TYPE: 'Channel type is required',
-  REQUIRED_KEY: 'API key is required',
-  REQUIRED_MODELS: 'Models are required',
-  REQUIRED_GROUP: 'Group is required',
-  INVALID_JSON: 'Invalid JSON format',
-  INVALID_MODEL_MAPPING: 'Invalid model mapping format',
-  CREATE_FAILED: 'Failed to create channel',
-  UPDATE_FAILED: 'Failed to update channel',
-  DELETE_FAILED: 'Failed to delete channel',
-  TEST_FAILED: 'Failed to test channel',
-  BALANCE_QUERY_FAILED: 'Failed to query balance',
-  FETCH_MODELS_FAILED: 'Failed to fetch models',
+  REQUIRED_NAME: i18n.t('Channel name is required'),
+  REQUIRED_TYPE: i18n.t('Channel type is required'),
+  REQUIRED_KEY: i18n.t('API key is required'),
+  REQUIRED_MODELS: i18n.t('Models are required'),
+  REQUIRED_GROUP: i18n.t('Group is required'),
+  INVALID_JSON: i18n.t('Invalid JSON format'),
+  INVALID_MODEL_MAPPING: i18n.t('Invalid model mapping format'),
+  CREATE_FAILED: i18n.t('Failed to create channel'),
+  UPDATE_FAILED: i18n.t('Failed to update channel'),
+  DELETE_FAILED: i18n.t('Failed to delete channel'),
+  TEST_FAILED: i18n.t('Failed to test channel'),
+  BALANCE_QUERY_FAILED: i18n.t('Failed to query balance'),
+  FETCH_MODELS_FAILED: i18n.t('Failed to fetch models'),
 } as const
 
 export const SUCCESS_MESSAGES = {
-  CREATED: 'Channel created successfully',
-  UPDATED: 'Channel updated successfully',
-  DELETED: 'Channel deleted successfully',
-  ENABLED: 'Channel enabled successfully',
-  DISABLED: 'Channel disabled successfully',
-  TESTED: 'Channel test completed',
-  BALANCE_QUERIED: 'Balance queried successfully',
-  MODELS_FETCHED: 'Models fetched successfully',
-  COPIED: 'Channel copied successfully',
-  TAG_SET: 'Tag set successfully',
-  BATCH_DELETED: 'Channels deleted successfully',
+  CREATED: i18n.t('Channel created successfully'),
+  UPDATED: i18n.t('Channel updated successfully'),
+  DELETED: i18n.t('Channel deleted successfully'),
+  ENABLED: i18n.t('Channel enabled successfully'),
+  DISABLED: i18n.t('Channel disabled successfully'),
+  TESTED: i18n.t('Channel test completed'),
+  BALANCE_QUERIED: i18n.t('Balance queried successfully'),
+  MODELS_FETCHED: i18n.t('Models fetched successfully'),
+  COPIED: i18n.t('Channel copied successfully'),
+  TAG_SET: i18n.t('Tag set successfully'),
+  BATCH_DELETED: i18n.t('Channels deleted successfully'),
 } as const
 
 // ============================================================================
@@ -261,11 +265,11 @@ export const CHANNELS_TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 // ============================================================================
 
 export const SORT_OPTIONS = [
-  { value: 'priority', label: 'Priority (Default)' },
-  { value: 'id', label: 'ID' },
-  { value: 'name', label: 'Name' },
-  { value: 'balance', label: 'Balance' },
-  { value: 'response_time', label: 'Response Time' },
+  { value: 'priority', label: i18n.t('Priority (Default)') },
+  { value: 'id', label: i18n.t('ID') },
+  { value: 'name', label: i18n.t('Name') },
+  { value: 'balance', label: i18n.t('Balance') },
+  { value: 'response_time', label: i18n.t('Response Time') },
 ] as const
 
 // ============================================================================
@@ -290,11 +294,11 @@ export const RESPONSE_TIME_THRESHOLDS = {
 } as const
 
 export const RESPONSE_TIME_CONFIG = {
-  EXCELLENT: { variant: 'success' as const, label: 'Excellent' },
-  GOOD: { variant: 'info' as const, label: 'Good' },
-  FAIR: { variant: 'warning' as const, label: 'Fair' },
-  POOR: { variant: 'danger' as const, label: 'Poor' },
-  UNKNOWN: { variant: 'neutral' as const, label: 'Not tested' },
+  EXCELLENT: { variant: 'success' as const, label: i18n.t('Excellent') },
+  GOOD: { variant: 'info' as const, label: i18n.t('Good') },
+  FAIR: { variant: 'warning' as const, label: i18n.t('Fair') },
+  POOR: { variant: 'danger' as const, label: i18n.t('Poor') },
+  UNKNOWN: { variant: 'neutral' as const, label: i18n.t('Not tested') },
 } as const
 
 // ============================================================================
@@ -302,43 +306,45 @@ export const RESPONSE_TIME_CONFIG = {
 // ============================================================================
 
 export const FIELD_PLACEHOLDERS = {
-  NAME: 'e.g., OpenAI GPT-4 Production',
-  BASE_URL: 'Leave empty to use default',
-  KEY: 'API Key (one per line for batch mode)',
-  MODELS: 'Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo',
-  GROUP: 'Please Select user groups that can access this channel.',
+  NAME: i18n.t('e.g., OpenAI GPT-4 Production'),
+  BASE_URL: i18n.t('Leave empty to use default'),
+  KEY: i18n.t('API Key (one per line for batch mode)'),
+  MODELS: i18n.t('Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo'),
+  GROUP: i18n.t('Please Select user groups that can access this channel.'),
   MODEL_MAPPING: '{"request_model": "actual_model"}',
-  TEST_MODEL: 'Model to use for testing',
-  TAG: 'Optional tag for grouping channels',
-  REMARK: 'Optional notes about this channel',
+  TEST_MODEL: i18n.t('Model to use for testing'),
+  TAG: i18n.t('Optional tag for grouping channels'),
+  REMARK: i18n.t('Optional notes about this channel'),
   PARAM_OVERRIDE: '{"temperature": 0.7}',
   HEADER_OVERRIDE: '{"X-Custom-Header": "value"}',
   STATUS_CODE_MAPPING: '{"400": "500"}',
 } as const
 
 export const FIELD_DESCRIPTIONS = {
-  NAME: 'Friendly name to identify this channel',
-  TYPE: 'Provider type (OpenAI, Anthropic, etc.)',
-  BASE_URL: 'Custom API base URL. Leave empty to use provider default.',
-  KEY: 'API key from the provider',
-  MODELS:
-    'List of models supported by this channel. Use comma to separate multiple models.',
-  GROUP: 'User groups that can access this channel. ',
-  MODEL_MAPPING:
-    'Map request model names to actual provider model names (JSON format)',
-  PRIORITY: 'Higher priority channels are selected first',
-  WEIGHT: 'Used for load balancing. Higher weight = more requests',
-  TEST_MODEL: 'Model to use when testing channel connectivity',
-  AUTO_BAN: 'Automatically disable channel on repeated failures',
-  STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
-  TAG: 'Group channels by tag for batch operations',
-  REMARK: 'Internal notes (not shown to users)',
-  SETTING: 'Channel-specific settings (JSON format)',
-  PARAM_OVERRIDE: 'Override request parameters (JSON format)',
-  HEADER_OVERRIDE: 'Override request headers (JSON format)',
-  MULTI_KEY_MODE: 'How to select keys: random or sequential polling',
-  BATCH_ADD: 'Create multiple channels from multiple keys',
-  OPENAI_ORG: 'OpenAI Organization ID (optional)',
+  NAME: i18n.t('Friendly name to identify this channel'),
+  TYPE: i18n.t('Provider type (OpenAI, Anthropic, etc.)'),
+  BASE_URL: i18n.t('Custom API base URL. Leave empty to use provider default.'),
+  KEY: i18n.t('API key from the provider'),
+  MODELS: i18n.t(
+    'List of models supported by this channel. Use comma to separate multiple models.'
+  ),
+  GROUP: i18n.t('User groups that can access this channel. '),
+  MODEL_MAPPING: i18n.t(
+    'Map request model names to actual provider model names (JSON format)'
+  ),
+  PRIORITY: i18n.t('Higher priority channels are selected first'),
+  WEIGHT: i18n.t('Used for load balancing. Higher weight = more requests'),
+  TEST_MODEL: i18n.t('Model to use when testing channel connectivity'),
+  AUTO_BAN: i18n.t('Automatically disable channel on repeated failures'),
+  STATUS_CODE_MAPPING: i18n.t('Map response status codes (JSON format)'),
+  TAG: i18n.t('Group channels by tag for batch operations'),
+  REMARK: i18n.t('Internal notes (not shown to users)'),
+  SETTING: i18n.t('Channel-specific settings (JSON format)'),
+  PARAM_OVERRIDE: i18n.t('Override request parameters (JSON format)'),
+  HEADER_OVERRIDE: i18n.t('Override request headers (JSON format)'),
+  MULTI_KEY_MODE: i18n.t('How to select keys: random or sequential polling'),
+  BATCH_ADD: i18n.t('Create multiple channels from multiple keys'),
+  OPENAI_ORG: i18n.t('OpenAI Organization ID (optional)'),
 } as const
 
 // ============================================================================
@@ -368,18 +374,28 @@ export const MODEL_FETCHABLE_TYPES = new Set([
 
 // Channel type specific key format prompts
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
-  15: 'Format: APIKey|SecretKey',
-  18: 'Format: APPID|APISecret|APIKey',
-  22: 'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041',
-  23: 'Format: AppId|SecretId|SecretKey',
-  33: 'Format: Ak|Sk|Region',
-  50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
-  51: 'Format: Access Key ID|Secret Access Key',
+  15: i18n.t('Format: APIKey|SecretKey'),
+  18: i18n.t('Format: APPID|APISecret|APIKey'),
+  22: i18n.t(
+    'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041'
+  ),
+  23: i18n.t('Format: AppId|SecretId|SecretKey'),
+  33: i18n.t('Format: Ak|Sk|Region'),
+  50: i18n.t(
+    'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)'
+  ),
+  51: i18n.t('Format: Access Key ID|Secret Access Key'),
 }
 
 // Channel types with special warnings
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
-  3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
-  8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
-  37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  3: i18n.t(
+    'For channels added after May 10, 2025, no need to remove "." from model names during deployment'
+  ),
+  8: i18n.t(
+    'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing'
+  ),
+  37: i18n.t(
+    'Dify channels only support chatflow and agent, and agent does not support images'
+  ),
 }

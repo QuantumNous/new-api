@@ -1,18 +1,30 @@
-import { sidebarConfig } from '../config/sidebar.config'
-import { systemSettingsConfig } from '../config/system-settings.config'
+import { type TFunction } from 'i18next'
+import {
+  getSystemSettingsNavGroups,
+  WORKSPACE_SYSTEM_SETTINGS_ID,
+} from '../config/system-settings.config'
 import type { NavGroup } from '../types'
+
+export const WORKSPACE_IDS = {
+  SYSTEM_SETTINGS: WORKSPACE_SYSTEM_SETTINGS_ID,
+  DEFAULT: 'default',
+} as const
+
+export type WorkspaceId = (typeof WORKSPACE_IDS)[keyof typeof WORKSPACE_IDS]
 
 /**
  * Workspace configuration type
  * Each workspace contains name, path matching rules, and corresponding navigation group configuration
  */
 export type WorkspaceConfig = {
+  /** Workspace identifier (for logic) */
+  id: WorkspaceId
   /** Workspace name */
   name: string
   /** Path matching rule, supports string (contains match) or regular expression */
   pathPattern: string | RegExp
   /** Sidebar navigation group configuration for this workspace */
-  navGroups: NavGroup[]
+  getNavGroups?: (t: TFunction) => NavGroup[]
 }
 
 /**
@@ -32,15 +44,17 @@ export type WorkspaceConfig = {
 const workspaceRegistry: WorkspaceConfig[] = [
   // System Settings workspace
   {
+    id: WORKSPACE_IDS.SYSTEM_SETTINGS,
     name: 'System Settings',
     pathPattern: /^\/system-settings/,
-    navGroups: systemSettingsConfig,
+    getNavGroups: getSystemSettingsNavGroups,
   },
   // Default workspace (must be last)
   {
+    id: WORKSPACE_IDS.DEFAULT,
     name: 'Default',
     pathPattern: /.*/,
-    navGroups: sidebarConfig.navGroups,
+    // getNavGroups is undefined, will be handled by consumers (e.g. useSidebarData)
   },
 ]
 
@@ -66,21 +80,25 @@ export function getWorkspaceByPath(pathname: string): WorkspaceConfig {
  * @param pathname - Current route path
  * @returns Navigation group configuration for corresponding workspace
  */
-export function getNavGroupsForPath(pathname: string): NavGroup[] {
-  return getWorkspaceByPath(pathname).navGroups
+export function getNavGroupsForPath(
+  pathname: string,
+  t: TFunction
+): NavGroup[] | undefined {
+  const workspace = getWorkspaceByPath(pathname)
+  return workspace.getNavGroups?.(t)
 }
 
 /**
  * Determine if in specified workspace
  * @param pathname - Current route path
- * @param workspaceName - Workspace name
+ * @param workspaceId - Workspace identifier
  * @returns Whether in specified workspace
  */
 export function isInWorkspace(
   pathname: string,
-  workspaceName: string
+  workspaceId: WorkspaceId
 ): boolean {
-  return getWorkspaceByPath(pathname).name === workspaceName
+  return getWorkspaceByPath(pathname).id === workspaceId
 }
 
 /**

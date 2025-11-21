@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Plus, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ export function AmountOptionsVisualEditor({
   value,
   onChange,
 }: AmountOptionsVisualEditorProps) {
+  const { t } = useTranslation()
   const [newAmount, setNewAmount] = useState('')
 
   const amounts = useMemo(() => {
@@ -69,12 +71,14 @@ export function AmountOptionsVisualEditor({
     <div className='space-y-4'>
       <div>
         <p className='text-muted-foreground mb-3 text-sm'>
-          Preset recharge amounts displayed to users
+          {t('Preset recharge amounts displayed to users')}
         </p>
 
         {amounts.length === 0 ? (
           <div className='text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm'>
-            No amount options configured. Add amounts below to get started.
+            {t(
+              'No amount options configured. Add amounts below to get started.'
+            )}
           </div>
         ) : (
           <div className='flex flex-wrap gap-2'>
@@ -109,14 +113,14 @@ export function AmountOptionsVisualEditor({
             htmlFor='new-amount'
             className='mb-2 block text-sm font-medium'
           >
-            Add new amount
+            {t('Add new amount')}
           </label>
           <Input
             id='new-amount'
             type='number'
             step='0.01'
             min='0'
-            placeholder='e.g., 100'
+            placeholder={t('e.g., 100')}
             value={newAmount}
             onChange={(e) => setNewAmount(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -133,7 +137,7 @@ export function AmountOptionsVisualEditor({
           className='w-full sm:w-auto'
         >
           <Plus className='h-4 w-4 sm:mr-2' />
-          <span className='sm:inline'>Add</span>
+          <span className='sm:inline'>{t('Add')}</span>
         </Button>
       </div>
     </div>

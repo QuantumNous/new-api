@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -19,6 +20,7 @@ type DataTableBulkActionsProps<TData> = {
 export function DataTableBulkActions<TData>({
   table,
 }: DataTableBulkActionsProps<TData>) {
+  const { t } = useTranslation()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const selectedRows = table.getFilteredSelectedRowModel().rows
 
@@ -38,9 +40,9 @@ export function DataTableBulkActions<TData>({
           variant='outline'
           size='icon'
           className='size-8'
-          tooltip='Copy selected keys'
+          tooltip={t('Copy selected keys')}
           successTooltip='Keys copied!'
-          aria-label='Copy selected keys'
+          aria-label={t('Copy selected keys')}
         />
 
         <Tooltip>
@@ -50,15 +52,15 @@ export function DataTableBulkActions<TData>({
               size='icon'
               onClick={() => setShowDeleteConfirm(true)}
               className='size-8'
-              aria-label='Delete selected API keys'
-              title='Delete selected API keys'
+              aria-label={t('Delete selected API keys')}
+              title={t('Delete selected API keys')}
             >
               <Trash2 />
-              <span className='sr-only'>Delete selected API keys</span>
+              <span className='sr-only'>{t('Delete selected API keys')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Delete selected API keys</p>
+            <p>{t('Delete selected API keys')}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>

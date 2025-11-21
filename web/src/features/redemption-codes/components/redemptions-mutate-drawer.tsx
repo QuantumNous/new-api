@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { addTimeToDate } from '@/lib/time'
@@ -26,7 +27,7 @@ import {
 } from '@/components/ui/sheet'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { getRedemptionSuccessMessages } from '../constants'
 import {
   redemptionFormSchema,
   type RedemptionFormValues,
@@ -48,6 +49,8 @@ export function RedemptionsMutateDrawer({
   onOpenChange,
   currentRow,
 }: RedemptionsMutateDrawerProps) {
+  const { t } = useTranslation()
+  const successMessages = getRedemptionSuccessMessages(t)
   const isUpdate = !!currentRow
   const { triggerRefresh } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -83,7 +86,7 @@ export function RedemptionsMutateDrawer({
           id: currentRow.id,
         })
         if (result.success) {
-          toast.success(SUCCESS_MESSAGES.REDEMPTION_UPDATED)
+          toast.success(successMessages.REDEMPTION_UPDATED)
           onOpenChange(false)
           triggerRefresh()
         }
@@ -94,8 +97,10 @@ export function RedemptionsMutateDrawer({
           const count = result.data?.length || 0
           toast.success(
             count > 1
-              ? `Successfully created ${count} redemption codes`
-              : SUCCESS_MESSAGES.REDEMPTION_CREATED
+              ? t('Successfully created {{count}} redemption codes', {
+                  count,
+                })
+              : successMessages.REDEMPTION_CREATED
           )
           onOpenChange(false)
           triggerRefresh()
@@ -115,13 +120,10 @@ export function RedemptionsMutateDrawer({
   const currencyLabel = getCurrencyLabel()
   const tokensOnly =
     !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
-  const quotaLabel = `Quota (${currencyLabel})`
+  const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
   const quotaPlaceholder = tokensOnly
-    ? 'Enter quota in tokens'
-    : `Enter quota in ${currencyLabel}`
-  const quotaDescription = tokensOnly
-    ? 'Enter the quota amount in tokens'
-    : `Enter the quota amount in ${currencyLabel}`
+    ? t('Enter quota in tokens')
+    : t('Enter quota in {{currency}}', { currency: currencyLabel })
 
   return (
     <Sheet
@@ -136,13 +138,13 @@ export function RedemptionsMutateDrawer({
       <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
         <SheetHeader className='text-start'>
           <SheetTitle>
-            {isUpdate ? 'Update' : 'Create'} Redemption Code
+            {isUpdate ? t('Update') : t('Create')} {t('Redemption Code')}
           </SheetTitle>
           <SheetDescription>
             {isUpdate
-              ? 'Update the redemption code by providing necessary info.'
-              : 'Add new redemption code(s) by providing necessary info.'}
-            Click save when you&apos;re done.
+              ? t('Update the redemption code by providing necessary info.')
+              : t('Add new redemption code(s) by providing necessary info.')}
+            {t('Click save when you&apos;re done.')}
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
@@ -156,12 +158,12 @@ export function RedemptionsMutateDrawer({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t('Name')}</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder='Enter a name' />
+                    <Input {...field} placeholder={t('Enter a name')} />
                   </FormControl>
                   <FormDescription>
-                    Name for this redemption code (1-20 characters)
+                    {t('Name for this redemption code (1-20 characters)')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -185,7 +187,13 @@ export function RedemptionsMutateDrawer({
                       }
                     />
                   </FormControl>
-                  <FormDescription>{quotaDescription}</FormDescription>
+                  <FormDescription>
+                    {tokensOnly
+                      ? t('Enter the quota amount in tokens')
+                      : t('Enter the quota amount in {{currency}}', {
+                          currency: currencyLabel,
+                        })}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -196,13 +204,13 @@ export function RedemptionsMutateDrawer({
               name='expired_time'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expiration Time</FormLabel>
+                  <FormLabel>{t('Expiration Time')}</FormLabel>
                   <div className='space-y-2'>
                     <FormControl>
                       <DateTimePicker
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder='Never expires'
+                        placeholder={t('Never expires')}
                       />
                     </FormControl>
                     <div className='flex gap-2'>
@@ -212,7 +220,7 @@ export function RedemptionsMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 0, 0)}
                       >
-                        Never
+                        {t('Never')}
                       </Button>
                       <Button
                         type='button'
@@ -220,7 +228,7 @@ export function RedemptionsMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(1, 0, 0)}
                       >
-                        1M
+                        {t('1M')}
                       </Button>
                       <Button
                         type='button'
@@ -228,7 +236,7 @@ export function RedemptionsMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 7, 0)}
                       >
-                        1W
+                        {t('1W')}
                       </Button>
                       <Button
                         type='button'
@@ -236,12 +244,12 @@ export function RedemptionsMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 1, 0)}
                       >
-                        1D
+                        {t('1D')}
                       </Button>
                     </div>
                   </div>
                   <FormDescription>
-                    Leave empty for never expires
+                    {t('Leave empty for never expires')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -254,21 +262,21 @@ export function RedemptionsMutateDrawer({
                 name='count'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quantity</FormLabel>
+                    <FormLabel>{t('Quantity')}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type='number'
                         min='1'
                         max='100'
-                        placeholder='Number of codes to create'
+                        placeholder={t('Number of codes to create')}
                         onChange={(e) =>
                           field.onChange(parseInt(e.target.value, 10) || 1)
                         }
                       />
                     </FormControl>
                     <FormDescription>
-                      Create multiple redemption codes at once (1-100)
+                      {t('Create multiple redemption codes at once (1-100)')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -279,10 +287,10 @@ export function RedemptionsMutateDrawer({
         </Form>
         <SheetFooter className='gap-2'>
           <SheetClose asChild>
-            <Button variant='outline'>Close</Button>
+            <Button variant='outline'>{t('Close')}</Button>
           </SheetClose>
           <Button form='redemption-form' type='submit' disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save changes'}
+            {isSubmitting ? t('Saving...') : t('Save changes')}
           </Button>
         </SheetFooter>
       </SheetContent>

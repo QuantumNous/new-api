@@ -10,6 +10,7 @@ import {
   DollarSign,
   SortAsc,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import {
 import { useChannels } from './channels-provider'
 
 export function ChannelsPrimaryButtons() {
+  const { t } = useTranslation()
   const { setOpen, enableTagMode, setEnableTagMode, idSort, setIdSort } =
     useChannels()
   const queryClient = useQueryClient()
@@ -56,7 +58,7 @@ export function ChannelsPrimaryButtons() {
             htmlFor='tag-mode'
             className='cursor-pointer text-sm max-sm:sr-only'
           >
-            Tag Mode
+            {t('Tag Mode')}
           </Label>
           <Switch
             id='tag-mode'
@@ -72,7 +74,7 @@ export function ChannelsPrimaryButtons() {
             htmlFor='id-sort'
             className='cursor-pointer text-sm max-sm:sr-only'
           >
-            Sort by ID
+            {t('Sort by ID')}
           </Label>
           <Switch
             id='id-sort'
@@ -84,8 +86,8 @@ export function ChannelsPrimaryButtons() {
         {/* Create Channel */}
         <Button onClick={() => setOpen('create-channel')} size='sm'>
           <Plus className='h-4 w-4' />
-          <span className='max-sm:hidden'>Create Channel</span>
-          <span className='sm:hidden'>Create</span>
+          <span className='max-sm:hidden'>{t('Create Channel')}</span>
+          <span className='sm:hidden'>{t('Create')}</span>
         </Button>
 
         {/* More Actions */}
@@ -101,7 +103,7 @@ export function ChannelsPrimaryButtons() {
                 handleTestAllChannels(queryClient)
               }}
             >
-              Test All Channels
+              {t('Test All Channels')}
               <DropdownMenuShortcut>
                 <TestTube className='h-4 w-4' />
               </DropdownMenuShortcut>
@@ -112,7 +114,7 @@ export function ChannelsPrimaryButtons() {
                 handleUpdateAllBalances(queryClient)
               }}
             >
-              Update All Balances
+              {t('Update All Balances')}
               <DropdownMenuShortcut>
                 <DollarSign className='h-4 w-4' />
               </DropdownMenuShortcut>
@@ -127,7 +129,7 @@ export function ChannelsPrimaryButtons() {
                 })
               }}
             >
-              Fix Abilities
+              {t('Fix Abilities')}
               <DropdownMenuShortcut>
                 <Settings2 className='h-4 w-4' />
               </DropdownMenuShortcut>
@@ -142,7 +144,7 @@ export function ChannelsPrimaryButtons() {
               }}
               className='text-destructive focus:text-destructive'
             >
-              Delete All Disabled
+              {t('Delete All Disabled')}
               <DropdownMenuShortcut>
                 <Trash2 className='h-4 w-4' />
               </DropdownMenuShortcut>
@@ -154,7 +156,7 @@ export function ChannelsPrimaryButtons() {
       <ConfirmDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        title='Delete All Disabled Channels?'
+        title={t('Delete All Disabled Channels?')}
         desc='This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
         destructive
         handleConfirm={() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -29,15 +30,17 @@ import {
   TableEmpty,
 } from '@/components/data-table'
 import { getRedemptions, searchRedemptions } from '../api'
-import { REDEMPTION_STATUS, REDEMPTION_STATUS_OPTIONS } from '../constants'
+import { REDEMPTION_STATUS, getRedemptionStatusOptions } from '../constants'
 import { isRedemptionExpired } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
-import { redemptionsColumns as columns } from './redemptions-columns'
+import { useRedemptionsColumns } from './redemptions-columns'
 import { useRedemptions } from './redemptions-provider'
 
 const route = getRouteApi('/_authenticated/redemption-codes/')
 
 export function RedemptionsTable() {
+  const { t } = useTranslation()
+  const columns = useRedemptionsColumns()
   const { refreshTrigger } = useRedemptions()
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -129,6 +132,11 @@ export function RedemptionsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  const redemptionStatusOptions = useMemo(
+    () => getRedemptionStatusOptions(t),
+    [t]
+  )
+
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
@@ -138,7 +146,7 @@ export function RedemptionsTable() {
           {
             columnId: 'status',
             title: 'Status',
-            options: REDEMPTION_STATUS_OPTIONS,
+            options: redemptionStatusOptions,
           },
         ]}
       />
@@ -168,8 +176,10 @@ export function RedemptionsTable() {
             ) : table.getRowModel().rows.length === 0 ? (
               <TableEmpty
                 colSpan={columns.length}
-                title='No Redemption Codes Found'
-                description='No redemption codes available. Create your first redemption code to get started.'
+                title={t('No Redemption Codes Found')}
+                description={t(
+                  'No redemption codes available. Create your first redemption code to get started.'
+                )}
               />
             ) : (
               table.getRowModel().rows.map((row) => {

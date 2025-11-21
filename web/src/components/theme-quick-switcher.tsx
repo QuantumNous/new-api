@@ -1,10 +1,12 @@
 import { Monitor, Sun, MoonStar } from 'lucide-react'
 import { motion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/theme-provider'
 import { Button } from '@/components/ui/button'
 
 export function ThemeQuickSwitcher() {
+  const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
 
   return (
@@ -14,7 +16,7 @@ export function ThemeQuickSwitcher() {
           id='theme-switcher-label'
           className='text-muted-foreground text-sm select-none'
         >
-          Theme
+          {t('Theme')}
         </span>
         <div
           role='radiogroup'
@@ -25,7 +27,7 @@ export function ThemeQuickSwitcher() {
             variant='ghost'
             size='icon'
             role='radio'
-            aria-label='System'
+            aria-label={t('System')}
             aria-checked={theme === 'system'}
             onClick={() => setTheme('system')}
             className={cn(
@@ -52,7 +54,7 @@ export function ThemeQuickSwitcher() {
             variant='ghost'
             size='icon'
             role='radio'
-            aria-label='Light'
+            aria-label={t('Light')}
             aria-checked={theme === 'light'}
             onClick={() => setTheme('light')}
             className={cn(
@@ -79,7 +81,7 @@ export function ThemeQuickSwitcher() {
             variant='ghost'
             size='icon'
             role='radio'
-            aria-label='Dark'
+            aria-label={t('Dark')}
             aria-checked={theme === 'dark'}
             onClick={() => setTheme('dark')}
             className={cn(

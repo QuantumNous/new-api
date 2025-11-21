@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -72,6 +73,7 @@ const faqSchema = z.object({
 type FAQFormValues = z.infer<typeof faqSchema>
 
 export function FAQSection({ enabled, data }: FAQSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [faqList, setFaqList] = useState<FAQ[]>([])
   const [isEnabled, setIsEnabled] = useState(enabled)
@@ -218,15 +220,17 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   return (
     <SettingsAccordion
       value='faq'
-      title='FAQ'
-      description='Maintain a list of common questions for the dashboard help panel'
+      title={t('FAQ')}
+      description={t(
+        'Maintain a list of common questions for the dashboard help panel'
+      )}
     >
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
               <Plus className='mr-2 h-4 w-4' />
-              Add FAQ
+              {t('Add FAQ')}
             </Button>
             <Button
               onClick={handleBatchDelete}
@@ -235,7 +239,8 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
               disabled={selectedIds.length === 0}
             >
               <Trash2 className='mr-2 h-4 w-4' />
-              Delete ({selectedIds.length})
+              {t('Delete (')}
+              {selectedIds.length})
             </Button>
             <Button
               onClick={handleSaveAll}
@@ -248,7 +253,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             </Button>
           </div>
           <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>Enabled</span>
+            <span className='text-muted-foreground text-sm'>
+              {t('Enabled')}
+            </span>
             <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
           </div>
         </div>
@@ -266,16 +273,16 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
-                <TableHead>Question</TableHead>
-                <TableHead>Answer</TableHead>
-                <TableHead className='w-32'>Actions</TableHead>
+                <TableHead>{t('Question')}</TableHead>
+                <TableHead>{t('Answer')}</TableHead>
+                <TableHead className='w-32'>{t('Actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {faqList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className='h-24 text-center'>
-                    No FAQ entries yet. Click "Add FAQ" to create one.
+                    {t('No FAQ entries yet. Click "Add FAQ" to create one.')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -332,7 +339,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
           <DialogHeader>
             <DialogTitle>{editingFaq ? 'Edit FAQ' : 'Add FAQ'}</DialogTitle>
             <DialogDescription>
-              Create or update frequently asked questions for users
+              {t('Create or update frequently asked questions for users')}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -345,11 +352,16 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                 name='question'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Question</FormLabel>
+                    <FormLabel>{t('Question')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='How to reset my quota?' {...field} />
+                      <Input
+                        placeholder={t('How to reset my quota?')}
+                        {...field}
+                      />
                     </FormControl>
-                    <FormDescription>Maximum 200 characters</FormDescription>
+                    <FormDescription>
+                      {t('Maximum 200 characters')}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -359,16 +371,20 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                 name='answer'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Answer</FormLabel>
+                    <FormLabel>{t('Answer')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder='Visit Settings → General and adjust quota options...'
+                        placeholder={t(
+                          'Visit Settings → General and adjust quota options...'
+                        )}
                         rows={8}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Maximum 1000 characters. Supports Markdown and HTML.
+                      {t(
+                        'Maximum 1000 characters. Supports Markdown and HTML.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -380,7 +396,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                   variant='outline'
                   onClick={() => setShowDialog(false)}
                 >
-                  Cancel
+                  {t('Cancel')}
                 </Button>
                 <Button type='submit'>{editingFaq ? 'Update' : 'Add'}</Button>
               </DialogFooter>
@@ -392,7 +408,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
                 ? 'This FAQ entry will be removed from the list.'
@@ -400,9 +416,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>
-              Delete
+              {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

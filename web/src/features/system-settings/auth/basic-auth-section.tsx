@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -35,6 +36,7 @@ type BasicAuthSectionProps = {
 }
 
 export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const formDefaults = useMemo<BasicAuthFormValues>(
@@ -82,8 +84,8 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   return (
     <SettingsAccordion
       value='basic-auth'
-      title='Basic Authentication'
-      description='Configure password-based login and registration'
+      title={t('Basic Authentication')}
+      description={t('Configure password-based login and registration')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -93,9 +95,11 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
             render={({ field }) => (
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>Password Login</FormLabel>
+                  <FormLabel className='text-base'>
+                    {t('Password Login')}
+                  </FormLabel>
                   <FormDescription>
-                    Allow users to log in with password
+                    {t('Allow users to log in with password')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -115,9 +119,11 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Registration Enabled
+                    {t('Registration Enabled')}
                   </FormLabel>
-                  <FormDescription>Allow new users to register</FormDescription>
+                  <FormDescription>
+                    {t('Allow new users to register')}
+                  </FormDescription>
                 </div>
                 <FormControl>
                   <Switch
@@ -136,10 +142,10 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Password Registration
+                    {t('Password Registration')}
                   </FormLabel>
                   <FormDescription>
-                    Allow registration with password
+                    {t('Allow registration with password')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -159,10 +165,10 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Email Verification
+                    {t('Email Verification')}
                   </FormLabel>
                   <FormDescription>
-                    Require email verification for new accounts
+                    {t('Require email verification for new accounts')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -182,10 +188,10 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Email Domain Restriction
+                    {t('Email Domain Restriction')}
                   </FormLabel>
                   <FormDescription>
-                    Only allow specific email domains
+                    {t('Only allow specific email domains')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -205,10 +211,10 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    Email Alias Restriction
+                    {t('Email Alias Restriction')}
                   </FormLabel>
                   <FormDescription>
-                    Block email aliases (e.g., user+alias@domain.com)
+                    {t('Block email aliases (e.g., user+alias@domain.com)')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -226,17 +232,18 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
             name='EmailDomainWhitelist'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email Domain Whitelist</FormLabel>
+                <FormLabel>{t('Email Domain Whitelist')}</FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder='example.com&#10;company.com'
+                    placeholder={t('example.com&#10;company.com')}
                     rows={4}
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  One domain per line (only used when domain restriction is
-                  enabled)
+                  {t(
+                    'One domain per line (only used when domain restriction is enabled)'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

@@ -7,6 +7,7 @@ import {
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
@@ -32,12 +33,13 @@ import {
 } from '../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
-import { getModelsColumns } from './models-columns'
+import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
 
 const route = getRouteApi('/_authenticated/models/')
 
 export function ModelsTable() {
+  const { t } = useTranslation()
   const { selectedVendor } = useModels()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
@@ -160,7 +162,7 @@ export function ModelsTable() {
   const vendorCounts = data?.data?.vendor_counts
 
   // Columns configuration
-  const columns = getModelsColumns(vendors)
+  const columns = useModelsColumns(vendors)
 
   // React Table instance
   const table = useReactTable({
@@ -271,8 +273,10 @@ export function ModelsTable() {
                 ) : table.getRowModel().rows.length === 0 ? (
                   <TableEmpty
                     colSpan={columns.length}
-                    title='No Models Found'
-                    description='No models available. Create your first model to get started.'
+                    title={t('No Models Found')}
+                    description={t(
+                      'No models available. Create your first model to get started.'
+                    )}
                   />
                 ) : (
                   table.getRowModel().rows.map((row) => (

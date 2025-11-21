@@ -1,5 +1,6 @@
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { type Table } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DataTableFacetedFilter } from './faceted-filter'
@@ -39,6 +40,7 @@ export function DataTableToolbar<TData>({
   hasAdditionalFilters = false,
   onReset,
 }: DataTableToolbarProps<TData>) {
+  const { t } = useTranslation()
   const isFiltered =
     table.getState().columnFilters.length > 0 ||
     table.getState().globalFilter ||
@@ -96,7 +98,7 @@ export function DataTableToolbar<TData>({
             }}
             className='h-8 px-2 lg:px-3'
           >
-            Reset
+            {t('Reset')}
             <Cross2Icon className='ms-2 h-4 w-4' />
           </Button>
         )}

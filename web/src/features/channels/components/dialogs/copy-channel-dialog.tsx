@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -25,6 +26,7 @@ export function CopyChannelDialog({
   open,
   onOpenChange,
 }: CopyChannelDialogProps) {
+  const { t } = useTranslation()
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const [suffix, setSuffix] = useState('_copy')
@@ -57,24 +59,24 @@ export function CopyChannelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Copy Channel</DialogTitle>
+          <DialogTitle>{t('Copy Channel')}</DialogTitle>
           <DialogDescription>
-            Create a copy of: <strong>{currentRow.name}</strong>
+            {t('Create a copy of:')} <strong>{currentRow.name}</strong>
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
-            <Label htmlFor='suffix'>Name Suffix</Label>
+            <Label htmlFor='suffix'>{t('Name Suffix')}</Label>
             <Input
               id='suffix'
-              placeholder='_copy'
+              placeholder={t('_copy')}
               value={suffix}
               onChange={(e) => setSuffix(e.target.value)}
               disabled={isCopying}
             />
             <p className='text-muted-foreground text-xs'>
-              New name will be: {currentRow.name}
+              {t('New name will be:')} {currentRow.name}
               {suffix}
             </p>
           </div>
@@ -87,7 +89,7 @@ export function CopyChannelDialog({
               disabled={isCopying}
             />
             <Label htmlFor='reset-balance' className='text-sm font-normal'>
-              Reset balance and used quota
+              {t('Reset balance and used quota')}
             </Label>
           </div>
         </div>
@@ -98,7 +100,7 @@ export function CopyChannelDialog({
             onClick={() => onOpenChange(false)}
             disabled={isCopying}
           >
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={handleCopy} disabled={isCopying}>
             {isCopying && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

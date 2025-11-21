@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Accordion } from '@/components/ui/accordion'
 import { useAccordionState } from '../hooks/use-accordion-state'
 import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
@@ -27,6 +28,7 @@ const defaultRequestLimitsSettings: RequestLimitsSettings = {
 }
 
 export function RequestLimitsSettings() {
+  const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
   const { openItems, handleAccordionChange } =
     useAccordionState('request-limits')
@@ -39,7 +41,7 @@ export function RequestLimitsSettings() {
     return (
       <div className='flex items-center justify-center py-12'>
         <div className='text-muted-foreground'>
-          Loading request limits settings...
+          {t('Loading request limits settings...')}
         </div>
       </div>
     )

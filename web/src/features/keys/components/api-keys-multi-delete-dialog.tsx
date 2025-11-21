@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type Table } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { batchDeleteApiKeys } from '../api'
@@ -18,6 +19,7 @@ export function ApiKeysMultiDeleteDialog<TData>({
   onOpenChange,
   table,
 }: ApiKeysMultiDeleteDialogProps<TData>) {
+  const { t } = useTranslation()
   const { triggerRefresh } = useApiKeys()
   const [isDeleting, setIsDeleting] = useState(false)
   const selectedRows = table.getFilteredSelectedRowModel().rows
@@ -57,9 +59,10 @@ export function ApiKeysMultiDeleteDialog<TData>({
       title={`Delete ${selectedRows.length} API key${selectedRows.length > 1 ? 's' : ''}?`}
       desc={
         <>
-          You are about to delete <strong>{selectedRows.length}</strong> API key
+          {t('You are about to delete')} <strong>{selectedRows.length}</strong>{' '}
+          {t('API key')}
           {selectedRows.length > 1 ? 's' : ''}. <br />
-          This action cannot be undone.
+          {t('This action cannot be undone.')}
         </>
       }
       confirmText='Delete'

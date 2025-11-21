@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -32,6 +33,7 @@ type SensitiveWordsSectionProps = {
 export function SensitiveWordsSection({
   defaultValues,
 }: SensitiveWordsSectionProps) {
+  const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<SensitiveFormValues>({
     resolver: zodResolver(sensitiveSchema),
@@ -56,8 +58,8 @@ export function SensitiveWordsSection({
   return (
     <SettingsAccordion
       value='sensitive-words'
-      title='Sensitive Words'
-      description='Configure keyword filtering for prompts and responses.'
+      title={t('Sensitive Words')}
+      description={t('Configure keyword filtering for prompts and responses.')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -69,10 +71,12 @@ export function SensitiveWordsSection({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Enable filtering
+                      {t('Enable filtering')}
                     </FormLabel>
                     <FormDescription>
-                      Blocks messages when sensitive keywords are detected.
+                      {t(
+                        'Blocks messages when sensitive keywords are detected.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -92,11 +96,12 @@ export function SensitiveWordsSection({
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
                     <FormLabel className='text-base'>
-                      Inspect user prompts
+                      {t('Inspect user prompts')}
                     </FormLabel>
                     <FormDescription>
-                      When enabled, prompts are scanned before reaching upstream
-                      models.
+                      {t(
+                        'When enabled, prompts are scanned before reaching upstream models.'
+                      )}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -115,17 +120,18 @@ export function SensitiveWordsSection({
             name='SensitiveWords'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Blocked keywords</FormLabel>
+                <FormLabel>{t('Blocked keywords')}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={12}
-                    placeholder='Enter one keyword per line'
+                    placeholder={t('Enter one keyword per line')}
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  Each line represents one keyword. Leave blank to disable the
-                  list but keep the switch states.
+                  {t(
+                    'Each line represents one keyword. Leave blank to disable the list but keep the switch states.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

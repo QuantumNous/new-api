@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -19,6 +20,7 @@ export function AffiliateRewardsCard({
   onTransfer,
   loading,
 }: AffiliateRewardsCardProps) {
+  const { t } = useTranslation()
   if (loading) {
     return (
       <Card>
@@ -59,10 +61,10 @@ export function AffiliateRewardsCard({
     <Card>
       <CardHeader>
         <h3 className='text-xl font-semibold tracking-tight'>
-          Referral Program
+          {t('Referral Program')}
         </h3>
         <p className='text-muted-foreground mt-2 text-sm'>
-          Share your link and earn rewards
+          {t('Share your link and earn rewards')}
         </p>
       </CardHeader>
       <CardContent className='space-y-8'>
@@ -70,7 +72,7 @@ export function AffiliateRewardsCard({
         <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6'>
           <div className='space-y-2'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              Pending
+              {t('Pending')}
             </div>
             <div className='text-2xl font-semibold'>
               {formatQuota(user?.aff_quota ?? 0)}
@@ -79,7 +81,7 @@ export function AffiliateRewardsCard({
 
           <div className='space-y-2'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              Total Earned
+              {t('Total Earned')}
             </div>
             <div className='text-2xl font-semibold'>
               {formatQuota(user?.aff_history_quota ?? 0)}
@@ -88,7 +90,7 @@ export function AffiliateRewardsCard({
 
           <div className='space-y-2'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              Invites
+              {t('Invites')}
             </div>
             <div className='text-2xl font-semibold'>{user?.aff_count ?? 0}</div>
           </div>
@@ -97,14 +99,14 @@ export function AffiliateRewardsCard({
         {/* Transfer Button */}
         {hasRewards && (
           <Button onClick={onTransfer} className='w-full' variant='default'>
-            Transfer to Balance
+            {t('Transfer to Balance')}
           </Button>
         )}
 
         {/* Affiliate Link */}
         <div className='space-y-3'>
           <label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-            Your Referral Link
+            {t('Your Referral Link')}
           </label>
           <div className='flex gap-2'>
             <Input
@@ -117,8 +119,8 @@ export function AffiliateRewardsCard({
               variant='outline'
               className='size-9'
               iconClassName='size-4'
-              tooltip='Copy referral link'
-              aria-label='Copy referral link'
+              tooltip={t('Copy referral link')}
+              aria-label={t('Copy referral link')}
             />
           </div>
         </div>
@@ -126,8 +128,9 @@ export function AffiliateRewardsCard({
         {/* Info */}
         <div className='bg-muted/30 space-y-2 rounded-lg p-4'>
           <p className='text-muted-foreground text-sm leading-relaxed'>
-            Earn rewards when your referrals add funds. Transfer accumulated
-            rewards to your balance anytime.
+            {t(
+              'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
+            )}
           </p>
         </div>
       </CardContent>

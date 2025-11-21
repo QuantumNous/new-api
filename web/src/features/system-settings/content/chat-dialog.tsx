@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -47,6 +48,7 @@ export function ChatDialog({
   onSave,
   editData,
 }: ChatDialogProps) {
+  const { t } = useTranslation()
   const isEditMode = !!editData
 
   const form = useForm<ChatDialogFormValues>({
@@ -82,7 +84,7 @@ export function ChatDialog({
             {isEditMode ? 'Edit chat preset' : 'Add chat preset'}
           </DialogTitle>
           <DialogDescription>
-            Configure a predefined chat link for end users.
+            {t('Configure a predefined chat link for end users.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -96,15 +98,15 @@ export function ChatDialog({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Chat Client Name</FormLabel>
+                  <FormLabel>{t('Chat Client Name')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder='Please enter chat client name'
+                      placeholder={t('Please enter chat client name')}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Display name for this chat client.
+                    {t('Display name for this chat client.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -116,12 +118,12 @@ export function ChatDialog({
               name='url'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>URL</FormLabel>
+                  <FormLabel>{t('URL')}</FormLabel>
                   <FormControl>
-                    <Input placeholder='Please enter the URL' {...field} />
+                    <Input placeholder={t('Please enter the URL')} {...field} />
                   </FormControl>
                   <FormDescription>
-                    The URL for this chat client.
+                    {t('The URL for this chat client.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -134,7 +136,7 @@ export function ChatDialog({
                 variant='outline'
                 onClick={() => onOpenChange(false)}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
             </DialogFooter>

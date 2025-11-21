@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
@@ -40,6 +41,7 @@ export function SignUpForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
@@ -274,7 +276,7 @@ export function SignUpForm({
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
                 <Input
-                  placeholder='Verification code'
+                  placeholder={t('Verification code')}
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value)}
                 />
@@ -320,7 +322,7 @@ export function SignUpForm({
           disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
-          Create account
+          {t('Create account')}
         </Button>
 
         {oauthRegisterEnabled && (
@@ -341,10 +343,11 @@ export function SignUpForm({
         >
           <DialogContent className='max-w-sm'>
             <DialogHeader className='text-left'>
-              <DialogTitle>WeChat sign in</DialogTitle>
+              <DialogTitle>{t('WeChat sign in')}</DialogTitle>
               <DialogDescription>
-                Scan the QR code to follow the official account and reply with
-                “验证码” to receive your verification code.
+                {t(
+                  'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
+                )}
               </DialogDescription>
             </DialogHeader>
 
@@ -352,21 +355,21 @@ export function SignUpForm({
               <div className='flex justify-center'>
                 <img
                   src={wechatQrCodeUrl}
-                  alt='WeChat login QR code'
+                  alt={t('WeChat login QR code')}
                   className='h-40 w-40 rounded-md border object-contain'
                 />
               </div>
             ) : (
               <p className='text-muted-foreground text-sm'>
-                QR code is not configured. Please contact support.
+                {t('QR code is not configured. Please contact support.')}
               </p>
             )}
 
             <div className='grid gap-2'>
-              <Label htmlFor='wechat-code'>Verification code</Label>
+              <Label htmlFor='wechat-code'>{t('Verification code')}</Label>
               <Input
                 id='wechat-code'
-                placeholder='Enter the verification code'
+                placeholder={t('Enter the verification code')}
                 value={wechatCode}
                 onChange={(event) => setWeChatCode(event.target.value)}
                 autoComplete='one-time-code'
@@ -380,7 +383,7 @@ export function SignUpForm({
                 onClick={() => handleWeChatDialogChange(false)}
                 disabled={isWeChatSubmitting}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 type='button'
@@ -395,7 +398,7 @@ export function SignUpForm({
                 {isWeChatSubmitting ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : null}
-                Confirm
+                {t('Confirm')}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -11,6 +11,7 @@ import {
   KeyRound,
   ShieldAlert,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +34,7 @@ interface DataTableRowActionsProps {
 }
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
+  const { t } = useTranslation()
   const user = row.original
   const { setOpen, setCurrentRow, triggerRefresh } = useUsers()
   const [resetPasskeyOpen, setResetPasskeyOpen] = useState(false)
@@ -107,12 +109,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
           >
             <MoreHorizontal className='h-4 w-4' />
-            <span className='sr-only'>Open menu</span>
+            <span className='sr-only'>{t('Open menu')}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-[180px]'>
           <DropdownMenuItem onClick={handleEdit}>
-            Edit
+            {t('Edit')}
             <DropdownMenuShortcut>
               <Pencil size={16} />
             </DropdownMenuShortcut>
@@ -122,7 +124,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {isDisabled ? (
             <DropdownMenuItem onClick={() => handleManage('enable')}>
-              Enable
+              {t('Enable')}
               <DropdownMenuShortcut>
                 <Power size={16} />
               </DropdownMenuShortcut>
@@ -132,7 +134,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               onClick={() => handleManage('disable')}
               disabled={isRoot}
             >
-              Disable
+              {t('Disable')}
               <DropdownMenuShortcut>
                 <PowerOff size={16} />
               </DropdownMenuShortcut>
@@ -141,7 +143,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {isAdmin && !isRoot && (
             <DropdownMenuItem onClick={() => handleManage('demote')}>
-              Demote
+              {t('Demote')}
               <DropdownMenuShortcut>
                 <ArrowDown size={16} />
               </DropdownMenuShortcut>
@@ -150,7 +152,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {!isAdmin && (
             <DropdownMenuItem onClick={() => handleManage('promote')}>
-              Promote
+              {t('Promote')}
               <DropdownMenuShortcut>
                 <ArrowUp size={16} />
               </DropdownMenuShortcut>
@@ -166,7 +168,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             }}
             disabled={isRoot}
           >
-            Reset Passkey
+            {t('Reset Passkey')}
             <DropdownMenuShortcut>
               <KeyRound size={16} />
             </DropdownMenuShortcut>
@@ -179,7 +181,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             }}
             disabled={isRoot}
           >
-            Reset 2FA
+            {t('Reset 2FA')}
             <DropdownMenuShortcut>
               <ShieldAlert size={16} />
             </DropdownMenuShortcut>
@@ -192,7 +194,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             className='text-destructive focus:text-destructive'
             disabled={isRoot}
           >
-            Delete
+            {t('Delete')}
             <DropdownMenuShortcut>
               <Trash2 size={16} />
             </DropdownMenuShortcut>
@@ -203,7 +205,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <ConfirmDialog
         open={resetPasskeyOpen}
         onOpenChange={setResetPasskeyOpen}
-        title='Reset Passkey'
+        title={t('Reset Passkey')}
         desc={`Reset Passkey for ${user.username}? The user will need to register a new Passkey before using passwordless login.`}
         confirmText='Reset Passkey'
         handleConfirm={handleResetPasskey}
@@ -212,7 +214,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <ConfirmDialog
         open={resetTwoFAOpen}
         onOpenChange={setResetTwoFAOpen}
-        title='Reset Two-Factor Authentication'
+        title={t('Reset Two-Factor Authentication')}
         desc={`Reset 2FA for ${user.username}? The user must set up 2FA again to continue using it.`}
         confirmText='Reset 2FA'
         handleConfirm={handleResetTwoFA}

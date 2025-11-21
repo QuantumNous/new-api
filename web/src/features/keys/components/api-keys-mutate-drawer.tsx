@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
@@ -65,6 +66,7 @@ export function ApiKeysMutateDrawer({
   onOpenChange,
   currentRow,
 }: ApiKeyMutateDrawerProps) {
+  const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -187,13 +189,10 @@ export function ApiKeysMutateDrawer({
   const currencyLabel = getCurrencyLabel()
   const tokensOnly =
     !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
-  const quotaLabel = `Quota (${currencyLabel})`
+  const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
   const quotaPlaceholder = tokensOnly
-    ? 'Enter quota in tokens'
-    : `Enter quota in ${currencyLabel}`
-  const quotaDescription = tokensOnly
-    ? 'Enter the quota amount in tokens'
-    : `Enter the quota amount in ${currencyLabel}`
+    ? t('Enter quota in tokens')
+    : t('Enter quota in {{currency}}', { currency: currencyLabel })
 
   return (
     <Sheet
@@ -207,12 +206,14 @@ export function ApiKeysMutateDrawer({
     >
       <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
         <SheetHeader className='text-start'>
-          <SheetTitle>{isUpdate ? 'Update' : 'Create'} API Key</SheetTitle>
+          <SheetTitle>
+            {isUpdate ? t('Update API Key') : t('Create API Key')}
+          </SheetTitle>
           <SheetDescription>
             {isUpdate
-              ? 'Update the API key by providing necessary info.'
-              : 'Add a new API key by providing necessary info.'}
-            Click save when you&apos;re done.
+              ? t('Update the API key by providing necessary info.')
+              : t('Add a new API key by providing necessary info.')}{' '}
+            {t("Click save when you're done.")}
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
@@ -240,11 +241,11 @@ export function ApiKeysMutateDrawer({
               name='group'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Group</FormLabel>
+                  <FormLabel>{t('Group')}</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder='Select a group' />
+                        <SelectValue placeholder={t('Select a group')} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -256,7 +257,7 @@ export function ApiKeysMutateDrawer({
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Auto group enables circuit breaker mechanism
+                    {t('Auto group enables circuit breaker mechanism')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -269,9 +270,11 @@ export function ApiKeysMutateDrawer({
               render={({ field }) => (
                 <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                   <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>Unlimited Quota</FormLabel>
+                    <FormLabel className='text-base'>
+                      {t('Unlimited Quota')}
+                    </FormLabel>
                     <FormDescription>
-                      Enable unlimited quota for this API key
+                      {t('Enable unlimited quota for this API key')}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -302,7 +305,13 @@ export function ApiKeysMutateDrawer({
                         }
                       />
                     </FormControl>
-                    <FormDescription>{quotaDescription}</FormDescription>
+                    <FormDescription>
+                      {tokensOnly
+                        ? t('Enter the quota amount in tokens')
+                        : t('Enter the quota amount in {{currency}}', {
+                            currency: currencyLabel,
+                          })}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -320,7 +329,7 @@ export function ApiKeysMutateDrawer({
                       <DateTimePicker
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder='Never expires'
+                        placeholder={t('Never expires')}
                       />
                     </FormControl>
                     <div className='flex gap-2'>
@@ -330,7 +339,7 @@ export function ApiKeysMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 0, 0)}
                       >
-                        Never
+                        {t('Never')}
                       </Button>
                       <Button
                         type='button'
@@ -359,7 +368,7 @@ export function ApiKeysMutateDrawer({
                     </div>
                   </div>
                   <FormDescription>
-                    Leave empty for never expires
+                    {t('Leave empty for never expires')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -372,21 +381,22 @@ export function ApiKeysMutateDrawer({
                 name='tokenCount'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quantity</FormLabel>
+                    <FormLabel>{t('Quantity')}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type='number'
                         min='1'
-                        placeholder='Number of keys to create'
+                        placeholder={t('Number of keys to create')}
                         onChange={(e) =>
                           field.onChange(parseInt(e.target.value, 10) || 1)
                         }
                       />
                     </FormControl>
                     <FormDescription>
-                      Create multiple API keys at once (random suffix will be
-                      added to names)
+                      {t(
+                        'Create multiple API keys at once (random suffix will be added to names)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -401,7 +411,7 @@ export function ApiKeysMutateDrawer({
                   variant='outline'
                   className='flex w-full items-center justify-between'
                 >
-                  <span className='font-medium'>Advanced Options</span>
+                  <span className='font-medium'>{t('Advanced Options')}</span>
                   <ChevronDown
                     className={`h-4 w-4 transition-transform duration-200 ${
                       advancedOpen ? 'rotate-180' : ''
@@ -415,17 +425,17 @@ export function ApiKeysMutateDrawer({
                   name='model_limits'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Model Limits</FormLabel>
+                      <FormLabel>{t('Model Limits')}</FormLabel>
                       <FormControl>
                         <MultiSelect
                           options={models.map((m) => ({ label: m, value: m }))}
                           selected={field.value}
                           onChange={field.onChange}
-                          placeholder='Select models (empty for allow all)'
+                          placeholder={t('Select models (empty for allow all)')}
                         />
                       </FormControl>
                       <FormDescription>
-                        Limit which models can be used with this key
+                        {t('Limit which models can be used with this key')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -437,16 +447,18 @@ export function ApiKeysMutateDrawer({
                   name='allow_ips'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>IP Whitelist</FormLabel>
+                      <FormLabel>{t('IP Whitelist')}</FormLabel>
                       <FormControl>
                         <Textarea
                           {...field}
-                          placeholder='One IP per line (empty for no restriction)'
+                          placeholder={t(
+                            'One IP per line (empty for no restriction)'
+                          )}
                           rows={3}
                         />
                       </FormControl>
                       <FormDescription>
-                        Restrict access to specific IPs
+                        {t('Restrict access to specific IPs')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -458,7 +470,7 @@ export function ApiKeysMutateDrawer({
         </Form>
         <SheetFooter className='gap-2'>
           <SheetClose asChild>
-            <Button variant='outline'>Close</Button>
+            <Button variant='outline'>{t('Close')}</Button>
           </SheetClose>
           <Button form='api-key-form' type='submit' disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : 'Save changes'}

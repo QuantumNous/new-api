@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
@@ -26,6 +27,7 @@ export function BalanceQueryDialog({
   open,
   onOpenChange,
 }: BalanceQueryDialogProps) {
+  const { t } = useTranslation()
   const { currentRow, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
   const [isQuerying, setIsQuerying] = useState(false)
@@ -89,9 +91,9 @@ export function BalanceQueryDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Query Balance</DialogTitle>
+          <DialogTitle>{t('Query Balance')}</DialogTitle>
           <DialogDescription>
-            Update balance for: <strong>{currentRow.name}</strong>
+            {t('Update balance for:')} <strong>{currentRow.name}</strong>
           </DialogDescription>
         </DialogHeader>
 
@@ -100,7 +102,7 @@ export function BalanceQueryDialog({
           <div className='bg-muted/50 rounded-lg border p-4'>
             <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
               <DollarSign className='h-4 w-4' />
-              <span>Current Balance</span>
+              <span>{t('Current Balance')}</span>
             </div>
             <div className='text-2xl font-bold'>
               {balance !== null
@@ -108,7 +110,7 @@ export function BalanceQueryDialog({
                 : formatBalance(currentRow.balance)}
             </div>
             <div className='text-muted-foreground mt-2 text-xs'>
-              Last updated:{' '}
+              {t('Last updated:')}{' '}
               {formatDate(
                 balanceUpdatedTime ?? currentRow.balance_updated_time
               )}
@@ -129,7 +131,7 @@ export function BalanceQueryDialog({
 
         <DialogFooter>
           <Button variant='outline' onClick={handleClose} disabled={isQuerying}>
-            Close
+            {t('Close')}
           </Button>
         </DialogFooter>
       </DialogContent>

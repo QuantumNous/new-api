@@ -1,4 +1,5 @@
 import { Shield, AlertTriangle, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -20,6 +21,7 @@ interface TwoFACardProps {
 type DialogKey = 'setup' | 'disable' | 'backup'
 
 export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
+  const { t } = useTranslation()
   const { status, loading, refetch } = useTwoFA(!pageLoading)
   const dialogs = useDialogs<DialogKey>()
 
@@ -42,10 +44,10 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
       <Card>
         <CardHeader>
           <h3 className='text-xl font-semibold tracking-tight'>
-            Two-Factor Authentication
+            {t('Two-Factor Authentication')}
           </h3>
           <p className='text-muted-foreground mt-2 text-sm'>
-            Add an extra layer of security to your account
+            {t('Add an extra layer of security to your account')}
           </p>
         </CardHeader>
 
@@ -59,17 +61,17 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                 </div>
                 <div className='space-y-1'>
                   <div className='flex items-center gap-2'>
-                    <p className='font-medium'>Two-Step Verification</p>
+                    <p className='font-medium'>{t('Two-Step Verification')}</p>
                     {status.enabled ? (
                       <StatusBadge
-                        label='Enabled'
+                        label={t('Enabled')}
                         variant='success'
                         showDot
                         copyable={false}
                       />
                     ) : (
                       <StatusBadge
-                        label='Disabled'
+                        label={t('Disabled')}
                         variant='neutral'
                         showDot
                         copyable={false}
@@ -77,7 +79,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                     )}
                     {status.locked && (
                       <StatusBadge
-                        label='Locked'
+                        label={t('Locked')}
                         variant='danger'
                         showDot
                         copyable={false}
@@ -87,13 +89,15 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   <p className='text-muted-foreground text-sm'>
                     {status.enabled
                       ? `Backup codes remaining: ${status.backup_codes_remaining}`
-                      : 'Add an extra layer of security to your account'}
+                      : t('Add an extra layer of security to your account')}
                   </p>
                 </div>
               </div>
 
               {!status.enabled && (
-                <Button onClick={() => dialogs.open('setup')}>Enable</Button>
+                <Button onClick={() => dialogs.open('setup')}>
+                  {t('Enable')}
+                </Button>
               )}
             </div>
 
@@ -106,7 +110,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   onClick={() => dialogs.open('backup')}
                 >
                   <RefreshCw className='mr-2 h-4 w-4' />
-                  Regenerate Backup Codes
+                  {t('Regenerate Backup Codes')}
                 </Button>
                 <Button
                   variant='destructive'
@@ -114,7 +118,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   onClick={() => dialogs.open('disable')}
                 >
                   <AlertTriangle className='mr-2 h-4 w-4' />
-                  Disable 2FA
+                  {t('Disable 2FA')}
                 </Button>
               </div>
             )}

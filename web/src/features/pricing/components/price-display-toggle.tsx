@@ -1,4 +1,5 @@
 import { Wallet } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,7 @@ export function PriceDisplayToggle({
   onChange,
   className,
 }: PriceDisplayToggleProps) {
+  const { t } = useTranslation()
   const currencyLabel = getCurrencyLabel()
 
   const options = [
@@ -23,7 +25,7 @@ export function PriceDisplayToggle({
   return (
     <div
       role='group'
-      aria-label='Select price display mode'
+      aria-label={t('Select price display mode')}
       className={cn(
         'bg-background inline-flex w-full items-center gap-1 rounded-md border p-1 text-xs shadow-xs sm:w-auto sm:text-sm',
         className

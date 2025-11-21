@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -33,7 +34,7 @@ import {
   MobileCardList,
 } from '@/components/data-table'
 import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
-import { getColumnsByCategory } from '../lib/columns'
+import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
 import { UsageLogsTabs } from './usage-logs-tabs'
@@ -41,6 +42,7 @@ import { UsageLogsTabs } from './usage-logs-tabs'
 const route = getRouteApi('/_authenticated/usage-logs/')
 
 export function UsageLogsTable() {
+  const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
@@ -128,7 +130,7 @@ export function UsageLogsTable() {
   const logs = data?.items || []
 
   // Get column definitions based on log category
-  const columns = getColumnsByCategory(logCategory, isAdmin)
+  const columns = useColumnsByCategory(logCategory, isAdmin)
 
   // Show loading state when switching tabs or initial load
   const isLoadingData = isLoading || (isFetching && !data)
@@ -231,8 +233,10 @@ export function UsageLogsTable() {
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableEmpty
                   colSpan={columns.length}
-                  title='No Logs Found'
-                  description='No usage logs available. Logs will appear here once API calls are made.'
+                  title={t('No Logs Found')}
+                  description={t(
+                    'No usage logs available. Logs will appear here once API calls are made.'
+                  )}
                 />
               ) : (
                 table.getRowModel().rows.map((row) => (

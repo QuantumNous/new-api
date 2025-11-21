@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
 import {
   AlertDialog,
@@ -40,6 +41,7 @@ export function PaymentConfirmDialog({
   discountRate = DEFAULT_DISCOUNT_RATE,
   usdExchangeRate = 1,
 }: PaymentConfirmDialogProps) {
+  const { t } = useTranslation()
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
   const originalAmount = hasDiscount ? paymentAmount / discountRate : 0
   const discountAmount = hasDiscount ? originalAmount - paymentAmount : 0
@@ -49,16 +51,18 @@ export function PaymentConfirmDialog({
       <AlertDialogContent className='max-w-md'>
         <AlertDialogHeader>
           <AlertDialogTitle className='text-xl font-semibold'>
-            Confirm Payment
+            {t('Confirm Payment')}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Review your payment details
+            {t('Review your payment details')}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <div className='space-y-4 py-4'>
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-sm'>Topup Amount</span>
+            <span className='text-muted-foreground text-sm'>
+              {t('Topup Amount')}
+            </span>
             <span className='text-lg font-semibold'>
               {formatLocalCurrencyAmount(topupAmount * usdExchangeRate, {
                 digitsLarge: 2,
@@ -69,7 +73,9 @@ export function PaymentConfirmDialog({
           </div>
 
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-sm'>You Pay</span>
+            <span className='text-muted-foreground text-sm'>
+              {t('You Pay')}
+            </span>
             {calculating ? (
               <Skeleton className='h-6 w-24' />
             ) : (
@@ -89,7 +95,7 @@ export function PaymentConfirmDialog({
           {hasDiscount && !calculating && (
             <div className='bg-muted/50 rounded-lg p-3'>
               <div className='flex items-center justify-between text-sm'>
-                <span className='text-muted-foreground'>You save</span>
+                <span className='text-muted-foreground'>{t('You save')}</span>
                 <span className='font-semibold text-green-600'>
                   {formatCurrency(discountAmount)}
                 </span>
@@ -100,7 +106,7 @@ export function PaymentConfirmDialog({
           <div className='border-t pt-4'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
-                Payment Method
+                {t('Payment Method')}
               </span>
               <div className='flex items-center gap-2'>
                 {getPaymentIcon(paymentMethod?.type)}
@@ -111,10 +117,12 @@ export function PaymentConfirmDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={processing}>
+            {t('Cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={processing}>
             {processing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            Confirm Payment
+            {t('Confirm Payment')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

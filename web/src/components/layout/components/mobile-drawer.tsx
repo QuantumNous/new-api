@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { X, User, Wallet, LogOut } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import type { AuthUser } from '@/stores/auth-store'
 import { SKELETON_DEFAULTS } from '@/lib/constants'
 import useDialogState from '@/hooks/use-dialog'
@@ -63,6 +64,7 @@ interface MobileUserProfileProps {
 }
 
 function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
+  const { t } = useTranslation()
   const [signOutOpen, setSignOutOpen] = useDialogState()
   const { displayName, initials, roleLabel } = useUserDisplay(user)
 
@@ -103,7 +105,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
           className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
         >
           <User className='size-4' />
-          Profile
+          {t('Profile')}
         </Link>
 
         <Link
@@ -112,7 +114,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
           className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
         >
           <Wallet className='size-4' />
-          Wallet
+          {t('Wallet')}
         </Link>
 
         {/* Sign out - consistent style */}
@@ -121,7 +123,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
           className='text-destructive hover:text-destructive/80 flex items-center gap-2.5 p-2.5 transition-colors'
         >
           <LogOut className='size-4' />
-          Sign out
+          {t('Sign out')}
         </button>
       </div>
 
@@ -138,10 +140,11 @@ interface MobileSignInButtonProps {
 }
 
 function MobileSignInButton({ onNavigate }: MobileSignInButtonProps) {
+  const { t } = useTranslation()
   return (
     <Button variant='secondary' size='sm' asChild className='h-10 w-full'>
       <Link to='/sign-in' onClick={onNavigate}>
-        Sign in
+        {t('Sign in')}
       </Link>
     </Button>
   )
@@ -179,6 +182,7 @@ export function MobileDrawer({
   showAuthButtons,
   user,
 }: MobileDrawerProps) {
+  const { t } = useTranslation()
   return (
     <AnimatePresence>
       {isOpen && (
@@ -218,7 +222,7 @@ export function MobileDrawer({
                 <button
                   onClick={onClose}
                   className='hover:text-primary cursor-pointer rounded-md p-1'
-                  aria-label='Close menu'
+                  aria-label={t('Close menu')}
                 >
                   <X className='size-5' />
                 </button>

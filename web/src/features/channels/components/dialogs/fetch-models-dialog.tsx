@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search } from 'lucide-react'
 import { ChevronDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -36,6 +37,7 @@ export function FetchModelsDialog({
   onOpenChange,
   onModelsSelected,
 }: FetchModelsDialogProps) {
+  const { t } = useTranslation()
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const [isFetching, setIsFetching] = useState(false)
@@ -255,15 +257,16 @@ export function FetchModelsDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className='max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>Fetch Models</DialogTitle>
+          <DialogTitle>{t('Fetch Models')}</DialogTitle>
           <DialogDescription>
-            Fetch available models for: <strong>{currentRow?.name}</strong>
+            {t('Fetch available models for:')}{' '}
+            <strong>{currentRow?.name}</strong>
           </DialogDescription>
         </DialogHeader>
 
         {!currentRow ? (
           <div className='text-muted-foreground py-8 text-center'>
-            No channel selected
+            {t('No channel selected')}
           </div>
         ) : isFetching ? (
           <div className='flex items-center justify-center py-12'>
@@ -271,13 +274,13 @@ export function FetchModelsDialog({
           </div>
         ) : fetchedModels.length === 0 ? (
           <div className='text-muted-foreground py-8 text-center'>
-            <p>No models fetched yet.</p>
+            <p>{t('No models fetched yet.')}</p>
             <Button
               className='mt-4'
               onClick={handleFetchModels}
               disabled={isFetching}
             >
-              Fetch Models
+              {t('Fetch Models')}
             </Button>
           </div>
         ) : (
@@ -287,7 +290,7 @@ export function FetchModelsDialog({
               <div className='relative'>
                 <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
                 <Input
-                  placeholder='Search models...'
+                  placeholder={t('Search models...')}
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
                   className='pl-9'
@@ -298,13 +301,15 @@ export function FetchModelsDialog({
               <Tabs defaultValue={newModels.length > 0 ? 'new' : 'existing'}>
                 <TabsList className='grid w-full grid-cols-2'>
                   <TabsTrigger value='new' disabled={newModels.length === 0}>
-                    New Models ({newModels.length})
+                    {t('New Models (')}
+                    {newModels.length})
                   </TabsTrigger>
                   <TabsTrigger
                     value='existing'
                     disabled={existingFilteredModels.length === 0}
                   >
-                    Existing Models ({existingFilteredModels.length})
+                    {t('Existing Models (')}
+                    {existingFilteredModels.length})
                   </TabsTrigger>
                 </TabsList>
 
@@ -331,8 +336,9 @@ export function FetchModelsDialog({
 
               {/* Selection Summary */}
               <div className='bg-muted/50 rounded-lg border p-3 text-sm'>
-                <strong>{selectedModels.length}</strong> model(s) selected out
-                of <strong>{filteredModels.length}</strong>
+                <strong>{selectedModels.length}</strong>{' '}
+                {t('model(s) selected out of')}{' '}
+                <strong>{filteredModels.length}</strong>
               </div>
             </div>
 
@@ -342,7 +348,7 @@ export function FetchModelsDialog({
                 onClick={handleClose}
                 disabled={isSaving}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

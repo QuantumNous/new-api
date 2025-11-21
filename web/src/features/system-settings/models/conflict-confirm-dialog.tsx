@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,14 +40,16 @@ export function ConflictConfirmDialog({
   onConfirm,
   isLoading = false,
 }: ConflictConfirmDialogProps) {
+  const { t } = useTranslation()
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className='max-w-4xl'>
         <AlertDialogHeader>
-          <AlertDialogTitle>Confirm Billing Conflicts</AlertDialogTitle>
+          <AlertDialogTitle>{t('Confirm Billing Conflicts')}</AlertDialogTitle>
           <AlertDialogDescription>
-            The following models have billing type conflicts (fixed price vs
-            ratio billing). Confirm to proceed with the changes.
+            {t(
+              'The following models have billing type conflicts (fixed price vs ratio billing). Confirm to proceed with the changes.'
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -54,10 +57,10 @@ export function ConflictConfirmDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Channel</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead>Current Billing</TableHead>
-                <TableHead>Change To</TableHead>
+                <TableHead>{t('Channel')}</TableHead>
+                <TableHead>{t('Model')}</TableHead>
+                <TableHead>{t('Current Billing')}</TableHead>
+                <TableHead>{t('Change To')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -86,7 +89,9 @@ export function ConflictConfirmDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>
+            {t('Cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isLoading}>
             {isLoading ? 'Applying...' : 'Confirm Changes'}
           </AlertDialogAction>
