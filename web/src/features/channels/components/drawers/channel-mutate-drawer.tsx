@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -156,6 +156,8 @@ export function ChannelMutateDrawer({
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
+  const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false)
+  const doubaoApiClickCountRef = useRef(0)
 
   const isEditing = Boolean(currentRow)
   const channelId = currentRow?.id ?? null
@@ -202,6 +204,8 @@ export function ChannelMutateDrawer({
     if (!open) {
       setChannelKey(null)
       setIsChannelKeyLoading(false)
+      setDoubaoApiEditUnlocked(false)
+      doubaoApiClickCountRef.current = 0
     } else if (channelId) {
       setChannelKey(null)
     }
@@ -394,6 +398,21 @@ export function ChannelMutateDrawer({
 
     return () => clearTimeout(timer)
   }, [currentBaseUrl])
+
+  // Handle secret click to unlock Doubao custom API edit
+  const handleApiConfigSecretClick = () => {
+    if (currentType !== 45) return
+    const next = doubaoApiClickCountRef.current + 1
+    doubaoApiClickCountRef.current = next
+    if (next >= 10) {
+      setDoubaoApiEditUnlocked((unlocked) => {
+        if (!unlocked) {
+          toast.info(t('Doubao custom API address editing unlocked'))
+        }
+        return true
+      })
+    }
+  }
 
   // Handle key deduplication
   const handleDeduplicateKeys = () => {
@@ -1135,13 +1154,18 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* VolcEngine (type 45) */}
-                {currentType === 45 && (
+                {currentType === 45 && !doubaoApiEditUnlocked && (
                   <FormField
                     control={form.control}
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('API Base URL *')}</FormLabel>
+                        <FormLabel
+                          className='cursor-pointer select-none'
+                          onClick={handleApiConfigSecretClick}
+                        >
+                          {t('API Base URL *')}
+                        </FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={
@@ -1160,10 +1184,38 @@ export function ChannelMutateDrawer({
                             <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
                               {t('https://ark.ap-southeast.bytepluses.com')}
                             </SelectItem>
+                            <SelectItem value='doubao-coding-plan'>
+                              {t('Doubao Coding Plan')}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>
                           {t('Select the API endpoint region')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* VolcEngine (type 45) - Custom API URL (unlocked) */}
+                {currentType === 45 && doubaoApiEditUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('API Base URL *')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t(
+                              'e.g., https://ark.cn-beijing.volces.com'
+                            )}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Enter custom API endpoint URL')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
