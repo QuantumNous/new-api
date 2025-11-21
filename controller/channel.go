@@ -92,7 +92,7 @@ func GetAllChannels(c *gin.Context) {
 			if tag == nil || *tag == "" {
 				continue
 			}
-			tagChannels, err := model.GetChannelsByTag(*tag, idSort)
+			tagChannels, err := model.GetChannelsByTag(*tag, idSort, false)
 			if err != nil {
 				continue
 			}
@@ -203,9 +203,19 @@ func FetchUpstreamModels(c *gin.Context) {
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
 
+	// 获取用于请求的可用密钥（多密钥渠道优先使用启用状态的密钥）
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("获取渠道密钥失败: %s", apiErr.Error()),
+		})
+		return
+	}
+	key = strings.TrimSpace(key)
+
 	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
 	var body []byte
-	key := strings.Split(channel.Key, "\n")[0]
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		body, err = GetResponseBody("GET", url, channel, GetClaudeAuthHeader(key))
@@ -278,7 +288,7 @@ func SearchChannels(c *gin.Context) {
 		}
 		for _, tag := range tags {
 			if tag != nil && *tag != "" {
-				tagChannel, err := model.GetChannelsByTag(*tag, idSort)
+				tagChannel, err := model.GetChannelsByTag(*tag, idSort, false)
 				if err == nil {
 					channelData = append(channelData, tagChannel...)
 				}
@@ -1028,7 +1038,7 @@ func GetTagModels(c *gin.Context) {
 		return
 	}
 
-	channels, err := model.GetChannelsByTag(tag, false) // Assuming false for idSort is fine here
+	channels, err := model.GetChannelsByTag(tag, false, false) // idSort=false, selectAll=false
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

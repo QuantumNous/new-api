@@ -16,6 +16,7 @@ import (
 	"golang.org/x/image/webp"
 )
 
+// return image.Config, format, clean base64 string, error
 func DecodeBase64ImageData(base64String string) (image.Config, string, string, error) {
 	// 去除base64数据的URL前缀（如果有）
 	if idx := strings.Index(base64String, ","); idx != -1 {

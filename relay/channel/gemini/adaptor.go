@@ -177,7 +177,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.New("request is nil")
 	}
 
-	geminiRequest, err := CovertGemini2OpenAI(c, *request, info)
+	geminiRequest, err := CovertOpenAI2Gemini(c, *request, info)
 	if err != nil {
 		return nil, err
 	}

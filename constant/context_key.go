@@ -46,5 +46,7 @@ const (
 	ContextKeyUsingGroup  ContextKey = "group"
 	ContextKeyUserName    ContextKey = "username"
 
+	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
+
 	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"
 )
