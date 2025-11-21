@@ -1795,10 +1795,13 @@ export function renderClaudeModelPrice(
 
     // Calculate effective input tokens (non-cached + cached with ratio applied + cache creation with ratio applied)
     const nonCachedTokens = inputTokens;
+    const legacyCacheCreationTokens = hasSplitCacheCreation
+      ? 0
+      : cacheCreationTokens;
     const effectiveInputTokens =
       nonCachedTokens +
       cacheTokens * cacheRatio +
-      cacheCreationTokens * cacheCreationRatio +
+      legacyCacheCreationTokens * cacheCreationRatio +
       cacheCreationTokens5m * cacheCreationRatio5m +
       cacheCreationTokens1h * cacheCreationRatio1h;
 

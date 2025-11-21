@@ -69,6 +69,8 @@
     "Gemini思考适配设置": "Gemini thinking adaptation settings",
     "Gemini版本设置": "Gemini version settings",
     "Gemini设置": "Gemini settings",
+    "启用FunctionCall思维签名填充": "Enable FunctionCall thoughtSignature fill",
+    "仅为使用OpenAI格式的Gemini/Vertex渠道填充thoughtSignature": "Fill thoughtSignature only for Gemini/Vertex channels using the OpenAI format",
     "GitHub": "GitHub",
     "GitHub Client ID": "GitHub Client ID",
     "GitHub Client Secret": "GitHub Client Secret",
@@ -2109,6 +2111,8 @@
     "请填写完整的产品信息": "Please fill in complete product information",
     "产品ID已存在": "Product ID already exists",
     "统一的": "The Unified",
-    "大模型接口网关": "LLM API Gateway"
+    "大模型接口网关": "LLM API Gateway",
+    "正在跳转 GitHub...": "Redirecting to GitHub...",
+    "请求超时，请刷新页面后重新发起 GitHub 登录": "Request timed out, please refresh and restart GitHub login"
   }
 }

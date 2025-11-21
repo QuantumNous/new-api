@@ -482,6 +482,18 @@ export const useLogsData = () => {
           value: other.request_path,
         });
       }
+      if (isAdminUser) {
+        let localCountMode = '';
+        if (other?.admin_info?.local_count_tokens) {
+          localCountMode = t('本地计费');
+        } else {
+          localCountMode = t('上游返回');
+        }
+        expandDataLocal.push({
+            key: t('计费模式'),
+            value: localCountMode,
+        });
+      }
       expandDatesLocal[logs[i].key] = expandDataLocal;
     }
 
