@@ -385,7 +385,7 @@ func (m *Message) writeSessionID(buf *bytes.Buffer) error {
 	}
 
 	size := len(m.SessionID)
-	if size > math.MaxUint32 {
+	if int64(size) > math.MaxUint32 {
 		return fmt.Errorf("session ID size (%d) exceeds max(uint32)", size)
 	}
 
@@ -407,7 +407,7 @@ func (m *Message) writeErrorCode(buf *bytes.Buffer) error {
 
 func (m *Message) writePayload(buf *bytes.Buffer) error {
 	size := len(m.Payload)
-	if size > math.MaxUint32 {
+	if int64(size) > math.MaxUint32 {
 		return fmt.Errorf("payload size (%d) exceeds max(uint32)", size)
 	}
 
