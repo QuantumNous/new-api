@@ -5,14 +5,15 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"one-api/common"
-	"one-api/model"
-	"one-api/setting"
-	"one-api/setting/operation_setting"
-	"one-api/setting/system_setting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
@@ -219,7 +220,7 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
 		SuccessURL:        stripe.String(system_setting.ServerAddress + "/console/log"),
-		CancelURL:         stripe.String(system_setting.ServerAddress + "/topup"),
+		CancelURL:         stripe.String(system_setting.ServerAddress + "/console/topup"),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
 				Price:    stripe.String(setting.StripePriceId),

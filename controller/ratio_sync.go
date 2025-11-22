@@ -7,14 +7,15 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"one-api/logger"
 	"strings"
 	"sync"
 	"time"
 
-	"one-api/dto"
-	"one-api/model"
-	"one-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/logger"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )

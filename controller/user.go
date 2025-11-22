@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/logger"
-	"one-api/model"
-	"one-api/setting"
 	"strconv"
 	"strings"
 	"sync"
 
-	"one-api/constant"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -578,7 +580,7 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := setting.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {

@@ -10,22 +10,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/middleware"
-	"one-api/model"
-	"one-api/relay"
-	relaycommon "one-api/relay/common"
-	relayconstant "one-api/relay/constant"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/setting/operation_setting"
-	"one-api/types"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -616,16 +617,20 @@ func TestAllChannels(c *gin.Context) {
 var autoTestChannelsOnce sync.Once
 
 func AutomaticallyTestChannels() {
+	// 只在Master节点定时测试渠道
+	if !common.IsMasterNode {
+		return
+	}
 	autoTestChannelsOnce.Do(func() {
 		for {
 			if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
-				time.Sleep(10 * time.Minute)
+				time.Sleep(1 * time.Minute)
 				continue
 			}
 			for {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
-				time.Sleep(time.Duration(frequency) * time.Minute)
-				common.SysLog(fmt.Sprintf("automatically test channels with interval %d minutes", frequency))
+				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
 				common.SysLog("automatically testing all channels")
 				_ = testAllChannels(false)
 				common.SysLog("automatically channel test finished")

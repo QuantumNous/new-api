@@ -4,9 +4,10 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
-	"one-api/common"
 	"os"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 
 	"github.com/gin-gonic/gin"
 )

@@ -2,10 +2,11 @@ package dto
 
 import (
 	"encoding/json"
-	"one-api/common"
-	"one-api/types"
 	"reflect"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,7 +27,8 @@ type ImageRequest struct {
 	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
 	// Stream            bool            `json:"stream,omitempty"`
-	Watermark *bool `json:"watermark,omitempty"`
+	Watermark *bool           `json:"watermark,omitempty"`
+	Image     json.RawMessage `json:"image,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
 }

@@ -33,5 +33,7 @@ const (
 	APITypeJimeng
 	APITypeMoonshot
 	APITypeSubmodel
+	APITypeMiniMax
+	APITypeReplicate
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

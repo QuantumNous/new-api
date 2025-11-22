@@ -1,8 +1,9 @@
 package model
 
 import (
-	"one-api/common"
 	"strconv"
+
+	"github.com/QuantumNous/new-api/common"
 
 	"gorm.io/gorm"
 )

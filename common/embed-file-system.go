@@ -2,9 +2,10 @@ package common
 
 import (
 	"embed"
-	"github.com/gin-contrib/static"
 	"io/fs"
 	"net/http"
+
+	"github.com/gin-contrib/static"
 )
 
 // Credit: https://github.com/gin-contrib/static/issues/19

@@ -45,6 +45,7 @@ import {
   IconBookmark,
   IconUser,
   IconCode,
+  IconSetting,
 } from '@douyinfe/semi-icons';
 import { getChannelModels } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -69,6 +70,8 @@ const EditTagModal = (props) => {
     model_mapping: null,
     groups: [],
     models: [],
+    param_override: null,
+    header_override: null,
   };
   const [inputs, setInputs] = useState(originInputs);
   const formApiRef = useRef(null);
@@ -190,12 +193,48 @@ const EditTagModal = (props) => {
     if (formVals.models && formVals.models.length > 0) {
       data.models = formVals.models.join(',');
     }
+    if (
+      formVals.param_override !== undefined &&
+      formVals.param_override !== null
+    ) {
+      if (typeof formVals.param_override !== 'string') {
+        showInfo('参数覆盖必须是合法的 JSON 格式！');
+        setLoading(false);
+        return;
+      }
+      const trimmedParamOverride = formVals.param_override.trim();
+      if (trimmedParamOverride !== '' && !verifyJSON(trimmedParamOverride)) {
+        showInfo('参数覆盖必须是合法的 JSON 格式！');
+        setLoading(false);
+        return;
+      }
+      data.param_override = trimmedParamOverride;
+    }
+    if (
+      formVals.header_override !== undefined &&
+      formVals.header_override !== null
+    ) {
+      if (typeof formVals.header_override !== 'string') {
+        showInfo('请求头覆盖必须是合法的 JSON 格式！');
+        setLoading(false);
+        return;
+      }
+      const trimmedHeaderOverride = formVals.header_override.trim();
+      if (trimmedHeaderOverride !== '' && !verifyJSON(trimmedHeaderOverride)) {
+        showInfo('请求头覆盖必须是合法的 JSON 格式！');
+        setLoading(false);
+        return;
+      }
+      data.header_override = trimmedHeaderOverride;
+    }
     data.new_tag = formVals.new_tag;
     if (
       data.model_mapping === undefined &&
       data.groups === undefined &&
       data.models === undefined &&
-      data.new_tag === undefined
+      data.new_tag === undefined &&
+      data.param_override === undefined &&
+      data.header_override === undefined
     ) {
       showWarning('没有任何修改！');
       setLoading(false);
@@ -486,6 +525,157 @@ const EditTagModal = (props) => {
                           {t('不更改')}
                         </Text>
                       </Space>
+                    }
+                  />
+                </div>
+              </Card>
+
+              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                {/* Header: Advanced Settings */}
+                <div className='flex items-center mb-2'>
+                  <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+                    <IconSetting size={16} />
+                  </Avatar>
+                  <div>
+                    <Text className='text-lg font-medium'>{t('高级设置')}</Text>
+                    <div className='text-xs text-gray-600'>
+                      {t('渠道的高级配置选项')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className='space-y-4'>
+                  <Form.TextArea
+                    field='param_override'
+                    label={t('参数覆盖')}
+                    placeholder={
+                      t(
+                        '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
+                      ) +
+                      '\n' +
+                      t('旧格式（直接覆盖）：') +
+                      '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
+                      '\n\n' +
+                      t('新格式（支持条件判断与json自定义）：') +
+                      '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
+                    }
+                    autosize
+                    showClear
+                    onChange={(value) =>
+                      handleInputChange('param_override', value)
+                    }
+                    extraText={
+                      <div className='flex gap-2 flex-wrap'>
+                        <Text
+                          className='!text-semi-color-primary cursor-pointer'
+                          onClick={() =>
+                            handleInputChange(
+                              'param_override',
+                              JSON.stringify({ temperature: 0 }, null, 2),
+                            )
+                          }
+                        >
+                          {t('旧格式模板')}
+                        </Text>
+                        <Text
+                          className='!text-semi-color-primary cursor-pointer'
+                          onClick={() =>
+                            handleInputChange(
+                              'param_override',
+                              JSON.stringify(
+                                {
+                                  operations: [
+                                    {
+                                      path: 'temperature',
+                                      mode: 'set',
+                                      value: 0.7,
+                                      conditions: [
+                                        {
+                                          path: 'model',
+                                          mode: 'prefix',
+                                          value: 'gpt',
+                                        },
+                                      ],
+                                      logic: 'AND',
+                                    },
+                                  ],
+                                },
+                                null,
+                                2,
+                              ),
+                            )
+                          }
+                        >
+                          {t('新格式模板')}
+                        </Text>
+                        <Text
+                          className='!text-semi-color-primary cursor-pointer'
+                          onClick={() =>
+                            handleInputChange('param_override', null)
+                          }
+                        >
+                          {t('不更改')}
+                        </Text>
+                      </div>
+                    }
+                  />
+
+                  <Form.TextArea
+                    field='header_override'
+                    label={t('请求头覆盖')}
+                    placeholder={
+                      t('此项可选，用于覆盖请求头参数') +
+                      '\n' +
+                      t('格式示例：') +
+                      '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0",\n  "Authorization": "Bearer {api_key}"\n}'
+                    }
+                    autosize
+                    showClear
+                    onChange={(value) =>
+                      handleInputChange('header_override', value)
+                    }
+                    extraText={
+                      <div className='flex flex-col gap-1'>
+                        <div className='flex gap-2 flex-wrap items-center'>
+                          <Text
+                            className='!text-semi-color-primary cursor-pointer'
+                            onClick={() =>
+                              handleInputChange(
+                                'header_override',
+                                JSON.stringify(
+                                  {
+                                    'User-Agent':
+                                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
+                                    Authorization: 'Bearer {api_key}',
+                                  },
+                                  null,
+                                  2,
+                                ),
+                              )
+                            }
+                          >
+                            {t('填入模板')}
+                          </Text>
+                          <Text
+                            className='!text-semi-color-primary cursor-pointer'
+                            onClick={() =>
+                              handleInputChange('header_override', null)
+                            }
+                          >
+                            {t('不更改')}
+                          </Text>
+                        </div>
+                        <div>
+                          <Text type='tertiary' size='small'>
+                            {t('支持变量：')}
+                          </Text>
+                          <div className='text-xs text-tertiary ml-2'>
+                            <div>
+                              {t('渠道密钥')}: {'{api_key}'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     }
                   />
                 </div>

@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/setting/model_setting"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -66,7 +67,9 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			request.TopP = 0
 			request.Temperature = common.GetPointer[float64](1.0)
 		}
-		request.Model = strings.TrimSuffix(request.Model, "-thinking")
+		if !model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
+			request.Model = strings.TrimSuffix(request.Model, "-thinking")
+		}
 		info.UpstreamModelName = request.Model
 	}
 

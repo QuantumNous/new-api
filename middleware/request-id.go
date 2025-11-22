@@ -2,8 +2,9 @@ package middleware
 
 import (
 	"context"
+
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
-	"one-api/common"
 )
 
 func RequestId() func(c *gin.Context) {

@@ -2,9 +2,10 @@ package dto
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 )
 
 type RerankRequest struct {

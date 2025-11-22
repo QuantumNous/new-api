@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"one-api/common"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type OpenAIError struct {
@@ -39,13 +40,14 @@ const (
 	ErrorCodeSensitiveWordsDetected ErrorCode = "sensitive_words_detected"
 
 	// new api error
-	ErrorCodeCountTokenFailed   ErrorCode = "count_token_failed"
-	ErrorCodeModelPriceError    ErrorCode = "model_price_error"
-	ErrorCodeInvalidApiType     ErrorCode = "invalid_api_type"
-	ErrorCodeJsonMarshalFailed  ErrorCode = "json_marshal_failed"
-	ErrorCodeDoRequestFailed    ErrorCode = "do_request_failed"
-	ErrorCodeGetChannelFailed   ErrorCode = "get_channel_failed"
-	ErrorCodeGenRelayInfoFailed ErrorCode = "gen_relay_info_failed"
+	ErrorCodeCountTokenFailed     ErrorCode = "count_token_failed"
+	ErrorCodePromptTokensTooLarge ErrorCode = "prompt_tokens_too_large"
+	ErrorCodeModelPriceError      ErrorCode = "model_price_error"
+	ErrorCodeInvalidApiType       ErrorCode = "invalid_api_type"
+	ErrorCodeJsonMarshalFailed    ErrorCode = "json_marshal_failed"
+	ErrorCodeDoRequestFailed      ErrorCode = "do_request_failed"
+	ErrorCodeGetChannelFailed     ErrorCode = "get_channel_failed"
+	ErrorCodeGenRelayInfoFailed   ErrorCode = "gen_relay_info_failed"
 
 	// channel error
 	ErrorCodeChannelNoAvailableKey        ErrorCode = "channel:no_available_key"
@@ -60,6 +62,9 @@ const (
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
 	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
+
+	// request error
+	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
 
 	// response error
 	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"

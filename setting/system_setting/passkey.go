@@ -2,9 +2,10 @@ package system_setting
 
 import (
 	"net/url"
-	"one-api/common"
-	"one-api/setting/config"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 type PasskeySettings struct {

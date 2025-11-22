@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/model"
-	"one-api/setting/system_setting"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 func NotifyRootUser(t string, subject string, content string) {

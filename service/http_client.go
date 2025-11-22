@@ -6,10 +6,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"one-api/common"
-	"one-api/setting/system_setting"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"golang.org/x/net/proxy"
 )

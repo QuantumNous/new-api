@@ -159,14 +159,15 @@ var (
 	GlobalWebRateLimitNum      int
 	GlobalWebRateLimitDuration int64
 
+	CriticalRateLimitEnable   bool
+	CriticalRateLimitNum            = 20
+	CriticalRateLimitDuration int64 = 20 * 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 
 	DownloadRateLimitNum            = 10
 	DownloadRateLimitDuration int64 = 60
-
-	CriticalRateLimitNum            = 20
-	CriticalRateLimitDuration int64 = 20 * 60
 )
 
 var RateLimitKeyExpirationDuration = 20 * time.Minute

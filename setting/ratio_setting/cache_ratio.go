@@ -2,8 +2,9 @@ package ratio_setting
 
 import (
 	"encoding/json"
-	"one-api/common"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var defaultCacheRatio = map[string]float64{

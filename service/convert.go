@@ -3,12 +3,13 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/relay/channel/openrouter"
-	relaycommon "one-api/relay/common"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/openrouter"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
@@ -351,7 +352,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 								Type:  "content_block_start",
 								ContentBlock: &dto.ClaudeMediaMessage{
 									Type:     "thinking",
-									Thinking: "",
+									Thinking: common.GetPointer[string](""),
 								},
 							})
 						}
@@ -359,7 +360,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 						// text delta
 						claudeResponse.Delta = &dto.ClaudeMediaMessage{
 							Type:     "thinking_delta",
-							Thinking: reasoning,
+							Thinking: &reasoning,
 						}
 					} else {
 						if info.ClaudeConvertInfo.LastMessagesType != relaycommon.LastMessageTypeText {

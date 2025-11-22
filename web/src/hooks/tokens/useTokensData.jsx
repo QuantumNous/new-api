@@ -20,7 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
-import { API, copy, showError, showSuccess } from '../../helpers';
+import {
+  API,
+  copy,
+  showError,
+  showSuccess,
+  encodeToBase64,
+} from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
@@ -136,7 +142,7 @@ export const useTokensData = (openFluentNotification) => {
         apiKey: 'sk-' + record.key,
       };
       let encodedConfig = encodeURIComponent(
-        btoa(JSON.stringify(cherryConfig)),
+        encodeToBase64(JSON.stringify(cherryConfig)),
       );
       url = url.replaceAll('{cherryConfig}', encodedConfig);
     } else {

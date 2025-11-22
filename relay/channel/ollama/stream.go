@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/logger"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/types"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -120,7 +121,14 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			if chunk.Message != nil && len(chunk.Message.Thinking) > 0 {
 				raw := strings.TrimSpace(string(chunk.Message.Thinking))
 				if raw != "" && raw != "null" {
-					delta.Choices[0].Delta.SetReasoningContent(raw)
+					// Unmarshal the JSON string to get the actual content without quotes
+					var thinkingContent string
+					if err := json.Unmarshal(chunk.Message.Thinking, &thinkingContent); err == nil {
+						delta.Choices[0].Delta.SetReasoningContent(thinkingContent)
+					} else {
+						// Fallback to raw string if it's not a JSON string
+						delta.Choices[0].Delta.SetReasoningContent(raw)
+					}
 				}
 			}
 			// tool calls
@@ -208,7 +216,14 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		if ck.Message != nil && len(ck.Message.Thinking) > 0 {
 			raw := strings.TrimSpace(string(ck.Message.Thinking))
 			if raw != "" && raw != "null" {
-				reasoningBuilder.WriteString(raw)
+				// Unmarshal the JSON string to get the actual content without quotes
+				var thinkingContent string
+				if err := json.Unmarshal(ck.Message.Thinking, &thinkingContent); err == nil {
+					reasoningBuilder.WriteString(thinkingContent)
+				} else {
+					// Fallback to raw string if it's not a JSON string
+					reasoningBuilder.WriteString(raw)
+				}
 			}
 		}
 		if ck.Message != nil && ck.Message.Content != "" {
@@ -228,7 +243,14 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 			if len(single.Message.Thinking) > 0 {
 				raw := strings.TrimSpace(string(single.Message.Thinking))
 				if raw != "" && raw != "null" {
-					reasoningBuilder.WriteString(raw)
+					// Unmarshal the JSON string to get the actual content without quotes
+					var thinkingContent string
+					if err := json.Unmarshal(single.Message.Thinking, &thinkingContent); err == nil {
+						reasoningBuilder.WriteString(thinkingContent)
+					} else {
+						// Fallback to raw string if it's not a JSON string
+						reasoningBuilder.WriteString(raw)
+					}
 				}
 			}
 			aggContent.WriteString(single.Message.Content)

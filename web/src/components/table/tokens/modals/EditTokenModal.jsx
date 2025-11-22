@@ -66,9 +66,9 @@ const EditTokenModal = (props) => {
 
   const getInitValues = () => ({
     name: '',
-    remain_quota: 500000,
+    remain_quota: 0,
     expired_time: -1,
-    unlimited_quota: false,
+    unlimited_quota: true,
     model_limits_enabled: false,
     model_limits: [],
     allow_ips: '',
@@ -137,14 +137,12 @@ const EditTokenModal = (props) => {
       if (statusState?.status?.default_use_auto_group) {
         if (localGroupOptions.some((group) => group.value === 'auto')) {
           localGroupOptions.sort((a, b) => (a.value === 'auto' ? -1 : 1));
-        } else {
-          localGroupOptions.unshift({ label: t('自动选择'), value: 'auto' });
         }
       }
       setGroups(localGroupOptions);
-      if (statusState?.status?.default_use_auto_group && formApiRef.current) {
-        formApiRef.current.setValue('group', 'auto');
-      }
+      // if (statusState?.status?.default_use_auto_group && formApiRef.current) {
+      //   formApiRef.current.setValue('group', 'auto');
+      // }
     } else {
       showError(t(message));
     }

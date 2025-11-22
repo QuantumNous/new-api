@@ -7,18 +7,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/model"
 	"regexp"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+
 	"github.com/gin-gonic/gin"
 
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/relay/channel"
-	vertexcore "one-api/relay/channel/vertex"
-	relaycommon "one-api/relay/common"
-	"one-api/service"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	vertexcore "github.com/QuantumNous/new-api/relay/channel/vertex"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 )
 
 // ============================
@@ -299,6 +301,29 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		return ti, nil
 	}
 	return ti, nil
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
+	upstreamName, err := decodeLocalTaskID(task.TaskID)
+	if err != nil {
+		upstreamName = ""
+	}
+	modelName := extractModelFromOperationName(upstreamName)
+	if strings.TrimSpace(modelName) == "" {
+		modelName = "veo-3.0-generate-001"
+	}
+	v := dto.NewOpenAIVideo()
+	v.ID = task.TaskID
+	v.Model = modelName
+	v.Status = task.Status.ToVideoStatus()
+	v.SetProgressStr(task.Progress)
+	v.CreatedAt = task.CreatedAt
+	v.CompletedAt = task.UpdatedAt
+	if strings.HasPrefix(task.FailReason, "data:") && len(task.FailReason) > 0 {
+		v.SetMetadata("url", task.FailReason)
+	}
+
+	return common.Marshal(v)
 }
 
 // ============================

@@ -63,6 +63,12 @@ const TopUp = () => {
   );
   const [statusLoading, setStatusLoading] = useState(true);
 
+  // Creem 相关状态
+  const [creemProducts, setCreemProducts] = useState([]);
+  const [enableCreemTopUp, setEnableCreemTopUp] = useState(false);
+  const [creemOpen, setCreemOpen] = useState(false);
+  const [selectedCreemProduct, setSelectedCreemProduct] = useState(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -248,6 +254,55 @@ const TopUp = () => {
     }
   };
 
+  const creemPreTopUp = async (product) => {
+    if (!enableCreemTopUp) {
+      showError(t('管理员未开启 Creem 充值！'));
+      return;
+    }
+    setSelectedCreemProduct(product);
+    setCreemOpen(true);
+  };
+
+  const onlineCreemTopUp = async () => {
+    if (!selectedCreemProduct) {
+      showError(t('请选择产品'));
+      return;
+    }
+    // Validate product has required fields
+    if (!selectedCreemProduct.productId) {
+      showError(t('产品配置错误，请联系管理员'));
+      return;
+    }
+    setConfirmLoading(true);
+    try {
+      const res = await API.post('/api/user/creem/pay', {
+        product_id: selectedCreemProduct.productId,
+        payment_method: 'creem',
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          processCreemCallback(data);
+        } else {
+          showError(data);
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      console.log(err);
+      showError(t('支付请求失败'));
+    } finally {
+      setCreemOpen(false);
+      setConfirmLoading(false);
+    }
+  };
+
+  const processCreemCallback = (data) => {
+    // 与 Stripe 保持一致的实现方式
+    window.open(data.checkout_url, '_blank');
+  };
+
   const getUserQuota = async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -322,6 +377,7 @@ const TopUp = () => {
           setPayMethods(payMethods);
           const enableStripeTopUp = data.enable_stripe_topup || false;
           const enableOnlineTopUp = data.enable_online_topup || false;
+          const enableCreemTopUp = data.enable_creem_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
@@ -329,8 +385,19 @@ const TopUp = () => {
               : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
+          setEnableCreemTopUp(enableCreemTopUp);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
+
+          // 设置 Creem 产品
+          try {
+            console.log(' data is ?', data);
+            console.log(' creem products is ?', data.creem_products);
+            const products = JSON.parse(data.creem_products || '[]');
+            setCreemProducts(products);
+          } catch (e) {
+            setCreemProducts([]);
+          }
 
           // 如果没有自定义充值数量选项，根据最小充值金额生成预设充值额度选项
           if (topupInfo.amount_options.length === 0) {
@@ -500,6 +567,11 @@ const TopUp = () => {
     setOpenHistory(false);
   };
 
+  const handleCreemCancel = () => {
+    setCreemOpen(false);
+    setSelectedCreemProduct(null);
+  };
+
   // 选择预设充值额度
   const selectPresetAmount = (preset) => {
     setTopUpCount(preset.value);
@@ -563,6 +635,33 @@ const TopUp = () => {
         t={t}
       />
 
+      {/* Creem 充值确认模态框 */}
+      <Modal
+        title={t('确定要充值 $')}
+        visible={creemOpen}
+        onOk={onlineCreemTopUp}
+        onCancel={handleCreemCancel}
+        maskClosable={false}
+        size='small'
+        centered
+        confirmLoading={confirmLoading}
+      >
+        {selectedCreemProduct && (
+          <>
+            <p>
+              {t('产品名称')}：{selectedCreemProduct.name}
+            </p>
+            <p>
+              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}{selectedCreemProduct.price}
+            </p>
+            <p>
+              {t('充值额度')}：{selectedCreemProduct.quota}
+            </p>
+            <p>{t('是否确认充值？')}</p>
+          </>
+        )}
+      </Modal>
+
       {/* 用户信息头部 */}
       <div className='space-y-6'>
         <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
@@ -572,6 +671,9 @@ const TopUp = () => {
               t={t}
               enableOnlineTopUp={enableOnlineTopUp}
               enableStripeTopUp={enableStripeTopUp}
+              enableCreemTopUp={enableCreemTopUp}
+              creemProducts={creemProducts}
+              creemPreTopUp={creemPreTopUp}
               presetAmounts={presetAmounts}
               selectedPreset={selectedPreset}
               selectPresetAmount={selectPresetAmount}

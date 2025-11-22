@@ -6,15 +6,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/model"
-	"one-api/relay/channel"
-	relaycommon "one-api/relay/common"
-	"one-api/service"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/pkg/errors"
 )
@@ -80,10 +83,32 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
+		return err
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_task_request_failed", http.StatusBadRequest)
+	}
+	action := constant.TaskActionTextGenerate
+	if meatAction, ok := req.Metadata["action"]; ok {
+		action, _ = meatAction.(string)
+	} else if req.HasImage() {
+		action = constant.TaskActionGenerate
+		if info.ChannelType == constant.ChannelTypeVidu {
+			// vidu 增加 首尾帧生视频和参考图生视频
+			if len(req.Images) == 2 {
+				action = constant.TaskActionFirstTailGenerate
+			} else if len(req.Images) > 2 {
+				action = constant.TaskActionReferenceGenerate
+			}
+		}
+	}
+	info.Action = action
+	return nil
 }
 
-func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo) (io.Reader, error) {
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, exists := c.Get("task_request")
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
@@ -95,8 +120,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 		return nil, err
 	}
 
-	if len(body.Images) == 0 {
-		c.Set("action", constant.TaskActionTextGenerate)
+	if info.Action == constant.TaskActionReferenceGenerate {
+		if strings.Contains(body.Model, "viduq2") {
+			// 参考图生视频只能用 viduq2 模型, 不能带有pro或turbo后缀 https://platform.vidu.cn/docs/reference-to-video
+			body.Model = "viduq2"
+		}
 	}
 
 	data, err := json.Marshal(body)
@@ -129,13 +157,10 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	if action := c.GetString("action"); action != "" {
-		info.Action = action
-	}
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
@@ -154,7 +179,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relayco
 		return
 	}
 
-	c.JSON(http.StatusOK, vResp)
+	ov := dto.NewOpenAIVideo()
+	ov.ID = vResp.TaskId
+	ov.TaskID = vResp.TaskId
+	ov.CreatedAt = time.Now().Unix()
+	ov.Model = info.OriginModelName
+	c.JSON(http.StatusOK, ov)
 	return vResp.TaskId, responseBody, nil
 }
 
@@ -178,7 +208,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"viduq1", "vidu2.0", "vidu1.5"}
+	return []string{"viduq2", "viduq1", "vidu2.0", "vidu1.5"}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
@@ -255,4 +285,32 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return taskInfo, nil
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
+	var viduResp taskResultResponse
+	if err := json.Unmarshal(originTask.Data, &viduResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal vidu task data failed")
+	}
+
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = originTask.TaskID
+	openAIVideo.Status = originTask.Status.ToVideoStatus()
+	openAIVideo.SetProgressStr(originTask.Progress)
+	openAIVideo.CreatedAt = originTask.CreatedAt
+	openAIVideo.CompletedAt = originTask.UpdatedAt
+
+	if len(viduResp.Creations) > 0 && viduResp.Creations[0].URL != "" {
+		openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
+	}
+
+	if viduResp.State == "failed" && viduResp.ErrCode != "" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: viduResp.ErrCode,
+			Code:    viduResp.ErrCode,
+		}
+	}
+
+	jsonData, _ := common.Marshal(openAIVideo)
+	return jsonData, nil
 }

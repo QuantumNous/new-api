@@ -2,9 +2,10 @@ package service
 
 import (
 	"errors"
-	"one-api/dto"
-	"one-api/setting"
 	"strings"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting"
 )
 
 func CheckSensitiveMessages(messages []dto.Message) ([]string, error) {

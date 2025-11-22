@@ -2,15 +2,17 @@ package dto
 
 import (
 	"encoding/json"
-	"one-api/common"
-	"one-api/logger"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 type GeminiChatRequest struct {
+	Requests           []GeminiChatRequest        `json:"requests,omitempty"` // For batch requests
 	Contents           []GeminiChatContent        `json:"contents"`
 	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
 	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
@@ -139,6 +141,8 @@ func (r *GeminiChatRequest) SetTools(tools []GeminiChatTool) {
 type GeminiThinkingConfig struct {
 	IncludeThoughts bool `json:"includeThoughts,omitempty"`
 	ThinkingBudget  *int `json:"thinkingBudget,omitempty"`
+	// TODO Conflict with thinkingbudget.
+	// ThinkingLevel   json.RawMessage `json:"thinkingLevel,omitempty"`
 }
 
 func (c *GeminiThinkingConfig) SetThinkingBudget(budget int) {
@@ -180,8 +184,12 @@ type FunctionCall struct {
 }
 
 type GeminiFunctionResponse struct {
-	Name     string                 `json:"name"`
-	Response map[string]interface{} `json:"response"`
+	Name         string                 `json:"name"`
+	Response     map[string]interface{} `json:"response"`
+	WillContinue json.RawMessage        `json:"willContinue,omitempty"`
+	Scheduling   json.RawMessage        `json:"scheduling,omitempty"`
+	Parts        json.RawMessage        `json:"parts,omitempty"`
+	ID           json.RawMessage        `json:"id,omitempty"`
 }
 
 type GeminiPartExecutableCode struct {
@@ -200,11 +208,15 @@ type GeminiFileData struct {
 }
 
 type GeminiPart struct {
-	Text                string                         `json:"text,omitempty"`
-	Thought             bool                           `json:"thought,omitempty"`
-	InlineData          *GeminiInlineData              `json:"inlineData,omitempty"`
-	FunctionCall        *FunctionCall                  `json:"functionCall,omitempty"`
-	FunctionResponse    *GeminiFunctionResponse        `json:"functionResponse,omitempty"`
+	Text             string                  `json:"text,omitempty"`
+	Thought          bool                    `json:"thought,omitempty"`
+	InlineData       *GeminiInlineData       `json:"inlineData,omitempty"`
+	FunctionCall     *FunctionCall           `json:"functionCall,omitempty"`
+	ThoughtSignature json.RawMessage         `json:"thoughtSignature,omitempty"`
+	FunctionResponse *GeminiFunctionResponse `json:"functionResponse,omitempty"`
+	// Optional. Media resolution for the input media.
+	MediaResolution     json.RawMessage                `json:"mediaResolution,omitempty"`
+	VideoMetadata       json.RawMessage                `json:"videoMetadata,omitempty"`
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`

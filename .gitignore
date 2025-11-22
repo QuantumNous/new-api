@@ -1,5 +1,6 @@
 .idea
 .vscode
+.zed
 upload
 *.exe
 *.db
@@ -10,10 +11,13 @@ web/dist
 .env
 one-api
 new-api
+/__debug_bin*
 .DS_Store
 tiktoken_cache
 .eslintcache
 .gocache
+.cache
+web/bun.lock
 
 electron/node_modules
 electron/dist

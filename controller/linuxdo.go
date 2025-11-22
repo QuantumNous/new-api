@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"one-api/common"
-	"one-api/model"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -83,7 +84,7 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 	}
 
 	// Get access token using Basic auth
-	tokenEndpoint := "https://connect.linux.do/oauth2/token"
+	tokenEndpoint := common.GetEnvOrDefaultString("LINUX_DO_TOKEN_ENDPOINT", "https://connect.linux.do/oauth2/token")
 	credentials := common.LinuxDOClientId + ":" + common.LinuxDOClientSecret
 	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(credentials))
 
@@ -128,7 +129,7 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 	}
 
 	// Get user info
-	userEndpoint := "https://connect.linux.do/api/user"
+	userEndpoint := common.GetEnvOrDefaultString("LINUX_DO_USER_ENDPOINT", "https://connect.linux.do/api/user")
 	req, err = http.NewRequest("GET", userEndpoint, nil)
 	if err != nil {
 		return nil, err

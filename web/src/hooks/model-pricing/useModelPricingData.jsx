@@ -128,7 +128,7 @@ export const useModelPricingData = () => {
         if (!model.tags) return false;
         const tagsArr = model.tags
           .toLowerCase()
-          .split(/[,;|\s]+/)
+          .split(/[,;|]+/)
           .map((tag) => tag.trim())
           .filter(Boolean);
         return tagsArr.includes(tagLower);

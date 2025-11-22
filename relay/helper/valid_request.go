@@ -1,15 +1,17 @@
 package helper
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/logger"
-	relayconstant "one-api/relay/constant"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,8 +23,10 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatOpenAI:
 		request, err = GetAndValidateTextRequest(c, relayMode)
 	case types.RelayFormatGemini:
-		if strings.Contains(c.Request.URL.Path, ":embedContent") || strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
+		if strings.Contains(c.Request.URL.Path, ":embedContent") {
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
+		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
+			request, err = GetAndValidateGeminiBatchEmbeddingRequest(c)
 		} else {
 			request, err = GetAndValidateGeminiRequest(c)
 		}
@@ -59,19 +63,9 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 			return nil, errors.New("model is required")
 		}
 	default:
-		err = c.Request.ParseForm()
-		if err != nil {
-			return nil, err
-		}
-		formData := c.Request.PostForm
-		if audioRequest.Model == "" {
-			audioRequest.Model = formData.Get("model")
-		}
-
 		if audioRequest.Model == "" {
 			return nil, errors.New("model is required")
 		}
-		audioRequest.ResponseFormat = formData.Get("response_format")
 		if audioRequest.ResponseFormat == "" {
 			audioRequest.ResponseFormat = "json"
 		}
@@ -147,6 +141,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.N = uint(common.String2Int(formData.Get("n")))
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.Size = formData.Get("size")
+			if imageValue := formData.Get("image"); imageValue != "" {
+				imageRequest.Image, _ = json.Marshal(imageValue)
+			}
 
 			if imageRequest.Model == "gpt-image-1" {
 				if imageRequest.Quality == "" {
@@ -157,8 +154,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				imageRequest.N = 1
 			}
 
-			watermark := formData.Has("watermark")
-			if watermark {
+			hasWatermark := formData.Has("watermark")
+			if hasWatermark {
+				watermark := formData.Get("watermark") == "true"
 				imageRequest.Watermark = &watermark
 			}
 			break
@@ -299,7 +297,7 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(request.Contents) == 0 {
+	if len(request.Contents) == 0 && len(request.Requests) == 0 {
 		return nil, errors.New("contents is required")
 	}
 
@@ -312,6 +310,15 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 
 func GetAndValidateGeminiEmbeddingRequest(c *gin.Context) (*dto.GeminiEmbeddingRequest, error) {
 	request := &dto.GeminiEmbeddingRequest{}
+	err := common.UnmarshalBodyReusable(c, request)
+	if err != nil {
+		return nil, err
+	}
+	return request, nil
+}
+
+func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatchEmbeddingRequest, error) {
+	request := &dto.GeminiBatchEmbeddingRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err

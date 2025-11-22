@@ -107,10 +107,12 @@ function type2secretPrompt(type) {
       return '按照如下格式输入：AppId|SecretId|SecretKey';
     case 33:
       return '按照如下格式输入：Ak|Sk|Region';
+    case 45:
+        return '请输入渠道对应的鉴权密钥, 豆包语音输入：AppId|AccessToken';
     case 50:
       return '按照如下格式输入: AccessKey|SecretKey, 如果上游是New API，则直接输ApiKey';
     case 51:
-      return '按照如下格式输入: Access Key ID|Secret Access Key';
+      return '按照如下格式输入: AccessKey|SecretAccessKey';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -141,6 +143,7 @@ const EditChannelModal = (props) => {
     groups: ['default'],
     priority: 0,
     weight: 0,
+    token_limit: 0,
     tag: '',
     multi_key_mode: 'random',
     // 渠道额外设置的默认值
@@ -153,6 +156,8 @@ const EditChannelModal = (props) => {
     settings: '',
     // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
     vertex_key_type: 'json',
+    // 仅 AWS: 密钥格式和区域（存入 settings.aws_key_type 和 settings.aws_region）
+    aws_key_type: 'ak_sk',
     // 企业账户设置
     is_enterprise_account: false,
     // 字段透传控制默认值
@@ -185,6 +190,7 @@ const EditChannelModal = (props) => {
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
+  const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false); // 豆包渠道自定义 API 地址隐藏入口
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -214,6 +220,7 @@ const EditChannelModal = (props) => {
     'channelExtraSettings',
   ];
   const formContainerRef = useRef(null);
+  const doubaoApiClickCountRef = useRef(0);
 
   // 2FA状态更新辅助函数
   const updateTwoFAState = (updates) => {
@@ -300,6 +307,20 @@ const EditChannelModal = (props) => {
 
     setCurrentSectionIndex(newIndex);
     scrollToSection(availableSections[newIndex]);
+  };
+
+  const handleApiConfigSecretClick = () => {
+    if (inputs.type !== 45) return;
+    const next = doubaoApiClickCountRef.current + 1;
+    doubaoApiClickCountRef.current = next;
+    if (next >= 10) {
+      setDoubaoApiEditUnlocked((unlocked) => {
+        if (!unlocked) {
+          showInfo(t('已解锁豆包自定义 API 地址编辑'));
+        }
+        return true;
+      });
+    }
   };
 
   // 渠道额外设置状态
@@ -515,6 +536,8 @@ const EditChannelModal = (props) => {
             parsedSettings.azure_responses_version || '';
           // 读取 Vertex 密钥格式
           data.vertex_key_type = parsedSettings.vertex_key_type || 'json';
+          // 读取 AWS 密钥格式和区域
+          data.aws_key_type = parsedSettings.aws_key_type || 'ak_sk';
           // 读取企业账户设置
           data.is_enterprise_account =
             parsedSettings.openrouter_enterprise === true;
@@ -528,6 +551,7 @@ const EditChannelModal = (props) => {
           data.azure_responses_version = '';
           data.region = '';
           data.vertex_key_type = 'json';
+          data.aws_key_type = 'ak_sk';
           data.is_enterprise_account = false;
           data.allow_service_tier = false;
           data.disable_store = false;
@@ -536,6 +560,7 @@ const EditChannelModal = (props) => {
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
         data.vertex_key_type = 'json';
+        data.aws_key_type = 'ak_sk';
         data.is_enterprise_account = false;
         data.allow_service_tier = false;
         data.disable_store = false;
@@ -717,6 +742,13 @@ const EditChannelModal = (props) => {
   };
 
   useEffect(() => {
+    if (inputs.type !== 45) {
+      doubaoApiClickCountRef.current = 0;
+      setDoubaoApiEditUnlocked(false);
+    }
+  }, [inputs.type]);
+
+  useEffect(() => {
     const modelMap = new Map();
 
     originModelOptions.forEach((option) => {
@@ -815,6 +847,9 @@ const EditChannelModal = (props) => {
     setKeyMode('append');
     // 重置企业账户状态
     setIsEnterpriseAccount(false);
+    // 重置豆包隐藏入口状态
+    setDoubaoApiEditUnlocked(false);
+    doubaoApiClickCountRef.current = 0;
     // 清空表单中的key_mode字段
     if (formApiRef.current) {
       formApiRef.current.setValue('key_mode', undefined);
@@ -997,6 +1032,11 @@ const EditChannelModal = (props) => {
         localInputs.is_enterprise_account === true;
     }
 
+    // type === 33 (AWS): 保存 aws_key_type 到 settings
+    if (localInputs.type === 33) {
+      settings.aws_key_type = localInputs.aws_key_type || 'ak_sk';
+    }
+
     // type === 1 (OpenAI) 或 type === 14 (Claude): 设置字段透传控制（显式保存布尔值）
     if (localInputs.type === 1 || localInputs.type === 14) {
       settings.allow_service_tier = localInputs.allow_service_tier === true;
@@ -1020,6 +1060,8 @@ const EditChannelModal = (props) => {
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
+    // 顶层的 aws_key_type 不应发送给后端
+    delete localInputs.aws_key_type;
     // 清理字段透传控制的临时字段
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
@@ -1468,6 +1510,31 @@ const EditChannelModal = (props) => {
                       autoComplete='new-password'
                     />
 
+                    {inputs.type === 33 && (
+                      <>
+                        <Form.Select
+                          field='aws_key_type'
+                          label={t('密钥格式')}
+                          placeholder={t('请选择密钥格式')}
+                          optionList={[
+                            {
+                              label: 'AccessKey / SecretAccessKey',
+                              value: 'ak_sk',
+                            },
+                            { label: 'API Key', value: 'api_key' },
+                          ]}
+                          style={{ width: '100%' }}
+                          value={inputs.aws_key_type || 'ak_sk'}
+                          onChange={(value) => {
+                            handleChannelOtherSettingsChange('aws_key_type', value);
+                          }}
+                          extraText={t(
+                            'AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key',
+                          )}
+                        />
+                      </>
+                    )}
+
                     {inputs.type === 41 && (
                       <Form.Select
                         field='vertex_key_type'
@@ -1536,7 +1603,15 @@ const EditChannelModal = (props) => {
                         <Form.TextArea
                           field='key'
                           label={t('密钥')}
-                          placeholder={t('请输入密钥，一行一个')}
+                          placeholder={
+                            inputs.type === 33
+                              ? inputs.aws_key_type === 'api_key'
+                                ? t('请输入 API Key，一行一个，格式：APIKey|Region')
+                                : t(
+                                    '请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region',
+                                  )
+                              : t('请输入密钥，一行一个')
+                          }
                           rules={
                             isEdit
                               ? []
@@ -1730,7 +1805,13 @@ const EditChannelModal = (props) => {
                                 ? t('密钥（编辑模式下，保存的密钥不会显示）')
                                 : t('密钥')
                             }
-                            placeholder={t(type2secretPrompt(inputs.type))}
+                            placeholder={
+                              inputs.type === 33
+                                ? inputs.aws_key_type === 'api_key'
+                                  ? t('请输入 API Key，格式：APIKey|Region')
+                                  : t('按照如下格式输入：AccessKey|SecretAccessKey|Region')
+                                : t(type2secretPrompt(inputs.type))
+                            }
                             rules={
                               isEdit
                                 ? []
@@ -1905,7 +1986,10 @@ const EditChannelModal = (props) => {
                   <div ref={(el) => (formSectionRefs.current.apiConfig = el)}>
                     <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                       {/* Header: API Config */}
-                      <div className='flex items-center mb-2'>
+                      <div
+                        className='flex items-center mb-2'
+                        onClick={handleApiConfigSecretClick}
+                      >
                         <Avatar
                           size='small'
                           color='green'
@@ -2040,7 +2124,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
-                        inputs.type !== 45 && (
+                        (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
                               field='base_url'
@@ -2093,7 +2177,7 @@ const EditChannelModal = (props) => {
                         </div>
                       )}
 
-                      {inputs.type === 45 && (
+                      {inputs.type === 45 && !doubaoApiEditUnlocked && (
                         <div>
                           <Form.Select
                             field='base_url'
@@ -2113,6 +2197,10 @@ const EditChannelModal = (props) => {
                                 label:
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
+                                {
+                                    value: 'doubao-coding-plan',
+                                    label: 'Doubao Coding Plan',
+                                },
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
                           />
@@ -2406,6 +2494,18 @@ const EditChannelModal = (props) => {
                           min={0}
                           onNumberChange={(value) =>
                             handleInputChange('weight', value)
+                          }
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='token_limit'
+                          label={t('最大上下文')}
+                          placeholder={t('最大上下文')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('token_limit', value)
                           }
                           style={{ width: '100%' }}
                         />

@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"one-api/common"
-	"one-api/constant"
-	"one-api/setting/ratio_setting"
-	"one-api/types"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type Pricing struct {

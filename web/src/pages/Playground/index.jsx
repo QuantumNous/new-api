@@ -47,6 +47,7 @@ import {
   createLoadingAssistantMessage,
   getTextContent,
   buildApiPayload,
+  encodeToBase64,
 } from '../../helpers';
 
 // Components
@@ -72,7 +73,7 @@ const generateAvatarDataUrl = (username) => {
       <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="16" fill="#ffffff" font-family="sans-serif">${firstLetter}</text>
     </svg>
   `;
-  return `data:image/svg+xml;base64,${btoa(svg)}`;
+  return `data:image/svg+xml;base64,${encodeToBase64(svg)}`;
 };
 
 const Playground = () => {
