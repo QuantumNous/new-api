@@ -117,7 +117,7 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 		req.Header.Set("x-goog-api-key", apiKey)
-	case constant.ChannelTypeAli:
+	case constant.ChannelTypeAli, constant.ChannelTypeDoubaoVideo:
 		// Video URL is directly in task.FailReason
 		videoURL = task.FailReason
 	default:
