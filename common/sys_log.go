@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -9,18 +10,16 @@ import (
 )
 
 func SysLog(s string) {
-	t := time.Now()
-	_, _ = fmt.Fprintf(gin.DefaultWriter, "[SYS] %v | %s \n", t.Format("2006/01/02 - 15:04:05"), s)
+	slog.Info(s, "component", "system")
 }
 
 func SysError(s string) {
-	t := time.Now()
-	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[SYS] %v | %s \n", t.Format("2006/01/02 - 15:04:05"), s)
+	slog.Error(s, "component", "system")
 }
 
 func FatalLog(v ...any) {
-	t := time.Now()
-	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[FATAL] %v | %v \n", t.Format("2006/01/02 - 15:04:05"), v)
+	msg := fmt.Sprint(v...)
+	slog.Error(msg, "component", "system", "level", "fatal")
 	os.Exit(1)
 }
 
