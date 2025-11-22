@@ -239,16 +239,37 @@ export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour') {
   if (dataExportDefaultTime === 'hour') {
     str += ' ' + hour + ':00';
   } else if (dataExportDefaultTime === 'week') {
-    let nextWeek = new Date(timestamp * 1000 + 6 * 24 * 60 * 60 * 1000);
-    let nextMonth = (nextWeek.getMonth() + 1).toString();
-    let nextDay = nextWeek.getDate().toString();
-    if (nextMonth.length === 1) {
-      nextMonth = '0' + nextMonth;
+    // 计算自然周（周一到周日）
+    let currentDate = new Date(timestamp * 1000);
+    let dayOfWeek = currentDate.getDay(); // 0=周日, 1=周一, ..., 6=周六
+
+    // 调整到本周一
+    let monday = new Date(currentDate);
+    monday.setDate(currentDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+    // 获取本周日
+    let sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    let mondayMonth = (monday.getMonth() + 1).toString();
+    let mondayDay = monday.getDate().toString();
+    let sundayMonth = (sunday.getMonth() + 1).toString();
+    let sundayDay = sunday.getDate().toString();
+
+    if (mondayMonth.length === 1) {
+      mondayMonth = '0' + mondayMonth;
     }
-    if (nextDay.length === 1) {
-      nextDay = '0' + nextDay;
+    if (mondayDay.length === 1) {
+      mondayDay = '0' + mondayDay;
     }
-    str += ' - ' + nextMonth + '-' + nextDay;
+    if (sundayMonth.length === 1) {
+      sundayMonth = '0' + sundayMonth;
+    }
+    if (sundayDay.length === 1) {
+      sundayDay = '0' + sundayDay;
+    }
+
+    str = mondayMonth + '-' + mondayDay + ' - ' + sundayMonth + '-' + sundayDay;
   }
   return str;
 }
