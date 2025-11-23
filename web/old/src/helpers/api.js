@@ -231,6 +231,17 @@ export async function getOAuthState() {
   }
 }
 
+export async function onDiscordOAuthClicked(client_id) {
+  const state = await getOAuthState();
+  if (!state) return;
+  const redirect_uri = `${window.location.origin}/oauth/discord`;
+  const response_type = 'code';
+  const scope = 'identify+openid';
+  window.open(
+    `https://discord.com/oauth2/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=${response_type}&scope=${scope}&state=${state}`,
+  );
+}
+
 export async function onOIDCClicked(auth_url, client_id, openInNewTab = false) {
   const state = await getOAuthState();
   if (!state) return;

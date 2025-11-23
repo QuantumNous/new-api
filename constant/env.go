@@ -4,6 +4,7 @@ var StreamingTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
 var ForceStreamOption bool
+var CountToken bool
 var GetMediaToken bool
 var GetMediaTokenNotStream bool
 var UpdateTask bool
