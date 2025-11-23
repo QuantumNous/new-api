@@ -226,6 +226,11 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
+	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
+	if info.ChannelType == constant.ChannelTypeOpenRouter {
+		convertOpenRouterReasoningFields(&simpleResponse)
+	}
+
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
@@ -271,6 +276,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
 		} else {
+			// 对于 OpenRouter，需要重新序列化以包含转换后的 reasoning_content 字段
+			if info.ChannelType == constant.ChannelTypeOpenRouter {
+				responseBody, err = common.Marshal(simpleResponse)
+				if err != nil {
+					return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+				}
+			}
 			break
 		}
 	case types.RelayFormatClaude:
@@ -701,4 +713,18 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 		return *payload.Usage.PromptCacheHitTokens, true
 	}
 	return 0, false
+}
+
+// convertOpenRouterReasoningFields 转换OpenRouter响应中的reasoning字段为reasoning_content
+// 使用泛型函数统一处理reasoning字段转换
+func convertOpenRouterReasoningFields(response *dto.OpenAITextResponse) {
+	if response == nil || len(response.Choices) == 0 {
+		return
+	}
+
+	// 遍历所有choices，对每个Message使用统一的泛型函数进行转换
+	for i := range response.Choices {
+		choice := &response.Choices[i]
+		ConvertReasoningField(&choice.Message)
+	}
 }

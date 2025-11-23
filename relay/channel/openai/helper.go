@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -21,6 +22,19 @@ import (
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
+
+	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
+	if info.ChannelType == constant.ChannelTypeOpenRouter {
+		var streamResponse dto.ChatCompletionsStreamResponse
+		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err == nil {
+			convertOpenRouterReasoningFieldsStream(&streamResponse)
+			// 重新序列化为JSON
+			newData, err := common.Marshal(streamResponse)
+			if err == nil {
+				data = string(newData)
+			}
+		}
+	}
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -258,4 +272,17 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 		return
 	}
 	helper.ResponseChunkData(c, streamResponse, data)
+}
+
+// convertOpenRouterReasoningFieldsStream 转换流式响应中的reasoning字段为reasoning_content
+func convertOpenRouterReasoningFieldsStream(response *dto.ChatCompletionsStreamResponse) {
+	if response == nil || len(response.Choices) == 0 {
+		return
+	}
+
+	// 遍历所有choices，对每个Delta使用统一的泛型函数进行转换
+	for i := range response.Choices {
+		choice := &response.Choices[i]
+		ConvertReasoningField(&choice.Delta)
+	}
 }
