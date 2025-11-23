@@ -28,6 +28,9 @@ const oauthSchema = z.object({
   GitHubOAuthEnabled: z.boolean(),
   GitHubClientId: z.string().optional(),
   GitHubClientSecret: z.string().optional(),
+  'discord.enabled': z.boolean(),
+  'discord.client_id': z.string().optional(),
+  'discord.client_secret': z.string().optional(),
   'oidc.enabled': z.boolean(),
   'oidc.client_id': z.string().optional(),
   'oidc.client_secret': z.string().optional(),
@@ -64,6 +67,8 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     ...defaultValues,
     GitHubClientId: defaultValues.GitHubClientId ?? '',
     GitHubClientSecret: defaultValues.GitHubClientSecret ?? '',
+    'discord.client_id': defaultValues['discord.client_id'] ?? '',
+    'discord.client_secret': defaultValues['discord.client_secret'] ?? '',
     'oidc.client_id': defaultValues['oidc.client_id'] ?? '',
     'oidc.client_secret': defaultValues['oidc.client_secret'] ?? '',
     'oidc.well_known': defaultValues['oidc.well_known'] ?? '',
@@ -96,11 +101,15 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     const flattenedData: Record<string, any> = {}
 
     Object.entries(rawData).forEach(([key, value]) => {
-      if (key === 'oidc' && typeof value === 'object' && value !== null) {
+      if (
+        (key === 'oidc' || key === 'discord') &&
+        typeof value === 'object' &&
+        value !== null
+      ) {
         // React Hook Form auto-nested these fields, flatten them back
         Object.entries(value as Record<string, any>).forEach(
           ([nestedKey, nestedValue]) => {
-            flattenedData[`oidc.${nestedKey}`] = nestedValue
+            flattenedData[`${key}.${nestedKey}`] = nestedValue
           }
         )
       } else {
@@ -181,6 +190,16 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
       })
     }
 
+    // Update nested discord fields
+    if (resetValues.discord && typeof resetValues.discord === 'object') {
+      Object.keys(resetValues.discord).forEach((key) => {
+        const flatKey = `discord.${key}` as keyof typeof normalizedDefaults
+        if (flatKey in normalizedDefaults) {
+          resetValues.discord[key] = normalizedDefaults[flatKey]
+        }
+      })
+    }
+
     // Update top-level fields
     Object.keys(resetValues).forEach((key) => {
       if (key !== 'oidc' && key in normalizedDefaults) {
@@ -211,8 +230,9 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-5'>
+              <TabsList className='grid w-full grid-cols-6'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
+                <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
                 <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
@@ -271,6 +291,68 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           type='password'
                           placeholder={t('Your GitHub OAuth Client Secret')}
+                          autoComplete='new-password'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='discord' className='space-y-4'>
+                <FormField
+                  control={form.control}
+                  name='discord.enabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Enable Discord OAuth')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with Discord')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={'discord.client_id' as any}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Your Discord OAuth Client ID')}
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='discord.client_secret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Your Discord OAuth Client Secret')}
                           autoComplete='new-password'
                           {...field}
                         />

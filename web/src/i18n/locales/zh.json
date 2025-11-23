@@ -389,6 +389,7 @@
     "Console": "控制台",
     "Content": "内容",
     "Content displayed on the home page (supports Markdown)": "主页上显示的内容（支持 Markdown）",
+    "Continue with Discord": "使用 Discord 继续",
     "Continue with GitHub": "使用 GitHub 继续",
     "Control log retention and clean historical data.": "控制日志保留期限并清理历史数据。",
     "Control passthrough behavior and connection keep-alive settings": "控制透传行为和连接保持活动设置",

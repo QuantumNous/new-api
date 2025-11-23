@@ -389,6 +389,7 @@
     "Console": "Console",
     "Content": "Content",
     "Content displayed on the home page (supports Markdown)": "Content displayed on the home page (supports Markdown)",
+    "Continue with Discord": "Continue with Discord",
     "Continue with GitHub": "Continue with GitHub",
     "Control log retention and clean historical data.": "Control log retention and clean historical data.",
     "Control passthrough behavior and connection keep-alive settings": "Control passthrough behavior and connection keep-alive settings",

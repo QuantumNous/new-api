@@ -29,6 +29,15 @@ export function buildOIDCOAuthUrl(
 }
 
 /**
+ * Build Discord OAuth URL
+ */
+export function buildDiscordOAuthUrl(clientId: string, state: string): string {
+  const redirectUri = `${window.location.origin}/oauth?provider=discord`
+  const scope = 'identify+openid'
+  return `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${state}`
+}
+
+/**
  * Build LinuxDO OAuth URL
  */
 export function buildLinuxDOOAuthUrl(clientId: string, state: string): string {
@@ -55,6 +64,15 @@ export function getAvailableOAuthProviders(
       type: 'github',
       enabled: true,
       clientId: status.github_client_id,
+    })
+  }
+
+  if (status.discord_oauth) {
+    providers.push({
+      name: 'Discord',
+      type: 'discord',
+      enabled: true,
+      clientId: status.discord_client_id,
     })
   }
 
@@ -95,6 +113,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
   if (!status) return false
   return !!(
     status.github_oauth ||
+    status.discord_oauth ||
     status.oidc_enabled ||
     status.linuxdo_oauth ||
     status.telegram_oauth ||

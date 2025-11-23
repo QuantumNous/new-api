@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { IconGithub, IconLinuxDo, IconWeChat } from '@/assets/brand-icons'
+import {
+  IconDiscord,
+  IconGithub,
+  IconLinuxDo,
+  IconWeChat,
+} from '@/assets/brand-icons'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useOAuthLogin } from '../hooks/use-oauth-login'
@@ -35,6 +40,7 @@ export function OAuthProviders({
     githubButtonText,
     githubButtonDisabled,
     handleGitHubLogin,
+    handleDiscordLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
@@ -59,6 +65,15 @@ export function OAuthProviders({
       onClick: handleGitHubLogin,
       icon: <IconGithub className='h-4 w-4' />,
       disabled: githubButtonDisabled,
+    })
+  }
+
+  if (status?.discord_oauth) {
+    providerButtons.push({
+      key: 'discord',
+      label: 'Discord',
+      onClick: handleDiscordLogin,
+      icon: <IconDiscord className='h-4 w-4' />,
     })
   }
 

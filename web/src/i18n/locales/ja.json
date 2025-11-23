@@ -389,6 +389,7 @@
     "Console": "コンソール",
     "Content": "コンテンツ",
     "Content displayed on the home page (supports Markdown)": "ホームページに表示されるコンテンツ（Markdownをサポート）",
+    "Continue with Discord": "Discord で続行",
     "Continue with GitHub": "GitHub で続行",
     "Control log retention and clean historical data.": "ログの保持を制御し、履歴データをクリーンアップします。",
     "Control passthrough behavior and connection keep-alive settings": "パススルーの動作と接続のキープアライブ設定を制御します。",

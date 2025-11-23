@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
+  buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
@@ -99,6 +100,27 @@ export function useOAuthLogin(status: SystemStatus | null) {
     }
   }
 
+  const handleDiscordLogin = async () => {
+    if (!status?.discord_client_id) return
+
+    setIsLoading(true)
+    try {
+      await resetSession()
+      const state = await getOAuthState()
+      if (!state) {
+        toast.error('Failed to initialize OAuth')
+        return
+      }
+
+      const url = buildDiscordOAuthUrl(status.discord_client_id, state)
+      window.open(url, '_self')
+    } catch (_error) {
+      toast.error('Failed to start Discord login')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleOIDCLogin = async () => {
     if (!status?.oidc_authorization_endpoint || !status?.oidc_client_id) return
 
@@ -154,6 +176,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
     githubButtonText,
     githubButtonDisabled,
     handleGitHubLogin,
+    handleDiscordLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
