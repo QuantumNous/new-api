@@ -89,15 +89,23 @@ import {
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
   type ChannelFormValues,
-} from '../../lib'
-import {
   deduplicateKeys,
   getChannelTypeIcon,
   getKeyPromptForType,
-} from '../../lib/channel-utils'
+  parseModelsString,
+  formatModelsArray,
+  extractRedirectModels,
+  hasModelConfigChanged,
+  findMissingModelsInMapping,
+  validateModelMappingJson,
+} from '../../lib'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
+import {
+  MissingModelsConfirmationDialog,
+  type MissingModelsAction,
+} from '../dialogs/missing-models-confirmation-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
 type ChannelMutateDrawerProps = {
@@ -113,20 +121,7 @@ type ModelMappingGuardrail = {
   exposedTargetModels: string[]
 }
 
-// Helper functions for model operations
-const parseModelsString = (modelsStr: string): string[] => {
-  return modelsStr
-    ? modelsStr
-        .split(',')
-        .map((m) => m.trim())
-        .filter(Boolean)
-    : []
-}
-
-const formatModelsArray = (models: string[]): string => {
-  return Array.from(new Set(models)).join(',')
-}
-
+// Helper functions
 const createEmptyModelMappingGuardrail = (): ModelMappingGuardrail => ({
   invalidJson: false,
   entries: [],
@@ -158,6 +153,13 @@ export function ChannelMutateDrawer({
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false)
   const doubaoApiClickCountRef = useRef(0)
+  const initialModelsRef = useRef<string[]>([])
+  const initialModelMappingRef = useRef<string>('')
+  const [missingModelsDialogOpen, setMissingModelsDialogOpen] = useState(false)
+  const [missingModelsList, setMissingModelsList] = useState<string[]>([])
+  const missingModelsResolveRef = useRef<
+    ((action: MissingModelsAction) => void) | null
+  >(null)
 
   const isEditing = Boolean(currentRow)
   const channelId = currentRow?.id ?? null
@@ -275,6 +277,12 @@ export function ChannelMutateDrawer({
     [currentModels]
   )
 
+  // Extract redirect models from model_mapping
+  const redirectModelList = useMemo(
+    () => extractRedirectModels(currentModelMapping || ''),
+    [currentModelMapping]
+  )
+
   // Transform models to multi-select options
   const modelOptions = useMemo(() => {
     const allModels = new Set([...allModelsList, ...currentModelsArray])
@@ -358,8 +366,15 @@ export function ChannelMutateDrawer({
     if (isEditing && channelData?.data) {
       const defaults = transformChannelToFormDefaults(channelData.data)
       form.reset(defaults)
+      // Store initial values for comparison
+      initialModelsRef.current = parseModelsString(
+        channelData.data.models || ''
+      )
+      initialModelMappingRef.current = channelData.data.model_mapping || ''
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      initialModelsRef.current = []
+      initialModelMappingRef.current = ''
     }
   }, [isEditing, channelData, form])
 
@@ -606,6 +621,30 @@ export function ChannelMutateDrawer({
     setOpen(null)
   }, [queryClient, onOpenChange, setOpen])
 
+  // Show missing models confirmation dialog
+  const confirmMissingModelMappings = useCallback(
+    (missingModels: string[]): Promise<MissingModelsAction> => {
+      return new Promise((resolve) => {
+        setMissingModelsList(missingModels)
+        setMissingModelsDialogOpen(true)
+        missingModelsResolveRef.current = resolve
+      })
+    },
+    []
+  )
+
+  // Handle missing models dialog action
+  const handleMissingModelsAction = useCallback(
+    (action: MissingModelsAction) => {
+      setMissingModelsDialogOpen(false)
+      if (missingModelsResolveRef.current) {
+        missingModelsResolveRef.current(action)
+        missingModelsResolveRef.current = null
+      }
+    },
+    []
+  )
+
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
@@ -616,6 +655,53 @@ export function ChannelMutateDrawer({
           message: 'API key is required',
         })
         return
+      }
+
+      // Validate model_mapping JSON format
+      const hasModelMapping =
+        typeof data.model_mapping === 'string' &&
+        data.model_mapping.trim() !== ''
+
+      if (hasModelMapping) {
+        const validation = validateModelMappingJson(data.model_mapping!)
+        if (!validation.valid) {
+          toast.error(t(validation.error || 'Invalid model mapping'))
+          return
+        }
+      }
+
+      // Normalize models array
+      const normalizedModels = parseModelsString(data.models || '')
+
+      // Check for missing models in model_mapping
+      if (hasModelMapping) {
+        const missingModels = findMissingModelsInMapping(
+          data.model_mapping!,
+          normalizedModels
+        )
+
+        const shouldPromptMissing =
+          missingModels.length > 0 &&
+          hasModelConfigChanged(
+            normalizedModels,
+            data.model_mapping || '',
+            initialModelsRef.current,
+            initialModelMappingRef.current
+          )
+
+        if (shouldPromptMissing) {
+          const confirmAction = await confirmMissingModelMappings(missingModels)
+          if (confirmAction === 'cancel') {
+            return
+          }
+          if (confirmAction === 'add') {
+            const updatedModels = Array.from(
+              new Set([...normalizedModels, ...missingModels])
+            )
+            data.models = formatModelsArray(updatedModels)
+            form.setValue('models', data.models)
+          }
+        }
       }
 
       setIsSubmitting(true)
@@ -2256,6 +2342,7 @@ export function ChannelMutateDrawer({
             // Fill selected models to form
             form.setValue('models', formatModelsArray(models))
           }}
+          redirectModels={redirectModelList}
         />
       )}
 
@@ -2274,6 +2361,14 @@ export function ChannelMutateDrawer({
         onCancel={cancelVerification}
         onCodeChange={setVerificationCode}
         onMethodChange={switchVerificationMethod}
+      />
+
+      {/* Missing Models Confirmation Dialog */}
+      <MissingModelsConfirmationDialog
+        open={missingModelsDialogOpen}
+        missingModels={missingModelsList}
+        onConfirm={handleMissingModelsAction}
+        onOpenChange={setMissingModelsDialogOpen}
       />
     </>
   )

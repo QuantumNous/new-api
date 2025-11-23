@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Search, Info } from 'lucide-react'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -22,20 +22,32 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { fetchUpstreamModels, updateChannel } from '../../api'
-import { channelsQueryKeys } from '../../lib'
+import {
+  channelsQueryKeys,
+  categorizeModelsWithRedirect,
+  normalizeModelName,
+  parseModelsString,
+} from '../../lib'
 import { useChannels } from '../channels-provider'
 
 type FetchModelsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onModelsSelected?: (models: string[]) => void // Optional callback for form filling mode
+  redirectModels?: string[] // Models from model_mapping
 }
 
 export function FetchModelsDialog({
   open,
   onOpenChange,
   onModelsSelected,
+  redirectModels = [],
 }: FetchModelsDialogProps) {
   const { t } = useTranslation()
   const { currentRow } = useChannels()
@@ -47,9 +59,18 @@ export function FetchModelsDialog({
   const [searchKeyword, setSearchKeyword] = useState('')
 
   // Parse existing models
-  const existingModels = currentRow?.models
-    ? currentRow.models.split(',').map((m) => m.trim())
-    : []
+  const existingModels = useMemo(
+    () => parseModelsString(currentRow?.models || ''),
+    [currentRow?.models]
+  )
+
+  // Categorize models with redirect models
+  const modelCategories = useMemo(
+    () => categorizeModelsWithRedirect(existingModels, redirectModels),
+    [existingModels, redirectModels]
+  )
+
+  const { classificationSet, redirectOnlySet } = modelCategories
 
   useEffect(() => {
     if (open && currentRow) {
@@ -166,10 +187,14 @@ export function FetchModelsDialog({
     )
   }, [fetchedModels, searchKeyword])
 
+  // Helper to check if a model is considered "existing" (in selected or redirect)
+  const isExistingModel = (model: string) =>
+    classificationSet.has(normalizeModelName(model))
+
   // Separate new and existing models
-  const newModels = filteredModels.filter((m) => !existingModels.includes(m))
+  const newModels = filteredModels.filter((m) => !isExistingModel(m))
   const existingFilteredModels = filteredModels.filter((m) =>
-    existingModels.includes(m)
+    isExistingModel(m)
   )
 
   const newModelsByCategory = categorizeModels(newModels)
@@ -241,9 +266,19 @@ export function FetchModelsDialog({
                 />
                 <Label
                   htmlFor={model}
-                  className='cursor-pointer text-sm font-normal'
+                  className='flex cursor-pointer items-center gap-1.5 text-sm font-normal'
                 >
-                  {model}
+                  <span>{model}</span>
+                  {redirectOnlySet.has(normalizeModelName(model)) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className='h-3.5 w-3.5 text-amber-500' />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t('From model redirect, not yet added to models list')}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </Label>
               </div>
             ))}
