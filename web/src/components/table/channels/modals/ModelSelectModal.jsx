@@ -41,6 +41,7 @@ const ModelSelectModal = ({
   visible,
   models = [],
   selected = [],
+  modelMapping = {},
   onConfirm,
   onCancel,
 }) => {
@@ -61,6 +62,12 @@ const ModelSelectModal = ({
     selected.includes(model),
   );
 
+  // 计算无效的模型：models中不包含，selected 中包含，且（如果它存在于modelMapping的键中）在modelMapping中作为键它映射的值也不被models包含 的模型
+  const invalidModels = selected.filter(model =>
+    !models.includes(model) &&
+    (!modelMapping[model] || !models.includes(modelMapping[model]))
+  );
+
   // 同步外部选中值
   useEffect(() => {
     if (visible) {
@@ -71,11 +78,16 @@ const ModelSelectModal = ({
   // 当模型列表变化时，设置默认tab
   useEffect(() => {
     if (visible) {
-      // 默认显示新获取模型tab，如果没有新模型则显示已有模型
-      const hasNewModels = newModels.length > 0;
-      setActiveTab(hasNewModels ? 'new' : 'existing');
+      // 默认显示新获取模型tab，如果没有新模型则显示已有模型，如果都没有则显示无效模型
+      if (newModels.length > 0) {
+        setActiveTab('new');
+      } else if (existingModels.length > 0) {
+        setActiveTab('existing');
+      } else if (invalidModels.length > 0) {
+        setActiveTab('invalid');
+      }
     }
-  }, [visible, newModels.length, selected]);
+  }, [visible, newModels.length, existingModels.length, invalidModels.length, selected]);
 
   const handleOk = () => {
     onConfirm && onConfirm(checkedList);
@@ -122,6 +134,7 @@ const ModelSelectModal = ({
 
   const newModelsByCategory = categorizeModels(newModels);
   const existingModelsByCategory = categorizeModels(existingModels);
+  const invalidModelsByCategory = categorizeModels(invalidModels);
 
   // Tab列表配置
   const tabList = [
@@ -138,6 +151,14 @@ const ModelSelectModal = ({
           {
             tab: `${t('已有的模型')} (${existingModels.length})`,
             itemKey: 'existing',
+          },
+        ]
+      : []),
+    ...(invalidModels.length > 0
+      ? [
+          {
+            tab: `${t('无效的模型')} (${invalidModels.length})`,
+            itemKey: 'invalid',
           },
         ]
       : []),
@@ -300,6 +321,9 @@ const ModelSelectModal = ({
                   {renderModelsByCategory(existingModelsByCategory, 'existing')}
                 </div>
               )}
+              {activeTab === 'invalid' && invalidModels.length > 0 && (
+                <div>{renderModelsByCategory(invalidModelsByCategory, 'invalid')}</div>
+              )}
             </Checkbox.Group>
           )}
         </div>
@@ -313,7 +337,7 @@ const ModelSelectModal = ({
         <div className='flex items-center justify-end gap-2'>
           {(() => {
             const currentModels =
-              activeTab === 'new' ? newModels : existingModels;
+              activeTab === 'new' ? newModels : activeTab === 'existing' ? existingModels : invalidModels;
             const currentSelected = currentModels.filter((model) =>
               checkedList.includes(model),
             ).length;
