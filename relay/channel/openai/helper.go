@@ -24,7 +24,8 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 	info.SendResponseCount++
 
 	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
-	if info.ChannelType == constant.ChannelTypeOpenRouter {
+	// 仅当启用转换为OpenAI兼容格式时执行
+	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err == nil {
 			convertOpenRouterReasoningFieldsStream(&streamResponse)

@@ -227,7 +227,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
-	if info.ChannelType == constant.ChannelTypeOpenRouter {
+	// 仅当启用转换为OpenAI兼容格式时执行（修改现有无条件转换）
+	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
 		convertOpenRouterReasoningFields(&simpleResponse)
 	}
 
@@ -276,8 +277,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
 		} else {
-			// 对于 OpenRouter，需要重新序列化以包含转换后的 reasoning_content 字段
-			if info.ChannelType == constant.ChannelTypeOpenRouter {
+			// 对于 OpenRouter，仅在执行转换后重新序列化
+			if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
 				responseBody, err = common.Marshal(simpleResponse)
 				if err != nil {
 					return nil, types.NewError(err, types.ErrorCodeBadResponseBody)

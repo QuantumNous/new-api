@@ -1298,6 +1298,8 @@
     "点击此处": "点击此处",
     "点击预览视频": "点击预览视频",
     "点击验证按钮，使用您的生物特征或安全密钥": "点击验证按钮，使用您的生物特征或安全密钥",
+    "转换为OpenAI兼容格式": "转换为OpenAI兼容格式",
+    "将OpenRouter响应数据转换为标准OpenAI格式，确保reasoning字段转换为reasoning_content": "将OpenRouter响应数据转换为标准OpenAI格式，确保reasoning字段转换为reasoning_content",
     "版权所有": "版权所有",
     "状态": "状态",
     "状态码复写": "状态码复写",

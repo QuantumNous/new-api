@@ -1305,6 +1305,8 @@
     "源地址": "Adresse source",
     "演示站点": "Site de démonstration",
     "演示站点模式": "Mode site de démonstration",
+    "转换为OpenAI兼容格式": "Convertir au format compatible OpenAI",
+    "将OpenRouter响应数据转换为标准OpenAI格式，确保reasoning字段转换为reasoning_content": "Convertir les données de réponse OpenRouter au format OpenAI standard, en assurant la conversion du champ reasoning vers reasoning_content",
     "点击上传文件或拖拽文件到这里": "Cliquez pour télécharger un fichier ou faites glisser et déposez un fichier ici",
     "点击下方按钮通过 Telegram 完成绑定": "Cliquez sur le bouton ci-dessous pour terminer la liaison via Telegram",
     "点击复制模型名称": "Cliquez pour copier le nom du modèle",
