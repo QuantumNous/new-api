@@ -38,13 +38,14 @@ import {
   IconLock,
   IconDelete,
 } from '@douyinfe/semi-icons';
-import { SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
+import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
 import { UserPlus, ShieldCheck } from 'lucide-react';
 import TelegramLoginButton from 'react-telegram-login';
 import {
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onDiscordOAuthClicked,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
 
@@ -242,6 +243,47 @@ const AccountManagement = ({
                       }
                     >
                       {status.github_oauth ? t('绑定') : t('未启用')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Discord绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                      <SiDiscord
+                        size={20}
+                        className='text-slate-600 dark:text-slate-300'
+                      />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>
+                        {t('Discord')}
+                      </div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {renderAccountInfo(
+                          userState.user?.discord_id,
+                          t('Discord ID'),
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      onClick={() =>
+                        onDiscordOAuthClicked(status.discord_client_id)
+                      }
+                      disabled={
+                        isBound(userState.user?.discord_id) ||
+                        !status.discord_oauth
+                      }
+                    >
+                      {status.discord_oauth ? t('绑定') : t('未启用')}
                     </Button>
                   </div>
                 </div>

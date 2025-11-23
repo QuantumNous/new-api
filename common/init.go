@@ -30,6 +30,11 @@ func printHelp() {
 func InitEnv() {
 	flag.Parse()
 
+	envVersion := os.Getenv("VERSION")
+	if envVersion != "" {
+		Version = envVersion
+	}
+
 	if *PrintVersion {
 		fmt.Println(Version)
 		os.Exit(0)
