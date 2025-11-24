@@ -96,8 +96,15 @@ const EditTokenModal = (props) => {
     }
   };
 
-  const loadModels = async () => {
-    let res = await API.get(`/api/user/models`);
+  const loadModels = async (groupName) => {
+    // When a concrete group is provided, only load models
+    // that are enabled for that group. When groupName is
+    // empty/undefined, keep the original behavior and load
+    // all models visible to the current user.
+    const group = (groupName || '').trim();
+    const query = group ? `?group=${encodeURIComponent(group)}` : '';
+
+    let res = await API.get(`/api/user/models${query}`);
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
@@ -109,17 +116,27 @@ const EditTokenModal = (props) => {
             break;
           }
         }
-        return {
-          label: (
-            <span className='flex items-center gap-1'>
-              {icon}
-              {model}
-            </span>
-          ),
-          value: model,
-        };
+          return {
+            label: (
+              <span className='flex items-center gap-1'>
+                {icon}
+                {model}
+              </span>
+            ),
+            value: model,
+          };
       });
       setModels(localModelOptions);
+
+      // Keep selected model_limits consistent with the available options.
+      if (formApiRef.current) {
+        const currentLimits = formApiRef.current.getValue('model_limits') || [];
+        const allowedValues = new Set(localModelOptions.map((opt) => opt.value));
+        const filteredLimits = currentLimits.filter((m) => allowedValues.has(m));
+        if (filteredLimits.length !== currentLimits.length) {
+          formApiRef.current.setValue('model_limits', filteredLimits);
+        }
+      }
     } else {
       showError(t(message));
     }
@@ -162,7 +179,16 @@ const EditTokenModal = (props) => {
         data.model_limits = [];
       }
       if (formApiRef.current) {
-        formApiRef.current.setValues({ ...getInitValues(), ...data });
+        const mergedValues = { ...getInitValues(), ...data };
+        formApiRef.current.setValues(mergedValues);
+        // After the token is loaded, only load models that are
+        // available for the token's current group.
+        if (mergedValues.group) {
+          await loadModels(mergedValues.group);
+        } else {
+          // Fallback: keep previous behavior if group is not set.
+          await loadModels();
+        }
       }
     } else {
       showError(message);
@@ -176,7 +202,6 @@ const EditTokenModal = (props) => {
         formApiRef.current.setValues(getInitValues());
       }
     }
-    loadModels();
     loadGroups();
   }, [props.editingToken.id]);
 
@@ -185,7 +210,11 @@ const EditTokenModal = (props) => {
       if (isEdit) {
         loadToken();
       } else {
-        formApiRef.current?.setValues(getInitValues());
+        const initValues = getInitValues();
+        formApiRef.current?.setValues(initValues);
+        // For new tokens, keep the original behavior and load
+        // all models visible to the user (no group filter yet).
+        loadModels(initValues.group);
       }
     } else {
       formApiRef.current?.reset();

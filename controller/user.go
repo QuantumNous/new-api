@@ -581,15 +581,51 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+
+	// Optional: filter models by a specific group.
+	// This is primarily used by the Web UI when configuring
+	// per-token model limits so that only models from the
+	// token's group are shown.
+	groupParam := strings.TrimSpace(c.Query("group"))
+
 	var models []string
-	for group := range groups {
-		for _, g := range model.GetGroupEnabledModels(group) {
-			if !common.StringsContains(models, g) {
-				models = append(models, g)
+	if groupParam == "" {
+		// Default behavior: keep existing semantics and
+		// return the union of all models from user-usable groups.
+		groups := service.GetUserUsableGroups(user.Group)
+		for group := range groups {
+			for _, g := range model.GetGroupEnabledModels(group) {
+				if !common.StringsContains(models, g) {
+					models = append(models, g)
+				}
+			}
+		}
+	} else {
+		// Group-specific behavior: only return models from the
+		// requested group (or groups derived from it).
+		switch groupParam {
+		case "auto":
+			// Auto group: aggregate models from all auto groups
+			// that are usable for this user.
+			for _, autoGroup := range service.GetUserAutoGroup(user.Group) {
+				for _, g := range model.GetGroupEnabledModels(autoGroup) {
+					if !common.StringsContains(models, g) {
+						models = append(models, g)
+					}
+				}
+			}
+		default:
+			// Only allow filtering by groups that the user can actually use.
+			groups := service.GetUserUsableGroups(user.Group)
+			if _, ok := groups[groupParam]; ok {
+				models = model.GetGroupEnabledModels(groupParam)
+			} else {
+				// If the group is not usable for this user, return an empty list.
+				models = []string{}
 			}
 		}
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
