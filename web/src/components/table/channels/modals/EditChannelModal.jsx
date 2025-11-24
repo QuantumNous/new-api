@@ -357,6 +357,7 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
+    openrouter_convert_to_openai: false,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -884,6 +885,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
+      openrouter_convert_to_openai: false,
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -1226,6 +1228,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
+    delete localInputs.openrouter_convert_to_openai;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
