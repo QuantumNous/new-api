@@ -325,14 +325,8 @@ func HardDeleteUserById(id int) error {
 }
 
 func inviteUser(inviterId int) (err error) {
-	user, err := GetUserById(inviterId, true)
-	if err != nil {
-		return err
-	}
-	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
-	return DB.Save(user).Error
+	// 只负责增加邀请计数，额度已经在 Insert 函数中处理过了
+	return DB.Model(&User{}).Where("id = ?", inviterId).UpdateColumn("aff_count", gorm.Expr("aff_count + ?", 1)).Error
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
@@ -415,15 +409,26 @@ func (user *User) Insert(inviterId int) error {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
 	if inviterId != 0 {
-		if common.QuotaForInvitee > 0 {
+		// 给被邀请的新用户发放/扣除额度（支持负数）
+		if common.QuotaForInvitee != 0 {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			if common.QuotaForInvitee > 0 {
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			} else {
+				RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码扣除 %s", logger.LogQuota(-common.QuotaForInvitee)))
+			}
 		}
-		if common.QuotaForInviter > 0 {
+		// 给邀请者发放/扣除额度（支持负数）并增加邀请计数
+		if common.QuotaForInviter != 0 {
 			_ = IncreaseUserQuota(inviterId, common.QuotaForInviter, true)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+			if common.QuotaForInviter > 0 {
+				RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			} else {
+				RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户扣除 %s", logger.LogQuota(-common.QuotaForInviter)))
+			}
 		}
+		// 增加邀请计数（不管额度是正还是负都要计数）
+		_ = inviteUser(inviterId)
 	}
 	return nil
 }
