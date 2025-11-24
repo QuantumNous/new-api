@@ -28,7 +28,7 @@ body {
   font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
     sans-serif;
   color: var(--semi-color-text-0);
-  background-image: url('https://www.loliapi.com/acg/');
+  /* 背景图片由 JS 动态加载，解决 loliapi 302 重定向跨域问题 */
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
