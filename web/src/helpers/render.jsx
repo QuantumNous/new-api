@@ -73,6 +73,7 @@ import {
   Settings,
   CircleUser,
   Package,
+  Gauge,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -114,6 +115,8 @@ export function getLucideIcon(key, selected = false) {
       return <User {...commonProps} color={iconColor} />;
     case 'models':
       return <Package {...commonProps} color={iconColor} />;
+    case 'rate_limit':
+      return <Gauge {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     default:

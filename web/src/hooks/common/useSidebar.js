@@ -64,6 +64,7 @@ export const useSidebar = () => {
       redemption: true,
       user: true,
       setting: true,
+      rate_limit: true,
     },
   };
 
