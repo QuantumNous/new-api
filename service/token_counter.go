@@ -143,18 +143,16 @@ func getImageToken(fileMeta *types.FileMeta, model string, stream bool) (int, er
 	if fileMeta.Detail == "low" && !isPatchBased {
 		return baseTokens, nil
 	}
-
-	// Whether to count image tokens at all
-	if !constant.GetMediaToken {
-		return 3 * baseTokens, nil
-	}
-
 	if !constant.GetMediaTokenNotStream && !stream {
 		return 3 * baseTokens, nil
 	}
 	// Normalize detail
 	if fileMeta.Detail == "auto" || fileMeta.Detail == "" {
 		fileMeta.Detail = "high"
+	}
+	// Whether to count image tokens at all
+	if !constant.GetMediaToken {
+		return 3 * baseTokens, nil
 	}
 
 	// Decode image to get dimensions
@@ -258,15 +256,16 @@ func getImageToken(fileMeta *types.FileMeta, model string, stream bool) (int, er
 }
 
 func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
-	// 是否统计token
-	if !constant.CountToken {
-		return 0, nil
-	}
-
 	if meta == nil {
 		return 0, errors.New("token count meta is nil")
 	}
 
+	if !constant.GetMediaToken {
+		return 0, nil
+	}
+	if !constant.GetMediaTokenNotStream && !info.IsStream {
+		return 0, nil
+	}
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime {
 		return 0, nil
 	}
@@ -317,19 +316,9 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 		shouldFetchFiles = false
 	}
 
-	// 是否本地计算媒体token数量
-	if !constant.GetMediaToken {
-		shouldFetchFiles = false
-	}
-
-	// 是否在非流模式下本地计算媒体token数量
-	if !constant.GetMediaTokenNotStream && !info.IsStream {
-		shouldFetchFiles = false
-	}
-
-	for _, file := range meta.Files {
-		if strings.HasPrefix(file.OriginData, "http") {
-			if shouldFetchFiles {
+	if shouldFetchFiles {
+		for _, file := range meta.Files {
+			if strings.HasPrefix(file.OriginData, "http") {
 				mineType, err := GetFileTypeFromUrl(c, file.OriginData, "token_counter")
 				if err != nil {
 					return 0, fmt.Errorf("error getting file base64 from url: %v", err)
@@ -344,28 +333,28 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 					file.FileType = types.FileTypeFile
 				}
 				file.MimeType = mineType
-			}
-		} else if strings.HasPrefix(file.OriginData, "data:") {
-			// get mime type from base64 header
-			parts := strings.SplitN(file.OriginData, ",", 2)
-			if len(parts) >= 1 {
-				header := parts[0]
-				// Extract mime type from "data:mime/type;base64" format
-				if strings.Contains(header, ":") && strings.Contains(header, ";") {
-					mimeStart := strings.Index(header, ":") + 1
-					mimeEnd := strings.Index(header, ";")
-					if mimeStart < mimeEnd {
-						mineType := header[mimeStart:mimeEnd]
-						if strings.HasPrefix(mineType, "image/") {
-							file.FileType = types.FileTypeImage
-						} else if strings.HasPrefix(mineType, "video/") {
-							file.FileType = types.FileTypeVideo
-						} else if strings.HasPrefix(mineType, "audio/") {
-							file.FileType = types.FileTypeAudio
-						} else {
-							file.FileType = types.FileTypeFile
+			} else if strings.HasPrefix(file.OriginData, "data:") {
+				// get mime type from base64 header
+				parts := strings.SplitN(file.OriginData, ",", 2)
+				if len(parts) >= 1 {
+					header := parts[0]
+					// Extract mime type from "data:mime/type;base64" format
+					if strings.Contains(header, ":") && strings.Contains(header, ";") {
+						mimeStart := strings.Index(header, ":") + 1
+						mimeEnd := strings.Index(header, ";")
+						if mimeStart < mimeEnd {
+							mineType := header[mimeStart:mimeEnd]
+							if strings.HasPrefix(mineType, "image/") {
+								file.FileType = types.FileTypeImage
+							} else if strings.HasPrefix(mineType, "video/") {
+								file.FileType = types.FileTypeVideo
+							} else if strings.HasPrefix(mineType, "audio/") {
+								file.FileType = types.FileTypeAudio
+							} else {
+								file.FileType = types.FileTypeFile
+							}
+							file.MimeType = mineType
 						}
-						file.MimeType = mineType
 					}
 				}
 			}
@@ -376,7 +365,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 		switch file.FileType {
 		case types.FileTypeImage:
 			if info.RelayFormat == types.RelayFormatGemini {
-				tkm += 520 // gemini per input image tokens
+				tkm += 256
 			} else {
 				token, err := getImageToken(file, model, info.IsStream)
 				if err != nil {
