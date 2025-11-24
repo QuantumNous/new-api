@@ -2,6 +2,7 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -29,11 +30,15 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 	// 仅当启用转换为OpenAI兼容格式时执行
 	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
 		var streamResponse dto.ChatCompletionsStreamResponse
-		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err == nil {
+		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+			logger.LogError(c, fmt.Sprintf("failed to unmarshal stream data for OpenRouter reasoning conversion: channel_type=%s, data_size=%d, error=%v", info.ChannelType, len(data), err))
+		} else {
 			convertOpenRouterReasoningFieldsStream(&streamResponse)
 			// 重新序列化为JSON
 			newData, err := common.Marshal(streamResponse)
-			if err == nil {
+			if err != nil {
+				logger.LogError(c, fmt.Sprintf("failed to marshal stream data after OpenRouter reasoning conversion: channel_type=%s, error=%v", info.ChannelType, err))
+			} else {
 				data = string(newData)
 			}
 		}
