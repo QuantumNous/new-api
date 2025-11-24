@@ -39,8 +39,8 @@ func getDiscordUserInfoByCode(code string) (*DiscordUser, error) {
 	}
 
 	values := url.Values{}
-	values.Set("client_id", system_setting.GetDiscordSettings().ClientId)
-	values.Set("client_secret", system_setting.GetDiscordSettings().ClientSecret)
+	values.Set("client_id", common.DiscordClientId)
+	values.Set("client_secret", common.DiscordClientSecret)
 	values.Set("code", code)
 	values.Set("grant_type", "authorization_code")
 	values.Set("redirect_uri", fmt.Sprintf("%s/oauth/discord", system_setting.ServerAddress))
@@ -114,10 +114,10 @@ func DiscordOAuth(c *gin.Context) {
 		DiscordBind(c)
 		return
 	}
-		if !system_setting.GetDiscordSettings().Enabled {
+	if !common.DiscordOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未开启通过 Discord 登录以及注册",
+			"message": "管理员未开启通过 discord 登录以及注册",
 		})
 		return
 	}
@@ -179,7 +179,7 @@ func DiscordOAuth(c *gin.Context) {
 }
 
 func DiscordBind(c *gin.Context) {
-	if !system_setting.GetDiscordSettings().Enabled {
+	if !common.DiscordOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 Discord 登录以及注册",
@@ -204,6 +204,7 @@ func DiscordBind(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	id := session.Get("id")
+	// id := c.GetInt("id")  // critical bug!
 	user.Id = id.(int)
 	err = user.FillUserById()
 	if err != nil {
