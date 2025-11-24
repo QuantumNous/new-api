@@ -165,6 +165,30 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		// Get rate limits for the specific model
+		rateLimitSettings := channel.GetRateLimitSettings()
+		rpm := channel.GetRateLimitRPM()
+		tpm := channel.GetRateLimitTPM()
+		rpd := channel.GetRateLimitRPD()
+
+		// Check if there are specific limits for this model
+		if limit, ok := rateLimitSettings[relayInfo.OriginModelName]; ok {
+			// If model specific limit is set, use it. (assuming 0 means no limit if configured, but usually one configures non-zero)
+			// User requirement: "limit is targeted at a specific model".
+			// If specific limit is present, we should probably use it.
+			// However, if the specific limit is 0, does it mean "unlimited" or "fallback"?
+			// Let's assume if the key exists in the map, we use the values from the map.
+			rpm = limit.RPM
+			tpm = limit.TPM
+			rpd = limit.RPD
+		}
+
+		if err := service.CheckChannelRateLimit(channel.Id, relayInfo.OriginModelName, rpm, tpm, rpd); err != nil {
+			logger.LogError(c, fmt.Sprintf("Channel %d model %s rate limited: %s", channel.Id, relayInfo.OriginModelName, err.Error()))
+			newAPIError = types.NewError(err, types.ErrorCodeChannelRateLimited)
+			continue
+		}
+
 		addUsedChannel(c, channel.Id)
 		requestBody, _ := common.GetRequestBody(c)
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
@@ -181,6 +205,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			// Calculate usage again for recording
+			rateLimitSettings := channel.GetRateLimitSettings()
+			rpm := channel.GetRateLimitRPM()
+			tpm := channel.GetRateLimitTPM()
+			rpd := channel.GetRateLimitRPD()
+			if limit, ok := rateLimitSettings[relayInfo.OriginModelName]; ok {
+				rpm = limit.RPM
+				tpm = limit.TPM
+				rpd = limit.RPD
+			}
+			service.RecordChannelRateLimit(channel.Id, relayInfo.OriginModelName, rpm, tpm, rpd, relayInfo.PromptTokens+relayInfo.CompletionTokens)
 			return
 		}
 

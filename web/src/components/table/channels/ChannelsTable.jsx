@@ -60,6 +60,9 @@ const ChannelsTable = (channelsData) => {
     // Multi-key management
     setShowMultiKeyManageModal,
     setCurrentMultiKeyChannel,
+    // Monitor
+    setShowChannelMonitorModal,
+    setCurrentMonitorChannel,
   } = channelsData;
 
   // Get all columns
@@ -84,6 +87,8 @@ const ChannelsTable = (channelsData) => {
       channels,
       setShowMultiKeyManageModal,
       setCurrentMultiKeyChannel,
+      setShowChannelMonitorModal,
+      setCurrentMonitorChannel,
     });
   }, [
     t,
@@ -105,6 +110,8 @@ const ChannelsTable = (channelsData) => {
     channels,
     setShowMultiKeyManageModal,
     setCurrentMultiKeyChannel,
+    setShowChannelMonitorModal,
+    setCurrentMonitorChannel,
   ]);
 
   // Filter columns based on visibility settings

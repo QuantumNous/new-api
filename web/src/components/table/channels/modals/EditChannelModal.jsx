@@ -163,6 +163,10 @@ const EditChannelModal = (props) => {
     allow_service_tier: false,
     disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
+    rate_limit_rpm: 0,
+    rate_limit_tpm: 0,
+    rate_limit_rpd: 0,
+    rate_limit_settings: '',
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -625,6 +629,14 @@ const EditChannelModal = (props) => {
         .map((model) => (model || '').trim())
         .filter(Boolean);
       initialModelMappingRef.current = data.model_mapping || '';
+      
+      if (data.rate_limit_settings) {
+        data.rate_limit_settings = JSON.stringify(
+          JSON.parse(data.rate_limit_settings),
+          null,
+          2,
+        );
+      }
       // console.log(data);
     } else {
       showError(message);
@@ -2650,6 +2662,74 @@ const EditChannelModal = (props) => {
                         />
                       </Col>
                     </Row>
+
+                    <Row gutter={12}>
+                      <Col span={8}>
+                        <Form.InputNumber
+                          field='rate_limit_rpm'
+                          label={t('RPM限制')}
+                          placeholder={t('每分钟请求数限制')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('rate_limit_rpm', value)
+                          }
+                          style={{ width: '100%' }}
+                          extraText={t('0表示不限制')}
+                        />
+                      </Col>
+                      <Col span={8}>
+                        <Form.InputNumber
+                          field='rate_limit_tpm'
+                          label={t('TPM限制')}
+                          placeholder={t('每分钟Token数限制')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('rate_limit_tpm', value)
+                          }
+                          style={{ width: '100%' }}
+                          extraText={t('0表示不限制')}
+                        />
+                      </Col>
+                      <Col span={8}>
+                        <Form.InputNumber
+                          field='rate_limit_rpd'
+                          label={t('RPD限制')}
+                          placeholder={t('每天请求数限制')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('rate_limit_rpd', value)
+                          }
+                          style={{ width: '100%' }}
+                          extraText={t('0表示不限制')}
+                        />
+                      </Col>
+                    </Row>
+
+                    <Form.TextArea
+                      field='rate_limit_settings'
+                      label={t('模型频率限制配置')}
+                      placeholder={
+                        t('此项可选，用于为特定模型配置频率限制') +
+                        '\n' +
+                        JSON.stringify(
+                          {
+                            'gpt-4': {
+                              rpm: 10,
+                              tpm: 10000,
+                              rpd: 500,
+                            },
+                          },
+                          null,
+                          2,
+                        )
+                      }
+                      autosize
+                      onChange={(value) =>
+                        handleInputChange('rate_limit_settings', value)
+                      }
+                      extraText={t('键为模型名称，值为限制配置（rpm, tpm, rpd）')}
+                      showClear
+                    />
 
                     <Form.Switch
                       field='auto_ban'

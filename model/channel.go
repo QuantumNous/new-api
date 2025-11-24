@@ -48,6 +48,14 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+
+	// Rate Limit
+	RateLimitRPM *int `json:"rate_limit_rpm" gorm:"default:0"`
+	RateLimitTPM *int `json:"rate_limit_tpm" gorm:"default:0"`
+	RateLimitRPD *int `json:"rate_limit_rpd" gorm:"default:0"`
+	// RateLimitSettings: json string, map[string]RateLimitConfig
+	RateLimitSettings *string `json:"rate_limit_settings" gorm:"type:text"`
+
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -247,6 +255,44 @@ func (channel *Channel) GetAutoBan() bool {
 		return false
 	}
 	return *channel.AutoBan == 1
+}
+
+func (channel *Channel) GetRateLimitRPM() int {
+	if channel.RateLimitRPM == nil {
+		return 0
+	}
+	return *channel.RateLimitRPM
+}
+
+func (channel *Channel) GetRateLimitTPM() int {
+	if channel.RateLimitTPM == nil {
+		return 0
+	}
+	return *channel.RateLimitTPM
+}
+
+func (channel *Channel) GetRateLimitRPD() int {
+	if channel.RateLimitRPD == nil {
+		return 0
+	}
+	return *channel.RateLimitRPD
+}
+
+type RateLimitConfig struct {
+	RPM int `json:"rpm"`
+	TPM int `json:"tpm"`
+	RPD int `json:"rpd"`
+}
+
+func (channel *Channel) GetRateLimitSettings() map[string]RateLimitConfig {
+	settings := make(map[string]RateLimitConfig)
+	if channel.RateLimitSettings != nil && *channel.RateLimitSettings != "" {
+		err := common.Unmarshal([]byte(*channel.RateLimitSettings), &settings)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to unmarshal rate limit settings: channel_id=%d, error=%v", channel.Id, err))
+		}
+	}
+	return settings
 }
 
 func (channel *Channel) Save() error {

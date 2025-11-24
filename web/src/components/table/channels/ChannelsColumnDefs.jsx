@@ -207,6 +207,8 @@ export const getChannelsColumns = ({
   channels,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
+  setShowChannelMonitorModal,
+  setCurrentMonitorChannel,
 }) => {
   return [
     {
@@ -503,6 +505,15 @@ export const getChannelsColumns = ({
                     })();
                   },
                 });
+              },
+            },
+            {
+              node: 'item',
+              name: t('速率限制'),
+              type: 'tertiary',
+              onClick: () => {
+                setCurrentMonitorChannel(record);
+                setShowChannelMonitorModal(true);
               },
             },
             {
