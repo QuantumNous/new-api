@@ -124,7 +124,7 @@ export default function SettingsCreditLimit(props) {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
-      let value;
+      let value = '';
       if (typeof inputs[item.key] === 'boolean') {
         value = String(inputs[item.key]);
       } else {
@@ -199,8 +199,8 @@ export default function SettingsCreditLimit(props) {
                   label={t('新用户初始额度')}
                   field={'QuotaForNewUser'}
                   step={quotaUnit === 'Token' ? 1 : 0.000001}
-                  min={0}
                   suffix={getUnitSuffix()}
+                  extraText={t('支持负数以防止滥用注册')}
                   placeholder={''}
                   onChange={(value) =>
                     setInputs({
@@ -232,10 +232,9 @@ export default function SettingsCreditLimit(props) {
                   label={t('邀请新用户奖励额度')}
                   field={'QuotaForInviter'}
                   step={quotaUnit === 'Token' ? 1 : 0.000001}
-                  min={0}
                   suffix={getUnitSuffix()}
-                  extraText={''}
-                  placeholder={t('例如：2000')}
+                  extraText={t('支持负数以防止滥用邀请')}
+                  placeholder={t('例如：2000 或 -500')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -251,10 +250,9 @@ export default function SettingsCreditLimit(props) {
                   label={t('新用户使用邀请码奖励额度')}
                   field={'QuotaForInvitee'}
                   step={quotaUnit === 'Token' ? 1 : 0.000001}
-                  min={0}
                   suffix={getUnitSuffix()}
-                  extraText={''}
-                  placeholder={t('例如：1000')}
+                  extraText={t('支持负数以防止滥用邀请')}
+                  placeholder={t('例如：1000 或 -200')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,

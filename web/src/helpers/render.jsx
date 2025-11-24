@@ -73,6 +73,7 @@ import {
   Settings,
   CircleUser,
   Package,
+  Network,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -103,6 +104,8 @@ export function getLucideIcon(key, selected = false) {
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
+    case 'anyrouter':
+      return <Network {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'channel':

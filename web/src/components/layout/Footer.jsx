@@ -195,18 +195,35 @@ const FooterBar = () => {
             </Typography.Text>
           </div>
 
-          <div className='text-sm'>
-            <span className='!text-semi-color-text-1'>
-              {t('设计与开发由')}{' '}
-            </span>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
-            >
-              New API
-            </a>
+          <div className='text-base flex flex-wrap items-center gap-x-2 gap-y-1 justify-center md:justify-end'>
+            <div>
+              <span className='!text-semi-color-text-1'>
+                {t('设计与开发由')}{' '}
+              </span>
+              <a
+                href='https://github.com/QuantumNous/new-api'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='!text-semi-color-primary font-medium'
+              >
+                New API
+              </a>
+            </div>
+            <span className='!text-semi-color-text-2 hidden md:inline'>·</span>
+            <div>
+              <span className='!text-semi-color-text-1'>
+                随机壁纸由{' '}
+              </span>
+              <a
+                href='https://loliapi.com/'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='!text-semi-color-primary font-medium wallpaper-highlight'
+              >
+                LoliAPI
+              </a>
+              <span className='!text-semi-color-text-1'> 友情提供</span>
+            </div>
           </div>
         </div>
       </footer>
@@ -226,16 +243,31 @@ const FooterBar = () => {
             className='custom-footer'
             dangerouslySetInnerHTML={{ __html: footer }}
           ></div>
-          <div className='absolute bottom-2 right-4 text-xs !text-semi-color-text-2 opacity-70'>
-            <span>{t('设计与开发由')} </span>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
-            >
-              New API
-            </a>
+          <div className='absolute bottom-2 right-4 text-sm !text-semi-color-text-2 opacity-70 flex flex-wrap items-center gap-x-2 gap-y-1'>
+            <div>
+              <span>{t('设计与开发由')} </span>
+              <a
+                href='https://github.com/QuantumNous/new-api'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='!text-semi-color-primary font-medium'
+              >
+                New API
+              </a>
+            </div>
+            <span>·</span>
+            <div>
+              <span>随机壁纸由 </span>
+              <a
+                href='https://loliapi.com/'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='!text-semi-color-primary font-medium wallpaper-highlight'
+              >
+                LoliAPI
+              </a>
+              <span> 友情提供</span>
+            </div>
           </div>
         </div>
       ) : (

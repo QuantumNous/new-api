@@ -51,6 +51,7 @@ export const useSidebar = () => {
       log: true,
       midjourney: true,
       task: true,
+      anyrouter: true,
     },
     personal: {
       enabled: true,

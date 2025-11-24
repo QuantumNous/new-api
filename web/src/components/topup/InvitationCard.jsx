@@ -50,7 +50,7 @@ const InvitationCard = ({
           <Typography.Text className='text-lg font-medium'>
             {t('邀请奖励')}
           </Typography.Text>
-          <div className='text-xs'>{t('邀请好友获得额外奖励')}</div>
+          <div className='text-xs'>{t('邀请好友注册后将扣除你的50刀余额😋😋')}</div>
         </div>
       </div>
 
@@ -202,22 +202,22 @@ const InvitationCard = ({
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>
-                {t('邀请好友注册，好友充值后您可获得相应奖励')}
+                {t('邀请好友注册后将扣除你的50刀余额😋😋')}
               </Text>
             </div>
-
-            <div className='flex items-start gap-2'>
-              <Badge dot type='success' />
-              <Text type='tertiary' className='text-sm'>
-                {t('通过划转功能将奖励额度转入到您的账户余额中')}
-              </Text>
-            </div>
-
-            <div className='flex items-start gap-2'>
-              <Badge dot type='success' />
-              <Text type='tertiary' className='text-sm'>
-                {t('邀请的好友越多，获得的奖励越多')}
-              </Text>
+            <div className='mt-2'>
+              <a
+                href='https://youke1.picui.cn/s1/2025/11/22/69217a7c230b6.png'
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                <img
+                  src='https://youke1.picui.cn/s1/2025/11/22/69217a7c230b6.png'
+                  alt=''
+                  className='rounded-md'
+                  style={{ maxWidth: '100%' }}
+                />
+              </a>
             </div>
           </div>
         </Card>
