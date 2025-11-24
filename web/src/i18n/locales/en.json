@@ -69,8 +69,6 @@
     "Gemini思考适配设置": "Gemini thinking adaptation settings",
     "Gemini版本设置": "Gemini version settings",
     "Gemini设置": "Gemini settings",
-    "启用FunctionCall思维签名填充": "Enable FunctionCall thoughtSignature fill",
-    "仅为使用OpenAI格式的Gemini/Vertex渠道填充thoughtSignature": "Fill thoughtSignature only for Gemini/Vertex channels using the OpenAI format",
     "GitHub": "GitHub",
     "GitHub Client ID": "GitHub Client ID",
     "GitHub Client Secret": "GitHub Client Secret",
