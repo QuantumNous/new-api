@@ -50,7 +50,7 @@ const InvitationCard = ({
           <Typography.Text className='text-lg font-medium'>
             {t('邀请奖励')}
           </Typography.Text>
-          <div className='text-xs'>{t('邀请好友注册后将扣除你的50刀余额😋😋')}</div>
+          <div className='text-xs'>{t('邀请好友注册后将扣除你的')}<strong>10刀余额</strong></div>
         </div>
       </div>
 
@@ -202,7 +202,7 @@ const InvitationCard = ({
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>
-                {t('邀请好友注册后将扣除你的50刀余额😋😋')}
+                {t('邀请好友注册后将扣除你的')}<strong>10刀余额</strong>
               </Text>
             </div>
             <div className='mt-2'>
