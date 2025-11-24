@@ -954,10 +954,14 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 	return nil
 }
 
-func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
+func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	// responseText := ""
+	id := helper.GetResponseID(c)
+	createAt := common.GetTimestamp()
+	responseText := strings.Builder{}
 	var usage = &dto.Usage{}
 	var imageCount int
-	responseText := strings.Builder{}
+	finishReason := constant.FinishReasonStop
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var geminiResponse dto.GeminiChatResponse
@@ -967,7 +971,6 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			return false
 		}
 
-		// 统计图片数量
 		for _, candidate := range geminiResponse.Candidates {
 			for _, part := range candidate.Content.Parts {
 				if part.InlineData != nil && part.InlineData.MimeType != "" {
@@ -979,10 +982,14 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 		}
 
-		// 更新使用量统计
+		response, isStop := streamResponseGeminiChat2OpenAI(&geminiResponse)
+
+		response.Id = id
+		response.Created = createAt
+		response.Model = info.UpstreamModelName
 		if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
 			usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
-			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
+			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount
 			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
 			for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
@@ -993,45 +1000,6 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				}
 			}
 		}
-
-		return callback(data, &geminiResponse)
-	})
-
-	if imageCount != 0 {
-		if usage.CompletionTokens == 0 {
-			usage.CompletionTokens = imageCount * 1400
-		}
-	}
-
-	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
-	if usage.TotalTokens > 0 {
-		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
-	}
-
-	if usage.CompletionTokens <= 0 {
-		str := responseText.String()
-		if len(str) > 0 {
-			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.PromptTokens)
-		} else {
-			usage = &dto.Usage{}
-		}
-	}
-
-	return usage, nil
-}
-
-func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
-	id := helper.GetResponseID(c)
-	createAt := common.GetTimestamp()
-	finishReason := constant.FinishReasonStop
-
-	usage, err := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
-		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
-
-		response.Id = id
-		response.Created = createAt
-		response.Model = info.UpstreamModelName
-
 		logger.LogDebug(c, fmt.Sprintf("info.SendResponseCount = %d", info.SendResponseCount))
 		if info.SendResponseCount == 0 {
 			// send first response
@@ -1047,7 +1015,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 					emptyResponse.Choices[0].Delta.ToolCalls = copiedToolCalls
 				}
 				finishReason = constant.FinishReasonToolCalls
-				err := handleStream(c, info, emptyResponse)
+				err = handleStream(c, info, emptyResponse)
 				if err != nil {
 					logger.LogError(c, err.Error())
 				}
@@ -1057,14 +1025,14 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 					response.Choices[0].FinishReason = nil
 				}
 			} else {
-				err := handleStream(c, info, emptyResponse)
+				err = handleStream(c, info, emptyResponse)
 				if err != nil {
 					logger.LogError(c, err.Error())
 				}
 			}
 		}
 
-		err := handleStream(c, info, response)
+		err = handleStream(c, info, response)
 		if err != nil {
 			logger.LogError(c, err.Error())
 		}
@@ -1074,15 +1042,40 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		return true
 	})
 
-	if err != nil {
-		return usage, err
+	if info.SendResponseCount == 0 {
+		// 空补全，报错不计费
+		// empty response, throw an error
+		return nil, types.NewOpenAIError(errors.New("no response received from Gemini API"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+	}
+
+	if imageCount != 0 {
+		if usage.CompletionTokens == 0 {
+			usage.CompletionTokens = imageCount * 258
+		}
+	}
+
+	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
+	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+
+	if usage.CompletionTokens == 0 {
+		str := responseText.String()
+		if len(str) > 0 {
+			usage = service.ResponseText2Usage(responseText.String(), info.UpstreamModelName, info.PromptTokens)
+		} else {
+			// 空补全，不需要使用量
+			usage = &dto.Usage{}
+		}
 	}
 
 	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
-	handleErr := handleFinalStream(c, info, response)
-	if handleErr != nil {
-		common.SysLog("send final response failed: " + handleErr.Error())
+	err := handleFinalStream(c, info, response)
+	if err != nil {
+		common.SysLog("send final response failed: " + err.Error())
 	}
+	//if info.RelayFormat == relaycommon.RelayFormatOpenAI {
+	//	helper.Done(c)
+	//}
+	//resp.Body.Close()
 	return usage, nil
 }
 

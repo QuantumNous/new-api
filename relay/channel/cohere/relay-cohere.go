@@ -165,7 +165,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 	})
 	if usage.PromptTokens == 0 {
-		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.PromptTokens)
+		usage = service.ResponseText2Usage(responseText, info.UpstreamModelName, info.PromptTokens)
 	}
 	return usage, nil
 }
