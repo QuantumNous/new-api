@@ -203,19 +203,9 @@ func FetchUpstreamModels(c *gin.Context) {
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
 
-	// 获取用于请求的可用密钥（多密钥渠道优先使用启用状态的密钥）
-	key, _, apiErr := channel.GetNextEnabledKey()
-	if apiErr != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": fmt.Sprintf("获取渠道密钥失败: %s", apiErr.Error()),
-		})
-		return
-	}
-	key = strings.TrimSpace(key)
-
 	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
 	var body []byte
+	key := strings.Split(channel.Key, "\n")[0]
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		body, err = GetResponseBody("GET", url, channel, GetClaudeAuthHeader(key))
