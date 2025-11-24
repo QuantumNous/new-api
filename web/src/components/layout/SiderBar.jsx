@@ -47,6 +47,7 @@ const routerMap = {
   models: '/console/models',
   playground: '/console/playground',
   personal: '/console/personal',
+  rate_limit: '/console/rate_limit',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -155,6 +156,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('模型管理'),
         itemKey: 'models',
         to: '/console/models',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('速率限制管理'),
+        itemKey: 'rate_limit',
+        to: '/console/rate_limit',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
