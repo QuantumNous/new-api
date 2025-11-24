@@ -248,6 +248,19 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ModelLimits = token.ModelLimits
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
+		// 根据状态自动恢复为已启用
+		switch cleanToken.Status {
+		case common.TokenStatusExhausted:
+			// 如果修改后有额度，自动重置为已启用
+			if cleanToken.RemainQuota > 0 || cleanToken.UnlimitedQuota {
+				cleanToken.Status = common.TokenStatusEnabled
+			}
+		case common.TokenStatusExpired:
+			// 如果修改后的过期时间有效，自动重置为已启用
+			if cleanToken.ExpiredTime > common.GetTimestamp() || cleanToken.ExpiredTime == -1 {
+				cleanToken.Status = common.TokenStatusEnabled
+			}
+		}
 	}
 	err = cleanToken.Update()
 	if err != nil {
