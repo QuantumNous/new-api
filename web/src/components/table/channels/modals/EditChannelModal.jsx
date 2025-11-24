@@ -190,30 +190,6 @@ const EditChannelModal = (props) => {
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
   const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false); // 豆包渠道自定义 API 地址隐藏入口
-  const redirectModelList = useMemo(() => {
-    const mapping = inputs.model_mapping;
-    if (typeof mapping !== 'string') return [];
-    const trimmed = mapping.trim();
-    if (!trimmed) return [];
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (
-        !parsed ||
-        typeof parsed !== 'object' ||
-        Array.isArray(parsed)
-      ) {
-        return [];
-      }
-      const values = Object.values(parsed)
-        .map((value) =>
-          typeof value === 'string' ? value.trim() : undefined,
-        )
-        .filter((value) => value);
-      return Array.from(new Set(values));
-    } catch (error) {
-      return [];
-    }
-  }, [inputs.model_mapping]);
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -3068,7 +3044,6 @@ const EditChannelModal = (props) => {
         visible={modelModalVisible}
         models={fetchedModels}
         selected={inputs.models}
-        redirectModels={redirectModelList}
         onConfirm={(selectedModels) => {
           handleInputChange('models', selectedModels);
           showSuccess(t('模型列表已更新'));
