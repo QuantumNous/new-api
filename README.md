@@ -193,7 +193,6 @@ docker run --name new-api -d --restart always \
 
 ### 🔐 授权与安全
 
-- 😈 Discord 授权登录
 - 🤖 LinuxDO 授权登录
 - 📱 Telegram 授权登录
 - 🔑 OIDC 统一认证

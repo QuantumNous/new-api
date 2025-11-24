@@ -28,7 +28,6 @@ import {
   updateAPI,
   getSystemName,
   setUserData,
-  onDiscordOAuthClicked,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import { Button, Card, Checkbox, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
@@ -52,7 +51,6 @@ import WeChatIcon from '../common/logo/WeChatIcon';
 import TelegramLoginButton from 'react-telegram-login/src';
 import { UserContext } from '../../context/User';
 import { useTranslation } from 'react-i18next';
-import { SiDiscord } from 'react-icons/si';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -74,7 +72,6 @@ const RegisterForm = () => {
   const [showEmailRegister, setShowEmailRegister] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
-  const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [emailRegisterLoading, setEmailRegisterLoading] = useState(false);
@@ -267,15 +264,6 @@ const RegisterForm = () => {
     }
   };
 
-  const handleDiscordClick = () => {
-    setDiscordLoading(true);
-    try {
-      onDiscordOAuthClicked(status.discord_client_id);
-    } finally {
-      setTimeout(() => setDiscordLoading(false), 3000);
-    }
-  };
-
   const handleOIDCClick = () => {
     setOidcLoading(true);
     try {
@@ -386,19 +374,6 @@ const RegisterForm = () => {
                     disabled={githubButtonDisabled}
                   >
                     <span className='ml-3'>{githubButtonText}</span>
-                  </Button>
-                )}
-
-                {status.discord_oauth && (
-                  <Button
-                    theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
-                    type='tertiary'
-                    icon={<SiDiscord style={{ color: '#5865F2', width: '20px', height: '20px' }} />}
-                    onClick={handleDiscordClick}
-                    loading={discordLoading}
-                  >
-                    <span className='ml-3'>{t('使用 Discord 继续')}</span>
                   </Button>
                 )}
 
@@ -616,7 +591,6 @@ const RegisterForm = () => {
               </Form>
 
               {(status.github_oauth ||
-                status.discord_oauth ||
                 status.oidc_enabled ||
                 status.wechat_login ||
                 status.linuxdo_oauth ||
@@ -712,7 +686,6 @@ const RegisterForm = () => {
         {showEmailRegister ||
         !(
           status.github_oauth ||
-          status.discord_oauth ||
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||

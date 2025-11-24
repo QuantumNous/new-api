@@ -71,14 +71,6 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "DiscordOAuthEnabled":
-		if option.Value == "true" && common.DiscordClientId == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 Discord OAuth，请先填入 Discord Client Id 以及 Discord Client Secret！",
-			})
-			return
-		}
 	case "oidc.enabled":
 		if option.Value == "true" && system_setting.GetOIDCSettings().ClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

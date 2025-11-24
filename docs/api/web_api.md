@@ -42,7 +42,6 @@
 | 方法 | 路径 | 鉴权 | 说明 |
 |------|------|------|------|
 | GET | /api/oauth/github | 公开 | GitHub OAuth 跳转 |
-| GET | /api/oauth/discord | 公开 | Discord 通用 OAuth 跳转 |
 | GET | /api/oauth/oidc | 公开 | OIDC 通用 OAuth 跳转 |
 | GET | /api/oauth/linuxdo | 公开 | LinuxDo OAuth 跳转 |
 | GET | /api/oauth/wechat | 公开 | 微信扫码登录跳转 |

@@ -52,9 +52,6 @@ const SystemSetting = () => {
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
-    DiscordOAuthEnabled: '',
-    DiscordClientId: '',
-    DiscordClientSecret: '',
     'oidc.enabled': '',
     'oidc.client_id': '',
     'oidc.client_secret': '',
@@ -182,7 +179,6 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
-          case 'DiscordOAuthEnabled':
           case 'oidc.enabled':
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
@@ -469,27 +465,6 @@ const SystemSetting = () => {
       options.push({
         key: 'GitHubClientSecret',
         value: inputs.GitHubClientSecret,
-      });
-    }
-
-    if (options.length > 0) {
-      await updateOptions(options);
-    }
-  };
-
-  const submitDiscordOAuth = async () => {
-    const options = [];
-
-    if (originInputs['DiscordClientId'] !== inputs.DiscordClientId) {
-      options.push({ key: 'DiscordClientId', value: inputs.DiscordClientId });
-    }
-    if (
-      originInputs['DiscordClientSecret'] !== inputs.DiscordClientSecret &&
-      inputs.DiscordClientSecret !== ''
-    ) {
-      options.push({
-        key: 'DiscordClientSecret',
-        value: inputs.DiscordClientSecret,
       });
     }
 
@@ -1040,15 +1015,6 @@ const SystemSetting = () => {
                         {t('允许通过 GitHub 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
-                        field='DiscordOAuthEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('DiscordOAuthEnabled', e)
-                        }
-                      >
-                        {t('允许通过 Discord 账户登录 & 注册')}
-                      </Form.Checkbox>
-                      <Form.Checkbox
                         field='LinuxDOOAuthEnabled'
                         noLabel
                         onChange={(e) =>
@@ -1441,37 +1407,6 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitGitHubOAuth}>
                     {t('保存 GitHub OAuth 设置')}
-                  </Button>
-                </Form.Section>
-              </Card>
-              <Card>
-                <Form.Section text={t('配置 Discord OAuth')}>
-                  <Text>{t('用以支持通过 Discord 进行登录注册')}</Text>
-                  <Banner
-                    type='info'
-                    description={`${t('Homepage URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}，${t('Authorization callback URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/discord`}
-                    style={{ marginBottom: 20, marginTop: 16 }}
-                  />
-                  <Row
-                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                  >
-                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Input
-                        field='DiscordClientId'
-                        label={t('Discord Client ID')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Input
-                        field='DiscordClientSecret'
-                        label={t('Discord Client Secret')}
-                        type='password'
-                        placeholder={t('敏感信息不会发送到前端显示')}
-                      />
-                    </Col>
-                  </Row>
-                  <Button onClick={submitDiscordOAuth}>
-                    {t('保存 Discord OAuth 设置')}
                   </Button>
                 </Form.Section>
               </Card>
