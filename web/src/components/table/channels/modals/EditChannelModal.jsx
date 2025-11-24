@@ -2943,7 +2943,7 @@ const EditChannelModal = (props) => {
                         checkedText={t('开')}
                         uncheckedText={t('关')}
                         onChange={(value) =>
-                          handleChannelSettingsChange('openrouter_convert_to_openai', value)
+                          handleChannelOtherSettingsChange('openrouter_convert_to_openai', value)
                         }
                         extraText={t(
                           '将 OpenRouter 响应数据转换为标准 OpenAI 格式，确保 reasoning 字段转换为 reasoning_content',
