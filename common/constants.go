@@ -43,6 +43,7 @@ var MaxRecentItems = 100
 var PasswordLoginEnabled = true
 var PasswordRegisterEnabled = true
 var EmailVerificationEnabled = false
+var EnablePlaintextPassword = false // ⚠️ 警告：启用明文密码存储会带来严重安全风险！仅用于自用站点
 var GitHubOAuthEnabled = false
 var LinuxDOOAuthEnabled = false
 var WeChatAuthEnabled = false
