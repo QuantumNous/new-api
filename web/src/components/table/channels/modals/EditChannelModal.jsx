@@ -2936,6 +2936,22 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
+                    {inputs.type === 20 && (
+                      <Form.Switch
+                        field='openrouter_convert_to_openai'
+                        label={t('转换为 OpenAI 兼容格式')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelSettingsChange('openrouter_convert_to_openai', value)
+                        }
+                        extraText={t(
+                          '将 OpenRouter 响应数据转换为标准 OpenAI 格式，确保 reasoning 字段转换为 reasoning_content',
+                        )}
+                        initValue={inputs.openrouter_convert_to_openai}
+                      />
+                    )}
+
                     <Form.Switch
                       field='thinking_to_content'
                       label={t('思考内容转换')}
@@ -2951,22 +2967,6 @@ const EditChannelModal = (props) => {
                         '将 reasoning_content 转换为 <think> 标签拼接到内容中',
                       )}
                     />
-
-                    {inputs.type === 20 && (
-                      <Form.Switch
-                        field='openrouter_convert_to_openai'
-                        label={t('转换为OpenAI兼容格式')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelSettingsChange('openrouter_convert_to_openai', value)
-                        }
-                        extraText={t(
-                          '将OpenRouter响应数据转换为标准OpenAI格式，确保reasoning字段转换为reasoning_content',
-                        )}
-                        initValue={inputs.openrouter_convert_to_openai}
-                      />
-                    )}
 
                     <Form.Switch
                       field='pass_through_body_enabled'
