@@ -19,7 +19,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 辅助函数
+// HandleStreamFormat processes a streaming response payload according to the provided RelayInfo and forwards it to the appropriate format-specific handler.
+//
+// It increments info.SendResponseCount, optionally converts OpenRouter "reasoning" fields to "reasoning_content" when the channel is OpenRouter and OpenRouterConvertToOpenAI is enabled, and then dispatches the (possibly modified) JSON string to the handler for the configured RelayFormat (OpenAI, Claude, or Gemini). It returns any error produced by the selected handler or nil if no handler is invoked.
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 
@@ -268,6 +270,8 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	}
 }
 
+// sendResponsesStreamData sends a non-empty data chunk for the given stream response to the client.
+// If data is empty, it returns without sending anything.
 func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamResponse, data string) {
 	if data == "" {
 		return
@@ -275,7 +279,9 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 	helper.ResponseChunkData(c, streamResponse, data)
 }
 
-// convertOpenRouterReasoningFieldsStream 转换流式响应中的reasoning字段为reasoning_content
+// convertOpenRouterReasoningFieldsStream converts each choice's `Delta` in a streaming ChatCompletions response
+// by normalizing any `reasoning` fields into `reasoning_content`.
+// It applies ConvertReasoningField to every choice's Delta and is a no-op if `response` is nil or has no choices.
 func convertOpenRouterReasoningFieldsStream(response *dto.ChatCompletionsStreamResponse) {
 	if response == nil || len(response.Choices) == 0 {
 		return

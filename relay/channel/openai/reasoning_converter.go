@@ -14,7 +14,9 @@ type ReasoningHolder interface {
 
 // ConvertReasoningField 通用的reasoning字段转换函数
 // 将reasoning字段的内容移动到reasoning_content字段
-// 自动处理不同类型的字段清理（值类型设为空字符串，指针类型设为nil）
+// ConvertReasoningField moves the holder's reasoning into its reasoning content and clears the original reasoning field.
+// If GetReasoning returns an empty string, the holder is unchanged. When clearing, types that implement SetReasoningToNil()
+// will have that method invoked; otherwise SetReasoning("") is used.
 func ConvertReasoningField[T ReasoningHolder](holder T) {
 	reasoning := holder.GetReasoning()
 	if reasoning != "" {

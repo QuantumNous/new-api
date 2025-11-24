@@ -194,6 +194,25 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	return usage, nil
 }
 
+// OpenaiHandler processes an upstream OpenAI-like HTTP response, normalizes or infers token usage,
+// optionally converts OpenRouter reasoning fields to OpenAI-compatible `reasoning_content`, adapts
+// the response to the configured relay format (OpenAI, Claude, or Gemini), writes the final body
+// to the client, and returns the computed usage.
+//
+// It will:
+// - Handle OpenRouter enterprise wrapper responses when the channel is OpenRouter Enterprise.
+// - Unmarshal the upstream body into an internal simple response and, when configured,
+//   convert OpenRouter `reasoning` fields into `reasoning_content`.
+// - If usage prompt tokens are missing, infer completion tokens by counting tokens in choices
+//   (falling back to per-choice text token counting) and set Prompt/Completion/Total tokens.
+// - Apply channel-specific post-processing to usage (cached token adjustments).
+// - Depending on RelayFormat and channel settings, inject updated usage into the body,
+//   reserialize the converted simple response when ForceFormat is enabled or when OpenRouter
+//   conversion was applied, or convert the response to Claude/Gemini formats.
+// - Write the final response body to the client via a graceful copy helper.
+//
+// Returns the final usage (possibly inferred or modified) or a NewAPIError describing any failure
+// encountered while reading, parsing, or transforming the upstream response.
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -685,6 +704,10 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 	}
 }
 
+// extractCachedTokensFromBody extracts a cached token count from a JSON response body.
+// It looks for cached token values in the following fields (in order): `usage.prompt_tokens_details.cached_tokens`,
+// `usage.cached_tokens`, and `usage.prompt_cache_hit_tokens`. It returns the first found value and `true`;
+// if none are present or the body cannot be parsed, it returns 0 and `false`.
 func extractCachedTokensFromBody(body []byte) (int, bool) {
 	if len(body) == 0 {
 		return 0, false
@@ -717,7 +740,8 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 }
 
 // convertOpenRouterReasoningFields 转换OpenRouter响应中的reasoning字段为reasoning_content
-// 使用泛型函数统一处理reasoning字段转换
+// convertOpenRouterReasoningFields converts OpenRouter-style `reasoning` fields into `reasoning_content` for every choice's message in the provided OpenAITextResponse.
+// It modifies the response in place and is a no-op if `response` is nil or contains no choices.
 func convertOpenRouterReasoningFields(response *dto.OpenAITextResponse) {
 	if response == nil || len(response.Choices) == 0 {
 		return
