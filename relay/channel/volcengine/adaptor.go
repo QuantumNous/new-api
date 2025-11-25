@@ -40,7 +40,11 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	adaptor := claude.Adaptor{}
+	if info.ChannelBaseUrl == DoubaoCodingPlan {
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertClaudeRequest(c, info, req)
+	}
+	adaptor := openai.Adaptor{}
 	return adaptor.ConvertClaudeRequest(c, info, req)
 }
 
