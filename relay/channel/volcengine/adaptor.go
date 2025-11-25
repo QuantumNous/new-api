@@ -341,7 +341,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayFormat == types.RelayFormatClaude {
+	if info.RelayFormat == types.RelayFormatClaude && info.ChannelBaseUrl == DoubaoCodingPlan {
 		if info.IsStream {
 			return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
 		}
