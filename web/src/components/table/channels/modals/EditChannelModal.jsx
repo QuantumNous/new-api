@@ -2884,22 +2884,6 @@ const EditChannelModal = (props) => {
                             'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
                           )}
                         />
-
-                        <Form.Switch
-                          field='pass_through_headers'
-                          label={t('透传全部请求头')}
-                          checkedText={t('开')}
-                          uncheckedText={t('关')}
-                          onChange={(value) =>
-                            handleChannelOtherSettingsChange(
-                              'pass_through_headers',
-                              value,
-                            )
-                          }
-                          extraText={t(
-                            '启用后将透传所有客户端请求头（User-Agent, Origin, Referer等），用于解决上游供应商的客户端限制。默认关闭，仅透传 Content-Type 和 Accept',
-                          )}
-                        />
                       </>
                     )}
                   </Card>
@@ -2971,6 +2955,22 @@ const EditChannelModal = (props) => {
                         )
                       }
                       extraText={t('启用请求体透传功能')}
+                    />
+
+                    <Form.Switch
+                      field='pass_through_headers'
+                      label={t('透传全部请求头')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelOtherSettingsChange(
+                          'pass_through_headers',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '启用后将透传所有客户端请求头（User-Agent, Origin, Referer等），用于解决上游供应商的客户端限制。默认关闭，仅透传 Content-Type 和 Accept',
+                      )}
                     />
 
                     <Form.Input
