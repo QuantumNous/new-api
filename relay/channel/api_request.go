@@ -30,10 +30,33 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	} else if info.RelayMode == constant.RelayModeRealtime {
 		// websocket
 	} else {
-		req.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-		req.Set("Accept", c.Request.Header.Get("Accept"))
-		if info.IsStream && c.Request.Header.Get("Accept") == "" {
-			req.Set("Accept", "text/event-stream")
+		// 如果启用了透传全部请求头
+		if info.ChannelOtherSettings.PassThroughHeaders {
+			// 透传所有客户端请求头，但排除敏感和特定的头
+			for key, values := range c.Request.Header {
+				// 跳过一些敏感和不应透传的头
+				lowerKey := strings.ToLower(key)
+				if lowerKey == "host" || lowerKey == "connection" ||
+				   lowerKey == "authorization" || lowerKey == "x-api-key" ||
+				   strings.HasPrefix(lowerKey, "x-forwarded-") {
+					continue
+				}
+				// 设置请求头（保留所有值）
+				for _, value := range values {
+					req.Add(key, value)
+				}
+			}
+			// 确保Accept头存在
+			if info.IsStream && c.Request.Header.Get("Accept") == "" {
+				req.Set("Accept", "text/event-stream")
+			}
+		} else {
+			// 默认行为：仅透传Content-Type和Accept
+			req.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+			req.Set("Accept", c.Request.Header.Get("Accept"))
+			if info.IsStream && c.Request.Header.Get("Accept") == "" {
+				req.Set("Accept", "text/event-stream")
+			}
 		}
 	}
 }
@@ -71,6 +94,12 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	headers := req.Header
+
+	// 记录客户端原始请求头（用于调试）
+	if common2.DebugEnabled {
+		logger.LogDebug(c.Request.Context(), fmt.Sprintf("Client headers: %v", c.Request.Header))
+	}
+
 	headerOverride, err := processHeaderOverride(info)
 	if err != nil {
 		return nil, err
@@ -82,6 +111,12 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
+
+	// 记录发送给上游的请求头（用于调试）
+	if common2.DebugEnabled {
+		logger.LogDebug(c.Request.Context(), fmt.Sprintf("Upstream headers: %v", headers))
+	}
+
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
