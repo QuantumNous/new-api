@@ -39,6 +39,8 @@ const ModelsActions = ({
   syncUpstream,
   previewUpstreamDiff,
   applyUpstreamOverwrite,
+  previewConfigDiff,
+  syncConfig,
   compactMode,
   setCompactMode,
   t,
@@ -53,6 +55,8 @@ const ModelsActions = ({
   const [conflicts, setConflicts] = useState([]);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncLocale, setSyncLocale] = useState('zh');
+  const [syncSource, setSyncSource] = useState('official');
+  const [configContext, setConfigContext] = useState(null);
 
   const handleSyncUpstream = async (locale) => {
     // 先预览
@@ -60,11 +64,25 @@ const ModelsActions = ({
     const conflictItems = data?.conflicts || [];
     if (conflictItems.length > 0) {
       setConflicts(conflictItems);
+      setSyncSource('official');
       setShowConflict(true);
       return;
     }
     // 无冲突，直接同步缺失
     await syncUpstream?.({ locale });
+  };
+
+  const handleSyncConfig = async ({ file, locale }) => {
+    setConfigContext({ file, locale });
+    const data = await previewConfigDiff?.({ file, locale });
+    const conflictItems = data?.conflicts || [];
+    if (conflictItems.length > 0) {
+      setConflicts(conflictItems);
+      setSyncSource('config');
+      setShowConflict(true);
+      return;
+    }
+    await syncConfig?.({ file, locale });
   };
 
   // Handle delete selected models with confirmation
@@ -207,10 +225,14 @@ const ModelsActions = ({
         onClose={() => setShowSyncModal(false)}
         loading={syncing || previewing}
         t={t}
-        onConfirm={async ({ option, locale }) => {
+        onConfirm={async ({ option, locale, file }) => {
           setSyncLocale(locale);
           if (option === 'official') {
+            setSyncSource('official');
             await handleSyncUpstream(locale);
+          } else {
+            setSyncSource('config');
+            await handleSyncConfig({ file, locale });
           }
           setShowSyncModal(false);
         }}
@@ -244,6 +266,13 @@ const ModelsActions = ({
         onClose={() => setShowConflict(false)}
         conflicts={conflicts}
         onSubmit={async (payload) => {
+          if (syncSource === 'config') {
+            return await syncConfig?.({
+              file: configContext?.file,
+              locale: configContext?.locale,
+              overwrite: payload,
+            });
+          }
           return await applyUpstreamOverwrite?.({
             overwrite: payload,
             locale: syncLocale,

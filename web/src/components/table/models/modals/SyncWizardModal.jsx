@@ -25,6 +25,7 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
   const [step, setStep] = useState(0);
   const [option, setOption] = useState('official');
   const [locale, setLocale] = useState('zh');
+  const [file, setFile] = useState(null);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -32,6 +33,7 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
       setStep(0);
       setOption('official');
       setLocale('zh');
+      setFile(null);
     }
   }, [visible]);
 
@@ -50,7 +52,7 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
             <Button
               type='primary'
               onClick={() => setStep(1)}
-              disabled={option !== 'official'}
+              disabled={option === 'config' && !file}
             >
               {t('下一步')}
             </Button>
@@ -61,7 +63,7 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
               theme='solid'
               loading={loading}
               onClick={async () => {
-                await onConfirm?.({ option, locale });
+                await onConfirm?.({ option, locale, file });
               }}
             >
               {t('开始同步')}
@@ -91,10 +93,41 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
             <Radio value='official' extra={t('从官方模型库同步')}>
               {t('官方模型同步')}
             </Radio>
-            <Radio value='config' extra={t('从配置文件同步')} disabled>
+            <Radio value='config' extra={t('从配置文件同步')}>
               {t('配置文件同步')}
             </Radio>
           </RadioGroup>
+        </div>
+      )}
+
+      {step === 0 && option === 'config' && (
+        <div className='mt-4 px-3'>
+          <div className='text-[var(--semi-color-text-2)] mb-2'>
+            {t('上传 models.json 文件')}
+          </div>
+          <div className='flex items-center gap-3'>
+            <Button
+              type='secondary'
+              onClick={() => {
+                document.getElementById('config-sync-file')?.click();
+              }}
+            >
+              {t(file ? '重新选择文件' : '选择文件')}
+            </Button>
+            <input
+              id='config-sync-file'
+              type='file'
+              accept='application/json'
+              className='hidden'
+              onChange={(e) => {
+                const f = e?.target?.files?.[0];
+                setFile(f || null);
+              }}
+            />
+            <div className='text-sm text-[var(--semi-color-text-2)] truncate max-w-[240px]'>
+              {file ? `${file.name} (${(file.size / 1024).toFixed(1)} KB)` : t('未选择文件')}
+            </div>
+          </div>
         </div>
       )}
 
