@@ -1981,7 +1981,7 @@
     "输入验证码": "Saisir le code de vérification",
     "输入验证码完成设置": "Saisissez le code de vérification pour terminer la configuration",
     "输出": "Sortie",
-    "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Sortie {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}",
+    "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Sortie {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}} * {{ratioType}} {{ratio}}",
     "输出价格": "Prix de sortie",
     "输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})": "Prix de sortie : {{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (ratio d'achèvement : {{completionRatio}})",
     "输出倍率 {{completionRatio}}": "Ratio de sortie {{completionRatio}}",

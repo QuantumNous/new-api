@@ -1971,7 +1971,7 @@
     "输入验证码": "Enter Verification Code",
     "输入验证码完成设置": "Enter verification code to complete setup",
     "输出": "Output",
-    "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Output {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}",
+    "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Output {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}} * {{ratioType}} {{ratio}}",
     "输出价格": "Output Price",
     "输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})": "Output price: {{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (Completion ratio: {{completionRatio}})",
     "输出倍率 {{completionRatio}}": "Output ratio {{completionRatio}}",
