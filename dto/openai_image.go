@@ -169,7 +169,7 @@ type ImageResponse struct {
 	Extra   any         `json:"extra,omitempty"`
 }
 type ImageData struct {
-	Url           string `json:"url"`
-	B64Json       string `json:"b64_json"`
-	RevisedPrompt string `json:"revised_prompt"`
+	Url           string `json:"url,omitempty"`
+	B64Json       string `json:"b64_json,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
 }
