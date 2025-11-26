@@ -30,32 +30,42 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	} else if info.RelayMode == constant.RelayModeRealtime {
 		// websocket
 	} else {
-		// 如果启用了透传全部请求头
+		// 默认行为：仅透传Content-Type和Accept
+		req.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+		req.Set("Accept", c.Request.Header.Get("Accept"))
+		if info.IsStream && c.Request.Header.Get("Accept") == "" {
+			req.Set("Accept", "text/event-stream")
+		}
+
+		// 如果启用了透传扩展请求头
 		if info.ChannelOtherSettings.PassThroughHeaders {
-			// 透传所有客户端请求头，但排除敏感和特定的头
+			// 使用白名单模式，只透传特定的扩展请求头
 			for key, values := range c.Request.Header {
-				// 跳过一些敏感和不应透传的头
 				lowerKey := strings.ToLower(key)
-				if lowerKey == "host" || lowerKey == "connection" ||
-				   lowerKey == "authorization" || lowerKey == "x-api-key" ||
-				   strings.HasPrefix(lowerKey, "x-forwarded-") {
-					continue
+
+				// 透传规则（白名单）：
+				// 1. anthropic-* 前缀的所有头（如 anthropic-version, anthropic-beta）
+				// 2. 特定的 x-* 头：x-app（应用标识）
+				// 3. User-Agent（用户代理，用于统计）
+				shouldPassThrough := false
+
+				if strings.HasPrefix(lowerKey, "anthropic-") {
+					// anthropic-* 前缀的头（API版本、Beta功能等）
+					shouldPassThrough = true
+				} else if lowerKey == "x-app" {
+					// 应用标识头
+					shouldPassThrough = true
+				} else if lowerKey == "user-agent" {
+					// 用户代理
+					shouldPassThrough = true
 				}
-				// 设置请求头（保留所有值）
-				for _, value := range values {
-					req.Add(key, value)
+
+				if shouldPassThrough {
+					// 设置请求头（保留所有值）
+					for _, value := range values {
+						req.Add(key, value)
+					}
 				}
-			}
-			// 确保Accept头存在
-			if info.IsStream && c.Request.Header.Get("Accept") == "" {
-				req.Set("Accept", "text/event-stream")
-			}
-		} else {
-			// 默认行为：仅透传Content-Type和Accept
-			req.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-			req.Set("Accept", c.Request.Header.Get("Accept"))
-			if info.IsStream && c.Request.Header.Get("Accept") == "" {
-				req.Set("Accept", "text/event-stream")
 			}
 		}
 	}
