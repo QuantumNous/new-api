@@ -239,6 +239,16 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 						}
 					}
 				}
+
+				if generationConfig, ok := googleBody["generationConfig"].(map[string]any); ok {
+					generationConfigBytes, err := json.Marshal(generationConfig)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal generationConfig: %w", err)
+					}
+					if err := json.Unmarshal(generationConfigBytes, &geminiRequest.GenerationConfig); err != nil {
+						return nil, fmt.Errorf("failed to unmarshal generationConfig: %w", err)
+					}
+				}
 			}
 		}
 	}

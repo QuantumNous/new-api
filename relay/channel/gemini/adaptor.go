@@ -86,12 +86,25 @@ func getImageSizeMapping() QualityMapping {
 
 func getSizeMappings() map[string]SizeMapping {
 	return map[string]SizeMapping{
+		// Gemini 2.5 Flash Image - default 1K resolutions
+		"1024x1024": {AspectRatio: "1:1", ImageSize: ""},
+		"832x1248":  {AspectRatio: "2:3", ImageSize: ""},
+		"1248x832":  {AspectRatio: "3:2", ImageSize: ""},
+		"864x1184":  {AspectRatio: "3:4", ImageSize: ""},
+		"1184x864":  {AspectRatio: "4:3", ImageSize: ""},
+		"896x1152":  {AspectRatio: "4:5", ImageSize: ""},
+		"1152x896":  {AspectRatio: "5:4", ImageSize: ""},
+		"768x1344":  {AspectRatio: "9:16", ImageSize: ""},
+		"1344x768":  {AspectRatio: "16:9", ImageSize: ""},
+		"1536x672":  {AspectRatio: "21:9", ImageSize: ""},
+
+		// Gemini 3 Pro Image Preview resolutions
 		"1536x1024": {AspectRatio: "3:2", ImageSize: ""},
 		"1024x1536": {AspectRatio: "2:3", ImageSize: ""},
 		"1024x1792": {AspectRatio: "9:16", ImageSize: ""},
 		"1792x1024": {AspectRatio: "16:9", ImageSize: ""},
-		"2048x2048": {AspectRatio: "", ImageSize: "2K"},
-		"4096x4096": {AspectRatio: "", ImageSize: "4K"},
+		"2048x2048": {AspectRatio: "1:1", ImageSize: "2K"},
+		"4096x4096": {AspectRatio: "1:1", ImageSize: "4K"},
 	}
 }
 
@@ -140,13 +153,13 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 		config := processSizeParameters(strings.TrimSpace(request.Size), request.Quality)
 		googleGenerationConfig := map[string]interface{}{
-			"response_modalities": []string{"TEXT", "IMAGE"},
-			"image_config":        config,
+			"responseModalities": []string{"TEXT", "IMAGE"},
+			"imageConfig":        config,
 		}
 
 		extraBody := map[string]interface{}{
 			"google": map[string]interface{}{
-				"generation_config": googleGenerationConfig,
+				"generationConfig": googleGenerationConfig,
 			},
 		}
 		chatRequest.ExtraBody, _ = json.Marshal(extraBody)
