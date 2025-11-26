@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -55,9 +56,102 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	return nil, errors.New("not implemented")
 }
 
+type ImageConfig struct {
+	AspectRatio string `json:"aspectRatio,omitempty"`
+	ImageSize   string `json:"imageSize,omitempty"`
+}
+
+type SizeMapping struct {
+	AspectRatio string
+	ImageSize   string
+}
+
+type QualityMapping struct {
+	Standard string
+	HD       string
+	High     string
+	FourK    string
+	Auto     string
+}
+
+func getImageSizeMapping() QualityMapping {
+	return QualityMapping{
+		Standard: "1K",
+		HD:       "2K",
+		High:     "2K",
+		FourK:    "4K",
+		Auto:     "1K",
+	}
+}
+
+func getSizeMappings() map[string]SizeMapping {
+	return map[string]SizeMapping{
+		"1536x1024": {AspectRatio: "3:2", ImageSize: ""},
+		"1024x1536": {AspectRatio: "2:3", ImageSize: ""},
+		"1024x1792": {AspectRatio: "9:16", ImageSize: ""},
+		"1792x1024": {AspectRatio: "16:9", ImageSize: ""},
+		"2048x2048": {AspectRatio: "", ImageSize: "2K"},
+		"4096x4096": {AspectRatio: "", ImageSize: "4K"},
+	}
+}
+
+func processSizeParameters(size, quality string) ImageConfig {
+	config := ImageConfig{} // 默认为空值
+
+	if size != "" {
+		if strings.Contains(size, ":") {
+			config.AspectRatio = size // 直接设置，不与默认值比较
+		} else {
+			if mapping, exists := getSizeMappings()[size]; exists {
+				if mapping.AspectRatio != "" {
+					config.AspectRatio = mapping.AspectRatio
+				}
+				if mapping.ImageSize != "" {
+					config.ImageSize = mapping.ImageSize
+				}
+			}
+		}
+	}
+
+	if quality != "" {
+		qualityMapping := getImageSizeMapping()
+		switch strings.ToLower(strings.TrimSpace(quality)) {
+		case "hd", "high":
+			config.ImageSize = qualityMapping.HD
+		case "4k":
+			config.ImageSize = qualityMapping.FourK
+		case "standard", "medium", "low", "auto", "1k":
+			config.ImageSize = qualityMapping.Standard
+		}
+	}
+
+	return config
+}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation")
+	if strings.HasPrefix(info.UpstreamModelName, "gemini-3-pro-image") {
+		chatRequest := dto.GeneralOpenAIRequest{
+			Model: request.Model,
+			Messages: []dto.Message{
+				{Role: "user", Content: request.Prompt},
+			},
+			N: int(request.N),
+		}
+
+		config := processSizeParameters(strings.TrimSpace(request.Size), request.Quality)
+		googleGenerationConfig := map[string]interface{}{
+			"response_modalities": []string{"TEXT", "IMAGE"},
+			"image_config":        config,
+		}
+
+		extraBody := map[string]interface{}{
+			"google": map[string]interface{}{
+				"generation_config": googleGenerationConfig,
+			},
+		}
+		chatRequest.ExtraBody, _ = json.Marshal(extraBody)
+
+		return a.ConvertOpenAIRequest(c, info, &chatRequest)
 	}
 
 	// convert size to aspect ratio but allow user to specify aspect ratio
@@ -67,17 +161,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		if strings.Contains(size, ":") {
 			aspectRatio = size
 		} else {
-			switch size {
-			case "256x256", "512x512", "1024x1024":
-				aspectRatio = "1:1"
-			case "1536x1024":
-				aspectRatio = "3:2"
-			case "1024x1536":
-				aspectRatio = "2:3"
-			case "1024x1792":
-				aspectRatio = "9:16"
-			case "1792x1024":
-				aspectRatio = "16:9"
+			if mapping, exists := getSizeMappings()[size]; exists && mapping.AspectRatio != "" {
+				aspectRatio = mapping.AspectRatio
 			}
 		}
 	}
@@ -256,6 +341,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		return ChatImageHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model
