@@ -676,7 +676,11 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		claudeInfo.Usage = service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.PromptTokens)
 	} else {
 		if claudeInfo.Usage.PromptTokens == 0 {
-			//上游出错
+			// 上游未返回输入token，使用请求时预计算的值
+			if common.DebugEnabled {
+				common.SysLog("claude stream response missing input tokens, using pre-calculated value: " + fmt.Sprint(info.PromptTokens))
+			}
+			claudeInfo.Usage.PromptTokens = info.PromptTokens
 		}
 		if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
 			if common.DebugEnabled {
