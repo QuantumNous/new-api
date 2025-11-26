@@ -254,22 +254,9 @@ func SyncUpstreamModels(c *gin.Context) {
 	var req syncRequest
 	// 允许空体
 	_ = c.ShouldBindJSON(&req)
-	// 1) 获取未配置模型列表
-	missing, err := model.GetMissingModels()
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	if len(missing) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
-			"created_models":  0,
-			"created_vendors": 0,
-			"skipped_models":  []string{},
-		}})
-		return
-	}
+	hasOverwrite := len(req.Overwrite) > 0
 
-	// 2) 拉取上游 vendors 与 models
+	// 1) 拉取上游 vendors 与 models
 	timeoutSec := common.GetEnvOrDefault("SYNC_HTTP_TIMEOUT_SECONDS", 15)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
@@ -297,7 +284,7 @@ func SyncUpstreamModels(c *gin.Context) {
 		return
 	}
 
-	// 建立映射
+	// 2) 建立映射
 	vendorByName := make(map[string]upstreamVendor)
 	for _, v := range vendorsEnv.Data {
 		if v.Name != "" {
@@ -305,10 +292,62 @@ func SyncUpstreamModels(c *gin.Context) {
 		}
 	}
 	modelByName := make(map[string]upstreamModel)
+	upstreamNames := make([]string, 0, len(modelsEnv.Data))
 	for _, m := range modelsEnv.Data {
 		if m.ModelName != "" {
 			modelByName[m.ModelName] = m
+			upstreamNames = append(upstreamNames, m.ModelName)
 		}
+	}
+
+	// 3) 计算缺失模型：上游全集 - 本地已存在；兼容旧逻辑合并能力缺失
+	existingNames := make([]string, 0)
+	if len(upstreamNames) > 0 {
+		_ = model.DB.Model(&model.Model{}).Where("model_name IN ? AND (sync_official IS NULL OR sync_official <> 0)", upstreamNames).Pluck("model_name", &existingNames).Error
+	}
+	existingSet := make(map[string]struct{}, len(existingNames))
+	for _, name := range existingNames {
+		if name != "" {
+			existingSet[name] = struct{}{}
+		}
+	}
+
+	missingSet := make(map[string]struct{})
+	for _, name := range upstreamNames {
+		if _, ok := existingSet[name]; !ok {
+			missingSet[name] = struct{}{}
+		}
+	}
+	if abilityMissing, err := model.GetMissingModels(); err == nil {
+		for _, name := range abilityMissing {
+			if _, ok := modelByName[name]; ok {
+				if _, existed := existingSet[name]; !existed {
+					missingSet[name] = struct{}{}
+				}
+			}
+		}
+	}
+	missing := make([]string, 0, len(missingSet))
+	for name := range missingSet {
+		missing = append(missing, name)
+	}
+
+	// 无缺失且没有覆盖需求时直接返回（保证已拿到最新上游信息）
+	if len(missing) == 0 && !hasOverwrite {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
+			"created_models":  0,
+			"created_vendors": 0,
+			"skipped_models":  []string{},
+			"updated_models":  0,
+			"created_list":    []string{},
+			"updated_list":    []string{},
+			"source": gin.H{
+				"locale":      req.Locale,
+				"models_url":  modelsURL,
+				"vendors_url": vendorsURL,
+			},
+		}})
+		return
 	}
 
 	// 3) 执行同步：仅创建缺失模型；若上游缺失该模型则跳过
@@ -538,12 +577,30 @@ func SyncUpstreamPreview(c *gin.Context) {
 	}
 
 	// 3) 缺失且上游存在的模型
-	missingList, _ := model.GetMissingModels()
-	var missing []string
-	for _, name := range missingList {
-		if _, ok := modelByName[name]; ok {
-			missing = append(missing, name)
+	existingSet := make(map[string]struct{}, len(locals))
+	for _, m := range locals {
+		if m.ModelName != "" {
+			existingSet[m.ModelName] = struct{}{}
 		}
+	}
+	missingSet := make(map[string]struct{})
+	for _, name := range upstreamNames {
+		if _, ok := existingSet[name]; !ok {
+			missingSet[name] = struct{}{}
+		}
+	}
+	if abilityMissing, err := model.GetMissingModels(); err == nil {
+		for _, name := range abilityMissing {
+			if _, ok := modelByName[name]; ok {
+				if _, existed := existingSet[name]; !existed {
+					missingSet[name] = struct{}{}
+				}
+			}
+		}
+	}
+	var missing []string
+	for name := range missingSet {
+		missing = append(missing, name)
 	}
 
 	// 4) 计算冲突字段
