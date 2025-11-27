@@ -5,94 +5,120 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"path/filepath"
-	"sync"
-	"time"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-
-	"github.com/bytedance/gopkg/util/gopool"
-	"github.com/gin-gonic/gin"
+	"github.com/phuslu/log"
 )
-
-const (
-	loggerINFO  = "INFO"
-	loggerWarn  = "WARN"
-	loggerError = "ERR"
-	loggerDebug = "DEBUG"
-)
-
-const maxLogCount = 1000000
-
-var logCount int
-var setupLogLock sync.Mutex
-var setupLogWorking bool
 
 func SetupLogger() {
-	defer func() {
-		setupLogWorking = false
-	}()
-	if *common.LogDir != "" {
-		ok := setupLogLock.TryLock()
-		if !ok {
-			log.Println("setup log is already working")
-			return
+	var consoleWriter log.Writer = &log.ConsoleWriter{ColorOutput: true, Formatter: func(w io.Writer, a *log.FormatterArgs) (int, error) {
+		id := a.Get(common.RequestIdKey)
+		scene := "SYS"
+		// gin web server
+		fromWeb := a.Get("from_web")
+		if fromWeb == "true" {
+			scene = "GIN"
+			return fmt.Fprintf(w, "[%s] %s | %s | %s | %s | %13v | %15s | %7s %s\n", scene, a.Time, strings.ToUpper(a.Level), id, a.Get("status"), a.Get("latency"), a.Get("ip"), a.Get("method"), a.Get("path"))
 		}
-		defer func() {
-			setupLogLock.Unlock()
-		}()
-		logPath := filepath.Join(*common.LogDir, fmt.Sprintf("oneapi-%s.log", time.Now().Format("20060102150405")))
-		fd, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatal("failed to open log file")
+		if id == "SYS" {
+			scene = "SYS"
 		}
-		gin.DefaultWriter = io.MultiWriter(os.Stdout, fd)
-		gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, fd)
+		return fmt.Fprintf(w, "[%s] %v | %s | %s\n", scene, a.Time, strings.ToUpper(a.Level), a.Message)
+	}}
+	// 控制台输出使用json格式
+	consoleLogJson := os.Getenv("CONSOLE_LOG_JSON")
+	if consoleLogJson == "true" {
+		consoleWriter = log.IOWriter{Writer: os.Stdout}
 	}
+	log.DefaultLogger.TimeFormat = "2006/01/02 - 15:04:05"
+	//log.DefaultLogger.TimeFormat = "20060102150405"
+
+	var writer log.Writer = consoleWriter
+	if *common.LogDir != "" {
+		multiLevelFileWriter := &log.MultiLevelWriter{
+			InfoWriter: &log.FileWriter{
+				Filename:     fmt.Sprintf("%s/newapi.info.log", *common.LogDir),
+				FileMode:     0600,
+				MaxSize:      100 * 1024 * 1024,
+				EnsureFolder: true,
+				TimeFormat:   "20060102150405",
+			},
+			WarnWriter: &log.FileWriter{
+				Filename:     fmt.Sprintf("%s/newapi.warn.log", *common.LogDir),
+				FileMode:     0600,
+				MaxSize:      100 * 1024 * 1024,
+				EnsureFolder: true,
+				TimeFormat:   "20060102150405",
+			},
+			ErrorWriter: &log.FileWriter{
+				Filename:     fmt.Sprintf("%s/newapi.error.log", *common.LogDir),
+				FileMode:     0600,
+				MaxSize:      100 * 1024 * 1024,
+				EnsureFolder: true,
+				TimeFormat:   "20060102150405",
+			},
+		}
+		writer = &log.MultiEntryWriter{
+			consoleWriter,
+			multiLevelFileWriter,
+		}
+	}
+	log.DefaultLogger.Writer = writer
 }
 
 func LogInfo(ctx context.Context, msg string) {
-	logHelper(ctx, loggerINFO, msg)
+	logHelper(ctx, log.InfoLevel, msg)
 }
 
 func LogWarn(ctx context.Context, msg string) {
-	logHelper(ctx, loggerWarn, msg)
+	logHelper(ctx, log.WarnLevel, msg)
 }
 
 func LogError(ctx context.Context, msg string) {
-	logHelper(ctx, loggerError, msg)
+	logHelper(ctx, log.ErrorLevel, msg)
 }
 
 func LogDebug(ctx context.Context, msg string, args ...any) {
 	if common.DebugEnabled {
-		if len(args) > 0 {
-			msg = fmt.Sprintf(msg, args...)
-		}
-		logHelper(ctx, loggerDebug, msg)
+		logHelper(ctx, log.DebugLevel, msg, args)
 	}
 }
 
-func logHelper(ctx context.Context, level string, msg string) {
-	writer := gin.DefaultErrorWriter
-	if level == loggerINFO {
-		writer = gin.DefaultWriter
+func logHelper(ctx context.Context, level log.Level, msg string, args ...any) {
+	entry := &log.Entry{}
+	switch level {
+	case log.InfoLevel:
+		entry = log.Info()
+		break
+	case log.ErrorLevel:
+		entry = log.Error()
+		break
+	case log.DebugLevel:
+		entry = log.Debug()
+		break
+	case log.WarnLevel:
+		entry = log.Warn()
+		break
+	default:
+		entry = log.Debug()
 	}
 	id := ctx.Value(common.RequestIdKey)
 	if id == nil {
-		id = "SYSTEM"
+		entry.Str(common.RequestIdKey, "SYS")
+	} else {
+		idStr, ok := id.(string)
+		if !ok {
+			entry.Str(common.RequestIdKey, "INVALID_ID")
+		}
+		entry.Str(common.RequestIdKey, idStr)
 	}
-	now := time.Now()
-	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, msg)
-	logCount++ // we don't need accurate count, so no lock here
-	if logCount > maxLogCount && !setupLogWorking {
-		logCount = 0
-		setupLogWorking = true
-		gopool.Go(func() {
-			SetupLogger()
-		})
+	if len(args) > 0 {
+		entry.Msgf(msg, args)
+	} else {
+		entry.Msg(msg)
 	}
 }
 
