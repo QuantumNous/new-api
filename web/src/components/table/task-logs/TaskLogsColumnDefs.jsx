@@ -41,6 +41,7 @@ import {
   TASK_ACTION_TEXT_GENERATE,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
+import { renderModelTag } from '../../../helpers';
 
 const colors = [
   'amber',
@@ -295,6 +296,21 @@ export const getTaskLogsColumns = ({
       dataIndex: 'action',
       render: (text, record, index) => {
         return <div>{renderType(text, t)}</div>;
+      },
+    },
+    {
+      key: COLUMN_KEYS.MODEL,
+      title: t('模型'),
+      dataIndex: 'properties',
+      render: (properties, record, index) => {
+        const modelName = properties?.upstream_model_name || properties?.origin_model_name;
+        return modelName ? (
+          <div>{renderModelTag(modelName)}</div>
+        ) : (
+          <Tag color='grey' shape='circle'>
+            {t('未知')}
+          </Tag>
+        );
       },
     },
     {
