@@ -183,7 +183,7 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 }
 
 // Setting safety to the lowest possible values since Gemini is already powerless enough
-func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
+func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo, base64Data ...*relaycommon.Base64Data) (*dto.GeminiChatRequest, error) {
 
 	geminiRequest := dto.GeminiChatRequest{
 		Contents: make([]dto.GeminiChatContent, 0, len(textRequest.Messages)),
@@ -464,10 +464,11 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					})
 				}
 			} else if part.Type == dto.ContentTypeFile {
-				if part.GetFile().FileId != "" {
+				file := part.GetFile()
+				if file.FileId != "" {
 					return nil, fmt.Errorf("only base64 file is supported in gemini")
 				}
-				format, base64String, err := service.DecodeBase64FileData(part.GetFile().FileData)
+				format, base64String, err := service.DecodeBase64FileData(file.FileData)
 				if err != nil {
 					return nil, fmt.Errorf("decode base64 file data failed: %s", err.Error())
 				}
