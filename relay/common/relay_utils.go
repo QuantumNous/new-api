@@ -25,9 +25,12 @@ type HasImage interface {
 	HasImage() bool
 }
 
+// GetFullRequestURL constructs the full request URL based on the base URL and request URL.
+// It handles special cases for providers like Cloudflare and BigModel where the URL path needs adjustment.
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
 
+	// Handle Cloudflare AI Gateway paths
 	if strings.HasPrefix(baseURL, "https://gateway.ai.cloudflare.com") {
 		switch channelType {
 		case constant.ChannelTypeOpenAI:
@@ -37,6 +40,7 @@ func GetFullRequestURL(baseURL string, requestURL string, channelType int) strin
 		}
 	}
 
+	// Handle BigModel Coding API: strip /v1 prefix as it's often included in baseURL or requestURL
 	if strings.HasPrefix(baseURL, "https://open.bigmodel.cn/api/coding/paas/v4") {
 		if strings.HasPrefix(requestURL, "/v1") {
 			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/v1"))
