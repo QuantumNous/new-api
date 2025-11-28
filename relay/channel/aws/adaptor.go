@@ -31,6 +31,7 @@ type Adaptor struct {
 	AwsModelId string
 	AwsReq     any
 	IsNova     bool
+	ModelPrefix string // 可配置的模型前缀，如 "global", "us", "eu", "apac", "jp" 等
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {

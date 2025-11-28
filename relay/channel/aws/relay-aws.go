@@ -25,7 +25,7 @@ import (
 	"github.com/aws/smithy-go/auth/bearer"
 )
 
-func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
+func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, string, bool, error) {
 	var (
 		httpClient *http.Client
 		err        error
@@ -33,7 +33,7 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 	if info.ChannelSetting.Proxy != "" {
 		httpClient, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
 		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+			return nil, "", false, fmt.Errorf("new proxy http client failed: %w", err)
 		}
 	} else {
 		httpClient = service.GetHttpClient()
@@ -41,6 +41,8 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 
 	awsSecret := strings.Split(info.ApiKey, "|")
 	var client *bedrockruntime.Client
+	var modelPrefix string
+	var hasCustomPrefix bool
 	switch len(awsSecret) {
 	case 2:
 		apiKey := awsSecret[0]
@@ -50,6 +52,9 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 			BearerAuthTokenProvider: bearer.StaticTokenProvider{Token: bearer.Token{Value: apiKey}},
 			HTTPClient:              httpClient,
 		})
+		// 对于2参数格式，从region推导prefix
+		modelPrefix = getAwsRegionPrefix(region)
+		hasCustomPrefix = false
 	case 3:
 		ak := awsSecret[0]
 		sk := awsSecret[1]
@@ -59,27 +64,49 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 			Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(ak, sk, "")),
 			HTTPClient:  httpClient,
 		})
+		modelPrefix = getAwsRegionPrefix(region)
+		hasCustomPrefix = false
+	case 4:
+		ak := awsSecret[0]
+		sk := awsSecret[1]
+		region := awsSecret[2]
+		prefix := awsSecret[3]
+		client = bedrockruntime.New(bedrockruntime.Options{
+			Region:      region,
+			Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(ak, sk, "")),
+			HTTPClient:  httpClient,
+		})
+		// 对于4参数格式，使用配置的prefix
+		modelPrefix = prefix
+		hasCustomPrefix = true
 	default:
-		return nil, errors.New("invalid aws secret key")
+		return nil, "", false, errors.New("invalid aws secret key")
 	}
 
-	return client, nil
+	return client, modelPrefix, hasCustomPrefix, nil
 }
 
 func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor, requestBody io.Reader) (any, error) {
-	awsCli, err := newAwsClient(c, info)
+	awsCli, modelPrefix, hasCustomPrefix, err := newAwsClient(c, info)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeChannelAwsClientError)
 	}
 	a.AwsClient = awsCli
+	a.ModelPrefix = modelPrefix
 
 	// 获取对应的AWS模型ID
 	awsModelId := getAwsModelID(info.UpstreamModelName)
 
-	awsRegionPrefix := getAwsRegionPrefix(awsCli.Options().Region)
-	canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
-	if canCrossRegion {
-		awsModelId = awsModelCrossRegion(awsModelId, awsRegionPrefix)
+	if hasCustomPrefix {
+		// 如果配置了自定义prefix（4个参数格式），直接使用
+		awsModelId = modelPrefix + "." + awsModelId
+	} else {
+		// 否则，从region推导并检查模型是否支持跨区域
+		awsRegionPrefix := getAwsRegionPrefix(awsCli.Options().Region)
+		canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
+		if canCrossRegion {
+			awsModelId = awsModelCrossRegion(awsModelId, awsRegionPrefix, modelPrefix)
+		}
 	}
 
 	// init empty request.header
@@ -154,7 +181,12 @@ func awsModelCanCrossRegion(awsModelId, awsRegionPrefix string) bool {
 	return exists && regionSet[awsRegionPrefix]
 }
 
-func awsModelCrossRegion(awsModelId, awsRegionPrefix string) string {
+func awsModelCrossRegion(awsModelId, awsRegionPrefix, configuredPrefix string) string {
+	// 如果配置了prefix，优先使用配置的prefix
+	if configuredPrefix != "" {
+		return configuredPrefix + "." + awsModelId
+	}
+	// 否则从region推导
 	modelPrefix, find := awsRegionCrossModelPrefixMap[awsRegionPrefix]
 	if !find {
 		return awsModelId

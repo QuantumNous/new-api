@@ -1669,8 +1669,12 @@ const EditChannelModal = (props) => {
                           placeholder={t('请选择密钥格式')}
                           optionList={[
                             {
-                              label: 'AccessKey / SecretAccessKey',
+                              label: 'AccessKey / SecretAccessKey / Region',
                               value: 'ak_sk',
+                            },
+                            {
+                              label: 'AccessKey / SecretAccessKey / Region / Prefix',
+                              value: 'ak_sk_region_prefix',
                             },
                             { label: 'API Key', value: 'api_key' },
                           ]}
@@ -1758,7 +1762,10 @@ const EditChannelModal = (props) => {
                             inputs.type === 33
                               ? inputs.aws_key_type === 'api_key'
                                 ? t('请输入 API Key，一行一个，格式：APIKey|Region')
-                                : t(
+                                : inputs.aws_key_type === 'ak_sk_region_prefix'
+                                  ? t('请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region|Prefix')
+                                  :
+                                  t(
                                     '请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region',
                                   )
                               : t('请输入密钥，一行一个')
@@ -1960,7 +1967,9 @@ const EditChannelModal = (props) => {
                               inputs.type === 33
                                 ? inputs.aws_key_type === 'api_key'
                                   ? t('请输入 API Key，格式：APIKey|Region')
-                                  : t('按照如下格式输入：AccessKey|SecretAccessKey|Region')
+                                  : inputs.aws_key_type === 'ak_sk_region_prefix'
+                                    ? t('请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region|Prefix')
+                                    : t('按照如下格式输入：AccessKey|SecretAccessKey|Region')
                                 : t(type2secretPrompt(inputs.type))
                             }
                             rules={
