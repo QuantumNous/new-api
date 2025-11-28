@@ -582,6 +582,9 @@ func testDisabledChannels(notify bool) error {
 	testDisabledChannelsLock.Unlock()
 	channels, err := model.GetChannelsByStatus(common.ChannelStatusAutoDisabled)
 	if err != nil {
+		testDisabledChannelsLock.Lock()
+		testDisabledChannelsRunning = false
+		testDisabledChannelsLock.Unlock()
 		return err
 	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
@@ -617,6 +620,9 @@ func testAllChannels(notify bool) error {
 	testAllChannelsLock.Unlock()
 	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
 	if getChannelErr != nil {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = false
+		testAllChannelsLock.Unlock()
 		return getChannelErr
 	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
