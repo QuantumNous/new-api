@@ -36,6 +36,13 @@ func GetFullRequestURL(baseURL string, requestURL string, channelType int) strin
 			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/openai/deployments"))
 		}
 	}
+
+	if strings.HasPrefix(baseURL, "https://open.bigmodel.cn/api/coding/paas/v4") {
+		if strings.HasPrefix(requestURL, "/v1") {
+			fullRequestURL = fmt.Sprintf("%s%s", baseURL, strings.TrimPrefix(requestURL, "/v1"))
+		}
+	}
+
 	return fullRequestURL
 }
 
