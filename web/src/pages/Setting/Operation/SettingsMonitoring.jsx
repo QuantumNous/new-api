@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next';
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
+  const originInputs = {
     ChannelDisableThreshold: '',
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
@@ -41,9 +41,10 @@ export default function SettingsMonitoring(props) {
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
     'monitor_setting.auto_test_disabled_channel_minutes': 0,
-  });
+  };
+  const [inputs, setInputs] = useState(originInputs);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(originInputs);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -83,12 +84,15 @@ export default function SettingsMonitoring(props) {
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(originInputs).includes(key)) {
         currentInputs[key] = props.options[key];
+        if (typeof originInputs[key] === 'boolean') {
+          currentInputs[key] = String(props.options[key]) === 'true';
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
+    setInputs((inputs) => ({ ...inputs, ...currentInputs }));
+    setInputsRow((inputs) => ({ ...inputs, ...currentInputs }));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
 

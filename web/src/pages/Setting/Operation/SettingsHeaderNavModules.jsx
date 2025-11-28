@@ -38,17 +38,19 @@ export default function SettingsHeaderNavModules(props) {
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
 
-  // 顶栏模块管理状态
-  const [headerNavModules, setHeaderNavModules] = useState({
+  const defaultModules = {
     home: true,
     console: true,
     pricing: {
       enabled: true,
-      requireAuth: false, // 默认不需要登录鉴权
+      requireAuth: false,
     },
     docs: true,
     about: true,
-  });
+  };
+
+  // 顶栏模块管理状态
+  const [headerNavModules, setHeaderNavModules] = useState(defaultModules);
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -79,16 +81,6 @@ export default function SettingsHeaderNavModules(props) {
 
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: {
-        enabled: true,
-        requireAuth: false,
-      },
-      docs: true,
-      about: true,
-    };
     setHeaderNavModules(defaultModules);
     showSuccess(t('已重置为默认配置'));
   }
@@ -142,19 +134,8 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        setHeaderNavModules(modules);
+        setHeaderNavModules({ ...defaultModules, ...modules });
       } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
-          pricing: {
-            enabled: true,
-            requireAuth: false,
-          },
-          docs: true,
-          about: true,
-        };
         setHeaderNavModules(defaultModules);
       }
     }

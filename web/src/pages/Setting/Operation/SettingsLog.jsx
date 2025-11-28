@@ -44,12 +44,13 @@ export default function SettingsLog(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
-  const [inputs, setInputs] = useState({
+  const originInputs = {
     LogConsumeEnabled: false,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
-  });
+  };
+  const [inputs, setInputs] = useState(originInputs);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(originInputs);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow).filter(
@@ -182,13 +183,16 @@ export default function SettingsLog(props) {
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(originInputs).includes(key)) {
         currentInputs[key] = props.options[key];
+        if (typeof originInputs[key] === 'boolean') {
+          currentInputs[key] = String(props.options[key]) === 'true';
+        }
       }
     }
     currentInputs['historyTimestamp'] = inputs.historyTimestamp;
-    setInputs(Object.assign(inputs, currentInputs));
-    setInputsRow(structuredClone(currentInputs));
+    setInputs((inputs) => ({ ...inputs, ...currentInputs }));
+    setInputsRow((inputs) => ({ ...inputs, ...currentInputs }));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
   return (
