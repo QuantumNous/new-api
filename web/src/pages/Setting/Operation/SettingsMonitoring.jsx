@@ -40,6 +40,7 @@ export default function SettingsMonitoring(props) {
     AutomaticDisableKeywords: '',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.auto_test_disabled_channel_minutes': 0,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -129,6 +130,24 @@ export default function SettingsMonitoring(props) {
                     setInputs({
                       ...inputs,
                       'monitor_setting.auto_test_channel_minutes':
+                        parseInt(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('自动测试禁用通道间隔时间')}
+                  step={1}
+                  min={0}
+                  suffix={t('分钟')}
+                  extraText={t('设置为 0 则不自动测试')}
+                  placeholder={''}
+                  field={'monitor_setting.auto_test_disabled_channel_minutes'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_disabled_channel_minutes':
                         parseInt(value),
                     })
                   }
