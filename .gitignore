@@ -21,3 +21,16 @@ web/bun.lock
 
 electron/node_modules
 electron/dist
+
+# local debugging helpers
+/local-dev.sh
+
+# LLM agent prompt files (keep local only)
+Agents.md
+CLAUDE.md
+
+# Local debugging/config (not for commit)
+.env.local
+docker-compose.local.yml
+Dockerfile.local
+package-lock.json
