@@ -1,5 +1,11 @@
 package volcengine
 
+const (
+	DoubaoCodingPlan              = "doubao-coding-plan"
+	DoubaoCodingPlanClaudeBaseURL = "https://ark.cn-beijing.volces.com/api/coding"
+	DoubaoCodingPlanOpenAIBaseURL = "https://ark.cn-beijing.volces.com/api/coding/v3"
+)
+
 var ModelList = []string{
 	"Doubao-pro-128k",
 	"Doubao-pro-32k",

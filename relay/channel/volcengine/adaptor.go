@@ -24,11 +24,8 @@ import (
 )
 
 const (
-	contextKeyTTSRequest          = "volcengine_tts_request"
-	contextKeyResponseFormat      = "response_format"
-	DoubaoCodingPlan              = "doubao-coding-plan"
-	DoubaoCodingPlanClaudeBaseURL = "https://ark.cn-beijing.volces.com/api/coding"
-	DoubaoCodingPlanOpenAIBaseURL = "https://ark.cn-beijing.volces.com/api/coding/v3"
+	contextKeyTTSRequest     = "volcengine_tts_request"
+	contextKeyResponseFormat = "response_format"
 )
 
 type Adaptor struct {
