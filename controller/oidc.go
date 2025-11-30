@@ -179,7 +179,7 @@ func extractRoles(value interface{}) []string {
 // mapRolesToGroup 根据配置的映射将角色转换为用户组
 func mapRolesToGroup(roles []string) string {
 	mapping := system_setting.GetOIDCSettings().RoleToGroupMapping
-	if mapping == nil || len(mapping) == 0 {
+	if len(mapping) == 0 {
 		return ""
 	}
 
@@ -189,6 +189,19 @@ func mapRolesToGroup(roles []string) string {
 		}
 	}
 	return ""
+}
+
+// updateUserGroupFromRoles 根据角色更新用户组
+func updateUserGroupFromRoles(user *model.User, roles []string) {
+	if !system_setting.GetOIDCSettings().RoleClaimEnabled || len(roles) == 0 {
+		return
+	}
+	if group := mapRolesToGroup(roles); group != "" && user.Group != group {
+		user.Group = group
+		if err := user.Update(false); err != nil {
+			common.SysLog("OIDC 更新用户组失败: " + err.Error())
+		}
+	}
 }
 
 func OidcAuth(c *gin.Context) {
@@ -232,19 +245,13 @@ func OidcAuth(c *gin.Context) {
 			return
 		}
 		// 如果启用了角色声明，更新用户组
-		if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
-			if group := mapRolesToGroup(oidcUser.Roles); group != "" && user.Group != group {
-				user.Group = group
-				if err := user.Update(false); err != nil {
-					common.SysLog("OIDC 更新用户组失败: " + err.Error())
-				}
-			}
-		}
+		updateUserGroupFromRoles(&user, oidcUser.Roles)
 	} else {
 		// 检查是否启用了邮箱自动合并功能
 		if system_setting.GetOIDCSettings().AutoMergeEnabled && oidcUser.Email != "" {
 			existingUser := model.User{Email: oidcUser.Email}
 			err := existingUser.FillUserByEmail()
+			// FillUserByEmail 返回 nil 时，检查 Id 是否非零来确认用户存在
 			if err == nil && existingUser.Id != 0 {
 				// 用户已存在，合并 OIDC ID
 				existingUser.OidcId = oidcUser.OpenID
@@ -255,17 +262,10 @@ func OidcAuth(c *gin.Context) {
 					})
 					return
 				}
-				common.SysLog(fmt.Sprintf("OIDC 自动合并用户: email=%s, oidc_id=%s", oidcUser.Email, oidcUser.OpenID))
+				common.SysLog(fmt.Sprintf("OIDC 自动合并用户成功，用户ID: %d", existingUser.Id))
 				user = existingUser
 				// 如果启用了角色声明，更新用户组
-				if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
-					if group := mapRolesToGroup(oidcUser.Roles); group != "" && user.Group != group {
-						user.Group = group
-						if err := user.Update(false); err != nil {
-							common.SysLog("OIDC 更新用户组失败: " + err.Error())
-						}
-					}
-				}
+				updateUserGroupFromRoles(&user, oidcUser.Roles)
 				if user.Status != common.UserStatusEnabled {
 					c.JSON(http.StatusOK, gin.H{
 						"message": "用户已被封禁",
@@ -291,7 +291,7 @@ func OidcAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "OIDC User"
 			}
-			// 如果启用了角色声明，设置用户组
+			// 如果启用了角色声明，设置用户组（新用户直接设置，无需更新）
 			if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
 				if group := mapRolesToGroup(oidcUser.Roles); group != "" {
 					user.Group = group
