@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
@@ -142,16 +143,40 @@ func processSizeParameters(size, quality string) ImageConfig {
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if strings.HasPrefix(info.UpstreamModelName, "gemini-3-pro-image") {
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		var content any
+		if base64Data, err := relaycommon.GetImageBase64sFromForm(c); err == nil {
+			content = []any{
+				dto.MediaContent{
+					Type: dto.ContentTypeText,
+					Text: request.Prompt,
+				},
+				dto.MediaContent{
+					Type: dto.ContentTypeFile,
+					File: &dto.MessageFile{
+						FileData: base64Data.String(),
+					},
+				},
+			}
+		} else {
+			content = request.Prompt
+		}
+
 		chatRequest := dto.GeneralOpenAIRequest{
 			Model: request.Model,
 			Messages: []dto.Message{
-				{Role: "user", Content: request.Prompt},
+				{Role: "user", Content: content},
 			},
 			N: int(request.N),
 		}
 
 		config := processSizeParameters(strings.TrimSpace(request.Size), request.Quality)
+
+		// 兼容 nano-banana 传quality[imageSize]会报错 An internal error has occurred. Please retry or report in https://developers.generativeai.google/guide/troubleshooting
+		if slices.Contains([]string{"nano-banana", "gemini-2.5-flash-image"}, info.UpstreamModelName) {
+			config.ImageSize = ""
+		}
+
 		googleGenerationConfig := map[string]interface{}{
 			"responseModalities": []string{"TEXT", "IMAGE"},
 			"imageConfig":        config,

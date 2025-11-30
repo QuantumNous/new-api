@@ -442,7 +442,7 @@
     "共 {{count}} 个模型_one": "{{count}} model",
     "共 {{count}} 个模型_other": "{{count}} models",
     "共 {{total}} 项，当前显示 {{start}}-{{end}} 项": "{{total}} items total, showing {{start}}-{{end}} items",
-    "关": "close",
+    "关": "Off",
     "关于": "About",
     "关于我们": "About Us",
     "关于系统的详细信息": "Detailed information about the system",
@@ -831,7 +831,7 @@
     "应用覆盖": "Apply overwrite",
     "建立连接时发生错误": "Error occurred while establishing connection",
     "建议在生产环境中使用 MySQL 或 PostgreSQL 数据库，或确保 SQLite 数据库文件已映射到宿主机的持久化存储。": "It is recommended to use MySQL or PostgreSQL databases in production environments, or ensure that the SQLite database file is mapped to the persistent storage of the host machine.",
-    "开": "open",
+    "开": "On",
     "开启之后会清除用户提示词中的": "After enabling, the user prompt will be cleared",
     "开启之后将上游地址替换为服务器地址": "After enabling, the upstream address will be replaced with the server address",
     "开启后，仅\"消费\"和\"错误\"日志将记录您的客户端IP地址": "After enabling, only \"consumption\" and \"error\" logs will record your client IP address",
@@ -2099,7 +2099,7 @@
     "重试": "Retry",
     "钱包管理": "Wallet Management",
     "链接中的{key}将自动替换为sk-xxxx，{address}将自动替换为系统设置的服务器地址，末尾不带/和/v1": "The {key} in the link will be automatically replaced with sk-xxxx, the {address} will be automatically replaced with the server address in system settings, and the end will not have / and /v1",
-    "错误": "Error",
+    "错误": "errors",
     "键为分组名称，值为另一个 JSON 对象，键为分组名称，值为该分组的用户的特殊分组倍率，例如：{\"vip\": {\"default\": 0.5, \"test\": 1}}，表示 vip 分组的用户在使用default分组的令牌时倍率为0.5，使用test分组时倍率为1": "The key is the group name, and the value is another JSON object. The key is the group name, and the value is the special group ratio for users in that group. For example: {\"vip\": {\"default\": 0.5, \"test\": 1}} means that users in the vip group have a ratio of 0.5 when using tokens from the default group, and a ratio of 1 when using tokens from the test group",
     "键为原状态码，值为要复写的状态码，仅影响本地判断": "The key is the original status code, and the value is the status code to override, only affects local judgment",
     "键为用户分组名称，值为操作映射对象。内层键以\"+:\"开头表示添加指定分组（键值为分组名称，值为描述），以\"-:\"开头表示移除指定分组（键值为分组名称），不带前缀的键直接添加该分组。例如：{\"vip\": {\"+:premium\": \"高级分组\", \"special\": \"特殊分组\", \"-:default\": \"默认分组\"}}，表示 vip 分组的用户可以使用 premium 和 special 分组，同时移除 default 分组的访问权限": "Keys are user group names and values are operation mappings. Inner keys prefixed with \"+:\" add the specified group (key is the group name, value is the description); keys prefixed with \"-:\" remove the specified group; keys without a prefix add that group directly. Example: {\"vip\": {\"+:premium\": \"Advanced group\", \"special\": \"Special group\", \"-:default\": \"Default group\"}} means vip users can access the premium and special groups while removing access to the default group.",
@@ -2176,6 +2176,6 @@
     "默认区域，如: us-central1": "Default region, e.g.: us-central1",
     "默认折叠侧边栏": "Default collapse sidebar",
     "默认测试模型": "Default Test Model",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
   }
 }

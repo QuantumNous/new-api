@@ -22,10 +22,17 @@ import (
 )
 
 const (
-	InitialScannerBufferSize = 64 << 10 // 64KB (64*1024)
-	MaxScannerBufferSize     = 10 << 20 // 10MB (10*1024*1024)
-	DefaultPingInterval      = 10 * time.Second
+	InitialScannerBufferSize    = 64 << 10 // 64KB (64*1024)
+	DefaultMaxScannerBufferSize = 64 << 20 // 64MB (64*1024*1024) default SSE buffer size
+	DefaultPingInterval         = 10 * time.Second
 )
+
+func getScannerBufferSize() int {
+	if constant.StreamScannerMaxBufferMB > 0 {
+		return constant.StreamScannerMaxBufferMB << 20
+	}
+	return DefaultMaxScannerBufferSize
+}
 
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string) bool) {
 
@@ -95,7 +102,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		close(stopChan)
 	}()
 
-	scanner.Buffer(make([]byte, InitialScannerBufferSize), MaxScannerBufferSize)
+	scanner.Buffer(make([]byte, InitialScannerBufferSize), getScannerBufferSize())
 	scanner.Split(bufio.ScanLines)
 	SetEventStreamHeaders(c)
 
