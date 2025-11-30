@@ -48,23 +48,24 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if baseURL == "" {
 		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeZhipu_v4]
 	}
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseURL]
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if baseURL == GlmCodingPlan {
-			return fmt.Sprintf("%s/v1/messages", GlmCodingPlanClaudeBaseURL), nil
+		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
 		return fmt.Sprintf("%s/api/anthropic/v1/messages", baseURL), nil
 	default:
 		switch info.RelayMode {
 		case relayconstant.RelayModeEmbeddings:
-			if baseURL == GlmCodingPlan {
-				return fmt.Sprintf("%s/embeddings", GlmCodingPlanOpenAIBaseURL), nil
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/embeddings", specialPlan.OpenAIBaseURL), nil
 			}
 			return fmt.Sprintf("%s/api/paas/v4/embeddings", baseURL), nil
 		default:
-			if baseURL == GlmCodingPlan {
-				return fmt.Sprintf("%s/chat/completions", GlmCodingPlanOpenAIBaseURL), nil
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 			}
 			return fmt.Sprintf("%s/api/paas/v4/chat/completions", baseURL), nil
 		}

@@ -11,8 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relay/channel/volcengine"
-	"github.com/QuantumNous/new-api/relay/channel/zhipu_4v"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -193,14 +191,14 @@ func FetchUpstreamModels(c *gin.Context) {
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
 	case constant.ChannelTypeZhipu_v4:
-		if baseURL == zhipu_4v.GlmCodingPlan {
-			url = fmt.Sprintf("%s/models", zhipu_4v.GlmCodingPlanOpenAIBaseURL)
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
 		} else {
 			url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
 		}
 	case constant.ChannelTypeVolcEngine:
-		if baseURL == volcengine.DoubaoCodingPlan {
-			url = fmt.Sprintf("%s/v1/models", volcengine.DoubaoCodingPlanOpenAIBaseURL)
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
