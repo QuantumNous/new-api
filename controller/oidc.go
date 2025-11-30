@@ -28,11 +28,12 @@ type OidcResponse struct {
 }
 
 type OidcUser struct {
-	OpenID            string `json:"sub"`
-	Email             string `json:"email"`
-	Name              string `json:"name"`
-	PreferredUsername string `json:"preferred_username"`
-	Picture           string `json:"picture"`
+	OpenID            string   `json:"sub"`
+	Email             string   `json:"email"`
+	Name              string   `json:"name"`
+	PreferredUsername string   `json:"preferred_username"`
+	Picture           string   `json:"picture"`
+	Roles             []string `json:"-"` // 角色列表，从动态解析获取
 }
 
 func getOidcUserInfoByCode(code string) (*OidcUser, error) {
@@ -89,16 +90,105 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 		return nil, errors.New("OIDC 获取用户信息失败！请检查设置！")
 	}
 
-	var oidcUser OidcUser
-	err = json.NewDecoder(res2.Body).Decode(&oidcUser)
+	// 使用 map 来解析用户信息，以便动态获取角色声明
+	var userInfoMap map[string]interface{}
+	err = json.NewDecoder(res2.Body).Decode(&userInfoMap)
 	if err != nil {
 		return nil, err
 	}
+
+	// 解析基本用户信息
+	oidcUser := &OidcUser{}
+	if sub, ok := userInfoMap["sub"].(string); ok {
+		oidcUser.OpenID = sub
+	}
+	if email, ok := userInfoMap["email"].(string); ok {
+		oidcUser.Email = email
+	}
+	if name, ok := userInfoMap["name"].(string); ok {
+		oidcUser.Name = name
+	}
+	if preferredUsername, ok := userInfoMap["preferred_username"].(string); ok {
+		oidcUser.PreferredUsername = preferredUsername
+	}
+	if picture, ok := userInfoMap["picture"].(string); ok {
+		oidcUser.Picture = picture
+	}
+
+	// 解析角色声明
+	if system_setting.GetOIDCSettings().RoleClaimEnabled {
+		oidcUser.Roles = parseRoleClaim(userInfoMap)
+	}
+
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
 		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息为空！请检查设置！")
 	}
-	return &oidcUser, nil
+	return oidcUser, nil
+}
+
+// parseRoleClaim 从用户信息中解析角色声明
+func parseRoleClaim(userInfo map[string]interface{}) []string {
+	roleClaim := system_setting.GetOIDCSettings().RoleClaim
+	if roleClaim == "" {
+		roleClaim = "roles"
+	}
+
+	var roles []string
+
+	// 尝试直接获取角色声明
+	if rolesValue, ok := userInfo[roleClaim]; ok {
+		roles = extractRoles(rolesValue)
+		if len(roles) > 0 {
+			return roles
+		}
+	}
+
+	// 尝试从嵌套的 realm_access 或 resource_access 中获取（Keycloak 格式）
+	if realmAccess, ok := userInfo["realm_access"].(map[string]interface{}); ok {
+		if rolesValue, ok := realmAccess["roles"]; ok {
+			roles = extractRoles(rolesValue)
+			if len(roles) > 0 {
+				return roles
+			}
+		}
+	}
+
+	return roles
+}
+
+// extractRoles 从接口值中提取角色列表
+func extractRoles(value interface{}) []string {
+	var roles []string
+	switch v := value.(type) {
+	case []interface{}:
+		for _, role := range v {
+			if roleStr, ok := role.(string); ok {
+				roles = append(roles, roleStr)
+			}
+		}
+	case []string:
+		roles = v
+	case string:
+		// 单个角色字符串
+		roles = append(roles, v)
+	}
+	return roles
+}
+
+// mapRolesToGroup 根据配置的映射将角色转换为用户组
+func mapRolesToGroup(roles []string) string {
+	mapping := system_setting.GetOIDCSettings().RoleToGroupMapping
+	if mapping == nil || len(mapping) == 0 {
+		return ""
+	}
+
+	for _, role := range roles {
+		if group, ok := mapping[role]; ok {
+			return group
+		}
+	}
+	return ""
 }
 
 func OidcAuth(c *gin.Context) {
@@ -141,7 +231,54 @@ func OidcAuth(c *gin.Context) {
 			})
 			return
 		}
+		// 如果启用了角色声明，更新用户组
+		if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
+			if group := mapRolesToGroup(oidcUser.Roles); group != "" && user.Group != group {
+				user.Group = group
+				if err := user.Update(false); err != nil {
+					common.SysLog("OIDC 更新用户组失败: " + err.Error())
+				}
+			}
+		}
 	} else {
+		// 检查是否启用了邮箱自动合并功能
+		if system_setting.GetOIDCSettings().AutoMergeEnabled && oidcUser.Email != "" {
+			existingUser := model.User{Email: oidcUser.Email}
+			err := existingUser.FillUserByEmail()
+			if err == nil && existingUser.Id != 0 {
+				// 用户已存在，合并 OIDC ID
+				existingUser.OidcId = oidcUser.OpenID
+				if err := existingUser.Update(false); err != nil {
+					c.JSON(http.StatusOK, gin.H{
+						"success": false,
+						"message": "自动合并用户失败: " + err.Error(),
+					})
+					return
+				}
+				common.SysLog(fmt.Sprintf("OIDC 自动合并用户: email=%s, oidc_id=%s", oidcUser.Email, oidcUser.OpenID))
+				user = existingUser
+				// 如果启用了角色声明，更新用户组
+				if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
+					if group := mapRolesToGroup(oidcUser.Roles); group != "" && user.Group != group {
+						user.Group = group
+						if err := user.Update(false); err != nil {
+							common.SysLog("OIDC 更新用户组失败: " + err.Error())
+						}
+					}
+				}
+				if user.Status != common.UserStatusEnabled {
+					c.JSON(http.StatusOK, gin.H{
+						"message": "用户已被封禁",
+						"success": false,
+					})
+					return
+				}
+				setupLogin(&user, c)
+				return
+			}
+		}
+
+		// 新用户注册
 		if common.RegisterEnabled {
 			user.Email = oidcUser.Email
 			if oidcUser.PreferredUsername != "" {
@@ -153,6 +290,12 @@ func OidcAuth(c *gin.Context) {
 				user.DisplayName = oidcUser.Name
 			} else {
 				user.DisplayName = "OIDC User"
+			}
+			// 如果启用了角色声明，设置用户组
+			if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
+				if group := mapRolesToGroup(oidcUser.Roles); group != "" {
+					user.Group = group
+				}
 			}
 			err := user.Insert(0)
 			if err != nil {
