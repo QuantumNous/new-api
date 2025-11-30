@@ -43,7 +43,7 @@ export default function GeneralSettings(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
-  const [inputs, setInputs] = useState({
+  const originInputs = {
     TopUpLink: '',
     'general_setting.docs_link': '',
     'general_setting.quota_display_type': 'USD',
@@ -56,9 +56,10 @@ export default function GeneralSettings(props) {
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
     SelfUseModeEnabled: false,
-  });
+  };
+  const [inputs, setInputs] = useState(originInputs);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(originInputs);
 
   function handleFieldChange(fieldName) {
     return (value) => {
@@ -128,8 +129,11 @@ export default function GeneralSettings(props) {
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(originInputs).includes(key)) {
         currentInputs[key] = props.options[key];
+        if (typeof originInputs[key] === 'boolean') {
+          currentInputs[key] = String(props.options[key]) === 'true';
+        }
       }
     }
     // 若旧字段存在且新字段缺失，则做一次兜底映射
@@ -154,8 +158,8 @@ export default function GeneralSettings(props) {
       currentInputs['general_setting.custom_currency_exchange_rate'] =
         props.options['general_setting.custom_currency_exchange_rate'];
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
+    setInputs((inputs) => ({ ...inputs, ...currentInputs }));
+    setInputsRow((inputs) => ({ ...inputs, ...currentInputs }));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
 
