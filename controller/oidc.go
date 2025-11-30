@@ -33,7 +33,7 @@ type OidcUser struct {
 	Name              string   `json:"name"`
 	PreferredUsername string   `json:"preferred_username"`
 	Picture           string   `json:"picture"`
-	Roles             []string `json:"-"` // 角色列表，从动态解析获取
+	Roles             []string `json:"roles"` // 角色列表，直接从 JSON 中获取
 }
 
 func getOidcUserInfoByCode(code string) (*OidcUser, error) {
@@ -90,90 +90,18 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 		return nil, errors.New("OIDC 获取用户信息失败！请检查设置！")
 	}
 
-	// 使用 map 来解析用户信息，以便动态获取角色声明
-	var userInfoMap map[string]interface{}
-	err = json.NewDecoder(res2.Body).Decode(&userInfoMap)
+	// 直接解析用户信息到结构体
+	var oidcUser OidcUser
+	err = json.NewDecoder(res2.Body).Decode(&oidcUser)
 	if err != nil {
 		return nil, err
-	}
-
-	// 解析基本用户信息
-	oidcUser := &OidcUser{}
-	if sub, ok := userInfoMap["sub"].(string); ok {
-		oidcUser.OpenID = sub
-	}
-	if email, ok := userInfoMap["email"].(string); ok {
-		oidcUser.Email = email
-	}
-	if name, ok := userInfoMap["name"].(string); ok {
-		oidcUser.Name = name
-	}
-	if preferredUsername, ok := userInfoMap["preferred_username"].(string); ok {
-		oidcUser.PreferredUsername = preferredUsername
-	}
-	if picture, ok := userInfoMap["picture"].(string); ok {
-		oidcUser.Picture = picture
-	}
-
-	// 解析角色声明
-	if system_setting.GetOIDCSettings().RoleClaimEnabled {
-		oidcUser.Roles = parseRoleClaim(userInfoMap)
 	}
 
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
 		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息为空！请检查设置！")
 	}
-	return oidcUser, nil
-}
-
-// parseRoleClaim 从用户信息中解析角色声明
-func parseRoleClaim(userInfo map[string]interface{}) []string {
-	roleClaim := system_setting.GetOIDCSettings().RoleClaim
-	if roleClaim == "" {
-		roleClaim = "roles"
-	}
-
-	var roles []string
-
-	// 尝试直接获取角色声明
-	if rolesValue, ok := userInfo[roleClaim]; ok {
-		roles = extractRoles(rolesValue)
-		if len(roles) > 0 {
-			return roles
-		}
-	}
-
-	// 尝试从嵌套的 realm_access 或 resource_access 中获取（Keycloak 格式）
-	if realmAccess, ok := userInfo["realm_access"].(map[string]interface{}); ok {
-		if rolesValue, ok := realmAccess["roles"]; ok {
-			roles = extractRoles(rolesValue)
-			if len(roles) > 0 {
-				return roles
-			}
-		}
-	}
-
-	return roles
-}
-
-// extractRoles 从接口值中提取角色列表
-func extractRoles(value interface{}) []string {
-	var roles []string
-	switch v := value.(type) {
-	case []interface{}:
-		for _, role := range v {
-			if roleStr, ok := role.(string); ok {
-				roles = append(roles, roleStr)
-			}
-		}
-	case []string:
-		roles = v
-	case string:
-		// 单个角色字符串
-		roles = append(roles, v)
-	}
-	return roles
+	return &oidcUser, nil
 }
 
 // mapRolesToGroup 根据配置的映射将角色转换为用户组

@@ -10,15 +10,13 @@ type OIDCSettings struct {
 	AuthorizationEndpoint string            `json:"authorization_endpoint"`
 	TokenEndpoint         string            `json:"token_endpoint"`
 	UserInfoEndpoint      string            `json:"user_info_endpoint"`
-	RoleClaimEnabled      bool              `json:"role_claim_enabled"`      // 是否启用角色声明自动设置用户组
-	RoleClaim             string            `json:"role_claim"`              // 角色声明的字段名，默认为 "roles"
-	RoleToGroupMapping    map[string]string `json:"role_to_group_mapping"`   // 角色到用户组的映射
-	AutoMergeEnabled      bool              `json:"auto_merge_enabled"`      // 是否启用通过邮箱自动合并用户
+	RoleClaimEnabled      bool              `json:"role_claim_enabled"`    // 是否启用角色声明自动设置用户组
+	RoleToGroupMapping    map[string]string `json:"role_to_group_mapping"` // 角色到用户组的映射
+	AutoMergeEnabled      bool              `json:"auto_merge_enabled"`    // 是否启用通过邮箱自动合并用户
 }
 
 // 默认配置
 var defaultOIDCSettings = OIDCSettings{
-	RoleClaim:          "roles",
 	RoleToGroupMapping: make(map[string]string),
 }
 
