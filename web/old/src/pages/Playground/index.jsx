@@ -59,6 +59,7 @@ import {
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
+import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
 const generateAvatarDataUrl = (username) => {
@@ -436,8 +437,26 @@ const Playground = () => {
     setTimeout(() => saveMessagesImmediately([]), 0);
   }, [setMessage, saveMessagesImmediately]);
 
+  // 处理粘贴图片
+  const handlePasteImage = useCallback((base64Data) => {
+    if (!inputs.imageEnabled) {
+      return;
+    }
+    // 添加图片到 imageUrls 数组
+    const newUrls = [...(inputs.imageUrls || []), base64Data];
+    handleInputChange('imageUrls', newUrls);
+  }, [inputs.imageEnabled, inputs.imageUrls, handleInputChange]);
+
+  // Playground Context 值
+  const playgroundContextValue = {
+    onPasteImage: handlePasteImage,
+    imageUrls: inputs.imageUrls || [],
+    imageEnabled: inputs.imageEnabled || false,
+  };
+
   return (
-    <div className='h-full'>
+    <PlaygroundProvider value={playgroundContextValue}>
+      <div className='h-full'>
       <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
         {(showSettings || !isMobile) && (
           <Layout.Sider
@@ -536,6 +555,7 @@ const Playground = () => {
         </Layout.Content>
       </Layout>
     </div>
+    </PlaygroundProvider>
   );
 };
 

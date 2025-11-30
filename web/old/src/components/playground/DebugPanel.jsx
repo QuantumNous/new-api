@@ -29,6 +29,7 @@ import {
 import { Code, Zap, Clock, X, Eye, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CodeViewer from './CodeViewer';
+import SSEViewer from './SSEViewer';
 
 const DebugPanel = ({
   debugData,
@@ -180,15 +181,27 @@ const DebugPanel = ({
               <div className='flex items-center gap-2'>
                 <Zap size={16} />
                 {t('响应')}
+                {debugData.sseMessages && debugData.sseMessages.length > 0 && (
+                  <span className='px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full'>
+                    SSE ({debugData.sseMessages.length})
+                  </span>
+                )}
               </div>
             }
             itemKey='response'
           >
-            <CodeViewer
-              content={debugData.response}
-              title='response'
-              language='json'
-            />
+            {debugData.sseMessages && debugData.sseMessages.length > 0 ? (
+              <SSEViewer
+                sseData={debugData.sseMessages}
+                title='response'
+              />
+            ) : (
+              <CodeViewer
+                content={debugData.response}
+                title='response'
+                language='json'
+              />
+            )}
           </TabPane>
         </Tabs>
       </div>

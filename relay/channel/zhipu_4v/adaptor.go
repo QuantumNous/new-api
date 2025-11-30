@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -43,15 +44,30 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeZhipu_v4]
+	}
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseURL]
+
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		return fmt.Sprintf("%s/api/anthropic/v1/messages", info.ChannelBaseUrl), nil
+		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
+		}
+		return fmt.Sprintf("%s/api/anthropic/v1/messages", baseURL), nil
 	default:
 		switch info.RelayMode {
 		case relayconstant.RelayModeEmbeddings:
-			return fmt.Sprintf("%s/api/paas/v4/embeddings", info.ChannelBaseUrl), nil
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/embeddings", specialPlan.OpenAIBaseURL), nil
+			}
+			return fmt.Sprintf("%s/api/paas/v4/embeddings", baseURL), nil
 		default:
-			return fmt.Sprintf("%s/api/paas/v4/chat/completions", info.ChannelBaseUrl), nil
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
+			}
+			return fmt.Sprintf("%s/api/paas/v4/chat/completions", baseURL), nil
 		}
 	}
 }

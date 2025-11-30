@@ -1,10 +1,7 @@
 package common
 
 import (
-	"encoding/base64"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -228,55 +225,4 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 
 	storeTaskRequest(c, info, action, req)
 	return nil
-}
-func GetImagesBase64sFromForm(c *gin.Context) ([]*Base64Data, error) {
-	return GetBase64sFromForm(c, "image")
-}
-func GetImageBase64sFromForm(c *gin.Context) (*Base64Data, error) {
-	base64s, err := GetImagesBase64sFromForm(c)
-	if err != nil {
-		return nil, err
-	}
-	return base64s[0], nil
-}
-
-type Base64Data struct {
-	MimeType string
-	Data     string
-}
-
-func (m Base64Data) String() string {
-	return fmt.Sprintf("data:%s;base64,%s", m.MimeType, m.Data)
-}
-func GetBase64sFromForm(c *gin.Context, fieldName string) ([]*Base64Data, error) {
-	mf := c.Request.MultipartForm
-	if mf == nil {
-		if _, err := c.MultipartForm(); err != nil {
-			return nil, fmt.Errorf("failed to parse image edit form request: %w", err)
-		}
-		mf = c.Request.MultipartForm
-	}
-	imageFiles, exists := mf.File[fieldName]
-	if !exists || len(imageFiles) == 0 {
-		return nil, errors.New("field " + fieldName + " is not found or empty")
-	}
-	var imageBase64s []*Base64Data
-	for _, file := range imageFiles {
-		image, err := file.Open()
-		if err != nil {
-			return nil, errors.New("failed to open image file")
-		}
-		defer image.Close()
-		imageData, err := io.ReadAll(image)
-		if err != nil {
-			return nil, errors.New("failed to read image file")
-		}
-		mimeType := http.DetectContentType(imageData)
-		base64Data := base64.StdEncoding.EncodeToString(imageData)
-		imageBase64s = append(imageBase64s, &Base64Data{
-			MimeType: mimeType,
-			Data:     base64Data,
-		})
-	}
-	return imageBase64s, nil
 }

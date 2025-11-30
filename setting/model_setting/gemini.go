@@ -26,10 +26,6 @@ var defaultGeminiSettings = GeminiSettings{
 	SupportedImagineModels: []string{
 		"gemini-2.0-flash-exp-image-generation",
 		"gemini-2.0-flash-exp",
-		"gemini-3-pro-image-preview",
-		"gemini-2.5-flash-image",
-		"nano-banana",
-		"nano-banana-pro",
 	},
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
