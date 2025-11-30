@@ -104,30 +104,37 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	return &oidcUser, nil
 }
 
-// mapRolesToGroup 根据配置的映射将角色转换为用户组
-func mapRolesToGroup(roles []string) string {
-	mapping := system_setting.GetOIDCSettings().RoleToGroupMapping
-	if len(mapping) == 0 {
-		return ""
-	}
-
+// getGroupAndRoleFromRoles 从角色列表中获取用户组和是否为管理员
+// 规则：如果有 admin 角色，则提升为管理员；用户组设为第一个不为 admin 的角色
+func getGroupAndRoleFromRoles(roles []string) (group string, isAdmin bool) {
 	for _, role := range roles {
-		if group, ok := mapping[role]; ok {
-			return group
+		if role == "admin" {
+			isAdmin = true
+		} else if group == "" {
+			group = role
 		}
 	}
-	return ""
+	return
 }
 
-// updateUserGroupFromRoles 根据角色更新用户组
-func updateUserGroupFromRoles(user *model.User, roles []string) {
+// updateUserFromRoles 根据角色更新用户组和管理员状态
+func updateUserFromRoles(user *model.User, roles []string) {
 	if !system_setting.GetOIDCSettings().RoleClaimEnabled || len(roles) == 0 {
 		return
 	}
-	if group := mapRolesToGroup(roles); group != "" && user.Group != group {
+	group, isAdmin := getGroupAndRoleFromRoles(roles)
+	needUpdate := false
+	if group != "" && user.Group != group {
 		user.Group = group
+		needUpdate = true
+	}
+	if isAdmin && user.Role < common.RoleAdminUser {
+		user.Role = common.RoleAdminUser
+		needUpdate = true
+	}
+	if needUpdate {
 		if err := user.Update(false); err != nil {
-			common.SysLog("OIDC 更新用户组失败: " + err.Error())
+			common.SysLog("OIDC 更新用户信息失败: " + err.Error())
 		}
 	}
 }
@@ -172,8 +179,8 @@ func OidcAuth(c *gin.Context) {
 			})
 			return
 		}
-		// 如果启用了角色声明，更新用户组
-		updateUserGroupFromRoles(&user, oidcUser.Roles)
+		// 如果启用了角色声明，更新用户组和管理员状态
+		updateUserFromRoles(&user, oidcUser.Roles)
 	} else {
 		// 检查是否启用了邮箱自动合并功能
 		if system_setting.GetOIDCSettings().AutoMergeEnabled && oidcUser.Email != "" {
@@ -192,8 +199,8 @@ func OidcAuth(c *gin.Context) {
 				}
 				common.SysLog(fmt.Sprintf("OIDC 自动合并用户成功，用户ID: %d", existingUser.Id))
 				user = existingUser
-				// 如果启用了角色声明，更新用户组
-				updateUserGroupFromRoles(&user, oidcUser.Roles)
+				// 如果启用了角色声明，更新用户组和管理员状态
+				updateUserFromRoles(&user, oidcUser.Roles)
 				if user.Status != common.UserStatusEnabled {
 					c.JSON(http.StatusOK, gin.H{
 						"message": "用户已被封禁",
@@ -219,10 +226,14 @@ func OidcAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "OIDC User"
 			}
-			// 如果启用了角色声明，设置用户组（新用户直接设置，无需更新）
+			// 如果启用了角色声明，设置用户组和管理员状态（新用户直接设置）
 			if system_setting.GetOIDCSettings().RoleClaimEnabled && len(oidcUser.Roles) > 0 {
-				if group := mapRolesToGroup(oidcUser.Roles); group != "" {
+				group, isAdmin := getGroupAndRoleFromRoles(oidcUser.Roles)
+				if group != "" {
 					user.Group = group
+				}
+				if isAdmin {
+					user.Role = common.RoleAdminUser
 				}
 			}
 			err := user.Insert(0)
