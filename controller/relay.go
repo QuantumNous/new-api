@@ -180,6 +180,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relayHandler(c, relayInfo)
 		}
 
+		var token_limit = channel.GetTokenLimit()
+		if token_limit > 0 && tokens > token_limit {
+			newAPIError = types.NewError(fmt.Errorf("prompt tokens (%d) is greater than channel token limit (%d)", tokens, token_limit), types.ErrorCodePromptTokensTooLarge)
+		}
+
 		if newAPIError == nil {
 			return
 		}
