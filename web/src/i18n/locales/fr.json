@@ -2224,7 +2224,7 @@
     "默认用户消息": "Bonjour",
     "默认助手消息": "Bonjour ! Comment puis-je vous aider aujourd'hui ?",
     "可选，用于复现结果": "Optionnel, pour des résultats reproductibles",
-    "随机种子 (留空为随机)": "Graine aléatoire (laisser vide pour aléatoire)"
+    "随机种子 (留空为随机)": "Graine aléatoire (laisser vide pour aléatoire)",
     "默认补全倍率": "Taux de complétion par défaut"
   }
 }
