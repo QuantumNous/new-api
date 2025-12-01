@@ -15,8 +15,8 @@ interface CTAProps {
 }
 
 export function CTA({
-  title = 'Start Building Today',
-  description = 'Sign up, get your API Key, and start your AI application development journey',
+  title,
+  description,
   buttons,
   className,
   isAuthenticated = false,
@@ -26,15 +26,18 @@ export function CTA({
     return null
   }
 
+  const displayTitle = title ?? t('home.cta.title')
+  const displayDescription = description ?? t('home.cta.description')
+
   return (
     <Section className={cn('group relative overflow-hidden', className)}>
       <div className='max-w-container relative z-10 mx-auto flex flex-col items-center gap-6 text-center sm:gap-8'>
         <h2 className='max-w-[640px] text-3xl leading-tight font-semibold sm:text-5xl sm:leading-tight'>
-          {title}
+          {displayTitle}
         </h2>
-        {description && (
+        {displayDescription && (
           <p className='text-muted-foreground max-w-[600px] text-lg'>
-            {description}
+            {displayDescription}
           </p>
         )}
         {buttons || (

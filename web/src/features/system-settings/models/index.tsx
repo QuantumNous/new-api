@@ -17,6 +17,7 @@ const defaultModelSettings: ModelSettings = {
   'gemini.supported_imagine_models': '',
   'gemini.thinking_adapter_enabled': false,
   'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+  'gemini.function_call_thought_signature_enabled': true,
   'claude.model_headers_settings': '',
   'claude.default_max_tokens': '',
   'claude.thinking_adapter_enabled': true,
@@ -92,6 +93,8 @@ export function ModelSettings() {
                   settings['gemini.thinking_adapter_enabled'],
                 thinking_adapter_budget_tokens_percentage:
                   settings['gemini.thinking_adapter_budget_tokens_percentage'],
+                function_call_thought_signature_enabled:
+                  settings['gemini.function_call_thought_signature_enabled'],
               },
             }}
           />

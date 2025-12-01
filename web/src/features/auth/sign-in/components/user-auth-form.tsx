@@ -56,6 +56,8 @@ export function UserAuthForm({
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const legalConsentErrorMessage = t('Please agree to the legal terms first')
+  const loginFailedMessage = t('Login failed')
 
   const { status } = useStatus()
   const passkeyLoginEnabled = Boolean(
@@ -117,7 +119,7 @@ export function UserAuthForm({
 
   async function onSubmit(data: z.infer<typeof loginFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
-      toast.error('Please agree to the legal terms first')
+      toast.error(legalConsentErrorMessage)
       return
     }
 
@@ -138,7 +140,7 @@ export function UserAuthForm({
         }
 
         await handleLoginSuccess(res.data, redirectTo)
-        toast.success('Welcome back!')
+        toast.success(t('Welcome back!'))
       }
     } catch (error) {
       // Errors are handled by global interceptor
@@ -149,7 +151,7 @@ export function UserAuthForm({
 
   const handleOpenWeChatDialog = () => {
     if (requiresLegalConsent && !agreedToLegal) {
-      toast.error('Please agree to the legal terms first')
+      toast.error(legalConsentErrorMessage)
       return
     }
 
@@ -166,7 +168,7 @@ export function UserAuthForm({
 
   async function handleWeChatLogin() {
     if (!wechatCode.trim()) {
-      toast.error('Please enter the verification code')
+      toast.error(t('Please enter the verification code'))
       return
     }
 
@@ -175,13 +177,13 @@ export function UserAuthForm({
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
         await handleLoginSuccess(res.data, redirectTo)
-        toast.success('Signed in via WeChat')
+        toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {
-        toast.error(res?.message || 'Login failed')
+        toast.error(res?.message || loginFailedMessage)
       }
     } catch (error) {
-      toast.error('Login failed')
+      toast.error(loginFailedMessage)
     } finally {
       setIsWeChatSubmitting(false)
     }
@@ -189,17 +191,17 @@ export function UserAuthForm({
 
   async function handlePasskeyLogin() {
     if (requiresLegalConsent && !agreedToLegal) {
-      toast.error('Please agree to the legal terms first')
+      toast.error(legalConsentErrorMessage)
       return
     }
 
     if (!passkeySupported) {
-      toast.error('Passkey is not supported on this device')
+      toast.error(t('Passkey is not supported on this device'))
       return
     }
 
     if (!navigator?.credentials) {
-      toast.error('Passkey is not available in this browser')
+      toast.error(t('Passkey is not available in this browser'))
       return
     }
 
@@ -207,7 +209,9 @@ export function UserAuthForm({
     try {
       const begin = await beginPasskeyLogin()
       if (!begin.success) {
-        throw new Error(begin.message || 'Failed to start Passkey login')
+        throw new Error(
+          begin.message || t('Failed to start Passkey login')
+        )
       }
 
       const publicKey = prepareCredentialRequestOptions(
@@ -219,36 +223,40 @@ export function UserAuthForm({
       })) as PublicKeyCredential | null
 
       if (!credential) {
-        toast.info('Passkey login was cancelled')
+        toast.info(t('Passkey login was cancelled'))
         return
       }
 
       const assertion = buildAssertionResult(credential)
       if (!assertion) {
-        throw new Error('Invalid Passkey response')
+        throw new Error(t('Invalid Passkey response'))
       }
 
       const finish = await finishPasskeyLogin(assertion)
       if (!finish.success) {
-        throw new Error(finish.message || 'Failed to complete Passkey login')
+        throw new Error(
+          finish.message || t('Failed to complete Passkey login')
+        )
       }
 
       if (!finish.data) {
-        throw new Error('Missing user data from Passkey login response')
+        throw new Error(
+          t('Missing user data from Passkey login response')
+        )
       }
 
       await handleLoginSuccess(
         finish.data as { id?: number } | null,
         redirectTo
       )
-      toast.success('Signed in with Passkey')
+      toast.success(t('Signed in with Passkey'))
     } catch (error: any) {
       if (error?.name === 'NotAllowedError') {
-        toast.info('Passkey login was cancelled or timed out')
+        toast.info(t('Passkey login was cancelled or timed out'))
       } else if (error instanceof Error) {
         toast.error(error.message)
       } else {
-        toast.error('Passkey login failed')
+        toast.error(t('Passkey login failed'))
       }
     } finally {
       setIsPasskeyLoading(false)
@@ -268,9 +276,12 @@ export function UserAuthForm({
           name='username'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Username or Email</FormLabel>
+              <FormLabel>{t('Username or Email')}</FormLabel>
               <FormControl>
-                <Input placeholder='Enter your username or email' {...field} />
+                <Input
+                  placeholder={t('Enter your username or email')}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -283,16 +294,19 @@ export function UserAuthForm({
           name='password'
           render={({ field }) => (
             <FormItem className='relative'>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>{t('Password')}</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='Enter password' {...field} />
+                <PasswordInput
+                  placeholder={t('Enter password')}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
               <Link
                 to='/forgot-password'
                 className='text-muted-foreground absolute end-0 -top-0.5 text-sm font-medium hover:opacity-75'
               >
-                Forgot password?
+                {t('Forgot password?')}
               </Link>
             </FormItem>
           )}

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -26,9 +27,11 @@ interface FooterProps {
 
 // Reusable link component that handles both internal and external links
 function FooterLink({ link }: { link: FooterLink }) {
+  const { t } = useTranslation()
   const isExternal = link.href.startsWith('http')
   const className =
     'text-muted-foreground hover:text-foreground text-sm transition-colors'
+  const label = t(link.text)
 
   if (isExternal) {
     return (
@@ -38,14 +41,14 @@ function FooterLink({ link }: { link: FooterLink }) {
         rel='noopener noreferrer'
         className={className}
       >
-        {link.text}
+        {label}
       </a>
     )
   }
 
   return (
     <Link to={link.href} className={className}>
-      {link.text}
+      {label}
     </Link>
   )
 }
@@ -53,65 +56,8 @@ function FooterLink({ link }: { link: FooterLink }) {
 export function Footer({
   logo = '/logo.png',
   name = 'New API',
-  columns = [
-    {
-      title: 'About Us',
-      links: [
-        {
-          text: 'About Project',
-          href: 'https://docs.newapi.pro/wiki/project-introduction/',
-        },
-        {
-          text: 'Contact Us',
-          href: 'https://docs.newapi.pro/support/community-interaction/',
-        },
-        {
-          text: 'Features',
-          href: 'https://docs.newapi.pro/wiki/features-introduction/',
-        },
-      ],
-    },
-    {
-      title: 'Documentation',
-      links: [
-        {
-          text: 'Quick Start',
-          href: 'https://docs.newapi.pro/getting-started/',
-        },
-        {
-          text: 'Installation Guide',
-          href: 'https://docs.newapi.pro/installation/',
-        },
-        { text: 'API Documentation', href: 'https://docs.newapi.pro/api/' },
-      ],
-    },
-    {
-      title: 'Related Projects',
-      links: [
-        { text: 'One API', href: 'https://github.com/songquanpeng/one-api' },
-        {
-          text: 'Midjourney-Proxy',
-          href: 'https://github.com/novicezk/midjourney-proxy',
-        },
-        {
-          text: 'neko-api-key-tool',
-          href: 'https://github.com/Calcium-Ion/neko-api-key-tool',
-        },
-      ],
-    },
-    {
-      title: 'Friend Links',
-      links: [
-        {
-          text: 'new-api-horizon',
-          href: 'https://github.com/Calcium-Ion/new-api-horizon',
-        },
-        { text: 'CoAI', href: 'https://github.com/coaidev/coai' },
-        { text: 'GPT-Load', href: 'https://www.gpt-load.com/' },
-      ],
-    },
-  ],
-  copyright = 'All rights reserved.',
+  columns,
+  copyright,
   policies = [],
   showThemeToggle = false,
   className,
@@ -129,6 +75,83 @@ export function Footer({
   const displayName = systemName || name
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
+
+  const fallbackColumns = useMemo<FooterColumnProps[]>(
+    () => [
+      {
+        title: t('footer.columns.about.title'),
+        links: [
+          {
+            text: t('footer.columns.about.links.aboutProject'),
+            href: 'https://docs.newapi.pro/wiki/project-introduction/',
+          },
+          {
+            text: t('footer.columns.about.links.contact'),
+            href: 'https://docs.newapi.pro/support/community-interaction/',
+          },
+          {
+            text: t('footer.columns.about.links.features'),
+            href: 'https://docs.newapi.pro/wiki/features-introduction/',
+          },
+        ],
+      },
+      {
+        title: t('footer.columns.docs.title'),
+        links: [
+          {
+            text: t('footer.columns.docs.links.quickStart'),
+            href: 'https://docs.newapi.pro/getting-started/',
+          },
+          {
+            text: t('footer.columns.docs.links.installation'),
+            href: 'https://docs.newapi.pro/installation/',
+          },
+          {
+            text: t('footer.columns.docs.links.apiDocs'),
+            href: 'https://docs.newapi.pro/api/',
+          },
+        ],
+      },
+      {
+        title: t('footer.columns.related.title'),
+        links: [
+          {
+            text: t('footer.columns.related.links.oneApi'),
+            href: 'https://github.com/songquanpeng/one-api',
+          },
+          {
+            text: t('footer.columns.related.links.midjourney'),
+            href: 'https://github.com/novicezk/midjourney-proxy',
+          },
+          {
+            text: t('footer.columns.related.links.neko'),
+            href: 'https://github.com/Calcium-Ion/neko-api-key-tool',
+          },
+        ],
+      },
+      {
+        title: t('footer.columns.friends.title'),
+        links: [
+          {
+            text: t('footer.columns.friends.links.horizon'),
+            href: 'https://github.com/Calcium-Ion/new-api-horizon',
+          },
+          {
+            text: t('footer.columns.friends.links.coai'),
+            href: 'https://github.com/coaidev/coai',
+          },
+          {
+            text: t('footer.columns.friends.links.gptLoad'),
+            href: 'https://www.gpt-load.com/',
+          },
+        ],
+      },
+    ],
+    [t]
+  )
+
+  const displayColumns = columns ?? fallbackColumns
+  const fallbackCopyright = copyright ?? t('footer.defaultCopyright')
 
   // If custom footer HTML is provided, render it
   if (footerHtml) {
@@ -163,9 +186,11 @@ export function Footer({
             </div>
 
             {/* Links Columns */}
-            {columns.map((column, index) => (
+            {displayColumns.map((column, index) => (
               <div key={index} className='flex flex-col gap-4'>
-                <h3 className='pt-1 text-sm font-semibold'>{column.title}</h3>
+                <h3 className='pt-1 text-sm font-semibold'>
+                  {t(column.title)}
+                </h3>
                 <div className='flex flex-col gap-2'>
                   {column.links.map((link, linkIndex) => (
                     <FooterLink key={linkIndex} link={link} />
@@ -184,7 +209,7 @@ export function Footer({
           )}
         >
           <div className='text-muted-foreground text-sm'>
-            © {currentYear} {displayName}. {copyright}
+            © {currentYear} {displayName}. {fallbackCopyright}
           </div>
           <div className='flex items-center gap-2'>
             {policies.map((policy, index) => (

@@ -134,12 +134,12 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {useBackupCode ? 'Backup Code' : 'Verification Code'}
+                {useBackupCode ? t('Backup Code') : t('Verification Code')}
               </FormLabel>
               <FormControl>
                 {useBackupCode ? (
                   <Input
-                    placeholder='Enter backup code (e.g., CAWD-OQDV)'
+                    placeholder={t('Enter backup code (e.g., CAWD-OQDV)')}
                     {...field}
                     maxLength={BACKUP_CODE_LENGTH}
                     autoComplete='off'
