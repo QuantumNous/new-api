@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { ChevronDownIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -20,9 +21,11 @@ interface DateTimePickerProps {
 export function DateTimePicker({
   value,
   onChange,
-  placeholder = 'Select date',
+  placeholder,
   className,
 }: DateTimePickerProps) {
+  const { t } = useTranslation()
+  const placeholderText = placeholder ?? t('Select date')
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(value)
   const [month, setMonth] = React.useState<Date | undefined>(value)
@@ -85,7 +88,7 @@ export function DateTimePicker({
               !date && 'text-muted-foreground'
             )}
           >
-            {date ? date.toLocaleDateString() : placeholder}
+            {date ? date.toLocaleDateString() : placeholderText}
             <ChevronDownIcon className='h-4 w-4 opacity-50' />
           </Button>
         </PopoverTrigger>

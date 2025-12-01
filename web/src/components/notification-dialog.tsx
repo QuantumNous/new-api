@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { Bell, Megaphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getAnnouncementColorClass } from '@/lib/colors'
@@ -30,7 +31,7 @@ interface NotificationDialogProps {
 /**
  * Get relative time string from a date
  */
-function getRelativeTime(publishDate: string | Date): string {
+function getRelativeTime(publishDate: string | Date, t: TFunction): string {
   if (!publishDate) return ''
 
   const now = new Date()
@@ -53,15 +54,28 @@ function getRelativeTime(publishDate: string | Date): string {
   if (diffMs < 0) return formatDateTimeObject(pubDate)
 
   // Return relative time based on difference
-  if (diffSeconds < 60) return 'Just now'
+  if (diffSeconds < 60) return t('Just now')
   if (diffMinutes < 60)
-    return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
-  if (diffWeeks < 4) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`
+    return diffMinutes === 1
+      ? t('1 minute ago')
+      : t('{{count}} minutes ago', { count: diffMinutes })
+  if (diffHours < 24)
+    return diffHours === 1
+      ? t('1 hour ago')
+      : t('{{count}} hours ago', { count: diffHours })
+  if (diffDays < 7)
+    return diffDays === 1
+      ? t('1 day ago')
+      : t('{{count}} days ago', { count: diffDays })
+  if (diffWeeks < 4)
+    return diffWeeks === 1
+      ? t('1 week ago')
+      : t('{{count}} weeks ago', { count: diffWeeks })
   if (diffMonths < 12)
-    return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`
-  if (diffYears < 2) return '1 year ago'
+    return diffMonths === 1
+      ? t('1 month ago')
+      : t('{{count}} months ago', { count: diffMonths })
+  if (diffYears < 2) return t('1 year ago')
 
   // Over 2 years, show specific date
   return formatDateTimeObject(pubDate)
@@ -98,16 +112,18 @@ function EmptyState({ message }: { message: string }) {
 function NoticeContent({
   notice,
   loading,
+  t,
 }: {
   notice: string
   loading: boolean
+  t: TFunction
 }) {
   if (loading) {
-    return <EmptyState message='Loading...' />
+    return <EmptyState message={t('Loading...')} />
   }
 
   if (!notice) {
-    return <EmptyState message='No announcements at this time' />
+    return <EmptyState message={t('No announcements at this time')} />
   }
 
   return (
@@ -123,16 +139,18 @@ function NoticeContent({
 function AnnouncementsContent({
   announcements,
   loading,
+  t,
 }: {
   announcements: any[]
   loading: boolean
+  t: TFunction
 }) {
   if (loading) {
-    return <EmptyState message='Loading...' />
+    return <EmptyState message={t('Loading...')} />
   }
 
   if (announcements.length === 0) {
-    return <EmptyState message='No system announcements' />
+    return <EmptyState message={t('No system announcements')} />
   }
 
   return (
@@ -142,7 +160,9 @@ function AnnouncementsContent({
           const publishDate = item.publishDate
             ? new Date(item.publishDate)
             : null
-          const relativeTime = publishDate ? getRelativeTime(publishDate) : ''
+          const relativeTime = publishDate
+            ? getRelativeTime(publishDate, t)
+            : ''
           const absoluteTime = publishDate
             ? formatDateTimeObject(publishDate)
             : ''
@@ -218,13 +238,14 @@ export function NotificationDialog({
           </TabsList>
 
           <TabsContent value='notice' className='mt-4'>
-            <NoticeContent notice={notice} loading={loading} />
+            <NoticeContent notice={notice} loading={loading} t={t} />
           </TabsContent>
 
           <TabsContent value='announcements' className='mt-4'>
             <AnnouncementsContent
               announcements={announcements}
               loading={loading}
+              t={t}
             />
           </TabsContent>
         </Tabs>

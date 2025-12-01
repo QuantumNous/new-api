@@ -378,9 +378,11 @@ export type PromptInputActionAddAttachmentsProps = ComponentProps<
 }
 
 export const PromptInputActionAddAttachments = ({
-  label = 'Add photos or files',
+  label,
   ...props
 }: PromptInputActionAddAttachmentsProps) => {
+  const { t } = useTranslation()
+  const resolvedLabel = label ?? t('Add photos or files')
   const attachments = usePromptInputAttachments()
 
   return (
@@ -391,7 +393,7 @@ export const PromptInputActionAddAttachments = ({
         attachments.openFileDialog()
       }}
     >
-      <ImageIcon className='mr-2 size-4' /> {label}
+      <ImageIcon className='mr-2 size-4' /> {resolvedLabel}
     </DropdownMenuItem>
   )
 }
@@ -490,7 +492,7 @@ export const PromptInput = ({
       if (incoming.length && accepted.length === 0) {
         onError?.({
           code: 'accept',
-          message: 'No files match the accepted types.',
+          message: t('No files match the accepted types.'),
         })
         return
       }
@@ -500,7 +502,7 @@ export const PromptInput = ({
       if (accepted.length > 0 && sized.length === 0) {
         onError?.({
           code: 'max_file_size',
-          message: 'All files exceed the maximum size.',
+          message: t('All files exceed the maximum size.'),
         })
         return
       }
@@ -515,7 +517,7 @@ export const PromptInput = ({
         if (typeof capacity === 'number' && sized.length > capacity) {
           onError?.({
             code: 'max_files',
-            message: 'Too many files. Some were not added.',
+            message: t('Too many files. Some were not added.'),
           })
         }
         const next: (FileUIPart & { id: string })[] = []
@@ -773,11 +775,13 @@ export type PromptInputTextareaProps = ComponentProps<typeof InputGroupTextarea>
 export const PromptInputTextarea = ({
   onChange,
   className,
-  placeholder = 'What would you like to know?',
+  placeholder,
   ...props
 }: PromptInputTextareaProps) => {
+  const { t } = useTranslation()
   const controller = useOptionalPromptInputController()
   const attachments = usePromptInputAttachments()
+  const resolvedPlaceholder = placeholder ?? t('What would you like to know?')
   const [isComposing, setIsComposing] = useState(false)
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
@@ -853,7 +857,7 @@ export const PromptInputTextarea = ({
       onCompositionStart={() => setIsComposing(true)}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
-      placeholder={placeholder}
+      placeholder={resolvedPlaceholder}
       {...props}
       {...controlledProps}
     />

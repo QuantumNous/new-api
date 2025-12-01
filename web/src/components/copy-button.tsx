@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -28,12 +29,17 @@ export function CopyButton({
   iconClassName,
   variant = 'ghost',
   size = 'icon',
-  tooltip = 'Copy to clipboard',
-  successTooltip = 'Copied!',
-  'aria-label': ariaLabel = 'Copy to clipboard',
+  tooltip,
+  successTooltip,
+  'aria-label': ariaLabel,
 }: CopyButtonProps) {
+  const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const isCopied = copiedText === value
+  const resolvedTooltip = tooltip ?? t('Copy to clipboard')
+  const resolvedSuccessTooltip = successTooltip ?? t('Copied!')
+  const resolvedAriaLabel = ariaLabel ?? resolvedTooltip
+  const copiedAriaLabel = t('Copied')
 
   const button = (
     <Button
@@ -41,7 +47,7 @@ export function CopyButton({
       size={size}
       className={cn('shrink-0', className)}
       onClick={() => copyToClipboard(value)}
-      aria-label={isCopied ? 'Copied' : ariaLabel}
+      aria-label={isCopied ? copiedAriaLabel : resolvedAriaLabel}
     >
       {isCopied ? (
         <Check className={cn('text-green-600', iconClassName)} />
@@ -57,7 +63,7 @@ export function CopyButton({
       <Tooltip>
         <TooltipTrigger asChild>{button}</TooltipTrigger>
         <TooltipContent>
-          <p>{isCopied ? successTooltip : tooltip}</p>
+          <p>{isCopied ? resolvedSuccessTooltip : resolvedTooltip}</p>
         </TooltipContent>
       </Tooltip>
     )

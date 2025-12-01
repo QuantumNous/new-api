@@ -29,10 +29,10 @@ export function JsonEditor({
   value,
   onChange,
   disabled = false,
-  keyPlaceholder = 'key',
-  valuePlaceholder = 'value',
-  keyLabel = 'Key',
-  valueLabel = 'Value',
+  keyPlaceholder,
+  valuePlaceholder,
+  keyLabel,
+  valueLabel,
   emptyMessage,
   template,
   valueType = 'string',
@@ -40,6 +40,10 @@ export function JsonEditor({
   const { t } = useTranslation()
   const resolvedEmptyMessage =
     emptyMessage ?? t('No mappings configured. Click "Add Row" to get started.')
+  const resolvedKeyPlaceholder = keyPlaceholder ?? t('Key')
+  const resolvedValuePlaceholder = valuePlaceholder ?? t('Value')
+  const resolvedKeyLabel = keyLabel ?? t('Key')
+  const resolvedValueLabel = valueLabel ?? t('Value')
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<EditorRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
@@ -203,8 +207,8 @@ export function JsonEditor({
           {rows.length > 0 ? (
             <div className='space-y-2'>
               <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
-                <div>{keyLabel}</div>
-                <div>{valueLabel}</div>
+                <div>{resolvedKeyLabel}</div>
+                <div>{resolvedValueLabel}</div>
                 <div className='w-10'></div>
               </div>
               {rows.map((row) => (
@@ -217,7 +221,7 @@ export function JsonEditor({
                     onChange={(e) =>
                       handleRowChange(row.id, 'key', e.target.value)
                     }
-                    placeholder={keyPlaceholder}
+                    placeholder={resolvedKeyPlaceholder}
                     disabled={disabled}
                   />
                   <Input
@@ -225,7 +229,7 @@ export function JsonEditor({
                     onChange={(e) =>
                       handleRowChange(row.id, 'value', e.target.value)
                     }
-                    placeholder={valuePlaceholder}
+                    placeholder={resolvedValuePlaceholder}
                     disabled={disabled}
                   />
                   <Button

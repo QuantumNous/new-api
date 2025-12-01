@@ -5,6 +5,7 @@ import {
   type Table,
 } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Card } from '@/components/ui/card'
 import {
   Empty,
@@ -42,10 +43,13 @@ function renderCellContent<TData>(cell: Cell<TData, unknown>): React.ReactNode {
 export function MobileCardList<TData>({
   table,
   isLoading = false,
-  emptyTitle = 'No Data',
-  emptyDescription = 'No data available',
+  emptyTitle,
+  emptyDescription,
   getRowKey,
 }: MobileCardListProps<TData>) {
+  const { t } = useTranslation()
+  const resolvedEmptyTitle = emptyTitle ?? t('No Data')
+  const resolvedEmptyDescription = emptyDescription ?? t('No data available')
   const visibleColumns = table
     .getVisibleLeafColumns()
     .filter((column) => column.id !== 'select')
@@ -91,8 +95,8 @@ export function MobileCardList<TData>({
             <EmptyMedia variant='icon'>
               <Database className='size-6' />
             </EmptyMedia>
-            <EmptyTitle>{emptyTitle}</EmptyTitle>
-            <EmptyDescription>{emptyDescription}</EmptyDescription>
+            <EmptyTitle>{resolvedEmptyTitle}</EmptyTitle>
+            <EmptyDescription>{resolvedEmptyDescription}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </div>

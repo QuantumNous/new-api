@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Command as CommandPrimitive } from 'cmdk'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Command, CommandGroup, CommandItem } from '@/components/ui/command'
 
@@ -21,9 +22,11 @@ export function MultiSelect({
   options,
   selected,
   onChange,
-  placeholder = 'Select items...',
+  placeholder,
   className,
 }: MultiSelectProps) {
+  const { t } = useTranslation()
+  const resolvedPlaceholder = placeholder ?? t('Select items...')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState('')
@@ -86,7 +89,7 @@ export function MultiSelect({
             onValueChange={setInputValue}
             onBlur={() => setOpen(false)}
             onFocus={() => setOpen(true)}
-            placeholder={selected.length === 0 ? placeholder : ''}
+            placeholder={selected.length === 0 ? resolvedPlaceholder : ''}
             className='placeholder:text-muted-foreground flex-1 bg-transparent outline-none'
           />
         </div>

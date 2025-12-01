@@ -32,7 +32,7 @@ type DataTableToolbarProps<TData> = {
 
 export function DataTableToolbar<TData>({
   table,
-  searchPlaceholder = 'Filter...',
+  searchPlaceholder,
   searchKey,
   filters = [],
   customSearch,
@@ -41,6 +41,7 @@ export function DataTableToolbar<TData>({
   onReset,
 }: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t('Filter...')
   const isFiltered =
     table.getState().columnFilters.length > 0 ||
     table.getState().globalFilter ||
@@ -53,7 +54,7 @@ export function DataTableToolbar<TData>({
           customSearch
         ) : searchKey ? (
           <Input
-            placeholder={searchPlaceholder}
+            placeholder={resolvedSearchPlaceholder}
             value={
               (table.getColumn(searchKey)?.getFilterValue() as string) ?? ''
             }
@@ -64,7 +65,7 @@ export function DataTableToolbar<TData>({
           />
         ) : (
           <Input
-            placeholder={searchPlaceholder}
+            placeholder={resolvedSearchPlaceholder}
             value={table.getState().globalFilter ?? ''}
             onChange={(event) => table.setGlobalFilter(event.target.value)}
             className='h-8 w-full sm:w-[150px] lg:w-[250px]'

@@ -1,4 +1,5 @@
 import { Database } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import {
   Empty,
   EmptyDescription,
@@ -40,11 +41,15 @@ interface TableEmptyProps {
  */
 export function TableEmpty({
   colSpan,
-  title = 'No Data',
-  description = 'No records found. Try adjusting your filters.',
+  title,
+  description,
   icon,
   children,
 }: TableEmptyProps) {
+  const { t } = useTranslation()
+  const resolvedTitle = title ?? t('No Data')
+  const resolvedDescription =
+    description ?? t('No records found. Try adjusting your filters.')
   return (
     <TableRow>
       <TableCell colSpan={colSpan} className='h-[400px] p-0'>
@@ -53,8 +58,8 @@ export function TableEmpty({
             <EmptyMedia variant='icon'>
               {icon || <Database className='size-6' />}
             </EmptyMedia>
-            <EmptyTitle>{title}</EmptyTitle>
-            <EmptyDescription>{description}</EmptyDescription>
+            <EmptyTitle>{resolvedTitle}</EmptyTitle>
+            <EmptyDescription>{resolvedDescription}</EmptyDescription>
           </EmptyHeader>
           {children}
         </Empty>
