@@ -180,6 +180,14 @@ func GetChannelTypeName(channelType int) string {
 	}
 	return "Unknown"
 }
+func IsOfficialUrl(baseURL string) bool {
+	for _, url := range ChannelBaseURLs {
+		if baseURL == url {
+			return true
+		}
+	}
+	return false
+}
 
 type ChannelSpecialBase struct {
 	ClaudeBaseURL string

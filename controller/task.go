@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/task/suno"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -116,7 +117,8 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 	if adaptor == nil {
 		return errors.New("adaptor not found")
 	}
-	resp, err := adaptor.FetchTask(*channel.BaseURL, channel.Key, map[string]any{
+	baseUrl := channel.GetBaseURL()
+	resp, err := adaptor.FetchTask(baseUrl, channel.Key, map[string]any{
 		"ids": taskIds,
 	})
 	if err != nil {
@@ -133,15 +135,25 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 		common.SysLog(fmt.Sprintf("Get Task parse body error: %v", err))
 		return err
 	}
+
 	var responseItems dto.TaskResponse[[]dto.SunoDataResponse]
-	err = json.Unmarshal(responseBody, &responseItems)
-	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("Get Task parse body error2: %v, body: %s", err, string(responseBody)))
-		return err
-	}
-	if !responseItems.IsSuccess() {
-		common.SysLog(fmt.Sprintf("渠道 #%d 未完成的任务有: %d, 成功获取到任务数: %d", channelId, len(taskIds), string(responseBody)))
-		return err
+
+	// 判断是否是官方 Suno API
+	if constant.IsOfficialUrl(*channel.BaseURL) {
+		responseItems, err = suno.ParseResponseItems(responseBody)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = json.Unmarshal(responseBody, &responseItems)
+		if err != nil {
+			logger.LogError(ctx, fmt.Sprintf("Get Task parse body error2: %v, body: %s", err, string(responseBody)))
+			return err
+		}
+		if !responseItems.IsSuccess() {
+			common.SysLog(fmt.Sprintf("渠道 #%d 未完成的任务有: %d, 响应: %s", channelId, len(taskIds), string(responseBody)))
+			return errors.New(responseItems.Message)
+		}
 	}
 
 	for _, responseItem := range responseItems.Data {
@@ -152,9 +164,9 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 
 		task.Status = lo.If(model.TaskStatus(responseItem.Status) != "", model.TaskStatus(responseItem.Status)).Else(task.Status)
 		task.FailReason = lo.If(responseItem.FailReason != "", responseItem.FailReason).Else(task.FailReason)
-		task.SubmitTime = lo.If(responseItem.SubmitTime != 0, responseItem.SubmitTime).Else(task.SubmitTime)
-		task.StartTime = lo.If(responseItem.StartTime != 0, responseItem.StartTime).Else(task.StartTime)
-		task.FinishTime = lo.If(responseItem.FinishTime != 0, responseItem.FinishTime).Else(task.FinishTime)
+		task.SubmitTime = lo.If(responseItem.SubmitTime != 0, responseItem.SubmitTime/1000).Else(task.SubmitTime)
+		task.StartTime = lo.If(responseItem.StartTime != 0, responseItem.StartTime/1000).Else(task.StartTime)
+		task.FinishTime = lo.If(responseItem.FinishTime != 0, responseItem.FinishTime/1000).Else(task.FinishTime)
 		if responseItem.FailReason != "" || task.Status == model.TaskStatusFailure {
 			logger.LogInfo(ctx, task.TaskID+" 构建失败，"+task.FailReason)
 			task.Progress = "100%"
@@ -175,6 +187,7 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 		}
 		if responseItem.Status == model.TaskStatusSuccess {
 			task.Progress = "100%"
+			task.Url = responseItem.Url
 		}
 		task.Data = responseItem.Data
 

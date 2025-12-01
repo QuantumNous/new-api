@@ -16,6 +16,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,6 +43,10 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		taskErr = service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 		return
 	}
+	if sunoRequest.CallBackUrl == "" {
+		// 设置默认回调地址, api不准为空, 先预留
+		sunoRequest.CallBackUrl = fmt.Sprintf("%s/suno/callback", system_setting.ServerAddress)
+	}
 	err = actionValidate(c, sunoRequest, action)
 	if err != nil {
 		taskErr = service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
@@ -63,6 +69,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := info.ChannelBaseUrl
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, "/suno/submit/"+info.Action)
+	if constant.IsOfficialUrl(baseURL) {
+		switch info.Action {
+		case constant.SunoActionMusic:
+			fullRequestURL = fmt.Sprintf("%s/api/v1/generate", baseURL)
+		}
+	}
 	return fullRequestURL, nil
 }
 
@@ -93,6 +105,10 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+	if constant.IsOfficialUrl(info.ChannelBaseUrl) {
+		return a.DoResponseOfficial(c, resp, info)
+	}
+
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
@@ -101,6 +117,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	var sunoResponse dto.TaskResponse[string]
 	err = json.Unmarshal(responseBody, &sunoResponse)
 	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("response body: %s", string(responseBody)))
 		taskErr = service.TaskErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
@@ -133,6 +150,10 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+	if constant.IsOfficialUrl(baseUrl) {
+		return a.FetchTaskOfficial(baseUrl, key, body)
+	}
+
 	requestUrl := fmt.Sprintf("%s/suno/fetch", baseUrl)
 	byteBody, err := json.Marshal(body)
 	if err != nil {
