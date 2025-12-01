@@ -1,48 +1,11 @@
 import type { SystemStatus, OAuthProvider } from '../types'
 
-// ============================================================================
-// OAuth URL Builders
-// ============================================================================
-
-/**
- * Build GitHub OAuth URL
- */
-export function buildGitHubOAuthUrl(clientId: string, state: string): string {
-  return `https://github.com/login/oauth/authorize?client_id=${clientId}&state=${state}&scope=user:email`
-}
-
-/**
- * Build OIDC OAuth URL
- */
-export function buildOIDCOAuthUrl(
-  authEndpoint: string,
-  clientId: string,
-  state: string
-): string {
-  const url = new URL(authEndpoint)
-  url.searchParams.set('client_id', clientId)
-  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`)
-  url.searchParams.set('response_type', 'code')
-  url.searchParams.set('scope', 'openid profile email')
-  url.searchParams.set('state', state)
-  return url.toString()
-}
-
-/**
- * Build Discord OAuth URL
- */
-export function buildDiscordOAuthUrl(clientId: string, state: string): string {
-  const redirectUri = `${window.location.origin}/oauth?provider=discord`
-  const scope = 'identify+openid'
-  return `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${state}`
-}
-
-/**
- * Build LinuxDO OAuth URL
- */
-export function buildLinuxDOOAuthUrl(clientId: string, state: string): string {
-  return `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${clientId}&state=${state}`
-}
+export {
+  buildGitHubOAuthUrl,
+  buildDiscordOAuthUrl,
+  buildOIDCOAuthUrl,
+  buildLinuxDOOAuthUrl,
+} from '@/lib/oauth'
 
 // ============================================================================
 // OAuth Providers Utilities

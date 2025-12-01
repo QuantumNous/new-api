@@ -2,9 +2,11 @@ import { useEffect, useMemo } from 'react'
 import { Mail, Github, Shield, Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SiWechat, SiLinux } from 'react-icons/si'
+import { IconDiscord } from '@/assets/brand-icons'
 import {
   handleGitHubOAuth,
   handleOIDCOAuth,
+  handleDiscordOAuth,
   handleLinuxDOOAuth,
 } from '@/lib/oauth'
 import { useDialogs } from '@/hooks/use-dialog'
@@ -97,6 +99,19 @@ export function AccountBindingsTab({
         onBind: () => {
           if (status?.github_client_id) {
             handleGitHubOAuth(status.github_client_id)
+          }
+        },
+      },
+      {
+        id: 'discord',
+        label: t('Discord'),
+        icon: IconDiscord,
+        value: (profile as any).discord_id,
+        isBound: Boolean((profile as any).discord_id),
+        isEnabled: status?.discord_oauth || false,
+        onBind: () => {
+          if (status?.discord_client_id) {
+            handleDiscordOAuth(status.discord_client_id)
           }
         },
       },
