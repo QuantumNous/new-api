@@ -98,10 +98,12 @@ export function UsersMutateDrawer({
   const currencyLabel = getCurrencyLabel()
   const tokensOnly =
     !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
-  const quotaLabel = `Remaining Quota (${currencyLabel})`
+  const quotaLabel = t('Remaining Quota ({{currency}})', {
+    currency: currencyLabel,
+  })
   const quotaPlaceholder = tokensOnly
-    ? 'Enter quota in tokens'
-    : `Enter quota in ${currencyLabel}`
+    ? t('Enter quota in tokens')
+    : t('Enter quota in {{currency}}', { currency: currencyLabel })
 
   const onSubmit = async (data: UserFormValues) => {
     setIsSubmitting(true)
@@ -259,8 +261,8 @@ export function UsersMutateDrawer({
                           type='password'
                           placeholder={
                             isUpdate
-                              ? 'Leave empty to keep unchanged'
-                              : 'Enter password (min 8 characters)'
+                              ? t('Leave empty to keep unchanged')
+                              : t('Enter password (min 8 characters)')
                           }
                         />
                       </FormControl>
@@ -378,7 +380,7 @@ export function UsersMutateDrawer({
                     {BINDING_FIELDS.map(({ key, label }) => (
                       <div key={key}>
                         <label className='text-muted-foreground text-xs font-medium'>
-                          {label}
+                          {t(label)}
                         </label>
                         <Input
                           value={

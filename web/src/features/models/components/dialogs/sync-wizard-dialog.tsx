@@ -18,7 +18,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { syncUpstream, previewUpstreamDiff } from '../../api'
-import { SYNC_LOCALE_OPTIONS, SYNC_SOURCE_OPTIONS } from '../../constants'
+import { getSyncLocaleOptions, getSyncSourceOptions } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import type { SyncLocale, SyncSource } from '../../types'
 import { useModels } from '../models-provider'
@@ -45,6 +45,10 @@ export function SyncWizardDialog({
   const [source, setSource] = useState<SyncSource>('official')
   const [isSyncing, setIsSyncing] = useState(false)
 
+  // Get translated options
+  const SYNC_SOURCE_OPTIONS = getSyncSourceOptions(t)
+  const SYNC_LOCALE_OPTIONS = getSyncLocaleOptions(t)
+
   useEffect(() => {
     if (open) {
       setLocale(syncWizardOptions.locale || 'zh')
@@ -57,7 +61,7 @@ export function SyncWizardDialog({
           : 'official'
       )
     }
-  }, [open, syncWizardOptions])
+  }, [open, syncWizardOptions, SYNC_SOURCE_OPTIONS])
 
   const handleSync = async () => {
     setIsSyncing(true)

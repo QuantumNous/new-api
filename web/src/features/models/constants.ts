@@ -1,3 +1,4 @@
+import { type TFunction } from 'i18next'
 import type { NameRule, ModelStatus, SyncSource } from './types'
 
 // ============================================================================
@@ -10,77 +11,89 @@ export const DEFAULT_PAGE_SIZE = 20
 // Name Rule Options
 // ============================================================================
 
-export const NAME_RULE_OPTIONS = [
-  { label: 'Exact Match', value: 0 as NameRule },
-  { label: 'Prefix Match', value: 1 as NameRule },
-  { label: 'Contains Match', value: 2 as NameRule },
-  { label: 'Suffix Match', value: 3 as NameRule },
-] as const
+export function getNameRuleOptions(t: TFunction) {
+  return [
+    { label: t('Exact Match'), value: 0 as NameRule },
+    { label: t('Prefix Match'), value: 1 as NameRule },
+    { label: t('Contains Match'), value: 2 as NameRule },
+    { label: t('Suffix Match'), value: 3 as NameRule },
+  ] as const
+}
 
-export const NAME_RULE_CONFIG: Record<
-  NameRule,
-  { label: string; color: string; description: string }
-> = {
-  0: {
-    label: 'Exact',
-    color: 'green',
-    description: 'Match model name exactly',
-  },
-  1: {
-    label: 'Prefix',
-    color: 'blue',
-    description: 'Match models starting with this name',
-  },
-  2: {
-    label: 'Contains',
-    color: 'orange',
-    description: 'Match models containing this name',
-  },
-  3: {
-    label: 'Suffix',
-    color: 'purple',
-    description: 'Match models ending with this name',
-  },
+export function getNameRuleConfig(
+  t: TFunction
+): Record<NameRule, { label: string; color: string; description: string }> {
+  return {
+    0: {
+      label: t('Exact'),
+      color: 'green',
+      description: t('Match model name exactly'),
+    },
+    1: {
+      label: t('Prefix'),
+      color: 'blue',
+      description: t('Match models starting with this name'),
+    },
+    2: {
+      label: t('Contains'),
+      color: 'orange',
+      description: t('Match models containing this name'),
+    },
+    3: {
+      label: t('Suffix'),
+      color: 'purple',
+      description: t('Match models ending with this name'),
+    },
+  }
 }
 
 // ============================================================================
 // Model Status
 // ============================================================================
 
-export const MODEL_STATUS_OPTIONS = [
-  { label: 'All Status', value: 'all' },
-  { label: 'Enabled', value: 'enabled' },
-  { label: 'Disabled', value: 'disabled' },
-] as const
+export function getModelStatusOptions(t: TFunction) {
+  return [
+    { label: t('All Status'), value: 'all' },
+    { label: t('Enabled'), value: 'enabled' },
+    { label: t('Disabled'), value: 'disabled' },
+  ] as const
+}
 
-export const MODEL_STATUS_CONFIG: Record<
+export function getModelStatusConfig(
+  t: TFunction
+): Record<
   ModelStatus,
   { label: string; variant: 'success' | 'neutral'; showDot?: boolean }
-> = {
-  1: { label: 'Enabled', variant: 'success', showDot: true },
-  0: { label: 'Disabled', variant: 'neutral' },
+> {
+  return {
+    1: { label: t('Enabled'), variant: 'success', showDot: true },
+    0: { label: t('Disabled'), variant: 'neutral' },
+  }
 }
 
 // ============================================================================
 // Sync Status Options
 // ============================================================================
 
-export const SYNC_STATUS_OPTIONS = [
-  { label: 'All Sync Status', value: 'all' },
-  { label: 'Official Sync', value: 'yes' },
-  { label: 'No Sync', value: 'no' },
-] as const
+export function getSyncStatusOptions(t: TFunction) {
+  return [
+    { label: t('All Sync Status'), value: 'all' },
+    { label: t('Official Sync'), value: 'yes' },
+    { label: t('No Sync'), value: 'no' },
+  ] as const
+}
 
 // ============================================================================
 // Quota Type
 // ============================================================================
 
-export const QUOTA_TYPE_CONFIG: Record<
-  number,
-  { label: string; color: string }
-> = {
-  0: { label: 'Usage-based', color: 'violet' },
-  1: { label: 'Per-call', color: 'teal' },
+export function getQuotaTypeConfig(
+  t: TFunction
+): Record<number, { label: string; color: string }> {
+  return {
+    0: { label: t('Usage-based'), color: 'violet' },
+    1: { label: t('Per-call'), color: 'teal' },
+  }
 }
 
 // ============================================================================
@@ -104,23 +117,27 @@ export const ENDPOINT_TEMPLATES: Record<
 // Sync Locale Options
 // ============================================================================
 
-export const SYNC_LOCALE_OPTIONS = [
-  { label: 'Chinese', value: 'zh' },
-  { label: 'English', value: 'en' },
-  { label: 'Japanese', value: 'ja' },
-] as const
+export function getSyncLocaleOptions(t: TFunction) {
+  return [
+    { label: t('Chinese'), value: 'zh' },
+    { label: t('English'), value: 'en' },
+    { label: t('Japanese'), value: 'ja' },
+  ] as const
+}
 
-export const SYNC_SOURCE_OPTIONS = [
-  {
-    label: 'Official Repository',
-    value: 'official' as SyncSource,
-    description: 'Sync from the public upstream metadata repository.',
-    disabled: false,
-  },
-  {
-    label: 'Configuration File',
-    value: 'config' as SyncSource,
-    description: 'Upload or reference a local configuration file.',
-    disabled: true,
-  },
-] as const
+export function getSyncSourceOptions(t: TFunction) {
+  return [
+    {
+      label: t('Official Repository'),
+      value: 'official' as SyncSource,
+      description: t('Sync from the public upstream metadata repository.'),
+      disabled: false,
+    },
+    {
+      label: t('Configuration File'),
+      value: 'config' as SyncSource,
+      description: t('Upload or reference a local configuration file.'),
+      disabled: true,
+    },
+  ] as const
+}

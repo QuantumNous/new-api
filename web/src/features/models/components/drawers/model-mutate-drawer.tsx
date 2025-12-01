@@ -54,7 +54,7 @@ import { normalizeJsonString } from '@/features/system-settings/models/utils'
 import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
-import { NAME_RULE_OPTIONS, ENDPOINT_TEMPLATES } from '../../constants'
+import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
@@ -139,6 +139,7 @@ export function ModelMutateDrawer({
       'gemini.supported_imagine_models': '',
       'gemini.thinking_adapter_enabled': false,
       'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+      'gemini.function_call_thought_signature_enabled': false,
       'claude.model_headers_settings': '',
       'claude.default_max_tokens': '',
       'claude.thinking_adapter_enabled': true,
@@ -746,7 +747,7 @@ export function ModelMutateDrawer({
                         value={String(field.value)}
                         className='grid grid-cols-2 gap-4'
                       >
-                        {NAME_RULE_OPTIONS.map((option) => (
+                        {getNameRuleOptions(t).map((option) => (
                           <div
                             key={option.value}
                             className='flex items-center space-x-2'

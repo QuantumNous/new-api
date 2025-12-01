@@ -229,7 +229,7 @@ export function ApiKeysMutateDrawer({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder='Enter a name' />
+                    <Input {...field} placeholder={t('Enter a name')} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -323,7 +323,7 @@ export function ApiKeysMutateDrawer({
               name='expired_time'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expiration Time</FormLabel>
+                  <FormLabel>{t('Expiration Time')}</FormLabel>
                   <div className='space-y-2'>
                     <FormControl>
                       <DateTimePicker

@@ -28,8 +28,8 @@ import { DataTablePagination } from '@/components/data-table/pagination'
 import { getModels, searchModels, getVendors } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
-  MODEL_STATUS_OPTIONS,
-  SYNC_STATUS_OPTIONS,
+  getModelStatusOptions,
+  getSyncStatusOptions,
 } from '../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
@@ -213,12 +213,12 @@ export function ModelsTable() {
       {/* Toolbar with Filters */}
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter by model name...'
+        searchPlaceholder={t('Filter by model name...')}
         filters={[
           {
             columnId: 'status',
             title: 'Status',
-            options: [...MODEL_STATUS_OPTIONS],
+            options: [...getModelStatusOptions(t)],
             singleSelect: true,
           },
           {
@@ -230,7 +230,7 @@ export function ModelsTable() {
           {
             columnId: 'sync_official',
             title: 'Sync Status',
-            options: [...SYNC_STATUS_OPTIONS],
+            options: [...getSyncStatusOptions(t)],
             singleSelect: true,
           },
         ]}

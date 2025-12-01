@@ -1,5 +1,6 @@
+import { type TFunction } from 'i18next'
 import { formatTimestampToDate } from '@/lib/format'
-import { NAME_RULE_CONFIG, QUOTA_TYPE_CONFIG } from '../constants'
+import { getNameRuleConfig, getQuotaTypeConfig } from '../constants'
 import type { NameRule, Model } from '../types'
 
 // ============================================================================
@@ -103,15 +104,17 @@ export function formatEndpointsDisplay(
 /**
  * Get name rule label
  */
-export function getNameRuleLabel(rule: NameRule): string {
-  return NAME_RULE_CONFIG[rule]?.label || '-'
+export function getNameRuleLabelByRule(rule: NameRule, t: TFunction): string {
+  const config = getNameRuleConfig(t)
+  return config[rule]?.label || '-'
 }
 
 /**
- * Get name rule config
+ * Get name rule config by rule
  */
-export function getNameRuleConfig(rule: NameRule) {
-  return NAME_RULE_CONFIG[rule] || NAME_RULE_CONFIG[0]
+export function getNameRuleConfigByRule(rule: NameRule, t: TFunction) {
+  const config = getNameRuleConfig(t)
+  return config[rule] || config[0]
 }
 
 // ============================================================================
@@ -121,11 +124,13 @@ export function getNameRuleConfig(rule: NameRule) {
 /**
  * Format quota types array
  */
-export function formatQuotaTypes(quotaTypes: number[] | undefined): string {
+export function formatQuotaTypes(
+  quotaTypes: number[] | undefined,
+  t: TFunction
+): string {
   if (!quotaTypes || quotaTypes.length === 0) return '-'
-  return quotaTypes
-    .map((qt) => QUOTA_TYPE_CONFIG[qt]?.label || String(qt))
-    .join(', ')
+  const config = getQuotaTypeConfig(t)
+  return quotaTypes.map((qt) => config[qt]?.label || String(qt)).join(', ')
 }
 
 // ============================================================================
