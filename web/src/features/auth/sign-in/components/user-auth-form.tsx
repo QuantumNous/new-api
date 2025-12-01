@@ -209,9 +209,7 @@ export function UserAuthForm({
     try {
       const begin = await beginPasskeyLogin()
       if (!begin.success) {
-        throw new Error(
-          begin.message || t('Failed to start Passkey login')
-        )
+        throw new Error(begin.message || t('Failed to start Passkey login'))
       }
 
       const publicKey = prepareCredentialRequestOptions(
@@ -234,15 +232,11 @@ export function UserAuthForm({
 
       const finish = await finishPasskeyLogin(assertion)
       if (!finish.success) {
-        throw new Error(
-          finish.message || t('Failed to complete Passkey login')
-        )
+        throw new Error(finish.message || t('Failed to complete Passkey login'))
       }
 
       if (!finish.data) {
-        throw new Error(
-          t('Missing user data from Passkey login response')
-        )
+        throw new Error(t('Missing user data from Passkey login response'))
       }
 
       await handleLoginSuccess(
@@ -296,10 +290,7 @@ export function UserAuthForm({
             <FormItem className='relative'>
               <FormLabel>{t('Password')}</FormLabel>
               <FormControl>
-                <PasswordInput
-                  placeholder={t('Enter password')}
-                  {...field}
-                />
+                <PasswordInput placeholder={t('Enter password')} {...field} />
               </FormControl>
               <FormMessage />
               <Link

@@ -211,10 +211,7 @@ export function SignUpForm({
             <FormItem>
               <FormLabel>{t('Username')}</FormLabel>
               <FormControl>
-                <Input
-                  placeholder={t('Enter your username')}
-                  {...field}
-                />
+                <Input placeholder={t('Enter your username')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -247,10 +244,7 @@ export function SignUpForm({
             <FormItem>
               <FormLabel>{t('Confirm password')}</FormLabel>
               <FormControl>
-                <PasswordInput
-                  placeholder={t('Confirm password')}
-                  {...field}
-                />
+                <PasswordInput placeholder={t('Confirm password')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
