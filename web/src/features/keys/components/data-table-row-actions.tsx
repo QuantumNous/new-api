@@ -44,10 +44,12 @@ export function DataTableRowActions<TData>({
       if (preset.type === 'fluent') {
         const success = sendToFluent(apiKey.key, serverAddress)
         if (success) {
-          toast.success('Sent the API key to FluentRead.')
+          toast.success(t('Sent the API key to FluentRead.'))
         } else {
           toast.info(
-            'FluentRead extension not detected. Please ensure it is installed and active.'
+            t(
+              'FluentRead extension not detected. Please ensure it is installed and active.'
+            )
           )
         }
         return
@@ -60,7 +62,7 @@ export function DataTableRowActions<TData>({
       })
 
       if (!resolvedUrl) {
-        toast.error('Invalid chat link. Please contact your administrator.')
+        toast.error(t('Invalid chat link. Please contact your administrator.'))
         return
       }
 
@@ -84,15 +86,15 @@ export function DataTableRowActions<TData>({
       const result = await updateApiKeyStatus(apiKey.id, newStatus)
       if (result.success) {
         const message = isEnabled
-          ? SUCCESS_MESSAGES.API_KEY_DISABLED
-          : SUCCESS_MESSAGES.API_KEY_ENABLED
+          ? t(SUCCESS_MESSAGES.API_KEY_DISABLED)
+          : t(SUCCESS_MESSAGES.API_KEY_ENABLED)
         toast.success(message)
         triggerRefresh()
       } else {
-        toast.error(result.message || ERROR_MESSAGES.STATUS_UPDATE_FAILED)
+        toast.error(result.message || t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
       }
     } catch (_error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     }
   }
 

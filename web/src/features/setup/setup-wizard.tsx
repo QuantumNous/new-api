@@ -84,7 +84,7 @@ export function SetupWizard() {
     mutationFn: submitSetup,
     onSuccess: async (response) => {
       if (response.success) {
-        toast.success('System initialized successfully! Redirecting…')
+        toast.success(t('System initialized successfully! Redirecting…'))
         await queryClient.invalidateQueries({ queryKey: ['setup-status'] })
         setTimeout(() => {
           navigate({ to: '/' })
@@ -96,7 +96,7 @@ export function SetupWizard() {
       }
     },
     onError: () => {
-      toast.error('Failed to initialize system')
+      toast.error(t('Failed to initialize system'))
     },
   })
 
@@ -194,25 +194,25 @@ export function SetupWizard() {
         type: 'manual',
         message: 'Please enter an administrator username',
       })
-      toast.error('Please enter an administrator username')
+      toast.error(t('Please enter an administrator username'))
       return false
     }
 
     if (!password || password.length < 8) {
       form.setError('password', {
         type: 'manual',
-        message: 'Password must be at least 8 characters long',
+        message: t('Password must be at least 8 characters long'),
       })
-      toast.error('Password must be at least 8 characters long')
+      toast.error(t('Password must be at least 8 characters long'))
       return false
     }
 
     if (password !== confirmPassword) {
       form.setError('confirmPassword', {
         type: 'manual',
-        message: 'Passwords do not match',
+        message: t('Passwords do not match'),
       })
-      toast.error('Passwords do not match')
+      toast.error(t('Passwords do not match'))
       return false
     }
 
@@ -224,9 +224,9 @@ export function SetupWizard() {
     if (!usageMode) {
       form.setError('usageMode', {
         type: 'manual',
-        message: 'Select a usage mode to continue',
+        message: t('Select a usage mode to continue'),
       })
-      toast.error('Select a usage mode to continue')
+      toast.error(t('Select a usage mode to continue'))
       return false
     }
     return true

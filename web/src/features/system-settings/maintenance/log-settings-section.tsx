@@ -108,7 +108,7 @@ export function LogSettingsSection({
 
   const handleRequestCleanLogs = () => {
     if (!purgeTimestamp) {
-      toast.error('Select a timestamp before clearing logs.')
+      toast.error(t('Select a timestamp before clearing logs.'))
       return
     }
 
@@ -117,7 +117,7 @@ export function LogSettingsSection({
 
   const handleCleanLogs = async () => {
     if (!purgeTimestamp) {
-      toast.error('Select a timestamp before clearing logs.')
+      toast.error(t('Select a timestamp before clearing logs.'))
       return
     }
 
@@ -125,17 +125,17 @@ export function LogSettingsSection({
     try {
       const res = await deleteLogsBefore(purgeTimestamp)
       if (!res.success) {
-        throw new Error(res.message || 'Failed to clean logs')
+        throw new Error(res.message || t('Failed to clean logs'))
       }
       const count = res.data ?? 0
       toast.success(
         count > 0
-          ? `${count} log entries removed.`
-          : 'No log entries matched the selected time.'
+          ? t('{{count}} log entries removed.', { count })
+          : t('No log entries matched the selected time.')
       )
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to clean logs'
+        error instanceof Error ? error.message : t('Failed to clean logs')
       toast.error(message)
     } finally {
       setIsCleaning(false)
@@ -203,13 +203,13 @@ export function LogSettingsSection({
                 onClick={handleRequestCleanLogs}
                 disabled={isCleaning}
               >
-                {isCleaning ? 'Cleaning...' : 'Clean logs'}
+                {isCleaning ? t('Cleaning...') : t('Clean logs')}
               </Button>
             </div>
           </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save log settings'}
+            {updateOption.isPending ? t('Saving...') : t('Save log settings')}
           </Button>
         </form>
       </Form>
@@ -229,7 +229,7 @@ export function LogSettingsSection({
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleCleanLogs} disabled={isCleaning}>
-              {isCleaning ? 'Cleaning...' : 'Delete logs'}
+              {isCleaning ? t('Cleaning...') : t('Delete logs')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

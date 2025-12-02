@@ -56,7 +56,7 @@ export function JsonToggleSection({
   textareaDescription,
   placeholder,
   example,
-  submitLabel = 'Save changes',
+  submitLabel = 'Save Changes',
   validate,
 }: JsonToggleSectionProps) {
   const { t } = useTranslation()
@@ -184,7 +184,7 @@ export function JsonToggleSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : submitLabel}
+            {updateOption.isPending ? t('Saving...') : t(submitLabel)}
           </Button>
         </form>
       </Form>

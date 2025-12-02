@@ -1,5 +1,6 @@
 import { useState, useRef, KeyboardEvent } from 'react'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -14,10 +15,12 @@ interface TagInputProps {
 export function TagInput({
   value = [],
   onChange,
-  placeholder = 'Add tags...',
+  placeholder,
   className,
   disabled = false,
 }: TagInputProps) {
+  const { t } = useTranslation()
+  const placeholderText = placeholder ?? t('Add tags...')
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -80,7 +83,7 @@ export function TagInput({
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
-        placeholder={value.length === 0 ? placeholder : ''}
+        placeholder={value.length === 0 ? placeholderText : ''}
         disabled={disabled}
         className='placeholder:text-muted-foreground min-w-[120px] flex-1 bg-transparent outline-none'
       />

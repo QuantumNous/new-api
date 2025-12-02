@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
   extractVerificationInfo,
@@ -68,7 +69,9 @@ export function useSecureVerification(
 
       if (!availableMethods.has2FA && !availableMethods.hasPasskey) {
         toast.error(
-          'Please enable Two-factor Authentication or Passkey before proceeding'
+          i18next.t(
+            'Please enable Two-factor Authentication or Passkey before proceeding'
+          )
         )
         onError?.(
           new Error(
@@ -103,13 +106,13 @@ export function useSecureVerification(
   const executeVerification = useCallback(
     async (method?: VerificationMethod, code?: string) => {
       if (!state.apiCall) {
-        toast.error('Verification is not configured properly')
+        toast.error(i18next.t('Verification is not configured properly'))
         return
       }
 
       const actualMethod = method ?? state.method
       if (!actualMethod) {
-        toast.error('Select a verification method first')
+        toast.error(i18next.t('Select a verification method first'))
         return
       }
 
@@ -132,7 +135,9 @@ export function useSecureVerification(
         return result
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Verification failed'
+          error instanceof Error
+            ? error.message
+            : i18next.t('Verification failed')
         toast.error(message)
         onError?.(error)
         throw error

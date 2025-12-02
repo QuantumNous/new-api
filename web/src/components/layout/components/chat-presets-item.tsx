@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ExternalLink, Loader2, ChevronRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   Collapsible,
@@ -27,8 +28,6 @@ import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { normalizeHref } from '../lib/url-utils'
 import type { NavChatPresets } from '../types'
-
-const LOADING_MESSAGE = 'Preparing chat keys…'
 
 /**
  * Check if a preset requires an API key
@@ -113,9 +112,11 @@ function DropdownPresetItem({
  * Dynamic chat presets navigation item
  */
 export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
+  const { t } = useTranslation()
   const { chatPresets, serverAddress } = useChatPresets()
   const { state, isMobile, setOpenMobile } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
+  const loadingMessage = t('Preparing chat keys…')
 
   const visiblePresets = useMemo(
     () => chatPresets.filter((preset) => preset.type !== 'fluent'),
@@ -140,7 +141,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
       const needsKey = requiresApiKey(preset)
 
       if (needsKey && isKeyPending) {
-        toast.info('Preparing your chat link, please try again in a moment.')
+        toast.info(t('Preparing your chat link, please try again in a moment.'))
         return
       }
 
@@ -148,7 +149,9 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
         const message =
           keyError instanceof Error
             ? keyError.message
-            : 'Unable to prepare chat link. Please ensure you have an enabled API key.'
+            : t(
+                'Unable to prepare chat link. Please ensure you have an enabled API key.'
+              )
         toast.error(message)
         return
       }
@@ -160,7 +163,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
       })
 
       if (!url) {
-        toast.error('Invalid chat link. Please contact the administrator.')
+        toast.error(t('Invalid chat link. Please contact the administrator.'))
         return
       }
 
@@ -203,7 +206,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
             {hasKeyDependentPresets && isKeyPending && (
               <DropdownMenuItem disabled>
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                {LOADING_MESSAGE}
+                {loadingMessage}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -242,7 +245,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
               <SidebarMenuSubItem>
                 <SidebarMenuSubButton aria-disabled='true' tabIndex={-1}>
                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  {LOADING_MESSAGE}
+                  {loadingMessage}
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             )}

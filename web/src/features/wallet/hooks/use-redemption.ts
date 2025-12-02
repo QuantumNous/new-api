@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
@@ -13,7 +14,7 @@ export function useRedemption() {
 
   const redeemCode = useCallback(async (code: string): Promise<boolean> => {
     if (!code || code.trim() === '') {
-      toast.error('Please enter a redemption code')
+      toast.error(i18next.t('Please enter a redemption code'))
       return false
     }
 
@@ -24,16 +25,18 @@ export function useRedemption() {
       if (response.success && response.data) {
         const quotaAdded = response.data
         toast.success(
-          `Redemption successful! Added: ${formatQuota(quotaAdded)}`
+          i18next.t('Redemption successful! Added: {{quota}}', {
+            quota: formatQuota(quotaAdded),
+          })
         )
         await getSelf()
         return true
       }
 
-      toast.error(response.message || 'Redemption failed')
+      toast.error(response.message || i18next.t('Redemption failed'))
       return false
     } catch (error) {
-      toast.error('Redemption failed')
+      toast.error(i18next.t('Redemption failed'))
       return false
     } finally {
       setRedeeming(false)

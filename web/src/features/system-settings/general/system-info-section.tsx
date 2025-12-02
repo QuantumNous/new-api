@@ -279,7 +279,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 type='submit'
                 disabled={isSubmitting || updateOption.isPending}
               >
-                {updateOption.isPending ? 'Saving...' : 'Save Changes'}
+                {updateOption.isPending ? t('Saving...') : t('Save Changes')}
               </Button>
               <Button
                 type='button'

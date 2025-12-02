@@ -42,7 +42,7 @@ export function DeleteAccountDialog({
 
   const handleDelete = async () => {
     if (confirmation !== username) {
-      toast.error('Username confirmation does not match')
+      toast.error(t('Username confirmation does not match'))
       return
     }
 
@@ -51,7 +51,7 @@ export function DeleteAccountDialog({
       const response = await deleteUserAccount()
 
       if (response.success) {
-        toast.success('Account deleted successfully')
+        toast.success(t('Account deleted successfully'))
 
         // Logout and redirect
         try {
@@ -64,10 +64,10 @@ export function DeleteAccountDialog({
         localStorage.removeItem('user')
         navigate({ to: '/sign-in' })
       } else {
-        toast.error(response.message || 'Failed to delete account')
+        toast.error(response.message || t('Failed to delete account'))
       }
     } catch (error) {
-      toast.error('Failed to delete account')
+      toast.error(t('Failed to delete account'))
     } finally {
       setLoading(false)
     }

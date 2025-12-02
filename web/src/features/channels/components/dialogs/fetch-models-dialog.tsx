@@ -88,13 +88,15 @@ export function FetchModelsDialog({
         setFetchedModels(response.data)
         // Pre-select existing models
         setSelectedModels(existingModels)
-        toast.success(`Fetched ${response.data.length} models`)
+        toast.success(
+          t('Fetched {{count}} models', { count: response.data.length })
+        )
       } else {
-        toast.error(response.message || 'Failed to fetch models')
+        toast.error(response.message || t('Failed to fetch models'))
         setFetchedModels([])
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to fetch models')
+      toast.error(error?.message || t('Failed to fetch models'))
       setFetchedModels([])
     } finally {
       setIsFetching(false)
@@ -107,7 +109,7 @@ export function FetchModelsDialog({
     // If onModelsSelected callback is provided, use it (form filling mode)
     if (onModelsSelected) {
       onModelsSelected(selectedModels)
-      toast.success('Models filled to form')
+      toast.success(t('Models filled to form'))
       onOpenChange(false)
       return
     }
@@ -120,14 +122,14 @@ export function FetchModelsDialog({
         models: modelsString,
       })
       if (response.success) {
-        toast.success('Models updated successfully')
+        toast.success(t('Models updated successfully'))
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Failed to update models')
+        toast.error(response.message || t('Failed to update models'))
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to update models')
+      toast.error(error?.message || t('Failed to update models'))
     } finally {
       setIsSaving(false)
     }
@@ -387,7 +389,7 @@ export function FetchModelsDialog({
               </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {isSaving ? 'Saving...' : 'Save Models'}
+                {isSaving ? t('Saving...') : t('Save Models')}
               </Button>
             </DialogFooter>
           </>

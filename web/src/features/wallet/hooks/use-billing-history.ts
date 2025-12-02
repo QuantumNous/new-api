@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
 import {
@@ -46,13 +47,15 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
         setRecords(response.data.items || [])
         setTotal(response.data.total || 0)
       } else {
-        toast.error(response.message || 'Failed to load billing history')
+        toast.error(
+          response.message || i18next.t('Failed to load billing history')
+        )
         setRecords([])
         setTotal(0)
       }
     } catch (error) {
       console.error('Failed to fetch billing history:', error)
-      toast.error('Failed to load billing history')
+      toast.error(i18next.t('Failed to load billing history'))
       setRecords([])
       setTotal(0)
     } finally {
@@ -66,7 +69,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
   const handleCompleteOrder = useCallback(
     async (tradeNo: string) => {
       if (!isAdmin) {
-        toast.error('Admin access required')
+        toast.error(i18next.t('Admin access required'))
         return false
       }
 
@@ -74,17 +77,17 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
       try {
         const response = await completeOrder({ trade_no: tradeNo })
         if (isApiSuccess(response)) {
-          toast.success('Order completed successfully')
+          toast.success(i18next.t('Order completed successfully'))
           // Refresh the list
           await fetchBillingHistory()
           return true
         } else {
-          toast.error(response.message || 'Failed to complete order')
+          toast.error(response.message || i18next.t('Failed to complete order'))
           return false
         }
       } catch (error) {
         console.error('Failed to complete order:', error)
-        toast.error('Failed to complete order')
+        toast.error(i18next.t('Failed to complete order'))
         return false
       } finally {
         setCompleting(false)

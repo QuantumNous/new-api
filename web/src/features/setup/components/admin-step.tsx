@@ -40,11 +40,11 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         name='username'
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Administrator username</FormLabel>
+            <FormLabel>{t('Administrator username')}</FormLabel>
             <FormControl>
               <Input
                 {...field}
-                placeholder='Choose a username'
+                placeholder={t('Choose a username')}
                 autoComplete='username'
                 onChange={(event) => {
                   form.clearErrors('username')
@@ -62,11 +62,11 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         name='password'
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Password</FormLabel>
+            <FormLabel>{t('Password')}</FormLabel>
             <FormControl>
               <PasswordInput
                 {...field}
-                placeholder='Set a secure password (min. 8 characters)'
+                placeholder={t('Set a secure password (min. 8 characters)')}
                 autoComplete='new-password'
                 onChange={(event) => {
                   form.clearErrors('password')
@@ -84,11 +84,11 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         name='confirmPassword'
         render={({ field }) => (
           <FormItem className='sm:col-span-2'>
-            <FormLabel>Confirm password</FormLabel>
+            <FormLabel>{t('Confirm password')}</FormLabel>
             <FormControl>
               <PasswordInput
                 {...field}
-                placeholder='Repeat the administrator password'
+                placeholder={t('Repeat the administrator password')}
                 autoComplete='new-password'
                 onChange={(event) => {
                   form.clearErrors('confirmPassword')

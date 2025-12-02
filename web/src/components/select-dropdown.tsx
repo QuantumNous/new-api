@@ -32,6 +32,7 @@ export function SelectDropdown({
   isControlled = false,
 }: SelectDropdownProps) {
   const { t } = useTranslation()
+  const placeholderText = placeholder ?? t('Select')
   const defaultState = isControlled
     ? { value: defaultValue, onValueChange }
     : { defaultValue, onValueChange }
@@ -39,7 +40,7 @@ export function SelectDropdown({
     <Select {...defaultState}>
       <FormControl>
         <SelectTrigger disabled={disabled} className={cn(className)}>
-          <SelectValue placeholder={placeholder ?? 'Select'} />
+          <SelectValue placeholder={placeholderText} />
         </SelectTrigger>
       </FormControl>
       <SelectContent>

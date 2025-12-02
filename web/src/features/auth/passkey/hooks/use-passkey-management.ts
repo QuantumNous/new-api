@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
   buildRegistrationResult,
@@ -38,11 +39,11 @@ export function usePasskeyManagement(
         onStatusChange?.(res.data ?? null)
       } else {
         setStatus(null)
-        toast.error(res.message || 'Failed to load Passkey status')
+        toast.error(res.message || i18next.t('Failed to load Passkey status'))
       }
     } catch (error) {
       console.error('[Passkey] Failed to fetch status', error)
-      toast.error('Failed to load Passkey status')
+      toast.error(i18next.t('Failed to load Passkey status'))
       setStatus(null)
     } finally {
       setLoading(false)
@@ -61,11 +62,11 @@ export function usePasskeyManagement(
 
   const register = useCallback(async () => {
     if (!supported) {
-      toast.error('This device does not support Passkey')
+      toast.error(i18next.t('This device does not support Passkey'))
       return false
     }
     if (!navigator?.credentials) {
-      toast.error('Passkey is not supported in this environment')
+      toast.error(i18next.t('Passkey is not supported in this environment'))
       return false
     }
 
@@ -74,7 +75,8 @@ export function usePasskeyManagement(
       const beginResponse = await beginPasskeyRegistration()
       if (!beginResponse.success) {
         toast.error(
-          beginResponse.message || 'Failed to start Passkey registration'
+          beginResponse.message ||
+            i18next.t('Failed to start Passkey registration')
         )
         return false
       }
@@ -87,33 +89,37 @@ export function usePasskeyManagement(
         publicKey
       )) as PublicKeyCredential | null
       if (!credential) {
-        toast.error('Passkey registration was cancelled')
+        toast.error(i18next.t('Passkey registration was cancelled'))
         return false
       }
 
       const attestation = buildRegistrationResult(credential)
       if (!attestation) {
-        toast.error('Invalid Passkey registration response')
+        toast.error(i18next.t('Invalid Passkey registration response'))
         return false
       }
 
       const finishResponse = await finishPasskeyRegistration(attestation)
       if (!finishResponse.success) {
-        toast.error(finishResponse.message || 'Failed to register Passkey')
+        toast.error(
+          finishResponse.message || i18next.t('Failed to register Passkey')
+        )
         return false
       }
 
-      toast.success('Passkey registered successfully')
+      toast.success(i18next.t('Passkey registered successfully'))
       await fetchStatus()
       return true
     } catch (error: any) {
       if (error?.name === 'NotAllowedError') {
-        toast.info('Passkey registration was cancelled')
+        toast.info(i18next.t('Passkey registration was cancelled'))
         return false
       }
       console.error('[Passkey] Registration error', error)
       toast.error(
-        error instanceof Error ? error.message : 'Failed to register Passkey'
+        error instanceof Error
+          ? error.message
+          : i18next.t('Failed to register Passkey')
       )
       return false
     } finally {
@@ -126,16 +132,16 @@ export function usePasskeyManagement(
     try {
       const res = await deletePasskey()
       if (!res.success) {
-        toast.error(res.message || 'Failed to remove Passkey')
+        toast.error(res.message || i18next.t('Failed to remove Passkey'))
         return false
       }
 
-      toast.success('Passkey removed successfully')
+      toast.success(i18next.t('Passkey removed successfully'))
       await fetchStatus()
       return true
     } catch (error) {
       console.error('[Passkey] Removal error', error)
-      toast.error('Failed to remove Passkey')
+      toast.error(i18next.t('Failed to remove Passkey'))
       return false
     } finally {
       setRemoving(false)

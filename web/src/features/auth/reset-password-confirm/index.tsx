@@ -38,7 +38,7 @@ export function ResetPasswordConfirm({
 
   async function handleSubmit() {
     if (!isValidResetLink || !email || !token) {
-      toast.error('Invalid reset link, please request a new password reset')
+      toast.error(t('Invalid reset link, please request a new password reset'))
       return
     }
 
@@ -54,9 +54,13 @@ export function ResetPasswordConfirm({
         setNewPassword(password)
         const copySuccess = await copyToClipboard(password)
         if (copySuccess) {
-          toast.success(`Password reset and copied to clipboard: ${password}`)
+          toast.success(
+            t('Password reset and copied to clipboard: {{password}}', {
+              password,
+            })
+          )
         } else {
-          toast.success(`Password reset: ${password}`)
+          toast.success(t('Password reset: {{password}}', { password }))
         }
       }
     } catch {
@@ -72,7 +76,11 @@ export function ResetPasswordConfirm({
     const copySuccess = await copyToClipboard(newPassword)
     if (copySuccess) {
       setCopied(true)
-      toast.success(`Password copied to clipboard: ${newPassword}`)
+      toast.success(
+        t('Password copied to clipboard: {{password}}', {
+          password: newPassword,
+        })
+      )
       setTimeout(() => setCopied(false), 2000)
     }
   }

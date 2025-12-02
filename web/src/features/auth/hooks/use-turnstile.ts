@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useStatus } from '@/hooks/use-status'
 
@@ -19,7 +20,9 @@ export function useTurnstile() {
    */
   const validateTurnstile = (): boolean => {
     if (isTurnstileEnabled && !turnstileToken) {
-      toast.info('Please wait a moment, human check is initializing...')
+      toast.info(
+        i18next.t('Please wait a moment, human check is initializing...')
+      )
       return false
     }
     return true

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
@@ -33,13 +34,13 @@ export function useUpdateOption() {
           queryClient.invalidateQueries({ queryKey: ['status'] })
         }
 
-        toast.success('Setting updated successfully')
+        toast.success(i18next.t('Setting updated successfully'))
       } else {
-        toast.error(data.message || 'Failed to update setting')
+        toast.error(data.message || i18next.t('Failed to update setting'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to update setting')
+      toast.error(error.message || i18next.t('Failed to update setting'))
     },
   })
 }

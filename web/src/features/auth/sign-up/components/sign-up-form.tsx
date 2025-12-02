@@ -48,6 +48,7 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
   const {
@@ -113,18 +114,18 @@ export function SignUpForm({
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
-      toast.error('Please agree to the legal terms first')
+      toast.error(legalConsentErrorMessage)
       return
     }
 
     // Validate email verification if required
     if (emailVerificationRequired) {
       if (!data.email) {
-        toast.error('Please enter your email')
+        toast.error(t('Please enter your email'))
         return
       }
       if (!verificationCode) {
-        toast.error('Please enter the verification code')
+        toast.error(t('Please enter the verification code'))
         return
       }
     }
@@ -141,7 +142,7 @@ export function SignUpForm({
       })
 
       if (res?.success) {
-        toast.success('Account created! Please sign in')
+        toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       }
     } catch (error) {
@@ -157,7 +158,7 @@ export function SignUpForm({
 
   const handleOpenWeChatDialog = () => {
     if (requiresLegalConsent && !agreedToLegal) {
-      toast.error('Please agree to the legal terms first')
+      toast.error(legalConsentErrorMessage)
       return
     }
 
@@ -174,7 +175,7 @@ export function SignUpForm({
 
   async function handleWeChatLogin() {
     if (!wechatCode.trim()) {
-      toast.error('Please enter the verification code')
+      toast.error(t('Please enter the verification code'))
       return
     }
 
@@ -183,13 +184,13 @@ export function SignUpForm({
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
         await handleLoginSuccess(res.data)
-        toast.success('Signed in via WeChat')
+        toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {
-        toast.error(res?.message || 'Login failed')
+        toast.error(res?.message || t('Login failed'))
       }
     } catch (error) {
-      toast.error('Login failed')
+      toast.error(t('Login failed'))
     } finally {
       setIsWeChatSubmitting(false)
     }
@@ -208,9 +209,9 @@ export function SignUpForm({
           name='username'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Username</FormLabel>
+              <FormLabel>{t('Username')}</FormLabel>
               <FormControl>
-                <Input placeholder='Enter your username' {...field} />
+                <Input placeholder={t('Enter your username')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -223,10 +224,10 @@ export function SignUpForm({
           name='password'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>{t('Password')}</FormLabel>
               <FormControl>
                 <PasswordInput
-                  placeholder='Enter password (8-20 characters)'
+                  placeholder={t('Enter password (8-20 characters)')}
                   {...field}
                 />
               </FormControl>
@@ -241,9 +242,9 @@ export function SignUpForm({
           name='confirmPassword'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Confirm password</FormLabel>
+              <FormLabel>{t('Confirm password')}</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='Confirm password' {...field} />
+                <PasswordInput placeholder={t('Confirm password')} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -259,10 +260,12 @@ export function SignUpForm({
               name='email'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email (required for verification)</FormLabel>
+                  <FormLabel>
+                    {t('Email (required for verification)')}
+                  </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder='name@example.com'
+                      placeholder={t('name@example.com')}
                       type='email'
                       {...field}
                     />
@@ -288,11 +291,11 @@ export function SignUpForm({
                 onClick={handleSendVerificationCode}
               >
                 {isActive ? (
-                  `Resend (${secondsLeft}s)`
+                  t('Resend ({{seconds}}s)', { seconds: secondsLeft })
                 ) : isSendingCode ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : (
-                  'Send code'
+                  t('Send code')
                 )}
               </Button>
             </div>

@@ -149,7 +149,7 @@ export function MonitoringSettingsSection({
     ).filter((key) => normalized[key] !== baselineRef.current[key])
 
     if (updates.length === 0) {
-      toast.info('No changes to save')
+      toast.info(t('No changes to save'))
       return
     }
 
@@ -355,7 +355,9 @@ export function MonitoringSettingsSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save monitoring rules'}
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save monitoring rules')}
           </Button>
         </form>
       </Form>

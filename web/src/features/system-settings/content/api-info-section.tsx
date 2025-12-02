@@ -143,9 +143,9 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         value: checked,
       })
       setIsEnabled(checked)
-      toast.success('Setting saved')
+      toast.success(t('Setting saved'))
     } catch {
-      toast.error('Failed to update setting')
+      toast.error(t('Failed to update setting'))
     }
   }
 
@@ -179,7 +179,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) {
-      toast.error('Please select items to delete')
+      toast.error(t('Please select items to delete'))
       return
     }
     setDeleteTarget('batch')
@@ -192,7 +192,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         prev.filter((item) => item.id !== editingApiInfo.id)
       )
       setHasChanges(true)
-      toast.success('API info deleted. Click "Save Settings" to apply.')
+      toast.success(t('API info deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
       setApiInfoList((prev) =>
         prev.filter((item) => !selectedIds.includes(item.id))
@@ -200,7 +200,9 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
-        `${selectedIds.length} API entries deleted. Click "Save Settings" to apply.`
+        t('{{count}} API entries deleted. Click "Save Settings" to apply.', {
+          count: selectedIds.length,
+        })
       )
     }
     setShowDeleteDialog(false)
@@ -214,11 +216,11 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
           item.id === editingApiInfo.id ? { ...item, ...values } : item
         )
       )
-      toast.success('API info updated. Click "Save Settings" to apply.')
+      toast.success(t('API info updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...apiInfoList.map((item) => item.id), 0) + 1
       setApiInfoList((prev) => [...prev, { id: newId, ...values }])
-      toast.success('API info added. Click "Save Settings" to apply.')
+      toast.success(t('API info added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
     setShowDialog(false)
@@ -231,9 +233,9 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         value: JSON.stringify(apiInfoList),
       })
       setHasChanges(false)
-      toast.success('API info saved successfully')
+      toast.success(t('API info saved successfully'))
     } catch {
-      toast.error('Failed to save API info')
+      toast.error(t('Failed to save API info'))
     }
   }
 

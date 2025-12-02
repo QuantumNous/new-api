@@ -84,7 +84,7 @@ export function PlaygroundInput({
   }
 
   const handleFileAction = (action: string) => {
-    toast.info('Feature in development', {
+    toast.info(t('Feature in development'), {
       description: action,
     })
   }
@@ -156,7 +156,7 @@ export function PlaygroundInput({
             <PromptInputButton
               className='rounded-full border font-medium'
               disabled={disabled}
-              onClick={() => toast.info('Search feature in development')}
+              onClick={() => toast.info(t('Search feature in development'))}
               variant='outline'
             >
               <GlobeIcon size={16} />

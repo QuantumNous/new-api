@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -46,15 +47,15 @@ export function useAffiliate() {
       const response = await transferAffiliateQuota({ quota })
 
       if (response.success) {
-        toast.success(response.message || 'Transfer successful')
+        toast.success(response.message || i18next.t('Transfer successful'))
         await getSelf()
         return true
       }
 
-      toast.error(response.message || 'Transfer failed')
+      toast.error(response.message || i18next.t('Transfer failed'))
       return false
     } catch (error) {
-      toast.error('Transfer failed')
+      toast.error(i18next.t('Transfer failed'))
       return false
     } finally {
       setTransferring(false)

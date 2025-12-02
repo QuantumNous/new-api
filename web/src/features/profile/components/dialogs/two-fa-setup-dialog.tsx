@@ -40,6 +40,11 @@ export function TwoFASetupDialog({
   const [step, setStep] = useState(0)
   const [setupData, setSetupData] = useState<TwoFASetupData | null>(null)
   const [code, setCode] = useState('')
+  const stepLabels = [
+    t('Scan QR Code'),
+    t('Save Backup Codes'),
+    t('Verify Setup'),
+  ]
 
   const handleSetup = useCallback(async () => {
     try {
@@ -50,21 +55,21 @@ export function TwoFASetupDialog({
         setSetupData(response.data)
         setStep(0)
       } else {
-        toast.error(response.message || 'Failed to setup 2FA')
+        toast.error(response.message || t('Failed to setup 2FA'))
         onOpenChange(false)
       }
     } catch (error) {
       console.error('Setup 2FA error:', error)
-      toast.error('Failed to setup 2FA')
+      toast.error(t('Failed to setup 2FA'))
       onOpenChange(false)
     } finally {
       setInitializing(false)
     }
-  }, [onOpenChange])
+  }, [onOpenChange, t])
 
   const handleEnable = async () => {
     if (!code) {
-      toast.error('Please enter the verification code')
+      toast.error(t('Please enter the verification code'))
       return
     }
 
@@ -73,7 +78,7 @@ export function TwoFASetupDialog({
       const response = await enable2FA(code)
 
       if (response.success) {
-        toast.success('Two-factor authentication enabled successfully!')
+        toast.success(t('Two-factor authentication enabled successfully!'))
         onOpenChange(false)
         onSuccess()
         // Reset
@@ -81,10 +86,10 @@ export function TwoFASetupDialog({
         setCode('')
         setSetupData(null)
       } else {
-        toast.error(response.message || 'Failed to enable 2FA')
+        toast.error(response.message || t('Failed to enable 2FA'))
       }
     } catch (error) {
-      toast.error('Failed to enable 2FA')
+      toast.error(t('Failed to enable 2FA'))
     } finally {
       setLoading(false)
     }
@@ -117,9 +122,7 @@ export function TwoFASetupDialog({
         <DialogHeader>
           <DialogTitle>{t('Setup Two-Factor Authentication')}</DialogTitle>
           <DialogDescription>
-            {t('Step')} {step + 1} {t('of 3:')} {step === 0 && 'Scan QR Code'}
-            {step === 1 && 'Save Backup Codes'}
-            {step === 2 && 'Verify Setup'}
+            {t('Step')} {step + 1} {t('of 3:')} {stepLabels[step]}
           </DialogDescription>
         </DialogHeader>
 
@@ -253,7 +256,7 @@ export function TwoFASetupDialog({
               disabled={initializing || loading || !code}
             >
               {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              {loading ? 'Enabling...' : 'Enable 2FA'}
+              {loading ? t('Enabling...') : t('Enable 2FA')}
             </Button>
           )}
         </DialogFooter>

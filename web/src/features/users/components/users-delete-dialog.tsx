@@ -28,14 +28,14 @@ export function UsersDeleteDialog() {
     try {
       const result = await deleteUser(currentRow.id)
       if (result.success) {
-        toast.success(getUserActionMessage('delete'))
+        toast.success(t(getUserActionMessage('delete')))
         setOpen(null)
         triggerRefresh()
       } else {
-        toast.error(result.message || ERROR_MESSAGES.DELETE_FAILED)
+        toast.error(result.message || t(ERROR_MESSAGES.DELETE_FAILED))
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsDeleting(false)
     }

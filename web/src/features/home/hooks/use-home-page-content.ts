@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getHomePageContent } from '../api'
 import type { HomePageContentResult } from '../types'
@@ -40,7 +41,7 @@ export function useHomePageContent(): HomePageContentResult {
       } catch (error) {
         if (!mounted) return
         console.error('Failed to load home page content:', error)
-        toast.error('Failed to load home page content')
+        toast.error(i18next.t('Failed to load home page content'))
       } finally {
         if (mounted) {
           setIsLoaded(true)

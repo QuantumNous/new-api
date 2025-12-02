@@ -141,7 +141,7 @@ export function RedemptionsTable() {
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter by name or ID...'
+        searchPlaceholder={t('Filter by name or ID...')}
         filters={[
           {
             columnId: 'status',

@@ -12,9 +12,9 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
 import {
-  MODEL_STATUS_CONFIG,
-  NAME_RULE_CONFIG,
-  QUOTA_TYPE_CONFIG,
+  getModelStatusConfig,
+  getNameRuleConfig,
+  getQuotaTypeConfig,
 } from '../constants'
 import { parseModelTags, formatEndpointsDisplay } from '../lib'
 import type { Model, Vendor } from '../types'
@@ -55,6 +55,12 @@ function renderLimitedItems(
  */
 export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
   const { t } = useTranslation()
+
+  // Get translated configs
+  const NAME_RULE_CONFIG = getNameRuleConfig(t)
+  const MODEL_STATUS_CONFIG = getModelStatusConfig(t)
+  const QUOTA_TYPE_CONFIG = getQuotaTypeConfig(t)
+
   const vendorMap: Record<number, Vendor> = {}
   vendors.forEach((v) => {
     vendorMap[v.id] = v

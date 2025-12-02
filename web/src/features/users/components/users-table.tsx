@@ -157,7 +157,7 @@ export function UsersTable() {
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter by username, name or email...'
+        searchPlaceholder={t('Filter by username, name or email...')}
         filters={[
           {
             columnId: 'status',

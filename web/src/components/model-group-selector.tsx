@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { ChevronsUpDown, Check, CpuIcon, LayersIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -61,6 +62,7 @@ interface GroupSelectorProps {
  */
 export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
   ({ selectedModel, models, onModelChange, className, disabled = false }) => {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const isMobile = useIsMobile()
@@ -75,7 +77,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
       () =>
         models.reduce(
           (acc, model) => {
-            const category = model.category || 'Other'
+            const category = model.category || t('Other')
             if (!acc[category]) {
               acc[category] = []
             }
@@ -84,7 +86,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
           },
           {} as Record<string, ModelOption[]>
         ),
-      [models]
+      [models, t]
     )
 
     // Filter models by search query
@@ -131,19 +133,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
       >
         {!isMobile && (
           <CommandInput
-            placeholder='Search models...'
+            placeholder={t('Search models...')}
             className='h-9'
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
         )}
-        <CommandEmpty>No model found.</CommandEmpty>
+        <CommandEmpty>{t('No model found.')}</CommandEmpty>
         <CommandList
           className={isMobile ? '!max-h-full flex-1 p-2' : 'max-h-[300px]'}
         >
           {Object.keys(filteredModels).length === 0 ? (
             <div className='text-muted-foreground px-3 py-6 text-xs'>
-              No model found.
+              {t('No model found.')}
             </div>
           ) : (
             Object.entries(filteredModels).map(
@@ -158,7 +160,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
                       isMobile ? 'text-xs' : 'text-[10px]'
                     )}
                   >
-                    {category} Models
+                    {t('{{category}} Models', { category })}
                   </div>
                   {categoryModels.map((model) => (
                     <CommandItem
@@ -228,7 +230,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
         <CpuIcon className='text-muted-foreground block size-4 sm:hidden' />
         {/* Desktop: show label */}
         <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
-          {currentModel?.label || 'Model'}
+          {currentModel?.label || t('Model')}
         </span>
         <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
       </Button>
@@ -246,7 +248,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
             <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
               <DrawerHeader className='flex-shrink-0 pb-4'>
                 <DrawerTitle className='flex items-center gap-2 text-left text-lg font-medium'>
-                  Select Model
+                  {t('Select Model')}
                 </DrawerTitle>
               </DrawerHeader>
               <div className='flex min-h-0 flex-1 flex-col'>
@@ -284,6 +286,7 @@ ModelSelector.displayName = 'ModelSelector'
  */
 export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
   ({ selectedGroup, groups, onGroupChange, className, disabled = false }) => {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const isMobile = useIsMobile()
 
@@ -324,14 +327,14 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
           return searchableFields.includes(searchTerm) ? 1 : 0
         }}
       >
-        <CommandInput placeholder='Search groups...' className='h-9' />
-        <CommandEmpty>No group found.</CommandEmpty>
+        <CommandInput placeholder={t('Search groups...')} className='h-9' />
+        <CommandEmpty>{t('No group found.')}</CommandEmpty>
         <CommandList
           className={isMobile ? '!max-h-full flex-1 p-2' : 'max-h-[240px]'}
         >
           <CommandGroup>
             <div className='text-muted-foreground px-2 py-1 text-[10px] font-medium'>
-              Model Group
+              {t('Model Group')}
             </div>
             {groups.map((group) => (
               <CommandItem
@@ -353,7 +356,12 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                     {(group.desc || group.description) && (
                       <div className='text-muted-foreground truncate text-[9px] leading-tight'>
                         {group.desc || group.description}
-                        {group.ratio && ` · Ratio: ${group.ratio}`}
+                        {group.ratio && (
+                          <>
+                            {' · '}
+                            {t('Ratio: {{value}}', { value: group.ratio })}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -399,7 +407,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
         <LayersIcon className='text-muted-foreground block size-4 sm:hidden' />
         {/* Desktop: show label */}
         <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
-          {currentGroup?.label || 'Group'}
+          {currentGroup?.label || t('Group')}
         </span>
         <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
       </Button>
@@ -416,7 +424,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
             </DrawerTrigger>
             <DrawerContent className='max-h-[80vh]'>
               <DrawerHeader className='pb-4 text-left'>
-                <DrawerTitle>Choose Group</DrawerTitle>
+                <DrawerTitle>{t('Choose Group')}</DrawerTitle>
               </DrawerHeader>
               <div className='max-h-[calc(80vh-100px)] overflow-y-auto px-4 pb-6'>
                 <div className='space-y-2'>
@@ -440,7 +448,14 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                           {(group.desc || group.description) && (
                             <div className='text-muted-foreground mt-0.5 text-xs'>
                               {group.desc || group.description}
-                              {group.ratio && ` · Ratio: ${group.ratio}`}
+                              {group.ratio && (
+                                <>
+                                  {' · '}
+                                  {t('Ratio: {{value}}', {
+                                    value: group.ratio,
+                                  })}
+                                </>
+                              )}
                             </div>
                           )}
                         </div>

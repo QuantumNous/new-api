@@ -106,10 +106,12 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
     if (modelsToAdd.length > 0) {
       setSelectedModels([...selectedModels, ...modelsToAdd])
-      toast.success(`Added ${modelsToAdd.length} model(s)`)
+      toast.success(
+        t('Added {{count}} model(s)', { count: modelsToAdd.length })
+      )
       setCustomModel('')
     } else {
-      toast.info('No new models to add')
+      toast.info(t('No new models to add'))
     }
   }
 
@@ -129,7 +131,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
       try {
         JSON.parse(modelMapping)
       } catch {
-        toast.error('Model mapping must be valid JSON')
+        toast.error(t('Model mapping must be valid JSON'))
         return false
       }
     }
@@ -148,7 +150,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
       selectedGroups.length > 0
 
     if (!hasChanges) {
-      toast.warning('No changes to save')
+      toast.warning(t('No changes to save'))
       return
     }
 
@@ -175,14 +177,14 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
       const response = await editTagChannels(params)
 
       if (response.success) {
-        toast.success('Tag updated successfully')
+        toast.success(t('Tag updated successfully'))
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Failed to update tag')
+        toast.error(response.message || t('Failed to update tag'))
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to update tag')
+      toast.error(error?.message || t('Failed to update tag'))
     } finally {
       setIsSubmitting(false)
     }

@@ -61,12 +61,12 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
     // Validate based on mode
     if (useBackupCode) {
       if (!isValidBackupCode(data.otp)) {
-        toast.error('Backup code must be in format XXXX-XXXX')
+        toast.error(t('Backup code must be in format XXXX-XXXX'))
         return
       }
     } else {
       if (!isValidOTP(data.otp)) {
-        toast.error('Verification code must be 6 digits')
+        toast.error(t('Verification code must be 6 digits'))
         return
       }
     }
@@ -78,7 +78,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
       const res = await login2fa({ code })
 
       if (!res.success) {
-        toast.error(res.message || 'Invalid code')
+        toast.error(res.message || t('Invalid code'))
         return
       }
 
@@ -96,12 +96,12 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
         saveUserId(userData.id)
       }
 
-      toast.success('Signed in')
+      toast.success(t('Signed in'))
       redirectToLogin() // This will redirect to dashboard via the redirect logic
     } catch (error) {
       console.error('2FA verification error:', error)
       const errorMessage =
-        error instanceof Error ? error.message : 'Verification failed'
+        error instanceof Error ? error.message : t('Verification failed')
       toast.error(errorMessage)
     } finally {
       setIsLoading(false)
@@ -134,12 +134,12 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {useBackupCode ? 'Backup Code' : 'Verification Code'}
+                {useBackupCode ? t('Backup Code') : t('Verification Code')}
               </FormLabel>
               <FormControl>
                 {useBackupCode ? (
                   <Input
-                    placeholder='Enter backup code (e.g., CAWD-OQDV)'
+                    placeholder={t('Enter backup code (e.g., CAWD-OQDV)')}
                     {...field}
                     maxLength={BACKUP_CODE_LENGTH}
                     autoComplete='off'

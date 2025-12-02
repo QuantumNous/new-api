@@ -26,10 +26,13 @@ type FormNavigationGuardProps = {
  */
 export function FormNavigationGuard({
   when,
-  title = 'Unsaved changes',
-  message = 'You have unsaved changes. Are you sure you want to leave?',
+  title,
+  message,
 }: FormNavigationGuardProps) {
   const { t } = useTranslation()
+  const resolvedTitle = title ?? t('Unsaved changes')
+  const resolvedMessage =
+    message ?? t('You have unsaved changes. Are you sure you want to leave?')
   const blocker = useBlocker({ condition: when })
   const [showDialog, setShowDialog] = useState(false)
 
@@ -70,10 +73,10 @@ export function FormNavigationGuard({
       onOpenChange={(open) => {
         if (!open) handleCancel()
       }}
-      title={title}
-      desc={message}
+      title={resolvedTitle}
+      desc={resolvedMessage}
       confirmText={t('Leave')}
-      cancelBtnText='Stay'
+      cancelBtnText={t('Stay')}
       destructive
       handleConfirm={handleConfirm}
     />

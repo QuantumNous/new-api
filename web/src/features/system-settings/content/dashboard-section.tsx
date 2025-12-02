@@ -159,7 +159,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
           </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save changes'}
+            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
           </Button>
         </form>
       </Form>

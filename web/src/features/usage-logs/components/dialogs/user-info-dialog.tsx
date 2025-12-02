@@ -42,11 +42,11 @@ export function UserInfoDialog({
       if (result.success) {
         setUserInfo(result.data || null)
       } else {
-        toast.error(result.message || 'Failed to fetch user information')
+        toast.error(result.message || t('Failed to fetch user information'))
       }
     } catch (error) {
       console.error('Failed to fetch user info:', error)
-      toast.error('Failed to fetch user information')
+      toast.error(t('Failed to fetch user information'))
     } finally {
       setIsLoading(false)
     }

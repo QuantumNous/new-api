@@ -48,20 +48,24 @@ export function OAuthCallbackScreen({
     )
   }, [provider])
 
-  const headline =
-    mode === 'bind'
-      ? `Binding your ${label} account`
-      : `Signing you in with ${label}`
+  const providerLabel = t(label)
+  const isBindMode = mode === 'bind'
 
-  const description =
-    mode === 'bind'
-      ? 'Hang tight while we securely link this account to your profile.'
-      : 'Hang tight while we finish connecting your account.'
+  const headline = isBindMode
+    ? t('Binding your {{provider}} account', { provider: providerLabel })
+    : t('Signing you in with {{provider}}', { provider: providerLabel })
 
-  const secondaryNote =
-    mode === 'bind'
-      ? 'You can close this tab once the binding completes or a success message appears in the original window.'
-      : "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
+  const description = isBindMode
+    ? t('Hang tight while we securely link this account to your profile.')
+    : t('Hang tight while we finish connecting your account.')
+
+  const secondaryNote = isBindMode
+    ? t(
+        'You can close this tab once the binding completes or a success message appears in the original window.'
+      )
+    : t(
+        "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
+      )
 
   return (
     <AuthLayout>

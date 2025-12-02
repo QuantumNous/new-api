@@ -23,7 +23,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
         window.localStorage.removeItem('uid')
       }
     } catch {}
-    toast.success('Signed out')
+    toast.success(t('Signed out'))
     // Refresh the page to clear all state and update UI
     if (typeof window !== 'undefined') {
       window.location.reload()
@@ -35,8 +35,10 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
       open={open}
       onOpenChange={onOpenChange}
       title={t('Sign out')}
-      desc='Are you sure you want to sign out? You will need to sign in again to access your account.'
-      confirmText='Sign out'
+      desc={t(
+        'Are you sure you want to sign out? You will need to sign in again to access your account.'
+      )}
+      confirmText={t('Sign out')}
       handleConfirm={handleSignOut}
       className='sm:max-w-sm'
     />
