@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useCountdown } from '@/hooks/use-countdown'
 import { sendEmailVerification } from '../api'
@@ -25,7 +26,7 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
    */
   const sendCode = async (email: string) => {
     if (!email) {
-      toast.error('Please enter your email first')
+      toast.error(i18next.t('Please enter your email first'))
       return false
     }
 
@@ -39,7 +40,7 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
       const res = await sendEmailVerification(email, options?.turnstileToken)
       if (res?.success) {
         startCountdown()
-        toast.success('Verification email sent')
+        toast.success(i18next.t('Verification email sent'))
         return true
       }
       return false

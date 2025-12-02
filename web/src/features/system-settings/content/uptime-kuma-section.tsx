@@ -125,9 +125,9 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
         value: checked,
       })
       setIsEnabled(checked)
-      toast.success('Setting saved')
+      toast.success(t('Setting saved'))
     } catch {
-      toast.error('Failed to update setting')
+      toast.error(t('Failed to update setting'))
     }
   }
 
@@ -159,7 +159,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
 
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) {
-      toast.error('Please select items to delete')
+      toast.error(t('Please select items to delete'))
       return
     }
     setDeleteTarget('batch')
@@ -170,13 +170,15 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
     if (deleteTarget === 'single' && editingGroup) {
       setGroups((prev) => prev.filter((item) => item.id !== editingGroup.id))
       setHasChanges(true)
-      toast.success('Group deleted. Click "Save Settings" to apply.')
+      toast.success(t('Group deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
       setGroups((prev) => prev.filter((item) => !selectedIds.includes(item.id)))
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
-        `${selectedIds.length} groups deleted. Click "Save Settings" to apply.`
+        t('{{count}} groups deleted. Click "Save Settings" to apply.', {
+          count: selectedIds.length,
+        })
       )
     }
     setShowDeleteDialog(false)
@@ -190,11 +192,11 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
           item.id === editingGroup.id ? { ...item, ...values } : item
         )
       )
-      toast.success('Group updated. Click "Save Settings" to apply.')
+      toast.success(t('Group updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...groups.map((item) => item.id), 0) + 1
       setGroups((prev) => [...prev, { id: newId, ...values }])
-      toast.success('Group added. Click "Save Settings" to apply.')
+      toast.success(t('Group added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
     setShowDialog(false)
@@ -207,9 +209,9 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
         value: JSON.stringify(groups),
       })
       setHasChanges(false)
-      toast.success('Uptime Kuma groups saved successfully')
+      toast.success(t('Uptime Kuma groups saved successfully'))
     } catch {
-      toast.error('Failed to save Uptime Kuma groups')
+      toast.error(t('Failed to save Uptime Kuma groups'))
     }
   }
 
@@ -255,7 +257,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
               disabled={!hasChanges || updateOption.isPending}
             >
               <Save className='mr-2 h-4 w-4' />
-              {updateOption.isPending ? 'Saving...' : 'Save Settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
           <div className='flex items-center gap-2'>

@@ -39,12 +39,12 @@ export function TwoFADisableDialog({
 
   const handleDisable = async () => {
     if (!code) {
-      toast.error('Please enter your verification code or backup code')
+      toast.error(t('Please enter your verification code or backup code'))
       return
     }
 
     if (!confirmed) {
-      toast.error('Please confirm that you understand the consequences')
+      toast.error(t('Please confirm that you understand the consequences'))
       return
     }
 
@@ -53,17 +53,17 @@ export function TwoFADisableDialog({
       const response = await disable2FA(code)
 
       if (response.success) {
-        toast.success('Two-factor authentication disabled')
+        toast.success(t('Two-factor authentication disabled'))
         onOpenChange(false)
         onSuccess()
         // Reset
         setCode('')
         setConfirmed(false)
       } else {
-        toast.error(response.message || 'Failed to disable 2FA')
+        toast.error(response.message || t('Failed to disable 2FA'))
       }
     } catch (error) {
-      toast.error('Failed to disable 2FA')
+      toast.error(t('Failed to disable 2FA'))
     } finally {
       setLoading(false)
     }

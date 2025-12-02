@@ -47,27 +47,27 @@ export function ChangePasswordDialog({
 
     // Validation
     if (!formData.originalPassword) {
-      toast.error('Please enter your current password')
+      toast.error(t('Please enter your current password'))
       return
     }
 
     if (!formData.newPassword) {
-      toast.error('Please enter a new password')
+      toast.error(t('Please enter a new password'))
       return
     }
 
     if (formData.newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters')
+      toast.error(t('Password must be at least 8 characters'))
       return
     }
 
     if (formData.originalPassword === formData.newPassword) {
-      toast.error('New password must be different from current password')
+      toast.error(t('New password must be different from current password'))
       return
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      toast.error('Passwords do not match')
+      toast.error(t('Passwords do not match'))
       return
     }
 
@@ -79,7 +79,7 @@ export function ChangePasswordDialog({
       })
 
       if (response.success) {
-        toast.success('Password changed successfully')
+        toast.success(t('Password changed successfully'))
         onOpenChange(false)
         setFormData({
           originalPassword: '',
@@ -87,10 +87,10 @@ export function ChangePasswordDialog({
           confirmPassword: '',
         })
       } else {
-        toast.error(response.message || 'Failed to change password')
+        toast.error(response.message || t('Failed to change password'))
       }
     } catch (error) {
-      toast.error('Failed to change password')
+      toast.error(t('Failed to change password'))
     } finally {
       setLoading(false)
     }

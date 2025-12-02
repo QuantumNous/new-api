@@ -1,4 +1,5 @@
 import axios from 'axios'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -76,7 +77,7 @@ api.interceptors.response.use(
 
       if (status === 401) {
         // Unauthorized: clear auth state and show toast
-        toast.error('Session expired!')
+        toast.error(i18next.t('Session expired!'))
         try {
           useAuthStore.getState().auth.reset()
         } catch {}

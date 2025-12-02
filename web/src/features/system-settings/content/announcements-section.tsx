@@ -146,9 +146,9 @@ export function AnnouncementsSection({
         value: checked,
       })
       setIsEnabled(checked)
-      toast.success('Setting saved')
+      toast.success(t('Setting saved'))
     } catch {
-      toast.error('Failed to update setting')
+      toast.error(t('Failed to update setting'))
     }
   }
 
@@ -182,7 +182,7 @@ export function AnnouncementsSection({
 
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) {
-      toast.error('Please select items to delete')
+      toast.error(t('Please select items to delete'))
       return
     }
     setDeleteTarget('batch')
@@ -195,7 +195,7 @@ export function AnnouncementsSection({
         prev.filter((item) => item.id !== editingAnnouncement.id)
       )
       setHasChanges(true)
-      toast.success('Announcement deleted. Click "Save Settings" to apply.')
+      toast.success(t('Announcement deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
       setAnnouncements((prev) =>
         prev.filter((item) => !selectedIds.includes(item.id))
@@ -203,7 +203,9 @@ export function AnnouncementsSection({
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
-        `${selectedIds.length} announcements deleted. Click "Save Settings" to apply.`
+        t('{{count}} announcements deleted. Click "Save Settings" to apply.', {
+          count: selectedIds.length,
+        })
       )
     }
     setShowDeleteDialog(false)
@@ -217,11 +219,11 @@ export function AnnouncementsSection({
           item.id === editingAnnouncement.id ? { ...item, ...values } : item
         )
       )
-      toast.success('Announcement updated. Click "Save Settings" to apply.')
+      toast.success(t('Announcement updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...announcements.map((item) => item.id), 0) + 1
       setAnnouncements((prev) => [...prev, { id: newId, ...values }])
-      toast.success('Announcement added. Click "Save Settings" to apply.')
+      toast.success(t('Announcement added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
     setShowDialog(false)
@@ -234,9 +236,9 @@ export function AnnouncementsSection({
         value: JSON.stringify(announcements),
       })
       setHasChanges(false)
-      toast.success('Announcements saved successfully')
+      toast.success(t('Announcements saved successfully'))
     } catch {
-      toast.error('Failed to save announcements')
+      toast.error(t('Failed to save announcements'))
     }
   }
 
@@ -305,7 +307,7 @@ export function AnnouncementsSection({
               disabled={!hasChanges || updateOption.isPending}
             >
               <Save className='mr-2 h-4 w-4' />
-              {updateOption.isPending ? 'Saving...' : 'Save Settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
           <div className='flex items-center gap-2'>

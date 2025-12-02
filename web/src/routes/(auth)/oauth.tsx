@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
@@ -36,7 +37,7 @@ export const Route = createFileRoute('/(auth)/oauth')({
             return
           }
         } catch {}
-        toast.error('OAuth failed')
+        toast.error(i18next.t('OAuth failed'))
         navigate({ to: '/sign-in', replace: true })
       })()
     }, [navigate, search])

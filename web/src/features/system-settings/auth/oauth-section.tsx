@@ -124,7 +124,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
         !finalData['oidc.well_known'].startsWith('http://') &&
         !finalData['oidc.well_known'].startsWith('https://')
       ) {
-        toast.error('Well-Known URL must start with http:// or https://')
+        toast.error(t('Well-Known URL must start with http:// or https://'))
         return
       }
 
@@ -142,11 +142,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
         form.setValue('oidc.token_endpoint' as any, tokenEndpoint)
         form.setValue('oidc.user_info_endpoint' as any, userInfoEndpoint)
 
-        toast.success('OIDC configuration fetched successfully')
+        toast.success(t('OIDC configuration fetched successfully'))
       } catch (err) {
         console.error(err)
         toast.error(
-          'Failed to fetch OIDC configuration. Please check the URL and network status'
+          t(
+            'Failed to fetch OIDC configuration. Please check the URL and network status'
+          )
         )
         return
       }
@@ -159,7 +161,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     )
 
     if (updates.length === 0) {
-      toast.info('No changes to save')
+      toast.info(t('No changes to save'))
       return
     }
 
@@ -213,7 +215,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
       keepDirtyValues: false,
       keepErrors: false,
     })
-    toast.success('Form reset to saved values')
+    toast.success(t('Form reset to saved values'))
   }
 
   return (
@@ -730,7 +732,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
             <div className='flex gap-2'>
               <Button type='submit' disabled={updateOption.isPending}>
-                {updateOption.isPending ? 'Saving...' : 'Save Changes'}
+                {updateOption.isPending ? t('Saving...') : t('Save Changes')}
               </Button>
               <Button
                 type='button'

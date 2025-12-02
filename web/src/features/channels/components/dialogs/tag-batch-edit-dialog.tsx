@@ -91,7 +91,7 @@ export function TagBatchEditDialog({
       // Initialize new tag with current tag name
       setNewTag(currentTag)
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to load tag data')
+      toast.error(error?.message || t('Failed to load tag data'))
     } finally {
       setIsLoading(false)
     }
@@ -105,7 +105,7 @@ export function TagBatchEditDialog({
       try {
         JSON.parse(modelMapping)
       } catch (error) {
-        toast.error('Model mapping must be valid JSON')
+        toast.error(t('Model mapping must be valid JSON'))
         return
       }
     }
@@ -134,20 +134,20 @@ export function TagBatchEditDialog({
 
       // Check if there are any changes
       if (Object.keys(params).length === 1) {
-        toast.warning('No changes made')
+        toast.warning(t('No changes made'))
         return
       }
 
       const response = await editTagChannels(params)
       if (response.success) {
-        toast.success('Tag updated successfully')
+        toast.success(t('Tag updated successfully'))
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
         handleClose()
       } else {
-        toast.error(response.message || 'Failed to update tag')
+        toast.error(response.message || t('Failed to update tag'))
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to update tag')
+      toast.error(error?.message || t('Failed to update tag'))
     } finally {
       setIsSaving(false)
     }
@@ -267,7 +267,7 @@ export function TagBatchEditDialog({
               </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? t('Saving...') : t('Save Changes')}
               </Button>
             </DialogFooter>
           </>

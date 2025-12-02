@@ -141,7 +141,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
     ).filter((key) => normalized[key] !== normalizedDefaultsRef.current[key])
 
     if (updates.length === 0) {
-      toast.info('No changes to save')
+      toast.info(t('No changes to save'))
       return
     }
 
@@ -248,7 +248,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
           </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save changes'}
+            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
           </Button>
         </form>
       </Form>

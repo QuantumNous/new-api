@@ -397,7 +397,7 @@ export function UpstreamConflictDialog({
       .filter((item) => item.fields.length > 0)
 
     if (payload.length === 0) {
-      toast.warning('Select at least one field to overwrite.')
+      toast.warning(t('Select at least one field to overwrite.'))
       return
     }
 
@@ -410,16 +410,16 @@ export function UpstreamConflictDialog({
       })
 
       if (response.success) {
-        toast.success('Selected conflicts were overwritten successfully.')
+        toast.success(t('Selected conflicts were overwritten successfully.'))
         queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
         setUpstreamConflicts([])
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Failed to apply overwrite.')
+        toast.error(response.message || t('Failed to apply overwrite.'))
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to apply overwrite.')
+      toast.error(error?.message || t('Failed to apply overwrite.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -638,7 +638,7 @@ export function UpstreamConflictDialog({
                 onClick={handleApplyOverwrite}
                 disabled={isSubmitting || !hasSelection}
               >
-                {isSubmitting ? 'Applying...' : 'Apply Overwrite'}
+                {isSubmitting ? t('Applying...') : t('Apply Overwrite')}
               </Button>
             </div>
           </div>

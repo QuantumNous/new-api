@@ -1,4 +1,5 @@
 import { Info } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 type FormDirtyIndicatorProps = {
@@ -16,8 +17,9 @@ type FormDirtyIndicatorProps = {
  */
 export function FormDirtyIndicator({
   isDirty,
-  message = 'You have unsaved changes',
+  message,
 }: FormDirtyIndicatorProps) {
+  const { t } = useTranslation()
   if (!isDirty) return null
 
   return (
@@ -27,7 +29,7 @@ export function FormDirtyIndicator({
     >
       <Info className='h-4 w-4 text-orange-600 dark:text-orange-500' />
       <AlertDescription className='text-orange-800 dark:text-orange-400'>
-        {message}
+        {message ?? t('You have unsaved changes')}
       </AlertDescription>
     </Alert>
   )

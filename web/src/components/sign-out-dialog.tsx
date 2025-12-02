@@ -23,7 +23,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
         window.localStorage.removeItem('uid')
       }
     } catch {}
-    toast.success('Signed out')
+    toast.success(t('Signed out'))
     // Refresh the page to clear all state and update UI
     if (typeof window !== 'undefined') {
       window.location.reload()

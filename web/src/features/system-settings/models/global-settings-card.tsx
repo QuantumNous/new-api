@@ -81,7 +81,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
     )
 
     if (updates.length === 0) {
-      toast.info('No changes to save')
+      toast.info(t('No changes to save'))
       return
     }
 
@@ -187,7 +187,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save changes'}
+            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
           </Button>
         </form>
       </Form>

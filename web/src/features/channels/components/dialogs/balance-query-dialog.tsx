@@ -48,7 +48,7 @@ export function BalanceQueryDialog({
 
         setBalance(newBalance)
         setBalanceUpdatedTime(now)
-        toast.success('Balance updated successfully')
+        toast.success(t('Balance updated successfully'))
 
         // Update currentRow immediately with new balance and timestamp
         setCurrentRow({
@@ -60,10 +60,10 @@ export function BalanceQueryDialog({
         // Invalidate queries to refresh the table
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       } else {
-        toast.error(response.message || 'Failed to query balance')
+        toast.error(response.message || t('Failed to query balance'))
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to query balance')
+      toast.error(error?.message || t('Failed to query balance'))
     } finally {
       setIsQuerying(false)
     }
@@ -125,7 +125,7 @@ export function BalanceQueryDialog({
           >
             {isQuerying && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {!isQuerying && <RefreshCw className='mr-2 h-4 w-4' />}
-            {isQuerying ? 'Querying...' : 'Update Balance'}
+            {isQuerying ? t('Querying...') : t('Update Balance')}
           </Button>
         </div>
 

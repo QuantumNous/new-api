@@ -93,7 +93,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     mutationFn: fetchUpstreamRatios,
     onSuccess: (data) => {
       if (!data.success) {
-        toast.error(data.message || 'Failed to fetch upstream ratios')
+        toast.error(data.message || t('Failed to fetch upstream ratios'))
         return
       }
 
@@ -104,20 +104,20 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         const errorMsg = errorResults
           .map((r) => `${r.name}: ${r.error}`)
           .join(', ')
-        toast.warning(`Some channels failed: ${errorMsg}`)
+        toast.warning(t('Some channels failed: {{errorMsg}}', { errorMsg }))
       }
 
       setDifferences(diffs)
       setResolutions({})
 
       if (Object.keys(diffs).length === 0) {
-        toast.success('No ratio differences found')
+        toast.success(t('No ratio differences found'))
       } else {
-        toast.success('Upstream ratios fetched successfully')
+        toast.success(t('Upstream ratios fetched successfully'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to fetch upstream ratios')
+      toast.error(error.message || t('Failed to fetch upstream ratios'))
     },
   })
 
@@ -128,7 +128,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       }
     },
     onSuccess: () => {
-      toast.success('Ratios synced successfully')
+      toast.success(t('Ratios synced successfully'))
       queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
       setDifferences((prevDiffs) => {
@@ -150,7 +150,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       setConflictDialogOpen(false)
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to sync ratios')
+      toast.error(error.message || t('Failed to sync ratios'))
     },
   })
 
@@ -164,7 +164,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     )
 
     if (selectedChannels.length === 0) {
-      toast.warning('Please select at least one channel')
+      toast.warning(t('Please select at least one channel'))
       return
     }
 

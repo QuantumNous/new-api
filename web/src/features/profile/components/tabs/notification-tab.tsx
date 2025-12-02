@@ -78,13 +78,13 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       const response = await updateUserSettings(settings)
 
       if (response.success) {
-        toast.success('Settings updated successfully')
+        toast.success(t('Settings updated successfully'))
         onUpdate()
       } else {
-        toast.error(response.message || 'Failed to update settings')
+        toast.error(response.message || t('Failed to update settings'))
       }
     } catch (error) {
-      toast.error('Failed to update settings')
+      toast.error(t('Failed to update settings'))
     } finally {
       setLoading(false)
     }

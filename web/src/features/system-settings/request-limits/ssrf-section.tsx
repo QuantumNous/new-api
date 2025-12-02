@@ -160,7 +160,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
     ).filter((key) => !isEqual(normalized[key], baselineRef.current[key]))
 
     if (updates.length === 0) {
-      toast.info('No changes to save')
+      toast.info(t('No changes to save'))
       return
     }
 
@@ -387,7 +387,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save SSRF settings'}
+            {updateOption.isPending ? t('Saving...') : t('Save SSRF settings')}
           </Button>
         </form>
       </Form>

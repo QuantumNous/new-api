@@ -323,7 +323,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                 type='submit'
                 disabled={updateOption.isPending || isSubmitting}
               >
-                {updateOption.isPending ? 'Saving...' : 'Save Changes'}
+                {updateOption.isPending ? t('Saving...') : t('Save Changes')}
               </Button>
               <Button
                 type='button'

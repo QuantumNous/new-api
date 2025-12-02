@@ -406,7 +406,9 @@ export function ChannelMutateDrawer({
     // Show warning toast
     const timer = setTimeout(() => {
       toast.warning(
-        'Warning: Base URL should not end with /v1. New API will handle it automatically. This may cause request failures.',
+        t(
+          'Warning: Base URL should not end with /v1. New API will handle it automatically. This may cause request failures.'
+        ),
         { duration: 5000 }
       )
     }, 500)
@@ -433,18 +435,25 @@ export function ChannelMutateDrawer({
   const handleDeduplicateKeys = () => {
     const currentKey = form.getValues('key')
     if (!currentKey || currentKey.trim() === '') {
-      toast.info('Please enter keys first')
+      toast.info(t('Please enter keys first'))
       return
     }
 
     const result = deduplicateKeys(currentKey)
 
     if (result.removedCount === 0) {
-      toast.info('No duplicate keys found')
+      toast.info(t('No duplicate keys found'))
     } else {
       form.setValue('key', result.deduplicatedText)
       toast.success(
-        `Removed ${result.removedCount} duplicate key(s). Before: ${result.beforeCount}, After: ${result.afterCount}`
+        t(
+          'Removed {{removed}} duplicate key(s). Before: {{before}}, After: {{after}}',
+          {
+            removed: result.removedCount,
+            before: result.beforeCount,
+            after: result.afterCount,
+          }
+        )
       )
     }
   }
@@ -463,7 +472,7 @@ export function ChannelMutateDrawer({
 
       const keyValue = res.data?.key ?? ''
       setChannelKey(keyValue)
-      toast.success('Channel key unlocked')
+      toast.success(t('Channel key unlocked'))
       return res
     } finally {
       setIsChannelKeyLoading(false)
@@ -504,7 +513,7 @@ export function ChannelMutateDrawer({
     const type = form.getValues('type')
 
     if (!MODEL_FETCHABLE_TYPES.has(type)) {
-      toast.error('This channel type does not support fetching models')
+      toast.error(t('This channel type does not support fetching models'))
       return
     }
 
@@ -517,7 +526,7 @@ export function ChannelMutateDrawer({
     // For creation mode, fetch and fill all models
     const key = form.getValues('key')
     if (!key?.trim()) {
-      toast.error('Please enter API key first')
+      toast.error(t('Please enter API key first'))
       return
     }
 
@@ -531,12 +540,16 @@ export function ChannelMutateDrawer({
 
       if (response.success && response.data) {
         updateModels(response.data, true)
-        toast.success(`Fetched ${response.data.length} model(s) from upstream`)
+        toast.success(
+          t('Fetched {{count}} model(s) from upstream', {
+            count: response.data.length,
+          })
+        )
       } else {
-        toast.error('No models fetched from upstream')
+        toast.error(t('No models fetched from upstream'))
       }
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to fetch models')
+      toast.error(error?.response?.data?.message || t('Failed to fetch models'))
     } finally {
       setIsFetchingModels(false)
     }
@@ -549,41 +562,45 @@ export function ChannelMutateDrawer({
     const modelArray = parseModelsString(customModel)
     const count = updateModels(modelArray, true)
     setCustomModel('')
-    toast.success(`Added ${count} custom model(s)`)
+    toast.success(t('Added {{count}} custom model(s)', { count }))
   }, [customModel, updateModels])
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
     if (!basicModels.length) {
-      toast.info('No related models available for this channel type')
+      toast.info(t('No related models available for this channel type'))
       return
     }
     updateModels(basicModels)
-    toast.success(`Filled ${basicModels.length} related model(s)`)
-  }, [basicModels, updateModels])
+    toast.success(
+      t('Filled {{count}} related model(s)', { count: basicModels.length })
+    )
+  }, [basicModels, updateModels, t])
 
   const handleFillAllModels = useCallback(() => {
     if (!allModelsList.length) {
-      toast.info('No models available')
+      toast.info(t('No models available'))
       return
     }
     updateModels(allModelsList)
-    toast.success(`Filled ${allModelsList.length} model(s)`)
-  }, [allModelsList, updateModels])
+    toast.success(
+      t('Filled {{count}} model(s)', { count: allModelsList.length })
+    )
+  }, [allModelsList, updateModels, t])
 
   const handleClearModels = useCallback(() => {
     form.setValue('models', '')
-    toast.success('Cleared all models')
-  }, [form])
+    toast.success(t('Cleared all models'))
+  }, [form, t])
 
   const handleCopyModels = useCallback(async () => {
     const models = form.getValues('models')
     if (!models?.trim()) {
-      toast.info('No models to copy')
+      toast.info(t('No models to copy'))
       return
     }
     await copyToClipboard(models)
-  }, [form, copyToClipboard])
+  }, [form, copyToClipboard, t])
 
   // Handle adding prefill group models
   const handleAddPrefillGroup = useCallback(
@@ -598,12 +615,17 @@ export function ChannelMutateDrawer({
         }
 
         const count = updateModels(items, true)
-        toast.success(`Added ${count} models from "${group.name}"`)
+        toast.success(
+          t('Added {{count}} models from "{{name}}"', {
+            count,
+            name: group.name,
+          })
+        )
       } catch {
-        toast.error('Failed to parse group items')
+        toast.error(t('Failed to parse group items'))
       }
     },
-    [updateModels]
+    [updateModels, t]
   )
 
   // Handle model selection change from MultiSelect

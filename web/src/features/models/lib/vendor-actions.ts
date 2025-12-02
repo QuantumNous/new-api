@@ -1,4 +1,5 @@
 import { type QueryClient } from '@tanstack/react-query'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { deleteVendor as deleteVendorAPI } from '../api'
 import { vendorsQueryKeys, modelsQueryKeys } from './query-keys'
@@ -18,14 +19,14 @@ export async function handleDeleteVendor(
   try {
     const response = await deleteVendorAPI(id)
     if (response.success) {
-      toast.success('Vendor deleted successfully')
+      toast.success(i18next.t('Vendor deleted successfully'))
       queryClient?.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
       queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      toast.error(response.message || 'Failed to delete vendor')
+      toast.error(response.message || i18next.t('Failed to delete vendor'))
     }
   } catch (error: any) {
-    toast.error(error?.message || 'Failed to delete vendor')
+    toast.error(error?.message || i18next.t('Failed to delete vendor'))
   }
 }

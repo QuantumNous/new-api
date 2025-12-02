@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getUserProfile, updateUserProfile, updateUserSettings } from '../api'
 import type {
@@ -30,7 +31,7 @@ export function useProfile() {
     } catch (error) {
       console.error('Failed to fetch profile:', error)
       if (!silent) {
-        toast.error('Failed to load profile')
+        toast.error(i18next.t('Failed to load profile'))
       }
     } finally {
       if (!silent) {
@@ -52,16 +53,16 @@ export function useProfile() {
         const response = await updateUserProfile(data)
 
         if (response.success) {
-          toast.success('Profile updated successfully')
+          toast.success(i18next.t('Profile updated successfully'))
           await refreshProfile() // Refresh profile silently
           return true
         }
 
-        toast.error(response.message || 'Failed to update profile')
+        toast.error(response.message || i18next.t('Failed to update profile'))
         return false
       } catch (error) {
         console.error('Failed to update profile:', error)
-        toast.error('Failed to update profile')
+        toast.error(i18next.t('Failed to update profile'))
         return false
       } finally {
         setUpdating(false)
@@ -78,16 +79,16 @@ export function useProfile() {
         const response = await updateUserSettings(data)
 
         if (response.success) {
-          toast.success('Settings updated successfully')
+          toast.success(i18next.t('Settings updated successfully'))
           await refreshProfile() // Refresh profile silently
           return true
         }
 
-        toast.error(response.message || 'Failed to update settings')
+        toast.error(response.message || i18next.t('Failed to update settings'))
         return false
       } catch (error) {
         console.error('Failed to update settings:', error)
-        toast.error('Failed to update settings')
+        toast.error(i18next.t('Failed to update settings'))
         return false
       } finally {
         setUpdating(false)

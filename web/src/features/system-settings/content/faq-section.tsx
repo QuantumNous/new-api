@@ -119,9 +119,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
         value: checked,
       })
       setIsEnabled(checked)
-      toast.success('Setting saved')
+      toast.success(t('Setting saved'))
     } catch {
-      toast.error('Failed to update setting')
+      toast.error(t('Failed to update setting'))
     }
   }
 
@@ -151,7 +151,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
 
   const handleBatchDelete = () => {
     if (selectedIds.length === 0) {
-      toast.error('Please select items to delete')
+      toast.error(t('Please select items to delete'))
       return
     }
     setDeleteTarget('batch')
@@ -162,7 +162,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
     if (deleteTarget === 'single' && editingFaq) {
       setFaqList((prev) => prev.filter((item) => item.id !== editingFaq.id))
       setHasChanges(true)
-      toast.success('FAQ deleted. Click "Save Settings" to apply.')
+      toast.success(t('FAQ deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
       setFaqList((prev) =>
         prev.filter((item) => !selectedIds.includes(item.id))
@@ -170,7 +170,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
-        `${selectedIds.length} FAQs deleted. Click "Save Settings" to apply.`
+        t('{{count}} FAQs deleted. Click "Save Settings" to apply.', {
+          count: selectedIds.length,
+        })
       )
     }
     setShowDeleteDialog(false)
@@ -184,11 +186,11 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
           item.id === editingFaq.id ? { ...item, ...values } : item
         )
       )
-      toast.success('FAQ updated. Click "Save Settings" to apply.')
+      toast.success(t('FAQ updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...faqList.map((item) => item.id), 0) + 1
       setFaqList((prev) => [...prev, { id: newId, ...values }])
-      toast.success('FAQ added. Click "Save Settings" to apply.')
+      toast.success(t('FAQ added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
     setShowDialog(false)
@@ -201,9 +203,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
         value: JSON.stringify(faqList),
       })
       setHasChanges(false)
-      toast.success('FAQ saved successfully')
+      toast.success(t('FAQ saved successfully'))
     } catch {
-      toast.error('Failed to save FAQ')
+      toast.error(t('Failed to save FAQ'))
     }
   }
 
@@ -249,7 +251,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
               disabled={!hasChanges || updateOption.isPending}
             >
               <Save className='mr-2 h-4 w-4' />
-              {updateOption.isPending ? 'Saving...' : 'Save Settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
           <div className='flex items-center gap-2'>

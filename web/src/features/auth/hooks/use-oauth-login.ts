@@ -77,7 +77,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
-        toast.error('Failed to initialize OAuth')
+        toast.error(t('Failed to initialize OAuth'))
         if (githubTimeoutRef.current) {
           clearTimeout(githubTimeoutRef.current)
         }
@@ -90,7 +90,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
       const url = buildGitHubOAuthUrl(status.github_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
-      toast.error('Failed to start GitHub login')
+      toast.error(t('Failed to start GitHub login'))
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
       }
@@ -108,14 +108,14 @@ export function useOAuthLogin(status: SystemStatus | null) {
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
-        toast.error('Failed to initialize OAuth')
+        toast.error(t('Failed to initialize OAuth'))
         return
       }
 
       const url = buildDiscordOAuthUrl(status.discord_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
-      toast.error('Failed to start Discord login')
+      toast.error(t('Failed to start Discord login'))
     } finally {
       setIsLoading(false)
     }
@@ -129,7 +129,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
-        toast.error('Failed to initialize OAuth')
+        toast.error(t('Failed to initialize OAuth'))
         return
       }
 
@@ -140,7 +140,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
       )
       window.open(url, '_self')
     } catch (_error) {
-      toast.error('Failed to start OIDC login')
+      toast.error(t('Failed to start OIDC login'))
     } finally {
       setIsLoading(false)
     }
@@ -154,21 +154,21 @@ export function useOAuthLogin(status: SystemStatus | null) {
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
-        toast.error('Failed to initialize OAuth')
+        toast.error(t('Failed to initialize OAuth'))
         return
       }
 
       const url = buildLinuxDOOAuthUrl(status.linuxdo_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
-      toast.error('Failed to start LinuxDO login')
+      toast.error(t('Failed to start LinuxDO login'))
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleTelegramLogin = () => {
-    toast.info('Telegram login requires widget integration; coming soon')
+    toast.info(t('Telegram login requires widget integration; coming soon'))
   }
 
   return {

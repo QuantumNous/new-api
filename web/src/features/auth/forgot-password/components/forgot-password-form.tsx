@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
@@ -28,6 +29,7 @@ export function ForgotPasswordForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
 
   const {
@@ -57,7 +59,7 @@ export function ForgotPasswordForm({
       if (res?.success) {
         form.reset()
         startCountdown()
-        toast.success('Reset email sent, please check your inbox')
+        toast.success(t('Reset email sent, please check your inbox'))
       }
     } catch (error) {
       // Errors are handled by global interceptor

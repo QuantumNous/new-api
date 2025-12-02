@@ -74,9 +74,9 @@ export function DataTableBulkActions<TData>({
     const names = selectedModels.map((m) => m.model_name).join(',')
     const success = await copyToClipboard(names)
     if (success) {
-      toast.success('Model names copied to clipboard')
+      toast.success(t('Model names copied to clipboard'))
     } else {
-      toast.error('Failed to copy model names')
+      toast.error(t('Failed to copy model names'))
     }
   }
 

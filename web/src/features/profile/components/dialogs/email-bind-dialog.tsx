@@ -49,7 +49,7 @@ export function EmailBindDialog({
 
   const handleSendCode = async () => {
     if (!email || !email.includes('@')) {
-      toast.error('Please enter a valid email address')
+      toast.error(t('Please enter a valid email address'))
       return
     }
 
@@ -58,13 +58,13 @@ export function EmailBindDialog({
       const response = await sendEmailVerification(email)
 
       if (response.success) {
-        toast.success('Verification code sent! Please check your email.')
+        toast.success(t('Verification code sent! Please check your email.'))
         startCountdown()
       } else {
-        toast.error(response.message || 'Failed to send verification code')
+        toast.error(response.message || t('Failed to send verification code'))
       }
     } catch (error) {
-      toast.error('Failed to send verification code')
+      toast.error(t('Failed to send verification code'))
     } finally {
       setSendingCode(false)
     }
@@ -72,7 +72,7 @@ export function EmailBindDialog({
 
   const handleBind = async () => {
     if (!email || !code) {
-      toast.error('Please enter email and verification code')
+      toast.error(t('Please enter email and verification code'))
       return
     }
 
@@ -81,7 +81,7 @@ export function EmailBindDialog({
       const response = await bindEmail(email, code)
 
       if (response.success) {
-        toast.success('Email bound successfully!')
+        toast.success(t('Email bound successfully!'))
         onOpenChange(false)
         onSuccess()
         // Reset form
@@ -89,10 +89,10 @@ export function EmailBindDialog({
         setCode('')
         resetCountdown()
       } else {
-        toast.error(response.message || 'Failed to bind email')
+        toast.error(response.message || t('Failed to bind email'))
       }
     } catch (error) {
-      toast.error('Failed to bind email')
+      toast.error(t('Failed to bind email'))
     } finally {
       setLoading(false)
     }

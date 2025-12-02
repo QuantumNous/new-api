@@ -5,6 +5,7 @@ import {
   type FieldValues,
   type FieldNamesMarkedBoolean,
 } from 'react-hook-form'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 
 type SettingsFormOptions<T extends FieldValues> = UseFormProps<T> & {
@@ -227,7 +228,7 @@ export function useSettingsForm<T extends FieldValues>({
     )
 
     if (changedEntries.length === 0) {
-      toast.info('No changes to save')
+      toast.info(i18next.t('No changes to save'))
       return
     }
 
@@ -250,7 +251,7 @@ export function useSettingsForm<T extends FieldValues>({
 
   const handleReset = () => {
     form.reset(defaultValuesRef.current)
-    toast.success('Form reset to saved values')
+    toast.success(i18next.t('Form reset to saved values'))
   }
 
   return {

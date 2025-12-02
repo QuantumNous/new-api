@@ -158,7 +158,7 @@ export function SystemBehaviorSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save Changes'}
+            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
           </Button>
         </form>
       </Form>

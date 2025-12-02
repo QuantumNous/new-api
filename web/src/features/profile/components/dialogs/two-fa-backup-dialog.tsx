@@ -39,7 +39,7 @@ export function TwoFABackupDialog({
 
   const handleRegenerate = async () => {
     if (!code) {
-      toast.error('Please enter your verification code')
+      toast.error(t('Please enter your verification code'))
       return
     }
 
@@ -49,12 +49,12 @@ export function TwoFABackupDialog({
 
       if (response.success && response.data?.backup_codes) {
         setBackupCodes(response.data.backup_codes)
-        toast.success('Backup codes regenerated successfully')
+        toast.success(t('Backup codes regenerated successfully'))
       } else {
-        toast.error(response.message || 'Failed to regenerate backup codes')
+        toast.error(response.message || t('Failed to regenerate backup codes'))
       }
     } catch (error) {
-      toast.error('Failed to regenerate backup codes')
+      toast.error(t('Failed to regenerate backup codes'))
     } finally {
       setLoading(false)
     }

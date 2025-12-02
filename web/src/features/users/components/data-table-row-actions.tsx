@@ -54,13 +54,15 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     try {
       const result = await manageUser(user.id, action)
       if (result.success) {
-        toast.success(getUserActionMessage(action))
+        toast.success(t(getUserActionMessage(action)))
         triggerRefresh()
       } else {
-        toast.error(result.message || `Failed to ${action} user`)
+        toast.error(
+          result.message || t('Failed to {{action}} user', { action })
+        )
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     }
   }
 
@@ -68,13 +70,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     try {
       const result = await resetUserPasskey(user.id)
       if (result.success) {
-        toast.success('Passkey reset successfully')
+        toast.success(t('Passkey reset successfully'))
         triggerRefresh()
       } else {
-        toast.error(result.message || 'Failed to reset Passkey')
+        toast.error(result.message || t('Failed to reset Passkey'))
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setResetPasskeyOpen(false)
     }
@@ -84,13 +86,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     try {
       const result = await resetUserTwoFA(user.id)
       if (result.success) {
-        toast.success('Two-factor authentication reset')
+        toast.success(t('Two-factor authentication reset'))
         triggerRefresh()
       } else {
-        toast.error(result.message || 'Failed to reset 2FA')
+        toast.error(result.message || t('Failed to reset 2FA'))
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setResetTwoFAOpen(false)
     }

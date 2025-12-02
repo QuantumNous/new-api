@@ -6,6 +6,7 @@ import {
   useParams,
   useSearch,
 } from '@tanstack/react-router'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { api, getSelf } from '@/lib/api'
@@ -58,7 +59,7 @@ function OAuthCallback() {
       }
 
       if (!search?.code) {
-        toast.error('Missing code')
+        toast.error(i18next.t('Missing code'))
         safeNavigate('/sign-in')
         return
       }
@@ -125,7 +126,7 @@ function OAuthCallback() {
       const redirectAfterLogin = (target?: string) => {
         const to = target || search?.redirect || '/dashboard'
         safeNavigate(to)
-        toast.success('Signed in successfully!')
+        toast.success(i18next.t('Signed in successfully!'))
       }
 
       const handleBindingFailure = (message: string) => {
@@ -153,7 +154,7 @@ function OAuthCallback() {
           const loginUser = (res.data?.data ?? null) as AuthUser | null
           // Check if this is a bind operation
           if (message === 'bind') {
-            toast.success('Binding successful!')
+            toast.success(i18next.t('Binding successful!'))
             notifyBindingResult('success')
             if (isBindingFlow) {
               // Close the callback window if we opened a new tab for binding
@@ -180,7 +181,7 @@ function OAuthCallback() {
             redirectAfterLogin()
             return
           }
-          toast.error(res?.data?.message || 'OAuth failed')
+          toast.error(res?.data?.message || i18next.t('OAuth failed'))
           safeNavigate('/sign-in')
           return
         }

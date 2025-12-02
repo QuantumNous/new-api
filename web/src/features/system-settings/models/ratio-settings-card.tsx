@@ -161,15 +161,15 @@ export function RatioSettingsCard({
     mutationFn: resetModelRatios,
     onSuccess: (data) => {
       if (data.success) {
-        toast.success('Model ratios reset successfully')
+        toast.success(t('Model ratios reset successfully'))
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
         setConfirmOpen(false)
       } else {
-        toast.error(data.message || 'Failed to reset model ratios')
+        toast.error(data.message || t('Failed to reset model ratios'))
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to reset model ratios')
+      toast.error(error.message || t('Failed to reset model ratios'))
     },
   })
 

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
   calculateAmount,
@@ -69,14 +70,14 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
-          toast.error(response.message || 'Payment request failed')
+          toast.error(response.message || i18next.t('Payment request failed'))
           return false
         }
 
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
           window.open(response.data.pay_link, '_blank')
-          toast.success('Redirecting to payment page...')
+          toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }
 
@@ -85,14 +86,14 @@ export function usePayment() {
           const url = (response as any).url
           if (url) {
             submitPaymentForm(url, response.data)
-            toast.success('Redirecting to payment page...')
+            toast.success(i18next.t('Redirecting to payment page...'))
             return true
           }
         }
 
         return false
       } catch (error) {
-        toast.error('Payment request failed')
+        toast.error(i18next.t('Payment request failed'))
         return false
       } finally {
         setProcessing(false)
