@@ -238,6 +238,7 @@ docker run --name new-api -d --restart always \
 - `gemini-2.5-flash-nothinking` - Disable thinking mode
 - `gemini-2.5-pro-thinking` - Enable thinking mode
 - `gemini-2.5-pro-thinking-128` - Enable thinking mode with thinking budget of 128 tokens
+- You can also append `-low`, `-medium`, or `-high` to any Gemini model name to request the corresponding reasoning effort (no extra thinking-budget suffix needed).
 
 </details>
 

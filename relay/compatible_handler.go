@@ -192,9 +192,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent string) {
 	if usage == nil {
 		usage = &dto.Usage{
-			PromptTokens:     relayInfo.PromptTokens,
+			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
 			CompletionTokens: 0,
-			TotalTokens:      relayInfo.PromptTokens,
+			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
 		}
 		extraContent += "（可能是请求出错）"
 	}

@@ -121,13 +121,8 @@ func palmHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 		}, resp.StatusCode)
 	}
 	fullTextResponse := responsePaLM2OpenAI(&palmResponse)
-	completionTokens := service.CountTextToken(palmResponse.Candidates[0].Content, info.UpstreamModelName)
-	usage := dto.Usage{
-		PromptTokens:     info.PromptTokens,
-		CompletionTokens: completionTokens,
-		TotalTokens:      info.PromptTokens + completionTokens,
-	}
-	fullTextResponse.Usage = usage
+	usage := service.ResponseText2Usage(c, palmResponse.Candidates[0].Content, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	fullTextResponse.Usage = *usage
 	jsonResponse, err := common.Marshal(fullTextResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
@@ -135,5 +130,5 @@ func palmHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
 	service.IOCopyBytesGracefully(c, resp, jsonResponse)
-	return &usage, nil
+	return usage, nil
 }

@@ -243,6 +243,7 @@ docker run --name new-api -d --restart always \
 - `gemini-2.5-flash-nothinking` - 思考モードを無効にする
 - `gemini-2.5-pro-thinking` - 思考モードを有効にする
 - `gemini-2.5-pro-thinking-128` - 思考モードを有効にし、思考予算を128トークンに設定する
+- Gemini モデル名の末尾に `-low` / `-medium` / `-high` を付けることで推論強度を直接指定できます（追加の思考予算サフィックスは不要です）。
 
 </details>
 

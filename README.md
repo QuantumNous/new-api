@@ -239,6 +239,7 @@ docker run --name new-api -d --restart always \
 - `gemini-2.5-flash-nothinking` - 禁用思考模式
 - `gemini-2.5-pro-thinking` - 启用思考模式
 - `gemini-2.5-pro-thinking-128` - 启用思考模式，并设置思考预算为128tokens
+- 也可以直接在 Gemini 模型名称后追加 `-low` / `-medium` / `-high` 来控制思考力度（无需再设置思考预算后缀）
 
 </details>
 

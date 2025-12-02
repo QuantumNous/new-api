@@ -351,7 +351,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 			newAPIError: types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError),
 		}
 	}
-	info.PromptTokens = usage.PromptTokens
+	info.SetEstimatePromptTokens(usage.PromptTokens)
 
 	quota := 0
 	if !priceData.UsePrice {
