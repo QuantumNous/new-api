@@ -139,7 +139,7 @@ func updateSunoTaskAll(ctx context.Context, channelId int, taskIds []string, tas
 	var responseItems dto.TaskResponse[[]dto.SunoDataResponse]
 
 	// 判断是否是官方 Suno API
-	if constant.IsOfficialUrl(*channel.BaseURL) {
+	if constant.IsOfficialTypeChannel(constant.ChannelTypeSunoAPI, baseUrl) {
 		responseItems, err = suno.ParseResponseItems(responseBody)
 		if err != nil {
 			return err

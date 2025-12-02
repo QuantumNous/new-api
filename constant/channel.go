@@ -188,6 +188,10 @@ func IsOfficialUrl(baseURL string) bool {
 	}
 	return false
 }
+func IsOfficialTypeChannel(channelType int, baseURL string) bool {
+	officialUrl := ChannelBaseURLs[channelType]
+	return officialUrl == baseURL
+}
 
 type ChannelSpecialBase struct {
 	ClaudeBaseURL string
