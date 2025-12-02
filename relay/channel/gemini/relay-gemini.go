@@ -446,9 +446,68 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				if part.Text == "" {
 					continue
 				}
-				parts = append(parts, dto.GeminiPart{
-					Text: part.Text,
-				})
+				// check markdown image ![image](data:image/jpeg;base64,xxxxxxxxxxxx)
+				// 使用字符串查找而非正则，避免大文本性能问题
+				text := part.Text
+				hasMarkdownImage := false
+				for {
+					// 快速检查是否包含 markdown 图片标记
+					startIdx := strings.Index(text, "![")
+					if startIdx == -1 {
+						break
+					}
+					// 找到 ](
+					bracketIdx := strings.Index(text[startIdx:], "](data:")
+					if bracketIdx == -1 {
+						break
+					}
+					bracketIdx += startIdx
+					// 找到闭合的 )
+					closeIdx := strings.Index(text[bracketIdx+2:], ")")
+					if closeIdx == -1 {
+						break
+					}
+					closeIdx += bracketIdx + 2
+
+					hasMarkdownImage = true
+					// 添加图片前的文本
+					if startIdx > 0 {
+						textBefore := text[:startIdx]
+						if textBefore != "" {
+							parts = append(parts, dto.GeminiPart{
+								Text: textBefore,
+							})
+						}
+					}
+					// 提取 data URL (从 "](" 后面开始，到 ")" 之前)
+					dataUrl := text[bracketIdx+2 : closeIdx]
+					imageNum += 1
+					if constant.GeminiVisionMaxImageNum != -1 && imageNum > constant.GeminiVisionMaxImageNum {
+						return nil, fmt.Errorf("too many images in the message, max allowed is %d", constant.GeminiVisionMaxImageNum)
+					}
+					format, base64String, err := service.DecodeBase64FileData(dataUrl)
+					if err != nil {
+						return nil, fmt.Errorf("decode markdown base64 image data failed: %s", err.Error())
+					}
+					imgPart := dto.GeminiPart{
+						InlineData: &dto.GeminiInlineData{
+							MimeType: format,
+							Data:     base64String,
+						},
+					}
+					if shouldAttachThoughtSignature {
+						imgPart.ThoughtSignature = json.RawMessage(strconv.Quote(thoughtSignatureBypassValue))
+					}
+					parts = append(parts, imgPart)
+					// 继续处理剩余文本
+					text = text[closeIdx+1:]
+				}
+				// 添加剩余文本或原始文本（如果没有找到 markdown 图片）
+				if !hasMarkdownImage {
+					parts = append(parts, dto.GeminiPart{
+						Text: part.Text,
+					})
+				}
 			} else if part.Type == dto.ContentTypeImageURL {
 				imageNum += 1
 
