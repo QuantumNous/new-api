@@ -35,7 +35,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	action := strings.ToUpper(c.Param("action"))
+	action := strings.ToUpper(service.GetTaskAction(c))
 
 	var sunoRequest *dto.SunoSubmitReq
 	err := common.UnmarshalBodyReusable(c, &sunoRequest)
