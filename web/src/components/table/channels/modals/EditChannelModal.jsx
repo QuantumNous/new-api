@@ -150,6 +150,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    pass_through_headers: '',
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -354,6 +355,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    pass_through_headers: '',
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -533,6 +535,8 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.pass_through_headers =
+            parsedSettings.pass_through_headers || '';
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -542,6 +546,7 @@ const EditChannelModal = (props) => {
           data.thinking_to_content = false;
           data.proxy = '';
           data.pass_through_body_enabled = false;
+          data.pass_through_headers = '';
           data.system_prompt = '';
           data.system_prompt_override = false;
         }
@@ -550,6 +555,7 @@ const EditChannelModal = (props) => {
         data.thinking_to_content = false;
         data.proxy = '';
         data.pass_through_body_enabled = false;
+        data.pass_through_headers = '';
         data.system_prompt = '';
         data.system_prompt_override = false;
       }
@@ -618,6 +624,7 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        pass_through_headers: data.pass_through_headers,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -876,6 +883,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      pass_through_headers: '',
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1162,6 +1170,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      pass_through_headers: localInputs.pass_through_headers || '',
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
@@ -1213,6 +1222,7 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.pass_through_headers;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.is_enterprise_account;
@@ -2962,6 +2972,17 @@ const EditChannelModal = (props) => {
                         )
                       }
                       extraText={t('启用请求体透传功能')}
+                    />
+
+                    <Form.Input
+                      field='pass_through_headers'
+                      label={t('透传请求头')}
+                      placeholder={t('例如: X-Session-Id,X-Custom-Header')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('pass_through_headers', value)
+                      }
+                      showClear
+                      extraText={t('指定需要透传到上游的请求头，多个请求头用逗号分隔')}
                     />
 
                     <Form.Input

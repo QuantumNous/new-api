@@ -36,6 +36,20 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 			req.Set("Accept", "text/event-stream")
 		}
 	}
+
+	// 透传指定的请求头
+	if info.ChannelSetting.PassThroughHeaders != "" {
+		headers := strings.Split(info.ChannelSetting.PassThroughHeaders, ",")
+		for _, header := range headers {
+			header = strings.TrimSpace(header)
+			if header != "" {
+				value := c.Request.Header.Get(header)
+				if value != "" {
+					req.Set(header, value)
+				}
+			}
+		}
+	}
 }
 
 // processHeaderOverride 处理请求头覆盖，支持变量替换
