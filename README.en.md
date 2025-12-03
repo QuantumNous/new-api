@@ -193,6 +193,7 @@ docker run --name new-api -d --restart always \
 
 ### 🔐 Authorization and Security
 
+- 😈 Discord authorization login
 - 🤖 LinuxDO authorization login
 - 📱 Telegram authorization login
 - 🔑 OIDC unified authentication
@@ -237,6 +238,7 @@ docker run --name new-api -d --restart always \
 - `gemini-2.5-flash-nothinking` - Disable thinking mode
 - `gemini-2.5-pro-thinking` - Enable thinking mode
 - `gemini-2.5-pro-thinking-128` - Enable thinking mode with thinking budget of 128 tokens
+- You can also append `-low`, `-medium`, or `-high` to any Gemini model name to request the corresponding reasoning effort (no extra thinking-budget suffix needed).
 
 </details>
 
@@ -302,6 +304,7 @@ docker run --name new-api -d --restart always \
 | `SQL_DSN` | Database connection string | - |
 | `REDIS_CONN_STRING` | Redis connection string | - |
 | `STREAMING_TIMEOUT` | Streaming timeout (seconds) | `300` |
+| `STREAM_SCANNER_MAX_BUFFER_MB` | Max per-line buffer (MB) for the stream scanner; increase when upstream sends huge image/base64 payloads | `64` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API version | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | Error log switch | `false` |
 

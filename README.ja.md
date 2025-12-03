@@ -243,6 +243,7 @@ docker run --name new-api -d --restart always \
 - `gemini-2.5-flash-nothinking` - 思考モードを無効にする
 - `gemini-2.5-pro-thinking` - 思考モードを有効にする
 - `gemini-2.5-pro-thinking-128` - 思考モードを有効にし、思考予算を128トークンに設定する
+- Gemini モデル名の末尾に `-low` / `-medium` / `-high` を付けることで推論強度を直接指定できます（追加の思考予算サフィックスは不要です）。
 
 </details>
 
@@ -308,6 +309,7 @@ docker run --name new-api -d --restart always \
 | `SQL_DSN** | データベース接続文字列 | - |
 | `REDIS_CONN_STRING` | Redis接続文字列 | - |
 | `STREAMING_TIMEOUT` | ストリーミング応答のタイムアウト時間（秒） | `300` |
+| `STREAM_SCANNER_MAX_BUFFER_MB` | ストリームスキャナの1行あたりバッファ上限（MB）。4K画像など巨大なbase64 `data:` ペイロードを扱う場合は値を増加させてください | `64` |
 | `AZURE_DEFAULT_API_VERSION` | Azure APIバージョン | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | エラーログスイッチ | `false` |
 

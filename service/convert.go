@@ -209,7 +209,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			Type:  "message",
 			Role:  "assistant",
 			Usage: &dto.ClaudeUsage{
-				InputTokens:  info.PromptTokens,
+				InputTokens:  info.GetEstimatePromptTokens(),
 				OutputTokens: 0,
 			},
 		}
@@ -734,10 +734,16 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 	geminiResponse := &dto.GeminiChatResponse{
 		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
 		UsageMetadata: dto.GeminiUsageMetadata{
-			PromptTokenCount:     info.PromptTokens,
+			PromptTokenCount:     info.GetEstimatePromptTokens(),
 			CandidatesTokenCount: 0, // 流式响应中可能没有完整的 usage 信息
-			TotalTokenCount:      info.PromptTokens,
+			TotalTokenCount:      info.GetEstimatePromptTokens(),
 		},
+	}
+
+	if openAIResponse.Usage != nil {
+		geminiResponse.UsageMetadata.PromptTokenCount = openAIResponse.Usage.PromptTokens
+		geminiResponse.UsageMetadata.CandidatesTokenCount = openAIResponse.Usage.CompletionTokens
+		geminiResponse.UsageMetadata.TotalTokenCount = openAIResponse.Usage.TotalTokens
 	}
 
 	for _, choice := range openAIResponse.Choices {

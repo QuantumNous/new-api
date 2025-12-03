@@ -19,8 +19,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -122,6 +122,14 @@ func clampThinkingBudgetByEffort(modelName string, effort string) int {
 	return clampThinkingBudget(modelName, maxBudget)
 }
 
+func parseThinkingLevelSuffix(modelName string) (string, string) {
+	base, level, ok := reasoning.TrimEffortSuffix(modelName)
+	if !ok {
+		return modelName, ""
+	}
+	return base, level
+}
+
 func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		modelName := info.UpstreamModelName
@@ -178,6 +186,12 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 					ThinkingBudget: common.GetPointer(0),
 				}
 			}
+		} else if _, level := parseThinkingLevelSuffix(modelName); level != "" {
+			geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+				IncludeThoughts: true,
+				ThinkingLevel:   level,
+			}
+			info.ReasoningEffort = level
 		}
 	}
 }
@@ -208,6 +222,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 
 	adaptorWithExtraBody := false
 
+	// patch extra_body
 	if len(textRequest.ExtraBody) > 0 {
 		if !strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
 			var extraBody map[string]interface{}
@@ -237,6 +252,39 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 							IncludeThoughts: true,
 						}
+					}
+				}
+
+				// check error param name like imageConfig, should be image_config
+				if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
+					return nil, errors.New("extra_body.google.imageConfig is not supported, use extra_body.google.image_config instead")
+				}
+
+				if imageConfig, ok := googleBody["image_config"].(map[string]interface{}); ok {
+					// check error param name like aspectRatio, should be aspect_ratio
+					if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
+						return nil, errors.New("extra_body.google.image_config.aspectRatio is not supported, use extra_body.google.image_config.aspect_ratio instead")
+					}
+					// check error param name like imageSize, should be image_size
+					if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
+						return nil, errors.New("extra_body.google.image_config.imageSize is not supported, use extra_body.google.image_config.image_size instead")
+					}
+
+					// convert snake_case to camelCase for Gemini API
+					geminiImageConfig := make(map[string]interface{})
+					if aspectRatio, ok := imageConfig["aspect_ratio"]; ok {
+						geminiImageConfig["aspectRatio"] = aspectRatio
+					}
+					if imageSize, ok := imageConfig["image_size"]; ok {
+						geminiImageConfig["imageSize"] = imageSize
+					}
+
+					if len(geminiImageConfig) > 0 {
+						imageConfigBytes, err := common.Marshal(geminiImageConfig)
+						if err != nil {
+							return nil, fmt.Errorf("failed to marshal image_config: %w", err)
+						}
+						geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
 					}
 				}
 			}
@@ -412,9 +460,68 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				if part.Text == "" {
 					continue
 				}
-				parts = append(parts, dto.GeminiPart{
-					Text: part.Text,
-				})
+				// check markdown image ![image](data:image/jpeg;base64,xxxxxxxxxxxx)
+				// 使用字符串查找而非正则，避免大文本性能问题
+				text := part.Text
+				hasMarkdownImage := false
+				for {
+					// 快速检查是否包含 markdown 图片标记
+					startIdx := strings.Index(text, "![")
+					if startIdx == -1 {
+						break
+					}
+					// 找到 ](
+					bracketIdx := strings.Index(text[startIdx:], "](data:")
+					if bracketIdx == -1 {
+						break
+					}
+					bracketIdx += startIdx
+					// 找到闭合的 )
+					closeIdx := strings.Index(text[bracketIdx+2:], ")")
+					if closeIdx == -1 {
+						break
+					}
+					closeIdx += bracketIdx + 2
+
+					hasMarkdownImage = true
+					// 添加图片前的文本
+					if startIdx > 0 {
+						textBefore := text[:startIdx]
+						if textBefore != "" {
+							parts = append(parts, dto.GeminiPart{
+								Text: textBefore,
+							})
+						}
+					}
+					// 提取 data URL (从 "](" 后面开始，到 ")" 之前)
+					dataUrl := text[bracketIdx+2 : closeIdx]
+					imageNum += 1
+					if constant.GeminiVisionMaxImageNum != -1 && imageNum > constant.GeminiVisionMaxImageNum {
+						return nil, fmt.Errorf("too many images in the message, max allowed is %d", constant.GeminiVisionMaxImageNum)
+					}
+					format, base64String, err := service.DecodeBase64FileData(dataUrl)
+					if err != nil {
+						return nil, fmt.Errorf("decode markdown base64 image data failed: %s", err.Error())
+					}
+					imgPart := dto.GeminiPart{
+						InlineData: &dto.GeminiInlineData{
+							MimeType: format,
+							Data:     base64String,
+						},
+					}
+					if shouldAttachThoughtSignature {
+						imgPart.ThoughtSignature = json.RawMessage(strconv.Quote(thoughtSignatureBypassValue))
+					}
+					parts = append(parts, imgPart)
+					// 继续处理剩余文本
+					text = text[closeIdx+1:]
+				}
+				// 添加剩余文本或原始文本（如果没有找到 markdown 图片）
+				if !hasMarkdownImage {
+					parts = append(parts, dto.GeminiPart{
+						Text: part.Text,
+					})
+				}
 			} else if part.Type == dto.ContentTypeImageURL {
 				imageNum += 1
 
@@ -481,6 +588,17 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 						Data:     base64String,
 					},
 				})
+			}
+		}
+
+		// 如果需要附加签名但还没有附加（没有 tool_calls 或 tool_calls 为空），
+		// 则在第一个文本 part 上附加 thoughtSignature
+		if shouldAttachThoughtSignature && !signatureAttached && len(parts) > 0 {
+			for i := range parts {
+				if parts[i].Text != "" {
+					parts[i].ThoughtSignature = json.RawMessage(strconv.Quote(thoughtSignatureBypassValue))
+					break
+				}
 			}
 		}
 
@@ -1011,7 +1129,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if usage.CompletionTokens <= 0 {
 		str := responseText.String()
 		if len(str) > 0 {
-			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.PromptTokens)
+			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		} else {
 			usage = &dto.Usage{}
 		}
@@ -1184,11 +1302,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	// Google has not yet clarified how embedding models will be billed
 	// refer to openai billing method to use input tokens billing
 	// https://platform.openai.com/docs/guides/embeddings#what-are-embeddings
-	usage := &dto.Usage{
-		PromptTokens:     info.PromptTokens,
-		CompletionTokens: 0,
-		TotalTokens:      info.PromptTokens,
-	}
+	usage := service.ResponseText2Usage(c, "", info.UpstreamModelName, info.GetEstimatePromptTokens())
 	openAIResponse.Usage = *usage
 
 	jsonResponse, jsonErr := common.Marshal(openAIResponse)

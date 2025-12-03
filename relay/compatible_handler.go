@@ -144,7 +144,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 		// apply param override
 		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride)
+			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
@@ -192,9 +192,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent string) {
 	if usage == nil {
 		usage = &dto.Usage{
-			PromptTokens:     relayInfo.PromptTokens,
+			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
 			CompletionTokens: 0,
-			TotalTokens:      relayInfo.PromptTokens,
+			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
 		}
 		extraContent += "（可能是请求出错）"
 	}

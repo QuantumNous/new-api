@@ -17,8 +17,7 @@ type GeminiSettings struct {
 // 默认配置
 var defaultGeminiSettings = GeminiSettings{
 	SafetySettings: map[string]string{
-		"default":                       "OFF",
-		"HARM_CATEGORY_CIVIC_INTEGRITY": "BLOCK_NONE",
+		"default": "OFF",
 	},
 	VersionSettings: map[string]string{
 		"default":        "v1beta",

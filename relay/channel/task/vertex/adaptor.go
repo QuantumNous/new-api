@@ -12,7 +12,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -147,12 +146,39 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			body.Parameters["storageUri"] = v
 		}
 		if v, ok := req.Metadata["sampleCount"]; ok {
-			body.Parameters["sampleCount"] = v
+			if i, ok := v.(int); ok {
+				body.Parameters["sampleCount"] = i
+			}
+			if f, ok := v.(float64); ok {
+				body.Parameters["sampleCount"] = int(f)
+			}
 		}
 	}
 	if _, ok := body.Parameters["sampleCount"]; !ok {
 		body.Parameters["sampleCount"] = 1
 	}
+
+	if body.Parameters["sampleCount"].(int) <= 0 {
+		return nil, fmt.Errorf("sampleCount must be greater than 0")
+	}
+
+	// if req.Duration > 0 {
+	// 	body.Parameters["durationSeconds"] = req.Duration
+	// } else if req.Seconds != "" {
+	// 	seconds, err := strconv.Atoi(req.Seconds)
+	// 	if err != nil {
+	// 		return nil, errors.Wrap(err, "convert seconds to int failed")
+	// 	}
+	// 	body.Parameters["durationSeconds"] = seconds
+	// }
+
+	info.PriceData.OtherRatios = map[string]float64{
+		"sampleCount": float64(body.Parameters["sampleCount"].(int)),
+	}
+
+	// if v, ok := body.Parameters["durationSeconds"]; ok {
+	// 	info.PriceData.OtherRatios["durationSeconds"] = float64(v.(int))
+	// }
 
 	data, err := json.Marshal(body)
 	if err != nil {
