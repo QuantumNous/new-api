@@ -39,6 +39,7 @@ import {
   TASK_ACTION_GENERATE,
   TASK_ACTION_REFERENCE_GENERATE,
   TASK_ACTION_TEXT_GENERATE,
+  TASK_ACTION_MUSIC,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 
@@ -360,8 +361,13 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_TEXT_GENERATE ||
           record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
           record.action === TASK_ACTION_REFERENCE_GENERATE;
+        const isMusicTask = record.action === TASK_ACTION_MUSIC;
         const isSuccess = record.status === 'SUCCESS';
-        const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
+
+        // 优先取记录里的url，url为空取记录里的fail_reason
+        const recordUrl = record.url || text;
+        const isUrl = typeof recordUrl === 'string' && /^https?:\/\//.test(recordUrl);
+
         if (isSuccess && isVideoTask && isUrl) {
           const videoUrl = `/v1/videos/${record.task_id}/content`;
           return (
@@ -376,6 +382,21 @@ export const getTaskLogsColumns = ({
             </a>
           );
         }
+
+        if (isSuccess && isMusicTask && isUrl) {
+          return (
+            <a
+              href='#'
+              onClick={(e) => {
+                e.preventDefault();
+                openVideoModal(recordUrl);
+              }}
+            >
+              {t('点击预览音乐')}
+            </a>
+          );
+        }
+
         if (!text) {
           return t('无');
         }
