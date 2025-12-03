@@ -67,7 +67,7 @@ func (r *OfficialSunoResponse) ToStandardResponse() dto.TaskResponse[[]dto.SunoD
 	var finishTime int64
 	var url string
 	if r.Data.Status == "SUCCESS" {
-		finishTime = time.Now().UnixMilli()
+		finishTime = time.Now().Unix()
 		if sunoData := r.Data.Response.SunoData; len(sunoData) > 0 {
 			url = sunoData[0].AudioURL
 		}
@@ -84,8 +84,8 @@ func (r *OfficialSunoResponse) ToStandardResponse() dto.TaskResponse[[]dto.SunoD
 		Status:     r.Data.Status,
 		FailReason: failReason,
 		Url:        url,
-		SubmitTime: r.Data.CreateTime,
-		StartTime:  r.Data.CreateTime,
+		SubmitTime: r.Data.CreateTime / 1000, // to seconds
+		StartTime:  r.Data.CreateTime / 1000,
 		FinishTime: finishTime,
 		Data:       dataBytes,
 	}
