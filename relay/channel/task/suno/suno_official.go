@@ -2,7 +2,6 @@ package suno
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -153,8 +152,6 @@ func (a *TaskAdaptor) FetchTaskOfficial(baseUrl, key string, body map[string]any
 		return nil, err
 	}
 
-	// 使用带有超时的 context 创建新的请求
-	req = req.WithContext(context.TODO())
 	req.Header.Set("Authorization", "Bearer "+key)
 	resp, err := service.GetHttpClient().Do(req)
 	if err != nil {
