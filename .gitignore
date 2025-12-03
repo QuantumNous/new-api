@@ -34,3 +34,4 @@ CLAUDE.md
 docker-compose.local.yml
 Dockerfile.local
 package-lock.json
+data/

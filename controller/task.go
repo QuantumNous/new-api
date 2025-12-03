@@ -29,7 +29,7 @@ func UpdateTaskBulk() {
 		time.Sleep(time.Duration(15) * time.Second)
 		common.SysLog("任务进度轮询开始")
 		ctx := context.TODO()
-		allTasks := model.GetAllUnFinishSyncTasks(500)
+		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 		platformTask := make(map[constant.TaskPlatform][]*model.Task)
 		for _, t := range allTasks {
 			platformTask[t.Platform] = append(platformTask[t.Platform], t)

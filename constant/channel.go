@@ -180,3 +180,27 @@ func GetChannelTypeName(channelType int) string {
 	}
 	return "Unknown"
 }
+
+type ChannelSpecialBase struct {
+	ClaudeBaseURL string
+	OpenAIBaseURL string
+}
+
+var ChannelSpecialBases = map[string]ChannelSpecialBase{
+	"glm-coding-plan": {
+		ClaudeBaseURL: "https://open.bigmodel.cn/api/anthropic",
+		OpenAIBaseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+	},
+	"glm-coding-plan-international": {
+		ClaudeBaseURL: "https://api.z.ai/api/anthropic",
+		OpenAIBaseURL: "https://api.z.ai/api/coding/paas/v4",
+	},
+	"kimi-coding-plan": {
+		ClaudeBaseURL: "https://api.kimi.com/coding",
+		OpenAIBaseURL: "https://api.kimi.com/coding/v1",
+	},
+	"doubao-coding-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
+}
