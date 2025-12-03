@@ -83,6 +83,7 @@ type GeneralOpenAIRequest struct {
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
 	EnableThinking         any             `json:"enable_thinking,omitempty"`
+	ChatTemplateKwargs     json.RawMessage `json:"chat_template_kwargs,omitempty"`
 	// ollama Params
 	Think json.RawMessage `json:"think,omitempty"`
 	// baidu v2
