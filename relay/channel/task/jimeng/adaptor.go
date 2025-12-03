@@ -120,13 +120,9 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	v, exists := c.Get("task_request")
-	if !exists {
-		return nil, fmt.Errorf("request not found in context")
-	}
-	req, ok := v.(relaycommon.TaskSubmitReq)
-	if !ok {
-		return nil, fmt.Errorf("invalid request type in context")
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil, err
 	}
 	// 支持openai sdk的图片上传方式
 	if mf, err := c.MultipartForm(); err == nil {
@@ -167,6 +163,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "convert request payload failed")
 	}
+	info.UpstreamModelName = body.ReqKey
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -221,8 +218,12 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 		uri = fmt.Sprintf("%s/jimeng/?Action=CVSync2AsyncGetResult&Version=2022-08-31", a.baseURL)
 	}
 	payload := map[string]string{
-		"req_key": "jimeng_vgfm_t2v_l20", // This is fixed value from doc: https://www.volcengine.com/docs/85621/1544774
 		"task_id": taskID,
+	}
+	if reqKey, ok := body["req_key"].(string); !ok {
+		return nil, fmt.Errorf("invalid req_key")
+	} else {
+		payload["req_key"] = reqKey
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -240,14 +241,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	if isNewAPIRelay(key) {
 		req.Header.Set("Authorization", "Bearer "+key)
 	} else {
-		keyParts := strings.Split(key, "|")
-		if len(keyParts) != 2 {
-			return nil, fmt.Errorf("invalid api key format for jimeng: expected 'ak|sk'")
-		}
-		accessKey := strings.TrimSpace(keyParts[0])
-		secretKey := strings.TrimSpace(keyParts[1])
-
-		if err := a.signRequest(req, accessKey, secretKey); err != nil {
+		if err := a.signRequest(req, a.accessKey, a.secretKey); err != nil {
 			return nil, errors.Wrap(err, "sign request failed")
 		}
 	}
