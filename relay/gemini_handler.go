@@ -96,42 +96,42 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	adaptor.Init(info)
 
 	if info.ChannelSetting.SystemPrompt != "" {
-		if request.SystemInstructions == nil {
-			request.SystemInstructions = &dto.GeminiChatContent{
+		if request.SystemInstruction == nil {
+			request.SystemInstruction = &dto.GeminiChatContent{
 				Parts: []dto.GeminiPart{
 					{Text: info.ChannelSetting.SystemPrompt},
 				},
 			}
-		} else if len(request.SystemInstructions.Parts) == 0 {
-			request.SystemInstructions.Parts = []dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}
+		} else if len(request.SystemInstruction.Parts) == 0 {
+			request.SystemInstruction.Parts = []dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}
 		} else if info.ChannelSetting.SystemPromptOverride {
 			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 			merged := false
-			for i := range request.SystemInstructions.Parts {
-				if request.SystemInstructions.Parts[i].Text == "" {
+			for i := range request.SystemInstruction.Parts {
+				if request.SystemInstruction.Parts[i].Text == "" {
 					continue
 				}
-				request.SystemInstructions.Parts[i].Text = info.ChannelSetting.SystemPrompt + "\n" + request.SystemInstructions.Parts[i].Text
+				request.SystemInstruction.Parts[i].Text = info.ChannelSetting.SystemPrompt + "\n" + request.SystemInstruction.Parts[i].Text
 				merged = true
 				break
 			}
 			if !merged {
-				request.SystemInstructions.Parts = append([]dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}, request.SystemInstructions.Parts...)
+				request.SystemInstruction.Parts = append([]dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}, request.SystemInstruction.Parts...)
 			}
 		}
 	}
 
 	// Clean up empty system instruction
-	if request.SystemInstructions != nil {
+	if request.SystemInstruction != nil {
 		hasContent := false
-		for _, part := range request.SystemInstructions.Parts {
+		for _, part := range request.SystemInstruction.Parts {
 			if part.Text != "" {
 				hasContent = true
 				break
 			}
 		}
 		if !hasContent {
-			request.SystemInstructions = nil
+			request.SystemInstruction = nil
 		}
 	}
 

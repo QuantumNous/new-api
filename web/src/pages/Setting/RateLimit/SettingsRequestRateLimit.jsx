@@ -39,6 +39,15 @@ export default function RequestRateLimit(props) {
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
+    TokenRateLimitEnabled: false,
+    TokenRateLimitCount: 0,
+    TokenRateLimitSuccessCount: 0,
+    TokenRateLimitDurationMinutes: 1,
+    TokenRateLimitGroup: '',
+    TokenDailyRateLimitEnabled: false,
+    TokenDailyRateLimitCount: 0,
+    TokenDailyRateLimitSuccessCount: 0,
+    TokenDailyRateLimitGroup: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -232,6 +241,220 @@ export default function RequestRateLimit(props) {
             <Row>
               <Button size='default' onClick={onSubmit}>
                 {t('保存模型速率限制')}
+              </Button>
+            </Row>
+          </Form.Section>
+
+          <Form.Section text={t('密钥分钟级请求限制')}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'TokenRateLimitEnabled'}
+                  label={t('启用密钥分钟级请求限制（按API密钥限流）')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      TokenRateLimitEnabled: value,
+                    });
+                  }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('限制周期')}
+                  step={1}
+                  min={0}
+                  suffix={t('分钟')}
+                  extraText={t('频率限制的周期（分钟）')}
+                  field={'TokenRateLimitDurationMinutes'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      TokenRateLimitDurationMinutes: String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('密钥每周期最多请求次数')}
+                  step={1}
+                  min={0}
+                  max={100000000}
+                  suffix={t('次')}
+                  extraText={t('包括失败请求的次数，0代表不限制')}
+                  field={'TokenRateLimitCount'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      TokenRateLimitCount: String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('密钥每周期最多请求完成次数')}
+                  step={1}
+                  min={0}
+                  max={100000000}
+                  suffix={t('次')}
+                  extraText={t('只包括请求成功的次数，0代表不限制')}
+                  field={'TokenRateLimitSuccessCount'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      TokenRateLimitSuccessCount: String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={16}>
+                <Form.TextArea
+                  label={t('分组限制')}
+                  placeholder={t(
+                    '{\n  "default": [200, 100],\n  "vip": [0, 1000]\n}',
+                  )}
+                  field={'TokenRateLimitGroup'}
+                  autosize={{ minRows: 5, maxRows: 15 }}
+                  trigger='blur'
+                  stopValidateWithError
+                  rules={[
+                    {
+                      validator: (rule, value) => verifyJSON(value),
+                      message: t('不是合法的 JSON 字符串'),
+                    },
+                  ]}
+                  extraText={
+                    <div>
+                      <p>{t('说明：')}</p>
+                      <ul>
+                        <li>{t('使用 JSON 对象格式，格式为：{"组名": [每周期最多请求次数, 每周期最多请求完成次数]}')}</li>
+                        <li>{t('示例：{"default": [200, 100], "vip": [0, 1000]}。')}</li>
+                        <li>{t('[每周期最多请求次数]和[每周期最多请求完成次数]必须大于等于0。')}</li>
+                        <li>{t('最大值为2147483647。')}</li>
+                        <li>{t('分组配置优先级高于全局配置。')}</li>
+                        <li>{t('此限制按API密钥（Token）维度，每个密钥独立计算。')}</li>
+                        <li>{t('限制周期使用上方配置的"限制周期"值。')}</li>
+                      </ul>
+                    </div>
+                  }
+                  onChange={(value) => {
+                    setInputs({ ...inputs, TokenRateLimitGroup: value });
+                  }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Button size='default' onClick={onSubmit}>
+                {t('保存密钥分钟级限制')}
+              </Button>
+            </Row>
+          </Form.Section>
+
+          <Form.Section text={t('密钥每日请求限制')}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'TokenDailyRateLimitEnabled'}
+                  label={t('启用密钥每日请求限制（按API密钥限流）')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      TokenDailyRateLimitEnabled: value,
+                    });
+                  }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('密钥每日最多请求次数')}
+                  step={1}
+                  min={0}
+                  max={100000000}
+                  suffix={t('次')}
+                  extraText={t('包括失败请求的次数，0代表不限制')}
+                  field={'TokenDailyRateLimitCount'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      TokenDailyRateLimitCount: String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('密钥每日最多请求完成次数')}
+                  step={1}
+                  min={0}
+                  max={100000000}
+                  suffix={t('次')}
+                  extraText={t('只包括请求成功的次数，0代表不限制')}
+                  field={'TokenDailyRateLimitSuccessCount'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      TokenDailyRateLimitSuccessCount: String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={16}>
+                <Form.TextArea
+                  label={t('分组每日限制')}
+                  placeholder={t(
+                    '{\n  "default": [1000, 500],\n  "vip": [0, 10000]\n}',
+                  )}
+                  field={'TokenDailyRateLimitGroup'}
+                  autosize={{ minRows: 5, maxRows: 15 }}
+                  trigger='blur'
+                  stopValidateWithError
+                  rules={[
+                    {
+                      validator: (rule, value) => verifyJSON(value),
+                      message: t('不是合法的 JSON 字符串'),
+                    },
+                  ]}
+                  extraText={
+                    <div>
+                      <p>{t('说明：')}</p>
+                      <ul>
+                        <li>{t('使用 JSON 对象格式，格式为：{"组名": [每日最多请求次数, 每日最多请求完成次数]}')}</li>
+                        <li>{t('示例：{"default": [1000, 500], "vip": [0, 10000]}。')}</li>
+                        <li>{t('[每日最多请求次数]和[每日最多请求完成次数]必须大于等于0。')}</li>
+                        <li>{t('最大值为2147483647。')}</li>
+                        <li>{t('分组配置优先级高于全局配置。')}</li>
+                        <li>{t('此限制按API密钥（Token）维度，每个密钥独立计算。')}</li>
+                        <li>{t('限制周期为自然日（UTC+0），每日0点重置。')}</li>
+                      </ul>
+                    </div>
+                  }
+                  onChange={(value) => {
+                    setInputs({ ...inputs, TokenDailyRateLimitGroup: value });
+                  }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Button size='default' onClick={onSubmit}>
+                {t('保存密钥每日限制')}
               </Button>
             </Row>
           </Form.Section>
