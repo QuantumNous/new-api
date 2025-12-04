@@ -12,8 +12,6 @@ import (
 	"one-api/types"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -147,8 +145,26 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 		return true
 	})
 
+	// 允许空回复，正常计费但补全token为0
 	if info.SendResponseCount == 0 {
-		return nil, types.NewOpenAIError(errors.New("no response received from Gemini API"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+		// 空补全，发送空响应
+		stopReason := "STOP"
+		emptyResponse := dto.GeminiChatResponse{
+			Candidates: []dto.GeminiChatCandidate{
+				{
+					Content: dto.GeminiChatContent{
+						Parts: []dto.GeminiPart{
+							{Text: ""},
+						},
+						Role: "model",
+					},
+					FinishReason: &stopReason,
+					Index:        0,
+				},
+			},
+		}
+		responseBody, _ := common.Marshal(emptyResponse)
+		service.IOCopyBytesGracefully(c, resp, responseBody)
 	}
 
 	if imageCount != 0 {
@@ -157,15 +173,13 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	// 如果usage.CompletionTokens为0，则使用本地统计的completion tokens
+	// 空补全时，补全token为0，但保留prompt token用于计费
 	if usage.CompletionTokens == 0 {
 		str := responseText.String()
 		if len(str) > 0 {
 			usage = service.ResponseText2Usage(responseText.String(), info.UpstreamModelName, info.PromptTokens)
-		} else {
-			// 空补全，不需要使用量
-			usage = &dto.Usage{}
 		}
+		// 即使是空补全，也保留usage用于计费
 	}
 
 	// 移除流式响应结尾的[Done]，因为Gemini API没有发送Done的行为

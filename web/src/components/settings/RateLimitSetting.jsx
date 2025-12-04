@@ -32,6 +32,15 @@ const RateLimitSetting = () => {
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
+    TokenRateLimitEnabled: false,
+    TokenRateLimitCount: 0,
+    TokenRateLimitSuccessCount: 0,
+    TokenRateLimitDurationMinutes: 1,
+    TokenRateLimitGroup: '',
+    TokenDailyRateLimitEnabled: false,
+    TokenDailyRateLimitCount: 0,
+    TokenDailyRateLimitSuccessCount: 0,
+    TokenDailyRateLimitGroup: '',
   });
 
   let [loading, setLoading] = useState(false);
@@ -42,8 +51,15 @@ const RateLimitSetting = () => {
     if (success) {
       let newInputs = {};
       data.forEach((item) => {
-        if (item.key === 'ModelRequestRateLimitGroup') {
-          item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+        if (item.key === 'ModelRequestRateLimitGroup' ||
+            item.key === 'TokenRateLimitGroup' ||
+            item.key === 'TokenDailyRateLimitGroup') {
+          try {
+            item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+          } catch (e) {
+            // 如果解析失败，保持原值
+            item.value = item.value || '';
+          }
         }
 
         if (item.key.endsWith('Enabled')) {

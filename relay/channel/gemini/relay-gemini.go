@@ -971,10 +971,29 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		return true
 	})
 
+	// 允许空回复，正常计费但补全token为0
 	if info.SendResponseCount == 0 {
-		// 空补全，报错不计费
-		// empty response, throw an error
-		return nil, types.NewOpenAIError(errors.New("no response received from Gemini API"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+		// 空补全，发送空响应
+		emptyContent := ""
+		emptyChoice := dto.ChatCompletionsStreamResponseChoice{
+			Index: 0,
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				Role:    "assistant",
+				Content: &emptyContent,
+			},
+			FinishReason: &constant.FinishReasonStop,
+		}
+		emptyResponse := dto.ChatCompletionsStreamResponse{
+			Id:      id,
+			Object:  "chat.completion.chunk",
+			Created: createAt,
+			Model:   info.UpstreamModelName,
+			Choices: []dto.ChatCompletionsStreamResponseChoice{emptyChoice},
+		}
+		err := handleStream(c, info, &emptyResponse)
+		if err != nil {
+			common.SysLog("send empty response failed: " + err.Error())
+		}
 	}
 
 	if imageCount != 0 {
@@ -986,14 +1005,13 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
 	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
 
+	// 空补全时，补全token为0，但保留prompt token用于计费
 	if usage.CompletionTokens == 0 {
 		str := responseText.String()
 		if len(str) > 0 {
 			usage = service.ResponseText2Usage(responseText.String(), info.UpstreamModelName, info.PromptTokens)
-		} else {
-			// 空补全，不需要使用量
-			usage = &dto.Usage{}
 		}
+		// 即使是空补全，也保留usage用于计费
 	}
 
 	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
@@ -1022,9 +1040,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	if len(geminiResponse.Candidates) == 0 {
-		return nil, types.NewOpenAIError(errors.New("no candidates returned"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-	}
+	// 允许空回复，正常处理
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
 	usage := dto.Usage{

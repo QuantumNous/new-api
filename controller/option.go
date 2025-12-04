@@ -121,6 +121,24 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "TokenRateLimitGroup":
+		err = setting.CheckTokenRateLimitGroup(option.Value)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "TokenDailyRateLimitGroup":
+		err = setting.CheckTokenDailyRateLimitGroup(option.Value)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value, "ApiInfo")
 		if err != nil {

@@ -104,6 +104,15 @@ func InitOptionMap() {
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
+	common.OptionMap["TokenRateLimitEnabled"] = strconv.FormatBool(setting.TokenRateLimitEnabled)
+	common.OptionMap["TokenRateLimitDurationMinutes"] = strconv.Itoa(setting.TokenRateLimitDurationMinutes)
+	common.OptionMap["TokenRateLimitCount"] = strconv.Itoa(setting.TokenRateLimitCount)
+	common.OptionMap["TokenRateLimitSuccessCount"] = strconv.Itoa(setting.TokenRateLimitSuccessCount)
+	common.OptionMap["TokenRateLimitGroup"] = setting.TokenRateLimitGroup2JSONString()
+	common.OptionMap["TokenDailyRateLimitEnabled"] = strconv.FormatBool(setting.TokenDailyRateLimitEnabled)
+	common.OptionMap["TokenDailyRateLimitCount"] = strconv.Itoa(setting.TokenDailyRateLimitCount)
+	common.OptionMap["TokenDailyRateLimitSuccessCount"] = strconv.Itoa(setting.TokenDailyRateLimitSuccessCount)
+	common.OptionMap["TokenDailyRateLimitGroup"] = setting.TokenDailyRateLimitGroup2JSONString()
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
@@ -266,6 +275,10 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.CheckSensitiveOnPromptEnabled = boolValue
 		case "ModelRequestRateLimitEnabled":
 			setting.ModelRequestRateLimitEnabled = boolValue
+		case "TokenRateLimitEnabled":
+			setting.TokenRateLimitEnabled = boolValue
+		case "TokenDailyRateLimitEnabled":
+			setting.TokenDailyRateLimitEnabled = boolValue
 		case "StopOnSensitiveEnabled":
 			setting.StopOnSensitiveEnabled = boolValue
 		case "SMTPSSLEnabled":
@@ -376,6 +389,20 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.ModelRequestRateLimitSuccessCount, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitGroup":
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
+	case "TokenRateLimitDurationMinutes":
+		setting.TokenRateLimitDurationMinutes, _ = strconv.Atoi(value)
+	case "TokenRateLimitCount":
+		setting.TokenRateLimitCount, _ = strconv.Atoi(value)
+	case "TokenRateLimitSuccessCount":
+		setting.TokenRateLimitSuccessCount, _ = strconv.Atoi(value)
+	case "TokenRateLimitGroup":
+		err = setting.UpdateTokenRateLimitGroupByJSONString(value)
+	case "TokenDailyRateLimitCount":
+		setting.TokenDailyRateLimitCount, _ = strconv.Atoi(value)
+	case "TokenDailyRateLimitSuccessCount":
+		setting.TokenDailyRateLimitSuccessCount, _ = strconv.Atoi(value)
+	case "TokenDailyRateLimitGroup":
+		err = setting.UpdateTokenDailyRateLimitGroupByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
 	case "DataExportInterval":

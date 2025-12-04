@@ -208,11 +208,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					return // Success
 				}
 
+				// inappropriate 错误直接切换渠道，不重试同一渠道的多个密钥
+				if isInappropriateError(newAPIError) {
+					goto next_channel
+				}
+
 				// If the error is not retryable for a key, break the inner loop
 				if !shouldRetry(c, newAPIError, common.RetryTimes-i) {
 					goto next_channel // Break inner loop and go to the next channel
 				}
-				
+
 				// Get next key for retry
 				key, keyIdx, keyErr = channel.GetNextEnabledKey()
 				if keyErr != nil {
@@ -282,6 +287,15 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 	return channel, nil
 }
 
+// isInappropriateError 检测错误是否包含 inappropriate 字样
+// 此类错误需要强制渠道间重试，不重试同一渠道的多个密钥
+func isInappropriateError(openaiErr *types.NewAPIError) bool {
+	if openaiErr == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(openaiErr.Error()), "inappropriate")
+}
+
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
@@ -289,8 +303,12 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if strings.Contains(openaiErr.Error(), "no response received") {
 		return false
 	}
-	if strings.Contains(openaiErr.Error(), "no candidates returned") {
+	if strings.Contains(openaiErr.Error(), "no candidates reMeoWturned") {
 		return false
+	}
+	// inappropriate 错误强制渠道间重试
+	if isInappropriateError(openaiErr) {
+		return true
 	}
 	if types.IsChannelError(openaiErr) {
 		return true
