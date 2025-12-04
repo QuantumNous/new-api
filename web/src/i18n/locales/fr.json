@@ -598,6 +598,7 @@
     "启用Ping间隔": "Activer l'intervalle de ping",
     "启用SMTP SSL": "Activer SMTP SSL",
     "启用SSRF防护（推荐开启以保护服务器安全）": "Activer la protection SSRF (recommandé pour la sécurité du serveur)",
+    "启用微信扫码直接登录": "Activer la connexion directe par code QR WeChat",
     "启用全部": "Activer tout",
     "启用后将使用 Creem Test Mode": "Après activation, le mode test Creem sera utilisé",
     "启用密钥失败": "Échec de l'activation de la clé",
