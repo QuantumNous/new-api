@@ -194,6 +194,25 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	return usage, nil
 }
 
+// OpenaiHandler processes an upstream OpenAI-like HTTP response, normalizes or infers token usage,
+// optionally converts OpenRouter reasoning fields to OpenAI-compatible `reasoning_content`, adapts
+// the response to the configured relay format (OpenAI, Claude, or Gemini), writes the final body
+// to the client, and returns the computed usage.
+//
+// It will:
+// - Handle OpenRouter enterprise wrapper responses when the channel is OpenRouter Enterprise.
+// - Unmarshal the upstream body into an internal simple response and, when configured,
+//   convert OpenRouter `reasoning` fields into `reasoning_content`.
+// - If usage prompt tokens are missing, infer completion tokens by counting tokens in choices
+//   (falling back to per-choice text token counting) and set Prompt/Completion/Total tokens.
+// - Apply channel-specific post-processing to usage (cached token adjustments).
+// - Depending on RelayFormat and channel settings, inject updated usage into the body,
+//   reserialize the converted simple response when ForceFormat is enabled or when OpenRouter
+//   conversion was applied, or convert the response to Claude/Gemini formats.
+// - Write the final response body to the client via a graceful copy helper.
+//
+// Returns the final usage (possibly inferred or modified) or a NewAPIError describing any failure
+// encountered while reading, parsing, or transforming the upstream response.
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -224,6 +243,12 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	err = common.Unmarshal(responseBody, &simpleResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
+	// 仅当启用转换为OpenAI兼容格式时执行（修改现有无条件转换）
+	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
+		convertOpenRouterReasoningFields(&simpleResponse)
 	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
@@ -271,6 +296,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
 		} else {
+			// 对于 OpenRouter，仅在执行转换后重新序列化
+			if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
+				responseBody, err = common.Marshal(simpleResponse)
+				if err != nil {
+					return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+				}
+			}
 			break
 		}
 	case types.RelayFormatClaude:
@@ -672,6 +704,10 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 	}
 }
 
+// extractCachedTokensFromBody extracts a cached token count from a JSON response body.
+// It looks for cached token values in the following fields (in order): `usage.prompt_tokens_details.cached_tokens`,
+// `usage.cached_tokens`, and `usage.prompt_cache_hit_tokens`. It returns the first found value and `true`;
+// if none are present or the body cannot be parsed, it returns 0 and `false`.
 func extractCachedTokensFromBody(body []byte) (int, bool) {
 	if len(body) == 0 {
 		return 0, false
@@ -701,4 +737,19 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 		return *payload.Usage.PromptCacheHitTokens, true
 	}
 	return 0, false
+}
+
+// convertOpenRouterReasoningFields 转换OpenRouter响应中的reasoning字段为reasoning_content
+// convertOpenRouterReasoningFields converts OpenRouter-style `reasoning` fields into `reasoning_content` for every choice's message in the provided OpenAITextResponse.
+// It modifies the response in place and is a no-op if `response` is nil or contains no choices.
+func convertOpenRouterReasoningFields(response *dto.OpenAITextResponse) {
+	if response == nil || len(response.Choices) == 0 {
+		return
+	}
+
+	// 遍历所有choices，对每个Message使用统一的泛型函数进行转换
+	for i := range response.Choices {
+		choice := &response.Choices[i]
+		ConvertReasoningField(&choice.Message)
+	}
 }
