@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"math"
 	"one-api/common"
@@ -250,12 +253,17 @@ func getImageToken(fileMeta *types.FileMeta, model string, stream bool) (int, er
 }
 
 func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
-	if meta == nil {
-		return 0, errors.New("token count meta is nil")
+	if !constant.GetMediaToken {
+		return 0, nil
 	}
-
+	if !constant.GetMediaTokenNotStream && !info.IsStream {
+		return 0, nil
+	}
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime {
 		return 0, nil
+	}
+	if meta == nil {
+		return 0, errors.New("token count meta is nil")
 	}
 
 	model := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
@@ -276,7 +284,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 
 	shouldFetchFiles := true
 
-	if info.RelayFormat == types.RelayFormatOpenAIRealtime || info.RelayFormat == types.RelayFormatGemini {
+	if info.RelayFormat == types.RelayFormatGemini {
 		shouldFetchFiles = false
 	}
 
@@ -297,11 +305,35 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 					file.FileType = types.FileTypeFile
 				}
 				file.MimeType = mineType
+			} else if strings.HasPrefix(file.OriginData, "data:") {
+				// get mime type from base64 header
+				parts := strings.SplitN(file.OriginData, ",", 2)
+				if len(parts) >= 1 {
+					header := parts[0]
+					// Extract mime type from "data:mime/type;base64" format
+					if strings.Contains(header, ":") && strings.Contains(header, ";") {
+						mimeStart := strings.Index(header, ":") + 1
+						mimeEnd := strings.Index(header, ";")
+						if mimeStart < mimeEnd {
+							mineType := header[mimeStart:mimeEnd]
+							if strings.HasPrefix(mineType, "image/") {
+								file.FileType = types.FileTypeImage
+							} else if strings.HasPrefix(mineType, "video/") {
+								file.FileType = types.FileTypeVideo
+							} else if strings.HasPrefix(mineType, "audio/") {
+								file.FileType = types.FileTypeAudio
+							} else {
+								file.FileType = types.FileTypeFile
+							}
+							file.MimeType = mineType
+						}
+					}
+				}
 			}
 		}
 	}
 
-	for _, file := range meta.Files {
+	for i, file := range meta.Files {
 		switch file.FileType {
 		case types.FileTypeImage:
 			if info.RelayFormat == types.RelayFormatGemini {
@@ -309,7 +341,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 			} else {
 				token, err := getImageToken(file, model, info.IsStream)
 				if err != nil {
-					return 0, fmt.Errorf("error counting image token: %v", err)
+					return 0, fmt.Errorf("error counting image token, media index[%d], original data[%s], err: %v", i, file.OriginData, err)
 				}
 				tkm += token
 			}
@@ -327,33 +359,6 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 	common.SetContextKey(c, constant.ContextKeyPromptTokens, tkm)
 	return tkm, nil
 }
-
-//func CountTokenChatRequest(info *relaycommon.RelayInfo, request dto.GeneralOpenAIRequest) (int, error) {
-//	tkm := 0
-//	msgTokens, err := CountTokenMessages(info, request.Messages, request.Model, request.Stream)
-//	if err != nil {
-//		return 0, err
-//	}
-//	tkm += msgTokens
-//	if request.Tools != nil {
-//		openaiTools := request.Tools
-//		countStr := ""
-//		for _, tool := range openaiTools {
-//			countStr = tool.Function.Name
-//			if tool.Function.Description != "" {
-//				countStr += tool.Function.Description
-//			}
-//			if tool.Function.Parameters != nil {
-//				countStr += fmt.Sprintf("%v", tool.Function.Parameters)
-//			}
-//		}
-//		toolTokens := CountTokenInput(countStr, request.Model)
-//		tkm += 8
-//		tkm += toolTokens
-//	}
-//
-//	return tkm, nil
-//}
 
 func CountTokenClaudeRequest(request dto.ClaudeRequest, model string) (int, error) {
 	tkm := 0
@@ -513,56 +518,6 @@ func CountTokenRealtime(info *relaycommon.RelayInfo, request dto.RealtimeEvent, 
 	}
 	return textToken, audioToken, nil
 }
-
-//func CountTokenMessages(info *relaycommon.RelayInfo, messages []dto.Message, model string, stream bool) (int, error) {
-//	//recover when panic
-//	tokenEncoder := getTokenEncoder(model)
-//	// Reference:
-//	// https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
-//	// https://github.com/pkoukk/tiktoken-go/issues/6
-//	//
-//	// Every message follows <|start|>{role/name}\n{content}<|end|>\n
-//	var tokensPerMessage int
-//	var tokensPerName int
-//
-//	tokensPerMessage = 3
-//	tokensPerName = 1
-//
-//	tokenNum := 0
-//	for _, message := range messages {
-//		tokenNum += tokensPerMessage
-//		tokenNum += getTokenNum(tokenEncoder, message.Role)
-//		if message.Content != nil {
-//			if message.Name != nil {
-//				tokenNum += tokensPerName
-//				tokenNum += getTokenNum(tokenEncoder, *message.Name)
-//			}
-//			arrayContent := message.ParseContent()
-//			for _, m := range arrayContent {
-//				if m.Type == dto.ContentTypeImageURL {
-//					imageUrl := m.GetImageMedia()
-//					imageTokenNum, err := getImageToken(info, imageUrl, model, stream)
-//					if err != nil {
-//						return 0, err
-//					}
-//					tokenNum += imageTokenNum
-//					log.Printf("image token num: %d", imageTokenNum)
-//				} else if m.Type == dto.ContentTypeInputAudio {
-//					// TODO: 音频token数量计算
-//					tokenNum += 100
-//				} else if m.Type == dto.ContentTypeFile {
-//					tokenNum += 5000
-//				} else if m.Type == dto.ContentTypeVideoUrl {
-//					tokenNum += 5000
-//				} else {
-//					tokenNum += getTokenNum(tokenEncoder, m.Text)
-//				}
-//			}
-//		}
-//	}
-//	tokenNum += 3 // Every reply is primed with <|start|>assistant<|message|>
-//	return tokenNum, nil
-//}
 
 func CountTokenInput(input any, model string) int {
 	switch v := input.(type) {

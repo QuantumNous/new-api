@@ -31,14 +31,14 @@ import {
   Popover,
   Typography,
   Input,
-  Modal
+  Modal,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
   renderGroup,
   renderQuota,
   getModelCategories,
-  showError
+  showError,
 } from '../../../helpers';
 import {
   IconTreeTriangleDown,
@@ -92,10 +92,15 @@ const renderGroupColumn = (text, t) => {
   if (text === 'auto') {
     return (
       <Tooltip
-        content={t('当前分组为 auto，会自动选择最优分组，当一个组不可用时自动降级到下一个组（熔断机制）')}
+        content={t(
+          '当前分组为 auto，会自动选择最优分组，当一个组不可用时自动降级到下一个组（熔断机制）',
+        )}
         position='top'
       >
-        <Tag color='white' shape='circle'> {t('智能熔断')} </Tag>
+        <Tag color='white' shape='circle'>
+          {' '}
+          {t('智能熔断')}{' '}
+        </Tag>
       </Tooltip>
     );
   }
@@ -105,7 +110,8 @@ const renderGroupColumn = (text, t) => {
 // Render token key column with show/hide and copy functionality
 const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
   const fullKey = 'sk-' + record.key;
-  const maskedKey = 'sk-' + record.key.slice(0, 4) + '**********' + record.key.slice(-4);
+  const maskedKey =
+    'sk-' + record.key.slice(0, 4) + '**********' + record.key.slice(-4);
   const revealed = !!showKeys[record.id];
 
   return (
@@ -124,7 +130,7 @@ const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
               aria-label='toggle token visibility'
               onClick={(e) => {
                 e.stopPropagation();
-                setShowKeys(prev => ({ ...prev, [record.id]: !revealed }));
+                setShowKeys((prev) => ({ ...prev, [record.id]: !revealed }));
               }}
             />
             <Button
@@ -156,14 +162,25 @@ const renderModelLimits = (text, record, t) => {
     Object.entries(categories).forEach(([key, category]) => {
       if (key === 'all') return;
       if (!category.icon || !category.filter) return;
-      const vendorModels = models.filter((m) => category.filter({ model_name: m }));
+      const vendorModels = models.filter((m) =>
+        category.filter({ model_name: m }),
+      );
       if (vendorModels.length > 0) {
         vendorAvatars.push(
-          <Tooltip key={key} content={vendorModels.join(', ')} position='top' showArrow>
-            <Avatar size='extra-extra-small' alt={category.label} color='transparent'>
+          <Tooltip
+            key={key}
+            content={vendorModels.join(', ')}
+            position='top'
+            showArrow
+          >
+            <Avatar
+              size='extra-extra-small'
+              alt={category.label}
+              color='transparent'
+            >
               {category.icon}
             </Avatar>
-          </Tooltip>
+          </Tooltip>,
         );
         vendorModels.forEach((m) => matchedModels.add(m));
       }
@@ -172,19 +189,20 @@ const renderModelLimits = (text, record, t) => {
     const unmatchedModels = models.filter((m) => !matchedModels.has(m));
     if (unmatchedModels.length > 0) {
       vendorAvatars.push(
-        <Tooltip key='unknown' content={unmatchedModels.join(', ')} position='top' showArrow>
+        <Tooltip
+          key='unknown'
+          content={unmatchedModels.join(', ')}
+          position='top'
+          showArrow
+        >
           <Avatar size='extra-extra-small' alt='unknown'>
             {t('其他')}
           </Avatar>
-        </Tooltip>
+        </Tooltip>,
       );
     }
 
-    return (
-      <AvatarGroup size='extra-extra-small'>
-        {vendorAvatars}
-      </AvatarGroup>
-    );
+    return <AvatarGroup size='extra-extra-small'>{vendorAvatars}</AvatarGroup>;
   } else {
     return (
       <Tag color='white' shape='circle'>
@@ -226,10 +244,8 @@ const renderAllowIps = (text, t) => {
         position='top'
         showArrow
       >
-        <Tag shape='circle'>
-          {'+' + extraCount}
-        </Tag>
-      </Tooltip>
+        <Tag shape='circle'>{'+' + extraCount}</Tag>
+      </Tooltip>,
     );
   }
 
@@ -291,7 +307,16 @@ const renderQuotaUsage = (text, record, t) => {
 };
 
 // Render operations column
-const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit, manageToken, refresh, t) => {
+const renderOperations = (
+  text,
+  record,
+  onOpenLink,
+  setEditingToken,
+  setShowEdit,
+  manageToken,
+  refresh,
+  t,
+) => {
   let chatsArray = [];
   try {
     const raw = localStorage.getItem('chats');
@@ -317,11 +342,11 @@ const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit
   return (
     <Space wrap>
       <SplitButtonGroup
-        className="overflow-hidden"
+        className='overflow-hidden'
         aria-label={t('项目操作按钮组')}
       >
         <Button
-          size="small"
+          size='small'
           type='tertiary'
           onClick={() => {
             if (chatsArray.length === 0) {
@@ -334,15 +359,11 @@ const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit
         >
           {t('聊天')}
         </Button>
-        <Dropdown
-          trigger='click'
-          position='bottomRight'
-          menu={chatsArray}
-        >
+        <Dropdown trigger='click' position='bottomRight' menu={chatsArray}>
           <Button
             type='tertiary'
             icon={<IconTreeTriangleDown />}
-            size="small"
+            size='small'
           ></Button>
         </Dropdown>
       </SplitButtonGroup>
@@ -350,7 +371,7 @@ const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit
       {record.status === 1 ? (
         <Button
           type='danger'
-          size="small"
+          size='small'
           onClick={async () => {
             await manageToken(record.id, 'disable', record);
             await refresh();
@@ -360,7 +381,7 @@ const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit
         </Button>
       ) : (
         <Button
-          size="small"
+          size='small'
           onClick={async () => {
             await manageToken(record.id, 'enable', record);
             await refresh();
@@ -372,7 +393,7 @@ const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit
 
       <Button
         type='tertiary'
-        size="small"
+        size='small'
         onClick={() => {
           setEditingToken(record);
           setShowEdit(true);
@@ -383,7 +404,7 @@ const renderOperations = (text, record, onOpenLink, setEditingToken, setShowEdit
 
       <Button
         type='danger'
-        size="small"
+        size='small'
         onClick={() => {
           Modal.confirm({
             title: t('确定是否要删除此令牌？'),
@@ -439,7 +460,8 @@ export const getTokensColumns = ({
     {
       title: t('密钥'),
       key: 'token_key',
-      render: (text, record) => renderTokenKey(text, record, showKeys, setShowKeys, copyText),
+      render: (text, record) =>
+        renderTokenKey(text, record, showKeys, setShowKeys, copyText),
     },
     {
       title: t('可用模型'),
@@ -473,16 +495,17 @@ export const getTokensColumns = ({
       title: '',
       dataIndex: 'operate',
       fixed: 'right',
-      render: (text, record, index) => renderOperations(
-        text,
-        record,
-        onOpenLink,
-        setEditingToken,
-        setShowEdit,
-        manageToken,
-        refresh,
-        t
-      ),
+      render: (text, record, index) =>
+        renderOperations(
+          text,
+          record,
+          onOpenLink,
+          setEditingToken,
+          setShowEdit,
+          manageToken,
+          refresh,
+          t,
+        ),
     },
   ];
-}; 
+};

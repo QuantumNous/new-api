@@ -18,21 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import {
-  Button,
-  Typography,
-  Toast,
-  Modal,
-  Dropdown,
-} from '@douyinfe/semi-ui';
-import {
-  Download,
-  Upload,
-  RotateCcw,
-  Settings2,
-} from 'lucide-react';
+import { Button, Typography, Toast, Modal, Dropdown } from '@douyinfe/semi-ui';
+import { Download, Upload, RotateCcw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { exportConfig, importConfig, clearConfig, hasStoredConfig, getConfigTimestamp } from './configStorage';
+import {
+  exportConfig,
+  importConfig,
+  clearConfig,
+  hasStoredConfig,
+  getConfigTimestamp,
+} from './configStorage';
 
 const ConfigManager = ({
   currentConfig,
@@ -51,7 +46,10 @@ const ConfigManager = ({
         ...currentConfig,
         timestamp: new Date().toISOString(),
       };
-      localStorage.setItem('playground_config', JSON.stringify(configWithTimestamp));
+      localStorage.setItem(
+        'playground_config',
+        JSON.stringify(configWithTimestamp),
+      );
 
       exportConfig(currentConfig, messages);
       Toast.success({
@@ -104,7 +102,9 @@ const ConfigManager = ({
   const handleReset = () => {
     Modal.confirm({
       title: t('重置配置'),
-      content: t('将清除所有保存的配置并恢复默认设置，此操作不可撤销。是否继续？'),
+      content: t(
+        '将清除所有保存的配置并恢复默认设置，此操作不可撤销。是否继续？',
+      ),
       okText: t('确定重置'),
       cancelText: t('取消'),
       okButtonProps: {
@@ -114,7 +114,9 @@ const ConfigManager = ({
         // 询问是否同时重置消息
         Modal.confirm({
           title: t('重置选项'),
-          content: t('是否同时重置对话消息？选择"是"将清空所有对话记录并恢复默认示例；选择"否"将保留当前对话记录。'),
+          content: t(
+            '是否同时重置对话消息？选择"是"将清空所有对话记录并恢复默认示例；选择"否"将保留当前对话记录。',
+          ),
           okText: t('同时重置消息'),
           cancelText: t('仅重置配置'),
           okButtonProps: {
@@ -159,7 +161,7 @@ const ConfigManager = ({
       name: 'export',
       onClick: handleExport,
       children: (
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           <Download size={14} />
           {t('导出配置')}
         </div>
@@ -170,7 +172,7 @@ const ConfigManager = ({
       name: 'import',
       onClick: handleImportClick,
       children: (
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           <Upload size={14} />
           {t('导入配置')}
         </div>
@@ -184,7 +186,7 @@ const ConfigManager = ({
       name: 'reset',
       onClick: handleReset,
       children: (
-        <div className="flex items-center gap-2 text-red-600">
+        <div className='flex items-center gap-2 text-red-600'>
           <RotateCcw size={14} />
           {t('重置配置')}
         </div>
@@ -197,24 +199,24 @@ const ConfigManager = ({
     return (
       <>
         <Dropdown
-          trigger="click"
-          position="bottomLeft"
+          trigger='click'
+          position='bottomLeft'
           showTick
           menu={dropdownItems}
         >
           <Button
             icon={<Settings2 size={14} />}
-            theme="borderless"
-            type="tertiary"
-            size="small"
-            className="!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50"
+            theme='borderless'
+            type='tertiary'
+            size='small'
+            className='!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50'
           />
         </Dropdown>
 
         <input
           ref={fileInputRef}
-          type="file"
-          accept=".json"
+          type='file'
+          accept='.json'
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />
@@ -224,42 +226,42 @@ const ConfigManager = ({
 
   // 桌面端显示紧凑的按钮组
   return (
-    <div className="space-y-3">
+    <div className='space-y-3'>
       {/* 配置状态信息和重置按钮 */}
-      <div className="flex items-center justify-between">
-        <Typography.Text className="text-xs text-gray-500">
+      <div className='flex items-center justify-between'>
+        <Typography.Text className='text-xs text-gray-500'>
           {getConfigStatus()}
         </Typography.Text>
         <Button
           icon={<RotateCcw size={12} />}
-          size="small"
-          theme="borderless"
-          type="danger"
+          size='small'
+          theme='borderless'
+          type='danger'
           onClick={handleReset}
-          className="!rounded-full !text-xs !px-2"
+          className='!rounded-full !text-xs !px-2'
         />
       </div>
 
       {/* 导出和导入按钮 */}
-      <div className="flex gap-2">
+      <div className='flex gap-2'>
         <Button
           icon={<Download size={12} />}
-          size="small"
-          theme="solid"
-          type="primary"
+          size='small'
+          theme='solid'
+          type='primary'
           onClick={handleExport}
-          className="!rounded-lg flex-1 !text-xs !h-7"
+          className='!rounded-lg flex-1 !text-xs !h-7'
         >
           {t('导出')}
         </Button>
 
         <Button
           icon={<Upload size={12} />}
-          size="small"
-          theme="outline"
-          type="primary"
+          size='small'
+          theme='outline'
+          type='primary'
           onClick={handleImportClick}
-          className="!rounded-lg flex-1 !text-xs !h-7"
+          className='!rounded-lg flex-1 !text-xs !h-7'
         >
           {t('导入')}
         </Button>
@@ -267,8 +269,8 @@ const ConfigManager = ({
 
       <input
         ref={fileInputRef}
-        type="file"
-        accept=".json"
+        type='file'
+        accept='.json'
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
@@ -276,4 +278,4 @@ const ConfigManager = ({
   );
 };
 
-export default ConfigManager; 
+export default ConfigManager;

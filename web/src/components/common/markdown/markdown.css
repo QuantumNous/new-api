@@ -59,12 +59,12 @@
 }
 
 .user-message a {
-  color: #87CEEB !important;
+  color: #87ceeb !important;
   /* 浅蓝色链接 */
 }
 
 .user-message a:hover {
-  color: #B0E0E6 !important;
+  color: #b0e0e6 !important;
   /* hover时更浅的蓝色 */
 }
 
@@ -298,7 +298,12 @@ pre:hover .copy-code-button {
 .markdown-body hr {
   border: none;
   height: 1px;
-  background: linear-gradient(to right, transparent, var(--semi-color-border), transparent);
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--semi-color-border),
+    transparent
+  );
   margin: 24px 0;
 }
 
@@ -332,7 +337,7 @@ pre:hover .copy-code-button {
 }
 
 /* 任务列表样式 */
-.markdown-body input[type="checkbox"] {
+.markdown-body input[type='checkbox'] {
   margin-right: 8px;
   transform: scale(1.1);
 }

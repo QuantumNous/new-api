@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"one-api/dto"
+	"one-api/model"
 	relaycommon "one-api/relay/common"
 	"one-api/types"
 
@@ -30,16 +31,16 @@ type Adaptor interface {
 }
 
 type TaskAdaptor interface {
-	Init(info *relaycommon.TaskRelayInfo)
+	Init(info *relaycommon.RelayInfo)
 
-	ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.TaskRelayInfo) *dto.TaskError
+	ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError
 
-	BuildRequestURL(info *relaycommon.TaskRelayInfo) (string, error)
-	BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.TaskRelayInfo) error
-	BuildRequestBody(c *gin.Context, info *relaycommon.TaskRelayInfo) (io.Reader, error)
+	BuildRequestURL(info *relaycommon.RelayInfo) (string, error)
+	BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error
+	BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error)
 
-	DoRequest(c *gin.Context, info *relaycommon.TaskRelayInfo, requestBody io.Reader) (*http.Response, error)
-	DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.TaskRelayInfo) (taskID string, taskData []byte, err *dto.TaskError)
+	DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error)
+	DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, err *dto.TaskError)
 
 	GetModelList() []string
 	GetChannelName() string
@@ -48,4 +49,8 @@ type TaskAdaptor interface {
 	FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error)
 
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
+}
+
+type OpenAIVideoConverter interface {
+	ConvertToOpenAIVideo(originTask *model.Task) (*relaycommon.OpenAIVideo, error)
 }

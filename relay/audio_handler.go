@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"one-api/common"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
@@ -16,12 +17,17 @@ import (
 func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
-	audioRequest, ok := info.Request.(*dto.AudioRequest)
+	audioReq, ok := info.Request.(*dto.AudioRequest)
 	if !ok {
 		return types.NewError(errors.New("invalid request type"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	err := helper.ModelMappedHelper(c, info, audioRequest)
+	request, err := common.DeepCopy(audioReq)
+	if err != nil {
+		return types.NewError(fmt.Errorf("failed to copy request to AudioRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
@@ -32,7 +38,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	adaptor.Init(info)
 
-	ioReader, err := adaptor.ConvertAudioRequest(c, info, *audioRequest)
+	ioReader, err := adaptor.ConvertAudioRequest(c, info, *request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
@@ -47,7 +53,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError

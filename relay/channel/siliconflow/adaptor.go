@@ -61,6 +61,16 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	// SiliconFlow requires messages array for FIM requests, even if client doesn't send it
+	if (request.Prefix != nil || request.Suffix != nil) && len(request.Messages) == 0 {
+		// Add an empty user message to satisfy SiliconFlow's requirement
+		request.Messages = []dto.Message{
+			{
+				Role:    "user",
+				Content: "",
+			},
+		}
+	}
 	return request, nil
 }
 

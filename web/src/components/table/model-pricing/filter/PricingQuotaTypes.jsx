@@ -28,8 +28,16 @@ import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
  * @param {boolean} loading 是否加载中
  * @param {Function} t i18n
  */
-const PricingQuotaTypes = ({ filterQuotaType, setFilterQuotaType, models = [], loading = false, t }) => {
-  const qtyCount = (type) => models.filter(m => type === 'all' ? true : m.quota_type === type).length;
+const PricingQuotaTypes = ({
+  filterQuotaType,
+  setFilterQuotaType,
+  models = [],
+  loading = false,
+  t,
+}) => {
+  const qtyCount = (type) =>
+    models.filter((m) => (type === 'all' ? true : m.quota_type === type))
+      .length;
 
   const items = [
     { value: 'all', label: t('全部类型'), tagCount: qtyCount('all') },
@@ -49,4 +57,4 @@ const PricingQuotaTypes = ({ filterQuotaType, setFilterQuotaType, models = [], l
   );
 };
 
-export default PricingQuotaTypes; 
+export default PricingQuotaTypes;

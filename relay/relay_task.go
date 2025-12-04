@@ -11,10 +11,13 @@ import (
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/model"
+	"one-api/relay/channel"
 	relaycommon "one-api/relay/common"
 	relayconstant "one-api/relay/constant"
 	"one-api/service"
 	"one-api/setting/ratio_setting"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,35 +25,36 @@ import (
 /*
 Task 任务通过平台、Action 区分任务
 */
-func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
+func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
+	info.InitChannelMeta(c)
+	// ensure TaskRelayInfo is initialized to avoid nil dereference when accessing embedded fields
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
 	platform := constant.TaskPlatform(c.GetString("platform"))
 	if platform == "" {
 		platform = GetTaskPlatform(c)
 	}
 
-	relayInfo, err := relaycommon.GenTaskRelayInfo(c)
-	if err != nil {
-		return service.TaskErrorWrapper(err, "gen_relay_info_failed", http.StatusInternalServerError)
-	}
-
+	info.InitChannelMeta(c)
 	adaptor := GetTaskAdaptor(platform)
 	if adaptor == nil {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
 	}
-	adaptor.Init(relayInfo)
+	adaptor.Init(info)
 	// get & validate taskRequest 获取并验证文本请求
-	taskErr = adaptor.ValidateRequestAndSetAction(c, relayInfo)
+	taskErr = adaptor.ValidateRequestAndSetAction(c, info)
 	if taskErr != nil {
 		return
 	}
 
-	modelName := relayInfo.OriginModelName
+	modelName := info.OriginModelName
 	if modelName == "" {
-		modelName = service.CoverTaskActionToModelName(platform, relayInfo.Action)
+		modelName = service.CoverTaskActionToModelName(platform, info.Action)
 	}
 	modelPrice, success := ratio_setting.GetModelPrice(modelName, true)
 	if !success {
-		defaultPrice, ok := ratio_setting.GetDefaultModelRatioMap()[modelName]
+		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[modelName]
 		if !ok {
 			modelPrice = 0.1
 		} else {
@@ -59,15 +63,23 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 	}
 
 	// 预扣
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
+	groupRatio := ratio_setting.GetGroupRatio(info.UsingGroup)
 	var ratio float64
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
+	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(info.UserGroup, info.UsingGroup)
 	if hasUserGroupRatio {
 		ratio = modelPrice * userGroupRatio
 	} else {
 		ratio = modelPrice * groupRatio
 	}
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+	if len(info.PriceData.OtherRatios) > 0 {
+		for _, ra := range info.PriceData.OtherRatios {
+			if 1.0 != ra {
+				ratio *= ra
+			}
+		}
+	}
+	println(fmt.Sprintf("model: %s, model_price: %.4f, group: %s, group_ratio: %.4f, final_ratio: %.4f", modelName, modelPrice, info.UsingGroup, groupRatio, ratio))
+	userQuota, err := model.GetUserQuota(info.UserId, false)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "get_user_quota_failed", http.StatusInternalServerError)
 		return
@@ -78,8 +90,8 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 		return
 	}
 
-	if relayInfo.OriginTaskID != "" {
-		originTask, exist, err := model.GetByTaskId(relayInfo.UserId, relayInfo.OriginTaskID)
+	if info.OriginTaskID != "" {
+		originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
 		if err != nil {
 			taskErr = service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError)
 			return
@@ -88,7 +100,7 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 			taskErr = service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
 			return
 		}
-		if originTask.ChannelId != relayInfo.ChannelId {
+		if originTask.ChannelId != info.ChannelId {
 			channel, err := model.GetChannelById(originTask.ChannelId, true)
 			if err != nil {
 				taskErr = service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
@@ -101,19 +113,19 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 			c.Set("channel_id", originTask.ChannelId)
 			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
 
-			relayInfo.ChannelBaseUrl = channel.GetBaseURL()
-			relayInfo.ChannelId = originTask.ChannelId
+			info.ChannelBaseUrl = channel.GetBaseURL()
+			info.ChannelId = originTask.ChannelId
 		}
 	}
 
 	// build body
-	requestBody, err := adaptor.BuildRequestBody(c, relayInfo)
+	requestBody, err := adaptor.BuildRequestBody(c, info)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 		return
 	}
 	// do request
-	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
+	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 		return
@@ -127,52 +139,63 @@ func RelayTaskSubmit(c *gin.Context, relayMode int) (taskErr *dto.TaskError) {
 
 	defer func() {
 		// release quota
-		if relayInfo.ConsumeQuota && taskErr == nil {
+		if info.ConsumeQuota && taskErr == nil {
 
-			err := service.PostConsumeQuota(relayInfo.RelayInfo, quota, 0, true)
+			err := service.PostConsumeQuota(info, quota, 0, true)
 			if err != nil {
 				common.SysLog("error consuming token remain quota: " + err.Error())
 			}
 			if quota != 0 {
 				tokenName := c.GetString("token_name")
-				gRatio := groupRatio
-				if hasUserGroupRatio {
-					gRatio = userGroupRatio
+				//gRatio := groupRatio
+				//if hasUserGroupRatio {
+				//	gRatio = userGroupRatio
+				//}
+				logContent := fmt.Sprintf("操作 %s", info.Action)
+				if len(info.PriceData.OtherRatios) > 0 {
+					var contents []string
+					for key, ra := range info.PriceData.OtherRatios {
+						if 1.0 != ra {
+							contents = append(contents, fmt.Sprintf("%s: %.2f", key, ra))
+						}
+					}
+					if len(contents) > 0 {
+						logContent = fmt.Sprintf("%s, 计算参数：%s", logContent, strings.Join(contents, ", "))
+					}
 				}
-				logContent := fmt.Sprintf("模型固定价格 %.2f，分组倍率 %.2f，操作 %s", modelPrice, gRatio, relayInfo.Action)
 				other := make(map[string]interface{})
 				other["model_price"] = modelPrice
 				other["group_ratio"] = groupRatio
 				if hasUserGroupRatio {
 					other["user_group_ratio"] = userGroupRatio
 				}
-				model.RecordConsumeLog(c, relayInfo.UserId, model.RecordConsumeLogParams{
-					ChannelId: relayInfo.ChannelId,
+				model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
+					ChannelId: info.ChannelId,
 					ModelName: modelName,
 					TokenName: tokenName,
 					Quota:     quota,
 					Content:   logContent,
-					TokenId:   relayInfo.TokenId,
-					Group:     relayInfo.UsingGroup,
+					TokenId:   info.TokenId,
+					Group:     info.UsingGroup,
 					Other:     other,
 				})
-				model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
-				model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+				model.UpdateUserUsedQuotaAndRequestCount(info.UserId, quota)
+				model.UpdateChannelUsedQuota(info.ChannelId, quota)
 			}
 		}
 	}()
 
-	taskID, taskData, taskErr := adaptor.DoResponse(c, resp, relayInfo)
+	taskID, taskData, taskErr := adaptor.DoResponse(c, resp, info)
 	if taskErr != nil {
 		return
 	}
-	relayInfo.ConsumeQuota = true
+	info.ConsumeQuota = true
 	// insert task
-	task := model.InitTask(platform, relayInfo)
+	task := model.InitTask(platform, info)
 	task.TaskID = taskID
 	task.Quota = quota
 	task.Data = taskData
-	task.Action = relayInfo.Action
+	task.Action = info.Action
 	err = task.Insert()
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "insert_task_failed", http.StatusInternalServerError)
@@ -196,6 +219,9 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 	respBody, taskErr := respBuilder(c)
 	if taskErr != nil {
 		return taskErr
+	}
+	if len(respBody) == 0 {
+		respBody = []byte("{\"code\":\"success\",\"data\":null}")
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
@@ -276,10 +302,115 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	func() {
+		channelModel, err2 := model.GetChannelById(originTask.ChannelId, true)
+		if err2 != nil {
+			return
+		}
+		if channelModel.Type != constant.ChannelTypeVertexAi {
+			return
+		}
+		baseURL := constant.ChannelBaseURLs[channelModel.Type]
+		if channelModel.GetBaseURL() != "" {
+			baseURL = channelModel.GetBaseURL()
+		}
+		adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+		if adaptor == nil {
+			return
+		}
+		resp, err2 := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
+			"task_id": originTask.TaskID,
+			"action":  originTask.Action,
+		})
+		if err2 != nil || resp == nil {
+			return
+		}
+		defer resp.Body.Close()
+		body, err2 := io.ReadAll(resp.Body)
+		if err2 != nil {
+			return
+		}
+		ti, err2 := adaptor.ParseTaskResult(body)
+		if err2 == nil && ti != nil {
+			if ti.Status != "" {
+				originTask.Status = model.TaskStatus(ti.Status)
+			}
+			if ti.Progress != "" {
+				originTask.Progress = ti.Progress
+			}
+			if ti.Url != "" {
+				originTask.FailReason = ti.Url
+			}
+			_ = originTask.Update()
+			var raw map[string]any
+			_ = json.Unmarshal(body, &raw)
+			format := "mp4"
+			if respObj, ok := raw["response"].(map[string]any); ok {
+				if vids, ok := respObj["videos"].([]any); ok && len(vids) > 0 {
+					if v0, ok := vids[0].(map[string]any); ok {
+						if mt, ok := v0["mimeType"].(string); ok && mt != "" {
+							if strings.Contains(mt, "mp4") {
+								format = "mp4"
+							} else {
+								format = mt
+							}
+						}
+					}
+				}
+			}
+			status := "processing"
+			switch originTask.Status {
+			case model.TaskStatusSuccess:
+				status = "succeeded"
+			case model.TaskStatusFailure:
+				status = "failed"
+			case model.TaskStatusQueued, model.TaskStatusSubmitted:
+				status = "queued"
+			}
+			out := map[string]any{
+				"error":    nil,
+				"format":   format,
+				"metadata": nil,
+				"status":   status,
+				"task_id":  originTask.TaskID,
+				"url":      originTask.FailReason,
+			}
+			respBody, _ = json.Marshal(dto.TaskResponse[any]{
+				Code: "success",
+				Data: out,
+			})
+		}
+	}()
+
+	if len(respBody) != 0 {
+		return
+	}
+
+	if strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if adaptor == nil {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+			return
+		}
+		if converter, ok := adaptor.(channel.OpenAIVideoConverter); ok {
+			openAIVideo, err := converter.ConvertToOpenAIVideo(originTask)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
+				return
+			}
+			respBody, _ = json.Marshal(openAIVideo)
+			return
+		}
+		taskResp = service.TaskErrorWrapperLocal(errors.New(fmt.Sprintf("not_implemented:%s", originTask.Platform)), "not_implemented", http.StatusNotImplemented)
+		return
+	}
 	respBody, err = json.Marshal(dto.TaskResponse[any]{
 		Code: "success",
 		Data: TaskModel2Dto(originTask),
 	})
+	if err != nil {
+		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+	}
 	return
 }
 

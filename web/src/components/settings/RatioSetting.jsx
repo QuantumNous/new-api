@@ -39,6 +39,9 @@ const RatioSetting = () => {
     CompletionRatio: '',
     GroupRatio: '',
     GroupGroupRatio: '',
+    ImageRatio: '',
+    AudioRatio: '',
+    AudioCompletionRatio: '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
     ExposeRatioEnabled: false,
@@ -61,7 +64,10 @@ const RatioSetting = () => {
           item.key === 'UserUsableGroups' ||
           item.key === 'CompletionRatio' ||
           item.key === 'ModelPrice' ||
-          item.key === 'CacheRatio'
+          item.key === 'CacheRatio' ||
+          item.key === 'ImageRatio' ||
+          item.key === 'AudioRatio' ||
+          item.key === 'AudioCompletionRatio'
         ) {
           try {
             item.value = JSON.stringify(JSON.parse(item.value), null, 2);
@@ -103,34 +109,19 @@ const RatioSetting = () => {
       <Card style={{ marginTop: '10px' }}>
         <Tabs type='card'>
           <Tabs.TabPane tab={t('模型倍率设置')} itemKey='model'>
-            <ModelRatioSettings
-              options={inputs}
-              refresh={onRefresh}
-            />
+            <ModelRatioSettings options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('分组倍率设置')} itemKey='group'>
-            <GroupRatioSettings
-              options={inputs}
-              refresh={onRefresh}
-            />
+            <GroupRatioSettings options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('可视化倍率设置')} itemKey='visual'>
-            <ModelSettingsVisualEditor
-              options={inputs}
-              refresh={onRefresh}
-            />
+            <ModelSettingsVisualEditor options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('未设置倍率模型')} itemKey='unset_models'>
-            <ModelRatioNotSetEditor
-              options={inputs}
-              refresh={onRefresh}
-            />
+            <ModelRatioNotSetEditor options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('上游倍率同步')} itemKey='upstream_sync'>
-            <UpstreamRatioSync
-              options={inputs}
-              refresh={onRefresh}
-            />
+            <UpstreamRatioSync options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
         </Tabs>
       </Card>
@@ -138,4 +129,4 @@ const RatioSetting = () => {
   );
 };
 
-export default RatioSetting; 
+export default RatioSetting;

@@ -40,7 +40,7 @@ const LogsPage = () => {
 
       {/* Main Content */}
       <CardPro
-        type="type2"
+        type='type2'
         statsArea={<LogsActions {...logsData} />}
         searchArea={<LogsFilters {...logsData} />}
         paginationArea={createCardProPagination({
@@ -60,4 +60,4 @@ const LogsPage = () => {
   );
 };
 
-export default LogsPage; 
+export default LogsPage;

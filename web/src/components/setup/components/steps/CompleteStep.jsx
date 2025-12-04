@@ -31,29 +31,39 @@ const CompleteStep = ({
   setupStatus,
   formData,
   renderNavigationButtons,
-  t
+  t,
 }) => {
   return (
-    <div className="text-center">
-      <Avatar color="green" className="mx-auto mb-4 shadow-lg">
+    <div className='text-center'>
+      <Avatar color='green' className='mx-auto mb-4 shadow-lg'>
         <CheckCircle size={24} />
       </Avatar>
-      <Title heading={3} className="mb-2">{t('准备完成初始化')}</Title>
-      <Text type="secondary" className="mb-6 block">
+      <Title heading={3} className='mb-2'>
+        {t('准备完成初始化')}
+      </Title>
+      <Text type='secondary' className='mb-6 block'>
         {t('请确认以下设置信息，点击"初始化系统"开始配置')}
       </Text>
 
       <Descriptions>
         <Descriptions.Item itemKey={t('数据库类型')}>
-          {setupStatus.database_type === 'sqlite' ? 'SQLite' :
-            setupStatus.database_type === 'mysql' ? 'MySQL' : 'PostgreSQL'}
+          {setupStatus.database_type === 'sqlite'
+            ? 'SQLite'
+            : setupStatus.database_type === 'mysql'
+              ? 'MySQL'
+              : 'PostgreSQL'}
         </Descriptions.Item>
         <Descriptions.Item itemKey={t('管理员账号')}>
-          {setupStatus.root_init ? t('已初始化') : (formData.username || t('未设置'))}
+          {setupStatus.root_init
+            ? t('已初始化')
+            : formData.username || t('未设置')}
         </Descriptions.Item>
         <Descriptions.Item itemKey={t('使用模式')}>
-          {formData.usageMode === 'external' ? t('对外运营模式') :
-            formData.usageMode === 'self' ? t('自用模式') : t('演示站点模式')}
+          {formData.usageMode === 'external'
+            ? t('对外运营模式')
+            : formData.usageMode === 'self'
+              ? t('自用模式')
+              : t('演示站点模式')}
         </Descriptions.Item>
       </Descriptions>
 

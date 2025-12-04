@@ -30,14 +30,21 @@ import { getLobeHubIcon } from '../../../../helpers';
  * @param {boolean} loading 是否加载中
  * @param {Function} t i18n
  */
-const PricingVendors = ({ filterVendor, setFilterVendor, models = [], allModels = [], loading = false, t }) => {
+const PricingVendors = ({
+  filterVendor,
+  setFilterVendor,
+  models = [],
+  allModels = [],
+  loading = false,
+  t,
+}) => {
   // 获取系统中所有供应商（基于 allModels，如果未提供则退化为 models）
   const getAllVendors = React.useMemo(() => {
     const vendors = new Set();
     const vendorIcons = new Map();
     let hasUnknownVendor = false;
 
-    (allModels.length > 0 ? allModels : models).forEach(model => {
+    (allModels.length > 0 ? allModels : models).forEach((model) => {
       if (model.vendor_name) {
         vendors.add(model.vendor_name);
         if (model.vendor_icon && !vendorIcons.has(model.vendor_name)) {
@@ -51,20 +58,23 @@ const PricingVendors = ({ filterVendor, setFilterVendor, models = [], allModels 
     return {
       vendors: Array.from(vendors).sort(),
       vendorIcons,
-      hasUnknownVendor
+      hasUnknownVendor,
     };
   }, [allModels, models]);
 
   // 计算每个供应商的模型数量（基于当前过滤后的 models）
-  const getVendorCount = React.useCallback((vendor) => {
-    if (vendor === 'all') {
-      return models.length;
-    }
-    if (vendor === 'unknown') {
-      return models.filter(model => !model.vendor_name).length;
-    }
-    return models.filter(model => model.vendor_name === vendor).length;
-  }, [models]);
+  const getVendorCount = React.useCallback(
+    (vendor) => {
+      if (vendor === 'all') {
+        return models.length;
+      }
+      if (vendor === 'unknown') {
+        return models.filter((model) => !model.vendor_name).length;
+      }
+      return models.filter((model) => model.vendor_name === vendor).length;
+    },
+    [models],
+  );
 
   // 生成供应商选项
   const items = React.useMemo(() => {
@@ -73,12 +83,12 @@ const PricingVendors = ({ filterVendor, setFilterVendor, models = [], allModels 
         value: 'all',
         label: t('全部供应商'),
         tagCount: getVendorCount('all'),
-        disabled: models.length === 0
-      }
+        disabled: models.length === 0,
+      },
     ];
 
     // 添加所有已知供应商
-    getAllVendors.vendors.forEach(vendor => {
+    getAllVendors.vendors.forEach((vendor) => {
       const count = getVendorCount(vendor);
       const icon = getAllVendors.vendorIcons.get(vendor);
       result.push({
@@ -86,7 +96,7 @@ const PricingVendors = ({ filterVendor, setFilterVendor, models = [], allModels 
         label: vendor,
         icon: icon ? getLobeHubIcon(icon, 16) : null,
         tagCount: count,
-        disabled: count === 0
+        disabled: count === 0,
       });
     });
 
@@ -97,7 +107,7 @@ const PricingVendors = ({ filterVendor, setFilterVendor, models = [], allModels 
         value: 'unknown',
         label: t('未知供应商'),
         tagCount: count,
-        disabled: count === 0
+        disabled: count === 0,
       });
     }
 

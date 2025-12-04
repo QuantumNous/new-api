@@ -19,9 +19,22 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Progress, Divider, Empty } from '@douyinfe/semi-ui';
-import { IllustrationConstruction, IllustrationConstructionDark } from '@douyinfe/semi-illustrations';
-import { timestamp2string, timestamp2string1, copy, showSuccess } from './utils';
-import { STORAGE_KEYS, DEFAULT_TIME_INTERVALS, DEFAULTS, ILLUSTRATION_SIZE } from '../constants/dashboard.constants';
+import {
+  IllustrationConstruction,
+  IllustrationConstructionDark,
+} from '@douyinfe/semi-illustrations';
+import {
+  timestamp2string,
+  timestamp2string1,
+  copy,
+  showSuccess,
+} from './utils';
+import {
+  STORAGE_KEYS,
+  DEFAULT_TIME_INTERVALS,
+  DEFAULTS,
+  ILLUSTRATION_SIZE,
+} from '../constants/dashboard.constants';
 
 // ========== 时间相关工具函数 ==========
 export const getDefaultTime = () => {
@@ -29,7 +42,8 @@ export const getDefaultTime = () => {
 };
 
 export const getTimeInterval = (timeType, isSeconds = false) => {
-  const intervals = DEFAULT_TIME_INTERVALS[timeType] || DEFAULT_TIME_INTERVALS.hour;
+  const intervals =
+    DEFAULT_TIME_INTERVALS[timeType] || DEFAULT_TIME_INTERVALS.hour;
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
@@ -56,7 +70,7 @@ export const updateMapValue = (map, key, value) => {
 };
 
 export const initializeMaps = (key, ...maps) => {
-  maps.forEach(map => {
+  maps.forEach((map) => {
     if (!map.has(key)) {
       map.set(key, 0);
     }
@@ -64,8 +78,14 @@ export const initializeMaps = (key, ...maps) => {
 };
 
 // ========== 图表相关工具函数 ==========
-export const updateChartSpec = (setterFunc, newData, subtitle, newColors, dataId) => {
-  setterFunc(prev => ({
+export const updateChartSpec = (
+  setterFunc,
+  newData,
+  subtitle,
+  newColors,
+  dataId,
+) => {
+  setterFunc((prev) => ({
     ...prev,
     data: [{ id: dataId, values: newData }],
     title: {
@@ -88,12 +108,12 @@ export const getTrendSpec = (data, color) => ({
   axes: [
     {
       orient: 'bottom',
-      visible: false
+      visible: false,
     },
     {
       orient: 'left',
-      visible: false
-    }
+      visible: false,
+    },
   ],
   padding: 0,
   autoFit: false,
@@ -103,20 +123,20 @@ export const getTrendSpec = (data, color) => ({
   line: {
     style: {
       stroke: color,
-      lineWidth: 2
-    }
+      lineWidth: 2,
+    },
   },
   point: {
-    visible: false
+    visible: false,
   },
   background: {
-    fill: 'transparent'
-  }
+    fill: 'transparent',
+  },
 });
 
 // ========== UI 工具函数 ==========
 export const createSectionTitle = (Icon, text) => (
-  <div className="flex items-center gap-2">
+  <div className='flex items-center gap-2'>
     <Icon size={16} />
     {text}
   </div>
@@ -147,13 +167,20 @@ export const getUptimeStatusText = (status, uptimeStatusMap, t) =>
   uptimeStatusMap[status]?.text || t('未知');
 
 // ========== 监控列表渲染函数 ==========
-export const renderMonitorList = (monitors, getUptimeStatusColor, getUptimeStatusText, t) => {
+export const renderMonitorList = (
+  monitors,
+  getUptimeStatusColor,
+  getUptimeStatusText,
+  t,
+) => {
   if (!monitors || monitors.length === 0) {
     return (
-      <div className="flex justify-center items-center py-4">
+      <div className='flex justify-center items-center py-4'>
         <Empty
           image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-          darkModeImage={<IllustrationConstructionDark style={ILLUSTRATION_SIZE} />}
+          darkModeImage={
+            <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
+          }
           title={t('暂无监控数据')}
         />
       </div>
@@ -168,20 +195,26 @@ export const renderMonitorList = (monitors, getUptimeStatusColor, getUptimeStatu
   });
 
   const renderItem = (monitor, idx) => (
-    <div key={idx} className="p-2 hover:bg-white rounded-lg transition-colors">
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
+    <div key={idx} className='p-2 hover:bg-white rounded-lg transition-colors'>
+      <div className='flex items-center justify-between mb-1'>
+        <div className='flex items-center gap-2'>
           <div
-            className="w-2 h-2 rounded-full flex-shrink-0"
+            className='w-2 h-2 rounded-full flex-shrink-0'
             style={{ backgroundColor: getUptimeStatusColor(monitor.status) }}
           />
-          <span className="text-sm font-medium text-gray-900">{monitor.name}</span>
+          <span className='text-sm font-medium text-gray-900'>
+            {monitor.name}
+          </span>
         </div>
-        <span className="text-xs text-gray-500">{((monitor.uptime || 0) * 100).toFixed(2)}%</span>
+        <span className='text-xs text-gray-500'>
+          {((monitor.uptime || 0) * 100).toFixed(2)}%
+        </span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">{getUptimeStatusText(monitor.status)}</span>
-        <div className="flex-1">
+      <div className='flex items-center gap-2'>
+        <span className='text-xs text-gray-500'>
+          {getUptimeStatusText(monitor.status)}
+        </span>
+        <div className='flex-1'>
           <Progress
             percent={(monitor.uptime || 0) * 100}
             showInfo={false}
@@ -194,10 +227,10 @@ export const renderMonitorList = (monitors, getUptimeStatusColor, getUptimeStatu
   );
 
   return Object.entries(grouped).map(([gname, list]) => (
-    <div key={gname || 'default'} className="mb-2">
+    <div key={gname || 'default'} className='mb-2'>
       {gname && (
         <>
-          <div className="text-md font-semibold text-gray-500 px-2 py-1">
+          <div className='text-md font-semibold text-gray-500 px-2 py-1'>
             {gname}
           </div>
           <Divider />
@@ -209,7 +242,12 @@ export const renderMonitorList = (monitors, getUptimeStatusColor, getUptimeStatu
 };
 
 // ========== 数据处理函数 ==========
-export const processRawData = (data, dataExportDefaultTime, initializeMaps, updateMapValue) => {
+export const processRawData = (
+  data,
+  dataExportDefaultTime,
+  initializeMaps,
+  updateMapValue,
+) => {
   const result = {
     totalQuota: 0,
     totalTimes: 0,
@@ -218,7 +256,7 @@ export const processRawData = (data, dataExportDefaultTime, initializeMaps, upda
     timePoints: [],
     timeQuotaMap: new Map(),
     timeTokensMap: new Map(),
-    timeCountMap: new Map()
+    timeCountMap: new Map(),
   };
 
   data.forEach((item) => {
@@ -232,7 +270,12 @@ export const processRawData = (data, dataExportDefaultTime, initializeMaps, upda
       result.timePoints.push(timeKey);
     }
 
-    initializeMaps(timeKey, result.timeQuotaMap, result.timeTokensMap, result.timeCountMap);
+    initializeMaps(
+      timeKey,
+      result.timeQuotaMap,
+      result.timeTokensMap,
+      result.timeCountMap,
+    );
     updateMapValue(result.timeQuotaMap, timeKey, item.quota);
     updateMapValue(result.timeTokensMap, timeKey, item.token_used);
     updateMapValue(result.timeCountMap, timeKey, item.count);
@@ -242,10 +285,16 @@ export const processRawData = (data, dataExportDefaultTime, initializeMaps, upda
   return result;
 };
 
-export const calculateTrendData = (timePoints, timeQuotaMap, timeTokensMap, timeCountMap, dataExportDefaultTime) => {
-  const quotaTrend = timePoints.map(time => timeQuotaMap.get(time) || 0);
-  const tokensTrend = timePoints.map(time => timeTokensMap.get(time) || 0);
-  const countTrend = timePoints.map(time => timeCountMap.get(time) || 0);
+export const calculateTrendData = (
+  timePoints,
+  timeQuotaMap,
+  timeTokensMap,
+  timeCountMap,
+  dataExportDefaultTime,
+) => {
+  const quotaTrend = timePoints.map((time) => timeQuotaMap.get(time) || 0);
+  const tokensTrend = timePoints.map((time) => timeTokensMap.get(time) || 0);
+  const countTrend = timePoints.map((time) => timeCountMap.get(time) || 0);
 
   const rpmTrend = [];
   const tpmTrend = [];
@@ -267,7 +316,7 @@ export const calculateTrendData = (timePoints, timeQuotaMap, timeTokensMap, time
     consumeQuota: quotaTrend,
     tokens: tokensTrend,
     rpm: rpmTrend,
-    tpm: tpmTrend
+    tpm: tpmTrend,
   };
 };
 
@@ -296,7 +345,11 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
   return aggregatedData;
 };
 
-export const generateChartTimePoints = (aggregatedData, data, dataExportDefaultTime) => {
+export const generateChartTimePoints = (
+  aggregatedData,
+  data,
+  dataExportDefaultTime,
+) => {
   let chartTimePoints = Array.from(
     new Set([...aggregatedData.values()].map((d) => d.time)),
   );
@@ -305,10 +358,12 @@ export const generateChartTimePoints = (aggregatedData, data, dataExportDefaultT
     const lastTime = Math.max(...data.map((item) => item.created_at));
     const interval = getTimeInterval(dataExportDefaultTime, true);
 
-    chartTimePoints = Array.from({ length: DEFAULTS.MAX_TREND_POINTS }, (_, i) =>
-      timestamp2string1(lastTime - (6 - i) * interval, dataExportDefaultTime),
+    chartTimePoints = Array.from(
+      { length: DEFAULTS.MAX_TREND_POINTS },
+      (_, i) =>
+        timestamp2string1(lastTime - (6 - i) * interval, dataExportDefaultTime),
     );
   }
 
   return chartTimePoints;
-}; 
+};

@@ -16,23 +16,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func getRerankPromptToken(rerankRequest dto.RerankRequest) int {
-	token := service.CountTokenInput(rerankRequest.Query, rerankRequest.Model)
-	for _, document := range rerankRequest.Documents {
-		tkm := service.CountTokenInput(document, rerankRequest.Model)
-		token += tkm
-	}
-	return token
-}
-
 func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	info.InitChannelMeta(c)
 
-	rerankRequest, ok := info.Request.(*dto.RerankRequest)
+	rerankReq, ok := info.Request.(*dto.RerankRequest)
 	if !ok {
-		common.FatalLog(fmt.Sprintf("invalid request type, expected dto.RerankRequest, got %T", info.Request))
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected dto.RerankRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	err := helper.ModelMappedHelper(c, info, rerankRequest)
+	request, err := common.DeepCopy(rerankReq)
+	if err != nil {
+		return types.NewError(fmt.Errorf("failed to copy request to ImageRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
@@ -51,7 +48,7 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 		requestBody = bytes.NewBuffer(body)
 	} else {
-		convertedRequest, err := adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankRequest)
+		convertedRequest, err := adaptor.ConvertRerankRequest(c, info.RelayMode, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
@@ -84,7 +81,7 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError

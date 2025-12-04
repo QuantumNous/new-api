@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -42,7 +41,7 @@ func SetEventStreamHeaders(c *gin.Context) {
 }
 
 func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
-	jsonData, err := json.Marshal(resp)
+	jsonData, err := common.Marshal(resp)
 	if err != nil {
 		common.SysError("error marshalling stream response: " + err.Error())
 	} else {
@@ -104,7 +103,7 @@ func WssString(c *gin.Context, ws *websocket.Conn, str string) error {
 }
 
 func WssObject(c *gin.Context, ws *websocket.Conn, object interface{}) error {
-	jsonData, err := json.Marshal(object)
+	jsonData, err := common.Marshal(object)
 	if err != nil {
 		return fmt.Errorf("error marshalling object: %w", err)
 	}

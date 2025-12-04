@@ -37,6 +37,12 @@ func (r *RerankRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 }
 
+func (r *RerankRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
+}
+
 func (r *RerankRequest) GetReturnDocuments() bool {
 	if r.ReturnDocuments == nil {
 		return false

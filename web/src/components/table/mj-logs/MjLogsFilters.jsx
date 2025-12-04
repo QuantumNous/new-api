@@ -21,6 +21,8 @@ import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
+import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+
 const MjLogsFilters = ({
   formInitValues,
   setFormApi,
@@ -37,23 +39,28 @@ const MjLogsFilters = ({
       getFormApi={(api) => setFormApi(api)}
       onSubmit={refresh}
       allowEmpty={true}
-      autoComplete="off"
-      layout="vertical"
-      trigger="change"
+      autoComplete='off'
+      layout='vertical'
+      trigger='change'
       stopValidateWithError={false}
     >
-      <div className="flex flex-col gap-2">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className='flex flex-col gap-2'>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
           {/* 时间选择器 */}
-          <div className="col-span-1 lg:col-span-2">
+          <div className='col-span-1 lg:col-span-2'>
             <Form.DatePicker
               field='dateRange'
-              className="w-full"
+              className='w-full'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
               pure
-              size="small"
+              size='small'
+              presets={DATE_RANGE_PRESETS.map((preset) => ({
+                text: t(preset.text),
+                start: preset.start(),
+                end: preset.end(),
+              }))}
             />
           </div>
 
@@ -64,7 +71,7 @@ const MjLogsFilters = ({
             placeholder={t('任务 ID')}
             showClear
             pure
-            size="small"
+            size='small'
           />
 
           {/* 渠道 ID - 仅管理员可见 */}
@@ -75,20 +82,20 @@ const MjLogsFilters = ({
               placeholder={t('渠道 ID')}
               showClear
               pure
-              size="small"
+              size='small'
             />
           )}
         </div>
 
         {/* 操作按钮区域 */}
-        <div className="flex justify-between items-center">
+        <div className='flex justify-between items-center'>
           <div></div>
-          <div className="flex gap-2">
+          <div className='flex gap-2'>
             <Button
               type='tertiary'
               htmlType='submit'
               loading={loading}
-              size="small"
+              size='small'
             >
               {t('查询')}
             </Button>
@@ -102,14 +109,14 @@ const MjLogsFilters = ({
                   }, 100);
                 }
               }}
-              size="small"
+              size='small'
             >
               {t('重置')}
             </Button>
             <Button
               type='tertiary'
               onClick={() => setShowColumnSelector(true)}
-              size="small"
+              size='small'
             >
               {t('列设置')}
             </Button>
@@ -120,4 +127,4 @@ const MjLogsFilters = ({
   );
 };
 
-export default MjLogsFilters; 
+export default MjLogsFilters;

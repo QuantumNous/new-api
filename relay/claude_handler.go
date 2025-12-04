@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
@@ -21,13 +22,18 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	info.InitChannelMeta(c)
 
-	textRequest, ok := info.Request.(*dto.ClaudeRequest)
+	claudeReq, ok := info.Request.(*dto.ClaudeRequest)
 
 	if !ok {
-		common.FatalLog(fmt.Sprintf("invalid request type, expected *dto.ClaudeRequest, got %T", info.Request))
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.ClaudeRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	err := helper.ModelMappedHelper(c, info, textRequest)
+	request, err := common.DeepCopy(claudeReq)
+	if err != nil {
+		return types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
@@ -38,30 +44,55 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 	adaptor.Init(info)
 
-	if textRequest.MaxTokens == 0 {
-		textRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
+	if request.MaxTokens == 0 {
+		request.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
 	}
 
 	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
-		strings.HasSuffix(textRequest.Model, "-thinking") {
-		if textRequest.Thinking == nil {
+		strings.HasSuffix(request.Model, "-thinking") {
+		if request.Thinking == nil {
 			// 因为BudgetTokens 必须大于1024
-			if textRequest.MaxTokens < 1280 {
-				textRequest.MaxTokens = 1280
+			if request.MaxTokens < 1280 {
+				request.MaxTokens = 1280
 			}
 
 			// BudgetTokens 为 max_tokens 的 80%
-			textRequest.Thinking = &dto.Thinking{
+			request.Thinking = &dto.Thinking{
 				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](int(float64(textRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
+				BudgetTokens: common.GetPointer[int](int(float64(request.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
 			}
 			// TODO: 临时处理
 			// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
-			textRequest.TopP = 0
-			textRequest.Temperature = common.GetPointer[float64](1.0)
+			request.TopP = 0
+			request.Temperature = common.GetPointer[float64](1.0)
 		}
-		textRequest.Model = strings.TrimSuffix(textRequest.Model, "-thinking")
-		info.UpstreamModelName = textRequest.Model
+		request.Model = strings.TrimSuffix(request.Model, "-thinking")
+		info.UpstreamModelName = request.Model
+	}
+
+	if info.ChannelSetting.SystemPrompt != "" {
+		if request.System == nil {
+			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+		} else if info.ChannelSetting.SystemPromptOverride {
+			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+			if request.IsStringSystem() {
+				existing := strings.TrimSpace(request.GetStringSystem())
+				if existing == "" {
+					request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+				} else {
+					request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
+				}
+			} else {
+				systemContents := request.ParseSystem()
+				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
+				newSystem.SetText(info.ChannelSetting.SystemPrompt)
+				if len(systemContents) == 0 {
+					request.System = []dto.ClaudeMediaMessage{newSystem}
+				} else {
+					request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
+				}
+			}
+		}
 	}
 
 	var requestBody io.Reader
@@ -72,11 +103,17 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 		requestBody = bytes.NewBuffer(body)
 	} else {
-		convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, textRequest)
+		convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 		jsonData, err := common.Marshal(convertedRequest)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+
+		// remove disabled fields for Claude API
+		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
@@ -106,7 +143,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError

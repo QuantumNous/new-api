@@ -22,7 +22,7 @@ import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
-  IllustrationNoResultDark
+  IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getRedemptionsColumns, isExpired } from './RedemptionsColumnDefs';
 import DeleteRedemptionModal from './modals/DeleteRedemptionModal';
@@ -67,7 +67,7 @@ const RedemptionsTable = (redemptionsData) => {
       refresh,
       redemptions,
       activePage,
-      showDeleteRedemptionModal
+      showDeleteRedemptionModal,
     });
   }, [
     t,
@@ -83,13 +83,15 @@ const RedemptionsTable = (redemptionsData) => {
 
   // Handle compact mode by removing fixed positioning
   const tableColumns = useMemo(() => {
-    return compactMode ? columns.map(col => {
-      if (col.dataIndex === 'operate') {
-        const { fixed, ...rest } = col;
-        return rest;
-      }
-      return col;
-    }) : columns;
+    return compactMode
+      ? columns.map((col) => {
+          if (col.dataIndex === 'operate') {
+            const { fixed, ...rest } = col;
+            return rest;
+          }
+          return col;
+        })
+      : columns;
   }, [compactMode, columns]);
 
   return (
@@ -114,13 +116,15 @@ const RedemptionsTable = (redemptionsData) => {
         empty={
           <Empty
             image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+            darkModeImage={
+              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+            }
             description={t('搜索无结果')}
             style={{ padding: 30 }}
           />
         }
-        className="rounded-xl overflow-hidden"
-        size="middle"
+        className='rounded-xl overflow-hidden'
+        size='middle'
       />
 
       <DeleteRedemptionModal
@@ -137,4 +141,4 @@ const RedemptionsTable = (redemptionsData) => {
   );
 };
 
-export default RedemptionsTable; 
+export default RedemptionsTable;

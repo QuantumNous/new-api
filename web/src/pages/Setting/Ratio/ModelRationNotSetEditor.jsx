@@ -130,9 +130,7 @@ export default function ModelRatioNotSetEditor(props) {
 
   // 在 return 语句之前，先处理过滤和分页逻辑
   const filteredModels = models.filter((model) =>
-    searchText
-      ? model.name.toLowerCase().includes(searchText.toLowerCase())
-      : true,
+    searchText ? model.name.includes(searchText) : true,
   );
 
   // 然后基于过滤后的数据计算分页数据

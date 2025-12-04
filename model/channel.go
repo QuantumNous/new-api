@@ -42,12 +42,15 @@ type Channel struct {
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
 	OtherInfo         string  `json:"other_info"`
-	OtherSettings     string  `json:"settings" gorm:"column:settings"` // 其他设置
 	Tag               *string `json:"tag" gorm:"index"`
 	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
+	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
+	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
+
+	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
@@ -111,6 +114,10 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
+	lock := GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
+
 	statusList := channel.ChannelInfo.MultiKeyStatusList
 	// helper to get key status, default to enabled when missing
 	getStatus := func(idx int) int {
@@ -142,9 +149,6 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return keys[selectedIdx], selectedIdx, nil
 	case constant.MultiKeyModePolling:
 		// Use channel-specific lock to ensure thread-safe polling
-		lock := GetChannelPollingLock(channel.Id)
-		lock.Lock()
-		defer lock.Unlock()
 
 		channelInfo, err := CacheGetChannelInfo(channel.Id)
 		if err != nil {
@@ -244,6 +248,10 @@ func (channel *Channel) GetAutoBan() bool {
 
 func (channel *Channel) Save() error {
 	return DB.Save(channel).Error
+}
+
+func (channel *Channel) SaveWithoutKey() error {
+	return DB.Omit("key").Save(channel).Error
 }
 
 func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool) ([]*Channel, error) {
@@ -604,8 +612,12 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			return false
 		}
 		if channelCache.ChannelInfo.IsMultiKey {
+			// Use per-channel lock to prevent concurrent map read/write with GetNextEnabledKey
+			pollingLock := GetChannelPollingLock(channelId)
+			pollingLock.Lock()
 			// 如果是多Key模式，更新缓存中的状态
 			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
+			pollingLock.Unlock()
 			//CacheUpdateChannel(channelCache)
 			//return true
 		} else {
@@ -636,7 +648,11 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 
 		if channel.ChannelInfo.IsMultiKey {
 			beforeStatus := channel.Status
+			// Protect map writes with the same per-channel lock used by readers
+			pollingLock := GetChannelPollingLock(channelId)
+			pollingLock.Lock()
 			handlerMultiKeyUpdate(channel, usingKey, status, reason)
+			pollingLock.Unlock()
 			if beforeStatus != channel.Status {
 				shouldUpdateAbilities = true
 			}
@@ -648,7 +664,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			channel.Status = status
 			shouldUpdateAbilities = true
 		}
-		err = channel.Save()
+		err = channel.SaveWithoutKey()
 		if err != nil {
 			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
 			return false
@@ -877,6 +893,17 @@ func (channel *Channel) GetParamOverride() map[string]interface{} {
 		}
 	}
 	return paramOverride
+}
+
+func (channel *Channel) GetHeaderOverride() map[string]interface{} {
+	headerOverride := make(map[string]interface{})
+	if channel.HeaderOverride != nil && *channel.HeaderOverride != "" {
+		err := common.Unmarshal([]byte(*channel.HeaderOverride), &headerOverride)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to unmarshal header override: channel_id=%d, error=%v", channel.Id, err))
+		}
+	}
+	return headerOverride
 }
 
 func GetChannelsByIds(ids []int) ([]*Channel, error) {

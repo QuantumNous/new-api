@@ -26,6 +26,12 @@ func (r *AudioRequest) IsStream(c *gin.Context) bool {
 	return false
 }
 
+func (r *AudioRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
+}
+
 type AudioResponse struct {
 	Text string `json:"text"`
 }

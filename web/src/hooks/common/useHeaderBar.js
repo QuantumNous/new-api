@@ -17,12 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { useSetTheme, useTheme } from '../../context/Theme';
+import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
 import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
 import { useIsMobile } from './useIsMobile';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
@@ -31,7 +31,7 @@ import { useMinimumLoadingTime } from './useMinimumLoadingTime';
 export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [statusState] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
@@ -40,7 +40,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
-  const isLoading = useMinimumLoadingTime(loading);
+  const isLoading = useMinimumLoadingTime(loading, 200);
 
   const systemName = getSystemName();
   const logo = getLogo();
@@ -51,9 +51,46 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const docsLink = statusState?.status?.docs_link || '';
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
 
+  // 获取顶栏模块配置
+  const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+
+  // 使用useMemo确保headerNavModules正确响应statusState变化
+  const headerNavModules = useMemo(() => {
+    if (headerNavModulesConfig) {
+      try {
+        const modules = JSON.parse(headerNavModulesConfig);
+
+        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
+        if (typeof modules.pricing === 'boolean') {
+          modules.pricing = {
+            enabled: modules.pricing,
+            requireAuth: false, // 默认不需要登录鉴权
+          };
+        }
+
+        return modules;
+      } catch (error) {
+        console.error('解析顶栏模块配置失败:', error);
+        return null;
+      }
+    }
+    return null;
+  }, [headerNavModulesConfig]);
+
+  // 获取模型广场权限配置
+  const pricingRequireAuth = useMemo(() => {
+    if (headerNavModules?.pricing) {
+      return typeof headerNavModules.pricing === 'object'
+        ? headerNavModules.pricing.requireAuth
+        : false; // 默认不需要登录
+    }
+    return false; // 默认不需要登录
+  }, [headerNavModules]);
+
   const isConsoleRoute = location.pathname.startsWith('/console');
 
   const theme = useTheme();
+  const actualTheme = useActualTheme();
   const setTheme = useSetTheme();
 
   // Logo loading effect
@@ -65,29 +102,31 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     img.onload = () => setLogoLoaded(true);
   }, [logo]);
 
-  // Theme effect
+  // Send theme to iframe
   useEffect(() => {
-    if (theme === 'dark') {
-      document.body.setAttribute('theme-mode', 'dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      document.body.removeAttribute('theme-mode');
-      document.documentElement.classList.remove('dark');
+    try {
+      const iframe = document.querySelector('iframe');
+      const cw = iframe && iframe.contentWindow;
+      if (cw) {
+        cw.postMessage({ themeMode: actualTheme }, '*');
+      }
+    } catch (e) {
+      // Silently ignore cross-origin or access errors
     }
-
-    const iframe = document.querySelector('iframe');
-    if (iframe) {
-      iframe.contentWindow.postMessage({ themeMode: theme }, '*');
-    }
-  }, [theme, isNewYear]);
+  }, [actualTheme]);
 
   // Language change effect
   useEffect(() => {
     const handleLanguageChanged = (lng) => {
       setCurrentLang(lng);
-      const iframe = document.querySelector('iframe');
-      if (iframe) {
-        iframe.contentWindow.postMessage({ lang: lng }, '*');
+      try {
+        const iframe = document.querySelector('iframe');
+        const cw = iframe && iframe.contentWindow;
+        if (cw) {
+          cw.postMessage({ lang: lng }, '*');
+        }
+      } catch (e) {
+        // Silently ignore cross-origin or access errors
       }
     };
 
@@ -98,29 +137,41 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   }, [i18n]);
 
   // Actions
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await API.get('/api/user/logout');
     showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
     navigate('/login');
-  };
+  }, [navigate, t, userDispatch]);
 
-  const handleLanguageChange = (lang) => {
-    i18n.changeLanguage(lang);
-  };
+  const handleLanguageChange = useCallback(
+    (lang) => {
+      i18n.changeLanguage(lang);
+    },
+    [i18n],
+  );
 
-  const handleThemeToggle = () => {
-    setTheme(theme === 'dark' ? false : true);
-  };
+  const handleThemeToggle = useCallback(
+    (newTheme) => {
+      if (
+        !newTheme ||
+        (newTheme !== 'light' && newTheme !== 'dark' && newTheme !== 'auto')
+      ) {
+        return;
+      }
+      setTheme(newTheme);
+    },
+    [setTheme],
+  );
 
-  const handleMobileMenuToggle = () => {
+  const handleMobileMenuToggle = useCallback(() => {
     if (isMobile) {
       onMobileMenuToggle();
     } else {
       toggleCollapsed();
     }
-  };
+  }, [isMobile, onMobileMenuToggle, toggleCollapsed]);
 
   return {
     // State
@@ -141,6 +192,8 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     isConsoleRoute,
     theme,
     drawerOpen,
+    headerNavModules,
+    pricingRequireAuth,
 
     // Actions
     logout,

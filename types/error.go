@@ -48,12 +48,13 @@ const (
 	ErrorCodeGenRelayInfoFailed ErrorCode = "gen_relay_info_failed"
 
 	// channel error
-	ErrorCodeChannelNoAvailableKey       ErrorCode = "channel:no_available_key"
-	ErrorCodeChannelParamOverrideInvalid ErrorCode = "channel:param_override_invalid"
-	ErrorCodeChannelModelMappedError     ErrorCode = "channel:model_mapped_error"
-	ErrorCodeChannelAwsClientError       ErrorCode = "channel:aws_client_error"
-	ErrorCodeChannelInvalidKey           ErrorCode = "channel:invalid_key"
-	ErrorCodeChannelResponseTimeExceeded ErrorCode = "channel:response_time_exceeded"
+	ErrorCodeChannelNoAvailableKey        ErrorCode = "channel:no_available_key"
+	ErrorCodeChannelParamOverrideInvalid  ErrorCode = "channel:param_override_invalid"
+	ErrorCodeChannelHeaderOverrideInvalid ErrorCode = "channel:header_override_invalid"
+	ErrorCodeChannelModelMappedError      ErrorCode = "channel:model_mapped_error"
+	ErrorCodeChannelAwsClientError        ErrorCode = "channel:aws_client_error"
+	ErrorCodeChannelInvalidKey            ErrorCode = "channel:invalid_key"
+	ErrorCodeChannelResponseTimeExceeded  ErrorCode = "channel:response_time_exceeded"
 
 	// client request error
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
@@ -68,6 +69,7 @@ const (
 	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
 	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
 	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
+	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -121,6 +123,9 @@ func (e *NewAPIError) MaskSensitiveError() string {
 		return string(e.errorCode)
 	}
 	errStr := e.Err.Error()
+	if e.errorCode == ErrorCodeCountTokenFailed {
+		return errStr
+	}
 	return common.MaskSensitiveInfo(errStr)
 }
 
@@ -144,14 +149,20 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 				Code:    e.errorCode,
 			}
 		}
+	default:
+		result = OpenAIError{
+			Message: e.Error(),
+			Type:    string(e.errorType),
+			Param:   "",
+			Code:    e.errorCode,
+		}
 	}
-	result = OpenAIError{
-		Message: e.Error(),
-		Type:    string(e.errorType),
-		Param:   "",
-		Code:    e.errorCode,
+	if e.errorCode != ErrorCodeCountTokenFailed {
+		result.Message = common.MaskSensitiveInfo(result.Message)
 	}
-	result.Message = common.MaskSensitiveInfo(result.Message)
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
 	return result
 }
 
@@ -159,26 +170,42 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	var result ClaudeError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
-		openAIError := e.RelayError.(OpenAIError)
-		result = ClaudeError{
-			Message: e.Error(),
-			Type:    fmt.Sprintf("%v", openAIError.Code),
+		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			result = ClaudeError{
+				Message: e.Error(),
+				Type:    fmt.Sprintf("%v", openAIError.Code),
+			}
 		}
 	case ErrorTypeClaudeError:
-		result = e.RelayError.(ClaudeError)
+		if claudeError, ok := e.RelayError.(ClaudeError); ok {
+			result = claudeError
+		}
 	default:
 		result = ClaudeError{
 			Message: e.Error(),
 			Type:    string(e.errorType),
 		}
 	}
-	result.Message = common.MaskSensitiveInfo(result.Message)
+	if e.errorCode != ErrorCodeCountTokenFailed {
+		result.Message = common.MaskSensitiveInfo(result.Message)
+	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
 	return result
 }
 
 type NewAPIErrorOptions func(*NewAPIError)
 
 func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPIError {
+	var newErr *NewAPIError
+	// 保留深层传递的 new err
+	if errors.As(err, &newErr) {
+		for _, op := range ops {
+			op(newErr)
+		}
+		return newErr
+	}
 	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
@@ -193,8 +220,21 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 }
 
 func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
-	if errorCode == ErrorCodeDoRequestFailed {
-		err = errors.New("upstream error: do request failed")
+	var newErr *NewAPIError
+	// 保留深层传递的 new err
+	if errors.As(err, &newErr) {
+		if newErr.RelayError == nil {
+			openaiError := OpenAIError{
+				Message: newErr.Error(),
+				Type:    string(errorCode),
+				Code:    errorCode,
+			}
+			newErr.RelayError = openaiError
+		}
+		for _, op := range ops {
+			op(newErr)
+		}
+		return newErr
 	}
 	openaiError := OpenAIError{
 		Message: err.Error(),
@@ -233,7 +273,7 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	code, ok := openAIError.Code.(string)
 	if !ok {
-		if openAIError.Code == nil {
+		if openAIError.Code != nil {
 			code = fmt.Sprintf("%v", openAIError.Code)
 		} else {
 			code = "unknown_error"
@@ -296,6 +336,15 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.recordErrorLog = common.GetPointer(false)
+	}
+}
+
+func ErrOptionWithHideErrMsg(replaceStr string) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		if common.DebugEnabled {
+			fmt.Printf("ErrOptionWithHideErrMsg: %s, origin error: %s", replaceStr, e.Err)
+		}
+		e.Err = errors.New(replaceStr)
 	}
 }
 

@@ -18,15 +18,31 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useMemo } from 'react';
-import { Button, Modal, Empty, Tabs, TabPane, Timeline } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Modal,
+  Empty,
+  Tabs,
+  TabPane,
+  Timeline,
+} from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { API, showError, getRelativeTime } from '../../helpers';
 import { marked } from 'marked';
-import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
+import {
+  IllustrationNoContent,
+  IllustrationNoContentDark,
+} from '@douyinfe/semi-illustrations';
 import { StatusContext } from '../../context/Status';
 import { Bell, Megaphone } from 'lucide-react';
 
-const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadKeys = [] }) => {
+const NoticeModal = ({
+  visible,
+  onClose,
+  isMobile,
+  defaultTab = 'inApp',
+  unreadKeys = [],
+}) => {
   const { t } = useTranslation();
   const [noticeContent, setNoticeContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,17 +54,26 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
 
   const unreadSet = useMemo(() => new Set(unreadKeys), [unreadKeys]);
 
-  const getKeyForItem = (item) => `${item?.publishDate || ''}-${(item?.content || '').slice(0, 30)}`;
+  const getKeyForItem = (item) =>
+    `${item?.publishDate || ''}-${(item?.content || '').slice(0, 30)}`;
 
   const processedAnnouncements = useMemo(() => {
-    return (announcements || []).slice(0, 20).map(item => ({
-      key: getKeyForItem(item),
-      type: item.type || 'default',
-      time: getRelativeTime(item.publishDate),
-      content: item.content,
-      extra: item.extra,
-      isUnread: unreadSet.has(getKeyForItem(item))
-    }));
+    return (announcements || []).slice(0, 20).map((item) => {
+      const pubDate = item?.publishDate ? new Date(item.publishDate) : null;
+      const absoluteTime =
+        pubDate && !isNaN(pubDate.getTime())
+          ? `${pubDate.getFullYear()}-${String(pubDate.getMonth() + 1).padStart(2, '0')}-${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`
+          : item?.publishDate || '';
+      return {
+        key: getKeyForItem(item),
+        type: item.type || 'default',
+        time: absoluteTime,
+        content: item.content,
+        extra: item.extra,
+        relative: getRelativeTime(item.publishDate),
+        isUnread: unreadSet.has(getKeyForItem(item)),
+      };
+    });
   }, [announcements, unreadSet]);
 
   const handleCloseTodayNotice = () => {
@@ -93,15 +118,23 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
 
   const renderMarkdownNotice = () => {
     if (loading) {
-      return <div className="py-12"><Empty description={t('加载中...')} /></div>;
+      return (
+        <div className='py-12'>
+          <Empty description={t('加载中...')} />
+        </div>
+      );
     }
 
     if (!noticeContent) {
       return (
-        <div className="py-12">
+        <div className='py-12'>
           <Empty
-            image={<IllustrationNoContent style={{ width: 150, height: 150 }} />}
-            darkModeImage={<IllustrationNoContentDark style={{ width: 150, height: 150 }} />}
+            image={
+              <IllustrationNoContent style={{ width: 150, height: 150 }} />
+            }
+            darkModeImage={
+              <IllustrationNoContentDark style={{ width: 150, height: 150 }} />
+            }
             description={t('暂无公告')}
           />
         </div>
@@ -111,7 +144,7 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
     return (
       <div
         dangerouslySetInnerHTML={{ __html: noticeContent }}
-        className="notice-content-scroll max-h-[55vh] overflow-y-auto pr-2"
+        className='notice-content-scroll max-h-[55vh] overflow-y-auto pr-2'
       />
     );
   };
@@ -119,10 +152,14 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
   const renderAnnouncementTimeline = () => {
     if (processedAnnouncements.length === 0) {
       return (
-        <div className="py-12">
+        <div className='py-12'>
           <Empty
-            image={<IllustrationNoContent style={{ width: 150, height: 150 }} />}
-            darkModeImage={<IllustrationNoContentDark style={{ width: 150, height: 150 }} />}
+            image={
+              <IllustrationNoContent style={{ width: 150, height: 150 }} />
+            }
+            darkModeImage={
+              <IllustrationNoContentDark style={{ width: 150, height: 150 }} />
+            }
             description={t('暂无系统公告')}
           />
         </div>
@@ -130,8 +167,8 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
     }
 
     return (
-      <div className="max-h-[55vh] overflow-y-auto pr-2 card-content-scroll">
-        <Timeline mode="alternate">
+      <div className='max-h-[55vh] overflow-y-auto pr-2 card-content-scroll'>
+        <Timeline mode='left'>
           {processedAnnouncements.map((item, idx) => {
             const htmlContent = marked.parse(item.content || '');
             const htmlExtra = item.extra ? marked.parse(item.extra) : '';
@@ -139,7 +176,15 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
               <Timeline.Item
                 key={idx}
                 type={item.type}
-                time={item.time}
+                time={`${item.relative ? item.relative + ' ' : ''}${item.time}`}
+                extra={
+                  item.extra ? (
+                    <div
+                      className='text-xs text-gray-500'
+                      dangerouslySetInnerHTML={{ __html: htmlExtra }}
+                    />
+                  ) : null
+                }
                 className={item.isUnread ? '' : ''}
               >
                 <div>
@@ -147,12 +192,6 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
                     className={item.isUnread ? 'shine-text' : ''}
                     dangerouslySetInnerHTML={{ __html: htmlContent }}
                   />
-                  {item.extra && (
-                    <div
-                      className="text-xs text-gray-500"
-                      dangerouslySetInnerHTML={{ __html: htmlExtra }}
-                    />
-                  )}
                 </div>
               </Timeline.Item>
             );
@@ -172,27 +211,40 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
   return (
     <Modal
       title={
-        <div className="flex items-center justify-between w-full">
+        <div className='flex items-center justify-between w-full'>
           <span>{t('系统公告')}</span>
-          <Tabs
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            type='card'
-            size='small'
-          >
-            <TabPane tab={<span className="flex items-center gap-1"><Bell size={14} /> {t('通知')}</span>} itemKey='inApp' />
-            <TabPane tab={<span className="flex items-center gap-1"><Megaphone size={14} /> {t('系统公告')}</span>} itemKey='system' />
+          <Tabs activeKey={activeTab} onChange={setActiveTab} type='button'>
+            <TabPane
+              tab={
+                <span className='flex items-center gap-1'>
+                  <Bell size={14} /> {t('通知')}
+                </span>
+              }
+              itemKey='inApp'
+            />
+            <TabPane
+              tab={
+                <span className='flex items-center gap-1'>
+                  <Megaphone size={14} /> {t('系统公告')}
+                </span>
+              }
+              itemKey='system'
+            />
           </Tabs>
         </div>
       }
       visible={visible}
       onCancel={onClose}
-      footer={(
-        <div className="flex justify-end">
-          <Button type='secondary' onClick={handleCloseTodayNotice}>{t('今日关闭')}</Button>
-          <Button type="primary" onClick={onClose}>{t('关闭公告')}</Button>
+      footer={
+        <div className='flex justify-end'>
+          <Button type='secondary' onClick={handleCloseTodayNotice}>
+            {t('今日关闭')}
+          </Button>
+          <Button type='primary' onClick={onClose}>
+            {t('关闭公告')}
+          </Button>
         </div>
-      )}
+      }
       size={isMobile ? 'full-width' : 'large'}
     >
       {renderBody()}
@@ -200,4 +252,4 @@ const NoticeModal = ({ visible, onClose, isMobile, defaultTab = 'inApp', unreadK
   );
 };
 
-export default NoticeModal; 
+export default NoticeModal;

@@ -17,97 +17,105 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
-import { Input, Button } from '@douyinfe/semi-ui';
-import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
+import React, { useState, memo } from 'react';
 import PricingFilterModal from '../../modal/PricingFilterModal';
 import PricingVendorIntroWithSkeleton from './PricingVendorIntroWithSkeleton';
+import SearchActions from './SearchActions';
 
-const PricingTopSection = ({
-  selectedRowKeys,
-  copyText,
-  handleChange,
-  handleCompositionStart,
-  handleCompositionEnd,
-  isMobile,
-  sidebarProps,
-  filterVendor,
-  models,
-  filteredModels,
-  loading,
-  searchValue,
-  t
-}) => {
-  const [showFilterModal, setShowFilterModal] = useState(false);
+const PricingTopSection = memo(
+  ({
+    selectedRowKeys,
+    copyText,
+    handleChange,
+    handleCompositionStart,
+    handleCompositionEnd,
+    isMobile,
+    sidebarProps,
+    filterVendor,
+    models,
+    filteredModels,
+    loading,
+    searchValue,
+    showWithRecharge,
+    setShowWithRecharge,
+    currency,
+    setCurrency,
+    showRatio,
+    setShowRatio,
+    viewMode,
+    setViewMode,
+    tokenUnit,
+    setTokenUnit,
+    t,
+  }) => {
+    const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const SearchAndActions = useMemo(() => (
-    <div className="flex items-center gap-4 w-full">
-      {/* 搜索框 */}
-      <div className="flex-1">
-        <Input
-          prefix={<IconSearch />}
-          placeholder={t('模糊搜索模型名称')}
-          value={searchValue}
-          onCompositionStart={handleCompositionStart}
-          onCompositionEnd={handleCompositionEnd}
-          onChange={handleChange}
-          showClear
-        />
-      </div>
+    return (
+      <>
+        {isMobile ? (
+          <>
+            <div className='w-full'>
+              <SearchActions
+                selectedRowKeys={selectedRowKeys}
+                copyText={copyText}
+                handleChange={handleChange}
+                handleCompositionStart={handleCompositionStart}
+                handleCompositionEnd={handleCompositionEnd}
+                isMobile={isMobile}
+                searchValue={searchValue}
+                setShowFilterModal={setShowFilterModal}
+                showWithRecharge={showWithRecharge}
+                setShowWithRecharge={setShowWithRecharge}
+                currency={currency}
+                setCurrency={setCurrency}
+                showRatio={showRatio}
+                setShowRatio={setShowRatio}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
+                tokenUnit={tokenUnit}
+                setTokenUnit={setTokenUnit}
+                t={t}
+              />
+            </div>
+            <PricingFilterModal
+              visible={showFilterModal}
+              onClose={() => setShowFilterModal(false)}
+              sidebarProps={sidebarProps}
+              t={t}
+            />
+          </>
+        ) : (
+          <PricingVendorIntroWithSkeleton
+            loading={loading}
+            filterVendor={filterVendor}
+            models={filteredModels}
+            allModels={models}
+            t={t}
+            selectedRowKeys={selectedRowKeys}
+            copyText={copyText}
+            handleChange={handleChange}
+            handleCompositionStart={handleCompositionStart}
+            handleCompositionEnd={handleCompositionEnd}
+            isMobile={isMobile}
+            searchValue={searchValue}
+            setShowFilterModal={setShowFilterModal}
+            showWithRecharge={showWithRecharge}
+            setShowWithRecharge={setShowWithRecharge}
+            currency={currency}
+            setCurrency={setCurrency}
+            showRatio={showRatio}
+            setShowRatio={setShowRatio}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            tokenUnit={tokenUnit}
+            setTokenUnit={setTokenUnit}
+          />
+        )}
+      </>
+    );
+  },
+);
 
-      {/* 操作按钮 */}
-      <Button
-        theme='outline'
-        type='primary'
-        icon={<IconCopy />}
-        onClick={() => copyText(selectedRowKeys)}
-        disabled={selectedRowKeys.length === 0}
-        className="!bg-blue-500 hover:!bg-blue-600 text-white"
-      >
-        {t('复制')}
-      </Button>
+PricingTopSection.displayName = 'PricingTopSection';
 
-      {/* 移动端筛选按钮 */}
-      {isMobile && (
-        <Button
-          theme="outline"
-          type='tertiary'
-          icon={<IconFilter />}
-          onClick={() => setShowFilterModal(true)}
-        >
-          {t('筛选')}
-        </Button>
-      )}
-    </div>
-  ), [selectedRowKeys, t, handleCompositionStart, handleCompositionEnd, handleChange, copyText, isMobile, searchValue]);
-
-  return (
-    <>
-      {/* 供应商介绍区域（桌面端显示） */}
-      {!isMobile && (
-        <PricingVendorIntroWithSkeleton
-          loading={loading}
-          filterVendor={filterVendor}
-          models={filteredModels}
-          allModels={models}
-          t={t}
-        />
-      )}
-
-      {/* 搜索和操作区域 */}
-      {SearchAndActions}
-
-      {/* 移动端筛选Modal */}
-      {isMobile && (
-        <PricingFilterModal
-          visible={showFilterModal}
-          onClose={() => setShowFilterModal(false)}
-          sidebarProps={sidebarProps}
-          t={t}
-        />
-      )}
-    </>
-  );
-};
-
-export default PricingTopSection; 
+export default PricingTopSection;

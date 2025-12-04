@@ -133,9 +133,7 @@ export default function GroupRatioSettings(props) {
                   message: t('不是合法的 JSON 字符串'),
                 },
               ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, GroupRatio: value })
-              }
+              onChange={(value) => setInputs({ ...inputs, GroupRatio: value })}
             />
           </Col>
         </Row>
@@ -213,7 +211,7 @@ export default function GroupRatioSettings(props) {
                       }
 
                       // Check if every element is a string
-                      return parsed.every(item => typeof item === 'string');
+                      return parsed.every((item) => typeof item === 'string');
                     } catch (error) {
                       return false;
                     }
@@ -221,9 +219,7 @@ export default function GroupRatioSettings(props) {
                   message: t('必须是有效的 JSON 字符串数组，例如：["g1","g2"]'),
                 },
               ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, AutoGroups: value })
-              }
+              onChange={(value) => setInputs({ ...inputs, AutoGroups: value })}
             />
           </Col>
         </Row>

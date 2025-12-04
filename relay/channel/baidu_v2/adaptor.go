@@ -81,20 +81,23 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if strings.HasSuffix(info.UpstreamModelName, "-search") {
 		info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-search")
 		request.Model = info.UpstreamModelName
-		toMap := request.ToMap()
-		toMap["web_search"] = map[string]any{
-			"enable":          true,
-			"enable_citation": true,
-			"enable_trace":    true,
-			"enable_status":   false,
+		if len(request.WebSearch) == 0 {
+			toMap := request.ToMap()
+			toMap["web_search"] = map[string]any{
+				"enable":          true,
+				"enable_citation": true,
+				"enable_trace":    true,
+				"enable_status":   false,
+			}
+			return toMap, nil
 		}
-		return toMap, nil
+		return request, nil
 	}
 	return request, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, nil
+	return nil, errors.New("not implemented")
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {

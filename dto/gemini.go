@@ -2,19 +2,43 @@ package dto
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"one-api/common"
 	"one-api/logger"
 	"one-api/types"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GeminiChatRequest struct {
 	Contents           []GeminiChatContent        `json:"contents"`
 	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
 	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
-	Tools             json.RawMessage    `json:"tools,omitempty"`
-	SystemInstruction *GeminiChatContent `json:"system_instruction,omitempty"`
+	Tools              json.RawMessage            `json:"tools,omitempty"`
+	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
+	SystemInstruction  *GeminiChatContent         `json:"system_instruction,omitempty"`
+	CachedContent      string                     `json:"cachedContent,omitempty"`
+}
+
+type ToolConfig struct {
+	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
+	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+}
+
+type FunctionCallingConfig struct {
+	Mode                 FunctionCallingConfigMode `json:"mode,omitempty"`
+	AllowedFunctionNames []string                  `json:"allowedFunctionNames,omitempty"`
+}
+type FunctionCallingConfigMode string
+
+type RetrievalConfig struct {
+	LatLng       *LatLng `json:"latLng,omitempty"`
+	LanguageCode string  `json:"languageCode,omitempty"`
+}
+
+type LatLng struct {
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
 }
 
 func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -71,6 +95,10 @@ func (r *GeminiChatRequest) IsStream(c *gin.Context) bool {
 		return true
 	}
 	return false
+}
+
+func (r *GeminiChatRequest) SetModelName(modelName string) {
+	// GeminiChatRequest does not have a model field, so this method does nothing.
 }
 
 func (r *GeminiChatRequest) GetTools() []GeminiChatTool {
@@ -224,6 +252,7 @@ type GeminiChatTool struct {
 	GoogleSearchRetrieval any `json:"googleSearchRetrieval,omitempty"`
 	CodeExecution         any `json:"codeExecution,omitempty"`
 	FunctionDeclarations  any `json:"functionDeclarations,omitempty"`
+	URLContext            any `json:"urlContext,omitempty"`
 }
 
 type GeminiChatGenerationConfig struct {
@@ -235,11 +264,20 @@ type GeminiChatGenerationConfig struct {
 	StopSequences      []string              `json:"stopSequences,omitempty"`
 	ResponseMimeType   string                `json:"responseMimeType,omitempty"`
 	ResponseSchema     any                   `json:"responseSchema,omitempty"`
+	ResponseJsonSchema json.RawMessage       `json:"responseJsonSchema,omitempty"`
+	PresencePenalty    *float32              `json:"presencePenalty,omitempty"`
+	FrequencyPenalty   *float32              `json:"frequencyPenalty,omitempty"`
+	ResponseLogprobs   bool                  `json:"responseLogprobs,omitempty"`
+	Logprobs           *int32                `json:"logprobs,omitempty"`
+	MediaResolution    MediaResolution       `json:"mediaResolution,omitempty"`
 	Seed               int64                 `json:"seed,omitempty"`
 	ResponseModalities []string              `json:"responseModalities,omitempty"`
 	ThinkingConfig     *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	SpeechConfig       json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
+	ImageConfig        json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
 }
+
+type MediaResolution string
 
 type GeminiChatCandidate struct {
 	Content       GeminiChatContent        `json:"content"`
@@ -255,12 +293,13 @@ type GeminiChatSafetyRating struct {
 
 type GeminiChatPromptFeedback struct {
 	SafetyRatings []GeminiChatSafetyRating `json:"safetyRatings"`
+	BlockReason   *string                  `json:"blockReason,omitempty"`
 }
 
 type GeminiChatResponse struct {
-	Candidates     []GeminiChatCandidate    `json:"candidates"`
-	PromptFeedback GeminiChatPromptFeedback `json:"promptFeedback"`
-	UsageMetadata  GeminiUsageMetadata      `json:"usageMetadata"`
+	Candidates     []GeminiChatCandidate     `json:"candidates"`
+	PromptFeedback *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
+	UsageMetadata  GeminiUsageMetadata       `json:"usageMetadata"`
 }
 
 type GeminiUsageMetadata struct {
@@ -290,6 +329,7 @@ type GeminiImageParameters struct {
 	SampleCount      int    `json:"sampleCount,omitempty"`
 	AspectRatio      string `json:"aspectRatio,omitempty"`
 	PersonGeneration string `json:"personGeneration,omitempty"`
+	ImageSize        string `json:"imageSize,omitempty"`
 }
 
 type GeminiImageResponse struct {
@@ -312,8 +352,59 @@ type GeminiEmbeddingRequest struct {
 	OutputDimensionality int               `json:"outputDimensionality,omitempty"`
 }
 
+func (r *GeminiEmbeddingRequest) IsStream(c *gin.Context) bool {
+	// Gemini embedding requests are not streamed
+	return false
+}
+
+func (r *GeminiEmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	var inputTexts []string
+	for _, part := range r.Content.Parts {
+		if part.Text != "" {
+			inputTexts = append(inputTexts, part.Text)
+		}
+	}
+	inputText := strings.Join(inputTexts, "\n")
+	return &types.TokenCountMeta{
+		CombineText: inputText,
+	}
+}
+
+func (r *GeminiEmbeddingRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
+}
+
 type GeminiBatchEmbeddingRequest struct {
 	Requests []*GeminiEmbeddingRequest `json:"requests"`
+}
+
+func (r *GeminiBatchEmbeddingRequest) IsStream(c *gin.Context) bool {
+	// Gemini batch embedding requests are not streamed
+	return false
+}
+
+func (r *GeminiBatchEmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	var inputTexts []string
+	for _, request := range r.Requests {
+		meta := request.GetTokenCountMeta()
+		if meta != nil && meta.CombineText != "" {
+			inputTexts = append(inputTexts, meta.CombineText)
+		}
+	}
+	inputText := strings.Join(inputTexts, "\n")
+	return &types.TokenCountMeta{
+		CombineText: inputText,
+	}
+}
+
+func (r *GeminiBatchEmbeddingRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		for _, req := range r.Requests {
+			req.SetModelName(modelName)
+		}
+	}
 }
 
 type GeminiEmbeddingResponse struct {

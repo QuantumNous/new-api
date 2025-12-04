@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -151,7 +153,9 @@ func checkConditions(jsonStr string, conditions []ConditionOperation, logic stri
 }
 
 func checkSingleCondition(jsonStr string, condition ConditionOperation) (bool, error) {
-	value := gjson.Get(jsonStr, condition.Path)
+	// 处理负数索引
+	path := processNegativeIndex(jsonStr, condition.Path)
+	value := gjson.Get(jsonStr, path)
 	if !value.Exists() {
 		if condition.PassMissingKey {
 			return true, nil
@@ -175,6 +179,37 @@ func checkSingleCondition(jsonStr string, condition ConditionOperation) (bool, e
 		result = !result
 	}
 	return result, nil
+}
+
+func processNegativeIndex(jsonStr string, path string) string {
+	re := regexp.MustCompile(`\.(-\d+)`)
+	matches := re.FindAllStringSubmatch(path, -1)
+
+	if len(matches) == 0 {
+		return path
+	}
+
+	result := path
+	for _, match := range matches {
+		negIndex := match[1]
+		index, _ := strconv.Atoi(negIndex)
+
+		arrayPath := strings.Split(path, negIndex)[0]
+		if strings.HasSuffix(arrayPath, ".") {
+			arrayPath = arrayPath[:len(arrayPath)-1]
+		}
+
+		array := gjson.Get(jsonStr, arrayPath)
+		if array.IsArray() {
+			length := len(array.Array())
+			actualIndex := length + index
+			if actualIndex >= 0 && actualIndex < length {
+				result = strings.Replace(result, match[0], "."+strconv.Itoa(actualIndex), 1)
+			}
+		}
+	}
+
+	return result
 }
 
 // compareGjsonValues 直接比较两个gjson.Result，支持所有比较模式
@@ -274,21 +309,25 @@ func applyOperations(jsonStr string, operations []ParamOperation) (string, error
 		if !ok {
 			continue // 条件不满足，跳过当前操作
 		}
+		// 处理路径中的负数索引
+		opPath := processNegativeIndex(result, op.Path)
+		opFrom := processNegativeIndex(result, op.From)
+		opTo := processNegativeIndex(result, op.To)
 
 		switch op.Mode {
 		case "delete":
-			result, err = sjson.Delete(result, op.Path)
+			result, err = sjson.Delete(result, opPath)
 		case "set":
-			if op.KeepOrigin && gjson.Get(result, op.Path).Exists() {
+			if op.KeepOrigin && gjson.Get(result, opPath).Exists() {
 				continue
 			}
-			result, err = sjson.Set(result, op.Path, op.Value)
+			result, err = sjson.Set(result, opPath, op.Value)
 		case "move":
-			result, err = moveValue(result, op.From, op.To)
+			result, err = moveValue(result, opFrom, opTo)
 		case "prepend":
-			result, err = modifyValue(result, op.Path, op.Value, op.KeepOrigin, true)
+			result, err = modifyValue(result, opPath, op.Value, op.KeepOrigin, true)
 		case "append":
-			result, err = modifyValue(result, op.Path, op.Value, op.KeepOrigin, false)
+			result, err = modifyValue(result, opPath, op.Value, op.KeepOrigin, false)
 		default:
 			return "", fmt.Errorf("unknown operation: %s", op.Mode)
 		}

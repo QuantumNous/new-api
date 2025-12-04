@@ -21,6 +21,10 @@ func DecodeBase64ImageData(base64String string) (image.Config, string, string, e
 		base64String = base64String[idx+1:]
 	}
 
+	if len(base64String) == 0 {
+		return image.Config{}, "", "", errors.New("base64 string is empty")
+	}
+
 	// 将base64字符串解码为字节切片
 	decodedData, err := base64.StdEncoding.DecodeString(base64String)
 	if err != nil {

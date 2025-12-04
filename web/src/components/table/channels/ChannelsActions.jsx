@@ -24,7 +24,7 @@ import {
   Modal,
   Switch,
   Typography,
-  Select
+  Select,
 } from '@douyinfe/semi-ui';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
@@ -52,19 +52,19 @@ const ChannelsActions = ({
   activePage,
   pageSize,
   setActivePage,
-  t
+  t,
 }) => {
   return (
-    <div className="flex flex-col gap-2">
+    <div className='flex flex-col gap-2'>
       {/* 第一行：批量操作按钮 + 设置开关 */}
-      <div className="flex flex-col md:flex-row justify-between gap-2">
+      <div className='flex flex-col md:flex-row justify-between gap-2'>
         {/* 左侧：批量操作按钮 */}
-        <div className="flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto order-2 md:order-1">
+        <div className='flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto order-2 md:order-1'>
           <Button
             size='small'
             disabled={!enableBatchDelete}
             type='danger'
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
             onClick={() => {
               Modal.confirm({
                 title: t('确定是否要删除所选通道？'),
@@ -81,7 +81,7 @@ const ChannelsActions = ({
             disabled={!enableBatchDelete}
             type='tertiary'
             onClick={() => setShowBatchSetTag(true)}
-            className="w-full md:w-auto"
+            className='w-full md:w-auto'
           >
             {t('批量设置标签')}
           </Button>
@@ -95,7 +95,7 @@ const ChannelsActions = ({
                   <Button
                     size='small'
                     type='tertiary'
-                    className="w-full"
+                    className='w-full'
                     onClick={() => {
                       Modal.confirm({
                         title: t('确定？'),
@@ -112,11 +112,13 @@ const ChannelsActions = ({
                 <Dropdown.Item>
                   <Button
                     size='small'
-                    className="w-full"
+                    className='w-full'
                     onClick={() => {
                       Modal.confirm({
                         title: t('确定是否要修复数据库一致性？'),
-                        content: t('进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用'),
+                        content: t(
+                          '进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用',
+                        ),
                         onOk: () => fixChannelsAbilities(),
                         size: 'sm',
                         centered: true,
@@ -130,7 +132,7 @@ const ChannelsActions = ({
                   <Button
                     size='small'
                     type='secondary'
-                    className="w-full"
+                    className='w-full'
                     onClick={() => {
                       Modal.confirm({
                         title: t('确定？'),
@@ -148,7 +150,7 @@ const ChannelsActions = ({
                   <Button
                     size='small'
                     type='danger'
-                    className="w-full"
+                    className='w-full'
                     onClick={() => {
                       Modal.confirm({
                         title: t('确定是否要删除禁用通道？'),
@@ -165,7 +167,12 @@ const ChannelsActions = ({
               </Dropdown.Menu>
             }
           >
-            <Button size='small' theme='light' type='tertiary' className="w-full md:w-auto">
+            <Button
+              size='small'
+              theme='light'
+              type='tertiary'
+              className='w-full md:w-auto'
+            >
               {t('批量操作')}
             </Button>
           </Dropdown>
@@ -178,9 +185,9 @@ const ChannelsActions = ({
         </div>
 
         {/* 右侧：设置开关区域 */}
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto order-1 md:order-2">
-          <div className="flex items-center justify-between w-full md:w-auto">
-            <Typography.Text strong className="mr-2">
+        <div className='flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto order-1 md:order-2'>
+          <div className='flex items-center justify-between w-full md:w-auto'>
+            <Typography.Text strong className='mr-2'>
               {t('使用ID排序')}
             </Typography.Text>
             <Switch
@@ -189,18 +196,30 @@ const ChannelsActions = ({
               onChange={(v) => {
                 localStorage.setItem('id-sort', v + '');
                 setIdSort(v);
-                const { searchKeyword, searchGroup, searchModel } = getFormValues();
-                if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
+                const { searchKeyword, searchGroup, searchModel } =
+                  getFormValues();
+                if (
+                  searchKeyword === '' &&
+                  searchGroup === '' &&
+                  searchModel === ''
+                ) {
                   loadChannels(activePage, pageSize, v, enableTagMode);
                 } else {
-                  searchChannels(enableTagMode, activeTypeKey, statusFilter, activePage, pageSize, v);
+                  searchChannels(
+                    enableTagMode,
+                    activeTypeKey,
+                    statusFilter,
+                    activePage,
+                    pageSize,
+                    v,
+                  );
                 }
               }}
             />
           </div>
 
-          <div className="flex items-center justify-between w-full md:w-auto">
-            <Typography.Text strong className="mr-2">
+          <div className='flex items-center justify-between w-full md:w-auto'>
+            <Typography.Text strong className='mr-2'>
               {t('开启批量操作')}
             </Typography.Text>
             <Switch
@@ -213,8 +232,8 @@ const ChannelsActions = ({
             />
           </div>
 
-          <div className="flex items-center justify-between w-full md:w-auto">
-            <Typography.Text strong className="mr-2">
+          <div className='flex items-center justify-between w-full md:w-auto'>
+            <Typography.Text strong className='mr-2'>
               {t('标签聚合模式')}
             </Typography.Text>
             <Switch
@@ -229,8 +248,8 @@ const ChannelsActions = ({
             />
           </div>
 
-          <div className="flex items-center justify-between w-full md:w-auto">
-            <Typography.Text strong className="mr-2">
+          <div className='flex items-center justify-between w-full md:w-auto'>
+            <Typography.Text strong className='mr-2'>
               {t('状态筛选')}
             </Typography.Text>
             <Select
@@ -240,12 +259,19 @@ const ChannelsActions = ({
                 localStorage.setItem('channel-status-filter', v);
                 setStatusFilter(v);
                 setActivePage(1);
-                loadChannels(1, pageSize, idSort, enableTagMode, activeTypeKey, v);
+                loadChannels(
+                  1,
+                  pageSize,
+                  idSort,
+                  enableTagMode,
+                  activeTypeKey,
+                  v,
+                );
               }}
             >
-              <Select.Option value="all">{t('全部')}</Select.Option>
-              <Select.Option value="enabled">{t('已启用')}</Select.Option>
-              <Select.Option value="disabled">{t('已禁用')}</Select.Option>
+              <Select.Option value='all'>{t('全部')}</Select.Option>
+              <Select.Option value='enabled'>{t('已启用')}</Select.Option>
+              <Select.Option value='disabled'>{t('已禁用')}</Select.Option>
             </Select>
           </div>
         </div>
@@ -254,4 +280,4 @@ const ChannelsActions = ({
   );
 };
 
-export default ChannelsActions; 
+export default ChannelsActions;

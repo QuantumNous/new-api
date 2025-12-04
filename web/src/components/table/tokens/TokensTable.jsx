@@ -76,13 +76,15 @@ const TokensTable = (tokensData) => {
 
   // Handle compact mode by removing fixed positioning
   const tableColumns = useMemo(() => {
-    return compactMode ? columns.map(col => {
-      if (col.dataIndex === 'operate') {
-        const { fixed, ...rest } = col;
-        return rest;
-      }
-      return col;
-    }) : columns;
+    return compactMode
+      ? columns.map((col) => {
+          if (col.dataIndex === 'operate') {
+            const { fixed, ...rest } = col;
+            return rest;
+          }
+          return col;
+        })
+      : columns;
   }, [compactMode, columns]);
 
   return (
@@ -106,15 +108,17 @@ const TokensTable = (tokensData) => {
       empty={
         <Empty
           image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-          darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+          darkModeImage={
+            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+          }
           description={t('搜索无结果')}
           style={{ padding: 30 }}
         />
       }
-      className="rounded-xl overflow-hidden"
-      size="middle"
+      className='rounded-xl overflow-hidden'
+      size='middle'
     />
   );
 };
 
-export default TokensTable; 
+export default TokensTable;

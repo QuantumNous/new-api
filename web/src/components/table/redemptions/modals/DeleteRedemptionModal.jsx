@@ -21,15 +21,15 @@ import React from 'react';
 import { Modal } from '@douyinfe/semi-ui';
 import { REDEMPTION_ACTIONS } from '../../../../constants/redemption.constants';
 
-const DeleteRedemptionModal = ({ 
-  visible, 
-  onCancel, 
-  record, 
-  manageRedemption, 
+const DeleteRedemptionModal = ({
+  visible,
+  onCancel,
+  record,
+  manageRedemption,
   refresh,
   redemptions,
   activePage,
-  t 
+  t,
 }) => {
   const handleConfirm = async () => {
     await manageRedemption(record.id, REDEMPTION_ACTIONS.DELETE, record);
@@ -48,11 +48,11 @@ const DeleteRedemptionModal = ({
       visible={visible}
       onCancel={onCancel}
       onOk={handleConfirm}
-      type="warning"
+      type='warning'
     >
       {t('此修改将不可逆')}
     </Modal>
   );
 };
 
-export default DeleteRedemptionModal; 
+export default DeleteRedemptionModal;

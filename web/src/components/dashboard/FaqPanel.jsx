@@ -22,7 +22,10 @@ import { Card, Collapse, Empty } from '@douyinfe/semi-ui';
 import { HelpCircle } from 'lucide-react';
 import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
 import { marked } from 'marked';
-import { IllustrationConstruction, IllustrationConstructionDark } from '@douyinfe/semi-illustrations';
+import {
+  IllustrationConstruction,
+  IllustrationConstructionDark,
+} from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
 const FaqPanel = ({
@@ -30,12 +33,12 @@ const FaqPanel = ({
   CARD_PROPS,
   FLEX_CENTER_GAP2,
   ILLUSTRATION_SIZE,
-  t
+  t,
 }) => {
   return (
     <Card
       {...CARD_PROPS}
-      className="shadow-sm !rounded-2xl lg:col-span-1"
+      className='shadow-sm !rounded-2xl lg:col-span-1'
       title={
         <div className={FLEX_CENTER_GAP2}>
           <HelpCircle size={16} />
@@ -44,7 +47,7 @@ const FaqPanel = ({
       }
       bodyStyle={{ padding: 0 }}
     >
-      <ScrollableContainer maxHeight="24rem">
+      <ScrollableContainer maxHeight='24rem'>
         {faqData.length > 0 ? (
           <Collapse
             accordion
@@ -58,16 +61,20 @@ const FaqPanel = ({
                 itemKey={index.toString()}
               >
                 <div
-                  dangerouslySetInnerHTML={{ __html: marked.parse(item.answer || '') }}
+                  dangerouslySetInnerHTML={{
+                    __html: marked.parse(item.answer || ''),
+                  }}
                 />
               </Collapse.Panel>
             ))}
           </Collapse>
         ) : (
-          <div className="flex justify-center items-center py-8">
+          <div className='flex justify-center items-center py-8'>
             <Empty
               image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={<IllustrationConstructionDark style={ILLUSTRATION_SIZE} />}
+              darkModeImage={
+                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
+              }
               title={t('暂无常见问答')}
               description={t('请联系管理员在系统设置中配置常见问答')}
             />
@@ -78,4 +85,4 @@ const FaqPanel = ({
   );
 };
 
-export default FaqPanel; 
+export default FaqPanel;

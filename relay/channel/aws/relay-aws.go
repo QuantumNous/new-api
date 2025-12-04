@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"one-api/common"
@@ -93,7 +94,19 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, requestMode int) (*
 	}
 
 	awsModelId := awsModelID(c.GetString("request_model"))
+	// 检查是否为Nova模型
+	isNova, _ := c.Get("is_nova_model")
+	if isNova == true {
+		// Nova模型也支持跨区域
+		awsRegionPrefix := awsRegionPrefix(awsCli.Options().Region)
+		canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
+		if canCrossRegion {
+			awsModelId = awsModelCrossRegion(awsModelId, awsRegionPrefix)
+		}
+		return handleNovaRequest(c, awsCli, info, awsModelId)
+	}
 
+	// 原有的Claude处理逻辑
 	awsRegionPrefix := awsRegionPrefix(awsCli.Options().Region)
 	canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
 	if canCrossRegion {
@@ -130,7 +143,12 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, requestMode int) (*
 		Usage:        &dto.Usage{},
 	}
 
-	handlerErr := claude.HandleClaudeResponseData(c, info, claudeInfo, awsResp.Body, RequestModeMessage)
+	// 复制上游 Content-Type 到客户端响应头
+	if awsResp.ContentType != nil && *awsResp.ContentType != "" {
+		c.Writer.Header().Set("Content-Type", *awsResp.ContentType)
+	}
+
+	handlerErr := claude.HandleClaudeResponseData(c, info, claudeInfo, nil, awsResp.Body, RequestModeMessage)
 	if handlerErr != nil {
 		return handlerErr, nil
 	}
@@ -203,4 +221,75 @@ func awsStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 
 	claude.HandleStreamFinalResponse(c, info, claudeInfo, RequestModeMessage)
 	return nil, claudeInfo.Usage
+}
+
+// Nova模型处理函数
+func handleNovaRequest(c *gin.Context, awsCli *bedrockruntime.Client, info *relaycommon.RelayInfo, awsModelId string) (*types.NewAPIError, *dto.Usage) {
+	novaReq_, ok := c.Get("converted_request")
+	if !ok {
+		return types.NewError(errors.New("nova request not found"), types.ErrorCodeInvalidRequest), nil
+	}
+	novaReq := novaReq_.(*NovaRequest)
+
+	// 使用InvokeModel API，但使用Nova格式的请求体
+	awsReq := &bedrockruntime.InvokeModelInput{
+		ModelId:     aws.String(awsModelId),
+		Accept:      aws.String("application/json"),
+		ContentType: aws.String("application/json"),
+	}
+
+	reqBody, err := json.Marshal(novaReq)
+	if err != nil {
+		return types.NewError(errors.Wrap(err, "marshal nova request"), types.ErrorCodeBadResponseBody), nil
+	}
+	awsReq.Body = reqBody
+
+	awsResp, err := awsCli.InvokeModel(c.Request.Context(), awsReq)
+	if err != nil {
+		return types.NewError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeChannelAwsClientError), nil
+	}
+
+	// 解析Nova响应
+	var novaResp struct {
+		Output struct {
+			Message struct {
+				Content []struct {
+					Text string `json:"text"`
+				} `json:"content"`
+			} `json:"message"`
+		} `json:"output"`
+		Usage struct {
+			InputTokens  int `json:"inputTokens"`
+			OutputTokens int `json:"outputTokens"`
+			TotalTokens  int `json:"totalTokens"`
+		} `json:"usage"`
+	}
+
+	if err := json.Unmarshal(awsResp.Body, &novaResp); err != nil {
+		return types.NewError(errors.Wrap(err, "unmarshal nova response"), types.ErrorCodeBadResponseBody), nil
+	}
+
+	// 构造OpenAI格式响应
+	response := dto.OpenAITextResponse{
+		Id:      helper.GetResponseID(c),
+		Object:  "chat.completion",
+		Created: common.GetTimestamp(),
+		Model:   info.UpstreamModelName,
+		Choices: []dto.OpenAITextResponseChoice{{
+			Index: 0,
+			Message: dto.Message{
+				Role:    "assistant",
+				Content: novaResp.Output.Message.Content[0].Text,
+			},
+			FinishReason: "stop",
+		}},
+		Usage: dto.Usage{
+			PromptTokens:     novaResp.Usage.InputTokens,
+			CompletionTokens: novaResp.Usage.OutputTokens,
+			TotalTokens:      novaResp.Usage.TotalTokens,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
+	return nil, &response.Usage
 }

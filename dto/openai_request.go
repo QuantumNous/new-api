@@ -57,18 +57,42 @@ type GeneralOpenAIRequest struct {
 	Dimensions          int               `json:"dimensions,omitempty"`
 	Modalities          json.RawMessage   `json:"modalities,omitempty"`
 	Audio               json.RawMessage   `json:"audio,omitempty"`
-	EnableThinking      any               `json:"enable_thinking,omitempty"` // ali
-	THINKING            json.RawMessage   `json:"thinking,omitempty"`        // doubao,zhipu_v4
-	ExtraBody           json.RawMessage   `json:"extra_body,omitempty"`
-	SearchParameters    any               `json:"search_parameters,omitempty"` //xai
-	WebSearchOptions    *WebSearchOptions `json:"web_search_options,omitempty"`
+	// 安全标识符，用于帮助 OpenAI 检测可能违反使用政策的应用程序用户
+	// 注意：此字段会向 OpenAI 发送用户标识信息，默认过滤以保护用户隐私
+	SafetyIdentifier string `json:"safety_identifier,omitempty"`
+	// Whether or not to store the output of this chat completion request for use in our model distillation or evals products.
+	// 是否存储此次请求数据供 OpenAI 用于评估和优化产品
+	// 注意：默认过滤此字段以保护用户隐私，但过滤后可能导致 Codex 无法正常使用
+	Store json.RawMessage `json:"store,omitempty"`
+	// Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field
+	PromptCacheKey string          `json:"prompt_cache_key,omitempty"`
+	LogitBias      json.RawMessage `json:"logit_bias,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	Prediction     json.RawMessage `json:"prediction,omitempty"`
+	// gemini
+	ExtraBody json.RawMessage `json:"extra_body,omitempty"`
+	//xai
+	SearchParameters json.RawMessage `json:"search_parameters,omitempty"`
+	// claude
+	WebSearchOptions *WebSearchOptions `json:"web_search_options,omitempty"`
 	// OpenRouter Params
 	Usage     json.RawMessage `json:"usage,omitempty"`
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
-	// 用匿名参数接收额外参数，例如ollama的think参数在此接收
-	Extra map[string]json.RawMessage `json:"-"`
+	EnableThinking         any             `json:"enable_thinking,omitempty"`
+	// ollama Params
+	Think json.RawMessage `json:"think,omitempty"`
+	// baidu v2
+	WebSearch json.RawMessage `json:"web_search,omitempty"`
+	// doubao,zhipu_v4
+	THINKING json.RawMessage `json:"thinking,omitempty"`
+	// pplx Params
+	SearchDomainFilter     json.RawMessage `json:"search_domain_filter,omitempty"`
+	SearchRecencyFilter    string          `json:"search_recency_filter,omitempty"`
+	ReturnImages           bool            `json:"return_images,omitempty"`
+	ReturnRelatedQuestions bool            `json:"return_related_questions,omitempty"`
+	SearchMode             string          `json:"search_mode,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -181,6 +205,12 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 
 func (r *GeneralOpenAIRequest) IsStream(c *gin.Context) bool {
 	return r.Stream
+}
+
+func (r *GeneralOpenAIRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
 }
 
 func (r *GeneralOpenAIRequest) ToMap() map[string]any {
@@ -754,27 +784,29 @@ type WebSearchOptions struct {
 
 // https://platform.openai.com/docs/api-reference/responses/create
 type OpenAIResponsesRequest struct {
-	Model              string           `json:"model"`
-	Input              any              `json:"input,omitempty"`
-	Include            json.RawMessage  `json:"include,omitempty"`
-	Instructions       json.RawMessage  `json:"instructions,omitempty"`
-	MaxOutputTokens    uint             `json:"max_output_tokens,omitempty"`
-	Metadata           json.RawMessage  `json:"metadata,omitempty"`
-	ParallelToolCalls  bool             `json:"parallel_tool_calls,omitempty"`
-	PreviousResponseID string           `json:"previous_response_id,omitempty"`
-	Reasoning          *Reasoning       `json:"reasoning,omitempty"`
-	ServiceTier        string           `json:"service_tier,omitempty"`
-	Store              bool             `json:"store,omitempty"`
-	Stream             bool             `json:"stream,omitempty"`
-	Temperature        float64          `json:"temperature,omitempty"`
-	Text               json.RawMessage  `json:"text,omitempty"`
-	ToolChoice         json.RawMessage  `json:"tool_choice,omitempty"`
-	Tools              []map[string]any `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
-	TopP               float64          `json:"top_p,omitempty"`
-	Truncation         string           `json:"truncation,omitempty"`
-	User               string           `json:"user,omitempty"`
-	MaxToolCalls       uint             `json:"max_tool_calls,omitempty"`
-	Prompt             json.RawMessage  `json:"prompt,omitempty"`
+	Model              string          `json:"model"`
+	Input              json.RawMessage `json:"input,omitempty"`
+	Include            json.RawMessage `json:"include,omitempty"`
+	Instructions       json.RawMessage `json:"instructions,omitempty"`
+	MaxOutputTokens    uint            `json:"max_output_tokens,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
+	PreviousResponseID string          `json:"previous_response_id,omitempty"`
+	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
+	// 服务层级字段，用于指定 API 服务等级。允许透传可能导致实际计费高于预期，默认应过滤
+	ServiceTier    string          `json:"service_tier,omitempty"`
+	Store          json.RawMessage `json:"store,omitempty"`
+	PromptCacheKey json.RawMessage `json:"prompt_cache_key,omitempty"`
+	Stream         bool            `json:"stream,omitempty"`
+	Temperature    float64         `json:"temperature,omitempty"`
+	Text           json.RawMessage `json:"text,omitempty"`
+	ToolChoice     json.RawMessage `json:"tool_choice,omitempty"`
+	Tools          json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
+	TopP           float64         `json:"top_p,omitempty"`
+	Truncation     string          `json:"truncation,omitempty"`
+	User           string          `json:"user,omitempty"`
+	MaxToolCalls   uint            `json:"max_tool_calls,omitempty"`
+	Prompt         json.RawMessage `json:"prompt,omitempty"`
 }
 
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -826,8 +858,7 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 
 	if len(r.Tools) > 0 {
-		toolStr, _ := common.Marshal(r.Tools)
-		texts = append(texts, string(toolStr))
+		texts = append(texts, string(r.Tools))
 	}
 
 	return &types.TokenCountMeta{
@@ -839,6 +870,20 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 
 func (r *OpenAIResponsesRequest) IsStream(c *gin.Context) bool {
 	return r.Stream
+}
+
+func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
+}
+
+func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
+	var toolsMap []map[string]any
+	if len(r.Tools) > 0 {
+		_ = common.Unmarshal(r.Tools, &toolsMap)
+	}
+	return toolsMap
 }
 
 type Reasoning struct {
@@ -867,13 +912,21 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 	var inputs []MediaInput
 
 	// Try string first
-	if str, ok := r.Input.(string); ok {
+	// if str, ok := common.GetJsonType(r.Input); ok {
+	// 	inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
+	// 	return inputs
+	// }
+	if common.GetJsonType(r.Input) == "string" {
+		var str string
+		_ = common.Unmarshal(r.Input, &str)
 		inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
 		return inputs
 	}
 
 	// Try array of parts
-	if array, ok := r.Input.([]any); ok {
+	if common.GetJsonType(r.Input) == "array" {
+		var array []any
+		_ = common.Unmarshal(r.Input, &array)
 		for _, itemAny := range array {
 			// Already parsed MediaInput
 			if media, ok := itemAny.(MediaInput); ok {

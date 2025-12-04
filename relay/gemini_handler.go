@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"one-api/common"
+	"one-api/constant"
 	"one-api/dto"
 	"one-api/logger"
 	"one-api/relay/channel/gemini"
@@ -53,13 +54,18 @@ func trimModelThinking(modelName string) string {
 func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
-	request, ok := info.Request.(*dto.GeminiChatRequest)
+	geminiReq, ok := info.Request.(*dto.GeminiChatRequest)
 	if !ok {
-		common.FatalLog(fmt.Sprintf("invalid request type, expected *dto.GeminiChatRequest, got %T", info.Request))
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.GeminiChatRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	request, err := common.DeepCopy(geminiReq)
+	if err != nil {
+		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	// model mapped 模型映射
-	err := helper.ModelMappedHelper(c, info, request)
+	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
@@ -88,6 +94,32 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	adaptor.Init(info)
+
+	if info.ChannelSetting.SystemPrompt != "" {
+		if request.SystemInstruction == nil {
+			request.SystemInstruction = &dto.GeminiChatContent{
+				Parts: []dto.GeminiPart{
+					{Text: info.ChannelSetting.SystemPrompt},
+				},
+			}
+		} else if len(request.SystemInstruction.Parts) == 0 {
+			request.SystemInstruction.Parts = []dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}
+		} else if info.ChannelSetting.SystemPromptOverride {
+			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+			merged := false
+			for i := range request.SystemInstruction.Parts {
+				if request.SystemInstruction.Parts[i].Text == "" {
+					continue
+				}
+				request.SystemInstruction.Parts[i].Text = info.ChannelSetting.SystemPrompt + "\n" + request.SystemInstruction.Parts[i].Text
+				merged = true
+				break
+			}
+			if !merged {
+				request.SystemInstruction.Parts = append([]dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}, request.SystemInstruction.Parts...)
+			}
+		}
+	}
 
 	// Clean up empty system instruction
 	if request.SystemInstruction != nil {
@@ -147,7 +179,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError
@@ -170,7 +202,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	isBatch := strings.HasSuffix(c.Request.URL.Path, "batchEmbedContents")
 	info.IsGeminiBatchEmbedding = isBatch
 
-	var req any
+	var req dto.Request
 	var err error
 	var inputTexts []string
 
@@ -244,7 +276,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(httpResp, false)
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 			return newAPIError
 		}

@@ -165,10 +165,45 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
-	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
-		err = common.UnmarshalBodyReusable(c, &modelRequest)
+	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") {
+		//curl https://api.openai.com/v1/videos \
+		//  -H "Authorization: Bearer $OPENAI_API_KEY" \
+		//  -F "model=sora-2" \
+		//  -F "prompt=A calico cat playing a piano on stage"
+		//	-F input_reference="@image.jpg"
 		relayMode := relayconstant.RelayModeUnknown
 		if c.Request.Method == http.MethodPost {
+			relayMode = relayconstant.RelayModeVideoSubmit
+			contentType := c.Request.Header.Get("Content-Type")
+			if strings.HasPrefix(contentType, "multipart/form-data") {
+				form, err := common.ParseMultipartFormReusable(c)
+				if err != nil {
+					return nil, false, errors.New("无效的video请求, " + err.Error())
+				}
+				defer form.RemoveAll()
+				if form != nil {
+					if values, ok := form.Value["model"]; ok && len(values) > 0 {
+						modelRequest.Model = values[0]
+					}
+				}
+			} else if strings.HasPrefix(contentType, "application/json") {
+				err = common.UnmarshalBodyReusable(c, &modelRequest)
+				if err != nil {
+					return nil, false, errors.New("无效的video请求, " + err.Error())
+				}
+			}
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
+		}
+		c.Set("relay_mode", relayMode)
+	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
+		relayMode := relayconstant.RelayModeUnknown
+		if c.Request.Method == http.MethodPost {
+			err = common.UnmarshalBodyReusable(c, &modelRequest)
+			if err != nil {
+				return nil, false, errors.New("video无效的请求, " + err.Error())
+			}
 			relayMode = relayconstant.RelayModeVideoSubmit
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
@@ -185,7 +220,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
-	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
+	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		err = common.UnmarshalBodyReusable(c, &modelRequest)
 	}
 	if err != nil {
@@ -208,7 +243,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
-		modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			modelRequest.Model = c.PostForm("model")
+		}
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/audio") {
 		relayMode := relayconstant.RelayModeAudioSpeech
@@ -248,6 +286,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, channel.GetParamOverride())
+	common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, channel.GetHeaderOverride())
 	if nil != channel.OpenAIOrganization && *channel.OpenAIOrganization != "" {
 		common.SetContextKey(c, constant.ContextKeyChannelOrganization, *channel.OpenAIOrganization)
 	}

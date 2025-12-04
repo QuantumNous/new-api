@@ -65,4 +65,4 @@ CompactModeToggle.propTypes = {
   className: PropTypes.string,
 };
 
-export default CompactModeToggle; 
+export default CompactModeToggle;

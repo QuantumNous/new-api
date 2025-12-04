@@ -32,11 +32,7 @@ import {
   Avatar,
   Spin,
 } from '@douyinfe/semi-ui';
-import {
-  IconLayers,
-  IconSave,
-  IconClose,
-} from '@douyinfe/semi-icons';
+import { IconLayers, IconSave, IconClose } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -53,7 +49,12 @@ const ENDPOINT_TEMPLATE = {
   'image-generation': { path: '/v1/images/generations', method: 'POST' },
 };
 
-const EditPrefillGroupModal = ({ visible, onClose, editingGroup, onSuccess }) => {
+const EditPrefillGroupModal = ({
+  visible,
+  onClose,
+  editingGroup,
+  onSuccess,
+}) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
@@ -112,7 +113,7 @@ const EditPrefillGroupModal = ({ visible, onClose, editingGroup, onSuccess }) =>
 
   return (
     <SideSheet
-      placement="left"
+      placement='left'
       title={
         <Space>
           {isEdit ? (
@@ -193,13 +194,15 @@ const EditPrefillGroupModal = ({ visible, onClose, editingGroup, onSuccess }) =>
                 </Avatar>
                 <div>
                   <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-                  <div className='text-xs text-gray-600'>{t('设置预填组的基本信息')}</div>
+                  <div className='text-xs text-gray-600'>
+                    {t('设置预填组的基本信息')}
+                  </div>
                 </div>
               </div>
               <Row gutter={12}>
                 <Col span={24}>
                   <Form.Input
-                    field="name"
+                    field='name'
                     label={t('组名')}
                     placeholder={t('请输入组名')}
                     rules={[{ required: true, message: t('请输入组名') }]}
@@ -208,7 +211,7 @@ const EditPrefillGroupModal = ({ visible, onClose, editingGroup, onSuccess }) =>
                 </Col>
                 <Col span={24}>
                   <Form.Select
-                    field="type"
+                    field='type'
                     label={t('类型')}
                     placeholder={t('选择组类型')}
                     optionList={typeOptions}
@@ -219,7 +222,7 @@ const EditPrefillGroupModal = ({ visible, onClose, editingGroup, onSuccess }) =>
                 </Col>
                 <Col span={24}>
                   <Form.TextArea
-                    field="description"
+                    field='description'
                     label={t('描述')}
                     placeholder={t('请输入组描述')}
                     rows={3}
@@ -229,19 +232,28 @@ const EditPrefillGroupModal = ({ visible, onClose, editingGroup, onSuccess }) =>
                 <Col span={24}>
                   {selectedType === 'endpoint' ? (
                     <JSONEditor
-                      field="items"
+                      field='items'
                       label={t('端点映射')}
-                      value={formRef.current?.getValue('items') ?? (typeof editingGroup?.items === 'string' ? editingGroup.items : JSON.stringify(editingGroup.items || {}, null, 2))}
-                      onChange={(val) => formRef.current?.setValue('items', val)}
+                      value={
+                        formRef.current?.getValue('items') ??
+                        (typeof editingGroup?.items === 'string'
+                          ? editingGroup.items
+                          : JSON.stringify(editingGroup.items || {}, null, 2))
+                      }
+                      onChange={(val) =>
+                        formRef.current?.setValue('items', val)
+                      }
                       editorType='object'
-                      placeholder={'{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'}
+                      placeholder={
+                        '{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'
+                      }
                       template={ENDPOINT_TEMPLATE}
                       templateLabel={t('填入模板')}
                       extraText={t('键为端点类型，值为路径和方法对象')}
                     />
                   ) : (
                     <Form.TagInput
-                      field="items"
+                      field='items'
                       label={t('项目')}
                       placeholder={t('输入项目名称，按回车添加')}
                       addOnBlur

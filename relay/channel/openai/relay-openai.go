@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -11,6 +12,7 @@ import (
 	"one-api/constant"
 	"one-api/dto"
 	"one-api/logger"
+	"one-api/relay/channel/openrouter"
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
@@ -161,13 +163,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	if !containStreamUsage {
 		usage = service.ResponseText2Usage(responseTextBuilder.String(), info.UpstreamModelName, info.PromptTokens)
 		usage.CompletionTokens += toolCount * 7
-	} else {
-		if info.ChannelType == constant.ChannelTypeDeepSeek {
-			if usage.PromptCacheHitTokens != 0 {
-				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
-			}
-		}
 	}
+
+	applyUsagePostProcessing(info, usage, nil)
+
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
@@ -184,10 +183,27 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if common.DebugEnabled {
 		println("upstream response body:", string(responseBody))
 	}
+	// Unmarshal to simpleResponse
+	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.IsOpenRouterEnterprise() {
+		// 尝试解析为 openrouter enterprise
+		var enterpriseResponse openrouter.OpenRouterEnterpriseResponse
+		err = common.Unmarshal(responseBody, &enterpriseResponse)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+		if enterpriseResponse.Success {
+			responseBody = enterpriseResponse.Data
+		} else {
+			logger.LogError(c, fmt.Sprintf("openrouter enterprise response success=false, data: %s", enterpriseResponse.Data))
+			return nil, types.NewOpenAIError(fmt.Errorf("openrouter response success=false"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+	}
+
 	err = common.Unmarshal(responseBody, &simpleResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
@@ -213,6 +229,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		}
 		usageModified = true
 	}
+
+	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -280,11 +298,6 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, responseFormat string) (*types.NewAPIError, *dto.Usage) {
 	defer service.CloseResponseBodyGracefully(resp)
 
-	// count tokens by audio file duration
-	audioTokens, err := countAudioTokens(c)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeCountTokenFailed), nil
-	}
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError), nil
@@ -292,6 +305,26 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
+	var responseData struct {
+		Usage *dto.Usage `json:"usage"`
+	}
+	if err := json.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
+		if responseData.Usage.TotalTokens > 0 {
+			usage := responseData.Usage
+			if usage.PromptTokens == 0 {
+				usage.PromptTokens = usage.InputTokens
+			}
+			if usage.CompletionTokens == 0 {
+				usage.CompletionTokens = usage.OutputTokens
+			}
+			return nil, usage
+		}
+	}
+
+	audioTokens, err := countAudioTokens(c)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeCountTokenFailed), nil
+	}
 	usage := &dto.Usage{}
 	usage.PromptTokens = audioTokens
 	usage.CompletionTokens = 0
@@ -597,5 +630,60 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		usageResp.PromptTokensDetails.ImageTokens += usageResp.InputTokensDetails.ImageTokens
 		usageResp.PromptTokensDetails.TextTokens += usageResp.InputTokensDetails.TextTokens
 	}
+	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
+	if info == nil || usage == nil {
+		return
+	}
+
+	switch info.ChannelType {
+	case constant.ChannelTypeDeepSeek:
+		if usage.PromptTokensDetails.CachedTokens == 0 && usage.PromptCacheHitTokens != 0 {
+			usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
+		}
+	case constant.ChannelTypeZhipu_v4:
+		if usage.PromptTokensDetails.CachedTokens == 0 {
+			if usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0 {
+				usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
+			} else if cachedTokens, ok := extractCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			} else if usage.PromptCacheHitTokens > 0 {
+				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
+			}
+		}
+	}
+}
+
+func extractCachedTokensFromBody(body []byte) (int, bool) {
+	if len(body) == 0 {
+		return 0, false
+	}
+
+	var payload struct {
+		Usage struct {
+			PromptTokensDetails struct {
+				CachedTokens *int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+			CachedTokens         *int `json:"cached_tokens"`
+			PromptCacheHitTokens *int `json:"prompt_cache_hit_tokens"`
+		} `json:"usage"`
+	}
+
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return 0, false
+	}
+
+	if payload.Usage.PromptTokensDetails.CachedTokens != nil {
+		return *payload.Usage.PromptTokensDetails.CachedTokens, true
+	}
+	if payload.Usage.CachedTokens != nil {
+		return *payload.Usage.CachedTokens, true
+	}
+	if payload.Usage.PromptCacheHitTokens != nil {
+		return *payload.Usage.PromptCacheHitTokens, true
+	}
+	return 0, false
 }

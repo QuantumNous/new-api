@@ -56,19 +56,23 @@ const ChatPage = () => {
   return !isLoading && iframeSrc ? (
     <iframe
       src={iframeSrc}
-      style={{ width: '100%', height: 'calc(100vh - 64px)', border: 'none', marginTop: '64px' }}
+      style={{
+        width: '100%',
+        height: 'calc(100vh - 64px)',
+        border: 'none',
+        marginTop: '64px',
+      }}
       title='Token Frame'
       allow='camera;microphone'
     />
   ) : (
-    <div className="fixed inset-0 w-screen h-screen flex items-center justify-center bg-white/80 z-[1000] mt-[60px]">
-      <div className="flex flex-col items-center">
-        <Spin
-          size="large"
-          spinning={true}
-          tip={null}
-        />
-        <span className="whitespace-nowrap mt-2 text-center" style={{ color: 'var(--semi-color-primary)' }}>
+    <div className='fixed inset-0 w-screen h-screen flex items-center justify-center bg-white/80 z-[1000] mt-[60px]'>
+      <div className='flex flex-col items-center'>
+        <Spin size='large' spinning={true} tip={null} />
+        <span
+          className='whitespace-nowrap mt-2 text-center'
+          style={{ color: 'var(--semi-color-primary)' }}
+        >
           {t('正在跳转...')}
         </span>
       </div>

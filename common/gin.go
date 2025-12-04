@@ -2,12 +2,14 @@ package common
 
 import (
 	"bytes"
-	"github.com/gin-gonic/gin"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"one-api/constant"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 const KeyRequestBody = "key_request_body"
@@ -111,4 +113,27 @@ func ApiSuccess(c *gin.Context, data any) {
 		"message": "",
 		"data":    data,
 	})
+}
+
+func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
+	requestBody, err := GetRequestBody(c)
+	if err != nil {
+		return nil, err
+	}
+
+	contentType := c.Request.Header.Get("Content-Type")
+	boundary := ""
+	if idx := strings.Index(contentType, "boundary="); idx != -1 {
+		boundary = contentType[idx+9:]
+	}
+
+	reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
+	form, err := reader.ReadForm(32 << 20) // 32 MB max memory
+	if err != nil {
+		return nil, err
+	}
+
+	// Reset request body
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+	return form, nil
 }

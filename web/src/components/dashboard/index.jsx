@@ -41,7 +41,7 @@ import {
   FLEX_CENTER_GAP2,
   ILLUSTRATION_SIZE,
   ANNOUNCEMENT_LEGEND_DATA,
-  UPTIME_STATUS_MAP
+  UPTIME_STATUS_MAP,
 } from '../../constants/dashboard.constants';
 import {
   getTrendSpec,
@@ -49,7 +49,7 @@ import {
   handleSpeedTest,
   getUptimeStatusColor,
   getUptimeStatusText,
-  renderMonitorList
+  renderMonitorList,
 } from '../../helpers/dashboard';
 
 const Dashboard = () => {
@@ -70,7 +70,7 @@ const Dashboard = () => {
     dashboardData.setPieData,
     dashboardData.setLineData,
     dashboardData.setModelColors,
-    dashboardData.t
+    dashboardData.t,
   );
 
   // ========== 统计数据 ==========
@@ -82,12 +82,12 @@ const Dashboard = () => {
     dashboardData.trendData,
     dashboardData.performanceMetrics,
     dashboardData.navigate,
-    dashboardData.t
+    dashboardData.t,
   );
 
   // ========== 数据处理 ==========
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then(data => {
+    await dashboardData.loadQuotaData().then((data) => {
       if (data && data.length > 0) {
         dashboardCharts.updateChartData(data);
       }
@@ -108,17 +108,30 @@ const Dashboard = () => {
 
   // ========== 数据准备 ==========
   const apiInfoData = statusState?.status?.api_info || [];
-  const announcementData = (statusState?.status?.announcements || []).map(item => ({
-    ...item,
-    time: getRelativeTime(item.publishDate)
-  }));
+  const announcementData = (statusState?.status?.announcements || []).map(
+    (item) => {
+      const pubDate = item?.publishDate ? new Date(item.publishDate) : null;
+      const absoluteTime =
+        pubDate && !isNaN(pubDate.getTime())
+          ? `${pubDate.getFullYear()}-${String(pubDate.getMonth() + 1).padStart(2, '0')}-${String(pubDate.getDate()).padStart(2, '0')} ${String(pubDate.getHours()).padStart(2, '0')}:${String(pubDate.getMinutes()).padStart(2, '0')}`
+          : item?.publishDate || '';
+      const relativeTime = getRelativeTime(item.publishDate);
+      return {
+        ...item,
+        time: absoluteTime,
+        relative: relativeTime,
+      };
+    },
+  );
   const faqData = statusState?.status?.faq || [];
 
-  const uptimeLegendData = Object.entries(UPTIME_STATUS_MAP).map(([status, info]) => ({
-    status: Number(status),
-    color: info.color,
-    label: dashboardData.t(info.label)
-  }));
+  const uptimeLegendData = Object.entries(UPTIME_STATUS_MAP).map(
+    ([status, info]) => ({
+      status: Number(status),
+      color: info.color,
+      label: dashboardData.t(info.label),
+    }),
+  );
 
   // ========== Effects ==========
   useEffect(() => {
@@ -126,7 +139,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="h-full">
+    <div className='h-full'>
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
@@ -158,8 +171,10 @@ const Dashboard = () => {
       />
 
       {/* API信息和图表面板 */}
-      <div className="mb-4">
-        <div className={`grid grid-cols-1 gap-4 ${dashboardData.hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}>
+      <div className='mb-4'>
+        <div
+          className={`grid grid-cols-1 gap-4 ${dashboardData.hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}
+        >
           <ChartsPanel
             activeChartTab={dashboardData.activeChartTab}
             setActiveChartTab={dashboardData.setActiveChartTab}
@@ -190,16 +205,18 @@ const Dashboard = () => {
 
       {/* 系统公告和常见问答卡片 */}
       {dashboardData.hasInfoPanels && (
-        <div className="mb-4">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className='mb-4'>
+          <div className='grid grid-cols-1 lg:grid-cols-4 gap-4'>
             {/* 公告卡片 */}
             {dashboardData.announcementsEnabled && (
               <AnnouncementsPanel
                 announcementData={announcementData}
-                announcementLegendData={ANNOUNCEMENT_LEGEND_DATA.map(item => ({
-                  ...item,
-                  label: dashboardData.t(item.label)
-                }))}
+                announcementLegendData={ANNOUNCEMENT_LEGEND_DATA.map(
+                  (item) => ({
+                    ...item,
+                    label: dashboardData.t(item.label),
+                  }),
+                )}
                 CARD_PROPS={CARD_PROPS}
                 ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
                 t={dashboardData.t}
@@ -226,12 +243,19 @@ const Dashboard = () => {
                 setActiveUptimeTab={dashboardData.setActiveUptimeTab}
                 loadUptimeData={dashboardData.loadUptimeData}
                 uptimeLegendData={uptimeLegendData}
-                renderMonitorList={(monitors) => renderMonitorList(
-                  monitors,
-                  (status) => getUptimeStatusColor(status, UPTIME_STATUS_MAP),
-                  (status) => getUptimeStatusText(status, UPTIME_STATUS_MAP, dashboardData.t),
-                  dashboardData.t
-                )}
+                renderMonitorList={(monitors) =>
+                  renderMonitorList(
+                    monitors,
+                    (status) => getUptimeStatusColor(status, UPTIME_STATUS_MAP),
+                    (status) =>
+                      getUptimeStatusText(
+                        status,
+                        UPTIME_STATUS_MAP,
+                        dashboardData.t,
+                      ),
+                    dashboardData.t,
+                  )
+                }
                 CARD_PROPS={CARD_PROPS}
                 ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
                 t={dashboardData.t}
@@ -244,4 +268,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard; 
+export default Dashboard;

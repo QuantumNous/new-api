@@ -31,7 +31,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Palette,
-  CreditCard
+  CreditCard,
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
@@ -108,7 +108,7 @@ const Setting = () => {
       tab: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <Calculator size={18} />
-          {t('倍率设置')}
+          {t('分组与模型定价设置')}
         </span>
       ),
       content: <RatioSetting />,
@@ -169,7 +169,7 @@ const Setting = () => {
     }
   }, [location.search]);
   return (
-    <div className="mt-[60px] px-2">
+    <div className='mt-[60px] px-2'>
       <Layout>
         <Layout.Content>
           <Tabs

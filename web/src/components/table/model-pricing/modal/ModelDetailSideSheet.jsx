@@ -18,14 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  SideSheet,
-  Typography,
-  Button,
-} from '@douyinfe/semi-ui';
-import {
-  IconClose,
-} from '@douyinfe/semi-icons';
+import { SideSheet, Typography, Button } from '@douyinfe/semi-ui';
+import { IconClose } from '@douyinfe/semi-icons';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import ModelHeader from './components/ModelHeader';
@@ -54,36 +48,46 @@ const ModelDetailSideSheet = ({
 
   return (
     <SideSheet
-      placement="right"
-      title={<ModelHeader modelData={modelData} vendorsMap={vendorsMap} t={t} />}
+      placement='right'
+      title={
+        <ModelHeader modelData={modelData} vendorsMap={vendorsMap} t={t} />
+      }
       bodyStyle={{
         padding: '0',
         display: 'flex',
         flexDirection: 'column',
-        borderBottom: '1px solid var(--semi-color-border)'
+        borderBottom: '1px solid var(--semi-color-border)',
       }}
       visible={visible}
       width={isMobile ? '100%' : 600}
       closeIcon={
         <Button
-          className="semi-button-tertiary semi-button-size-small semi-button-borderless"
-          type="button"
+          className='semi-button-tertiary semi-button-size-small semi-button-borderless'
+          type='button'
           icon={<IconClose />}
           onClick={onClose}
         />
       }
       onCancel={onClose}
     >
-      <div className="p-2">
+      <div className='p-2'>
         {!modelData && (
-          <div className="flex justify-center items-center py-10">
-            <Text type="secondary">{t('加载中...')}</Text>
+          <div className='flex justify-center items-center py-10'>
+            <Text type='secondary'>{t('加载中...')}</Text>
           </div>
         )}
         {modelData && (
           <>
-            <ModelBasicInfo modelData={modelData} vendorsMap={vendorsMap} t={t} />
-            <ModelEndpoints modelData={modelData} endpointMap={endpointMap} t={t} />
+            <ModelBasicInfo
+              modelData={modelData}
+              vendorsMap={vendorsMap}
+              t={t}
+            />
+            <ModelEndpoints
+              modelData={modelData}
+              endpointMap={endpointMap}
+              t={t}
+            />
             <ModelPricingTable
               modelData={modelData}
               groupRatio={groupRatio}
@@ -102,4 +106,4 @@ const ModelDetailSideSheet = ({
   );
 };
 
-export default ModelDetailSideSheet; 
+export default ModelDetailSideSheet;

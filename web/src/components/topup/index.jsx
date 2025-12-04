@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import {
   API,
   showError,
@@ -28,10 +28,7 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
-import {
-  Modal,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -40,6 +37,7 @@ import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
+import TopupHistoryModal from './modals/TopupHistoryModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -60,44 +58,38 @@ const TopUp = () => {
   );
   const [priceRatio, setPriceRatio] = useState(statusState?.status?.price || 1);
 
-  const [enableStripeTopUp, setEnableStripeTopUp] = useState(statusState?.status?.enable_stripe_topup || false);
+  const [enableStripeTopUp, setEnableStripeTopUp] = useState(
+    statusState?.status?.enable_stripe_topup || false,
+  );
   const [statusLoading, setStatusLoading] = useState(true);
 
-  const [userQuota, setUserQuota] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
-  const [userDataLoading, setUserDataLoading] = useState(true);
   const [amountLoading, setAmountLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
+
+  const affFetchedRef = useRef(false);
 
   // 邀请相关状态
   const [affLink, setAffLink] = useState('');
   const [openTransfer, setOpenTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState(0);
 
+  // 账单Modal状态
+  const [openHistory, setOpenHistory] = useState(false);
+
   // 预设充值额度选项
-  const [presetAmounts, setPresetAmounts] = useState([
-    { value: 5 },
-    { value: 10 },
-    { value: 30 },
-    { value: 50 },
-    { value: 100 },
-    { value: 300 },
-    { value: 500 },
-    { value: 1000 },
-  ]);
+  const [presetAmounts, setPresetAmounts] = useState([]);
   const [selectedPreset, setSelectedPreset] = useState(null);
 
-  const getUsername = () => {
-    if (userState.user) {
-      return userState.user.username;
-    } else {
-      return 'null';
-    }
-  };
+  // 充值配置信息
+  const [topupInfo, setTopupInfo] = useState({
+    amount_options: [],
+    discount: {},
+  });
 
   const topUp = async () => {
     if (redemptionCode === '') {
@@ -116,9 +108,6 @@ const TopUp = () => {
           title: t('兑换成功！'),
           content: t('成功兑换额度：') + renderQuota(data),
           centered: true,
-        });
-        setUserQuota((quota) => {
-          return quota + data;
         });
         if (userState.user) {
           const updatedUser = {
@@ -260,16 +249,115 @@ const TopUp = () => {
   };
 
   const getUserQuota = async () => {
-    setUserDataLoading(true);
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
     if (success) {
-      setUserQuota(data.quota);
       userDispatch({ type: 'login', payload: data });
     } else {
       showError(message);
     }
-    setUserDataLoading(false);
+  };
+
+  // 获取充值配置信息
+  const getTopupInfo = async () => {
+    try {
+      const res = await API.get('/api/user/topup/info');
+      const { message, data, success } = res.data;
+      if (success) {
+        setTopupInfo({
+          amount_options: data.amount_options || [],
+          discount: data.discount || {},
+        });
+
+        // 处理支付方式
+        let payMethods = data.pay_methods || [];
+        try {
+          if (typeof payMethods === 'string') {
+            payMethods = JSON.parse(payMethods);
+          }
+          if (payMethods && payMethods.length > 0) {
+            // 检查name和type是否为空
+            payMethods = payMethods.filter((method) => {
+              return method.name && method.type;
+            });
+            // 如果没有color，则设置默认颜色
+            payMethods = payMethods.map((method) => {
+              // 规范化最小充值数
+              const normalizedMinTopup = Number(method.min_topup);
+              method.min_topup = Number.isFinite(normalizedMinTopup)
+                ? normalizedMinTopup
+                : 0;
+
+              // Stripe 的最小充值从后端字段回填
+              if (
+                method.type === 'stripe' &&
+                (!method.min_topup || method.min_topup <= 0)
+              ) {
+                const stripeMin = Number(data.stripe_min_topup);
+                if (Number.isFinite(stripeMin)) {
+                  method.min_topup = stripeMin;
+                }
+              }
+
+              if (!method.color) {
+                if (method.type === 'alipay') {
+                  method.color = 'rgba(var(--semi-blue-5), 1)';
+                } else if (method.type === 'wxpay') {
+                  method.color = 'rgba(var(--semi-green-5), 1)';
+                } else if (method.type === 'stripe') {
+                  method.color = 'rgba(var(--semi-purple-5), 1)';
+                } else {
+                  method.color = 'rgba(var(--semi-primary-5), 1)';
+                }
+              }
+              return method;
+            });
+          } else {
+            payMethods = [];
+          }
+
+          // 如果启用了 Stripe 支付，添加到支付方法列表
+          // 这个逻辑现在由后端处理，如果 Stripe 启用，后端会在 pay_methods 中包含它
+
+          setPayMethods(payMethods);
+          const enableStripeTopUp = data.enable_stripe_topup || false;
+          const enableOnlineTopUp = data.enable_online_topup || false;
+          const minTopUpValue = enableOnlineTopUp
+            ? data.min_topup
+            : enableStripeTopUp
+              ? data.stripe_min_topup
+              : 1;
+          setEnableOnlineTopUp(enableOnlineTopUp);
+          setEnableStripeTopUp(enableStripeTopUp);
+          setMinTopUp(minTopUpValue);
+          setTopUpCount(minTopUpValue);
+
+          // 如果没有自定义充值数量选项，根据最小充值金额生成预设充值额度选项
+          if (topupInfo.amount_options.length === 0) {
+            setPresetAmounts(generatePresetAmounts(minTopUpValue));
+          }
+
+          // 初始化显示实付金额
+          getAmount(minTopUpValue);
+        } catch (e) {
+          console.log('解析支付方式失败:', e);
+          setPayMethods([]);
+        }
+
+        // 如果有自定义充值数量选项，使用它们替换默认的预设选项
+        if (data.amount_options && data.amount_options.length > 0) {
+          const customPresets = data.amount_options.map((amount) => ({
+            value: amount,
+            discount: data.discount[amount] || 1.0,
+          }));
+          setPresetAmounts(customPresets);
+        }
+      } else {
+        console.error('获取充值配置失败:', data);
+      }
+    } catch (error) {
+      console.error('获取充值配置异常:', error);
+    }
   };
 
   // 获取邀请链接
@@ -310,69 +398,31 @@ const TopUp = () => {
   };
 
   useEffect(() => {
-    if (userState?.user?.id) {
-      setUserDataLoading(false);
-      setUserQuota(userState.user.quota);
-    } else {
+    if (!userState?.user?.id) {
       getUserQuota().then();
     }
-    getAffLink().then();
     setTransferAmount(getQuotaPerUnit());
+  }, []);
 
-    let payMethods = localStorage.getItem('pay_methods');
-    try {
-      payMethods = JSON.parse(payMethods);
-      if (payMethods && payMethods.length > 0) {
-        // 检查name和type是否为空
-        payMethods = payMethods.filter((method) => {
-          return method.name && method.type;
-        });
-        // 如果没有color，则设置默认颜色
-        payMethods = payMethods.map((method) => {
-          if (!method.color) {
-            if (method.type === 'zfb') {
-              method.color = 'rgba(var(--semi-blue-5), 1)';
-            } else if (method.type === 'wx') {
-              method.color = 'rgba(var(--semi-green-5), 1)';
-            } else if (method.type === 'stripe') {
-              method.color = 'rgba(var(--semi-purple-5), 1)';
-            } else {
-              method.color = 'rgba(var(--semi-primary-5), 1)';
-            }
-          }
-          return method;
-        });
-      } else {
-        payMethods = [];
-      }
+  useEffect(() => {
+    if (affFetchedRef.current) return;
+    affFetchedRef.current = true;
+    getAffLink().then();
+  }, []);
 
-      // 如果启用了 Stripe 支付，添加到支付方法列表
-      if (statusState?.status?.enable_stripe_topup) {
-        const hasStripe = payMethods.some(method => method.type === 'stripe');
-        if (!hasStripe) {
-          payMethods.push({
-            name: 'Stripe',
-            type: 'stripe',
-            color: 'rgba(var(--semi-purple-5), 1)'
-          });
-        }
-      }
-
-      setPayMethods(payMethods);
-    } catch (e) {
-      console.log(e);
-      showError(t('支付方式配置错误, 请联系管理员'));
-    }
-  }, [statusState?.status?.enable_stripe_topup]);
+  // 在 statusState 可用时获取充值信息
+  useEffect(() => {
+    getTopupInfo().then();
+  }, []);
 
   useEffect(() => {
     if (statusState?.status) {
-      setMinTopUp(statusState.status.min_topup || 1);
-      setTopUpCount(statusState.status.min_topup || 1);
+      // const minTopUpValue = statusState.status.min_topup || 1;
+      // setMinTopUp(minTopUpValue);
+      // setTopUpCount(minTopUpValue);
       setTopUpLink(statusState.status.top_up_link || '');
-      setEnableOnlineTopUp(statusState.status.enable_online_topup || false);
       setPriceRatio(statusState.status.price || 1);
-      setEnableStripeTopUp(statusState.status.enable_stripe_topup || false);
+
       setStatusLoading(false);
     }
   }, [statusState?.status]);
@@ -432,7 +482,7 @@ const TopUp = () => {
     } finally {
       setAmountLoading(false);
     }
-  }
+  };
 
   const handleCancel = () => {
     setOpen(false);
@@ -442,11 +492,23 @@ const TopUp = () => {
     setOpenTransfer(false);
   };
 
+  const handleOpenHistory = () => {
+    setOpenHistory(true);
+  };
+
+  const handleHistoryCancel = () => {
+    setOpenHistory(false);
+  };
+
   // 选择预设充值额度
   const selectPresetAmount = (preset) => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
-    setAmount(preset.value * priceRatio);
+
+    // 计算实际支付金额，考虑折扣
+    const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
+    const discountedAmount = preset.value * priceRatio * discount;
+    setAmount(discountedAmount);
   };
 
   // 格式化大数字显示
@@ -454,8 +516,16 @@ const TopUp = () => {
     return num.toString();
   };
 
+  // 根据最小充值金额生成预设充值额度选项
+  const generatePresetAmounts = (minAmount) => {
+    const multipliers = [1, 5, 10, 30, 50, 100, 300, 500];
+    return multipliers.map((multiplier) => ({
+      value: minAmount * multiplier,
+    }));
+  };
+
   return (
-    <div className='mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
+    <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
       {/* 划转模态框 */}
       <TransferModal
         t={t}
@@ -482,6 +552,15 @@ const TopUp = () => {
         renderAmount={renderAmount}
         payWay={payWay}
         payMethods={payMethods}
+        amountNumber={amount}
+        discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+      />
+
+      {/* 充值账单模态框 */}
+      <TopupHistoryModal
+        visible={openHistory}
+        onCancel={handleHistoryCancel}
+        t={t}
       />
 
       {/* 用户信息头部 */}
@@ -519,6 +598,8 @@ const TopUp = () => {
               userState={userState}
               renderQuota={renderQuota}
               statusLoading={statusLoading}
+              topupInfo={topupInfo}
+              onOpenHistory={handleOpenHistory}
             />
           </div>
 

@@ -35,13 +35,13 @@ const EmailBindModal = ({
   countdown,
   turnstileEnabled,
   turnstileSiteKey,
-  setTurnstileToken
+  setTurnstileToken,
 }) => {
   return (
     <Modal
       title={
-        <div className="flex items-center">
-          <IconMail className="mr-2 text-blue-500" />
+        <div className='flex items-center'>
+          <IconMail className='mr-2 text-blue-500' />
           {t('绑定邮箱地址')}
         </div>
       }
@@ -51,28 +51,30 @@ const EmailBindModal = ({
       size={'small'}
       centered={true}
       maskClosable={false}
-      className="modern-modal"
+      className='modern-modal'
     >
-      <div className="space-y-4 py-4">
-        <div className="flex gap-3">
+      <div className='space-y-4 py-4'>
+        <div className='flex gap-3'>
           <Input
             placeholder={t('输入邮箱地址')}
             onChange={(value) => handleInputChange('email', value)}
             name='email'
             type='email'
-            size="large"
-            className="!rounded-lg flex-1"
+            size='large'
+            className='!rounded-lg flex-1'
             prefix={<IconMail />}
           />
           <Button
             onClick={sendVerificationCode}
             disabled={disableButton || loading}
-            className="!rounded-lg"
-            type="primary"
-            theme="outline"
+            className='!rounded-lg'
+            type='primary'
+            theme='outline'
             size='large'
           >
-            {disableButton ? `${t('重新发送')} (${countdown})` : t('获取验证码')}
+            {disableButton
+              ? `${t('重新发送')} (${countdown})`
+              : t('获取验证码')}
           </Button>
         </div>
 
@@ -83,13 +85,13 @@ const EmailBindModal = ({
           onChange={(value) =>
             handleInputChange('email_verification_code', value)
           }
-          size="large"
-          className="!rounded-lg"
+          size='large'
+          className='!rounded-lg'
           prefix={<IconKey />}
         />
 
         {turnstileEnabled && (
-          <div className="flex justify-center">
+          <div className='flex justify-center'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {

@@ -18,20 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Card,
-  Select,
-  Typography,
-  Button,
-  Switch,
-} from '@douyinfe/semi-ui';
-import {
-  Sparkles,
-  Users,
-  ToggleLeft,
-  X,
-  Settings,
-} from 'lucide-react';
+import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
+import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
 import ParameterControl from './ParameterControl';
@@ -70,22 +58,22 @@ const SettingsPanel = ({
 
   return (
     <Card
-      className="h-full flex flex-col"
+      className='h-full flex flex-col'
       bordered={false}
       bodyStyle={{
         padding: styleState.isMobile ? '16px' : '24px',
         height: '100%',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
       }}
     >
       {/* 标题区域 - 与调试面板保持一致 */}
-      <div className="flex items-center justify-between mb-6 flex-shrink-0">
-        <div className="flex items-center">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3">
-            <Settings size={20} className="text-white" />
+      <div className='flex items-center justify-between mb-6 flex-shrink-0'>
+        <div className='flex items-center'>
+          <div className='w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3'>
+            <Settings size={20} className='text-white' />
           </div>
-          <Typography.Title heading={5} className="mb-0">
+          <Typography.Title heading={5} className='mb-0'>
             {t('模型配置')}
           </Typography.Title>
         </div>
@@ -94,17 +82,17 @@ const SettingsPanel = ({
           <Button
             icon={<X size={16} />}
             onClick={onCloseSettings}
-            theme="borderless"
-            type="tertiary"
-            size="small"
-            className="!rounded-lg"
+            theme='borderless'
+            type='tertiary'
+            size='small'
+            className='!rounded-lg'
           />
         )}
       </div>
 
       {/* 移动端配置管理 */}
       {styleState.isMobile && (
-        <div className="mb-4 flex-shrink-0">
+        <div className='mb-4 flex-shrink-0'>
           <ConfigManager
             currentConfig={currentConfig}
             onConfigImport={onConfigImport}
@@ -115,7 +103,7 @@ const SettingsPanel = ({
         </div>
       )}
 
-      <div className="space-y-6 overflow-y-auto flex-1 pr-2 model-settings-scroll">
+      <div className='space-y-6 overflow-y-auto flex-1 pr-2 model-settings-scroll'>
         {/* 自定义请求体编辑器 */}
         <CustomRequestEditor
           customRequestMode={customRequestMode}
@@ -127,13 +115,13 @@ const SettingsPanel = ({
 
         {/* 分组选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
-          <div className="flex items-center gap-2 mb-2">
-            <Users size={16} className="text-gray-500" />
-            <Typography.Text strong className="text-sm">
+          <div className='flex items-center gap-2 mb-2'>
+            <Users size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
               {t('分组')}
             </Typography.Text>
             {customRequestMode && (
-              <Typography.Text className="text-xs text-orange-600">
+              <Typography.Text className='text-xs text-orange-600'>
                 (已在自定义模式中忽略)
               </Typography.Text>
             )}
@@ -143,6 +131,8 @@ const SettingsPanel = ({
             name='group'
             required
             selection
+            filter={selectFilter}
+            autoClearSearchValue={false}
             onChange={(value) => onInputChange('group', value)}
             value={inputs.group}
             autoComplete='new-password'
@@ -150,20 +140,20 @@ const SettingsPanel = ({
             renderOptionItem={renderGroupOption}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
-            className="!rounded-lg"
+            className='!rounded-lg'
             disabled={customRequestMode}
           />
         </div>
 
         {/* 模型选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={16} className="text-gray-500" />
-            <Typography.Text strong className="text-sm">
+          <div className='flex items-center gap-2 mb-2'>
+            <Sparkles size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
               {t('模型')}
             </Typography.Text>
             {customRequestMode && (
-              <Typography.Text className="text-xs text-orange-600">
+              <Typography.Text className='text-xs text-orange-600'>
                 (已在自定义模式中忽略)
               </Typography.Text>
             )}
@@ -181,7 +171,7 @@ const SettingsPanel = ({
             optionList={models}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
-            className="!rounded-lg"
+            className='!rounded-lg'
             disabled={customRequestMode}
           />
         </div>
@@ -192,7 +182,9 @@ const SettingsPanel = ({
             imageUrls={inputs.imageUrls}
             imageEnabled={inputs.imageEnabled}
             onImageUrlsChange={(urls) => onInputChange('imageUrls', urls)}
-            onImageEnabledChange={(enabled) => onInputChange('imageEnabled', enabled)}
+            onImageEnabledChange={(enabled) =>
+              onInputChange('imageEnabled', enabled)
+            }
             disabled={customRequestMode}
           />
         </div>
@@ -210,14 +202,14 @@ const SettingsPanel = ({
 
         {/* 流式输出开关 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ToggleLeft size={16} className="text-gray-500" />
-              <Typography.Text strong className="text-sm">
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <ToggleLeft size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
                 流式输出
               </Typography.Text>
               {customRequestMode && (
-                <Typography.Text className="text-xs text-orange-600">
+                <Typography.Text className='text-xs text-orange-600'>
                   (已在自定义模式中忽略)
                 </Typography.Text>
               )}
@@ -225,9 +217,9 @@ const SettingsPanel = ({
             <Switch
               checked={inputs.stream}
               onChange={(checked) => onInputChange('stream', checked)}
-              checkedText="开"
-              uncheckedText="关"
-              size="small"
+              checkedText='开'
+              uncheckedText='关'
+              size='small'
               disabled={customRequestMode}
             />
           </div>
@@ -236,7 +228,7 @@ const SettingsPanel = ({
 
       {/* 桌面端的配置管理放在底部 */}
       {!styleState.isMobile && (
-        <div className="flex-shrink-0 pt-3">
+        <div className='flex-shrink-0 pt-3'>
           <ConfigManager
             currentConfig={currentConfig}
             onConfigImport={onConfigImport}
@@ -250,4 +242,4 @@ const SettingsPanel = ({
   );
 };
 
-export default SettingsPanel; 
+export default SettingsPanel;

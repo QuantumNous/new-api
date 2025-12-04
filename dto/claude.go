@@ -195,11 +195,15 @@ type ClaudeRequest struct {
 	Temperature       *float64        `json:"temperature,omitempty"`
 	TopP              float64         `json:"top_p,omitempty"`
 	TopK              int             `json:"top_k,omitempty"`
-	//ClaudeMetadata    `json:"metadata,omitempty"`
-	Stream     bool      `json:"stream,omitempty"`
-	Tools      any       `json:"tools,omitempty"`
-	ToolChoice any       `json:"tool_choice,omitempty"`
-	Thinking   *Thinking `json:"thinking,omitempty"`
+	Stream            bool            `json:"stream,omitempty"`
+	Tools             any             `json:"tools,omitempty"`
+	ContextManagement json.RawMessage `json:"context_management,omitempty"`
+	ToolChoice        any             `json:"tool_choice,omitempty"`
+	Thinking          *Thinking       `json:"thinking,omitempty"`
+	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
+	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	// 服务层级字段，用于指定 API 服务等级。允许透传可能导致实际计费高于预期，默认应过滤
+	ServiceTier string `json:"service_tier,omitempty"`
 }
 
 func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -321,8 +325,14 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	return &tokenCountMeta
 }
 
-func (claudeRequest *ClaudeRequest) IsStream(c *gin.Context) bool {
-	return claudeRequest.Stream
+func (c *ClaudeRequest) IsStream(ctx *gin.Context) bool {
+	return c.Stream
+}
+
+func (c *ClaudeRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		c.Model = modelName
+	}
 }
 
 func (c *ClaudeRequest) SearchToolNameByToolCallId(toolCallId string) string {
@@ -482,14 +492,14 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 	case string:
 		// 处理简单字符串错误
 		return &types.ClaudeError{
-			Type:    "error",
+			Type:    "upstream_error",
 			Message: err,
 		}
 	default:
 		// 未知类型，尝试转换为字符串
 		return &types.ClaudeError{
-			Type:    "unknown_error",
-			Message: fmt.Sprintf("%v", err),
+			Type:    "unknown_upstream_error",
+			Message: fmt.Sprintf("unknown_error: %v", err),
 		}
 	}
 }

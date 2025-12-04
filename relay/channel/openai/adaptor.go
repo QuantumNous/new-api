@@ -538,7 +538,13 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	//  转换模型推理力度后缀
 	effort, originModel := parseReasoningEffortFromModelSuffix(request.Model)
 	if effort != "" {
-		request.Reasoning.Effort = effort
+		if request.Reasoning == nil {
+			request.Reasoning = &dto.Reasoning{
+				Effort: effort,
+			}
+		} else {
+			request.Reasoning.Effort = effort
+		}
 		request.Model = originModel
 	}
 	return request, nil

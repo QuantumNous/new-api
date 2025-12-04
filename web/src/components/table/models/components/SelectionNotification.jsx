@@ -28,7 +28,14 @@ const NOTICE_ID = 'models-batch-actions';
  * 1. 当 selectedKeys.length > 0 时，使用固定 id 创建/更新通知
  * 2. 当 selectedKeys 清空时关闭通知
  */
-const SelectionNotification = ({ selectedKeys = [], t, onDelete, onAddPrefill, onClear, onCopy }) => {
+const SelectionNotification = ({
+  selectedKeys = [],
+  t,
+  onDelete,
+  onAddPrefill,
+  onClear,
+  onCopy,
+}) => {
   // 根据选中数量决定显示/隐藏或更新通知
   useEffect(() => {
     const selectedCount = selectedKeys.length;
@@ -37,42 +44,29 @@ const SelectionNotification = ({ selectedKeys = [], t, onDelete, onAddPrefill, o
       const titleNode = (
         <Space wrap>
           <span>{t('批量操作')}</span>
-          <Typography.Text type="tertiary" size="small">{t('已选择 {{count}} 个模型', { count: selectedCount })}</Typography.Text>
+          <Typography.Text type='tertiary' size='small'>
+            {t('已选择 {{count}} 个模型', { count: selectedCount })}
+          </Typography.Text>
         </Space>
       );
 
       const content = (
         <Space wrap>
-          <Button
-            size="small"
-            type="tertiary"
-            theme="solid"
-            onClick={onClear}
-          >
+          <Button size='small' type='tertiary' theme='solid' onClick={onClear}>
             {t('取消全选')}
           </Button>
           <Button
-            size="small"
-            type="primary"
-            theme="solid"
+            size='small'
+            type='primary'
+            theme='solid'
             onClick={onAddPrefill}
           >
             {t('加入预填组')}
           </Button>
-          <Button
-            size="small"
-            type="secondary"
-            theme="solid"
-            onClick={onCopy}
-          >
+          <Button size='small' type='secondary' theme='solid' onClick={onCopy}>
             {t('复制名称')}
           </Button>
-          <Button
-            size="small"
-            type="danger"
-            theme="solid"
-            onClick={onDelete}
-          >
+          <Button size='small' type='danger' theme='solid' onClick={onDelete}>
             {t('删除所选')}
           </Button>
         </Space>

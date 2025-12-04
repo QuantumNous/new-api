@@ -18,20 +18,39 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tag, Tooltip, Checkbox, Empty, Pagination, Button, Avatar } from '@douyinfe/semi-ui';
-import { IconHelpCircle, IconCopy } from '@douyinfe/semi-icons';
-import { IllustrationNoResult, IllustrationNoResultDark } from '@douyinfe/semi-illustrations';
-import { stringToColor, calculateModelPrice, formatPriceInfo, getLobeHubIcon } from '../../../../../helpers';
+import {
+  Card,
+  Tag,
+  Tooltip,
+  Checkbox,
+  Empty,
+  Pagination,
+  Button,
+  Avatar,
+} from '@douyinfe/semi-ui';
+import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { Copy } from 'lucide-react';
+import {
+  IllustrationNoResult,
+  IllustrationNoResultDark,
+} from '@douyinfe/semi-illustrations';
+import {
+  stringToColor,
+  calculateModelPrice,
+  formatPriceInfo,
+  getLobeHubIcon,
+} from '../../../../../helpers';
 import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const CARD_STYLES = {
-  container: "w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md",
-  icon: "w-8 h-8 flex items-center justify-center",
-  selected: "border-blue-500 bg-blue-50",
-  default: "border-gray-200 hover:border-gray-300"
+  container:
+    'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
+  icon: 'w-8 h-8 flex items-center justify-center',
+  selected: 'border-blue-500 bg-blue-50',
+  default: 'border-gray-200 hover:border-gray-300',
 };
 
 const PricingCardView = ({
@@ -58,7 +77,10 @@ const PricingCardView = ({
 }) => {
   const showSkeleton = useMinimumLoadingTime(loading);
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedModels = filteredModels.slice(startIndex, startIndex + pageSize);
+  const paginatedModels = filteredModels.slice(
+    startIndex,
+    startIndex + pageSize,
+  );
   const getModelKey = (model) => model.key ?? model.model_name ?? model.id;
   const isMobile = useIsMobile();
 
@@ -108,13 +130,13 @@ const PricingCardView = ({
     return (
       <div className={CARD_STYLES.container}>
         <Avatar
-          size="large"
+          size='large'
           style={{
             width: 48,
             height: 48,
             borderRadius: 16,
             fontSize: 16,
-            fontWeight: 'bold'
+            fontWeight: 'bold',
           }}
         >
           {avatarText}
@@ -132,19 +154,19 @@ const PricingCardView = ({
   const renderTags = (record) => {
     // 计费类型标签（左边）
     let billingTag = (
-      <Tag key="billing" shape='circle' color='white' size='small'>
+      <Tag key='billing' shape='circle' color='white' size='small'>
         -
       </Tag>
     );
     if (record.quota_type === 1) {
       billingTag = (
-        <Tag key="billing" shape='circle' color='teal' size='small'>
+        <Tag key='billing' shape='circle' color='teal' size='small'>
           {t('按次计费')}
         </Tag>
       );
     } else if (record.quota_type === 0) {
       billingTag = (
-        <Tag key="billing" shape='circle' color='violet' size='small'>
+        <Tag key='billing' shape='circle' color='violet' size='small'>
           {t('按量计费')}
         </Tag>
       );
@@ -156,24 +178,31 @@ const PricingCardView = ({
       const tagArr = record.tags.split(',').filter(Boolean);
       tagArr.forEach((tg, idx) => {
         customTags.push(
-          <Tag key={`custom-${idx}`} shape='circle' color={stringToColor(tg)} size='small'>
+          <Tag
+            key={`custom-${idx}`}
+            shape='circle'
+            color={stringToColor(tg)}
+            size='small'
+          >
             {tg}
-          </Tag>
+          </Tag>,
         );
       });
     }
 
     return (
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {billingTag}
-        </div>
-        <div className="flex items-center gap-1">
-          {customTags.length > 0 && renderLimitedItems({
-            items: customTags.map((tag, idx) => ({ key: `custom-${idx}`, element: tag })),
-            renderItem: (item, idx) => item.element,
-            maxDisplay: 3
-          })}
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-2'>{billingTag}</div>
+        <div className='flex items-center gap-1'>
+          {customTags.length > 0 &&
+            renderLimitedItems({
+              items: customTags.map((tag, idx) => ({
+                key: `custom-${idx}`,
+                element: tag,
+              })),
+              renderItem: (item, idx) => item.element,
+              maxDisplay: 3,
+            })}
         </div>
       </div>
     );
@@ -191,10 +220,12 @@ const PricingCardView = ({
 
   if (!filteredModels || filteredModels.length === 0) {
     return (
-      <div className="flex justify-center items-center py-20">
+      <div className='flex justify-center items-center py-20'>
         <Empty
           image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-          darkModeImage={<IllustrationNoResultDark style={{ width: 150, height: 150 }} />}
+          darkModeImage={
+            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+          }
           description={t('搜索无结果')}
         />
       </div>
@@ -202,8 +233,8 @@ const PricingCardView = ({
   }
 
   return (
-    <div className="px-4">
-      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+    <div className='px-2 pt-2'>
+      <div className='grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4'>
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
@@ -224,27 +255,28 @@ const PricingCardView = ({
               bodyStyle={{ height: '100%' }}
               onClick={() => openModelDetail && openModelDetail(model)}
             >
-              <div className="flex flex-col h-full">
+              <div className='flex flex-col h-full'>
                 {/* 头部：图标 + 模型名称 + 操作按钮 */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-start space-x-3 flex-1 min-w-0">
+                <div className='flex items-start justify-between mb-3'>
+                  <div className='flex items-start space-x-3 flex-1 min-w-0'>
                     {getModelIcon(model)}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-gray-900 truncate">
+                    <div className='flex-1 min-w-0'>
+                      <h3 className='text-lg font-bold text-gray-900 truncate'>
                         {model.model_name}
                       </h3>
-                      <div className="flex items-center gap-3 text-xs mt-1">
+                      <div className='flex items-center gap-3 text-xs mt-1'>
                         {formatPriceInfo(priceData, t)}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 ml-3">
+                  <div className='flex items-center space-x-2 ml-3'>
                     {/* 复制按钮 */}
                     <Button
-                      size="small"
-                      type="tertiary"
-                      icon={<IconCopy />}
+                      size='small'
+                      theme='outline'
+                      type='tertiary'
+                      icon={<Copy size={12} />}
                       onClick={(e) => {
                         e.stopPropagation();
                         copyText(model.model_name);
@@ -265,9 +297,9 @@ const PricingCardView = ({
                 </div>
 
                 {/* 模型描述 - 占据剩余空间 */}
-                <div className="flex-1 mb-4">
+                <div className='flex-1 mb-4'>
                   <p
-                    className="text-xs line-clamp-2 leading-relaxed"
+                    className='text-xs line-clamp-2 leading-relaxed'
                     style={{ color: 'var(--semi-color-text-2)' }}
                   >
                     {getModelDescription(model)}
@@ -275,24 +307,23 @@ const PricingCardView = ({
                 </div>
 
                 {/* 底部区域 */}
-                <div className="mt-auto">
+                <div className='mt-auto'>
                   {/* 标签区域 */}
-                  <div className="mb-3">
-                    {renderTags(model)}
-                  </div>
+                  {renderTags(model)}
 
                   {/* 倍率信息（可选） */}
                   {showRatio && (
-                    <div
-                      className="pt-3 border-t border-dashed"
-                      style={{ borderColor: 'var(--semi-color-border)' }}
-                    >
-                      <div className="flex items-center space-x-1 mb-2">
-                        <span className="text-xs font-medium text-gray-700">{t('倍率信息')}</span>
-                        <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
+                    <div className='pt-3'>
+                      <div className='flex items-center space-x-1 mb-2'>
+                        <span className='text-xs font-medium text-gray-700'>
+                          {t('倍率信息')}
+                        </span>
+                        <Tooltip
+                          content={t('倍率是为了方便换算不同价格的模型')}
+                        >
                           <IconHelpCircle
-                            className="text-blue-500 cursor-pointer"
-                            size="small"
+                            className='text-blue-500 cursor-pointer'
+                            size='small'
                             onClick={(e) => {
                               e.stopPropagation();
                               setModalImageUrl('/ratio.png');
@@ -301,12 +332,16 @@ const PricingCardView = ({
                           />
                         </Tooltip>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                      <div className='grid grid-cols-3 gap-2 text-xs text-gray-600'>
                         <div>
-                          {t('模型')}: {model.quota_type === 0 ? model.model_ratio : t('无')}
+                          {t('模型')}:{' '}
+                          {model.quota_type === 0 ? model.model_ratio : t('无')}
                         </div>
                         <div>
-                          {t('补全')}: {model.quota_type === 0 ? parseFloat(model.completion_ratio.toFixed(3)) : t('无')}
+                          {t('补全')}:{' '}
+                          {model.quota_type === 0
+                            ? parseFloat(model.completion_ratio.toFixed(3))
+                            : t('无')}
                         </div>
                         <div>
                           {t('分组')}: {priceData?.usedGroupRatio ?? '-'}
@@ -323,7 +358,7 @@ const PricingCardView = ({
 
       {/* 分页 */}
       {filteredModels.length > 0 && (
-        <div className="flex justify-center mt-6 py-4 border-t pricing-pagination-divider">
+        <div className='flex justify-center mt-6 py-4 border-t pricing-pagination-divider'>
           <Pagination
             currentPage={currentPage}
             pageSize={pageSize}
@@ -344,4 +379,4 @@ const PricingCardView = ({
   );
 };
 
-export default PricingCardView; 
+export default PricingCardView;

@@ -21,6 +21,8 @@ import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
+import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+
 const LogsFilters = ({
   formInitValues,
   setFormApi,
@@ -54,7 +56,12 @@ const LogsFilters = ({
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
               pure
-              size="small"
+              size='small'
+              presets={DATE_RANGE_PRESETS.map((preset) => ({
+                text: t(preset.text),
+                start: preset.start(),
+                end: preset.end(),
+              }))}
             />
           </div>
 
@@ -65,7 +72,7 @@ const LogsFilters = ({
             placeholder={t('令牌名称')}
             showClear
             pure
-            size="small"
+            size='small'
           />
 
           <Form.Input
@@ -74,7 +81,7 @@ const LogsFilters = ({
             placeholder={t('模型名称')}
             showClear
             pure
-            size="small"
+            size='small'
           />
 
           <Form.Input
@@ -83,7 +90,7 @@ const LogsFilters = ({
             placeholder={t('分组')}
             showClear
             pure
-            size="small"
+            size='small'
           />
 
           {isAdminUser && (
@@ -94,7 +101,7 @@ const LogsFilters = ({
                 placeholder={t('渠道 ID')}
                 showClear
                 pure
-                size="small"
+                size='small'
               />
               <Form.Input
                 field='username'
@@ -102,7 +109,7 @@ const LogsFilters = ({
                 placeholder={t('用户名称')}
                 showClear
                 pure
-                size="small"
+                size='small'
               />
             </>
           )}
@@ -124,26 +131,14 @@ const LogsFilters = ({
                   refresh();
                 }, 0);
               }}
-              size="small"
+              size='small'
             >
-              <Form.Select.Option value='0'>
-                {t('全部')}
-              </Form.Select.Option>
-              <Form.Select.Option value='1'>
-                {t('充值')}
-              </Form.Select.Option>
-              <Form.Select.Option value='2'>
-                {t('消费')}
-              </Form.Select.Option>
-              <Form.Select.Option value='3'>
-                {t('管理')}
-              </Form.Select.Option>
-              <Form.Select.Option value='4'>
-                {t('系统')}
-              </Form.Select.Option>
-              <Form.Select.Option value='5'>
-                {t('错误')}
-              </Form.Select.Option>
+              <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
+              <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
+              <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
+              <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
+              <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
+              <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
             </Form.Select>
           </div>
 
@@ -152,7 +147,7 @@ const LogsFilters = ({
               type='tertiary'
               htmlType='submit'
               loading={loading}
-              size="small"
+              size='small'
             >
               {t('查询')}
             </Button>
@@ -167,14 +162,14 @@ const LogsFilters = ({
                   }, 100);
                 }
               }}
-              size="small"
+              size='small'
             >
               {t('重置')}
             </Button>
             <Button
               type='tertiary'
               onClick={() => setShowColumnSelector(true)}
-              size="small"
+              size='small'
             >
               {t('列设置')}
             </Button>
@@ -185,4 +180,4 @@ const LogsFilters = ({
   );
 };
 
-export default LogsFilters; 
+export default LogsFilters;

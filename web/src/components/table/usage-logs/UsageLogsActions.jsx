@@ -43,7 +43,7 @@ const LogsActions = ({
   );
 
   return (
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full">
+    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       <Skeleton loading={needSkeleton} active placeholder={placeholder}>
         <Space>
           <Tag
@@ -92,4 +92,4 @@ const LogsActions = ({
   );
 };
 
-export default LogsActions; 
+export default LogsActions;

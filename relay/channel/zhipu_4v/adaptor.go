@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"one-api/dto"
 	"one-api/relay/channel"
+	"one-api/relay/channel/claude"
 	"one-api/relay/channel/openai"
 	relaycommon "one-api/relay/common"
 	relayconstant "one-api/relay/constant"
@@ -23,10 +24,8 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	//TODO implement me
-	panic("implement me")
-	return nil, nil
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	return req, nil
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -43,12 +42,16 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	baseUrl := fmt.Sprintf("%s/api/paas/v4", info.ChannelBaseUrl)
-	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings:
-		return fmt.Sprintf("%s/embeddings", baseUrl), nil
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
+		return fmt.Sprintf("%s/api/anthropic/v1/messages", info.ChannelBaseUrl), nil
 	default:
-		return fmt.Sprintf("%s/chat/completions", baseUrl), nil
+		switch info.RelayMode {
+		case relayconstant.RelayModeEmbeddings:
+			return fmt.Sprintf("%s/api/paas/v4/embeddings", info.ChannelBaseUrl), nil
+		default:
+			return fmt.Sprintf("%s/api/paas/v4/chat/completions", info.ChannelBaseUrl), nil
+		}
 	}
 }
 
@@ -86,12 +89,17 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.IsStream {
-		usage, err = openai.OaiStreamHandler(c, info, resp)
-	} else {
-		usage, err = openai.OpenaiHandler(c, info, resp)
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
+		if info.IsStream {
+			return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
+		} else {
+			return claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
+		}
+	default:
+		adaptor := openai.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
 	}
-	return
 }
 
 func (a *Adaptor) GetModelList() []string {
