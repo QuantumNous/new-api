@@ -23,11 +23,11 @@ func Marshal(v any) ([]byte, error) {
 }
 
 func GetJsonType(data json.RawMessage) string {
-	data = bytes.TrimSpace(data)
-	if len(data) == 0 {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
 		return "unknown"
 	}
-	firstChar := bytes.TrimSpace(data)[0]
+	firstChar := trimmed[0]
 	switch firstChar {
 	case '{':
 		return "object"

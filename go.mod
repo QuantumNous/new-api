@@ -33,7 +33,7 @@ require (
 	github.com/mewkiz/flac v1.0.13
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
-	github.com/samber/lo v1.39.0
+	github.com/samber/lo v1.52.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/shopspring/decimal v1.4.0
 	github.com/stripe/stripe-go/v81 v81.4.0
