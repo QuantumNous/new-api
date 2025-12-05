@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
   Card,
   Col,
   Input,
+  Modal,
   Row,
   Select,
   Space,
@@ -34,7 +35,7 @@ import {
   Typography,
   Tooltip,
 } from '@douyinfe/semi-ui';
-import { IconDelete, IconPlus } from '@douyinfe/semi-icons';
+import { IconDelete, IconPlus, IconEdit, IconSetting } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
 
@@ -85,6 +86,29 @@ const stringifyValue = (val) => {
   }
 };
 
+// 解析配置并返回摘要信息
+const parseConfigSummary = (value, t) => {
+  if (!value || !value.trim()) {
+    return { count: 0, items: [] };
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.operations)) {
+      const items = parsed.operations
+        .filter((op) => op.path)
+        .map((op) => ({
+          path: op.path,
+          mode: op.mode || 'set',
+          hasConditions: (op.conditions || []).length > 0,
+        }));
+      return { count: items.length, items };
+    }
+    return { count: 0, items: [] };
+  } catch {
+    return { count: 0, items: [] };
+  }
+};
+
 const OverrideEditor = ({
   value = '',
   onChange,
@@ -95,12 +119,16 @@ const OverrideEditor = ({
   templates = [],
 }) => {
   const { t } = useTranslation();
+  const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState('visual');
   const [operations, setOperations] = useState([defaultOperation()]);
   const [jsonText, setJsonText] = useState(
     typeof value === 'string' ? value : JSON.stringify(value || {}, null, 2),
   );
   const [importError, setImportError] = useState('');
+  // 临时状态，用于 Modal 中编辑
+  const [tempJsonText, setTempJsonText] = useState('');
+  const [tempOperations, setTempOperations] = useState([]);
 
   const builtinVars = useMemo(
     () => [
@@ -114,46 +142,58 @@ const OverrideEditor = ({
     [],
   );
 
-  const emitChange = (val) => {
-    setJsonText(val);
-    if (typeof onChange === 'function') {
-      onChange(val);
-    }
-    if (formApi && typeof formApi.setValue === 'function' && field) {
-      formApi.setValue(field, val);
-    }
-  };
+  // 配置摘要
+  const configSummary = useMemo(() => parseConfigSummary(value, t), [value, t]);
+
+  const emitChange = useCallback(
+    (val) => {
+      setJsonText(val);
+      if (typeof onChange === 'function') {
+        onChange(val);
+      }
+      if (formApi && typeof formApi.setValue === 'function' && field) {
+        formApi.setValue(field, val);
+      }
+    },
+    [onChange, formApi, field],
+  );
 
   const serializeOperations = (ops) =>
-    ops.map((op) => ({
-      path: op.path,
-      mode: op.mode,
-      value: parseMaybeJSON(op.value),
-      keep_origin: !!op.keep_origin,
-      from: op.from,
-      to: op.to,
-      logic: op.logic || 'OR',
-      conditions: (op.conditions || []).map((c) => ({
-        path: c.path,
-        mode: c.mode || 'full',
-        value: parseMaybeJSON(c.value),
-        invert: !!c.invert,
-        pass_missing_key: !!c.pass_missing_key,
-      })),
-    }));
+    ops
+      .filter((op) => op.path) // 过滤掉空路径的操作
+      .map((op) => ({
+        path: op.path,
+        mode: op.mode,
+        value: parseMaybeJSON(op.value),
+        keep_origin: !!op.keep_origin,
+        from: op.from,
+        to: op.to,
+        logic: op.logic || 'OR',
+        conditions: (op.conditions || []).map((c) => ({
+          path: c.path,
+          mode: c.mode || 'full',
+          value: parseMaybeJSON(c.value),
+          invert: !!c.invert,
+          pass_missing_key: !!c.pass_missing_key,
+        })),
+      }));
 
-  const buildPreview = (ops) => {
+  const buildPreview = useCallback((ops) => {
+    const validOps = ops.filter((op) => op.path);
+    if (validOps.length === 0) {
+      return '';
+    }
     const payload = { operations: serializeOperations(ops) };
-    const pretty = JSON.stringify(payload, null, 2);
-    emitChange(pretty);
-  };
+    return JSON.stringify(payload, null, 2);
+  }, []);
 
-  const importFromJSON = (text, switchToVisual = false) => {
+  const importFromJSON = useCallback((text, switchToVisual = false) => {
     if (!text || !text.trim()) {
-      setOperations([defaultOperation()]);
+      const newOps = [defaultOperation()];
+      setTempOperations(newOps);
       setImportError('');
       if (switchToVisual) setEditMode('visual');
-      return;
+      return newOps;
     }
     try {
       const parsed = JSON.parse(text);
@@ -193,47 +233,61 @@ const OverrideEditor = ({
           pass_missing_key: !!c.pass_missing_key,
         })),
       }));
-      setOperations(normalized);
+      setTempOperations(normalized);
       setImportError('');
       if (switchToVisual) {
         setEditMode('visual');
       }
+      return normalized;
     } catch (e) {
       setImportError(e.message || 'JSON 解析失败');
+      return null;
     }
-  };
-
-  useEffect(() => {
-    importFromJSON(jsonText, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    // 外部值更新时同步
-    if (typeof value === 'string' && value !== jsonText) {
-      setJsonText(value);
-      if (editMode === 'visual') {
-        importFromJSON(value, false);
-      }
+  // 打开 Modal 时初始化临时状态
+  const handleOpenModal = () => {
+    setTempJsonText(value || '');
+    const ops = importFromJSON(value || '', false);
+    if (ops) {
+      setTempOperations(ops);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+    setEditMode('visual');
+    setImportError('');
+    setModalVisible(true);
+  };
 
-  useEffect(() => {
+  // 确认保存
+  const handleConfirm = () => {
     if (editMode === 'visual') {
-      buildPreview(operations);
+      const newValue = buildPreview(tempOperations);
+      emitChange(newValue);
+    } else {
+      emitChange(tempJsonText);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [operations, editMode]);
+    setModalVisible(false);
+  };
 
-  const updateOperation = (id, key, val) => {
-    setOperations((prev) =>
+  // 取消编辑
+  const handleCancel = () => {
+    setModalVisible(false);
+    setImportError('');
+  };
+
+  // 清空配置
+  const handleClear = () => {
+    emitChange('');
+    setModalVisible(false);
+  };
+
+  const updateTempOperation = (id, key, val) => {
+    setTempOperations((prev) =>
       prev.map((op) => (op.id === id ? { ...op, [key]: val } : op)),
     );
   };
 
-  const updateCondition = (opId, condId, key, val) => {
-    setOperations((prev) =>
+  const updateTempCondition = (opId, condId, key, val) => {
+    setTempOperations((prev) =>
       prev.map((op) => {
         if (op.id !== opId) return op;
         const updated = (op.conditions || []).map((c) =>
@@ -244,8 +298,8 @@ const OverrideEditor = ({
     );
   };
 
-  const addCondition = (opId) => {
-    setOperations((prev) =>
+  const addTempCondition = (opId) => {
+    setTempOperations((prev) =>
       prev.map((op) =>
         op.id === opId
           ? { ...op, conditions: [...(op.conditions || []), defaultCondition()] }
@@ -254,8 +308,8 @@ const OverrideEditor = ({
     );
   };
 
-  const removeCondition = (opId, condId) => {
-    setOperations((prev) =>
+  const removeTempCondition = (opId, condId) => {
+    setTempOperations((prev) =>
       prev.map((op) =>
         op.id === opId
           ? { ...op, conditions: (op.conditions || []).filter((c) => c.id !== condId) }
@@ -267,10 +321,63 @@ const OverrideEditor = ({
   const handleTemplateApply = (template) => {
     if (!template) return;
     const pretty = JSON.stringify(template, null, 2);
+    setTempJsonText(pretty);
     importFromJSON(pretty, true);
-    emitChange(pretty);
   };
 
+  // 同步 tempJsonText 当切换到 JSON 模式
+  useEffect(() => {
+    if (modalVisible && editMode === 'json') {
+      const newJson = buildPreview(tempOperations);
+      setTempJsonText(newJson);
+    }
+  }, [modalVisible, editMode, tempOperations, buildPreview]);
+
+  // 触发区域的渲染
+  const renderTrigger = () => {
+    const hasConfig = configSummary.count > 0;
+
+    return (
+      <div className='override-editor-trigger'>
+        <div className='flex items-center justify-between mb-1'>
+          <Text strong>{label}</Text>
+        </div>
+        <div
+          className='flex items-center gap-2 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all'
+          onClick={handleOpenModal}
+        >
+          <IconSetting className='text-gray-400' />
+          <div className='flex-1 min-w-0'>
+            {hasConfig ? (
+              <Space wrap size='small'>
+                <Tag color='blue' size='small'>
+                  {t('{{count}} 条规则', { count: configSummary.count })}
+                </Tag>
+                {configSummary.items.slice(0, 3).map((item, idx) => (
+                  <Tag key={idx} size='small' color='light-blue'>
+                    {item.path}
+                    {item.hasConditions && (
+                      <span className='text-orange-500 ml-1'>*</span>
+                    )}
+                  </Tag>
+                ))}
+                {configSummary.items.length > 3 && (
+                  <Text type='tertiary' size='small'>
+                    +{configSummary.items.length - 3}
+                  </Text>
+                )}
+              </Space>
+            ) : (
+              <Text type='tertiary'>{t('点击配置')}</Text>
+            )}
+          </div>
+          <IconEdit className='text-gray-400' />
+        </div>
+      </div>
+    );
+  };
+
+  // Modal 中的可视化编辑内容
   const visualContent = (
     <Space vertical spacing='medium' className='w-full'>
       <Space align='center' wrap>
@@ -297,7 +404,7 @@ const OverrideEditor = ({
         </Space>
       )}
 
-      {operations.map((op, index) => (
+      {tempOperations.map((op, index) => (
         <Card
           key={op.id}
           title={`${t('操作')} ${index + 1}`}
@@ -307,7 +414,7 @@ const OverrideEditor = ({
               type='danger'
               icon={<IconDelete />}
               onClick={() =>
-                setOperations((prev) => prev.filter((item) => item.id !== op.id))
+                setTempOperations((prev) => prev.filter((item) => item.id !== op.id))
               }
               size='small'
             >
@@ -320,7 +427,7 @@ const OverrideEditor = ({
               <Col span={12}>
                 <Input
                   value={op.path}
-                  onChange={(val) => updateOperation(op.id, 'path', val)}
+                  onChange={(val) => updateTempOperation(op.id, 'path', val)}
                   placeholder={t('路径，如 messages.-1.content 或 headers.Authorization')}
                   addonBefore={t('路径')}
                 />
@@ -328,7 +435,7 @@ const OverrideEditor = ({
               <Col span={6}>
                 <Select
                   value={op.mode}
-                  onChange={(val) => updateOperation(op.id, 'mode', val)}
+                  onChange={(val) => updateTempOperation(op.id, 'mode', val)}
                   style={{ width: '100%' }}
                   placeholder={t('操作类型')}
                   optionList={[
@@ -346,7 +453,7 @@ const OverrideEditor = ({
                     <Text type='tertiary'>{t('保留原值')}</Text>
                     <Switch
                       checked={op.keep_origin}
-                      onChange={(val) => updateOperation(op.id, 'keep_origin', val)}
+                      onChange={(val) => updateTempOperation(op.id, 'keep_origin', val)}
                     />
                   </Space>
                 )}
@@ -358,7 +465,7 @@ const OverrideEditor = ({
                 <Col span={12}>
                   <Input
                     value={op.from}
-                    onChange={(val) => updateOperation(op.id, 'from', val)}
+                    onChange={(val) => updateTempOperation(op.id, 'from', val)}
                     placeholder={t('来源路径，如 meta.old')}
                     addonBefore={t('From')}
                   />
@@ -366,7 +473,7 @@ const OverrideEditor = ({
                 <Col span={12}>
                   <Input
                     value={op.to}
-                    onChange={(val) => updateOperation(op.id, 'to', val)}
+                    onChange={(val) => updateTempOperation(op.id, 'to', val)}
                     placeholder={t('目标路径，如 meta.new')}
                     addonBefore={t('To')}
                   />
@@ -377,7 +484,7 @@ const OverrideEditor = ({
             {op.mode !== 'delete' && op.mode !== 'move' && (
               <TextArea
                 value={op.value}
-                onChange={(val) => updateOperation(op.id, 'value', val)}
+                onChange={(val) => updateTempOperation(op.id, 'value', val)}
                 placeholder={t('值，支持 JSON 或字符串，支持 {{变量}}')}
                 autosize
               />
@@ -387,7 +494,7 @@ const OverrideEditor = ({
               <Text type='tertiary'>{t('条件逻辑')}</Text>
               <Select
                 value={op.logic || 'OR'}
-                onChange={(val) => updateOperation(op.id, 'logic', val)}
+                onChange={(val) => updateTempOperation(op.id, 'logic', val)}
                 style={{ width: 120 }}
                 optionList={[
                   { label: 'OR', value: 'OR' },
@@ -397,7 +504,7 @@ const OverrideEditor = ({
               <Button
                 size='small'
                 icon={<IconPlus />}
-                onClick={() => addCondition(op.id)}
+                onClick={() => addTempCondition(op.id)}
               >
                 {t('添加条件')}
               </Button>
@@ -412,7 +519,7 @@ const OverrideEditor = ({
                   <Button
                     icon={<IconDelete />}
                     size='small'
-                    onClick={() => removeCondition(op.id, cond.id)}
+                    onClick={() => removeTempCondition(op.id, cond.id)}
                   />
                 }
               >
@@ -421,7 +528,7 @@ const OverrideEditor = ({
                     <Col span={12}>
                       <Input
                         value={cond.path}
-                        onChange={(val) => updateCondition(op.id, cond.id, 'path', val)}
+                        onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
                         placeholder={t('条件路径，如 context.model')}
                         addonBefore={t('路径')}
                       />
@@ -429,7 +536,7 @@ const OverrideEditor = ({
                     <Col span={12}>
                       <Select
                         value={cond.mode}
-                        onChange={(val) => updateCondition(op.id, cond.id, 'mode', val)}
+                        onChange={(val) => updateTempCondition(op.id, cond.id, 'mode', val)}
                         style={{ width: '100%' }}
                         optionList={[
                           { label: 'full', value: 'full' },
@@ -448,7 +555,7 @@ const OverrideEditor = ({
                     <Col span={12}>
                       <Input
                         value={cond.value}
-                        onChange={(val) => updateCondition(op.id, cond.id, 'value', val)}
+                        onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
                         placeholder={t('条件值，支持 JSON 或字符串')}
                         addonBefore={t('值')}
                       />
@@ -461,7 +568,7 @@ const OverrideEditor = ({
                         <Switch
                           checked={cond.invert}
                           onChange={(val) =>
-                            updateCondition(op.id, cond.id, 'invert', val)
+                            updateTempCondition(op.id, cond.id, 'invert', val)
                           }
                         />
                       </Space>
@@ -474,7 +581,7 @@ const OverrideEditor = ({
                         <Switch
                           checked={cond.pass_missing_key}
                           onChange={(val) =>
-                            updateCondition(op.id, cond.id, 'pass_missing_key', val)
+                            updateTempCondition(op.id, cond.id, 'pass_missing_key', val)
                           }
                         />
                       </Space>
@@ -489,7 +596,7 @@ const OverrideEditor = ({
 
       <Button
         icon={<IconPlus />}
-        onClick={() => setOperations((prev) => [...prev, defaultOperation()])}
+        onClick={() => setTempOperations((prev) => [...prev, defaultOperation()])}
         theme='light'
       >
         {t('添加操作')}
@@ -497,41 +604,63 @@ const OverrideEditor = ({
     </Space>
   );
 
+  // Modal 中的 JSON 编辑内容
   const jsonContent = (
     <Space vertical className='w-full'>
       <TextArea
-        value={jsonText}
+        value={tempJsonText}
         onChange={(val) => {
-          setJsonText(val);
-          emitChange(val);
+          setTempJsonText(val);
         }}
         placeholder={t('直接编辑 JSON，支持 operations 格式或简单 key-value')}
         autosize={{ minRows: 8 }}
       />
       {importError && <Text type='danger'>{importError}</Text>}
-      <Button onClick={() => importFromJSON(jsonText, true)}>{t('导入到可视化')}</Button>
+      <Button onClick={() => importFromJSON(tempJsonText, true)}>{t('导入到可视化')}</Button>
     </Space>
   );
 
   return (
     <div className='override-editor'>
-      <div className='flex items-center justify-between mb-2'>
-        <Text strong>{label}</Text>
-        <Tabs
-          size='small'
-          activeKey={editMode}
-          onChange={(key) => {
-            setEditMode(key);
-            if (key === 'visual') {
-              importFromJSON(jsonText, false);
-            }
-          }}
-        >
-          <Tabs.TabPane tab={t('可视化')} itemKey='visual' />
-          <Tabs.TabPane tab='JSON' itemKey='json' />
-        </Tabs>
-      </div>
-      <Card bordered>{editMode === 'visual' ? visualContent : jsonContent}</Card>
+      {renderTrigger()}
+
+      <Modal
+        title={label}
+        visible={modalVisible}
+        onCancel={handleCancel}
+        width={800}
+        style={{ maxWidth: '95vw' }}
+        footer={
+          <Space>
+            <Button type='danger' theme='light' onClick={handleClear}>
+              {t('清空')}
+            </Button>
+            <Button onClick={handleCancel}>{t('取消')}</Button>
+            <Button type='primary' theme='solid' onClick={handleConfirm}>
+              {t('确定')}
+            </Button>
+          </Space>
+        }
+      >
+        <div className='mb-4'>
+          <Tabs
+            size='small'
+            activeKey={editMode}
+            onChange={(key) => {
+              if (key === 'visual') {
+                importFromJSON(tempJsonText, false);
+              }
+              setEditMode(key);
+            }}
+          >
+            <Tabs.TabPane tab={t('可视化')} itemKey='visual' />
+            <Tabs.TabPane tab='JSON' itemKey='json' />
+          </Tabs>
+        </div>
+        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {editMode === 'visual' ? visualContent : jsonContent}
+        </div>
+      </Modal>
     </div>
   );
 };
