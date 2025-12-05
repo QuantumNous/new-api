@@ -34,11 +34,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	}
 	path := c.Request.URL.Path
 	if strings.Contains(path, "/v1/videos/") && strings.HasSuffix(path, "/remix") {
-		info.Action = "remix"
+		info.Action = constant.TaskActionRemix
 	}
 
 	// 提取 remix 任务的 video_id
-	if info.Action == "remix" {
+	if info.Action == constant.TaskActionRemix {
 		videoID := c.Param("video_id")
 		if strings.TrimSpace(videoID) == "" {
 			return service.TaskErrorWrapperLocal(fmt.Errorf("video_id is required"), "invalid_request", http.StatusBadRequest)
@@ -93,7 +93,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 		}
 
 		// 使用原始任务的参数
-		if info.Action == "remix" {
+		if info.Action == constant.TaskActionRemix {
 			var taskData map[string]interface{}
 			_ = json.Unmarshal(originTask.Data, &taskData)
 			secondsStr, _ := taskData["seconds"].(string)
