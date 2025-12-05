@@ -5,7 +5,6 @@ type ChannelSettings struct {
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
 	Proxy                  string `json:"proxy"`
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	PassThroughHeaders     string `json:"pass_through_headers,omitempty"` // 透传请求头，逗号分隔，如 "X-Session-Id,X-Custom-Header"
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
 }
