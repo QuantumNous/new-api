@@ -24,6 +24,7 @@ import {
   Col,
   Input,
   Modal,
+  Popconfirm,
   Row,
   Select,
   Space,
@@ -437,33 +438,39 @@ const OverrideEditor = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Row gutter={8}>
+              <Row gutter={8} type='flex' align='bottom'>
                 <Col span={12}>
-                  <Input
-                    value={op.path}
-                    onChange={(val) => updateTempOperation(op.id, 'path', val)}
-                    placeholder={t('路径，如 temperature')}
-                    size='small'
-                  />
+                  <div>
+                    <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('路径')}</Text>
+                    <Input
+                      value={op.path}
+                      onChange={(val) => updateTempOperation(op.id, 'path', val)}
+                      placeholder={t('如 temperature')}
+                      size='small'
+                    />
+                  </div>
                 </Col>
                 <Col span={6}>
-                  <Select
-                    value={op.mode}
-                    onChange={(val) => updateTempOperation(op.id, 'mode', val)}
-                    style={{ width: '100%' }}
-                    size='small'
-                    optionList={[
-                      { label: 'set', value: 'set' },
-                      { label: 'delete', value: 'delete' },
-                      { label: 'move', value: 'move' },
-                      { label: 'prepend', value: 'prepend' },
-                      { label: 'append', value: 'append' },
-                    ]}
-                  />
+                  <div>
+                    <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('操作')}</Text>
+                    <Select
+                      value={op.mode}
+                      onChange={(val) => updateTempOperation(op.id, 'mode', val)}
+                      style={{ width: '100%' }}
+                      size='small'
+                      optionList={[
+                        { label: 'set', value: 'set' },
+                        { label: 'delete', value: 'delete' },
+                        { label: 'move', value: 'move' },
+                        { label: 'prepend', value: 'prepend' },
+                        { label: 'append', value: 'append' },
+                      ]}
+                    />
+                  </div>
                 </Col>
                 <Col span={6}>
                   {(op.mode === 'set' || op.mode === 'append' || op.mode === 'prepend') && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 32 }}>
                       <Text type='tertiary' size='small'>{t('保留原值')}</Text>
                       <Switch
                         checked={op.keep_origin}
@@ -478,32 +485,41 @@ const OverrideEditor = ({
               {op.mode === 'move' && (
                 <Row gutter={8}>
                   <Col span={12}>
-                    <Input
-                      value={op.from}
-                      onChange={(val) => updateTempOperation(op.id, 'from', val)}
-                      placeholder={t('来源路径，如 meta.old')}
-                      size='small'
-                    />
+                    <div>
+                      <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>From</Text>
+                      <Input
+                        value={op.from}
+                        onChange={(val) => updateTempOperation(op.id, 'from', val)}
+                        placeholder={t('如 meta.old')}
+                        size='small'
+                      />
+                    </div>
                   </Col>
                   <Col span={12}>
-                    <Input
-                      value={op.to}
-                      onChange={(val) => updateTempOperation(op.id, 'to', val)}
-                      placeholder={t('目标路径，如 meta.new')}
-                      size='small'
-                    />
+                    <div>
+                      <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>To</Text>
+                      <Input
+                        value={op.to}
+                        onChange={(val) => updateTempOperation(op.id, 'to', val)}
+                        placeholder={t('如 meta.new')}
+                        size='small'
+                      />
+                    </div>
                   </Col>
                 </Row>
               )}
 
               {op.mode !== 'delete' && op.mode !== 'move' && (
-                <TextArea
-                  value={op.value}
-                  onChange={(val) => updateTempOperation(op.id, 'value', val)}
-                  placeholder={t('值，支持 JSON 或 {{变量}}')}
-                  autosize={{ minRows: 1, maxRows: 4 }}
-                  size='small'
-                />
+                <div>
+                  <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('值')}</Text>
+                  <TextArea
+                    value={op.value}
+                    onChange={(val) => updateTempOperation(op.id, 'value', val)}
+                    placeholder={t('支持 JSON 或 {{变量}}')}
+                    autosize={{ minRows: 1, maxRows: 4 }}
+                    size='small'
+                  />
+                </div>
               )}
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -538,48 +554,58 @@ const OverrideEditor = ({
                     border: '1px solid var(--semi-color-border)',
                   }}
                 >
-                  <Row gutter={8} style={{ marginBottom: 8 }}>
+                  <Row gutter={8} type='flex' align='bottom' style={{ marginBottom: 8 }}>
                     <Col span={8}>
-                      <Input
-                        value={cond.path}
-                        onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
-                        placeholder={t('如 context.model')}
-                        size='small'
-                      />
+                      <div>
+                        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('条件路径')}</Text>
+                        <Input
+                          value={cond.path}
+                          onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
+                          placeholder={t('如 context.model')}
+                          size='small'
+                        />
+                      </div>
                     </Col>
-                    <Col span={6}>
-                      <Select
-                        value={cond.mode}
-                        onChange={(val) => updateTempCondition(op.id, cond.id, 'mode', val)}
-                        style={{ width: '100%' }}
-                        size='small'
-                        optionList={[
-                          { label: 'full', value: 'full' },
-                          { label: 'prefix', value: 'prefix' },
-                          { label: 'suffix', value: 'suffix' },
-                          { label: 'contains', value: 'contains' },
-                          { label: 'gt', value: 'gt' },
-                          { label: 'gte', value: 'gte' },
-                          { label: 'lt', value: 'lt' },
-                          { label: 'lte', value: 'lte' },
-                        ]}
-                      />
+                    <Col span={5}>
+                      <div>
+                        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('匹配')}</Text>
+                        <Select
+                          value={cond.mode}
+                          onChange={(val) => updateTempCondition(op.id, cond.id, 'mode', val)}
+                          style={{ width: '100%' }}
+                          size='small'
+                          optionList={[
+                            { label: 'full', value: 'full' },
+                            { label: 'prefix', value: 'prefix' },
+                            { label: 'suffix', value: 'suffix' },
+                            { label: 'contains', value: 'contains' },
+                            { label: 'gt', value: 'gt' },
+                            { label: 'gte', value: 'gte' },
+                            { label: 'lt', value: 'lt' },
+                            { label: 'lte', value: 'lte' },
+                          ]}
+                        />
+                      </div>
                     </Col>
                     <Col span={8}>
-                      <Input
-                        value={cond.value}
-                        onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
-                        placeholder={t('值')}
-                        size='small'
-                      />
+                      <div>
+                        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 4 }}>{t('值')}</Text>
+                        <Input
+                          value={cond.value}
+                          onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
+                          placeholder={t('如 gpt-4')}
+                          size='small'
+                        />
+                      </div>
                     </Col>
-                    <Col span={2}>
+                    <Col span={3}>
                       <Button
                         icon={<IconDelete />}
                         size='small'
                         theme='borderless'
                         type='danger'
                         onClick={() => removeTempCondition(op.id, cond.id)}
+                        style={{ height: 32 }}
                       />
                     </Col>
                   </Row>
@@ -652,9 +678,15 @@ const OverrideEditor = ({
         style={{ maxWidth: '95vw' }}
         footer={
           <Space>
-            <Button type='danger' theme='light' onClick={handleClear}>
-              {t('清空')}
-            </Button>
+            <Popconfirm
+              title={t('确认清空')}
+              content={t('清空后所有配置将被删除，确定要清空吗？')}
+              onConfirm={handleClear}
+            >
+              <Button type='danger' theme='light'>
+                {t('清空')}
+              </Button>
+            </Popconfirm>
             <Button onClick={handleCancel}>{t('取消')}</Button>
             <Button type='primary' theme='solid' onClick={handleConfirm}>
               {t('确定')}
