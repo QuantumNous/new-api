@@ -32,7 +32,67 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	if info.TaskRelayInfo == nil {
 		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
 	}
+	path := c.Request.URL.Path
+	if strings.Contains(path, "/v1/videos/") && strings.HasSuffix(path, "/remix") {
+		info.Action = "remix"
+	}
+
+	// 提取 remix 任务的 video_id
+	if info.Action == "remix" {
+		videoID := c.Param("video_id")
+		if strings.TrimSpace(videoID) == "" {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("video_id is required"), "invalid_request", http.StatusBadRequest)
+		}
+		info.OriginTaskID = videoID
+	}
+
 	platform := constant.TaskPlatform(c.GetString("platform"))
+
+	// 获取原始任务信息
+	if info.OriginTaskID != "" {
+		originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
+		if err != nil {
+			taskErr = service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError)
+			return
+		}
+		if !exist {
+			taskErr = service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
+			return
+		}
+		if info.OriginModelName == "" {
+			if originTask.Properties.OriginModelName != "" {
+				info.OriginModelName = originTask.Properties.OriginModelName
+			} else if originTask.Properties.UpstreamModelName != "" {
+				info.OriginModelName = originTask.Properties.UpstreamModelName
+			} else {
+				var taskData map[string]interface{}
+				_ = json.Unmarshal(originTask.Data, &taskData)
+				if m, ok := taskData["model"].(string); ok && m != "" {
+					info.OriginModelName = m
+					platform = originTask.Platform
+				}
+			}
+		}
+		if originTask.ChannelId != info.ChannelId {
+			channel, err := model.GetChannelById(originTask.ChannelId, true)
+			if err != nil {
+				taskErr = service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
+				return
+			}
+			if channel.Status != common.ChannelStatusEnabled {
+				taskErr = service.TaskErrorWrapperLocal(errors.New("the channel of the origin task is disabled"), "task_channel_disable", http.StatusBadRequest)
+				return
+			}
+			c.Set("base_url", channel.GetBaseURL())
+			c.Set("channel_id", originTask.ChannelId)
+			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
+
+			info.ChannelBaseUrl = channel.GetBaseURL()
+			info.ChannelId = originTask.ChannelId
+			platform = originTask.Platform
+		}
+
+	}
 	if platform == "" {
 		platform = GetTaskPlatform(c)
 	}
@@ -92,34 +152,6 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	if userQuota-quota < 0 {
 		taskErr = service.TaskErrorWrapperLocal(errors.New("user quota is not enough"), "quota_not_enough", http.StatusForbidden)
 		return
-	}
-
-	if info.OriginTaskID != "" {
-		originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
-		if err != nil {
-			taskErr = service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError)
-			return
-		}
-		if !exist {
-			taskErr = service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
-			return
-		}
-		if originTask.ChannelId != info.ChannelId {
-			channel, err := model.GetChannelById(originTask.ChannelId, true)
-			if err != nil {
-				taskErr = service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
-				return
-			}
-			if channel.Status != common.ChannelStatusEnabled {
-				return service.TaskErrorWrapperLocal(errors.New("该任务所属渠道已被禁用"), "task_channel_disable", http.StatusBadRequest)
-			}
-			c.Set("base_url", channel.GetBaseURL())
-			c.Set("channel_id", originTask.ChannelId)
-			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
-
-			info.ChannelBaseUrl = channel.GetBaseURL()
-			info.ChannelId = originTask.ChannelId
-		}
 	}
 
 	// build body
