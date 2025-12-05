@@ -762,6 +762,7 @@
     "Failed to complete order": "完成订单失败",
     "Failed to copy channel": "复制频道失败",
     "Failed to copy model names": "复制模型名称失败",
+    "Failed to copy to clipboard": "复制到剪贴板失败",
     "Failed to create channel": "创建频道失败",
     "Failed to create redemption code": "创建兑换码失败",
     "Failed to delete account": "删除账号失败",

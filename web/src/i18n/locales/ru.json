@@ -762,6 +762,7 @@
     "Failed to complete order": "Не удалось завершить заказ",
     "Failed to copy channel": "Не удалось скопировать канал",
     "Failed to copy model names": "Не удалось скопировать названия моделей",
+    "Failed to copy to clipboard": "Не удалось скопировать в буфер обмена",
     "Failed to create channel": "Не удалось создать канал",
     "Failed to create redemption code": "Не удалось создать код активации",
     "Failed to delete account": "Не удалось удалить аккаунт",

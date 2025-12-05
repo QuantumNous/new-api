@@ -763,6 +763,7 @@
     "Failed to complete order": "Không thể hoàn thành đơn hàng",
     "Failed to copy channel": "Không thể sao chép kênh",
     "Failed to copy model names": "Không thể sao chép tên mô hình",
+    "Failed to copy to clipboard": "Không thể sao chép vào bộ nhớ tạm",
     "Failed to create channel": "Không thể tạo kênh",
     "Failed to create redemption code": "Không thể tạo mã đổi thưởng",
     "Failed to delete account": "Không thể xóa tài khoản",

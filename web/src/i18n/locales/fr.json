@@ -762,6 +762,7 @@
     "Failed to complete order": "Échec de la finalisation de la commande",
     "Failed to copy channel": "Échec de la copie du canal",
     "Failed to copy model names": "Échec de la copie des noms de modèles",
+    "Failed to copy to clipboard": "Échec de la copie dans le presse-papiers",
     "Failed to create channel": "Échec de la création du canal",
     "Failed to create redemption code": "Échec de la création du code d'échange",
     "Failed to delete account": "Échec de la suppression du compte",

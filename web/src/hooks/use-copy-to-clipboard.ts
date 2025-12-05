@@ -1,13 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard as copyToClipboardUtil } from '@/lib/copy-to-clipboard'
 
 type UseCopyToClipboardOptions = {
   /** Whether to show a global toast notification (default: true) */
   notify?: boolean
-  /** Success message (default: 'Copied to clipboard') */
+  /** Success message (default: localized 'Copied to clipboard') */
   successMessage?: string
-  /** Error message (default: 'Failed to copy to clipboard') */
+  /** Error message (default: localized 'Failed to copy to clipboard') */
   errorMessage?: string
   /** Time to automatically reset copiedText (milliseconds, default: 2000) */
   resetAfterMs?: number
@@ -16,10 +17,11 @@ type UseCopyToClipboardOptions = {
 export function useCopyToClipboard(options?: UseCopyToClipboardOptions) {
   const {
     notify = true,
-    successMessage = 'Copied to clipboard',
-    errorMessage = 'Failed to copy to clipboard',
+    successMessage,
+    errorMessage,
     resetAfterMs = 2000,
   } = options || {}
+  const { t } = useTranslation()
 
   const [copiedText, setCopiedText] = useState<string | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -36,12 +38,15 @@ export function useCopyToClipboard(options?: UseCopyToClipboardOptions) {
 
   const copyToClipboard = useCallback(
     async (text: string): Promise<boolean> => {
+      const resolvedSuccessMessage = successMessage ?? t('Copied to clipboard')
+      const resolvedErrorMessage =
+        errorMessage ?? t('Failed to copy to clipboard')
       const success = await copyToClipboardUtil(text)
 
       if (success) {
         setCopiedText(text)
         if (notify) {
-          toast.success(successMessage)
+          toast.success(resolvedSuccessMessage)
         }
 
         // Clear previous timeout
@@ -58,13 +63,13 @@ export function useCopyToClipboard(options?: UseCopyToClipboardOptions) {
       } else {
         console.warn('All copy methods failed')
         if (notify) {
-          toast.error(errorMessage)
+          toast.error(resolvedErrorMessage)
         }
         setCopiedText(null)
         return false
       }
     },
-    [notify, successMessage, errorMessage, resetAfterMs]
+    [notify, successMessage, errorMessage, resetAfterMs, t]
   )
 
   return { copiedText, copyToClipboard }

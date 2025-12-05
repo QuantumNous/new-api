@@ -762,6 +762,7 @@
     "Failed to complete order": "注文の完了に失敗しました",
     "Failed to copy channel": "チャネルのコピーに失敗しました",
     "Failed to copy model names": "モデル名のコピーに失敗しました",
+    "Failed to copy to clipboard": "クリップボードにコピーできませんでした",
     "Failed to create channel": "チャンネルの作成に失敗しました",
     "Failed to create redemption code": "引き換えコードの作成に失敗しました",
     "Failed to delete account": "アカウントの削除に失敗しました",
