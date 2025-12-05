@@ -438,11 +438,11 @@ const OverrideEditor = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <Row gutter={8}>
-                <Col span={10}>
+                <Col span={12}>
                   <Input
                     value={op.path}
                     onChange={(val) => updateTempOperation(op.id, 'path', val)}
-                    placeholder={t('路径')}
+                    placeholder={t('路径，如 temperature')}
                     prefix={<Text type='tertiary' size='small'>{t('路径')}</Text>}
                     size='small'
                   />
@@ -462,9 +462,9 @@ const OverrideEditor = ({
                     ]}
                   />
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   {(op.mode === 'set' || op.mode === 'append' || op.mode === 'prepend') && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: '100%' }}>
                       <Text type='tertiary' size='small'>{t('保留原值')}</Text>
                       <Switch
                         checked={op.keep_origin}
@@ -542,7 +542,7 @@ const OverrideEditor = ({
                   }}
                 >
                   <Row gutter={8} style={{ marginBottom: 8 }}>
-                    <Col span={10}>
+                    <Col span={8}>
                       <Input
                         value={cond.path}
                         onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
@@ -574,15 +574,15 @@ const OverrideEditor = ({
                         onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
                         placeholder={t('值')}
                         size='small'
-                        suffix={
-                          <Button
-                            icon={<IconDelete />}
-                            size='small'
-                            theme='borderless'
-                            type='danger'
-                            onClick={() => removeTempCondition(op.id, cond.id)}
-                          />
-                        }
+                      />
+                    </Col>
+                    <Col span={2}>
+                      <Button
+                        icon={<IconDelete />}
+                        size='small'
+                        theme='borderless'
+                        type='danger'
+                        onClick={() => removeTempCondition(op.id, cond.id)}
                       />
                     </Col>
                   </Row>
