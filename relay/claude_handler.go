@@ -104,6 +104,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(body))
 		requestBody = bytes.NewBuffer(body)
 	} else {
 		convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
@@ -123,11 +124,15 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 		// apply param override
 		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
+			overrideCtx := relaycommon.BuildOverrideContext(info, jsonData, c.Request.Header)
+			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, overrideCtx)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
 		}
+
+		// 存储最终上游请求体，供请求头覆盖使用
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(jsonData))
 
 		if common.DebugEnabled {
 			println("requestBody: ", string(jsonData))
