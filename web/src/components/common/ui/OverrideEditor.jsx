@@ -443,7 +443,6 @@ const OverrideEditor = ({
                     value={op.path}
                     onChange={(val) => updateTempOperation(op.id, 'path', val)}
                     placeholder={t('路径，如 temperature')}
-                    prefix={<Text type='tertiary' size='small'>{t('路径')}</Text>}
                     size='small'
                   />
                 </Col>
@@ -482,8 +481,7 @@ const OverrideEditor = ({
                     <Input
                       value={op.from}
                       onChange={(val) => updateTempOperation(op.id, 'from', val)}
-                      placeholder={t('来源路径')}
-                      prefix={<Text type='tertiary' size='small'>From</Text>}
+                      placeholder={t('来源路径，如 meta.old')}
                       size='small'
                     />
                   </Col>
@@ -491,8 +489,7 @@ const OverrideEditor = ({
                     <Input
                       value={op.to}
                       onChange={(val) => updateTempOperation(op.id, 'to', val)}
-                      placeholder={t('目标路径')}
-                      prefix={<Text type='tertiary' size='small'>To</Text>}
+                      placeholder={t('目标路径，如 meta.new')}
                       size='small'
                     />
                   </Col>
@@ -546,7 +543,7 @@ const OverrideEditor = ({
                       <Input
                         value={cond.path}
                         onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
-                        placeholder={t('条件路径')}
+                        placeholder={t('如 context.model')}
                         size='small'
                       />
                     </Col>
@@ -630,7 +627,7 @@ const OverrideEditor = ({
 
   // Modal 中的 JSON 编辑内容
   const jsonContent = (
-    <Space vertical className='w-full'>
+    <div>
       <TextArea
         value={tempJsonText}
         onChange={(val) => {
@@ -639,9 +636,8 @@ const OverrideEditor = ({
         placeholder={t('直接编辑 JSON，支持 operations 格式或简单 key-value')}
         autosize={{ minRows: 8 }}
       />
-      {importError && <Text type='danger'>{importError}</Text>}
-      <Button onClick={() => importFromJSON(tempJsonText, true)}>{t('导入到可视化')}</Button>
-    </Space>
+      {importError && <Text type='danger' style={{ display: 'block', marginTop: 8 }}>{importError}</Text>}
+    </div>
   );
 
   return (
