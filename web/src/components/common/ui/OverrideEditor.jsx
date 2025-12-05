@@ -320,9 +320,35 @@ const OverrideEditor = ({
 
   const handleTemplateApply = (template) => {
     if (!template) return;
-    const pretty = JSON.stringify(template, null, 2);
-    setTempJsonText(pretty);
-    importFromJSON(pretty, true);
+    // 解析模板中的操作
+    let newOps = [];
+    if (template.operations && Array.isArray(template.operations)) {
+      newOps = template.operations.map((op) => ({
+        id: generateId(),
+        path: op.path || '',
+        mode: op.mode || 'set',
+        value: stringifyValue(op.value),
+        keep_origin: !!op.keep_origin,
+        from: op.from || '',
+        to: op.to || '',
+        logic: op.logic || 'OR',
+        conditions: (op.conditions || []).map((c) => ({
+          id: generateId(),
+          path: c.path || '',
+          mode: c.mode || 'full',
+          value: stringifyValue(c.value),
+          invert: !!c.invert,
+          pass_missing_key: !!c.pass_missing_key,
+        })),
+      }));
+    }
+    if (newOps.length === 0) return;
+
+    // 过滤掉空的默认操作，然后追加新操作
+    setTempOperations((prev) => {
+      const filtered = prev.filter((op) => op.path || op.value);
+      return [...filtered, ...newOps];
+    });
   };
 
   // 同步 tempJsonText 当切换到 JSON 模式
