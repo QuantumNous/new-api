@@ -260,14 +260,6 @@ func SyncUpstreamModels(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	if len(missing) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
-			"created_models":  0,
-			"created_vendors": 0,
-			"skipped_models":  []string{},
-		}})
-		return
-	}
 
 	// 2) 拉取上游 vendors 与 models
 	timeoutSec := common.GetEnvOrDefault("SYNC_HTTP_TIMEOUT_SECONDS", 15)
