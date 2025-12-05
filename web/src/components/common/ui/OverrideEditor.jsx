@@ -337,15 +337,29 @@ const OverrideEditor = ({
     const hasConfig = configSummary.count > 0;
 
     return (
-      <div className='override-editor-trigger'>
-        <div className='flex items-center justify-between mb-1'>
+      <div className='override-editor-trigger' style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 4 }}>
           <Text strong>{label}</Text>
         </div>
         <div
-          className='flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md cursor-pointer hover:bg-gray-100 transition-colors'
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            backgroundColor: 'var(--semi-color-fill-0)',
+            borderRadius: 6,
+            cursor: 'pointer',
+          }}
           onClick={handleOpenModal}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--semi-color-fill-1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--semi-color-fill-0)';
+          }}
         >
-          <div className='flex-1 min-w-0'>
+          <div style={{ flex: 1, minWidth: 0 }}>
             {hasConfig ? (
               <Space wrap size='small'>
                 <Tag color='blue' size='small'>
@@ -354,20 +368,18 @@ const OverrideEditor = ({
                 {configSummary.items.slice(0, 2).map((item, idx) => (
                   <Text key={idx} type='tertiary' size='small'>
                     {item.path}
-                    {item.hasConditions && <span className='text-orange-500'>*</span>}
+                    {item.hasConditions && <span style={{ color: 'var(--semi-color-warning)' }}>*</span>}
                   </Text>
                 ))}
                 {configSummary.items.length > 2 && (
-                  <Text type='tertiary' size='small'>
-                    ...
-                  </Text>
+                  <Text type='tertiary' size='small'>...</Text>
                 )}
               </Space>
             ) : (
               <Text type='tertiary' size='small'>{t('点击配置')}</Text>
             )}
           </div>
-          <IconEdit className='text-gray-400' size='small' />
+          <IconEdit style={{ color: 'var(--semi-color-text-2)' }} />
         </div>
       </div>
     );
@@ -375,8 +387,8 @@ const OverrideEditor = ({
 
   // Modal 中的可视化编辑内容
   const visualContent = (
-    <Space vertical spacing='medium' className='w-full'>
-      <div className='flex flex-wrap items-center gap-2'>
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <Text type='tertiary' size='small'>{t('可用变量')}：</Text>
         {builtinVars.map((v) => (
           <Tag key={v} size='small' color='light-blue'>
@@ -386,7 +398,7 @@ const OverrideEditor = ({
       </div>
 
       {templates?.length > 0 && (
-        <div className='flex flex-wrap items-center gap-2'>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <Text type='tertiary' size='small'>{t('模板')}：</Text>
           {templates.map((tpl) => (
             <Button
@@ -401,206 +413,219 @@ const OverrideEditor = ({
         </div>
       )}
 
-      {tempOperations.map((op, index) => (
-        <div
-          key={op.id}
-          className='p-3 bg-gray-50 rounded-lg'
-        >
-          <div className='flex items-center justify-between mb-3'>
-            <Text strong size='small'>{t('操作')} {index + 1}</Text>
-            <Button
-              type='danger'
-              theme='borderless'
-              icon={<IconDelete />}
-              size='small'
-              onClick={() =>
-                setTempOperations((prev) => prev.filter((item) => item.id !== op.id))
-              }
-            />
-          </div>
-
-          <Space vertical className='w-full' spacing='small'>
-            <Row gutter={8}>
-              <Col span={10}>
-                <Input
-                  value={op.path}
-                  onChange={(val) => updateTempOperation(op.id, 'path', val)}
-                  placeholder={t('路径')}
-                  prefix={<Text type='tertiary' size='small'>{t('路径')}</Text>}
-                  size='small'
-                />
-              </Col>
-              <Col span={6}>
-                <Select
-                  value={op.mode}
-                  onChange={(val) => updateTempOperation(op.id, 'mode', val)}
-                  style={{ width: '100%' }}
-                  size='small'
-                  optionList={[
-                    { label: 'set', value: 'set' },
-                    { label: 'delete', value: 'delete' },
-                    { label: 'move', value: 'move' },
-                    { label: 'prepend', value: 'prepend' },
-                    { label: 'append', value: 'append' },
-                  ]}
-                />
-              </Col>
-              <Col span={8}>
-                {(op.mode === 'set' || op.mode === 'append' || op.mode === 'prepend') && (
-                  <div className='flex items-center gap-2 h-full'>
-                    <Text type='tertiary' size='small'>{t('保留原值')}</Text>
-                    <Switch
-                      checked={op.keep_origin}
-                      onChange={(val) => updateTempOperation(op.id, 'keep_origin', val)}
-                      size='small'
-                    />
-                  </div>
-                )}
-              </Col>
-            </Row>
-
-            {op.mode === 'move' && (
-              <Row gutter={8}>
-                <Col span={12}>
-                  <Input
-                    value={op.from}
-                    onChange={(val) => updateTempOperation(op.id, 'from', val)}
-                    placeholder={t('来源路径')}
-                    prefix={<Text type='tertiary' size='small'>From</Text>}
-                    size='small'
-                  />
-                </Col>
-                <Col span={12}>
-                  <Input
-                    value={op.to}
-                    onChange={(val) => updateTempOperation(op.id, 'to', val)}
-                    placeholder={t('目标路径')}
-                    prefix={<Text type='tertiary' size='small'>To</Text>}
-                    size='small'
-                  />
-                </Col>
-              </Row>
-            )}
-
-            {op.mode !== 'delete' && op.mode !== 'move' && (
-              <TextArea
-                value={op.value}
-                onChange={(val) => updateTempOperation(op.id, 'value', val)}
-                placeholder={t('值，支持 JSON 或 {{变量}}')}
-                autosize={{ minRows: 1, maxRows: 4 }}
-                size='small'
-              />
-            )}
-
-            <div className='flex items-center gap-2'>
-              <Text type='tertiary' size='small'>{t('条件')}</Text>
-              <Select
-                value={op.logic || 'OR'}
-                onChange={(val) => updateTempOperation(op.id, 'logic', val)}
-                style={{ width: 80 }}
-                size='small'
-                optionList={[
-                  { label: 'OR', value: 'OR' },
-                  { label: 'AND', value: 'AND' },
-                ]}
-              />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {tempOperations.map((op, index) => (
+          <div
+            key={op.id}
+            style={{
+              padding: 12,
+              backgroundColor: 'var(--semi-color-fill-0)',
+              borderRadius: 8,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text strong size='small'>{t('操作')} {index + 1}</Text>
               <Button
-                size='small'
+                type='danger'
                 theme='borderless'
-                icon={<IconPlus />}
-                onClick={() => addTempCondition(op.id)}
-              >
-                {t('添加')}
-              </Button>
+                icon={<IconDelete />}
+                size='small'
+                onClick={() =>
+                  setTempOperations((prev) => prev.filter((item) => item.id !== op.id))
+                }
+              />
             </div>
 
-            {(op.conditions || []).map((cond) => (
-              <div
-                key={cond.id}
-                className='p-2 bg-white rounded border border-gray-100'
-              >
-                <Row gutter={8} className='mb-2'>
-                  <Col span={10}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Row gutter={8}>
+                <Col span={10}>
+                  <Input
+                    value={op.path}
+                    onChange={(val) => updateTempOperation(op.id, 'path', val)}
+                    placeholder={t('路径')}
+                    prefix={<Text type='tertiary' size='small'>{t('路径')}</Text>}
+                    size='small'
+                  />
+                </Col>
+                <Col span={6}>
+                  <Select
+                    value={op.mode}
+                    onChange={(val) => updateTempOperation(op.id, 'mode', val)}
+                    style={{ width: '100%' }}
+                    size='small'
+                    optionList={[
+                      { label: 'set', value: 'set' },
+                      { label: 'delete', value: 'delete' },
+                      { label: 'move', value: 'move' },
+                      { label: 'prepend', value: 'prepend' },
+                      { label: 'append', value: 'append' },
+                    ]}
+                  />
+                </Col>
+                <Col span={8}>
+                  {(op.mode === 'set' || op.mode === 'append' || op.mode === 'prepend') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: '100%' }}>
+                      <Text type='tertiary' size='small'>{t('保留原值')}</Text>
+                      <Switch
+                        checked={op.keep_origin}
+                        onChange={(val) => updateTempOperation(op.id, 'keep_origin', val)}
+                        size='small'
+                      />
+                    </div>
+                  )}
+                </Col>
+              </Row>
+
+              {op.mode === 'move' && (
+                <Row gutter={8}>
+                  <Col span={12}>
                     <Input
-                      value={cond.path}
-                      onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
-                      placeholder={t('条件路径')}
+                      value={op.from}
+                      onChange={(val) => updateTempOperation(op.id, 'from', val)}
+                      placeholder={t('来源路径')}
+                      prefix={<Text type='tertiary' size='small'>From</Text>}
                       size='small'
                     />
                   </Col>
-                  <Col span={6}>
-                    <Select
-                      value={cond.mode}
-                      onChange={(val) => updateTempCondition(op.id, cond.id, 'mode', val)}
-                      style={{ width: '100%' }}
-                      size='small'
-                      optionList={[
-                        { label: 'full', value: 'full' },
-                        { label: 'prefix', value: 'prefix' },
-                        { label: 'suffix', value: 'suffix' },
-                        { label: 'contains', value: 'contains' },
-                        { label: 'gt', value: 'gt' },
-                        { label: 'gte', value: 'gte' },
-                        { label: 'lt', value: 'lt' },
-                        { label: 'lte', value: 'lte' },
-                      ]}
-                    />
-                  </Col>
-                  <Col span={8}>
+                  <Col span={12}>
                     <Input
-                      value={cond.value}
-                      onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
-                      placeholder={t('值')}
+                      value={op.to}
+                      onChange={(val) => updateTempOperation(op.id, 'to', val)}
+                      placeholder={t('目标路径')}
+                      prefix={<Text type='tertiary' size='small'>To</Text>}
                       size='small'
-                      suffix={
-                        <Button
-                          icon={<IconDelete />}
-                          size='small'
-                          theme='borderless'
-                          type='danger'
-                          onClick={() => removeTempCondition(op.id, cond.id)}
-                        />
-                      }
                     />
                   </Col>
                 </Row>
-                <div className='flex items-center gap-4'>
-                  <Tooltip content={t('取反匹配结果')}>
-                    <div className='flex items-center gap-1'>
-                      <Text type='tertiary' size='small'>{t('反选')}</Text>
-                      <Switch
-                        checked={cond.invert}
-                        onChange={(val) => updateTempCondition(op.id, cond.id, 'invert', val)}
-                        size='small'
-                      />
-                    </div>
-                  </Tooltip>
-                  <Tooltip content={t('缺少字段时视为通过')}>
-                    <div className='flex items-center gap-1'>
-                      <Text type='tertiary' size='small'>{t('缺失通过')}</Text>
-                      <Switch
-                        checked={cond.pass_missing_key}
-                        onChange={(val) => updateTempCondition(op.id, cond.id, 'pass_missing_key', val)}
-                        size='small'
-                      />
-                    </div>
-                  </Tooltip>
-                </div>
-              </div>
-            ))}
-          </Space>
-        </div>
-      ))}
+              )}
 
-      <Button
-        icon={<IconPlus />}
-        onClick={() => setTempOperations((prev) => [...prev, defaultOperation()])}
-        theme='light'
-        size='small'
-      >
-        {t('添加操作')}
-      </Button>
-    </Space>
+              {op.mode !== 'delete' && op.mode !== 'move' && (
+                <TextArea
+                  value={op.value}
+                  onChange={(val) => updateTempOperation(op.id, 'value', val)}
+                  placeholder={t('值，支持 JSON 或 {{变量}}')}
+                  autosize={{ minRows: 1, maxRows: 4 }}
+                  size='small'
+                />
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Text type='tertiary' size='small'>{t('条件')}</Text>
+                <Select
+                  value={op.logic || 'OR'}
+                  onChange={(val) => updateTempOperation(op.id, 'logic', val)}
+                  style={{ width: 80 }}
+                  size='small'
+                  optionList={[
+                    { label: 'OR', value: 'OR' },
+                    { label: 'AND', value: 'AND' },
+                  ]}
+                />
+                <Button
+                  size='small'
+                  theme='borderless'
+                  icon={<IconPlus />}
+                  onClick={() => addTempCondition(op.id)}
+                >
+                  {t('添加')}
+                </Button>
+              </div>
+
+              {(op.conditions || []).map((cond) => (
+                <div
+                  key={cond.id}
+                  style={{
+                    padding: 8,
+                    backgroundColor: 'var(--semi-color-bg-1)',
+                    borderRadius: 6,
+                    border: '1px solid var(--semi-color-border)',
+                  }}
+                >
+                  <Row gutter={8} style={{ marginBottom: 8 }}>
+                    <Col span={10}>
+                      <Input
+                        value={cond.path}
+                        onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
+                        placeholder={t('条件路径')}
+                        size='small'
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <Select
+                        value={cond.mode}
+                        onChange={(val) => updateTempCondition(op.id, cond.id, 'mode', val)}
+                        style={{ width: '100%' }}
+                        size='small'
+                        optionList={[
+                          { label: 'full', value: 'full' },
+                          { label: 'prefix', value: 'prefix' },
+                          { label: 'suffix', value: 'suffix' },
+                          { label: 'contains', value: 'contains' },
+                          { label: 'gt', value: 'gt' },
+                          { label: 'gte', value: 'gte' },
+                          { label: 'lt', value: 'lt' },
+                          { label: 'lte', value: 'lte' },
+                        ]}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Input
+                        value={cond.value}
+                        onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
+                        placeholder={t('值')}
+                        size='small'
+                        suffix={
+                          <Button
+                            icon={<IconDelete />}
+                            size='small'
+                            theme='borderless'
+                            type='danger'
+                            onClick={() => removeTempCondition(op.id, cond.id)}
+                          />
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <Tooltip content={t('取反匹配结果')}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Text type='tertiary' size='small'>{t('反选')}</Text>
+                        <Switch
+                          checked={cond.invert}
+                          onChange={(val) => updateTempCondition(op.id, cond.id, 'invert', val)}
+                          size='small'
+                        />
+                      </div>
+                    </Tooltip>
+                    <Tooltip content={t('缺少字段时视为通过')}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Text type='tertiary' size='small'>{t('缺失通过')}</Text>
+                        <Switch
+                          checked={cond.pass_missing_key}
+                          onChange={(val) => updateTempCondition(op.id, cond.id, 'pass_missing_key', val)}
+                          size='small'
+                        />
+                      </div>
+                    </Tooltip>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <Button
+          icon={<IconPlus />}
+          onClick={() => setTempOperations((prev) => [...prev, defaultOperation()])}
+          theme='light'
+          size='small'
+        >
+          {t('添加操作')}
+        </Button>
+      </div>
+    </div>
   );
 
   // Modal 中的 JSON 编辑内容
@@ -641,7 +666,7 @@ const OverrideEditor = ({
           </Space>
         }
       >
-        <div className='mb-4'>
+        <div style={{ marginBottom: 16 }}>
           <Tabs
             size='small'
             activeKey={editMode}
