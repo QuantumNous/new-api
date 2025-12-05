@@ -459,12 +459,18 @@ const OverrideEditor = ({
                       style={{ width: '100%' }}
                       size='small'
                       optionList={[
-                        { label: 'set', value: 'set' },
-                        { label: 'delete', value: 'delete' },
-                        { label: 'move', value: 'move' },
-                        { label: 'prepend', value: 'prepend' },
-                        { label: 'append', value: 'append' },
+                        { label: 'set', value: 'set', desc: t('设置值') },
+                        { label: 'delete', value: 'delete', desc: t('删除字段') },
+                        { label: 'move', value: 'move', desc: t('移动字段') },
+                        { label: 'prepend', value: 'prepend', desc: t('前置添加') },
+                        { label: 'append', value: 'append', desc: t('后置添加') },
                       ]}
+                      renderOptionItem={renderItem => (
+                        <Select.Option {...renderItem} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{renderItem.label}</span>
+                          <Text type='tertiary' size='small'>{renderItem.desc}</Text>
+                        </Select.Option>
+                      )}
                     />
                   </div>
                 </Col>
@@ -561,7 +567,7 @@ const OverrideEditor = ({
                         <Input
                           value={cond.path}
                           onChange={(val) => updateTempCondition(op.id, cond.id, 'path', val)}
-                          placeholder={t('如 context.model')}
+                          placeholder={t('如 context.model，支持 {{}}')}
                           size='small'
                         />
                       </div>
@@ -575,15 +581,21 @@ const OverrideEditor = ({
                           style={{ width: '100%' }}
                           size='small'
                           optionList={[
-                            { label: 'full', value: 'full' },
-                            { label: 'prefix', value: 'prefix' },
-                            { label: 'suffix', value: 'suffix' },
-                            { label: 'contains', value: 'contains' },
-                            { label: 'gt', value: 'gt' },
-                            { label: 'gte', value: 'gte' },
-                            { label: 'lt', value: 'lt' },
-                            { label: 'lte', value: 'lte' },
+                            { label: 'full', value: 'full', desc: t('完全相等') },
+                            { label: 'prefix', value: 'prefix', desc: t('前缀匹配') },
+                            { label: 'suffix', value: 'suffix', desc: t('后缀匹配') },
+                            { label: 'contains', value: 'contains', desc: t('包含') },
+                            { label: 'gt', value: 'gt', desc: '>' },
+                            { label: 'gte', value: 'gte', desc: '>=' },
+                            { label: 'lt', value: 'lt', desc: '<' },
+                            { label: 'lte', value: 'lte', desc: '<=' },
                           ]}
+                          renderOptionItem={renderItem => (
+                            <Select.Option {...renderItem} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{renderItem.label}</span>
+                              <Text type='tertiary' size='small'>{renderItem.desc}</Text>
+                            </Select.Option>
+                          )}
                         />
                       </div>
                     </Col>
@@ -593,7 +605,7 @@ const OverrideEditor = ({
                         <Input
                           value={cond.value}
                           onChange={(val) => updateTempCondition(op.id, cond.id, 'value', val)}
-                          placeholder={t('如 gpt-4')}
+                          placeholder={t('如 gpt-4 支持 {{}}')}
                           size='small'
                         />
                       </div>
