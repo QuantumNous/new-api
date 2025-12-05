@@ -79,6 +79,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(body))
 		if common.DebugEnabled {
 			println("requestBody: ", string(body))
 		}
@@ -144,11 +145,15 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 		// apply param override
 		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
+			overrideCtx := relaycommon.BuildOverrideContext(info, jsonData, c.Request.Header)
+			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, overrideCtx)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
 		}
+
+		// 存储最终上游请求体，供请求头覆盖时使用
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(jsonData))
 
 		logger.LogDebug(c, fmt.Sprintf("text request body: %s", string(jsonData)))
 

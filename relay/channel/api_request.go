@@ -11,6 +11,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	mainconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -52,24 +53,66 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	}
 }
 
-// processHeaderOverride 处理请求头覆盖，支持变量替换
-// 支持的变量：{api_key}
-func processHeaderOverride(info *common.RelayInfo) (map[string]string, error) {
-	headerOverride := make(map[string]string)
+// applyHeaderOverride 处理请求头覆盖，支持 operations 条件与模板，以及兼容旧版 {api_key} 简单替换。
+func applyHeaderOverride(c *gin.Context, info *common.RelayInfo, headers *http.Header) error {
+	if info == nil || len(info.HeadersOverride) == 0 {
+		return nil
+	}
+
+	_, isOps := info.HeadersOverride["operations"]
+	if isOps {
+		baseHeader := make(map[string]interface{})
+		for key, values := range *headers {
+			if len(values) == 0 {
+				continue
+			}
+			baseHeader[key] = strings.Join(values, ",")
+		}
+
+		baseJSON, err := common2.Marshal(baseHeader)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
+		}
+
+		reqBody := common2.GetContextKeyString(c, mainconstant.ContextKeyUpstreamRequestBody)
+		overrideCtx := common.BuildOverrideContext(info, []byte(reqBody), c.Request.Header)
+
+		resultJSON, err := common.ApplyParamOverride(baseJSON, info.HeadersOverride, overrideCtx)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
+		}
+
+		var newHeaders map[string]interface{}
+		if err := common2.Unmarshal(resultJSON, &newHeaders); err != nil {
+			return types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
+		}
+
+		for key := range baseHeader {
+			if _, exists := newHeaders[key]; !exists {
+				headers.Del(key)
+			}
+		}
+
+		for key, val := range newHeaders {
+			strVal := fmt.Sprintf("%v", val)
+			headers.Del(key)
+			headers.Set(key, strVal)
+		}
+		return nil
+	}
+
+	// 兼容旧格式：直接 key-value 覆盖，支持 {api_key} 占位符
 	for k, v := range info.HeadersOverride {
 		str, ok := v.(string)
 		if !ok {
-			return nil, types.NewError(nil, types.ErrorCodeChannelHeaderOverrideInvalid)
+			return types.NewError(nil, types.ErrorCodeChannelHeaderOverrideInvalid)
 		}
-
-		// 替换支持的变量
 		if strings.Contains(str, "{api_key}") {
 			str = strings.ReplaceAll(str, "{api_key}", info.ApiKey)
 		}
-
-		headerOverride[k] = str
+		headers.Set(k, str)
 	}
-	return headerOverride, nil
+	return nil
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
@@ -85,16 +128,12 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	headers := req.Header
-	headerOverride, err := processHeaderOverride(info)
-	if err != nil {
-		return nil, err
-	}
-	for key, value := range headerOverride {
-		headers.Set(key, value)
-	}
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
+	}
+	if err := applyHeaderOverride(c, info, &headers); err != nil {
+		return nil, err
 	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
@@ -118,16 +157,12 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	// set form data
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	headers := req.Header
-	headerOverride, err := processHeaderOverride(info)
-	if err != nil {
-		return nil, err
-	}
-	for key, value := range headerOverride {
-		headers.Set(key, value)
-	}
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
+	}
+	if err := applyHeaderOverride(c, info, &headers); err != nil {
+		return nil, err
 	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
@@ -142,16 +177,12 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	targetHeader := http.Header{}
-	headerOverride, err := processHeaderOverride(info)
-	if err != nil {
-		return nil, err
-	}
-	for key, value := range headerOverride {
-		targetHeader.Set(key, value)
-	}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
+	}
+	if err := applyHeaderOverride(c, info, &targetHeader); err != nil {
+		return nil, err
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
