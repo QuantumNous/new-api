@@ -41,6 +41,9 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var responseTextBuilder strings.Builder
 	var toolCount int
 	var containStreamUsage bool
+	var lastStreamData string
+	var responseId string
+	var created int64
 
 	helper.SetEventStreamHeaders(c)
 
@@ -62,9 +65,13 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
 		_ = openai.ProcessStreamResponse(*openaiResponse, &responseTextBuilder, &toolCount)
-		err = helper.ObjectData(c, openaiResponse)
-		if err != nil {
-			common.SysLog(err.Error())
+
+		responseId = openaiResponse.Id
+		created = openaiResponse.Created
+
+		if jsonData, err := common.Marshal(openaiResponse); err == nil {
+			lastStreamData = string(jsonData)
+			_ = openai.HandleStreamFormat(c, info, lastStreamData, false, false)
 		}
 		return true
 	})
@@ -74,7 +81,9 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		usage.CompletionTokens += toolCount * 7
 	}
 
-	helper.Done(c)
+	// Handle final response based on format
+	openai.HandleFinalResponse(c, info, lastStreamData, responseId, created, info.UpstreamModelName, "", usage, containStreamUsage)
+
 	service.CloseResponseBodyGracefully(resp)
 	return usage, nil
 }
