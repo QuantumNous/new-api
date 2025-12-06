@@ -153,10 +153,30 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/fetch_models/:id", controller.FetchUpstreamModels)
 			channelRoute.POST("/fetch_models", controller.FetchModels)
 			channelRoute.POST("/batch/tag", controller.BatchSetChannelTag)
-			channelRoute.GET("/tag/models", controller.GetTagModels)
-			channelRoute.POST("/copy/:id", controller.CopyChannel)
-			channelRoute.POST("/multi_key/manage", controller.ManageMultiKeys)
-		}
+		channelRoute.GET("/tag/models", controller.GetTagModels)
+		channelRoute.POST("/copy/:id", controller.CopyChannel)
+		channelRoute.POST("/multi_key/manage", controller.ManageMultiKeys)
+		// Channel statistics routes
+		channelRoute.GET("/stats/performance", controller.GetChannelPerformanceStats)
+		channelRoute.GET("/stats/usage", controller.GetChannelUsageStats)
+		channelRoute.GET("/stats/comparison", controller.GetChannelComparisonData)
+		channelRoute.GET("/stats/trend", controller.GetChannelTrendData)
+		channelRoute.GET("/stats/health", controller.GetChannelHealthScores)
+		channelRoute.GET("/stats/realtime", controller.GetChannelRealtimeMetrics)
+		channelRoute.GET("/stats/errors", controller.GetChannelErrorAnalysis)
+		channelRoute.GET("/stats/export", controller.ExportChannelReport)
+		// Channel model statistics routes
+		channelRoute.GET("/stats/model-detail", controller.GetChannelModelStats)
+		channelRoute.GET("/stats/model-summary", controller.GetChannelModelSummary)
+		channelRoute.GET("/stats/models", controller.GetAvailableModels)
+		channelRoute.GET("/stats/model-export", controller.ExportChannelModelStats)
+		channelRoute.GET("/stats/model-percentiles", controller.GetChannelModelPercentiles)
+		channelRoute.GET("/stats/model-trend", controller.GetChannelModelTrend)
+		// Token range statistics routes
+		channelRoute.GET("/stats/token-range", controller.GetTokenRangeStats)
+		channelRoute.GET("/stats/token-range-detail", controller.GetTokenRangeDetailStats)
+		channelRoute.GET("/stats/token-range-comparison", controller.GetTokenRangeComparison)
+	}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
 		{
@@ -202,6 +222,9 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+
+		// User channel statistics route
+		apiRouter.GET("/channel/stats/self", middleware.UserAuth(), controller.GetUserChannelStats)
 
 		logRoute.Use(middleware.CORS())
 		{

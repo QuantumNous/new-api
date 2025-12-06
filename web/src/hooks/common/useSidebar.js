@@ -47,6 +47,8 @@ export const useSidebar = () => {
     console: {
       enabled: true,
       detail: true,
+      channelStats: true,
+      channelModelStats: true,
       token: true,
       log: true,
       midjourney: true,

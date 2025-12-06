@@ -53,6 +53,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const ChannelStats = lazy(() => import('./pages/ChannelStats'));
+const ChannelModelStats = lazy(() => import('./pages/ChannelModelStats'));
 
 function App() {
   const location = useLocation();
@@ -113,6 +115,26 @@ function App() {
           element={
             <AdminRoute>
               <Channel />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/channel-stats'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <ChannelStats />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/channel-model-stats'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <ChannelModelStats />
+              </Suspense>
             </AdminRoute>
           }
         />
