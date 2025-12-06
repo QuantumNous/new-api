@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -92,6 +93,10 @@ func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.Cha
 
 func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var responseText string
+	var lastStreamData string
+	var responseId string
+	var created int64
+
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 
@@ -116,9 +121,12 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 			responseText += response.Choices[0].Delta.GetContentString()
 		}
 
-		err = helper.ObjectData(c, response)
-		if err != nil {
-			common.SysLog(err.Error())
+		responseId = response.Id
+		created = response.Created
+
+		if jsonData, err := common.Marshal(response); err == nil {
+			lastStreamData = string(jsonData)
+			_ = openai.HandleStreamFormat(c, info, lastStreamData, false, false)
 		}
 	}
 
@@ -126,11 +134,14 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 		common.SysLog("error reading stream: " + err.Error())
 	}
 
-	helper.Done(c)
+	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+
+	// Handle final response based on format
+	openai.HandleFinalResponse(c, info, lastStreamData, responseId, created, info.UpstreamModelName, "", usage, false)
 
 	service.CloseResponseBodyGracefully(resp)
 
-	return service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens()), nil
+	return usage, nil
 }
 
 func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
