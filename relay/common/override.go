@@ -520,7 +520,12 @@ func BuildOverrideContext(info *RelayInfo, requestJSON []byte, clientHeaders htt
 			if len(values) == 0 {
 				continue
 			}
-			headerMap[key] = strings.Join(values, ",")
+			joined := strings.Join(values, ",")
+			headerMap[key] = joined
+			lowerKey := strings.ToLower(key)
+			if _, exists := headerMap[lowerKey]; !exists {
+				headerMap[lowerKey] = joined
+			}
 		}
 		if len(headerMap) > 0 {
 			ctx["client_headers"] = headerMap
