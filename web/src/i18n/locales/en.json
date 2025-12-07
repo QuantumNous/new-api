@@ -446,7 +446,7 @@
     "Control which sidebar areas and modules are available to all users.": "Control which sidebar areas and modules are available to all users.",
     "Controls whether user verification (biometrics/PIN) is required during Passkey flows.": "Controls whether user verification (biometrics/PIN) is required during Passkey flows.",
     "Conversion rate from USD to your custom currency": "Conversion rate from USD to your custom currency",
-    "Convert reasoning_content to &lt;think&gt; tag in content": "Convert reasoning_content to &lt;think&gt; tag in content",
+    "Convert reasoning_content to <think> tag in content": "Convert reasoning_content to <think> tag in content",
     "Copied": "Copied",
     "Copied to clipboard": "Copied to clipboard",
     "Copied!": "Copied!",

@@ -446,7 +446,7 @@
     "Control which sidebar areas and modules are available to all users.": "すべてのユーザーが利用できるサイドバー領域とモジュールを制御します。",
     "Controls whether user verification (biometrics/PIN) is required during Passkey flows.": "Passkeyフロー中にユーザー認証（生体認証/PIN）が必要かどうかを制御します。",
     "Conversion rate from USD to your custom currency": "USDからカスタム通貨への換算レート",
-    "Convert reasoning_content to &lt;think&gt; tag in content": "reasoning_contentをコンテンツ内の&lt;think&gt;タグに変換",
+    "Convert reasoning_content to <think> tag in content": "content内のreasoning_contentを<think>タグに変換",
     "Copied": "コピーしました",
     "Copied to clipboard": "クリップボードにコピーしました",
     "Copied!": "コピーしました！",

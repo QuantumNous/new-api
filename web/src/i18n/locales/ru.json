@@ -446,7 +446,7 @@
     "Control which sidebar areas and modules are available to all users.": "Контролировать, какие области боковой панели и модули доступны всем пользователям.",
     "Controls whether user verification (biometrics/PIN) is required during Passkey flows.": "Определяет, требуется ли проверка пользователя (биометрия/PIN) во время процессов Passkey.",
     "Conversion rate from USD to your custom currency": "Курс конвертации из USD в вашу пользовательскую валюту",
-    "Convert reasoning_content to &lt;think&gt; tag in content": "Преобразовать reasoning_content в тег &lt;think&gt; в содержимом",
+    "Convert reasoning_content to <think> tag in content": "Преобразовать reasoning_content в тег <think> в content",
     "Copied": "Скопировано",
     "Copied to clipboard": "Скопировано в буфер обмена",
     "Copied!": "Скопировано!",

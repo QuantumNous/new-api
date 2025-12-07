@@ -446,7 +446,7 @@
     "Control which sidebar areas and modules are available to all users.": "控制哪些侧边栏区域和模块对所有用户可用。",
     "Controls whether user verification (biometrics/PIN) is required during Passkey flows.": "控制在通行密钥流程中是否需要用户验证（生物识别/PIN）。",
     "Conversion rate from USD to your custom currency": "从美元到您的自定义货币的转换率",
-    "Convert reasoning_content to &lt;think&gt; tag in content": "将 reasoning_content 转换为内容中的 &lt;think&gt; 标签",
+    "Convert reasoning_content to <think> tag in content": "将 reasoning_content 转换为 content 中的 <think> 标签",
     "Copied": "已复制",
     "Copied to clipboard": "已复制到剪贴板",
     "Copied!": "已复制！",

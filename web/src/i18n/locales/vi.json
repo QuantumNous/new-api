@@ -446,7 +446,7 @@
     "Control which sidebar areas and modules are available to all users.": "Kiểm soát những khu vực thanh bên và mô-đun nào khả dụng cho tất cả người dùng.",
     "Controls whether user verification (biometrics/PIN) is required during Passkey flows.": "Kiểm soát xem liệu có yêu cầu xác minh người dùng (sinh trắc học/mã PIN) trong các luồng Passkey hay không.",
     "Conversion rate from USD to your custom currency": "Tỷ giá chuyển đổi từ USD sang đơn vị tiền tệ tùy chỉnh của bạn",
-    "Convert reasoning_content to &lt;think&gt; tag in content": "Chuyển đổi reasoning_content thành thẻ `<think>` trong content",
+    "Convert reasoning_content to <think> tag in content": "Chuyển đổi reasoning_content thành thẻ <think> trong nội dung",
     "Copied": "Đã sao chép",
     "Copied to clipboard": "Đã sao chép vào bộ nhớ tạm",
     "Copied!": "Đã sao chép!",

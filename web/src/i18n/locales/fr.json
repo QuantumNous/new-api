@@ -446,7 +446,7 @@
     "Control which sidebar areas and modules are available to all users.": "Contrôler les zones et modules de la barre latérale disponibles pour tous les utilisateurs.",
     "Controls whether user verification (biometrics/PIN) is required during Passkey flows.": "Contrôle si la vérification de l'utilisateur (biométrie/PIN) est requise lors des flux de Passkey.",
     "Conversion rate from USD to your custom currency": "Taux de conversion de l'USD vers votre devise personnalisée",
-    "Convert reasoning_content to &lt;think&gt; tag in content": "Convertir reasoning_content en balise &lt;think&gt; dans le contenu",
+    "Convert reasoning_content to <think> tag in content": "Convertir reasoning_content en balise <think> dans content",
     "Copied": "Copié",
     "Copied to clipboard": "Copié dans le presse-papiers",
     "Copied!": "Copié !",
