@@ -121,6 +121,32 @@ const EditTagModal = (props) => {
           ],
         },
       },
+      {
+        label: t('Qwen enable_thinking 透传'),
+        data: {
+          operations: [
+            {
+              path: 'chat_template_kwargs.enable_thinking',
+              mode: 'set',
+              value: '{{request.enable_thinking}}',
+              keep_origin: true,
+              conditions: [
+                {
+                  path: 'request.enable_thinking',
+                  mode: 'full',
+                  value: true,
+                },
+                {
+                  path: 'request.enable_thinking',
+                  mode: 'full',
+                  value: false,
+                },
+              ],
+              logic: 'OR',
+            },
+          ],
+        },
+      },
     ],
     [t],
   );
