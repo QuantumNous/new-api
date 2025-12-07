@@ -3,6 +3,8 @@ package relay
 import (
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -20,6 +22,8 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	// 实时通道无请求体，也写入空对象以保证覆盖模板正常工作
+	common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, "{}")
 	//var requestBody io.Reader
 	//firstWssRequest, _ := c.Get("first_wss_request")
 	//requestBody = bytes.NewBuffer(firstWssRequest.([]byte))

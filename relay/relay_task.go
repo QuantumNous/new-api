@@ -49,6 +49,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 		return
 	}
 
+	// 记录上游任务请求体，便于 Header 覆盖模板访问 request.*
+	if taskReq, err := relaycommon.GetTaskRequest(c); err == nil {
+		if taskJSON, err := common.Marshal(taskReq); err == nil {
+			common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(taskJSON))
+		}
+	}
+
 	modelName := info.OriginModelName
 	if modelName == "" {
 		modelName = service.CoverTaskActionToModelName(platform, info.Action)
