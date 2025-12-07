@@ -448,6 +448,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		return GenRelayInfoWs(c, ws), nil
 	case types.RelayFormatClaude:
 		return GenRelayInfoClaude(c, request), nil
+	case types.RelayFormatClaudeCountTokens:
+		return GenRelayInfoClaude(c, request), nil
 	case types.RelayFormatRerank:
 		if request, ok := request.(*dto.RerankRequest); ok {
 			return GenRelayInfoRerank(c, request), nil

@@ -161,6 +161,10 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return newAPIError
 	}
 
+	if info.RelayFormat == types.RelayFormatClaudeCountTokens {
+		return nil
+	}
+
 	service.PostClaudeConsumeQuota(c, info, usage.(*dto.Usage))
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -17,8 +18,9 @@ import (
 )
 
 const (
-	RequestModeCompletion = 1
-	RequestModeMessage    = 2
+	RequestModeCompletion  = 1
+	RequestModeMessage     = 2
+	RequestModeCountTokens = 3
 )
 
 type Adaptor struct {
@@ -45,6 +47,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	if info.RelayFormat == types.RelayFormatClaudeCountTokens {
+		a.RequestMode = RequestModeCountTokens
+		return
+	}
 	if strings.HasPrefix(info.UpstreamModelName, "claude-2") || strings.HasPrefix(info.UpstreamModelName, "claude-instant") {
 		a.RequestMode = RequestModeCompletion
 	} else {
@@ -54,9 +60,12 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := ""
-	if a.RequestMode == RequestModeMessage {
+	switch a.RequestMode {
+	case RequestModeMessage:
 		baseURL = fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
-	} else {
+	case RequestModeCountTokens:
+		baseURL = fmt.Sprintf("%s/v1/messages/count_tokens", info.ChannelBaseUrl)
+	default:
 		baseURL = fmt.Sprintf("%s/v1/complete", info.ChannelBaseUrl)
 	}
 	if info.IsClaudeBetaQuery {
@@ -116,6 +125,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if a.RequestMode == RequestModeCountTokens {
+		defer service.CloseResponseBodyGracefully(resp)
+		responseBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, types.NewError(readErr, types.ErrorCodeBadResponseBody)
+		}
+		service.IOCopyBytesGracefully(c, resp, responseBody)
+		return nil, nil
+	}
 	if info.IsStream {
 		return ClaudeStreamHandler(c, resp, info, a.RequestMode)
 	} else {
