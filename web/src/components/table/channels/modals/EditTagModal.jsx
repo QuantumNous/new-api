@@ -140,13 +140,13 @@ const EditTagModal = (props) => {
         },
       },
       {
-        label: t('透传 Session-Id'),
+        label: t('透传 session_id'),
         data: {
           operations: [
             {
-              path: 'X-Session-Id',
+              path: 'session_id',
               mode: 'set',
-              value: '{{client_headers.X-Session-Id}}',
+              value: '{{client_headers.session_id}}',
             },
           ],
         },
