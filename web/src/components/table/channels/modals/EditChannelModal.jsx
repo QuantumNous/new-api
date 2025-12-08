@@ -56,6 +56,7 @@ import {
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
+import OverrideEditor from '../../../common/ui/OverrideEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
 import { useSecureVerification } from '../../../../hooks/common/useSecureVerification';
@@ -127,6 +128,121 @@ const EditChannelModal = (props) => {
   const handleCancel = () => {
     props.handleClose();
   };
+
+  const paramOverrideTemplates = useMemo(
+    () => [
+      {
+        label: t('按模型前缀设置温度'),
+        data: {
+          operations: [
+            {
+              path: 'temperature',
+              mode: 'set',
+              value: 0.7,
+              conditions: [
+                {
+                  path: 'context.model',
+                  mode: 'prefix',
+                  value: 'gpt-4',
+                },
+              ],
+              logic: 'AND',
+            },
+          ],
+        },
+      },
+      {
+        label: t('用请求字段控制路径与值'),
+        data: {
+          operations: [
+            {
+              path: '{{request.extra_config.path}}',
+              mode: 'set',
+              value: '{{request.extra_config.value}}',
+              keep_origin: false,
+              conditions: [
+                {
+                  path: 'request.extra_config.enabled',
+                  mode: 'full',
+                  value: true,
+                },
+              ],
+              logic: 'AND',
+            },
+          ],
+        },
+      },
+      {
+        label: t('Qwen enable_thinking 透传'),
+        data: {
+          operations: [
+            {
+              path: 'chat_template_kwargs.enable_thinking',
+              mode: 'set',
+              value: '{{request.enable_thinking}}',
+              keep_origin: true,
+              conditions: [
+                {
+                  path: 'request.enable_thinking',
+                  mode: 'full',
+                  value: true,
+                },
+                {
+                  path: 'request.enable_thinking',
+                  mode: 'full',
+                  value: false,
+                },
+              ],
+              logic: 'OR',
+            },
+          ],
+        },
+      },
+    ],
+    [t],
+  );
+
+  const headerOverrideTemplates = useMemo(
+    () => [
+      {
+        label: t('透传 Trace-Id'),
+        data: {
+          operations: [
+            {
+              path: 'X-Trace-Id',
+              mode: 'set',
+              value: '{{client_headers.X-Trace-Id}}',
+            },
+          ],
+        },
+      },
+      {
+        label: t('透传 session_id'),
+        data: {
+          operations: [
+            {
+              path: 'session_id',
+              mode: 'set',
+              value: '{{client_headers.session_id}}',
+            },
+          ],
+        },
+      },
+      {
+        label: t('Authorization 使用渠道密钥'),
+        data: {
+          operations: [
+            {
+              path: 'Authorization',
+              mode: 'set',
+              value: 'Bearer {{context.api_key}}',
+            },
+          ],
+        },
+      },
+    ],
+    [t],
+  );
   const originInputs = {
     name: '',
     type: 1,
@@ -2670,122 +2786,24 @@ const EditChannelModal = (props) => {
                       initValue={autoBan}
                     />
 
-                    <Form.TextArea
+                    <OverrideEditor
                       field='param_override'
                       label={t('参数覆盖')}
-                      placeholder={
-                        t(
-                          '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
-                        ) +
-                        '\n' +
-                        t('旧格式（直接覆盖）：') +
-                        '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
-                        '\n\n' +
-                        t('新格式（支持条件判断与json自定义）：') +
-                        '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
-                      }
-                      autosize
-                      onChange={(value) =>
-                        handleInputChange('param_override', value)
-                      }
-                      extraText={
-                        <div className='flex gap-2 flex-wrap'>
-                          <Text
-                            className='!text-semi-color-primary cursor-pointer'
-                            onClick={() =>
-                              handleInputChange(
-                                'param_override',
-                                JSON.stringify({ temperature: 0 }, null, 2),
-                              )
-                            }
-                          >
-                            {t('旧格式模板')}
-                          </Text>
-                          <Text
-                            className='!text-semi-color-primary cursor-pointer'
-                            onClick={() =>
-                              handleInputChange(
-                                'param_override',
-                                JSON.stringify(
-                                  {
-                                    operations: [
-                                      {
-                                        path: 'temperature',
-                                        mode: 'set',
-                                        value: 0.7,
-                                        conditions: [
-                                          {
-                                            path: 'model',
-                                            mode: 'prefix',
-                                            value: 'gpt',
-                                          },
-                                        ],
-                                        logic: 'AND',
-                                      },
-                                    ],
-                                  },
-                                  null,
-                                  2,
-                                ),
-                              )
-                            }
-                          >
-                            {t('新格式模板')}
-                          </Text>
-                        </div>
-                      }
-                      showClear
+                      value={inputs.param_override || ''}
+                      onChange={(val) => handleInputChange('param_override', val)}
+                      formApi={formApiRef.current}
+                      type='param'
+                      templates={paramOverrideTemplates}
                     />
 
-                    <Form.TextArea
+                    <OverrideEditor
                       field='header_override'
                       label={t('请求头覆盖')}
-                      placeholder={
-                        t('此项可选，用于覆盖请求头参数') +
-                        '\n' +
-                        t('格式示例：') +
-                        '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0",\n  "Authorization": "Bearer {api_key}"\n}'
-                      }
-                      autosize
-                      onChange={(value) =>
-                        handleInputChange('header_override', value)
-                      }
-                      extraText={
-                        <div className='flex flex-col gap-1'>
-                          <div className='flex gap-2 flex-wrap items-center'>
-                            <Text
-                              className='!text-semi-color-primary cursor-pointer'
-                              onClick={() =>
-                                handleInputChange(
-                                  'header_override',
-                                  JSON.stringify(
-                                    {
-                                      'User-Agent':
-                                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
-                                      Authorization: 'Bearer{api_key}',
-                                    },
-                                    null,
-                                    2,
-                                  ),
-                                )
-                              }
-                            >
-                              {t('填入模板')}
-                            </Text>
-                          </div>
-                          <div>
-                            <Text type='tertiary' size='small'>
-                              {t('支持变量：')}
-                            </Text>
-                            <div className='text-xs text-tertiary ml-2'>
-                              <div>
-                                {t('渠道密钥')}: {'{api_key}'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      }
-                      showClear
+                      value={inputs.header_override || ''}
+                      onChange={(val) => handleInputChange('header_override', val)}
+                      formApi={formApiRef.current}
+                      type='header'
+                      templates={headerOverrideTemplates}
                     />
 
                     <JSONEditor
@@ -2955,14 +2973,14 @@ const EditChannelModal = (props) => {
                       label={t('透传请求体')}
                       checkedText={t('开')}
                       uncheckedText={t('关')}
-                      onChange={(value) =>
-                        handleChannelSettingsChange(
-                          'pass_through_body_enabled',
-                          value,
-                        )
-                      }
-                      extraText={t('启用请求体透传功能')}
-                    />
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'pass_through_body_enabled',
+                        value,
+                      )
+                    }
+                    extraText={t('启用请求体透传功能')}
+                  />
 
                     <Form.Input
                       field='proxy'

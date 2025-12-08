@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,10 +36,12 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 		return jsonData, nil
 	}
 
+	templateContext := conditionContext
+
 	// 尝试断言为操作格式
 	if operations, ok := tryParseOperations(paramOverride); ok {
 		// 使用新方法
-		result, err := applyOperations(string(jsonData), operations, conditionContext)
+		result, err := applyOperations(string(jsonData), operations, conditionContext, templateContext)
 		return []byte(result), err
 	}
 
@@ -307,18 +310,15 @@ func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}
 	return common.Marshal(reqMap)
 }
 
-func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}) (string, error) {
-	var contextJSON string
-	if conditionContext != nil && len(conditionContext) > 0 {
-		ctxBytes, err := common.Marshal(conditionContext)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal condition context: %v", err)
-		}
-		contextJSON = string(ctxBytes)
-	}
+func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}, templateContext map[string]interface{}) (string, error) {
+	contextJSON := marshalContext(conditionContext)
+	templateJSON := marshalContext(templateContext)
 
 	result := jsonStr
 	for _, op := range operations {
+		// 渲染模板字段
+		op = renderOperationTemplates(op, templateJSON)
+
 		// 检查条件是否满足
 		ok, err := checkConditions(result, contextJSON, op.Conditions, op.Logic)
 		if err != nil {
@@ -473,9 +473,117 @@ func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 			ctx["model"] = info.OriginModelName
 		}
 	}
+	if info.ApiKey != "" {
+		ctx["api_key"] = info.ApiKey
+	}
 
 	if len(ctx) == 0 {
 		return nil
 	}
 	return ctx
+}
+
+// BuildOverrideContext 构建带有更多上下文信息的渲染/条件环境。
+// 包含：
+//   - context.*：模型与密钥上下文（model/upstream_model/original_model/api_key）
+//   - request.*：上游请求体 JSON（若为合法 JSON）
+//   - client_headers.*：入站请求头，值为字符串（逗号拼接）
+func BuildOverrideContext(info *RelayInfo, requestJSON []byte, clientHeaders http.Header) map[string]interface{} {
+	ctx := BuildParamOverrideContext(info)
+	if ctx == nil {
+		ctx = make(map[string]interface{})
+	}
+
+	// 补充 context 子节点
+	contextNode := make(map[string]interface{})
+	for _, key := range []string{"model", "upstream_model", "original_model", "api_key"} {
+		if val, ok := ctx[key]; ok {
+			contextNode[key] = val
+		}
+	}
+	if len(contextNode) > 0 {
+		ctx["context"] = contextNode
+	}
+
+	// request.* 数据
+	if len(requestJSON) > 0 {
+		var reqObj interface{}
+		if err := common.Unmarshal(requestJSON, &reqObj); err == nil {
+			ctx["request"] = reqObj
+		}
+	}
+
+	// client_headers.* 数据
+	if clientHeaders != nil {
+		headerMap := make(map[string]interface{})
+		for key, values := range clientHeaders {
+			if len(values) == 0 {
+				continue
+			}
+			joined := strings.Join(values, ",")
+			headerMap[key] = joined
+			lowerKey := strings.ToLower(key)
+			if _, exists := headerMap[lowerKey]; !exists {
+				headerMap[lowerKey] = joined
+			}
+		}
+		if len(headerMap) > 0 {
+			ctx["client_headers"] = headerMap
+		}
+	}
+	return ctx
+}
+
+// marshalContext 将上下文转为 JSON 字符串，供模板与条件使用
+func marshalContext(ctx map[string]interface{}) string {
+	if ctx == nil || len(ctx) == 0 {
+		return ""
+	}
+	bytes, err := common.Marshal(ctx)
+	if err != nil {
+		return ""
+	}
+	return string(bytes)
+}
+
+var templatePattern = regexp.MustCompile(`{{\s*([^{}]+?)\s*}}`)
+
+// renderTemplateString 在给定上下文中渲染模板占位符，未命中时返回空字符串
+func renderTemplateString(raw, contextJSON string) string {
+	if raw == "" || contextJSON == "" || !strings.Contains(raw, "{{") {
+		return raw
+	}
+	return templatePattern.ReplaceAllStringFunc(raw, func(match string) string {
+		path := strings.TrimSpace(match[2 : len(match)-2])
+		if path == "" {
+			return ""
+		}
+		val := gjson.Get(contextJSON, path)
+		if !val.Exists() {
+			return ""
+		}
+		return val.String()
+	})
+}
+
+// renderOperationTemplates 渲染操作中的模板字段
+func renderOperationTemplates(op ParamOperation, contextJSON string) ParamOperation {
+	if contextJSON == "" {
+		return op
+	}
+	op.Path = renderTemplateString(op.Path, contextJSON)
+	op.From = renderTemplateString(op.From, contextJSON)
+	op.To = renderTemplateString(op.To, contextJSON)
+
+	if strVal, ok := op.Value.(string); ok {
+		op.Value = renderTemplateString(strVal, contextJSON)
+	}
+
+	for idx := range op.Conditions {
+		op.Conditions[idx].Path = renderTemplateString(op.Conditions[idx].Path, contextJSON)
+		if strVal, ok := op.Conditions[idx].Value.(string); ok {
+			op.Conditions[idx].Value = renderTemplateString(strVal, contextJSON)
+		}
+	}
+	return op
 }

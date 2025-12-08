@@ -51,6 +51,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(body))
 		requestBody = bytes.NewBuffer(body)
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
@@ -60,7 +61,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
-			requestBody = convertedRequest.(io.Reader)
+			buf := convertedRequest.(*bytes.Buffer)
+			common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, buf.String())
+			requestBody = buf
 		default:
 			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {
@@ -69,11 +72,14 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 			// apply param override
 			if len(info.ParamOverride) > 0 {
-				jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
+				overrideCtx := relaycommon.BuildOverrideContext(info, jsonData, c.Request.Header)
+				jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, overrideCtx)
 				if err != nil {
 					return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 				}
 			}
+
+			common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(jsonData))
 
 			if common.DebugEnabled {
 				logger.LogDebug(c, fmt.Sprintf("image request body: %s", string(jsonData)))

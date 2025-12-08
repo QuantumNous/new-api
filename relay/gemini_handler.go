@@ -142,6 +142,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(body))
 		requestBody = bytes.NewReader(body)
 	} else {
 		// 使用 ConvertGeminiRequest 转换请求格式
@@ -156,11 +157,15 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 		// apply param override
 		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
+			overrideCtx := relaycommon.BuildOverrideContext(info, jsonData, c.Request.Header)
+			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, overrideCtx)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
 		}
+
+		// 存储最终上游请求体，供请求头覆盖时使用
+		common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(jsonData))
 
 		logger.LogDebug(c, "Gemini request body: "+string(jsonData))
 
@@ -256,16 +261,15 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 
 	// apply param override
 	if len(info.ParamOverride) > 0 {
-		reqMap := make(map[string]interface{})
-		_ = common.Unmarshal(jsonData, &reqMap)
-		for key, value := range info.ParamOverride {
-			reqMap[key] = value
-		}
-		jsonData, err = common.Marshal(reqMap)
+		overrideCtx := relaycommon.BuildOverrideContext(info, jsonData, c.Request.Header)
+		jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, overrideCtx)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 		}
 	}
+
+	common.SetContextKey(c, constant.ContextKeyUpstreamRequestBody, string(jsonData))
+
 	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
 	requestBody = bytes.NewReader(jsonData)
 
