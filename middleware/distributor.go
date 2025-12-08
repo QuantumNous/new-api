@@ -176,7 +176,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			relayMode == relayconstant.RelayModeSunoFetchByID {
 			shouldSelectChannel = false
 		} else {
-			modelName := service.CoverTaskActionToModelName(constant.TaskPlatformSuno, c.Param("action"))
+			modelName := service.GetTaskModelName(c, constant.TaskPlatformSuno)
 			modelRequest.Model = modelName
 		}
 		c.Set("platform", string(constant.TaskPlatformSuno))
