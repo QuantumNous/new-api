@@ -16,7 +16,7 @@ type GeminiChatRequest struct {
 	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
 	Tools              json.RawMessage            `json:"tools,omitempty"`
 	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
-	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
+	SystemInstruction  *GeminiChatContent         `json:"system_instruction,omitempty"`
 	CachedContent      string                     `json:"cachedContent,omitempty"`
 }
 
