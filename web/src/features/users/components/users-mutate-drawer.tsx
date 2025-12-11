@@ -162,7 +162,6 @@ export function UsersMutateDrawer({
               {isUpdate
                 ? t('Update the user by providing necessary info.')
                 : t('Add a new user by providing necessary info.')}
-              {t('Click save when you&apos;re done.')}
             </SheetDescription>
           </SheetHeader>
           <Form {...form}>
