@@ -1,4 +1,22 @@
-// ========== 消息相关常量 ==========
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 export const MESSAGE_STATUS = {
   LOADING: 'loading',
   INCOMPLETE: 'incomplete',
@@ -12,19 +30,37 @@ export const MESSAGE_ROLES = {
   SYSTEM: 'system',
 };
 
-// 默认消息示例
-export const DEFAULT_MESSAGES = [
+// 默认消息示例 - 使用函数生成以支持 i18n
+export const getDefaultMessages = (t) => [
   {
     role: MESSAGE_ROLES.USER,
     id: '2',
     createAt: 1715676751919,
-    content: '你好',
+    content: t('默认用户消息'),
   },
   {
     role: MESSAGE_ROLES.ASSISTANT,
     id: '3',
     createAt: 1715676751919,
-    content: '你好，请问有什么可以帮助您的吗？',
+    content: t('默认助手消息'),
+    reasoningContent: '',
+    isReasoningExpanded: false,
+  },
+];
+
+// 保留旧的导出以保持向后兼容
+export const DEFAULT_MESSAGES = [
+  {
+    role: MESSAGE_ROLES.USER,
+    id: '2',
+    createAt: 1715676751919,
+    content: 'Hello',
+  },
+  {
+    role: MESSAGE_ROLES.ASSISTANT,
+    id: '3',
+    createAt: 1715676751919,
+    content: 'Hello! How can I help you today?',
     reasoningContent: '',
     isReasoningExpanded: false,
   },
@@ -92,4 +128,4 @@ export const ERROR_MESSAGES = {
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
-}; 
+};

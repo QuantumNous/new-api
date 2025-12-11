@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/relay/channel/openai"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,7 +48,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		var xAIResp *dto.ChatCompletionsStreamResponse
 		err := json.Unmarshal([]byte(data), &xAIResp)
 		if err != nil {
-			common.SysError("error unmarshalling stream response: " + err.Error())
+			common.SysLog("error unmarshalling stream response: " + err.Error())
 			return true
 		}
 
@@ -63,23 +64,23 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		_ = openai.ProcessStreamResponse(*openaiResponse, &responseTextBuilder, &toolCount)
 		err = helper.ObjectData(c, openaiResponse)
 		if err != nil {
-			common.SysError(err.Error())
+			common.SysLog(err.Error())
 		}
 		return true
 	})
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(responseTextBuilder.String(), info.UpstreamModelName, info.PromptTokens)
+		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
 
 	helper.Done(c)
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	return usage, nil
 }
 
 func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
-	defer common.CloseResponseBodyGracefully(resp)
+	defer service.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -101,7 +102,7 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
-	common.IOCopyBytesGracefully(c, resp, encodeJson)
+	service.IOCopyBytesGracefully(c, resp, encodeJson)
 
 	return xaiResponse.Usage, nil
 }

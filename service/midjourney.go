@@ -6,14 +6,15 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	relayconstant "one-api/relay/constant"
-	"one-api/setting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -212,7 +213,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	defer cancel()
 	resp, err := GetHttpClient().Do(req)
 	if err != nil {
-		common.SysError("do request failed: " + err.Error())
+		common.SysLog("do request failed: " + err.Error())
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "do_request_failed", http.StatusInternalServerError), nullBytes, err
 	}
 	statusCode := resp.StatusCode
@@ -233,7 +234,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_response_body_failed", statusCode), nullBytes, err
 	}
-	common.CloseResponseBodyGracefully(resp)
+	CloseResponseBodyGracefully(resp)
 	respStr := string(responseBody)
 	log.Printf("respStr: %s", respStr)
 	if respStr == "" {

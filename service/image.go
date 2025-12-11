@@ -8,17 +8,23 @@ import (
 	"image"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"golang.org/x/image/webp"
 )
 
+// return image.Config, format, clean base64 string, error
 func DecodeBase64ImageData(base64String string) (image.Config, string, string, error) {
 	// 去除base64数据的URL前缀（如果有）
 	if idx := strings.Index(base64String, ","); idx != -1 {
 		base64String = base64String[idx+1:]
+	}
+
+	if len(base64String) == 0 {
+		return image.Config{}, "", "", errors.New("base64 string is empty")
 	}
 
 	// 将base64字符串解码为字节切片

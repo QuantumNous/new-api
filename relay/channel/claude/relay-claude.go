@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/relay/channel/openrouter"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/setting/model_setting"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/openrouter"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,7 +33,7 @@ func stopReasonClaude2OpenAI(reason string) string {
 	case "end_turn":
 		return "stop"
 	case "max_tokens":
-		return "max_tokens"
+		return "length"
 	case "tool_use":
 		return "tool_calls"
 	default:
@@ -70,7 +72,7 @@ func RequestOpenAI2ClaudeComplete(textRequest dto.GeneralOpenAIRequest) *dto.Cla
 	return &claudeRequest
 }
 
-func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
+func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
@@ -149,7 +151,7 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 
 	claudeRequest := dto.ClaudeRequest{
 		Model:         textRequest.Model,
-		MaxTokens:     textRequest.MaxTokens,
+		MaxTokens:     textRequest.GetMaxTokens(),
 		StopSequences: nil,
 		Temperature:   textRequest.Temperature,
 		TopP:          textRequest.TopP,
@@ -187,7 +189,9 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 		// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
 		claudeRequest.TopP = 0
 		claudeRequest.Temperature = common.GetPointer[float64](1.0)
-		claudeRequest.Model = strings.TrimSuffix(textRequest.Model, "-thinking")
+		if !model_setting.ShouldPreserveThinkingSuffix(textRequest.Model) {
+			claudeRequest.Model = strings.TrimSuffix(textRequest.Model, "-thinking")
+		}
 	}
 
 	if textRequest.ReasoningEffort != "" {
@@ -273,19 +277,28 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 
 	claudeMessages := make([]dto.ClaudeMessage, 0)
 	isFirstMessage := true
+	// 初始化system消息数组，用于累积多个system消息
+	var systemMessages []dto.ClaudeMediaMessage
+
 	for _, message := range formatMessages {
 		if message.Role == "system" {
+			// 根据Claude API规范，system字段使用数组格式更有通用性
 			if message.IsStringContent() {
-				claudeRequest.System = message.StringContent()
+				systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: common.GetPointer[string](message.StringContent()),
+				})
 			} else {
-				contents := message.ParseContent()
-				content := ""
-				for _, ctx := range contents {
+				// 支持复合内容的system消息（虽然不常见，但需要考虑完整性）
+				for _, ctx := range message.ParseContent() {
 					if ctx.Type == "text" {
-						content += ctx.Text
+						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+							Type: "text",
+							Text: common.GetPointer[string](ctx.Text),
+						})
 					}
+					// 未来可以在这里扩展对图片等其他类型的支持
 				}
-				claudeRequest.System = content
 			}
 		} else {
 			if isFirstMessage {
@@ -354,7 +367,7 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 						// 判断是否是url
 						if strings.HasPrefix(imageUrl.Url, "http") {
 							// 是url，获取图片的类型和base64编码的数据
-							fileData, err := service.GetFileBase64FromUrl(imageUrl.Url)
+							fileData, err := service.GetFileBase64FromUrl(c, imageUrl.Url, "formatting image for Claude")
 							if err != nil {
 								return nil, fmt.Errorf("get file base64 from url failed: %s", err.Error())
 							}
@@ -375,7 +388,7 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 					for _, toolCall := range message.ParseToolCalls() {
 						inputObj := make(map[string]any)
 						if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &inputObj); err != nil {
-							common.SysError("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
+							common.SysLog("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
 							continue
 						}
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
@@ -391,6 +404,12 @@ func RequestOpenAI2ClaudeMessage(textRequest dto.GeneralOpenAIRequest) (*dto.Cla
 			claudeMessages = append(claudeMessages, claudeMessage)
 		}
 	}
+
+	// 设置累积的system消息
+	if len(systemMessages) > 0 {
+		claudeRequest.System = systemMessages
+	}
+
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil
@@ -425,7 +444,10 @@ func StreamResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse
 			choice.Delta.Role = "assistant"
 		} else if claudeResponse.Type == "content_block_start" {
 			if claudeResponse.ContentBlock != nil {
-				//choice.Delta.SetContentString(claudeResponse.ContentBlock.Text)
+				// 如果是文本块，尽可能发送首段文本（若存在）
+				if claudeResponse.ContentBlock.Type == "text" && claudeResponse.ContentBlock.Text != nil {
+					choice.Delta.SetContentString(*claudeResponse.ContentBlock.Text)
+				}
 				if claudeResponse.ContentBlock.Type == "tool_use" {
 					tools = append(tools, dto.ToolCallResponse{
 						Index: common.GetPointer(fcIdx),
@@ -457,8 +479,7 @@ func StreamResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse
 					signatureContent := "\n"
 					choice.Delta.ReasoningContent = &signatureContent
 				case "thinking_delta":
-					thinkingContent := claudeResponse.Delta.Thinking
-					choice.Delta.ReasoningContent = &thinkingContent
+					choice.Delta.ReasoningContent = claudeResponse.Delta.Thinking
 				}
 			}
 		} else if claudeResponse.Type == "message_delta" {
@@ -493,7 +514,9 @@ func ResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse) *dto
 	var responseThinking string
 	if len(claudeResponse.Content) > 0 {
 		responseText = claudeResponse.Content[0].GetText()
-		responseThinking = claudeResponse.Content[0].Thinking
+		if claudeResponse.Content[0].Thinking != nil {
+			responseThinking = *claudeResponse.Content[0].Thinking
+		}
 	}
 	tools := make([]dto.ToolCallResponse, 0)
 	thinkingContent := ""
@@ -525,7 +548,9 @@ func ResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse) *dto
 				})
 			case "thinking":
 				// 加密的不管， 只输出明文的推理过程
-				thinkingContent = message.Thinking
+				if message.Thinking != nil {
+					thinkingContent = *message.Thinking
+				}
 			case "text":
 				responseText = message.GetText()
 			}
@@ -573,13 +598,15 @@ func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeRespons
 			claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
 			claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Message.Usage.CacheReadInputTokens
 			claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Message.Usage.CacheCreationInputTokens
+			claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Message.Usage.GetCacheCreation5mTokens()
+			claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Message.Usage.GetCacheCreation1hTokens()
 			claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
 		} else if claudeResponse.Type == "content_block_delta" {
 			if claudeResponse.Delta.Text != nil {
 				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
 			}
-			if claudeResponse.Delta.Thinking != "" {
-				claudeInfo.ResponseText.WriteString(claudeResponse.Delta.Thinking)
+			if claudeResponse.Delta.Thinking != nil {
+				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
 			}
 		} else if claudeResponse.Type == "message_delta" {
 			// 最终的usage获取
@@ -609,13 +636,13 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
 	if err != nil {
-		common.SysError("error unmarshalling stream response: " + err.Error())
+		common.SysLog("error unmarshalling stream response: " + err.Error())
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	if claudeResponse.Error != nil && claudeResponse.Error.Type != "" {
-		return types.WithClaudeError(*claudeResponse.Error, http.StatusInternalServerError)
+	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
+		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
-	if info.RelayFormat == relaycommon.RelayFormatClaude {
+	if info.RelayFormat == types.RelayFormatClaude {
 		FormatClaudeResponseInfo(requestMode, &claudeResponse, nil, claudeInfo)
 
 		if requestMode == RequestModeCompletion {
@@ -628,7 +655,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			}
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
-	} else if info.RelayFormat == relaycommon.RelayFormatOpenAI {
+	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		response := StreamResponseClaude2OpenAI(requestMode, &claudeResponse)
 
 		if !FormatClaudeResponseInfo(requestMode, &claudeResponse, response, claudeInfo) {
@@ -637,7 +664,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 		err = helper.ObjectData(c, response)
 		if err != nil {
-			common.LogError(c, "send_stream_response_failed: "+err.Error())
+			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
 	}
 	return nil
@@ -646,35 +673,34 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, requestMode int) {
 
 	if requestMode == RequestModeCompletion {
-		claudeInfo.Usage = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, info.PromptTokens)
+		claudeInfo.Usage = service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	} else {
 		if claudeInfo.Usage.PromptTokens == 0 {
 			//上游出错
 		}
 		if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
 			if common.DebugEnabled {
-				common.SysError("claude response usage is not complete, maybe upstream error")
+				common.SysLog("claude response usage is not complete, maybe upstream error")
 			}
-			claudeInfo.Usage = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
+			claudeInfo.Usage = service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
 		}
 	}
 
-	if info.RelayFormat == relaycommon.RelayFormatClaude {
+	if info.RelayFormat == types.RelayFormatClaude {
 		//
-	} else if info.RelayFormat == relaycommon.RelayFormatOpenAI {
-
+	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		if info.ShouldIncludeUsage {
 			response := helper.GenerateFinalUsageResponse(claudeInfo.ResponseId, claudeInfo.Created, info.UpstreamModelName, *claudeInfo.Usage)
 			err := helper.ObjectData(c, response)
 			if err != nil {
-				common.SysError("send final response failed: " + err.Error())
+				common.SysLog("send final response failed: " + err.Error())
 			}
 		}
 		helper.Done(c)
 	}
 }
 
-func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*types.NewAPIError, *dto.Usage) {
+func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*dto.Usage, *types.NewAPIError) {
 	claudeInfo := &ClaudeResponseInfo{
 		ResponseId:   helper.GetResponseID(c),
 		Created:      common.GetTimestamp(),
@@ -691,44 +717,43 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return true
 	})
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	HandleStreamFinalResponse(c, info, claudeInfo, requestMode)
-	return nil, claudeInfo.Usage
+	return claudeInfo.Usage, nil
 }
 
-func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data []byte, requestMode int) *types.NewAPIError {
+func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte, requestMode int) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	if claudeResponse.Error != nil && claudeResponse.Error.Type != "" {
-		return types.WithClaudeError(*claudeResponse.Error, http.StatusInternalServerError)
+	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
+		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
 	if requestMode == RequestModeCompletion {
-		completionTokens := service.CountTextToken(claudeResponse.Completion, info.OriginModelName)
-		claudeInfo.Usage.PromptTokens = info.PromptTokens
-		claudeInfo.Usage.CompletionTokens = completionTokens
-		claudeInfo.Usage.TotalTokens = info.PromptTokens + completionTokens
+		claudeInfo.Usage = service.ResponseText2Usage(c, claudeResponse.Completion, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	} else {
 		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
 		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
+		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
+		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
 	}
 	var responseData []byte
 	switch info.RelayFormat {
-	case relaycommon.RelayFormatOpenAI:
+	case types.RelayFormatOpenAI:
 		openaiResponse := ResponseClaude2OpenAI(requestMode, &claudeResponse)
 		openaiResponse.Usage = *claudeInfo.Usage
 		responseData, err = json.Marshal(openaiResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
-	case relaycommon.RelayFormatClaude:
+	case types.RelayFormatClaude:
 		responseData = data
 	}
 
@@ -736,12 +761,12 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		c.Set("claude_web_search_requests", claudeResponse.Usage.ServerToolUse.WebSearchRequests)
 	}
 
-	common.IOCopyBytesGracefully(c, nil, responseData)
+	service.IOCopyBytesGracefully(c, httpResp, responseData)
 	return nil
 }
 
-func ClaudeHandler(c *gin.Context, resp *http.Response, requestMode int, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
-	defer common.CloseResponseBodyGracefully(resp)
+func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
 
 	claudeInfo := &ClaudeResponseInfo{
 		ResponseId:   helper.GetResponseID(c),
@@ -752,16 +777,16 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, requestMode int, info *r
 	}
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if common.DebugEnabled {
 		println("responseBody: ", string(responseBody))
 	}
-	handleErr := HandleClaudeResponseData(c, info, claudeInfo, responseBody, requestMode)
+	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody, requestMode)
 	if handleErr != nil {
-		return handleErr, nil
+		return nil, handleErr
 	}
-	return nil, claudeInfo.Usage
+	return claudeInfo.Usage, nil
 }
 
 func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoice {

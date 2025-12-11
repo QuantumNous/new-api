@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,13 +16,13 @@ import (
 func siliconflowRerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	var siliconflowResp SFRerankResponse
 	err = json.Unmarshal(responseBody, &siliconflowResp)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	usage := &dto.Usage{
 		PromptTokens:     siliconflowResp.Meta.Tokens.InputTokens,
@@ -39,6 +40,6 @@ func siliconflowRerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	common.IOCopyBytesGracefully(c, resp, jsonResponse)
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
 	return usage, nil
 }

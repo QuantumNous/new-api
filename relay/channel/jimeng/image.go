@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,13 +53,13 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 	var jimengResponse ImageResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 
 	err = json.Unmarshal(responseBody, &jimengResponse)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	// Check if the response indicates an error

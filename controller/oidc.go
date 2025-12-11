@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"one-api/common"
-	"one-api/model"
-	"one-api/setting"
-	"one-api/setting/system_setting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -45,7 +45,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	values.Set("client_secret", system_setting.GetOIDCSettings().ClientSecret)
 	values.Set("code", code)
 	values.Set("grant_type", "authorization_code")
-	values.Set("redirect_uri", fmt.Sprintf("%s/oauth/oidc", setting.ServerAddress))
+	values.Set("redirect_uri", fmt.Sprintf("%s/oauth/oidc", system_setting.ServerAddress))
 	formData := values.Encode()
 	req, err := http.NewRequest("POST", system_setting.GetOIDCSettings().TokenEndpoint, strings.NewReader(formData))
 	if err != nil {
@@ -69,7 +69,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	}
 
 	if oidcResponse.AccessToken == "" {
-		common.SysError("OIDC 获取 Token 失败，请检查设置！")
+		common.SysLog("OIDC 获取 Token 失败，请检查设置！")
 		return nil, errors.New("OIDC 获取 Token 失败，请检查设置！")
 	}
 
@@ -85,7 +85,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	}
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
-		common.SysError("OIDC 获取用户信息失败！请检查设置！")
+		common.SysLog("OIDC 获取用户信息失败！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息失败！请检查设置！")
 	}
 
@@ -95,7 +95,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 		return nil, err
 	}
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
-		common.SysError("OIDC 获取用户信息为空！请检查设置！")
+		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
 		return nil, errors.New("OIDC 获取用户信息为空！请检查设置！")
 	}
 	return &oidcUser, nil

@@ -2,10 +2,11 @@ package model
 
 import (
 	"fmt"
-	"gorm.io/gorm"
-	"one-api/common"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
 )
 
 // QuotaData 柱状图数据
@@ -21,12 +22,6 @@ type QuotaData struct {
 }
 
 func UpdateQuotaData() {
-	// recover
-	defer func() {
-		if r := recover(); r != nil {
-			common.SysLog(fmt.Sprintf("UpdateQuotaData panic: %s", r))
-		}
-	}()
 	for {
 		if common.DataExportEnabled {
 			common.SysLog("正在更新数据看板数据...")

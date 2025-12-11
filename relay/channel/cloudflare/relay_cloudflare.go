@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/types"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -51,7 +52,7 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		var response dto.ChatCompletionsStreamResponse
 		err := json.Unmarshal([]byte(data), &response)
 		if err != nil {
-			common.LogError(c, "error_unmarshalling_stream_response: "+err.Error())
+			logger.LogError(c, "error_unmarshalling_stream_response: "+err.Error())
 			continue
 		}
 		for _, choice := range response.Choices {
@@ -66,24 +67,24 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 			info.FirstResponseTime = time.Now()
 		}
 		if err != nil {
-			common.LogError(c, "error_rendering_stream_response: "+err.Error())
+			logger.LogError(c, "error_rendering_stream_response: "+err.Error())
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		common.LogError(c, "error_scanning_stream_response: "+err.Error())
+		logger.LogError(c, "error_scanning_stream_response: "+err.Error())
 	}
-	usage := service.ResponseText2Usage(responseText, info.UpstreamModelName, info.PromptTokens)
+	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	if info.ShouldIncludeUsage {
 		response := helper.GenerateFinalUsageResponse(id, info.StartTime.Unix(), info.UpstreamModelName, *usage)
 		err := helper.ObjectData(c, response)
 		if err != nil {
-			common.LogError(c, "error_rendering_final_usage_response: "+err.Error())
+			logger.LogError(c, "error_rendering_final_usage_response: "+err.Error())
 		}
 	}
 	helper.Done(c)
 
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 
 	return nil, usage
 }
@@ -93,7 +94,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	var response dto.TextResponse
 	err = json.Unmarshal(responseBody, &response)
 	if err != nil {
@@ -104,7 +105,7 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	for _, choice := range response.Choices {
 		responseText += choice.Message.StringContent()
 	}
-	usage := service.ResponseText2Usage(responseText, info.UpstreamModelName, info.PromptTokens)
+	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	response.Usage = *usage
 	response.Id = helper.GetResponseID(c)
 	jsonResponse, err := json.Marshal(response)
@@ -123,7 +124,7 @@ func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	err = json.Unmarshal(responseBody, &cfResp)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
@@ -141,10 +142,6 @@ func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 
-	usage := &dto.Usage{}
-	usage.PromptTokens = info.PromptTokens
-	usage.CompletionTokens = service.CountTextToken(cfResp.Result.Text, info.UpstreamModelName)
-	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-
+	usage := service.ResponseText2Usage(c, cfResp.Result.Text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	return nil, usage
 }

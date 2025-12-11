@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"one-api/model"
-	"one-api/setting"
-	"one-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +30,7 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 
-	usableGroup = setting.GetUserUsableGroups(group)
+	usableGroup = service.GetUserUsableGroups(group)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {
@@ -39,10 +39,13 @@ func GetPricing(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"success":      true,
-		"data":         pricing,
-		"group_ratio":  groupRatio,
-		"usable_group": usableGroup,
+		"success":            true,
+		"data":               pricing,
+		"vendors":            model.GetVendors(),
+		"group_ratio":        groupRatio,
+		"usable_group":       usableGroup,
+		"supported_endpoint": model.GetSupportedEndpointMap(),
+		"auto_groups":        service.GetUserAutoGroup(group),
 	})
 }
 

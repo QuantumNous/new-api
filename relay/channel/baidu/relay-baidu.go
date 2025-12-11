@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/types"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,9 +35,9 @@ func requestOpenAI2Baidu(request dto.GeneralOpenAIRequest) *BaiduChatRequest {
 		EnableCitation: false,
 		UserId:         request.User,
 	}
-	if request.MaxTokens != 0 {
-		maxTokens := int(request.MaxTokens)
-		if request.MaxTokens == 1 {
+	if request.GetMaxTokens() != 0 {
+		maxTokens := int(request.GetMaxTokens())
+		if request.GetMaxTokens() == 1 {
 			maxTokens = 2
 		}
 		baiduRequest.MaxOutputTokens = &maxTokens
@@ -118,7 +119,7 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		var baiduResponse BaiduChatStreamResponse
 		err := common.Unmarshal([]byte(data), &baiduResponse)
 		if err != nil {
-			common.SysError("error unmarshalling stream response: " + err.Error())
+			common.SysLog("error unmarshalling stream response: " + err.Error())
 			return true
 		}
 		if baiduResponse.Usage.TotalTokens != 0 {
@@ -129,11 +130,11 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		response := streamResponseBaidu2OpenAI(&baiduResponse)
 		err = helper.ObjectData(c, response)
 		if err != nil {
-			common.SysError("error sending stream response: " + err.Error())
+			common.SysLog("error sending stream response: " + err.Error())
 		}
 		return true
 	})
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	return nil, usage
 }
 
@@ -143,7 +144,7 @@ func baiduHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	err = json.Unmarshal(responseBody, &baiduResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
@@ -168,7 +169,7 @@ func baiduEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	err = json.Unmarshal(responseBody, &baiduResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil

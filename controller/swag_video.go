@@ -114,3 +114,23 @@ type KlingImage2VideoRequest struct {
 	CallbackURL    string              `json:"callback_url,omitempty" example:"https://your.domain/callback"`
 	ExternalTaskId string              `json:"external_task_id,omitempty" example:"custom-task-002"`
 }
+
+// KlingImage2videoTaskId godoc
+// @Summary 可灵任务查询--图生视频
+// @Description Query the status and result of a Kling video generation task by task ID
+// @Tags Origin
+// @Accept json
+// @Produce json
+// @Param task_id path string true "Task ID"
+// @Router /kling/v1/videos/image2video/{task_id} [get]
+func KlingImage2videoTaskId(c *gin.Context) {}
+
+// KlingText2videoTaskId godoc
+// @Summary 可灵任务查询--文生视频
+// @Description Query the status and result of a Kling text-to-video generation task by task ID
+// @Tags Origin
+// @Accept json
+// @Produce json
+// @Param task_id path string true "Task ID"
+// @Router /kling/v1/videos/text2video/{task_id} [get]
+func KlingText2videoTaskId(c *gin.Context) {}

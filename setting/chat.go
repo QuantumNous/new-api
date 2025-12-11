@@ -2,7 +2,8 @@ package setting
 
 import (
 	"encoding/json"
-	"one-api/common"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var Chats = []map[string]string{
@@ -11,6 +12,9 @@ var Chats = []map[string]string{
 	//},
 	{
 		"Cherry Studio": "cherrystudio://providers/api-keys?v=1&data={cherryConfig}",
+	},
+	{
+		"流畅阅读": "fluentread",
 	},
 	{
 		"Lobe Chat 官方示例": "https://chat-preview.lobehub.com/?settings={\"keyVaults\":{\"openai\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\"}}}",
@@ -34,7 +38,7 @@ func UpdateChatsByJsonString(jsonString string) error {
 func Chats2JsonString() string {
 	jsonBytes, err := json.Marshal(Chats)
 	if err != nil {
-		common.SysError("error marshalling chats: " + err.Error())
+		common.SysLog("error marshalling chats: " + err.Error())
 		return "[]"
 	}
 	return string(jsonBytes)

@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"one-api/setting/console_setting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/setting/console_setting"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
@@ -31,7 +32,7 @@ type Monitor struct {
 
 type UptimeGroupResult struct {
 	CategoryName string    `json:"categoryName"`
-	Monitors  []Monitor `json:"monitors"`
+	Monitors     []Monitor `json:"monitors"`
 }
 
 func getAndDecode(ctx context.Context, client *http.Client, url string, dest interface{}) error {
@@ -57,29 +58,29 @@ func fetchGroupData(ctx context.Context, client *http.Client, groupConfig map[st
 	url, _ := groupConfig["url"].(string)
 	slug, _ := groupConfig["slug"].(string)
 	categoryName, _ := groupConfig["categoryName"].(string)
-	
+
 	result := UptimeGroupResult{
 		CategoryName: categoryName,
-		Monitors:  []Monitor{},
+		Monitors:     []Monitor{},
 	}
-	
+
 	if url == "" || slug == "" {
 		return result
 	}
 
 	baseURL := strings.TrimSuffix(url, "/")
-	
+
 	var statusData struct {
 		PublicGroupList []struct {
-			ID   int    `json:"id"`
-			Name string `json:"name"`
+			ID          int    `json:"id"`
+			Name        string `json:"name"`
 			MonitorList []struct {
 				ID   int    `json:"id"`
 				Name string `json:"name"`
 			} `json:"monitorList"`
 		} `json:"publicGroupList"`
 	}
-	
+
 	var heartbeatData struct {
 		HeartbeatList map[string][]struct {
 			Status int `json:"status"`
@@ -88,11 +89,11 @@ func fetchGroupData(ctx context.Context, client *http.Client, groupConfig map[st
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)
-	g.Go(func() error { 
-		return getAndDecode(gCtx, client, baseURL+apiStatusPath+slug, &statusData) 
+	g.Go(func() error {
+		return getAndDecode(gCtx, client, baseURL+apiStatusPath+slug, &statusData)
 	})
-	g.Go(func() error { 
-		return getAndDecode(gCtx, client, baseURL+apiHeartbeatPath+slug, &heartbeatData) 
+	g.Go(func() error {
+		return getAndDecode(gCtx, client, baseURL+apiHeartbeatPath+slug, &heartbeatData)
 	})
 
 	if g.Wait() != nil {
@@ -139,7 +140,7 @@ func GetUptimeKumaStatus(c *gin.Context) {
 
 	client := &http.Client{Timeout: httpTimeout}
 	results := make([]UptimeGroupResult, len(groups))
-	
+
 	g, gCtx := errgroup.WithContext(ctx)
 	for i, group := range groups {
 		i, group := i, group
@@ -148,7 +149,7 @@ func GetUptimeKumaStatus(c *gin.Context) {
 			return nil
 		})
 	}
-	
+
 	g.Wait()
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": results})
-} 
+}

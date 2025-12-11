@@ -5,17 +5,23 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/dto"
-	"one-api/relay/channel"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/constant"
-	"one-api/types"
 	"strings"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Adaptor struct {
+}
+
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	//TODO implement me
+	return nil, errors.New("not implemented")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
@@ -96,7 +102,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	default:
 		suffix += strings.ToLower(info.UpstreamModelName)
 	}
-	fullRequestURL := fmt.Sprintf("%s/rpc/2.0/ai_custom/v1/wenxinworkshop/%s", info.BaseUrl, suffix)
+	fullRequestURL := fmt.Sprintf("%s/rpc/2.0/ai_custom/v1/wenxinworkshop/%s", info.ChannelBaseUrl, suffix)
 	var accessToken string
 	var err error
 	if accessToken, err = getBaiduAccessToken(info.ApiKey); err != nil {

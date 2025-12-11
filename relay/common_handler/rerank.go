@@ -3,12 +3,14 @@ package common_handler
 import (
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/relay/channel/xinference"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/xinference"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,9 +18,9 @@ import (
 func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
 		println("reranker response body: ", string(responseBody))
 	}
@@ -27,7 +29,7 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		var xinRerankResponse xinference.XinRerankResponse
 		err = common.Unmarshal(responseBody, &xinRerankResponse)
 		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 		jinaRespResults := make([]dto.RerankResponseResult, len(xinRerankResponse.Results))
 		for i, result := range xinRerankResponse.Results {
@@ -55,14 +57,14 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		jinaResp = dto.RerankResponse{
 			Results: jinaRespResults,
 			Usage: dto.Usage{
-				PromptTokens: info.PromptTokens,
-				TotalTokens:  info.PromptTokens,
+				PromptTokens: info.GetEstimatePromptTokens(),
+				TotalTokens:  info.GetEstimatePromptTokens(),
 			},
 		}
 	} else {
 		err = common.Unmarshal(responseBody, &jinaResp)
 		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 		jinaResp.Usage.PromptTokens = jinaResp.Usage.TotalTokens
 	}

@@ -49,6 +49,11 @@ const (
 	ChannelTypeCoze           = 49
 	ChannelTypeKling          = 50
 	ChannelTypeJimeng         = 51
+	ChannelTypeVidu           = 52
+	ChannelTypeSubmodel       = 53
+	ChannelTypeDoubaoVideo    = 54
+	ChannelTypeSora           = 55
+	ChannelTypeReplicate      = 56
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -106,4 +111,96 @@ var ChannelBaseURLs = []string{
 	"https://api.coze.cn",                       //49
 	"https://api.klingai.com",                   //50
 	"https://visual.volcengineapi.com",          //51
+	"https://api.vidu.cn",                       //52
+	"https://llm.submodel.ai",                   //53
+	"https://ark.cn-beijing.volces.com",         //54
+	"https://api.openai.com",                    //55
+	"https://api.replicate.com",                 //56
+}
+
+var ChannelTypeNames = map[int]string{
+	ChannelTypeUnknown:        "Unknown",
+	ChannelTypeOpenAI:         "OpenAI",
+	ChannelTypeMidjourney:     "Midjourney",
+	ChannelTypeAzure:          "Azure",
+	ChannelTypeOllama:         "Ollama",
+	ChannelTypeMidjourneyPlus: "MidjourneyPlus",
+	ChannelTypeOpenAIMax:      "OpenAIMax",
+	ChannelTypeOhMyGPT:        "OhMyGPT",
+	ChannelTypeCustom:         "Custom",
+	ChannelTypeAILS:           "AILS",
+	ChannelTypeAIProxy:        "AIProxy",
+	ChannelTypePaLM:           "PaLM",
+	ChannelTypeAPI2GPT:        "API2GPT",
+	ChannelTypeAIGC2D:         "AIGC2D",
+	ChannelTypeAnthropic:      "Anthropic",
+	ChannelTypeBaidu:          "Baidu",
+	ChannelTypeZhipu:          "Zhipu",
+	ChannelTypeAli:            "Ali",
+	ChannelTypeXunfei:         "Xunfei",
+	ChannelType360:            "360",
+	ChannelTypeOpenRouter:     "OpenRouter",
+	ChannelTypeAIProxyLibrary: "AIProxyLibrary",
+	ChannelTypeFastGPT:        "FastGPT",
+	ChannelTypeTencent:        "Tencent",
+	ChannelTypeGemini:         "Gemini",
+	ChannelTypeMoonshot:       "Moonshot",
+	ChannelTypeZhipu_v4:       "ZhipuV4",
+	ChannelTypePerplexity:     "Perplexity",
+	ChannelTypeLingYiWanWu:    "LingYiWanWu",
+	ChannelTypeAws:            "AWS",
+	ChannelTypeCohere:         "Cohere",
+	ChannelTypeMiniMax:        "MiniMax",
+	ChannelTypeSunoAPI:        "SunoAPI",
+	ChannelTypeDify:           "Dify",
+	ChannelTypeJina:           "Jina",
+	ChannelCloudflare:         "Cloudflare",
+	ChannelTypeSiliconFlow:    "SiliconFlow",
+	ChannelTypeVertexAi:       "VertexAI",
+	ChannelTypeMistral:        "Mistral",
+	ChannelTypeDeepSeek:       "DeepSeek",
+	ChannelTypeMokaAI:         "MokaAI",
+	ChannelTypeVolcEngine:     "VolcEngine",
+	ChannelTypeBaiduV2:        "BaiduV2",
+	ChannelTypeXinference:     "Xinference",
+	ChannelTypeXai:            "xAI",
+	ChannelTypeCoze:           "Coze",
+	ChannelTypeKling:          "Kling",
+	ChannelTypeJimeng:         "Jimeng",
+	ChannelTypeVidu:           "Vidu",
+	ChannelTypeSubmodel:       "Submodel",
+	ChannelTypeDoubaoVideo:    "DoubaoVideo",
+	ChannelTypeSora:           "Sora",
+	ChannelTypeReplicate:      "Replicate",
+}
+
+func GetChannelTypeName(channelType int) string {
+	if name, ok := ChannelTypeNames[channelType]; ok {
+		return name
+	}
+	return "Unknown"
+}
+
+type ChannelSpecialBase struct {
+	ClaudeBaseURL string
+	OpenAIBaseURL string
+}
+
+var ChannelSpecialBases = map[string]ChannelSpecialBase{
+	"glm-coding-plan": {
+		ClaudeBaseURL: "https://open.bigmodel.cn/api/anthropic",
+		OpenAIBaseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+	},
+	"glm-coding-plan-international": {
+		ClaudeBaseURL: "https://api.z.ai/api/anthropic",
+		OpenAIBaseURL: "https://api.z.ai/api/coding/paas/v4",
+	},
+	"kimi-coding-plan": {
+		ClaudeBaseURL: "https://api.kimi.com/coding",
+		OpenAIBaseURL: "https://api.kimi.com/coding/v1",
+	},
+	"doubao-coding-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
 }

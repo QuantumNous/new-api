@@ -1,16 +1,18 @@
 package service
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/types"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/types"
 )
 
 func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {
@@ -63,7 +65,7 @@ func ClaudeErrorWrapper(err error, code string, statusCode int) *dto.ClaudeError
 			text = "请求上游地址失败"
 		}
 	}
-	claudeError := dto.ClaudeError{
+	claudeError := types.ClaudeError{
 		Message: text,
 		Type:    "new_api_error",
 	}
@@ -79,17 +81,14 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
-func RelayErrorHandler(resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
-	newApiErr = &types.NewAPIError{
-		StatusCode: resp.StatusCode,
-		ErrorType:  types.ErrorTypeOpenAIError,
-	}
+func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
+	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
-	common.CloseResponseBodyGracefully(resp)
+	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
 
 	err = common.Unmarshal(responseBody, &errResponse)
@@ -97,6 +96,9 @@ func RelayErrorHandler(resp *http.Response, showBodyWhenFail bool) (newApiErr *t
 		if showBodyWhenFail {
 			newApiErr.Err = fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody))
 		} else {
+			if common.DebugEnabled {
+				logger.LogInfo(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody)))
+			}
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
 		return
@@ -105,8 +107,7 @@ func RelayErrorHandler(resp *http.Response, showBodyWhenFail bool) (newApiErr *t
 		// General format error (OpenAI, Anthropic, Gemini, etc.)
 		newApiErr = types.WithOpenAIError(errResponse.Error, resp.StatusCode)
 	} else {
-		newApiErr = types.NewErrorWithStatusCode(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
-		newApiErr.ErrorType = types.ErrorTypeOpenAIError
+		newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 	}
 	return
 }
@@ -116,7 +117,7 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 		return
 	}
 	statusCodeMapping := make(map[string]string)
-	err := json.Unmarshal([]byte(statusCodeMappingStr), &statusCodeMapping)
+	err := common.Unmarshal([]byte(statusCodeMappingStr), &statusCodeMapping)
 	if err != nil {
 		return
 	}
@@ -141,7 +142,8 @@ func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 		common.SysLog(fmt.Sprintf("error: %s", text))
-		text = "请求上游地址失败"
+		//text = "请求上游地址失败"
+		text = common.MaskSensitiveInfo(text)
 	}
 	//避免暴露内部错误
 	taskError := &dto.TaskError{

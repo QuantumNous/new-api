@@ -3,10 +3,13 @@ package model
 import (
 	"context"
 	"fmt"
-	"one-api/common"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 
@@ -36,13 +39,15 @@ type Log struct {
 	Other            string `json:"other"`
 }
 
+// don't use iota, avoid change log type value
 const (
-	LogTypeUnknown = iota
-	LogTypeTopup
-	LogTypeConsume
-	LogTypeManage
-	LogTypeSystem
-	LogTypeError
+	LogTypeUnknown = 0
+	LogTypeTopup   = 1
+	LogTypeConsume = 2
+	LogTypeManage  = 3
+	LogTypeSystem  = 4
+	LogTypeError   = 5
+	LogTypeRefund  = 6
 )
 
 func formatUserLogs(logs []*Log) {
@@ -87,13 +92,13 @@ func RecordLog(userId int, logType int, content string) {
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
-		common.SysError("failed to record log: " + err.Error())
+		common.SysLog("failed to record log: " + err.Error())
 	}
 }
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
-	common.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
+	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
@@ -129,7 +134,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
-		common.LogError(c, "failed to record log: "+err.Error())
+		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 }
 
@@ -142,7 +147,6 @@ type RecordConsumeLogParams struct {
 	Quota            int                    `json:"quota"`
 	Content          string                 `json:"content"`
 	TokenId          int                    `json:"token_id"`
-	UserQuota        int                    `json:"user_quota"`
 	UseTimeSeconds   int                    `json:"use_time_seconds"`
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
@@ -150,10 +154,10 @@ type RecordConsumeLogParams struct {
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
-	common.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	if !common.LogConsumeEnabled {
 		return
 	}
+	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	otherStr := common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
@@ -189,7 +193,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
-		common.LogError(c, "failed to record log: "+err.Error())
+		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
@@ -236,26 +240,22 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		return nil, 0, err
 	}
 
-	channelIdsMap := make(map[int]struct{})
-	channelMap := make(map[int]string)
+	channelIds := types.NewSet[int]()
 	for _, log := range logs {
 		if log.ChannelId != 0 {
-			channelIdsMap[log.ChannelId] = struct{}{}
+			channelIds.Add(log.ChannelId)
 		}
 	}
 
-	channelIds := make([]int, 0, len(channelIdsMap))
-	for channelId := range channelIdsMap {
-		channelIds = append(channelIds, channelId)
-	}
-	if len(channelIds) > 0 {
+	if channelIds.Len() > 0 {
 		var channels []struct {
 			Id   int    `gorm:"column:id"`
 			Name string `gorm:"column:name"`
 		}
-		if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
 			return logs, total, err
 		}
+		channelMap := make(map[int]string, len(channels))
 		for _, channel := range channels {
 			channelMap[channel.Id] = channel.Name
 		}

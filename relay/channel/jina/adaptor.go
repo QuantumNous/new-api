@@ -5,18 +5,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/dto"
-	"one-api/relay/channel"
-	"one-api/relay/channel/openai"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/common_handler"
-	"one-api/relay/constant"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/common_handler"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Adaptor struct {
+}
+
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	//TODO implement me
+	return nil, errors.New("not implemented")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
@@ -40,9 +46,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == constant.RelayModeRerank {
-		return fmt.Sprintf("%s/v1/rerank", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/rerank", info.ChannelBaseUrl), nil
 	} else if info.RelayMode == constant.RelayModeEmbeddings {
-		return fmt.Sprintf("%s/v1/embeddings", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/embeddings", info.ChannelBaseUrl), nil
 	}
 	return "", errors.New("invalid relay mode")
 }
@@ -71,6 +77,7 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	request.EncodingFormat = ""
 	return request, nil
 }
 

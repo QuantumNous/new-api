@@ -1,15 +1,17 @@
 package setting
 
-import "encoding/json"
+import (
+	"github.com/QuantumNous/new-api/common"
+)
 
-var AutoGroups = []string{
+var autoGroups = []string{
 	"default",
 }
 
 var DefaultUseAutoGroup = false
 
 func ContainsAutoGroup(group string) bool {
-	for _, autoGroup := range AutoGroups {
+	for _, autoGroup := range autoGroups {
 		if autoGroup == group {
 			return true
 		}
@@ -18,14 +20,18 @@ func ContainsAutoGroup(group string) bool {
 }
 
 func UpdateAutoGroupsByJsonString(jsonString string) error {
-	AutoGroups = make([]string, 0)
-	return json.Unmarshal([]byte(jsonString), &AutoGroups)
+	autoGroups = make([]string, 0)
+	return common.Unmarshal([]byte(jsonString), &autoGroups)
 }
 
 func AutoGroups2JsonString() string {
-	jsonBytes, err := json.Marshal(AutoGroups)
+	jsonBytes, err := common.Marshal(autoGroups)
 	if err != nil {
 		return "[]"
 	}
 	return string(jsonBytes)
+}
+
+func GetAutoGroups() []string {
+	return autoGroups
 }

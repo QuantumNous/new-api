@@ -1,3 +1,22 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
   {
@@ -62,12 +81,17 @@ export const CHANNEL_OPTIONS = [
   {
     value: 16,
     color: 'violet',
-    label: '智谱 ChatGLM',
+    label: '智谱 ChatGLM（已经弃用，请使用智谱 GLM-4V）',
   },
   {
     value: 26,
     color: 'purple',
     label: '智谱 GLM-4V',
+  },
+  {
+    value: 27,
+    color: 'blue',
+    label: 'Perplexity',
   },
   {
     value: 24,
@@ -134,6 +158,31 @@ export const CHANNEL_OPTIONS = [
     value: 51,
     color: 'blue',
     label: '即梦',
+  },
+  {
+    value: 52,
+    color: 'purple',
+    label: 'Vidu',
+  },
+  {
+    value: 53,
+    color: 'blue',
+    label: 'SubModel',
+  },
+  {
+    value: 54,
+    color: 'blue',
+    label: '豆包视频',
+  },
+  {
+    value: 55,
+    color: 'green',
+    label: 'Sora',
+  },
+  {
+    value: 56,
+    color: 'blue',
+    label: 'Replicate',
   },
 ];
 

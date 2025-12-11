@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"one-api/common"
-	"one-api/constant"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +19,11 @@ func KlingRequestConvert() func(c *gin.Context) {
 			return
 		}
 
+		// Support both model_name and model fields
 		model, _ := originalReq["model_name"].(string)
+		if model == "" {
+			model, _ = originalReq["model"].(string)
+		}
 		prompt, _ := originalReq["prompt"].(string)
 
 		unifiedReq := map[string]interface{}{

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type OpenAIError struct {
@@ -15,8 +17,8 @@ type OpenAIError struct {
 }
 
 type ClaudeError struct {
-	Message string `json:"message,omitempty"`
 	Type    string `json:"type,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type ErrorType string
@@ -28,6 +30,7 @@ const (
 	ErrorTypeMidjourneyError ErrorType = "midjourney_error"
 	ErrorTypeGeminiError     ErrorType = "gemini_error"
 	ErrorTypeRerankError     ErrorType = "rerank_error"
+	ErrorTypeUpstreamError   ErrorType = "upstream_error"
 )
 
 type ErrorCode string
@@ -37,31 +40,40 @@ const (
 	ErrorCodeSensitiveWordsDetected ErrorCode = "sensitive_words_detected"
 
 	// new api error
-	ErrorCodeCountTokenFailed  ErrorCode = "count_token_failed"
-	ErrorCodeModelPriceError   ErrorCode = "model_price_error"
-	ErrorCodeInvalidApiType    ErrorCode = "invalid_api_type"
-	ErrorCodeJsonMarshalFailed ErrorCode = "json_marshal_failed"
-	ErrorCodeDoRequestFailed   ErrorCode = "do_request_failed"
-	ErrorCodeGetChannelFailed  ErrorCode = "get_channel_failed"
+	ErrorCodeCountTokenFailed   ErrorCode = "count_token_failed"
+	ErrorCodeModelPriceError    ErrorCode = "model_price_error"
+	ErrorCodeInvalidApiType     ErrorCode = "invalid_api_type"
+	ErrorCodeJsonMarshalFailed  ErrorCode = "json_marshal_failed"
+	ErrorCodeDoRequestFailed    ErrorCode = "do_request_failed"
+	ErrorCodeGetChannelFailed   ErrorCode = "get_channel_failed"
+	ErrorCodeGenRelayInfoFailed ErrorCode = "gen_relay_info_failed"
 
 	// channel error
-	ErrorCodeChannelNoAvailableKey       ErrorCode = "channel:no_available_key"
-	ErrorCodeChannelParamOverrideInvalid ErrorCode = "channel:param_override_invalid"
-	ErrorCodeChannelModelMappedError     ErrorCode = "channel:model_mapped_error"
-	ErrorCodeChannelAwsClientError       ErrorCode = "channel:aws_client_error"
-	ErrorCodeChannelInvalidKey           ErrorCode = "channel:invalid_key"
-	ErrorCodeChannelResponseTimeExceeded ErrorCode = "channel:response_time_exceeded"
+	ErrorCodeChannelNoAvailableKey        ErrorCode = "channel:no_available_key"
+	ErrorCodeChannelParamOverrideInvalid  ErrorCode = "channel:param_override_invalid"
+	ErrorCodeChannelHeaderOverrideInvalid ErrorCode = "channel:header_override_invalid"
+	ErrorCodeChannelModelMappedError      ErrorCode = "channel:model_mapped_error"
+	ErrorCodeChannelAwsClientError        ErrorCode = "channel:aws_client_error"
+	ErrorCodeChannelInvalidKey            ErrorCode = "channel:invalid_key"
+	ErrorCodeChannelResponseTimeExceeded  ErrorCode = "channel:response_time_exceeded"
 
 	// client request error
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
 	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
 
+	// request error
+	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
+
 	// response error
 	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"
 	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"
 	ErrorCodeBadResponse            ErrorCode = "bad_response"
 	ErrorCodeBadResponseBody        ErrorCode = "bad_response_body"
+	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
+	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
+	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
+	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -73,11 +85,13 @@ const (
 )
 
 type NewAPIError struct {
-	Err        error
-	RelayError any
-	ErrorType  ErrorType
-	errorCode  ErrorCode
-	StatusCode int
+	Err            error
+	RelayError     any
+	skipRetry      bool
+	recordErrorLog *bool
+	errorType      ErrorType
+	errorCode      ErrorCode
+	StatusCode     int
 }
 
 func (e *NewAPIError) GetErrorCode() ErrorCode {
@@ -85,6 +99,13 @@ func (e *NewAPIError) GetErrorCode() ErrorCode {
 		return ""
 	}
 	return e.errorCode
+}
+
+func (e *NewAPIError) GetErrorType() ErrorType {
+	if e == nil {
+		return ""
+	}
+	return e.errorType
 }
 
 func (e *NewAPIError) Error() string {
@@ -98,100 +119,201 @@ func (e *NewAPIError) Error() string {
 	return e.Err.Error()
 }
 
+func (e *NewAPIError) MaskSensitiveError() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return string(e.errorCode)
+	}
+	errStr := e.Err.Error()
+	if e.errorCode == ErrorCodeCountTokenFailed {
+		return errStr
+	}
+	return common.MaskSensitiveInfo(errStr)
+}
+
 func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
 }
 
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
-	switch e.ErrorType {
+	var result OpenAIError
+	switch e.errorType {
 	case ErrorTypeOpenAIError:
-		return e.RelayError.(OpenAIError)
+		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			result = openAIError
+		}
 	case ErrorTypeClaudeError:
-		claudeError := e.RelayError.(ClaudeError)
-		return OpenAIError{
-			Message: e.Error(),
-			Type:    claudeError.Type,
-			Param:   "",
-			Code:    e.errorCode,
+		if claudeError, ok := e.RelayError.(ClaudeError); ok {
+			result = OpenAIError{
+				Message: e.Error(),
+				Type:    claudeError.Type,
+				Param:   "",
+				Code:    e.errorCode,
+			}
 		}
 	default:
-		return OpenAIError{
+		result = OpenAIError{
 			Message: e.Error(),
-			Type:    string(e.ErrorType),
+			Type:    string(e.errorType),
 			Param:   "",
 			Code:    e.errorCode,
 		}
 	}
+	if e.errorCode != ErrorCodeCountTokenFailed {
+		result.Message = common.MaskSensitiveInfo(result.Message)
+	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
+	return result
 }
 
 func (e *NewAPIError) ToClaudeError() ClaudeError {
-	switch e.ErrorType {
+	var result ClaudeError
+	switch e.errorType {
 	case ErrorTypeOpenAIError:
-		openAIError := e.RelayError.(OpenAIError)
-		return ClaudeError{
-			Message: e.Error(),
-			Type:    fmt.Sprintf("%v", openAIError.Code),
+		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			result = ClaudeError{
+				Message: e.Error(),
+				Type:    fmt.Sprintf("%v", openAIError.Code),
+			}
 		}
 	case ErrorTypeClaudeError:
-		return e.RelayError.(ClaudeError)
+		if claudeError, ok := e.RelayError.(ClaudeError); ok {
+			result = claudeError
+		}
 	default:
-		return ClaudeError{
+		result = ClaudeError{
 			Message: e.Error(),
-			Type:    string(e.ErrorType),
+			Type:    string(e.errorType),
 		}
 	}
+	if e.errorCode != ErrorCodeCountTokenFailed {
+		result.Message = common.MaskSensitiveInfo(result.Message)
+	}
+	if result.Message == "" {
+		result.Message = string(e.errorType)
+	}
+	return result
 }
 
-func NewError(err error, errorCode ErrorCode) *NewAPIError {
-	return &NewAPIError{
+type NewAPIErrorOptions func(*NewAPIError)
+
+func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPIError {
+	var newErr *NewAPIError
+	// 保留深层传递的 new err
+	if errors.As(err, &newErr) {
+		for _, op := range ops {
+			op(newErr)
+		}
+		return newErr
+	}
+	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
-		ErrorType:  ErrorTypeNewAPIError,
+		errorType:  ErrorTypeNewAPIError,
 		StatusCode: http.StatusInternalServerError,
 		errorCode:  errorCode,
 	}
+	for _, op := range ops {
+		op(e)
+	}
+	return e
 }
 
-func NewOpenAIError(err error, errorCode ErrorCode, statusCode int) *NewAPIError {
+func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	var newErr *NewAPIError
+	// 保留深层传递的 new err
+	if errors.As(err, &newErr) {
+		if newErr.RelayError == nil {
+			openaiError := OpenAIError{
+				Message: newErr.Error(),
+				Type:    string(errorCode),
+				Code:    errorCode,
+			}
+			newErr.RelayError = openaiError
+		}
+		for _, op := range ops {
+			op(newErr)
+		}
+		return newErr
+	}
 	openaiError := OpenAIError{
 		Message: err.Error(),
 		Type:    string(errorCode),
+		Code:    errorCode,
 	}
-	return WithOpenAIError(openaiError, statusCode)
+	return WithOpenAIError(openaiError, statusCode, ops...)
 }
 
-func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int) *NewAPIError {
-	return &NewAPIError{
-		Err:        err,
-		RelayError: nil,
-		ErrorType:  ErrorTypeNewAPIError,
+func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	openaiError := OpenAIError{
+		Type: string(errorCode),
+		Code: errorCode,
+	}
+	return WithOpenAIError(openaiError, statusCode, ops...)
+}
+
+func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	e := &NewAPIError{
+		Err: err,
+		RelayError: OpenAIError{
+			Message: err.Error(),
+			Type:    string(errorCode),
+		},
+		errorType:  ErrorTypeNewAPIError,
 		StatusCode: statusCode,
 		errorCode:  errorCode,
 	}
+	for _, op := range ops {
+		op(e)
+	}
+
+	return e
 }
 
-func WithOpenAIError(openAIError OpenAIError, statusCode int) *NewAPIError {
+func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	code, ok := openAIError.Code.(string)
 	if !ok {
-		code = fmt.Sprintf("%v", openAIError.Code)
+		if openAIError.Code != nil {
+			code = fmt.Sprintf("%v", openAIError.Code)
+		} else {
+			code = "unknown_error"
+		}
 	}
-	return &NewAPIError{
+	if openAIError.Type == "" {
+		openAIError.Type = "upstream_error"
+	}
+	e := &NewAPIError{
 		RelayError: openAIError,
-		ErrorType:  ErrorTypeOpenAIError,
+		errorType:  ErrorTypeOpenAIError,
 		StatusCode: statusCode,
 		Err:        errors.New(openAIError.Message),
 		errorCode:  ErrorCode(code),
 	}
+	for _, op := range ops {
+		op(e)
+	}
+	return e
 }
 
-func WithClaudeError(claudeError ClaudeError, statusCode int) *NewAPIError {
-	return &NewAPIError{
+func WithClaudeError(claudeError ClaudeError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	if claudeError.Type == "" {
+		claudeError.Type = "upstream_error"
+	}
+	e := &NewAPIError{
 		RelayError: claudeError,
-		ErrorType:  ErrorTypeClaudeError,
+		errorType:  ErrorTypeClaudeError,
 		StatusCode: statusCode,
 		Err:        errors.New(claudeError.Message),
 		errorCode:  ErrorCode(claudeError.Type),
 	}
+	for _, op := range ops {
+		op(e)
+	}
+	return e
 }
 
 func IsChannelError(err *NewAPIError) bool {
@@ -201,10 +323,42 @@ func IsChannelError(err *NewAPIError) bool {
 	return strings.HasPrefix(string(err.errorCode), "channel:")
 }
 
-func IsLocalError(err *NewAPIError) bool {
+func IsSkipRetryError(err *NewAPIError) bool {
 	if err == nil {
 		return false
 	}
 
-	return err.ErrorType == ErrorTypeNewAPIError
+	return err.skipRetry
+}
+
+func ErrOptionWithSkipRetry() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.skipRetry = true
+	}
+}
+
+func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.recordErrorLog = common.GetPointer(false)
+	}
+}
+
+func ErrOptionWithHideErrMsg(replaceStr string) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		if common.DebugEnabled {
+			fmt.Printf("ErrOptionWithHideErrMsg: %s, origin error: %s", replaceStr, e.Err)
+		}
+		e.Err = errors.New(replaceStr)
+	}
+}
+
+func IsRecordErrorLog(e *NewAPIError) bool {
+	if e == nil {
+		return false
+	}
+	if e.recordErrorLog == nil {
+		// default to true if not set
+		return true
+	}
+	return *e.recordErrorLog
 }

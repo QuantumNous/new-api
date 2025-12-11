@@ -1,10 +1,15 @@
 package ali
 
-import "one-api/dto"
+import "github.com/QuantumNous/new-api/dto"
 
 type AliMessage struct {
-	Content string `json:"content"`
+	Content any    `json:"content"`
 	Role    string `json:"role"`
+}
+
+type AliMediaContent struct {
+	Image string `json:"image,omitempty"`
+	Text  string `json:"text,omitempty"`
 }
 
 type AliInput struct {
@@ -70,13 +75,14 @@ type TaskResult struct {
 }
 
 type AliOutput struct {
-	TaskId       string       `json:"task_id,omitempty"`
-	TaskStatus   string       `json:"task_status,omitempty"`
-	Text         string       `json:"text"`
-	FinishReason string       `json:"finish_reason"`
-	Message      string       `json:"message,omitempty"`
-	Code         string       `json:"code,omitempty"`
-	Results      []TaskResult `json:"results,omitempty"`
+	TaskId       string           `json:"task_id,omitempty"`
+	TaskStatus   string           `json:"task_status,omitempty"`
+	Text         string           `json:"text"`
+	FinishReason string           `json:"finish_reason"`
+	Message      string           `json:"message,omitempty"`
+	Code         string           `json:"code,omitempty"`
+	Results      []TaskResult     `json:"results,omitempty"`
+	Choices      []map[string]any `json:"choices,omitempty"`
 }
 
 type AliResponse struct {
@@ -86,18 +92,37 @@ type AliResponse struct {
 }
 
 type AliImageRequest struct {
-	Model string `json:"model"`
-	Input struct {
-		Prompt         string `json:"prompt"`
-		NegativePrompt string `json:"negative_prompt,omitempty"`
-	} `json:"input"`
-	Parameters struct {
-		Size  string `json:"size,omitempty"`
-		N     int    `json:"n,omitempty"`
-		Steps string `json:"steps,omitempty"`
-		Scale string `json:"scale,omitempty"`
-	} `json:"parameters,omitempty"`
+	Model          string `json:"model"`
+	Input          any    `json:"input"`
+	Parameters     any    `json:"parameters,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`
+}
+
+type AliImageParameters struct {
+	Size      string `json:"size,omitempty"`
+	N         int    `json:"n,omitempty"`
+	Steps     string `json:"steps,omitempty"`
+	Scale     string `json:"scale,omitempty"`
+	Watermark *bool  `json:"watermark,omitempty"`
+}
+
+type AliImageInput struct {
+	Prompt         string       `json:"prompt,omitempty"`
+	NegativePrompt string       `json:"negative_prompt,omitempty"`
+	Messages       []AliMessage `json:"messages,omitempty"`
+}
+
+type WanImageInput struct {
+	Prompt         string   `json:"prompt"`                    // 必需：文本提示词，描述生成图像中期望包含的元素和视觉特点
+	Images         []string `json:"images"`                    // 必需：图像URL数组，长度不超过2，支持HTTP/HTTPS URL或Base64编码
+	NegativePrompt string   `json:"negative_prompt,omitempty"` // 可选：反向提示词，描述不希望在画面中看到的内容
+}
+
+type WanImageParameters struct {
+	N         int     `json:"n,omitempty"`         // 生成图片数量，取值范围1-4，默认4
+	Watermark *bool   `json:"watermark,omitempty"` // 是否添加水印标识，默认false
+	Seed      int     `json:"seed,omitempty"`      // 随机数种子，取值范围[0, 2147483647]
+	Strength  float64 `json:"strength,omitempty"`  // 修改幅度 0.0-1.0，默认0.5（部分模型支持）
 }
 
 type AliRerankParameters struct {

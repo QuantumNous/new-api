@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/dto"
-	"one-api/relay/channel"
-	"one-api/relay/channel/openai"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/constant"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,20 +20,43 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	panic("implement me")
-	return nil, nil
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	adaptor := openai.Adaptor{}
+	return adaptor.ConvertClaudeRequest(c, info, req)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	adaptor := openai.Adaptor{}
+	return adaptor.ConvertAudioRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	// 解析extra到SFImageRequest里，以填入SiliconFlow特殊字段。若失败重建一个空的。
+	sfRequest := &SFImageRequest{}
+	extra, err := common.Marshal(request.Extra)
+	if err == nil {
+		err = common.Unmarshal(extra, sfRequest)
+		if err != nil {
+			sfRequest = &SFImageRequest{}
+		}
+	}
+
+	sfRequest.Model = request.Model
+	sfRequest.Prompt = request.Prompt
+	// 优先使用image_size/batch_size，否则使用OpenAI标准的size/n
+	if sfRequest.ImageSize == "" {
+		sfRequest.ImageSize = request.Size
+	}
+	if sfRequest.BatchSize == 0 {
+		sfRequest.BatchSize = request.N
+	}
+
+	return sfRequest, nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -39,15 +64,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == constant.RelayModeRerank {
-		return fmt.Sprintf("%s/v1/rerank", info.BaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeEmbeddings {
-		return fmt.Sprintf("%s/v1/embeddings", info.BaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeChatCompletions {
-		return fmt.Sprintf("%s/v1/chat/completions", info.BaseUrl), nil
-	} else if info.RelayMode == constant.RelayModeCompletions {
-		return fmt.Sprintf("%s/v1/completions", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/rerank", info.ChannelBaseUrl), nil
 	}
-	return "", errors.New("invalid relay mode")
+	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -57,6 +76,16 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	// SiliconFlow requires messages array for FIM requests, even if client doesn't send it
+	if (request.Prefix != nil || request.Suffix != nil) && len(request.Messages) == 0 {
+		// Add an empty user message to satisfy SiliconFlow's requirement
+		request.Messages = []dto.Message{
+			{
+				Role:    "user",
+				Content: "",
+			},
+		}
+	}
 	return request, nil
 }
 
@@ -66,7 +95,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	adaptor := openai.Adaptor{}
+	return adaptor.DoRequest(c, info, requestBody)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -81,16 +111,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	switch info.RelayMode {
 	case constant.RelayModeRerank:
 		usage, err = siliconflowRerankHandler(c, info, resp)
-	case constant.RelayModeCompletions:
-		fallthrough
-	case constant.RelayModeChatCompletions:
-		if info.IsStream {
-			usage, err = openai.OaiStreamHandler(c, info, resp)
-		} else {
-			usage, err = openai.OpenaiHandler(c, info, resp)
-		}
-	case constant.RelayModeEmbeddings:
-		usage, err = openai.OpenaiHandler(c, info, resp)
+	default:
+		adaptor := openai.Adaptor{}
+		usage, err = adaptor.DoResponse(c, resp, info)
 	}
 	return
 }

@@ -1,9 +1,10 @@
 package mistral
 
 import (
-	"one-api/common"
-	"one-api/dto"
 	"regexp"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 )
 
 var mistralToolCallIdRegexp = regexp.MustCompile("^[a-zA-Z0-9]{9}$")
@@ -71,7 +72,7 @@ func requestOpenAI2Mistral(request *dto.GeneralOpenAIRequest) *dto.GeneralOpenAI
 		Messages:    messages,
 		Temperature: request.Temperature,
 		TopP:        request.TopP,
-		MaxTokens:   request.MaxTokens,
+		MaxTokens:   request.GetMaxTokens(),
 		Tools:       request.Tools,
 		ToolChoice:  request.ToolChoice,
 	}

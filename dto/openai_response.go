@@ -2,12 +2,23 @@ package dto
 
 import (
 	"encoding/json"
-	"one-api/types"
+	"fmt"
+
+	"github.com/QuantumNous/new-api/types"
+)
+
+const (
+	ResponsesOutputTypeImageGenerationCall = "image_generation_call"
 )
 
 type SimpleResponse struct {
 	Usage `json:"usage"`
-	Error *OpenAIError `json:"error"`
+	Error any `json:"error"`
+}
+
+// GetOpenAIError 从动态错误类型中提取OpenAIError结构
+func (s *SimpleResponse) GetOpenAIError() *types.OpenAIError {
+	return GetOpenAIError(s.Error)
 }
 
 type TextResponse struct {
@@ -31,8 +42,13 @@ type OpenAITextResponse struct {
 	Object  string                     `json:"object"`
 	Created any                        `json:"created"`
 	Choices []OpenAITextResponseChoice `json:"choices"`
-	Error   *types.OpenAIError         `json:"error,omitempty"`
+	Error   any                        `json:"error,omitempty"`
 	Usage   `json:"usage"`
+}
+
+// GetOpenAIError 从动态错误类型中提取OpenAIError结构
+func (o *OpenAITextResponse) GetOpenAIError() *types.OpenAIError {
+	return GetOpenAIError(o.Error)
 }
 
 type OpenAIEmbeddingResponseItem struct {
@@ -99,7 +115,7 @@ func (c *ChatCompletionsStreamResponseChoiceDelta) GetReasoningContent() string 
 
 func (c *ChatCompletionsStreamResponseChoiceDelta) SetReasoningContent(s string) {
 	c.ReasoningContent = &s
-	c.Reasoning = &s
+	//c.Reasoning = &s
 }
 
 type ToolCallResponse struct {
@@ -132,6 +148,13 @@ type ChatCompletionsStreamResponse struct {
 	Usage             *Usage                                `json:"usage"`
 }
 
+func (c *ChatCompletionsStreamResponse) IsFinished() bool {
+	if len(c.Choices) == 0 {
+		return false
+	}
+	return c.Choices[0].FinishReason != nil && *c.Choices[0].FinishReason != ""
+}
+
 func (c *ChatCompletionsStreamResponse) IsToolCall() bool {
 	if len(c.Choices) == 0 {
 		return false
@@ -144,6 +167,19 @@ func (c *ChatCompletionsStreamResponse) GetFirstToolCall() *ToolCallResponse {
 		return &c.Choices[0].Delta.ToolCalls[0]
 	}
 	return nil
+}
+
+func (c *ChatCompletionsStreamResponse) ClearToolCalls() {
+	if !c.IsToolCall() {
+		return
+	}
+	for choiceIdx := range c.Choices {
+		for callIdx := range c.Choices[choiceIdx].Delta.ToolCalls {
+			c.Choices[choiceIdx].Delta.ToolCalls[callIdx].ID = ""
+			c.Choices[choiceIdx].Delta.ToolCalls[callIdx].Type = nil
+			c.Choices[choiceIdx].Delta.ToolCalls[callIdx].Function.Name = ""
+		}
+	}
 }
 
 func (c *ChatCompletionsStreamResponse) Copy() *ChatCompletionsStreamResponse {
@@ -194,8 +230,23 @@ type Usage struct {
 	InputTokens            int                `json:"input_tokens"`
 	OutputTokens           int                `json:"output_tokens"`
 	InputTokensDetails     *InputTokenDetails `json:"input_tokens_details"`
+
+	// claude cache 1h
+	ClaudeCacheCreation5mTokens int `json:"claude_cache_creation_5_m_tokens"`
+	ClaudeCacheCreation1hTokens int `json:"claude_cache_creation_1_h_tokens"`
+
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+}
+
+type OpenAIVideoResponse struct {
+	Id        string `json:"id" example:"file-abc123"`
+	Object    string `json:"object" example:"file"`
+	Bytes     int64  `json:"bytes" example:"120000"`
+	CreatedAt int64  `json:"created_at" example:"1677610602"`
+	ExpiresAt int64  `json:"expires_at" example:"1677614202"`
+	Filename  string `json:"filename" example:"mydata.jsonl"`
+	Purpose   string `json:"purpose" example:"fine-tune"`
 }
 
 type InputTokenDetails struct {
@@ -217,7 +268,7 @@ type OpenAIResponsesResponse struct {
 	Object             string             `json:"object"`
 	CreatedAt          int                `json:"created_at"`
 	Status             string             `json:"status"`
-	Error              *types.OpenAIError `json:"error,omitempty"`
+	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
 	Instructions       string             `json:"instructions"`
 	MaxOutputTokens    int                `json:"max_output_tokens"`
@@ -237,6 +288,47 @@ type OpenAIResponsesResponse struct {
 	Metadata           json.RawMessage    `json:"metadata"`
 }
 
+// GetOpenAIError 从动态错误类型中提取OpenAIError结构
+func (o *OpenAIResponsesResponse) GetOpenAIError() *types.OpenAIError {
+	return GetOpenAIError(o.Error)
+}
+
+func (o *OpenAIResponsesResponse) HasImageGenerationCall() bool {
+	if len(o.Output) == 0 {
+		return false
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return true
+		}
+	}
+	return false
+}
+
+func (o *OpenAIResponsesResponse) GetQuality() string {
+	if len(o.Output) == 0 {
+		return ""
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Quality
+		}
+	}
+	return ""
+}
+
+func (o *OpenAIResponsesResponse) GetSize() string {
+	if len(o.Output) == 0 {
+		return ""
+	}
+	for _, output := range o.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Size
+		}
+	}
+	return ""
+}
+
 type IncompleteDetails struct {
 	Reasoning string `json:"reasoning"`
 }
@@ -247,6 +339,8 @@ type ResponsesOutput struct {
 	Status  string                   `json:"status"`
 	Role    string                   `json:"role"`
 	Content []ResponsesOutputContent `json:"content"`
+	Quality string                   `json:"quality"`
+	Size    string                   `json:"size"`
 }
 
 type ResponsesOutputContent struct {
@@ -275,4 +369,46 @@ type ResponsesStreamResponse struct {
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
+}
+
+// GetOpenAIError 从动态错误类型中提取OpenAIError结构
+func GetOpenAIError(errorField any) *types.OpenAIError {
+	if errorField == nil {
+		return nil
+	}
+
+	switch err := errorField.(type) {
+	case types.OpenAIError:
+		return &err
+	case *types.OpenAIError:
+		return err
+	case map[string]interface{}:
+		// 处理从JSON解析来的map结构
+		openaiErr := &types.OpenAIError{}
+		if errType, ok := err["type"].(string); ok {
+			openaiErr.Type = errType
+		}
+		if errMsg, ok := err["message"].(string); ok {
+			openaiErr.Message = errMsg
+		}
+		if errParam, ok := err["param"].(string); ok {
+			openaiErr.Param = errParam
+		}
+		if errCode, ok := err["code"]; ok {
+			openaiErr.Code = errCode
+		}
+		return openaiErr
+	case string:
+		// 处理简单字符串错误
+		return &types.OpenAIError{
+			Type:    "error",
+			Message: err,
+		}
+	default:
+		// 未知类型，尝试转换为字符串
+		return &types.OpenAIError{
+			Type:    "unknown_error",
+			Message: fmt.Sprintf("%v", err),
+		}
+	}
 }

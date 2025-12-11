@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/dto"
-	"one-api/relay/channel"
-	relaycommon "one-api/relay/common"
-	"one-api/types"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +23,11 @@ const (
 
 type Adaptor struct {
 	BotType int
+}
+
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	//TODO implement me
+	return nil, errors.New("not implemented")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
@@ -56,13 +62,13 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch a.BotType {
 	case BotTypeWorkFlow:
-		return fmt.Sprintf("%s/v1/workflows/run", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/workflows/run", info.ChannelBaseUrl), nil
 	case BotTypeCompletion:
-		return fmt.Sprintf("%s/v1/completion-messages", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/completion-messages", info.ChannelBaseUrl), nil
 	case BotTypeAgent:
 		fallthrough
 	default:
-		return fmt.Sprintf("%s/v1/chat-messages", info.BaseUrl), nil
+		return fmt.Sprintf("%s/v1/chat-messages", info.ChannelBaseUrl), nil
 	}
 }
 

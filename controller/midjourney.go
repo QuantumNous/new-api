@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	"one-api/model"
-	"one-api/service"
-	"one-api/setting"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +31,7 @@ func UpdateMidjourneyTaskBulk() {
 			continue
 		}
 
-		common.LogInfo(ctx, fmt.Sprintf("检测到未完成的任务数有: %v", len(tasks)))
+		logger.LogInfo(ctx, fmt.Sprintf("检测到未完成的任务数有: %v", len(tasks)))
 		taskChannelM := make(map[int][]string)
 		taskM := make(map[string]*model.Midjourney)
 		nullTaskIds := make([]int, 0)
@@ -47,9 +50,9 @@ func UpdateMidjourneyTaskBulk() {
 				"progress": "100%",
 			})
 			if err != nil {
-				common.LogError(ctx, fmt.Sprintf("Fix null mj_id task error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf("Fix null mj_id task error: %v", err))
 			} else {
-				common.LogInfo(ctx, fmt.Sprintf("Fix null mj_id task success: %v", nullTaskIds))
+				logger.LogInfo(ctx, fmt.Sprintf("Fix null mj_id task success: %v", nullTaskIds))
 			}
 		}
 		if len(taskChannelM) == 0 {
@@ -57,20 +60,20 @@ func UpdateMidjourneyTaskBulk() {
 		}
 
 		for channelId, taskIds := range taskChannelM {
-			common.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的任务有: %d", channelId, len(taskIds)))
+			logger.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的任务有: %d", channelId, len(taskIds)))
 			if len(taskIds) == 0 {
 				continue
 			}
 			midjourneyChannel, err := model.CacheGetChannel(channelId)
 			if err != nil {
-				common.LogError(ctx, fmt.Sprintf("CacheGetChannel: %v", err))
+				logger.LogError(ctx, fmt.Sprintf("CacheGetChannel: %v", err))
 				err := model.MjBulkUpdate(taskIds, map[string]any{
 					"fail_reason": fmt.Sprintf("获取渠道信息失败，请联系管理员，渠道ID：%d", channelId),
 					"status":      "FAILURE",
 					"progress":    "100%",
 				})
 				if err != nil {
-					common.LogInfo(ctx, fmt.Sprintf("UpdateMidjourneyTask error: %v", err))
+					logger.LogInfo(ctx, fmt.Sprintf("UpdateMidjourneyTask error: %v", err))
 				}
 				continue
 			}
@@ -81,7 +84,7 @@ func UpdateMidjourneyTaskBulk() {
 			})
 			req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(body))
 			if err != nil {
-				common.LogError(ctx, fmt.Sprintf("Get Task error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf("Get Task error: %v", err))
 				continue
 			}
 			// 设置超时时间
@@ -93,22 +96,22 @@ func UpdateMidjourneyTaskBulk() {
 			req.Header.Set("mj-api-secret", midjourneyChannel.Key)
 			resp, err := service.GetHttpClient().Do(req)
 			if err != nil {
-				common.LogError(ctx, fmt.Sprintf("Get Task Do req error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf("Get Task Do req error: %v", err))
 				continue
 			}
 			if resp.StatusCode != http.StatusOK {
-				common.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
+				logger.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
 				continue
 			}
 			responseBody, err := io.ReadAll(resp.Body)
 			if err != nil {
-				common.LogError(ctx, fmt.Sprintf("Get Task parse body error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf("Get Task parse body error: %v", err))
 				continue
 			}
 			var responseItems []dto.MidjourneyDto
 			err = json.Unmarshal(responseBody, &responseItems)
 			if err != nil {
-				common.LogError(ctx, fmt.Sprintf("Get Task parse body error2: %v, body: %s", err, string(responseBody)))
+				logger.LogError(ctx, fmt.Sprintf("Get Task parse body error2: %v, body: %s", err, string(responseBody)))
 				continue
 			}
 			resp.Body.Close()
@@ -145,9 +148,25 @@ func UpdateMidjourneyTaskBulk() {
 					buttonStr, _ := json.Marshal(responseItem.Buttons)
 					task.Buttons = string(buttonStr)
 				}
+				// 映射 VideoUrl
+				task.VideoUrl = responseItem.VideoUrl
+
+				// 映射 VideoUrls - 将数组序列化为 JSON 字符串
+				if responseItem.VideoUrls != nil && len(responseItem.VideoUrls) > 0 {
+					videoUrlsStr, err := json.Marshal(responseItem.VideoUrls)
+					if err != nil {
+						logger.LogError(ctx, fmt.Sprintf("序列化 VideoUrls 失败: %v", err))
+						task.VideoUrls = "[]" // 失败时设置为空数组
+					} else {
+						task.VideoUrls = string(videoUrlsStr)
+					}
+				} else {
+					task.VideoUrls = "" // 空值时清空字段
+				}
+
 				shouldReturnQuota := false
 				if (task.Progress != "100%" && responseItem.FailReason != "") || (task.Progress == "100%" && task.Status == "FAILURE") {
-					common.LogInfo(ctx, task.MjId+" 构建失败，"+task.FailReason)
+					logger.LogInfo(ctx, task.MjId+" 构建失败，"+task.FailReason)
 					task.Progress = "100%"
 					if task.Quota != 0 {
 						shouldReturnQuota = true
@@ -155,14 +174,14 @@ func UpdateMidjourneyTaskBulk() {
 				}
 				err = task.Update()
 				if err != nil {
-					common.LogError(ctx, "UpdateMidjourneyTask task error: "+err.Error())
+					logger.LogError(ctx, "UpdateMidjourneyTask task error: "+err.Error())
 				} else {
 					if shouldReturnQuota {
 						err = model.IncreaseUserQuota(task.UserId, task.Quota, false)
 						if err != nil {
-							common.LogError(ctx, "fail to increase user quota: "+err.Error())
+							logger.LogError(ctx, "fail to increase user quota: "+err.Error())
 						}
-						logContent := fmt.Sprintf("构图失败 %s，补偿 %s", task.MjId, common.LogQuota(task.Quota))
+						logContent := fmt.Sprintf("构图失败 %s，补偿 %s", task.MjId, logger.LogQuota(task.Quota))
 						model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
 					}
 				}
@@ -208,6 +227,20 @@ func checkMjTaskNeedUpdate(oldTask *model.Midjourney, newTask dto.MidjourneyDto)
 	if oldTask.Progress != "100%" && newTask.FailReason != "" {
 		return true
 	}
+	// 检查 VideoUrl 是否需要更新
+	if oldTask.VideoUrl != newTask.VideoUrl {
+		return true
+	}
+	// 检查 VideoUrls 是否需要更新
+	if newTask.VideoUrls != nil && len(newTask.VideoUrls) > 0 {
+		newVideoUrlsStr, _ := json.Marshal(newTask.VideoUrls)
+		if oldTask.VideoUrls != string(newVideoUrlsStr) {
+			return true
+		}
+	} else if oldTask.VideoUrls != "" {
+		// 如果新数据没有 VideoUrls 但旧数据有，需要更新（清空）
+		return true
+	}
 
 	return false
 }
@@ -228,7 +261,7 @@ func GetAllMidjourney(c *gin.Context) {
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {
-			midjourney.ImageUrl = setting.ServerAddress + "/mj/image/" + midjourney.MjId
+			midjourney.ImageUrl = system_setting.ServerAddress + "/mj/image/" + midjourney.MjId
 			items[i] = midjourney
 		}
 	}
@@ -253,7 +286,7 @@ func GetUserMidjourney(c *gin.Context) {
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {
-			midjourney.ImageUrl = setting.ServerAddress + "/mj/image/" + midjourney.MjId
+			midjourney.ImageUrl = system_setting.ServerAddress + "/mj/image/" + midjourney.MjId
 			items[i] = midjourney
 		}
 	}

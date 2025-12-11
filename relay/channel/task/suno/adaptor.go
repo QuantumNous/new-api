@@ -5,17 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	"one-api/dto"
-	"one-api/relay/channel"
-	relaycommon "one-api/relay/common"
-	"one-api/service"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type TaskAdaptor struct {
@@ -26,11 +28,11 @@ func (a *TaskAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
 	return nil, fmt.Errorf("not implement") // todo implement this method if needed
 }
 
-func (a *TaskAdaptor) Init(info *relaycommon.TaskRelayInfo) {
+func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 }
 
-func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.TaskRelayInfo) (taskErr *dto.TaskError) {
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	action := strings.ToUpper(c.Param("action"))
 
 	var sunoRequest *dto.SunoSubmitReq
@@ -58,20 +60,20 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return nil
 }
 
-func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.TaskRelayInfo) (string, error) {
-	baseURL := info.BaseUrl
+func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseURL := info.ChannelBaseUrl
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, "/suno/submit/"+info.Action)
 	return fullRequestURL, nil
 }
 
-func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.TaskRelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	req.Header.Set("Accept", c.Request.Header.Get("Accept"))
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
 	return nil
 }
 
-func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.TaskRelayInfo) (io.Reader, error) {
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	sunoRequest, ok := c.Get("task_request")
 	if !ok {
 		err := common.UnmarshalBodyReusable(c, &sunoRequest)
@@ -86,11 +88,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.TaskRel
 	return bytes.NewReader(data), nil
 }
 
-func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.TaskRelayInfo, requestBody io.Reader) (*http.Response, error) {
+func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.TaskRelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
@@ -130,7 +132,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
 }
 
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	requestUrl := fmt.Sprintf("%s/suno/fetch", baseUrl)
 	byteBody, err := json.Marshal(body)
 	if err != nil {
@@ -139,7 +141,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 
 	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(byteBody))
 	if err != nil {
-		common.SysError(fmt.Sprintf("Get Task error: %v", err))
+		common.SysLog(fmt.Sprintf("Get Task error: %v", err))
 		return nil, err
 	}
 	defer req.Body.Close()
@@ -151,11 +153,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
-	resp, err := service.GetHttpClient().Do(req)
+	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
-	return resp, nil
+	return client.Do(req)
 }
 
 func actionValidate(c *gin.Context, sunoRequest *dto.SunoSubmitReq, action string) (err error) {

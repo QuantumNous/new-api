@@ -1,10 +1,35 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
 import react from '@vitejs/plugin-react';
 import { defineConfig, transformWithEsbuild } from 'vite';
 import pkg from '@douyinfe/vite-plugin-semi';
+import path from 'path';
 const { vitePluginSemi } = pkg;
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   plugins: [
     {
       name: 'treat-js-files-as-jsx',
@@ -23,8 +48,8 @@ export default defineConfig({
     },
     react(),
     vitePluginSemi({
-      cssLayer: true
-    })
+      cssLayer: true,
+    }),
   ],
   optimizeDeps: {
     force: true,
@@ -41,7 +66,6 @@ export default defineConfig({
         manualChunks: {
           'react-core': ['react', 'react-dom', 'react-router-dom'],
           'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
-          visactor: ['@visactor/react-vchart', '@visactor/vchart'],
           tools: ['axios', 'history', 'marked'],
           'react-components': [
             'react-dropzone',

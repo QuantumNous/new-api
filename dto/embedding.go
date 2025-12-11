@@ -1,5 +1,13 @@
 package dto
 
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/types"
+
+	"github.com/gin-gonic/gin"
+)
+
 type EmbeddingOptions struct {
 	Seed             int      `json:"seed,omitempty"`
 	Temperature      *float64 `json:"temperature,omitempty"`
@@ -24,9 +32,32 @@ type EmbeddingRequest struct {
 	PresencePenalty  float64  `json:"presence_penalty,omitempty"`
 }
 
-func (r EmbeddingRequest) ParseInput() []string {
+func (r *EmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	var texts = make([]string, 0)
+
+	inputs := r.ParseInput()
+	for _, input := range inputs {
+		texts = append(texts, input)
+	}
+
+	return &types.TokenCountMeta{
+		CombineText: strings.Join(texts, "\n"),
+	}
+}
+
+func (r *EmbeddingRequest) IsStream(c *gin.Context) bool {
+	return false
+}
+
+func (r *EmbeddingRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
+}
+
+func (r *EmbeddingRequest) ParseInput() []string {
 	if r.Input == nil {
-		return nil
+		return make([]string, 0)
 	}
 	var input []string
 	switch r.Input.(type) {

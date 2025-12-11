@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/dto"
-	relaycommon "one-api/relay/common"
-	"one-api/relay/helper"
-	"one-api/service"
-	"one-api/types"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -118,7 +119,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			var cohereResp CohereResponse
 			err := json.Unmarshal([]byte(data), &cohereResp)
 			if err != nil {
-				common.SysError("error unmarshalling stream response: " + err.Error())
+				common.SysLog("error unmarshalling stream response: " + err.Error())
 				return true
 			}
 			var openaiResp dto.ChatCompletionsStreamResponse
@@ -153,7 +154,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 			jsonStr, err := json.Marshal(openaiResp)
 			if err != nil {
-				common.SysError("error marshalling stream response: " + err.Error())
+				common.SysLog("error marshalling stream response: " + err.Error())
 				return true
 			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonStr)})
@@ -164,7 +165,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 	})
 	if usage.PromptTokens == 0 {
-		usage = service.ResponseText2Usage(responseText, info.UpstreamModelName, info.PromptTokens)
+		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 	return usage, nil
 }
@@ -175,7 +176,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	var cohereResp CohereResponseResult
 	err = json.Unmarshal(responseBody, &cohereResp)
 	if err != nil {
@@ -216,7 +217,7 @@ func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	common.CloseResponseBodyGracefully(resp)
+	service.CloseResponseBodyGracefully(resp)
 	var cohereResp CohereRerankResponseResult
 	err = json.Unmarshal(responseBody, &cohereResp)
 	if err != nil {
@@ -224,9 +225,9 @@ func cohereRerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 	usage := dto.Usage{}
 	if cohereResp.Meta.BilledUnits.InputTokens == 0 {
-		usage.PromptTokens = info.PromptTokens
+		usage.PromptTokens = info.GetEstimatePromptTokens()
 		usage.CompletionTokens = 0
-		usage.TotalTokens = info.PromptTokens
+		usage.TotalTokens = info.GetEstimatePromptTokens()
 	} else {
 		usage.PromptTokens = cohereResp.Meta.BilledUnits.InputTokens
 		usage.CompletionTokens = cohereResp.Meta.BilledUnits.OutputTokens

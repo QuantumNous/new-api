@@ -1,6 +1,6 @@
 package vertex
 
-import "one-api/common"
+import "github.com/QuantumNous/new-api/common"
 
 func GetModelRegion(other string, localModelName string) string {
 	// if other is json string
@@ -12,7 +12,10 @@ func GetModelRegion(other string, localModelName string) string {
 		if m[localModelName] != nil {
 			return m[localModelName].(string)
 		} else {
-			return m["default"].(string)
+			if v, ok := m["default"]; ok {
+				return v.(string)
+			}
+			return "global"
 		}
 	}
 	return other

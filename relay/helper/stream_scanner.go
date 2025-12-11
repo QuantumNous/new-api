@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"one-api/common"
-	"one-api/constant"
-	relaycommon "one-api/relay/common"
-	"one-api/setting/operation_setting"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 
@@ -20,10 +22,17 @@ import (
 )
 
 const (
-	InitialScannerBufferSize = 64 << 10 // 64KB (64*1024)
-	MaxScannerBufferSize     = 10 << 20 // 10MB (10*1024*1024)
-	DefaultPingInterval      = 10 * time.Second
+	InitialScannerBufferSize    = 64 << 10 // 64KB (64*1024)
+	DefaultMaxScannerBufferSize = 64 << 20 // 64MB (64*1024*1024) default SSE buffer size
+	DefaultPingInterval         = 10 * time.Second
 )
+
+func getScannerBufferSize() int {
+	if constant.StreamScannerMaxBufferMB > 0 {
+		return constant.StreamScannerMaxBufferMB << 20
+	}
+	return DefaultMaxScannerBufferSize
+}
 
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string) bool) {
 
@@ -39,10 +48,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}()
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
-	if strings.HasPrefix(info.UpstreamModelName, "o") {
-		// twice timeout for thinking model
-		streamingTimeout *= 2
-	}
 
 	var (
 		stopChan   = make(chan bool, 3) // 增加缓冲区避免阻塞
@@ -54,7 +59,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	)
 
 	generalSettings := operation_setting.GetGeneralSetting()
-	pingEnabled := generalSettings.PingIntervalEnabled
+	pingEnabled := generalSettings.PingIntervalEnabled && !info.DisablePing
 	pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 	if pingInterval <= 0 {
 		pingInterval = DefaultPingInterval
@@ -67,6 +72,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	if common.DebugEnabled {
 		// print timeout and ping interval for debugging
 		println("relay timeout seconds:", common.RelayTimeout)
+		println("relay max idle conns:", common.RelayMaxIdleConns)
+		println("relay max idle conns per host:", common.RelayMaxIdleConnsPerHost)
 		println("streaming timeout seconds:", int64(streamingTimeout.Seconds()))
 		println("ping interval seconds:", int64(pingInterval.Seconds()))
 	}
@@ -91,13 +98,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		select {
 		case <-done:
 		case <-time.After(5 * time.Second):
-			common.LogError(c, "timeout waiting for goroutines to exit")
+			logger.LogError(c, "timeout waiting for goroutines to exit")
 		}
 
 		close(stopChan)
 	}()
 
-	scanner.Buffer(make([]byte, InitialScannerBufferSize), MaxScannerBufferSize)
+	scanner.Buffer(make([]byte, InitialScannerBufferSize), getScannerBufferSize())
 	scanner.Split(bufio.ScanLines)
 	SetEventStreamHeaders(c)
 
@@ -113,7 +120,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			defer func() {
 				wg.Done()
 				if r := recover(); r != nil {
-					common.LogError(c, fmt.Sprintf("ping goroutine panic: %v", r))
+					logger.LogError(c, fmt.Sprintf("ping goroutine panic: %v", r))
 					common.SafeSendBool(stopChan, true)
 				}
 				if common.DebugEnabled {
@@ -140,14 +147,14 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					select {
 					case err := <-done:
 						if err != nil {
-							common.LogError(c, "ping data error: "+err.Error())
+							logger.LogError(c, "ping data error: "+err.Error())
 							return
 						}
 						if common.DebugEnabled {
 							println("ping data sent")
 						}
 					case <-time.After(10 * time.Second):
-						common.LogError(c, "ping data send timeout")
+						logger.LogError(c, "ping data send timeout")
 						return
 					case <-ctx.Done():
 						return
@@ -162,7 +169,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					// 监听客户端断开连接
 					return
 				case <-pingTimeout.C:
-					common.LogError(c, "ping goroutine max duration reached")
+					logger.LogError(c, "ping goroutine max duration reached")
 					return
 				}
 			}
@@ -175,7 +182,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		defer func() {
 			wg.Done()
 			if r := recover(); r != nil {
-				common.LogError(c, fmt.Sprintf("scanner goroutine panic: %v", r))
+				logger.LogError(c, fmt.Sprintf("scanner goroutine panic: %v", r))
 			}
 			common.SafeSendBool(stopChan, true)
 			if common.DebugEnabled {
@@ -227,19 +234,25 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 						return
 					}
 				case <-time.After(10 * time.Second):
-					common.LogError(c, "data handler timeout")
+					logger.LogError(c, "data handler timeout")
 					return
 				case <-ctx.Done():
 					return
 				case <-stopChan:
 					return
 				}
+			} else {
+				// done, 处理完成标志，直接退出停止读取剩余数据防止出错
+				if common.DebugEnabled {
+					println("received [DONE], stopping scanner")
+				}
+				return
 			}
 		}
 
 		if err := scanner.Err(); err != nil {
 			if err != io.EOF {
-				common.LogError(c, "scanner error: "+err.Error())
+				logger.LogError(c, "scanner error: "+err.Error())
 			}
 		}
 	})
@@ -248,12 +261,12 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	select {
 	case <-ticker.C:
 		// 超时处理逻辑
-		common.LogError(c, "streaming timeout")
+		logger.LogError(c, "streaming timeout")
 	case <-stopChan:
 		// 正常结束
-		common.LogInfo(c, "streaming finished")
+		logger.LogInfo(c, "streaming finished")
 	case <-c.Request.Context().Done():
 		// 客户端断开连接
-		common.LogInfo(c, "client disconnected")
+		logger.LogInfo(c, "client disconnected")
 	}
 }
