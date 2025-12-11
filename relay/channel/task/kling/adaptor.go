@@ -363,10 +363,12 @@ func (a *TaskAdaptor) convertToAvatarRequestPayload(req *relaycommon.TaskSubmitR
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	// Kling Avatar API validation
+	// Kling Avatar API validation: audio_id and sound_file - exactly one must be provided
 	if r.SoundFile == "" && r.AudioId == "" {
-		// Technically one is required.
-		// We might want to return error or let upstream fail.
+		return nil, errors.New("kling-avatar requires either sound_file or audio_id in metadata")
+	}
+	if r.SoundFile != "" && r.AudioId != "" {
+		return nil, errors.New("kling-avatar cannot have both sound_file and audio_id, please provide only one")
 	}
 
 	return &r, nil
