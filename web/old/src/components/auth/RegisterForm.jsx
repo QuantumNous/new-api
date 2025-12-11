@@ -261,7 +261,7 @@ const RegisterForm = () => {
       setGithubButtonDisabled(true);
     }, 20000);
     try {
-      onGitHubOAuthClicked(status.github_client_id);
+      onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
     } finally {
       setTimeout(() => setGithubLoading(false), 3000);
     }
@@ -270,7 +270,7 @@ const RegisterForm = () => {
   const handleDiscordClick = () => {
     setDiscordLoading(true);
     try {
-      onDiscordOAuthClicked(status.discord_client_id);
+      onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
     } finally {
       setTimeout(() => setDiscordLoading(false), 3000);
     }
@@ -279,7 +279,12 @@ const RegisterForm = () => {
   const handleOIDCClick = () => {
     setOidcLoading(true);
     try {
-      onOIDCClicked(status.oidc_authorization_endpoint, status.oidc_client_id);
+      onOIDCClicked(
+        status.oidc_authorization_endpoint,
+        status.oidc_client_id,
+        false,
+        { shouldLogout: true },
+      );
     } finally {
       setTimeout(() => setOidcLoading(false), 3000);
     }
@@ -288,7 +293,7 @@ const RegisterForm = () => {
   const handleLinuxDOClick = () => {
     setLinuxdoLoading(true);
     try {
-      onLinuxDOOAuthClicked(status.linuxdo_client_id);
+      onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
     } finally {
       setTimeout(() => setLinuxdoLoading(false), 3000);
     }

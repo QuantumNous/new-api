@@ -47,7 +47,7 @@ type TaskAdaptor interface {
 	GetChannelName() string
 
 	// FetchTask
-	FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error)
+	FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error)
 
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
 }

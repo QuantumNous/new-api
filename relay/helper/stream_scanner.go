@@ -72,6 +72,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	if common.DebugEnabled {
 		// print timeout and ping interval for debugging
 		println("relay timeout seconds:", common.RelayTimeout)
+		println("relay max idle conns:", common.RelayMaxIdleConns)
+		println("relay max idle conns per host:", common.RelayMaxIdleConnsPerHost)
 		println("streaming timeout seconds:", int64(streamingTimeout.Seconds()))
 		println("ping interval seconds:", int64(pingInterval.Seconds()))
 	}

@@ -34,12 +34,20 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 }
 
 func InitHttpClient() {
+	transport := &http.Transport{
+		MaxIdleConns:        common.RelayMaxIdleConns,
+		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+		ForceAttemptHTTP2:   true,
+	}
+
 	if common.RelayTimeout == 0 {
 		httpClient = &http.Client{
+			Transport:     transport,
 			CheckRedirect: checkRedirect,
 		}
 	} else {
 		httpClient = &http.Client{
+			Transport:     transport,
 			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
 			CheckRedirect: checkRedirect,
 		}
@@ -48,6 +56,14 @@ func InitHttpClient() {
 
 func GetHttpClient() *http.Client {
 	return httpClient
+}
+
+// GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
+func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
+	if proxyURL == "" {
+		return GetHttpClient(), nil
+	}
+	return NewProxyHttpClient(proxyURL)
 }
 
 // ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
@@ -84,7 +100,10 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 	case "http", "https":
 		client := &http.Client{
 			Transport: &http.Transport{
-				Proxy: http.ProxyURL(parsedURL),
+				MaxIdleConns:        common.RelayMaxIdleConns,
+				MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+				ForceAttemptHTTP2:   true,
+				Proxy:               http.ProxyURL(parsedURL),
 			},
 			CheckRedirect: checkRedirect,
 		}
@@ -116,6 +135,9 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 
 		client := &http.Client{
 			Transport: &http.Transport{
+				MaxIdleConns:        common.RelayMaxIdleConns,
+				MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+				ForceAttemptHTTP2:   true,
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					return dialer.Dial(network, addr)
 				},

@@ -19,8 +19,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -122,6 +122,14 @@ func clampThinkingBudgetByEffort(modelName string, effort string) int {
 	return clampThinkingBudget(modelName, maxBudget)
 }
 
+func parseThinkingLevelSuffix(modelName string) (string, string) {
+	base, level, ok := reasoning.TrimEffortSuffix(modelName)
+	if !ok {
+		return modelName, ""
+	}
+	return base, level
+}
+
 func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		modelName := info.UpstreamModelName
@@ -178,6 +186,12 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 					ThinkingBudget: common.GetPointer(0),
 				}
 			}
+		} else if _, level := parseThinkingLevelSuffix(modelName); level != "" {
+			geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+				IncludeThoughts: true,
+				ThinkingLevel:   level,
+			}
+			info.ReasoningEffort = level
 		}
 	}
 }
@@ -1115,7 +1129,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if usage.CompletionTokens <= 0 {
 		str := responseText.String()
 		if len(str) > 0 {
-			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.PromptTokens)
+			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		} else {
 			usage = &dto.Usage{}
 		}
@@ -1288,11 +1302,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	// Google has not yet clarified how embedding models will be billed
 	// refer to openai billing method to use input tokens billing
 	// https://platform.openai.com/docs/guides/embeddings#what-are-embeddings
-	usage := &dto.Usage{
-		PromptTokens:     info.PromptTokens,
-		CompletionTokens: 0,
-		TotalTokens:      info.PromptTokens,
-	}
+	usage := service.ResponseText2Usage(c, "", info.UpstreamModelName, info.GetEstimatePromptTokens())
 	openAIResponse.Usage = *usage
 
 	jsonResponse, jsonErr := common.Marshal(openAIResponse)

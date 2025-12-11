@@ -306,10 +306,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			request.Temperature = nil
 		}
 
+		// gpt-5系列模型适配 归零不再支持的参数
 		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
-			if info.UpstreamModelName != "gpt-5-chat-latest" {
-				request.Temperature = nil
-			}
+			request.Temperature = nil
+			request.TopP = 0 // oai 的 top_p 默认值是 1.0，但是为了 omitempty 属性直接不传，这里显式设置为 0
+			request.LogProbs = false
 		}
 
 		// 转换模型推理力度后缀

@@ -16,13 +16,13 @@
       "name": "OpenAI格式(Responses)"
     },
     {
-      "name": "图片生成/编辑(Images)"
+      "name": "图片生成"
     },
     {
-      "name": "图片生成/编辑(Images)/OpenAI兼容格式"
+      "name": "图片生成/OpenAI兼容格式"
     },
     {
-      "name": "图片生成/编辑(Images)/Qwen千问"
+      "name": "图片生成/Qwen千问"
     },
     {
       "name": "视频生成"
@@ -292,7 +292,7 @@
         "description": " 百炼qwen-image系列图片生成",
         "operationId": "createImage",
         "tags": [
-          "图片生成/编辑(Images)/Qwen千问"
+          "图片生成/Qwen千问"
         ],
         "parameters": [],
         "requestBody": {
@@ -408,7 +408,7 @@
         "description": " 百炼qwen-image系列图片生成",
         "operationId": "createImage",
         "tags": [
-          "图片生成/编辑(Images)/Qwen千问"
+          "图片生成/Qwen千问"
         ],
         "parameters": [],
         "requestBody": {

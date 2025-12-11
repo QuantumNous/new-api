@@ -234,6 +234,7 @@ docker run --name new-api -d --restart always \
 - `gemini-2.5-flash-nothinking` - Désactiver le mode de pensée
 - `gemini-2.5-pro-thinking` - Activer le mode de pensée
 - `gemini-2.5-pro-thinking-128` - Activer le mode de pensée avec budget de pensée de 128 tokens
+- Vous pouvez également ajouter les suffixes `-low`, `-medium` ou `-high` aux modèles Gemini pour fixer le niveau d’effort de raisonnement (sans suffixe de budget supplémentaire).
 
 </details>
 
