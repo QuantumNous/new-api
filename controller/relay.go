@@ -66,6 +66,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	requestId := c.GetString(common.RequestIdKey)
 	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	originalContentType := c.Request.Header.Get("Content-Type")
 
 	var (
 		newAPIError *types.NewAPIError
@@ -167,6 +168,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		addUsedChannel(c, channel.Id)
 		requestBody, _ := common.GetRequestBody(c)
+		if relayFormat == types.RelayFormatOpenAIAudio && strings.Contains(originalContentType, "multipart/form-data") {
+			c.Request.Header.Set("Content-Type", originalContentType)
+		}
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 
 		switch relayFormat {
