@@ -91,6 +91,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 			common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 			common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
+			common.SetContextKey(c, constant.ContextKeyChannelId, originTask.ChannelId)
 
 			info.ChannelBaseUrl = channel.GetBaseURL()
 			info.ChannelId = originTask.ChannelId

@@ -129,7 +129,7 @@ const renderType = (type, t) => {
     case TASK_ACTION_REMIX_GENERATE:
       return (
         <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
-          {t('remix生视频')}
+          {t('视频Remix')}
         </Tag>
       );
     default:
