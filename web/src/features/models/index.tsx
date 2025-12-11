@@ -12,21 +12,16 @@ export function Models() {
       <AppHeader fixed />
 
       <Main>
-        <div className='space-y-4'>
-          {/* Header: Title + Actions */}
-          <div className='flex items-center justify-between gap-4'>
-            <div>
-              <h2 className='text-2xl font-bold tracking-tight'>
-                {t('Models')}
-              </h2>
-              <p className='text-muted-foreground text-sm'>
-                {t('Manage AI model metadata and vendor configurations')}
-              </p>
-            </div>
-            <ModelsPrimaryButtons />
+        <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
+          <div>
+            <h2 className='text-2xl font-bold tracking-tight'>{t('Models')}</h2>
+            <p className='text-muted-foreground'>
+              {t('Manage AI model metadata and vendor configurations')}
+            </p>
           </div>
-
-          {/* Table with integrated filters */}
+          <ModelsPrimaryButtons />
+        </div>
+        <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
           <ModelsTable />
         </div>
       </Main>
