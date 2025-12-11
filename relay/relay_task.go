@@ -83,12 +83,19 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 				taskErr = service.TaskErrorWrapperLocal(errors.New("the channel of the origin task is disabled"), "task_channel_disable", http.StatusBadRequest)
 				return
 			}
-			c.Set("base_url", channel.GetBaseURL())
-			c.Set("channel_id", originTask.ChannelId)
-			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
+			key, _, newAPIError := channel.GetNextEnabledKey()
+			if newAPIError != nil {
+				taskErr = service.TaskErrorWrapper(newAPIError, "channel_no_available_key", newAPIError.StatusCode)
+				return
+			}
+			common.SetContextKey(c, constant.ContextKeyChannelKey, key)
+			common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
 
 			info.ChannelBaseUrl = channel.GetBaseURL()
 			info.ChannelId = originTask.ChannelId
+			info.ChannelType = channel.Type
+			info.ApiKey = key
 			platform = originTask.Platform
 		}
 
