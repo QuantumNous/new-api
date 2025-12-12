@@ -12,11 +12,11 @@ import {
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import { CHART_HEIGHTS } from '@/features/dashboard/constants'
 import type { PieDataPoint } from '@/features/dashboard/types'
 
-const MAX_VISIBLE_LABELS = 6
 const MIN_VISIBLE_PERCENT = 0.05
-const LABEL_OFFSET = 18
+const LABEL_OFFSET = 16
 const RADIAN = Math.PI / 180
 
 interface CallProportionChartProps {
@@ -37,12 +37,18 @@ export function CallProportionChart({
     [data]
   )
 
+  // Responsive label count: fewer labels on mobile to reduce clutter
+  const maxVisibleLabels = useMemo(() => {
+    if (typeof window === 'undefined') return 6
+    return window.innerWidth < 640 ? 4 : 6
+  }, [])
+
   const labelWhitelist = useMemo<Set<string>>(() => {
     if (!data?.length) {
       return new Set<string>()
     }
 
-    if (data.length <= MAX_VISIBLE_LABELS || totalValue === 0) {
+    if (data.length <= maxVisibleLabels || totalValue === 0) {
       return new Set(data.map((point) => point.name))
     }
 
@@ -50,7 +56,7 @@ export function CallProportionChart({
     const selectedNames: string[] = []
     const addName = (name: string) => {
       if (
-        selectedNames.length < MAX_VISIBLE_LABELS &&
+        selectedNames.length < maxVisibleLabels &&
         !selectedNames.includes(name)
       ) {
         selectedNames.push(name)
@@ -67,7 +73,7 @@ export function CallProportionChart({
     sortedByValue.forEach((point) => addName(point.name))
 
     return new Set(selectedNames)
-  }, [data, totalValue])
+  }, [data, totalValue, maxVisibleLabels])
 
   const shouldShowLabelLines = useMemo(
     () => labelWhitelist.size > 0 && data.length > 1 && totalValue > 0,
@@ -204,14 +210,17 @@ export function CallProportionChart({
       loading={loading}
       empty={isEmpty}
       emptyMessage={t('No call data available')}
-      height='h-[36rem] sm:h-96'
+      height={CHART_HEIGHTS.withLabels}
     >
-      <ChartContainer config={chartConfig} className='h-[36rem] w-full sm:h-96'>
-        <PieChart margin={{ top: 40, right: 0, bottom: 0, left: 0 }}>
+      <ChartContainer
+        config={chartConfig}
+        className={`${CHART_HEIGHTS.withLabels} w-full`}
+      >
+        <PieChart margin={{ top: 32, right: 0, bottom: 0, left: 0 }}>
           <Pie
             data={data}
             cx='50%'
-            cy='48%'
+            cy='42%'
             labelLine={
               shouldShowLabelLines ? (renderSliceLabelLine as any) : undefined
             }
@@ -234,7 +243,7 @@ export function CallProportionChart({
             }
           />
           <ChartLegend
-            content={<PaginatedChartLegendContent className='pt-16 sm:pt-6' />}
+            content={<PaginatedChartLegendContent className='pt-6 sm:pt-4' />}
             verticalAlign='bottom'
           />
         </PieChart>

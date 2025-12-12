@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
@@ -10,6 +11,7 @@ import {
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import { CHART_HEIGHTS } from '@/features/dashboard/constants'
 import type { RankDataPoint } from '@/features/dashboard/types'
 
 interface TopModelsChartProps {
@@ -20,6 +22,14 @@ interface TopModelsChartProps {
 export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
   const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
+
+  // Dynamic Y-axis width based on longest model name
+  const yAxisWidth = useMemo(() => {
+    if (!data?.length) return 100
+    const maxLabelLength = Math.max(...data.map((d) => d.model.length))
+    // ~7px per character + 16px padding, capped at 200px
+    return Math.min(200, Math.max(100, maxLabelLength * 7 + 16))
+  }, [data])
 
   return (
     <PanelWrapper
@@ -32,7 +42,7 @@ export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
       loading={loading}
       empty={isEmpty}
       emptyMessage={t('No model ranking data available')}
-      height='h-96'
+      height={CHART_HEIGHTS.default}
     >
       <ChartContainer
         config={{
@@ -41,7 +51,7 @@ export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
             color: getChartColor(0),
           },
         }}
-        className='h-96 w-full'
+        className={`${CHART_HEIGHTS.default} w-full`}
       >
         <BarChart accessibilityLayer data={data} layout='vertical'>
           <CartesianGrid horizontal={false} />
@@ -60,7 +70,7 @@ export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
             tickLine={false}
             tickMargin={10}
             axisLine={false}
-            width={150}
+            width={yAxisWidth}
           />
           <ChartTooltip
             content={

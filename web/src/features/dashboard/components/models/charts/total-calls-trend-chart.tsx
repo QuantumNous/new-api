@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import { CHART_HEIGHTS } from '@/features/dashboard/constants'
 import type { TotalTrendDataPoint } from '@/features/dashboard/types'
 
 interface TotalCallsTrendChartProps {
@@ -36,7 +37,7 @@ export function TotalCallsTrendChart({
       loading={loading}
       empty={isEmpty}
       emptyMessage={t('No total calls data available')}
-      height='h-96'
+      height={CHART_HEIGHTS.default}
     >
       <ChartContainer
         config={{
@@ -49,7 +50,7 @@ export function TotalCallsTrendChart({
             color: getChartColor(1),
           },
         }}
-        className='h-96 w-full'
+        className={`${CHART_HEIGHTS.default} w-full`}
       >
         <AreaChart accessibilityLayer data={data}>
           <CartesianGrid vertical={false} />

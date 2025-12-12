@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import { CHART_HEIGHTS } from '@/features/dashboard/constants'
 import { calculateNiceCeiling } from '@/features/dashboard/lib/math'
 import type { ChartDataPoint } from '@/features/dashboard/types'
 
@@ -93,9 +94,12 @@ export function QuotaDistributionChart({
       loading={loading}
       empty={isEmpty}
       emptyMessage={t('No quota data available')}
-      height='h-[30rem] sm:h-96'
+      height={CHART_HEIGHTS.default}
     >
-      <ChartContainer config={chartConfig} className='h-[30rem] w-full sm:h-96'>
+      <ChartContainer
+        config={chartConfig}
+        className={`${CHART_HEIGHTS.default} w-full`}
+      >
         <BarChart
           accessibilityLayer
           data={data}

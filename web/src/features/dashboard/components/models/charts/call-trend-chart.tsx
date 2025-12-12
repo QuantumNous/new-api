@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
+import { CHART_HEIGHTS } from '@/features/dashboard/constants'
 import type { ChartDataPoint } from '@/features/dashboard/types'
 
 interface CallTrendChartProps {
@@ -41,9 +42,12 @@ export function CallTrendChart({
       loading={loading}
       empty={isEmpty}
       emptyMessage={t('No trend data available')}
-      height='h-[30rem] sm:h-96'
+      height={CHART_HEIGHTS.default}
     >
-      <ChartContainer config={chartConfig} className='h-[30rem] w-full sm:h-96'>
+      <ChartContainer
+        config={chartConfig}
+        className={`${CHART_HEIGHTS.default} w-full`}
+      >
         <AreaChart
           accessibilityLayer
           data={data}

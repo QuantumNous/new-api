@@ -8,6 +8,7 @@ interface StatCardProps {
   description: string
   icon: LucideIcon
   loading?: boolean
+  error?: boolean
   action?: React.ReactNode
 }
 
@@ -17,6 +18,7 @@ export function StatCard({
   description,
   icon: Icon,
   loading = false,
+  error = false,
   action,
 }: StatCardProps) {
   return (
@@ -33,6 +35,11 @@ export function StatCard({
           <>
             <Skeleton className='h-8 w-28' />
             <Skeleton className='mt-1 h-4 w-36' />
+          </>
+        ) : error ? (
+          <>
+            <div className='text-muted-foreground text-2xl font-bold'>--</div>
+            <p className='text-muted-foreground text-xs'>{description}</p>
           </>
         ) : (
           <>

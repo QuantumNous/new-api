@@ -128,7 +128,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
           {t('Filter')}
         </Button>
       </DialogTrigger>
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>{t('Filter Dashboard Models')}</DialogTitle>
           <DialogDescription>
@@ -138,7 +138,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className='max-h-[60vh] pr-4'>
+        <ScrollArea className='flex-1 pr-4'>
           <div className='grid gap-4 py-4'>
             {/* 快捷时间范围选择 */}
             <div className='grid gap-2'>

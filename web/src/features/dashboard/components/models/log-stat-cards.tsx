@@ -24,12 +24,14 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
     totalTokens: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
 
   useEffect(() => {
     let mounted = true
     setLoading(true)
+    setError(false)
     onDataUpdate?.([], true) // 通知父组件开始加载
 
     const timeRange = computeTimeRange(
@@ -54,6 +56,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
       })
       .catch(() => {
         setStats(null)
+        setError(true)
         onDataUpdate?.([], false)
       })
       .finally(() => mounted && setLoading(false))
@@ -87,6 +90,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
           description={it.desc}
           icon={it.icon}
           loading={loading}
+          error={error}
         />
       ))}
     </div>
