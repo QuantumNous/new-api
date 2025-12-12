@@ -66,6 +66,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	requestId := c.GetString(common.RequestIdKey)
 	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	isClaudeCountTokens := relayFormat == types.RelayFormatClaudeCountTokens
 
 	var (
 		newAPIError *types.NewAPIError
@@ -89,7 +90,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
-			case types.RelayFormatClaude:
+			case types.RelayFormatClaude, types.RelayFormatClaudeCountTokens:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
 					"error": newAPIError.ToClaudeError(),
@@ -114,6 +115,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	if isClaudeCountTokens {
+		// Avoid auto-ban or other destructive channel side effects for count_tokens
+		c.Set("auto_ban", false)
+		c.Set("skip_channel_autoban", true)
+	}
+
 	meta := request.GetTokenCountMeta()
 
 	if setting.ShouldCheckPromptSensitive() {
@@ -125,37 +132,42 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}
 
-	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
-		return
-	}
-
-	relayInfo.SetEstimatePromptTokens(tokens)
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError)
-		return
-	}
-
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
-	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeQuota(c, priceData.QuotaToPreConsume, relayInfo)
-		if newAPIError != nil {
+	tokens := 0
+	if !isClaudeCountTokens {
+		tokens, err = service.EstimateRequestToken(c, meta, relayInfo)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
 			return
 		}
 	}
 
-	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
-		if newAPIError != nil && relayInfo.FinalPreConsumedQuota != 0 {
-			service.ReturnPreConsumedQuota(c, relayInfo)
+	relayInfo.SetEstimatePromptTokens(tokens)
+
+	if !isClaudeCountTokens {
+		priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeModelPriceError)
+			return
 		}
-	}()
+
+		// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
+
+		if priceData.FreeModel {
+			logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+		} else {
+			newAPIError = service.PreConsumeQuota(c, priceData.QuotaToPreConsume, relayInfo)
+			if newAPIError != nil {
+				return
+			}
+		}
+
+		defer func() {
+			// Only return quota if downstream failed and quota was actually pre-consumed
+			if newAPIError != nil && relayInfo.FinalPreConsumedQuota != 0 {
+				service.ReturnPreConsumedQuota(c, relayInfo)
+			}
+		}()
+	}
 
 	for i := 0; i <= common.RetryTimes; i++ {
 		channel, err := getChannel(c, group, originalModel, i)
@@ -172,7 +184,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
+		case types.RelayFormatClaude, types.RelayFormatClaudeCountTokens:
 			newAPIError = relay.ClaudeHelper(c, relayInfo)
 		case types.RelayFormatGemini:
 			newAPIError = geminiRelayHandler(c, relayInfo)
@@ -212,10 +224,14 @@ func addUsedChannel(c *gin.Context, channelId int) {
 }
 
 func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*model.Channel, *types.NewAPIError) {
+	skipAutoBan := c.GetBool("skip_channel_autoban")
 	if retryCount == 0 {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
+			autoBanInt = 0
+		}
+		if skipAutoBan {
 			autoBanInt = 0
 		}
 		return &model.Channel{
@@ -235,6 +251,10 @@ func getChannel(c *gin.Context, group, originalModel string, retryCount int) (*m
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, originalModel)
 	if newAPIError != nil {
 		return nil, newAPIError
+	}
+	if skipAutoBan {
+		autoBanInt := 0
+		channel.AutoBan = &autoBanInt
 	}
 	return channel, nil
 }

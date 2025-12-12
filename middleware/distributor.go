@@ -73,8 +73,10 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 
+			// count_tokens 接口跳过模型名称校验
+			isCountTokens := strings.HasPrefix(c.Request.URL.Path, "/v1/messages/count_tokens")
 			if shouldSelectChannel {
-				if modelRequest.Model == "" {
+				if modelRequest.Model == "" && !isCountTokens {
 					abortWithOpenAiMessage(c, http.StatusBadRequest, "未指定模型名称，模型名称不能为空")
 					return
 				}

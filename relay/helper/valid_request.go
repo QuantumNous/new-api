@@ -32,6 +32,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		}
 	case types.RelayFormatClaude:
 		request, err = GetAndValidateClaudeRequest(c)
+	case types.RelayFormatClaudeCountTokens:
+		request, err = GetAndValidateClaudeRequest(c)
 	case types.RelayFormatOpenAIResponses:
 		request, err = GetAndValidateResponsesRequest(c)
 

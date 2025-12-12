@@ -284,8 +284,16 @@ func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 }
 
 func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
+	return genRelayInfoClaudeBase(c, request, types.RelayFormatClaude)
+}
+
+func GenRelayInfoClaudeCountTokens(c *gin.Context, request dto.Request) *RelayInfo {
+	return genRelayInfoClaudeBase(c, request, types.RelayFormatClaudeCountTokens)
+}
+
+func genRelayInfoClaudeBase(c *gin.Context, request dto.Request, relayFormat types.RelayFormat) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
-	info.RelayFormat = types.RelayFormatClaude
+	info.RelayFormat = relayFormat
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
 		LastMessagesType: LastMessageTypeNone,
@@ -448,6 +456,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		return GenRelayInfoWs(c, ws), nil
 	case types.RelayFormatClaude:
 		return GenRelayInfoClaude(c, request), nil
+	case types.RelayFormatClaudeCountTokens:
+		return GenRelayInfoClaudeCountTokens(c, request), nil
 	case types.RelayFormatRerank:
 		if request, ok := request.(*dto.RerankRequest); ok {
 			return GenRelayInfoRerank(c, request), nil
