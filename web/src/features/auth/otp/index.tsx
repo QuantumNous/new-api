@@ -13,9 +13,7 @@ export function Otp() {
             {t('Two-factor Authentication')}
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {t(
-              'Please enter the authentication code. We have sent the authentication code to your email.'
-            )}
+            {t('Please enter the authentication code.')}
           </p>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {t('Session expired?')}{' '}

@@ -195,7 +195,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
             className='text-primary h-auto p-0'
             onClick={handleToggleMode}
           >
-            {useBackupCode ? 'Use authenticator code' : 'Use backup code'}
+            {useBackupCode ? t('Use authenticator code') : t('Use backup code')}
           </Button>
           <span className='text-muted-foreground'>·</span>
           <Button
