@@ -354,32 +354,38 @@ export const useLogsData = () => {
           key: t('日志详情'),
           value: other?.claude
             ? renderClaudeLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                other.cache_creation_ratio || 1.0,
-                other.cache_creation_tokens_5m || 0,
-                other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-                other.cache_creation_tokens_1h || 0,
-                other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-              )
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_5m || 0,
+              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_1h || 0,
+              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+            )
             : renderLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                false,
-                1.0,
-                other.web_search || false,
-                other.web_search_call_count || 0,
-                other.file_search || false,
-                other.file_search_call_count || 0,
-              ),
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              false,
+              1.0,
+              other.web_search || false,
+              other.web_search_call_count || 0,
+              other.file_search || false,
+              other.file_search_call_count || 0,
+              other.tiered_pricing ? other.tier_name : null,
+              other.tiered_pricing ? other.tier_use_ratio : false,
+              other.tiered_pricing ? other.tier_input_price : 0,
+              other.tiered_pricing ? other.tier_output_price : 0,
+              other.tiered_pricing ? other.tier_input_ratio : 0,
+              other.tiered_pricing ? other.tier_completion_ratio : 0,
+            ),
         });
         if (logs[i]?.content) {
           expandDataLocal.push({
@@ -463,6 +469,12 @@ export const useLogsData = () => {
             other?.audio_input_price || 0,
             other?.image_generation_call || false,
             other?.image_generation_call_price || 0,
+            other?.tiered_pricing ? other.tier_name : null,
+            other?.tiered_pricing ? other.tier_use_ratio : false,
+            other?.tiered_pricing ? other.tier_input_price : 0,
+            other?.tiered_pricing ? other.tier_output_price : 0,
+            other?.tiered_pricing ? other.tier_input_ratio : 0,
+            other?.tiered_pricing ? other.tier_completion_ratio : 0,
           );
         }
         expandDataLocal.push({
@@ -490,8 +502,8 @@ export const useLogsData = () => {
           localCountMode = t('上游返回');
         }
         expandDataLocal.push({
-            key: t('计费模式'),
-            value: localCountMode,
+          key: t('计费模式'),
+          value: localCountMode,
         });
       }
       expandDatesLocal[logs[i].key] = expandDataLocal;
@@ -550,7 +562,7 @@ export const useLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => {});
+    loadLogs(page, pageSize).then((r) => { });
   };
 
   const handlePageSizeChange = async (size) => {

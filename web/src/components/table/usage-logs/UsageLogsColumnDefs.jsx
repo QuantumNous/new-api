@@ -39,6 +39,7 @@ import {
   renderAudioModelPrice,
   renderClaudeModelPrice,
   renderModelPrice,
+  renderTieredPricingContent,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
@@ -541,43 +542,58 @@ export const getLogsColumns = ({
             </Typography.Paragraph>
           );
         }
-        let content = other?.claude
-          ? renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              other.cache_creation_tokens || 0,
-              other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'claude',
-            )
-          : renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'openai',
-            );
+        // 检查是否是分段计费
+        let content;
+        if (other?.tiered_pricing) {
+          content = renderTieredPricingContent(
+            other.tier_name,
+            other.tier_use_ratio,
+            other.tier_input_price,
+            other.tier_output_price,
+            other.tier_input_ratio,
+            other.tier_completion_ratio,
+            other.group_ratio,
+            other?.user_group_ratio,
+          );
+        } else if (other?.claude) {
+          content = renderModelPriceSimple(
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            other.cache_creation_tokens || 0,
+            other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_5m || 0,
+            other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_1h || 0,
+            other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+            false,
+            1.0,
+            other?.is_system_prompt_overwritten,
+            'claude',
+          );
+        } else {
+          content = renderModelPriceSimple(
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            0,
+            1.0,
+            0,
+            1.0,
+            0,
+            1.0,
+            false,
+            1.0,
+            other?.is_system_prompt_overwritten,
+            'openai',
+          );
+        }
         return (
           <Typography.Paragraph
             ellipsis={{

@@ -51,6 +51,7 @@ export const useModelPricingData = () => {
   const [usableGroup, setUsableGroup] = useState({});
   const [endpointMap, setEndpointMap] = useState({});
   const [autoGroups, setAutoGroups] = useState([]);
+  const [tokenTierPricing, setTokenTierPricing] = useState(null);
 
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
@@ -231,6 +232,7 @@ export const useModelPricingData = () => {
       usable_group,
       supported_endpoint,
       auto_groups,
+      token_tier_pricing,
     } = res.data;
     if (success) {
       setGroupRatio(group_ratio);
@@ -246,6 +248,7 @@ export const useModelPricingData = () => {
       setVendorsMap(vendorMap);
       setEndpointMap(supported_endpoint || {});
       setAutoGroups(auto_groups || []);
+      setTokenTierPricing(token_tier_pricing || null);
       setModelsFormat(data, group_ratio, vendorMap);
     } else {
       showError(message);
@@ -366,6 +369,7 @@ export const useModelPricingData = () => {
     usableGroup,
     endpointMap,
     autoGroups,
+    tokenTierPricing,
 
     // 计算属性
     priceRate,

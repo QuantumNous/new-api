@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
+import { Card, Avatar, Typography, Table, Tag, Collapsible } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
 import { calculateModelPrice } from '../../../../../helpers';
 
@@ -33,12 +33,64 @@ const ModelPricingTable = ({
   showRatio,
   usableGroup,
   autoGroups = [],
+  tokenTierPricing,
   t,
 }) => {
   const modelEnableGroups = Array.isArray(modelData?.enable_groups)
     ? modelData.enable_groups
     : [];
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
+
+  // 获取模型的分段计费配置
+  const getTierConfig = () => {
+    if (!tokenTierPricing?.global_enabled || !modelData?.model_name) {
+      return null;
+    }
+
+    const modelConfigs = tokenTierPricing.model_configs || {};
+    for (const configKey in modelConfigs) {
+      const config = modelConfigs[configKey];
+      if (!config.enabled) continue;
+
+      const models = config.models?.split(',').map((m) => m.trim()) || [];
+      const isMatched = models.some((pattern) => {
+        if (pattern.endsWith('*')) {
+          const prefix = pattern.slice(0, -1);
+          return modelData.model_name.startsWith(prefix);
+        }
+        return modelData.model_name === pattern;
+      });
+
+      if (isMatched) {
+        return config;
+      }
+    }
+    return null;
+  };
+
+  const tierConfig = getTierConfig();
+
+  // 计算分段价格
+  const calculateTierPrice = (rule, groupRatioValue) => {
+    if (rule.input_price > 0 || rule.output_price > 0) {
+      // 价格模式
+      const inputPriceUSD = rule.input_price * groupRatioValue;
+      const outputPriceUSD = rule.output_price * groupRatioValue;
+      return {
+        inputPrice: displayPrice(inputPriceUSD),
+        outputPrice: displayPrice(outputPriceUSD),
+      };
+    } else {
+      // 倍率模式 - 转换为价格显示
+      const inputRatioPrice = rule.input_ratio * 2.0 * groupRatioValue;
+      const outputRatioPrice = rule.input_ratio * 2.0 * rule.completion_ratio * groupRatioValue;
+      return {
+        inputPrice: displayPrice(inputRatioPrice),
+        outputPrice: displayPrice(outputRatioPrice),
+      };
+    }
+  };
+
   const renderGroupPriceTable = () => {
     // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
@@ -68,12 +120,6 @@ const ModelPricingTable = ({
         key: group,
         group: group,
         ratio: groupRatioValue,
-        billingType:
-          modelData?.quota_type === 0
-            ? t('按量计费')
-            : modelData?.quota_type === 1
-              ? t('按次计费')
-              : '-',
         inputPrice: modelData?.quota_type === 0 ? priceData.inputPrice : '-',
         outputPrice:
           modelData?.quota_type === 0
@@ -88,6 +134,7 @@ const ModelPricingTable = ({
       {
         title: t('分组'),
         dataIndex: 'group',
+        width: 150,
         render: (text) => (
           <Tag color='white' size='small' shape='circle'>
             {text}
@@ -102,6 +149,7 @@ const ModelPricingTable = ({
       columns.push({
         title: t('倍率'),
         dataIndex: 'ratio',
+        width: 80,
         render: (text) => (
           <Tag color='white' size='small' shape='circle'>
             {text}x
@@ -110,21 +158,7 @@ const ModelPricingTable = ({
       });
     }
 
-    // 添加计费类型列
-    columns.push({
-      title: t('计费类型'),
-      dataIndex: 'billingType',
-      render: (text) => {
-        let color = 'white';
-        if (text === t('按量计费')) color = 'violet';
-        else if (text === t('按次计费')) color = 'teal';
-        return (
-          <Tag color={color} size='small' shape='circle'>
-            {text || '-'}
-          </Tag>
-        );
-      },
-    });
+    // 不再显示计费类型列
 
     // 根据计费类型添加价格列
     if (modelData?.quota_type === 0) {
@@ -133,6 +167,7 @@ const ModelPricingTable = ({
         {
           title: t('提示'),
           dataIndex: 'inputPrice',
+          width: 120,
           render: (text) => (
             <>
               <div className='font-semibold text-orange-600'>{text}</div>
@@ -145,6 +180,7 @@ const ModelPricingTable = ({
         {
           title: t('补全'),
           dataIndex: 'outputPrice',
+          width: 120,
           render: (text) => (
             <>
               <div className='font-semibold text-orange-600'>{text}</div>
@@ -160,6 +196,7 @@ const ModelPricingTable = ({
       columns.push({
         title: t('价格'),
         dataIndex: 'fixedPrice',
+        width: 120,
         render: (text) => (
           <>
             <div className='font-semibold text-orange-600'>{text}</div>
@@ -177,6 +214,62 @@ const ModelPricingTable = ({
         size='small'
         bordered={false}
         className='!rounded-lg'
+        defaultExpandAllRows={tierConfig && tierConfig.rules && tierConfig.rules.length > 0}
+        expandedRowRender={
+          tierConfig && tierConfig.rules && tierConfig.rules.length > 0
+            ? (record) => {
+              const tierData = tierConfig.rules.map((rule, index) => {
+                const prices = calculateTierPrice(rule, record.ratio);
+                const conditions = [];
+                if (rule.max_input_tokens > 0) {
+                  conditions.push(rule.min_input_tokens > 0
+                    ? `${(rule.min_input_tokens / 1000).toFixed(0)}K < ${t('输入')} ≤ ${(rule.max_input_tokens / 1000).toFixed(0)}K`
+                    : `${t('输入')} ≤ ${(rule.max_input_tokens / 1000).toFixed(0)}K`);
+                } else if (rule.min_input_tokens > 0) {
+                  conditions.push(`${t('输入')} > ${(rule.min_input_tokens / 1000).toFixed(0)}K`);
+                }
+                if (rule.max_output_tokens > 0) {
+                  conditions.push(rule.min_output_tokens > 0
+                    ? `${rule.min_output_tokens} < ${t('输出')} ≤ ${rule.max_output_tokens}`
+                    : `${t('输出')} ≤ ${rule.max_output_tokens}`);
+                } else if (rule.min_output_tokens > 0) {
+                  conditions.push(`${t('输出')} > ${rule.min_output_tokens}`);
+                }
+                return {
+                  key: index,
+                  name: rule.name || `T${index + 1}`,
+                  condition: conditions.join(' & ') || t('默认'),
+                  inputPrice: prices.inputPrice,
+                  outputPrice: prices.outputPrice,
+                };
+              });
+              return (
+                <div className='bg-gradient-to-r from-blue-50 to-indigo-50 py-2 px-4'>
+                  {tierData.map((tier, idx) => (
+                    <div key={tier.key} className={`flex items-center justify-between py-2 ${idx < tierData.length - 1 ? 'border-b border-blue-100' : ''}`}>
+                      <div className='flex-1'>
+                        <div className='flex items-center gap-2'>
+                          <Tag color='cyan' size='small' className='font-semibold'>{tier.name}</Tag>
+                          <span className='text-gray-500 text-xs'>{tier.condition}</span>
+                        </div>
+                      </div>
+                      <div className='flex gap-8'>
+                        <div className='text-right'>
+                          <div className='text-xs text-gray-500'>{t('提示')}</div>
+                          <div className='font-semibold text-orange-600'>{tier.inputPrice}</div>
+                        </div>
+                        <div className='text-right'>
+                          <div className='text-xs text-gray-500'>{t('补全')}</div>
+                          <div className='font-semibold text-orange-600'>{tier.outputPrice}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            : undefined
+        }
       />
     );
   };
@@ -190,7 +283,9 @@ const ModelPricingTable = ({
         <div>
           <Text className='text-lg font-medium'>{t('分组价格')}</Text>
           <div className='text-xs text-gray-600'>
-            {t('不同用户分组的价格信息')}
+            {tierConfig
+              ? t('不同用户分组的价格信息（包含分段计费）')
+              : t('不同用户分组的价格信息')}
           </div>
         </div>
       </div>
@@ -207,6 +302,14 @@ const ModelPricingTable = ({
               {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
             </React.Fragment>
           ))}
+        </div>
+      )}
+      {tierConfig && (
+        <div className='mb-4 p-3 bg-purple-50 rounded-lg'>
+          <div className='text-sm text-purple-700'>
+            <span className='font-semibold'>{t('提示')}: </span>
+            {t('此模型启用了分段计费，点击展开按钮查看各阶段价格详情')}
+          </div>
         </div>
       )}
       {renderGroupPriceTable()}
