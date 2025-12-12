@@ -38,7 +38,7 @@ export function QuotaDistributionChart({
 
   // Calculate Y-axis domain for elegant ticks
   const yAxisProps = useMemo(() => {
-    if (isEmpty) return { domain: [0, 0], ticks: [0] }
+    if (isEmpty) return { domain: [0, 0], ticks: [0], width: 60 }
 
     const maxValueInUSD = Math.max(
       ...data.map((item) =>
@@ -46,7 +46,7 @@ export function QuotaDistributionChart({
       )
     )
 
-    if (maxValueInUSD === 0) return { domain: [0, 0], ticks: [0] }
+    if (maxValueInUSD === 0) return { domain: [0, 0], ticks: [0], width: 60 }
 
     const maxValueInDisplayCurrency = maxValueInUSD * axisExchangeRate
     const tickCount = 5
@@ -54,7 +54,7 @@ export function QuotaDistributionChart({
     const niceMax = calculateNiceCeiling(maxValueInDisplayCurrency, tickCount)
 
     if (niceMax === 0) {
-      return { domain: [0, 0], ticks: [0] }
+      return { domain: [0, 0], ticks: [0], width: 60 }
     }
 
     const increment = niceMax / (tickCount - 1)
@@ -70,9 +70,15 @@ export function QuotaDistributionChart({
 
     const domainMax = canScale ? niceMax / axisExchangeRate : niceMax
 
+    // Dynamically calculate width based on the longest formatted tick label
+    const maxFormattedLabel = formatCurrencyUSD(domainMax)
+    // ~8px per character + 16px padding for safety
+    const calculatedWidth = Math.max(60, maxFormattedLabel.length * 8 + 16)
+
     return {
       domain: [0, domainMax],
       ticks: usdTicks,
+      width: calculatedWidth,
     }
   }, [data, uniqueModels, isEmpty, axisExchangeRate, usesExchangeRate])
 
