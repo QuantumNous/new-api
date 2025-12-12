@@ -157,15 +157,15 @@ func buildAwsRequestBody(c *gin.Context, info *relaycommon.RelayInfo, awsClaudeR
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "get request body for pass-through fail")
 		}
 		var data map[string]interface{}
-		if err := json.Unmarshal(body, &data); err != nil {
-			return nil, err
+		if err := common.Unmarshal(body, &data); err != nil {
+			return nil, errors.Wrap(err, "pass-through unmarshal request body fail")
 		}
 		delete(data, "model")
 		delete(data, "stream")
-		return json.Marshal(data)
+		return common.Marshal(data)
 	}
 	return common.Marshal(awsClaudeReq)
 }
