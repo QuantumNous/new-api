@@ -103,7 +103,8 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
         }
 
         // 判断是价格模式还是倍率模式
-        const isPriceMode = rule.input_price !== undefined && rule.input_price !== null;
+        // 价格模式：input_price > 0；倍率模式：input_ratio > 0
+        const isPriceMode = rule.input_price > 0;
 
         return {
             key: index,

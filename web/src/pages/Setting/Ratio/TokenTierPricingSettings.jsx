@@ -280,12 +280,13 @@ export default function TokenTierPricingSettings({ options, refresh }) {
   // 打开编辑规则弹窗
   const handleEditRule = (rule, index) => {
     const ruleWithPrice = { ...rule };
+    const ratioBasePrice = getRatioBasePrice();
 
     // 从倍率计算价格用于显示
     if (rule.input_ratio > 0) {
-      ruleWithPrice.inputPrice = rule.input_ratio * 2;
+      ruleWithPrice.inputPrice = rule.input_ratio * ratioBasePrice;
       if (rule.completion_ratio > 0) {
-        ruleWithPrice.outputPrice = rule.input_ratio * 2 * rule.completion_ratio;
+        ruleWithPrice.outputPrice = rule.input_ratio * ratioBasePrice * rule.completion_ratio;
       }
     }
 
@@ -413,8 +414,9 @@ export default function TokenTierPricingSettings({ options, refresh }) {
       render: (_, record) => {
         const inputRatio = record.input_ratio || 0;
         const completionRatio = record.completion_ratio || 1.0;
-        const inputPrice = (inputRatio * 2).toFixed(6);
-        const outputPrice = (inputRatio * completionRatio * 2).toFixed(6);
+        const ratioBasePrice = getRatioBasePrice();
+        const inputPrice = (inputRatio * ratioBasePrice).toFixed(6);
+        const outputPrice = (inputRatio * completionRatio * ratioBasePrice).toFixed(6);
 
         return (
           <div>
@@ -500,7 +502,7 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                     <Tag color={model.enabled ? 'green' : 'grey'}>
                       {model.enabled ? t('已启用') : t('已禁用')}
                     </Tag>
-                    <Text type="tertiary">({model.rules?.length || 0} {t('条规则')})</Text>
+                    <Text type="tertiary">({t('条规则', { count: model.rules?.length || 0 })})</Text>
                   </div>
                 }
                 itemKey={model.name}

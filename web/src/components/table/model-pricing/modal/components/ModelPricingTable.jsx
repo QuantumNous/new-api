@@ -96,7 +96,8 @@ const ModelPricingTable = ({
   // 计算分段价格
   const calculateTierPrice = (rule, groupRatioValue) => {
     const ratioBasePrice = getRatioBasePrice();
-    if (rule.input_price !== undefined && rule.input_price !== null) {
+    // 价格模式：input_price > 0；倍率模式：input_ratio > 0
+    if (rule.input_price > 0) {
       // 价格模式 (Price Mode)
       // Check for price mode by existence of validation, not just > 0
       const inputPriceUSD = rule.input_price * groupRatioValue;
