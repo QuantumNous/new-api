@@ -176,7 +176,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType)
+	request := buildTestRequest(testModel, endpointType, channel)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -389,7 +389,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	}
 }
 
-func buildTestRequest(model string, endpointType string) dto.Request {
+func buildTestRequest(model string, endpointType string, channel *model.Channel) dto.Request {
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
@@ -426,6 +426,9 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 			maxTokens := uint(10)
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 				maxTokens = 3000
+			}
+			if channel.Type == constant.ChannelTypeOpenRouter {
+				maxTokens = uint(16)
 			}
 			return &dto.GeneralOpenAIRequest{
 				Model:  model,
