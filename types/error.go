@@ -298,9 +298,10 @@ func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIError
 	}
 	// OpenRouter
 	if len(openAIError.Metadata) > 0 {
-		openAIError.Message = fmt.Sprintf("%s (%v)", openAIError.Message, openAIError.Metadata)
+		openAIError.Message = fmt.Sprintf("%s (%s)", openAIError.Message, openAIError.Metadata)
 		e.Metadata = openAIError.Metadata
 		e.RelayError = openAIError
+		e.Err = errors.New(openAIError.Message)
 	}
 	for _, op := range ops {
 		op(e)
