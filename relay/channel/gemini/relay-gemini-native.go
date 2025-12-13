@@ -94,10 +94,10 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 	helper.SetEventStreamHeaders(c)
 
 	return geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
-		// 直接发送 GeminiChatResponse 响应
 		err := helper.StringData(c, data)
 		if err != nil {
-			logger.LogError(c, err.Error())
+			logger.LogError(c, "failed to write stream data: "+err.Error())
+			return false
 		}
 		info.SendResponseCount++
 		return true
