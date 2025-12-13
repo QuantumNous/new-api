@@ -103,8 +103,9 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
         }
 
         // 判断是价格模式还是倍率模式
-        // 价格模式：input_price > 0；倍率模式：input_ratio > 0
-        const isPriceMode = rule.input_price > 0;
+        // 价格模式：任一价格字段非零；倍率模式：使用 input_ratio
+        const isPriceMode =
+            (rule.input_price ?? 0) !== 0 || (rule.output_price ?? 0) !== 0;
 
         return {
             key: index,
@@ -112,11 +113,11 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
             condition: conditions.join(' & ') || t('默认'),
             mode: isPriceMode ? t('价格模式') : t('倍率模式'),
             inputValue: isPriceMode
-                ? `$${rule.input_price?.toFixed(6) || '0.000000'} / 1M`
-                : `${rule.input_ratio?.toFixed(2) || '0.00'}x`,
+                ? `$${(rule.input_price ?? 0).toFixed(6)} / 1M`
+                : `${(rule.input_ratio ?? 0).toFixed(2)}x`,
             outputValue: isPriceMode
-                ? `$${rule.output_price?.toFixed(6) || '0.000000'} / 1M`
-                : `${rule.completion_ratio?.toFixed(2) || '1.00'}x`,
+                ? `$${(rule.output_price ?? 0).toFixed(6)} / 1M`
+                : `${(rule.completion_ratio ?? 1.0).toFixed(2)}x`,
         };
     });
 

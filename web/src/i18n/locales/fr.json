@@ -2275,7 +2275,6 @@
     "等价倍率: {{ratio}}": "Ratio équivalent: {{ratio}}",
     "等价倍率: {{ratio}} (相对于输入价格)": "Ratio équivalent: {{ratio}} (par rapport au prix d'entrée)",
     "(等价价格: ${{price}}/1M)": "(Prix équivalent: ${{price}}/1M)",
-    "确定删除此规则吗？": "Êtes-vous sûr de vouloir supprimer cette règle?",
     "请填写规则名称": "Veuillez entrer le nom de la règle",
     "输入Token范围": "Plage de tokens d'entrée",
     "输出Token范围": "Plage de tokens de sortie",

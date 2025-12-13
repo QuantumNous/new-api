@@ -96,12 +96,14 @@ const ModelPricingTable = ({
   // 计算分段价格
   const calculateTierPrice = (rule, groupRatioValue) => {
     const ratioBasePrice = getRatioBasePrice();
-    // 价格模式：input_price > 0；倍率模式：input_ratio > 0
-    if (rule.input_price > 0) {
+    // 价格模式：任一价格字段非零；倍率模式：使用 input_ratio
+    // 注意：当前后端仅保存倍率模式（价格始终为 0），此处保留价格模式支持以备将来扩展
+    const hasPrice =
+      (rule.input_price ?? 0) !== 0 || (rule.output_price ?? 0) !== 0;
+    if (hasPrice) {
       // 价格模式 (Price Mode)
-      // Check for price mode by existence of validation, not just > 0
-      const inputPriceUSD = rule.input_price * groupRatioValue;
-      const outputPriceUSD = rule.output_price * groupRatioValue;
+      const inputPriceUSD = (rule.input_price ?? 0) * groupRatioValue;
+      const outputPriceUSD = (rule.output_price ?? 0) * groupRatioValue;
       return {
         inputPrice: displayPrice(inputPriceUSD),
         outputPrice: displayPrice(outputPriceUSD),
@@ -109,9 +111,11 @@ const ModelPricingTable = ({
     } else {
       // 倍率模式 - 转换为价格显示 (Ratio Mode)
       // 1 Ratio = ratioBasePrice / 1M tokens (默认 $2.0)
-      const inputRatioPrice = rule.input_ratio * ratioBasePrice * groupRatioValue;
+      const inputRatio = rule.input_ratio ?? 0;
+      const completionRatio = rule.completion_ratio ?? 1.0;
+      const inputRatioPrice = inputRatio * ratioBasePrice * groupRatioValue;
       // Output price is derived from input ratio * completion ratio (default logic) or output_ratio if available
-      const outputRatio = rule.output_ratio ?? (rule.input_ratio * rule.completion_ratio);
+      const outputRatio = rule.output_ratio ?? (inputRatio * completionRatio);
       const outputRatioPrice = outputRatio * ratioBasePrice * groupRatioValue;
 
       return {
