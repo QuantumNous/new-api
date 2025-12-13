@@ -260,10 +260,12 @@ const ModelPricingTable = ({
               const tierData = tierConfig.rules.map((rule, index) => {
                 const prices = calculateTierPrice(rule, record.ratio);
                 const conditions = [];
-                // Helper function to format token count
+                // Helper function to format token count (根据 tokenUnit 调整单位)
                 const formatTokens = (tokens) => {
-                  if (tokens >= 1000) {
-                    return `${(tokens / 1000).toFixed(0)}K`;
+                  const divisor = tokenUnit === 'K' ? 1000 : 1000000;
+                  const suffix = tokenUnit === 'K' ? 'K' : 'M';
+                  if (tokens >= divisor) {
+                    return `${(tokens / divisor).toFixed(tokenUnit === 'K' ? 0 : 3)}${suffix}`;
                   }
                   return tokens.toString();
                 };

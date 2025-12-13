@@ -59,10 +59,12 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, tokenUnit = 'K', t 
         return null;
     }
 
-    // 格式化 token 数量显示（与 ModelPricingTable 保持一致）
+    // 格式化 token 数量显示（根据 tokenUnit 调整单位）
     const formatTokens = (tokens) => {
-        if (tokens >= 1000) {
-            return `${(tokens / 1000).toFixed(0)}K`;
+        const divisor = tokenUnit === 'K' ? 1000 : 1000000;
+        const suffix = tokenUnit === 'K' ? 'K' : 'M';
+        if (tokens >= divisor) {
+            return `${(tokens / divisor).toFixed(tokenUnit === 'K' ? 0 : 3)}${suffix}`;
         }
         return tokens.toString();
     };
@@ -120,7 +122,7 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, tokenUnit = 'K', t 
                 : `${(rule.input_ratio ?? 0).toFixed(2)}x`,
             outputValue: isPriceMode
                 ? `$${(rule.output_price ?? 0).toFixed(6)} / ${priceUnit}`
-                : `${(rule.completion_ratio ?? 1.0).toFixed(2)}x`,
+                : `${(rule.output_ratio ?? ((rule.input_ratio ?? 0) * (rule.completion_ratio ?? 1.0))).toFixed(2)}x`,
         };
     });
 
