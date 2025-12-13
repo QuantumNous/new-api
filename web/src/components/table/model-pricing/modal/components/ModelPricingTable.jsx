@@ -248,19 +248,19 @@ const ModelPricingTable = ({
                   {tierData.map((tier, idx) => (
                     <div key={tier.key} className={`flex items-center justify-between py-2 ${idx < tierData.length - 1 ? 'border-b border-blue-100' : ''}`}>
                       <div className='flex-1'>
-                        <div className='flex items-center gap-2'>
-                          <Tag color='cyan' size='small' className='font-semibold'>{tier.name}</Tag>
-                          <span className='text-gray-500 text-xs'>{tier.condition}</span>
-                        </div>
+                        <Tag color='cyan' size='small' className='font-semibold'>{tier.name}</Tag>
+                        <div className='text-gray-500 text-xs mt-1'>{tier.condition}</div>
                       </div>
-                      <div className='flex gap-8'>
-                        <div className='text-right'>
+                      <div className='flex'>
+                        <div style={{ width: 120 }}>
                           <div className='text-xs text-gray-500'>{t('提示')}</div>
                           <div className='font-semibold text-orange-600'>{tier.inputPrice}</div>
+                          <div className='text-xs text-gray-500'>/ {tokenUnit === 'K' ? '1K' : '1M'} tokens</div>
                         </div>
-                        <div className='text-right'>
+                        <div style={{ width: 120 }}>
                           <div className='text-xs text-gray-500'>{t('补全')}</div>
                           <div className='font-semibold text-orange-600'>{tier.outputPrice}</div>
+                          <div className='text-xs text-gray-500'>/ {tokenUnit === 'K' ? '1K' : '1M'} tokens</div>
                         </div>
                       </div>
                     </div>
