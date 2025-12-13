@@ -3,10 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -54,12 +51,6 @@ func Playground(c *gin.Context) {
 		Group:  relayInfo.UsingGroup,
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
-	_, newAPIError = getChannel(c, relayInfo, 0)
-	if newAPIError != nil {
-		return
-	}
-	//middleware.SetupContextForSelectedChannel(c, channel, playgroundRequest.Model)
-	common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 
 	Relay(c, types.RelayFormatOpenAI)
 }
