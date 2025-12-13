@@ -300,6 +300,7 @@ func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIError
 	if len(openAIError.Metadata) > 0 {
 		openAIError.Message = fmt.Sprintf("%s (%v)", openAIError.Message, openAIError.Metadata)
 		e.Metadata = openAIError.Metadata
+		e.RelayError = openAIError
 	}
 	for _, op := range ops {
 		op(e)
