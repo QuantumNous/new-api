@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,10 +11,11 @@ import (
 )
 
 type OpenAIError struct {
-	Message string `json:"message"`
-	Type    string `json:"type"`
-	Param   string `json:"param"`
-	Code    any    `json:"code"`
+	Message  string          `json:"message"`
+	Type     string          `json:"type"`
+	Param    string          `json:"param"`
+	Code     any             `json:"code"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
 type ClaudeError struct {
@@ -92,6 +94,7 @@ type NewAPIError struct {
 	errorType      ErrorType
 	errorCode      ErrorCode
 	StatusCode     int
+	Metadata       json.RawMessage
 }
 
 func (e *NewAPIError) GetErrorCode() ErrorCode {
@@ -292,6 +295,11 @@ func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIError
 		StatusCode: statusCode,
 		Err:        errors.New(openAIError.Message),
 		errorCode:  ErrorCode(code),
+	}
+	// OpenRouter
+	if len(openAIError.Metadata) > 0 {
+		openAIError.Message = fmt.Sprintf("%s (%v)", openAIError.Message, openAIError.Metadata)
+		e.Metadata = openAIError.Metadata
 	}
 	for _, op := range ops {
 		op(e)
