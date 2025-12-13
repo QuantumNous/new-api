@@ -248,6 +248,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			modelsRoute.GET("/sync_upstream/preview", controller.SyncUpstreamPreview)
 			modelsRoute.POST("/sync_upstream", controller.SyncUpstreamModels)
+			modelsRoute.POST("/sync_config/preview", controller.SyncConfigPreview)
+			modelsRoute.POST("/sync_config", controller.SyncConfigModels)
 			modelsRoute.GET("/missing", controller.GetMissingModels)
 			modelsRoute.GET("/", controller.GetAllModelsMeta)
 			modelsRoute.GET("/search", controller.SearchModelsMeta)
