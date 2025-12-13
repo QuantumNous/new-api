@@ -297,7 +297,70 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 
 	var audioInputQuota decimal.Decimal
 	var audioInputPrice float64
-	if !relayInfo.PriceData.UsePrice {
+
+	// 尝试四段计费
+	tierResult := operation_setting.ResolveTokenTierPrice(modelName, promptTokens, completionTokens)
+
+	if tierResult.Matched && !relayInfo.PriceData.UsePrice {
+		// 四段计费路径：需要处理特殊tokens（缓存、图片、音频等）
+		// 计算基础输入tokens（排除特殊tokens）
+		baseInputTokens := promptTokens - cacheTokens - imageTokens - audioTokens - cachedCreationTokens
+		if baseInputTokens < 0 {
+			baseInputTokens = 0
+		}
+
+		// 根据价格模式或倍率模式计算基础tokens费用
+		if tierResult.UseRatio {
+			// 倍率模式
+			quotaCalculateDecimal = operation_setting.CalcQuotaByTierRatio(
+				baseInputTokens,
+				completionTokens,
+				tierResult.InputRatio,
+				tierResult.CompletionRatio,
+				dGroupRatio,
+			)
+		} else {
+			// 价格模式（USD）
+			quotaCalculateDecimal = operation_setting.CalcQuotaByTierPrice(
+				baseInputTokens,
+				completionTokens,
+				tierResult.InputPrice,
+				tierResult.OutputPrice,
+				dQuotaPerUnit,
+				dGroupRatio,
+			)
+		}
+
+		// 特殊tokens按原有逻辑处理（使用倍率）
+		// 缓存tokens
+		if cacheTokens > 0 {
+			cachedTokensQuota := dCacheTokens.Mul(dCacheRatio).Mul(ratio)
+			quotaCalculateDecimal = quotaCalculateDecimal.Add(cachedTokensQuota)
+		}
+		// 缓存创建tokens
+		if cachedCreationTokens > 0 {
+			cachedCreationQuota := dCachedCreationTokens.Mul(dCachedCreationRatio).Mul(ratio)
+			quotaCalculateDecimal = quotaCalculateDecimal.Add(cachedCreationQuota)
+		}
+		// 图片tokens
+		if imageTokens > 0 {
+			imageQuota := dImageTokens.Mul(dImageRatio).Mul(ratio)
+			quotaCalculateDecimal = quotaCalculateDecimal.Add(imageQuota)
+		}
+		// 音频tokens（Gemini）
+		if audioTokens > 0 {
+			audioInputPrice = operation_setting.GetGeminiInputAudioPricePerMillionTokens(modelName)
+			if audioInputPrice > 0 {
+				audioInputQuota = decimal.NewFromFloat(audioInputPrice).Div(decimal.NewFromInt(1000000)).Mul(dAudioTokens).Mul(dGroupRatio).Mul(dQuotaPerUnit)
+				extraContent += fmt.Sprintf("Audio Input 花费 %s", audioInputQuota.String())
+			}
+		}
+
+		// 确保最小消耗为1
+		if quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) && (promptTokens > 0 || completionTokens > 0) {
+			quotaCalculateDecimal = decimal.NewFromInt(1)
+		}
+	} else if !relayInfo.PriceData.UsePrice {
 		baseTokens := dPromptTokens
 		// 减去 cached tokens
 		var cachedTokensWithRatio decimal.Decimal
@@ -409,6 +472,28 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 		logContent += ", " + extraContent
 	}
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+
+	// 添加四段计费相关日志字段
+	if tierResult.Matched {
+		other["tiered_pricing"] = true
+		other["tier_name"] = tierResult.RuleName
+		other["tier_use_ratio"] = tierResult.UseRatio
+		if tierResult.UseRatio {
+			other["tier_input_ratio"] = tierResult.InputRatio
+			other["tier_completion_ratio"] = tierResult.CompletionRatio
+		} else {
+			other["tier_input_price"] = tierResult.InputPrice
+			other["tier_output_price"] = tierResult.OutputPrice
+		}
+		// 计算基础输入tokens（用于计费的实际tokens数）
+		baseInputTokens := promptTokens - cacheTokens - imageTokens - audioTokens - cachedCreationTokens
+		if baseInputTokens < 0 {
+			baseInputTokens = 0
+		}
+		other["tier_base_input_tokens"] = baseInputTokens
+		other["tier_output_tokens"] = completionTokens
+	}
+
 	if imageTokens != 0 {
 		other["image"] = true
 		other["image_ratio"] = imageRatio
