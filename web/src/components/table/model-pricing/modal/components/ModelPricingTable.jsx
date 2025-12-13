@@ -94,33 +94,38 @@ const ModelPricingTable = ({
   const tierConfig = getTierConfig();
 
   // 计算分段价格
+  // 注意：价格按 1M tokens 计算，如果 tokenUnit 为 'K'，需要除以 1000
   const calculateTierPrice = (rule, groupRatioValue) => {
     const ratioBasePrice = getRatioBasePrice();
+    // tokenUnit 为 'K' 时，价格需要除以 1000（从 /1M 转换为 /1K）
+    const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+    // 1K tokens 价格较小，需要更多小数位（4位）
+    const formatTierPrice = (price) => `$${price.toFixed(4)}`;
     // 价格模式：任一价格字段非零；倍率模式：使用 input_ratio
     // 注意：当前后端仅保存倍率模式（价格始终为 0），此处保留价格模式支持以备将来扩展
     const hasPrice =
       (rule.input_price ?? 0) !== 0 || (rule.output_price ?? 0) !== 0;
     if (hasPrice) {
       // 价格模式 (Price Mode)
-      const inputPriceUSD = (rule.input_price ?? 0) * groupRatioValue;
-      const outputPriceUSD = (rule.output_price ?? 0) * groupRatioValue;
+      const inputPriceUSD = ((rule.input_price ?? 0) * groupRatioValue) / unitDivisor;
+      const outputPriceUSD = ((rule.output_price ?? 0) * groupRatioValue) / unitDivisor;
       return {
-        inputPrice: displayPrice(inputPriceUSD),
-        outputPrice: displayPrice(outputPriceUSD),
+        inputPrice: formatTierPrice(inputPriceUSD),
+        outputPrice: formatTierPrice(outputPriceUSD),
       };
     } else {
       // 倍率模式 - 转换为价格显示 (Ratio Mode)
       // 1 Ratio = ratioBasePrice / 1M tokens (默认 $2.0)
       const inputRatio = rule.input_ratio ?? 0;
       const completionRatio = rule.completion_ratio ?? 1.0;
-      const inputRatioPrice = inputRatio * ratioBasePrice * groupRatioValue;
+      const inputRatioPrice = (inputRatio * ratioBasePrice * groupRatioValue) / unitDivisor;
       // Output price is derived from input ratio * completion ratio (default logic) or output_ratio if available
       const outputRatio = rule.output_ratio ?? (inputRatio * completionRatio);
-      const outputRatioPrice = outputRatio * ratioBasePrice * groupRatioValue;
+      const outputRatioPrice = (outputRatio * ratioBasePrice * groupRatioValue) / unitDivisor;
 
       return {
-        inputPrice: displayPrice(inputRatioPrice),
-        outputPrice: displayPrice(outputRatioPrice),
+        inputPrice: formatTierPrice(inputRatioPrice),
+        outputPrice: formatTierPrice(outputRatioPrice),
       };
     }
   };

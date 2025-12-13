@@ -23,7 +23,7 @@ import { IconLayers } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
 
-const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
+const ModelTierPricingInfo = ({ modelData, tokenTierPricing, tokenUnit = 'K', t }) => {
     // 检查是否启用分段计费
     const tierConfig = useMemo(() => {
         if (!tokenTierPricing?.global_enabled || !modelData?.model_name) {
@@ -59,13 +59,16 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
         return null;
     }
 
-    // 格式化 token 数量显示
+    // 格式化 token 数量显示（与 ModelPricingTable 保持一致）
     const formatTokens = (tokens) => {
         if (tokens >= 1000) {
             return `${(tokens / 1000).toFixed(0)}K`;
         }
         return tokens.toString();
     };
+
+    // 价格单位显示
+    const priceUnit = tokenUnit === 'K' ? '1K' : '1M';
 
     // 准备表格数据
     const tableData = tierConfig.rules.map((rule, index) => {
@@ -113,10 +116,10 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
             condition: conditions.join(' & ') || t('默认'),
             mode: isPriceMode ? t('价格模式') : t('倍率模式'),
             inputValue: isPriceMode
-                ? `$${(rule.input_price ?? 0).toFixed(6)} / 1M`
+                ? `$${(rule.input_price ?? 0).toFixed(6)} / ${priceUnit}`
                 : `${(rule.input_ratio ?? 0).toFixed(2)}x`,
             outputValue: isPriceMode
-                ? `$${(rule.output_price ?? 0).toFixed(6)} / 1M`
+                ? `$${(rule.output_price ?? 0).toFixed(6)} / ${priceUnit}`
                 : `${(rule.completion_ratio ?? 1.0).toFixed(2)}x`,
         };
     });
