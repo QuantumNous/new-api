@@ -23,83 +23,82 @@ export function getChannelTypeLabel(type: number): string {
 
 /**
  * Get channel type icon name for getLobeIcon
- * Maps channel types to Lobe icon names
+ * Maps channel types to Lobe icon names using type number (language-independent)
  */
 export function getChannelTypeIcon(type: number): string {
-  const typeLabel = getChannelTypeLabel(type)
-  const iconMap: Record<string, string> = {
+  const TYPE_TO_ICON: Record<number, string> = {
     // OpenAI family
-    OpenAI: 'OpenAI',
-    OpenAIMax: 'OpenAI',
-    OhMyGPT: 'OpenAI',
-    Custom: 'OpenAI',
-    Azure: 'Azure',
+    1: 'OpenAI', // OpenAI
+    6: 'OpenAI', // OpenAIMax
+    7: 'OpenAI', // OhMyGPT
+    8: 'OpenAI', // Custom
+    3: 'Azure', // Azure
 
     // Anthropic
-    Anthropic: 'Claude',
+    14: 'Claude', // Anthropic
 
     // Google family
-    Gemini: 'Gemini',
-    PaLM: 'Google',
-    'Vertex AI': 'Gemini',
+    24: 'Gemini', // Gemini
+    11: 'Google', // PaLM
+    41: 'Gemini', // Vertex AI
 
     // Cloud providers
-    AWS: 'Aws',
-    Cloudflare: 'Cloudflare',
+    33: 'Aws', // AWS
+    39: 'Cloudflare', // Cloudflare
 
     // Chinese providers
-    Baidu: 'Baidu',
-    'Baidu V2': 'Baidu',
-    Zhipu: 'Zhipu',
-    'Zhipu V4': 'Zhipu',
-    Ali: 'Qwen',
-    Xunfei: 'Spark',
-    Tencent: 'Hunyuan',
-    '360': 'Ai360',
-    Moonshot: 'Moonshot',
-    LingYiWanWu: 'Yi',
-    MiniMax: 'Minimax',
-    VolcEngine: 'Doubao',
+    15: 'Baidu', // Baidu
+    46: 'Baidu', // Baidu V2
+    16: 'Zhipu', // Zhipu
+    26: 'Zhipu', // Zhipu V4
+    17: 'Qwen', // Ali
+    18: 'Spark', // Xunfei
+    23: 'Hunyuan', // Tencent
+    19: 'Ai360', // 360
+    25: 'Moonshot', // Moonshot
+    31: 'Yi', // LingYiWanWu
+    35: 'Minimax', // MiniMax
+    45: 'Volcengine', // VolcEngine
 
     // Other AI providers
-    Ollama: 'Ollama',
-    Perplexity: 'Perplexity',
-    Cohere: 'Cohere',
-    Mistral: 'Mistral',
-    DeepSeek: 'DeepSeek',
-    xAI: 'XAI',
-    Coze: 'Coze',
-    SiliconFlow: 'SiliconCloud',
-    MokaAI: 'OpenAI',
-    OpenRouter: 'OpenRouter',
+    4: 'Ollama', // Ollama
+    27: 'Perplexity', // Perplexity
+    34: 'Cohere', // Cohere
+    42: 'Mistral', // Mistral
+    43: 'DeepSeek', // DeepSeek
+    48: 'XAI', // xAI
+    49: 'Coze', // Coze
+    40: 'SiliconCloud', // SiliconFlow
+    44: 'OpenAI', // MokaAI
+    20: 'OpenRouter', // OpenRouter
 
     // Image/Video generation
-    Midjourney: 'Midjourney',
-    MidjourneyPlus: 'Midjourney',
-    Kling: 'Kling',
-    Jimeng: 'Jimeng',
-    Vidu: 'Vidu',
-    SunoAPI: 'Suno',
-    Sora: 'OpenAI',
-    DoubaoVideo: 'Doubao',
-    Replicate: 'Replicate',
+    2: 'Midjourney', // Midjourney
+    5: 'Midjourney', // MidjourneyPlus
+    50: 'Kling', // Kling
+    51: 'Jimeng', // Jimeng
+    52: 'Vidu', // Vidu
+    36: 'Suno', // SunoAPI
+    55: 'OpenAI', // Sora
+    54: 'Doubao', // DoubaoVideo
+    56: 'Replicate', // Replicate
 
     // Tools & Platforms
-    Dify: 'Dify',
-    Jina: 'Jina',
-    FastGPT: 'FastGPT',
-    Xinference: 'Xinference',
-    Submodel: 'OpenAI',
+    37: 'Dify', // Dify
+    38: 'Jina', // Jina
+    22: 'FastGPT', // FastGPT
+    47: 'Xinference', // Xinference
+    53: 'OpenAI', // Submodel
 
     // AI Proxy services
-    'AI Proxy': 'OpenAI',
-    'AI Proxy Library': 'OpenAI',
-    API2GPT: 'OpenAI',
-    AIGC2D: 'OpenAI',
-    AILS: 'OpenAI',
+    10: 'OpenAI', // AI Proxy
+    21: 'OpenAI', // AI Proxy Library
+    12: 'OpenAI', // API2GPT
+    13: 'OpenAI', // AIGC2D
+    9: 'OpenAI', // AILS
   }
 
-  return iconMap[typeLabel] || 'OpenAI'
+  return TYPE_TO_ICON[type] || 'OpenAI'
 }
 
 // ============================================================================
