@@ -32,10 +32,11 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
 
         // 查找匹配的模型配置
         const modelConfigs = tokenTierPricing.model_configs || {};
-        for (const configKey in modelConfigs) {
-            const config = modelConfigs[configKey];
-            if (!config.enabled) continue;
+        const configs = Object.values(modelConfigs)
+            .filter((c) => c?.enabled)
+            .sort((a, b) => (a?.priority ?? 0) - (b?.priority ?? 0));
 
+        for (const config of configs) {
             // 检查模型名是否匹配
             const models = config.models?.split(',').map((m) => m.trim()) || [];
             const isMatched = models.some((pattern) => {
@@ -58,6 +59,14 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
         return null;
     }
 
+    // 格式化 token 数量显示
+    const formatTokens = (tokens) => {
+        if (tokens >= 1000) {
+            return `${(tokens / 1000).toFixed(0)}K`;
+        }
+        return tokens.toString();
+    };
+
     // 准备表格数据
     const tableData = tierConfig.rules.map((rule, index) => {
         // 构建条件描述
@@ -67,16 +76,16 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
         if (rule.max_input_tokens > 0) {
             if (rule.min_input_tokens > 0) {
                 conditions.push(
-                    `${(rule.min_input_tokens / 1000).toFixed(0)}K < ${t('输入')} ≤ ${(rule.max_input_tokens / 1000).toFixed(0)}K`
+                    `${formatTokens(rule.min_input_tokens)} ≤ ${t('输入')} ≤ ${formatTokens(rule.max_input_tokens)}`
                 );
             } else {
                 conditions.push(
-                    `${t('输入')} ≤ ${(rule.max_input_tokens / 1000).toFixed(0)}K`
+                    `${t('输入')} ≤ ${formatTokens(rule.max_input_tokens)}`
                 );
             }
         } else if (rule.min_input_tokens > 0) {
             conditions.push(
-                `${t('输入')} > ${(rule.min_input_tokens / 1000).toFixed(0)}K`
+                `${t('输入')} ≥ ${formatTokens(rule.min_input_tokens)}`
             );
         }
 
@@ -84,17 +93,17 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
         if (rule.max_output_tokens > 0) {
             if (rule.min_output_tokens > 0) {
                 conditions.push(
-                    `${rule.min_output_tokens} < ${t('输出')} ≤ ${rule.max_output_tokens}`
+                    `${formatTokens(rule.min_output_tokens)} ≤ ${t('输出')} ≤ ${formatTokens(rule.max_output_tokens)}`
                 );
             } else {
-                conditions.push(`${t('输出')} ≤ ${rule.max_output_tokens}`);
+                conditions.push(`${t('输出')} ≤ ${formatTokens(rule.max_output_tokens)}`);
             }
         } else if (rule.min_output_tokens > 0) {
-            conditions.push(`${t('输出')} > ${rule.min_output_tokens}`);
+            conditions.push(`${t('输出')} ≥ ${formatTokens(rule.min_output_tokens)}`);
         }
 
         // 判断是价格模式还是倍率模式
-        const isPriceMode = rule.input_price > 0 || rule.output_price > 0;
+        const isPriceMode = rule.input_price !== undefined && rule.input_price !== null;
 
         return {
             key: index,
@@ -174,7 +183,7 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, t }) => {
                 className='!rounded-lg'
             />
             <div className='mt-2 text-xs text-gray-500'>
-                {t('规则按优先级从上到下匹配')} · {t('价格模式')}: USD/1M · {t('倍率模式')}: 1x=$2/1M · {t('实际费用乘以分组倍率')}
+                {t('规则按优先级从上到下匹配')} · {t('价格模式')}: USD/1M · {t('倍率模式')}: {t('相对于基础倍率')} · {t('实际费用乘以分组倍率')}
             </div>
         </Card>
     );

@@ -18,11 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Typography, Table, Tag, Collapsible } from '@douyinfe/semi-ui';
+import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice } from '../../../../../helpers';
+import { calculateModelPrice, getQuotaPerUnit } from '../../../../../helpers';
 
 const { Text } = Typography;
+
+// 获取1倍率对应的基础价格 (USD/1M tokens)
+// quotaPerUnit 默认为 500000，表示 $0.002 / 1K tokens = $2 / 1M tokens
+// 公式: 1 / (quotaPerUnit / 1000000) = 1000000 / quotaPerUnit
+const getRatioBasePrice = () => {
+  const quotaPerUnit = getQuotaPerUnit() || 500000;
+  return 1000000 / quotaPerUnit;
+};
 
 const ModelPricingTable = ({
   modelData,
@@ -48,8 +56,23 @@ const ModelPricingTable = ({
     }
 
     const modelConfigs = tokenTierPricing.model_configs || {};
-    for (const configKey in modelConfigs) {
-      const config = modelConfigs[configKey];
+    // Convert to array and sort by priority (ascending, assuming lower number = higher priority/checked first?? 
+    // Wait, the bot said "sort the array by priority (descending if higher number means higher priority, or ascending if opposite)".
+    // Usually in this project, priority is higher = better. BUT if we iterate and return the FIRST match, we want the HIGHEST priority first.
+    // So we should sort DESCENDING (b - a).
+    // Let's re-read the bot's code suggestion in Chunk 28: `.sort((a, b) => (a?.priority ?? 0) - (b?.priority ?? 0));` -> This is ASCENDING.
+    // And it iterates: `for (const config of configs) { if (matched) return config; }`.
+    // So it picks the one with the SMALLEST priority value first.
+    // If standard "Priority" means higher is better, this code picks the lowest priority?
+    // Unless "Priority" here means "Order" (Sequence).
+    // I will stick to the bot's EXACT code suggestion to be safe.
+
+    // Sort configs by priority to ensure deterministic matching order
+    const configs = Object.values(modelConfigs)
+      .filter((c) => c?.enabled)
+      .sort((a, b) => (a?.priority ?? 0) - (b?.priority ?? 0));
+
+    for (const config of configs) {
       if (!config.enabled) continue;
 
       const models = config.models?.split(',').map((m) => m.trim()) || [];
@@ -72,8 +95,10 @@ const ModelPricingTable = ({
 
   // 计算分段价格
   const calculateTierPrice = (rule, groupRatioValue) => {
-    if (rule.input_price > 0 || rule.output_price > 0) {
-      // 价格模式
+    const ratioBasePrice = getRatioBasePrice();
+    if (rule.input_price !== undefined && rule.input_price !== null) {
+      // 价格模式 (Price Mode)
+      // Check for price mode by existence of validation, not just > 0
       const inputPriceUSD = rule.input_price * groupRatioValue;
       const outputPriceUSD = rule.output_price * groupRatioValue;
       return {
@@ -81,9 +106,13 @@ const ModelPricingTable = ({
         outputPrice: displayPrice(outputPriceUSD),
       };
     } else {
-      // 倍率模式 - 转换为价格显示
-      const inputRatioPrice = rule.input_ratio * 2.0 * groupRatioValue;
-      const outputRatioPrice = rule.input_ratio * 2.0 * rule.completion_ratio * groupRatioValue;
+      // 倍率模式 - 转换为价格显示 (Ratio Mode)
+      // 1 Ratio = ratioBasePrice / 1M tokens (默认 $2.0)
+      const inputRatioPrice = rule.input_ratio * ratioBasePrice * groupRatioValue;
+      // Output price is derived from input ratio * completion ratio (default logic) or output_ratio if available
+      const outputRatio = rule.output_ratio ?? (rule.input_ratio * rule.completion_ratio);
+      const outputRatioPrice = outputRatio * ratioBasePrice * groupRatioValue;
+
       return {
         inputPrice: displayPrice(inputRatioPrice),
         outputPrice: displayPrice(outputRatioPrice),
@@ -103,13 +132,13 @@ const ModelPricingTable = ({
     const tableData = availableGroups.map((group) => {
       const priceData = modelData
         ? calculateModelPrice({
-            record: modelData,
-            selectedGroup: group,
-            groupRatio,
-            tokenUnit,
-            displayPrice,
-            currency,
-          })
+          record: modelData,
+          selectedGroup: group,
+          groupRatio,
+          tokenUnit,
+          displayPrice,
+          currency,
+        })
         : { inputPrice: '-', outputPrice: '-', price: '-' };
 
       // 获取分组倍率
@@ -221,19 +250,26 @@ const ModelPricingTable = ({
               const tierData = tierConfig.rules.map((rule, index) => {
                 const prices = calculateTierPrice(rule, record.ratio);
                 const conditions = [];
+                // Helper function to format token count
+                const formatTokens = (tokens) => {
+                  if (tokens >= 1000) {
+                    return `${(tokens / 1000).toFixed(0)}K`;
+                  }
+                  return tokens.toString();
+                };
                 if (rule.max_input_tokens > 0) {
                   conditions.push(rule.min_input_tokens > 0
-                    ? `${(rule.min_input_tokens / 1000).toFixed(0)}K < ${t('输入')} ≤ ${(rule.max_input_tokens / 1000).toFixed(0)}K`
-                    : `${t('输入')} ≤ ${(rule.max_input_tokens / 1000).toFixed(0)}K`);
+                    ? `${formatTokens(rule.min_input_tokens)} ≤ ${t('输入')} ≤ ${formatTokens(rule.max_input_tokens)}`
+                    : `${t('输入')} ≤ ${formatTokens(rule.max_input_tokens)}`);
                 } else if (rule.min_input_tokens > 0) {
-                  conditions.push(`${t('输入')} > ${(rule.min_input_tokens / 1000).toFixed(0)}K`);
+                  conditions.push(`${t('输入')} ≥ ${formatTokens(rule.min_input_tokens)}`);
                 }
                 if (rule.max_output_tokens > 0) {
                   conditions.push(rule.min_output_tokens > 0
-                    ? `${rule.min_output_tokens} < ${t('输出')} ≤ ${rule.max_output_tokens}`
-                    : `${t('输出')} ≤ ${rule.max_output_tokens}`);
+                    ? `${formatTokens(rule.min_output_tokens)} ≤ ${t('输出')} ≤ ${formatTokens(rule.max_output_tokens)}`
+                    : `${t('输出')} ≤ ${formatTokens(rule.max_output_tokens)}`);
                 } else if (rule.min_output_tokens > 0) {
-                  conditions.push(`${t('输出')} > ${rule.min_output_tokens}`);
+                  conditions.push(`${t('输出')} ≥ ${formatTokens(rule.min_output_tokens)}`);
                 }
                 return {
                   key: index,

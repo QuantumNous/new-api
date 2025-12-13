@@ -38,9 +38,17 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconEdit, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
-import { API, showError, showSuccess } from '../../../helpers';
+import { API, showError, showSuccess, getQuotaPerUnit } from '../../../helpers';
 
 const { Text, Title } = Typography;
+
+// 获取1倍率对应的基础价格 (USD/1M tokens)
+// quotaPerUnit 默认为 500000，表示 $0.002 / 1K tokens = $2 / 1M tokens
+// 公式: 1 / (quotaPerUnit / 1000000) = 1000000 / quotaPerUnit
+const getRatioBasePrice = () => {
+  const quotaPerUnit = getQuotaPerUnit() || 500000;
+  return 1000000 / quotaPerUnit;
+};
 
 // 默认规则模板
 const defaultRule = {
@@ -186,10 +194,13 @@ export default function TokenTierPricingSettings({ options, refresh }) {
 
   // 打开添加模型弹窗
   const handleAddModel = () => {
+    // 计算新配置的优先级（比现有最大优先级大1）
+    const maxPriority = Math.max(0, ...Object.values(modelConfigs).map(c => c.priority ?? 0));
     setEditingModelName('');
     setEditingModelConfig({
       enabled: true,
       models: '',
+      priority: maxPriority + 1,
       rules: [...defaultTierRules],
     });
     setIsNewModel(true);
@@ -206,8 +217,14 @@ export default function TokenTierPricingSettings({ options, refresh }) {
 
   // 复制模型配置
   const handleCopyModel = (modelName) => {
+    // 复制时保持原配置的优先级+1
+    const originalPriority = modelConfigs[modelName]?.priority ?? 0;
+    const maxPriority = Math.max(0, ...Object.values(modelConfigs).map(c => c.priority ?? 0));
     setEditingModelName(modelName + '_copy');
-    setEditingModelConfig({ ...modelConfigs[modelName] });
+    setEditingModelConfig({
+      ...modelConfigs[modelName],
+      priority: Math.max(originalPriority + 1, maxPriority + 1),
+    });
     setIsNewModel(true);
     setModelModalVisible(true);
   };
@@ -223,6 +240,12 @@ export default function TokenTierPricingSettings({ options, refresh }) {
   const handleSaveModel = async () => {
     if (!editingModelName) {
       showError(t('请输入模型名称'));
+      return;
+    }
+
+    // 检查配置名称是否重复（仅在新建时检查）
+    if (isNewModel && modelConfigs[editingModelName]) {
+      showError(t('配置名称已存在，请使用其他名称'));
       return;
     }
 
@@ -285,6 +308,25 @@ export default function TokenTierPricingSettings({ options, refresh }) {
       return;
     }
 
+    // 验证规则名称是否重复
+    const existingRuleIndex = editingModelConfig.rules.findIndex(
+      (r, i) => r.name === editingRule.name && i !== editingRuleIndex
+    );
+    if (existingRuleIndex !== -1) {
+      showError(t('规则名称已存在，请使用其他名称'));
+      return;
+    }
+
+    // 验证 Token 范围：如果设置了最大值，最小值不能大于最大值
+    if (editingRule.max_input_tokens > 0 && editingRule.min_input_tokens > editingRule.max_input_tokens) {
+      showError(t('最小输入Token不能大于最大输入Token'));
+      return;
+    }
+    if (editingRule.max_output_tokens > 0 && editingRule.min_output_tokens > editingRule.max_output_tokens) {
+      showError(t('最小输出Token不能大于最大输出Token'));
+      return;
+    }
+
     const ruleToSave = { ...editingRule };
 
     // 如果是价格模式,需要从价格计算倍率
@@ -344,7 +386,7 @@ export default function TokenTierPricingSettings({ options, refresh }) {
   const formatTokenRange = (min, max) => {
     if (min === 0 && max === 0) return t('无限制');
     if (min === 0) return `≤ ${max.toLocaleString()}`;
-    if (max === 0) return `> ${(min - 1).toLocaleString()}`;
+    if (max === 0) return `≥ ${min.toLocaleString()}`;
     return `${min.toLocaleString()} - ${max.toLocaleString()}`;
   };
 
@@ -408,11 +450,13 @@ export default function TokenTierPricingSettings({ options, refresh }) {
     },
   ];
 
-  // 模型列表
-  const modelList = Object.entries(modelConfigs).map(([name, config]) => ({
-    name,
-    ...config,
-  }));
+  // 模型列表（按优先级排序）
+  const modelList = Object.entries(modelConfigs)
+    .map(([name, config]) => ({
+      name,
+      ...config,
+    }))
+    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
 
   return (
     <div style={{ padding: '20px' }}>
@@ -451,6 +495,7 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                 key={model.name}
                 header={
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Tag color="blue" size="small">#{model.priority ?? 0}</Tag>
                     <Text strong>{model.name}</Text>
                     <Tag color={model.enabled ? 'green' : 'grey'}>
                       {model.enabled ? t('已启用') : t('已禁用')}
@@ -532,6 +577,19 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                   onChange={(checked) => setEditingModelConfig({ ...editingModelConfig, enabled: checked })}
                   size="large"
                 />
+              </Form.Slot>
+              <Form.Slot label={t('优先级')} style={{ marginBottom: 20 }}>
+                <InputNumber
+                  value={editingModelConfig.priority ?? 0}
+                  onChange={(value) => setEditingModelConfig({ ...editingModelConfig, priority: value ?? 0 })}
+                  min={0}
+                  step={1}
+                  style={{ width: '100%' }}
+                  size="large"
+                />
+                <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
+                  {t('数值越小优先级越高，多个配置匹配同一模型时优先使用低优先级配置')}
+                </Text>
               </Form.Slot>
             </Form>
 
@@ -650,20 +708,21 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                   if (!editingRule) return;
 
                   const updated = { ...editingRule };
+                  const ratioBasePrice = getRatioBasePrice();
 
                   // 从倍率模式切换到价格模式
                   if (oldMode === 'ratio' && newMode === 'price') {
                     if (updated.input_ratio > 0) {
-                      updated.inputPrice = updated.input_ratio * 2;
+                      updated.inputPrice = updated.input_ratio * ratioBasePrice;
                       if (updated.completion_ratio > 0) {
-                        updated.outputPrice = updated.input_ratio * 2 * updated.completion_ratio;
+                        updated.outputPrice = updated.input_ratio * ratioBasePrice * updated.completion_ratio;
                       }
                     }
                   }
                   // 从价格模式切换到倍率模式
                   else if (oldMode === 'price' && newMode === 'ratio') {
                     if (updated.inputPrice > 0) {
-                      updated.input_ratio = updated.inputPrice / 2;
+                      updated.input_ratio = updated.inputPrice / ratioBasePrice;
                       if (updated.outputPrice > 0) {
                         updated.completion_ratio = updated.outputPrice / updated.inputPrice;
                       }
@@ -688,12 +747,13 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                   <InputNumber
                     value={editingRule.input_ratio}
                     onChange={(value) => {
+                      const ratioBasePrice = getRatioBasePrice();
                       const updated = { ...editingRule, input_ratio: value || 0 };
                       // 同步更新价格字段
                       if (value > 0) {
-                        updated.inputPrice = value * 2;
+                        updated.inputPrice = value * ratioBasePrice;
                         if (updated.completion_ratio > 0) {
-                          updated.outputPrice = value * 2 * updated.completion_ratio;
+                          updated.outputPrice = value * ratioBasePrice * updated.completion_ratio;
                         }
                       }
                       setEditingRule(updated);
@@ -709,7 +769,7 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                     {editingRule.input_ratio > 0 && (
                       <span style={{ color: 'var(--semi-color-primary)' }}>
                         {t('等价价格: ${{price}}/1M tokens', {
-                          price: (editingRule.input_ratio * 2).toFixed(6),
+                          price: (editingRule.input_ratio * getRatioBasePrice()).toFixed(6),
                         })}
                       </span>
                     )}
@@ -720,10 +780,11 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                   <InputNumber
                     value={editingRule.completion_ratio}
                     onChange={(value) => {
+                      const ratioBasePrice = getRatioBasePrice();
                       const updated = { ...editingRule, completion_ratio: value || 1.0 };
                       // 同步更新价格字段
                       if (updated.input_ratio > 0 && value > 0) {
-                        updated.outputPrice = updated.input_ratio * 2 * value;
+                        updated.outputPrice = updated.input_ratio * ratioBasePrice * value;
                       }
                       setEditingRule(updated);
                     }}
@@ -739,7 +800,7 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                     {editingRule.input_ratio > 0 && editingRule.completion_ratio > 0 && (
                       <span style={{ color: 'var(--semi-color-primary)', marginLeft: 8 }}>
                         {t('(等价价格: ${{price}}/1M)', {
-                          price: (editingRule.input_ratio * editingRule.completion_ratio * 2).toFixed(6),
+                          price: (editingRule.input_ratio * editingRule.completion_ratio * getRatioBasePrice()).toFixed(6),
                         })}
                       </span>
                     )}
@@ -755,10 +816,11 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                   <InputNumber
                     value={editingRule.inputPrice}
                     onChange={(value) => {
+                      const ratioBasePrice = getRatioBasePrice();
                       const updated = { ...editingRule, inputPrice: value || 0 };
                       // 同步更新倍率字段
                       if (value > 0) {
-                        updated.input_ratio = value / 2;
+                        updated.input_ratio = value / ratioBasePrice;
                         // 更新输出价格保持倍率不变
                         if (updated.completion_ratio > 0) {
                           updated.outputPrice = value * updated.completion_ratio;
@@ -778,7 +840,7 @@ export default function TokenTierPricingSettings({ options, refresh }) {
                     {editingRule.inputPrice > 0 && (
                       <span style={{ color: 'var(--semi-color-primary)' }}>
                         {t('等价倍率: {{ratio}}', {
-                          ratio: (editingRule.inputPrice / 2).toFixed(4),
+                          ratio: (editingRule.inputPrice / getRatioBasePrice()).toFixed(4),
                         })}
                       </span>
                     )}
