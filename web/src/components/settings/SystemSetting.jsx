@@ -508,7 +508,10 @@ const SystemSetting = () => {
         return;
       }
       try {
-        const res = await axios.create().get(inputs['oidc.well_known']);
+        // const res = await axios.create().get(inputs['oidc.well_known']);
+        const res = await API.get('/api/oidc/discovery', {
+          params: { well_known_url: inputs['oidc.well_known'] },
+        }).then((response => response.data));
         inputs['oidc.authorization_endpoint'] =
           res.data['authorization_endpoint'];
         inputs['oidc.token_endpoint'] = res.data['token_endpoint'];
