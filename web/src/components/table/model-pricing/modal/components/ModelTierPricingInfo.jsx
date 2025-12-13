@@ -34,7 +34,7 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, tokenUnit = 'K', t 
         const modelConfigs = tokenTierPricing.model_configs || {};
         const configs = Object.values(modelConfigs)
             .filter((c) => c?.enabled)
-            .sort((a, b) => (a?.priority ?? 0) - (b?.priority ?? 0));
+            .sort((a, b) => (b?.priority ?? 0) - (a?.priority ?? 0));
 
         for (const config of configs) {
             // 检查模型名是否匹配
@@ -190,7 +190,7 @@ const ModelTierPricingInfo = ({ modelData, tokenTierPricing, tokenUnit = 'K', t 
                 className='!rounded-lg'
             />
             <div className='mt-2 text-xs text-gray-500'>
-                {t('规则按优先级从上到下匹配')} · {t('价格模式')}: USD/1M · {t('倍率模式')}: {t('相对于基础倍率')} · {t('实际费用乘以分组倍率')}
+                {t('规则按优先级从上到下匹配')} · {t('价格模式')}: USD/{priceUnit} · {t('倍率模式')}: {t('相对于基础倍率')} · {t('实际费用乘以分组倍率')}
             </div>
         </Card>
     );

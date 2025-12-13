@@ -2233,6 +2233,7 @@
     "分段计费使用倍率模式计费（1倍率 = $2/1M tokens）。您可以为每个配置设置多个模型（逗号分割，支持通配符*），根据输入/输出Token数量的不同范围使用不同的倍率。规则按顺序匹配，第一条匹配的规则将被使用。支持通过价格快速计算倍率。": "Tiered pricing uses ratio mode (1 ratio = $2/1M tokens). You can set multiple models for each config (comma separated, wildcard * supported), using different ratios based on input/output token ranges. Rules are matched in order, first matched rule will be used. Supports quick ratio calculation from price.",
     "使用分段计费规则：{{tierName}}": "Using tiered pricing rule: {{tierName}}",
     "此模型启用了分段计费，点击展开按钮查看各阶段价格详情": "This model has tiered pricing enabled, click expand to view price details",
+    "此模型启用了分段计费，已展开显示各阶段价格详情": "This model has tiered pricing enabled, price details expanded below",
     "不同用户分组的价格信息（包含分段计费）": "Price info for different user groups (with tiered pricing)",
     "价格模式": "Price Mode",
     "相对于基础倍率": "Relative to base ratio",

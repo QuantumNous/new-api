@@ -56,21 +56,10 @@ const ModelPricingTable = ({
     }
 
     const modelConfigs = tokenTierPricing.model_configs || {};
-    // Convert to array and sort by priority (ascending, assuming lower number = higher priority/checked first?? 
-    // Wait, the bot said "sort the array by priority (descending if higher number means higher priority, or ascending if opposite)".
-    // Usually in this project, priority is higher = better. BUT if we iterate and return the FIRST match, we want the HIGHEST priority first.
-    // So we should sort DESCENDING (b - a).
-    // Let's re-read the bot's code suggestion in Chunk 28: `.sort((a, b) => (a?.priority ?? 0) - (b?.priority ?? 0));` -> This is ASCENDING.
-    // And it iterates: `for (const config of configs) { if (matched) return config; }`.
-    // So it picks the one with the SMALLEST priority value first.
-    // If standard "Priority" means higher is better, this code picks the lowest priority?
-    // Unless "Priority" here means "Order" (Sequence).
-    // I will stick to the bot's EXACT code suggestion to be safe.
-
-    // Sort configs by priority to ensure deterministic matching order
+    // Sort configs by priority to ensure deterministic matching order (高优先级数值优先)
     const configs = Object.values(modelConfigs)
       .filter((c) => c?.enabled)
-      .sort((a, b) => (a?.priority ?? 0) - (b?.priority ?? 0));
+      .sort((a, b) => (b?.priority ?? 0) - (a?.priority ?? 0));
 
     for (const config of configs) {
       if (!config.enabled) continue;
@@ -356,7 +345,7 @@ const ModelPricingTable = ({
         <div className='mb-4 p-3 bg-purple-50 rounded-lg'>
           <div className='text-sm text-purple-700'>
             <span className='font-semibold'>{t('提示')}: </span>
-            {t('此模型启用了分段计费，点击展开按钮查看各阶段价格详情')}
+            {t('此模型启用了分段计费，已展开显示各阶段价格详情')}
           </div>
         </div>
       )}

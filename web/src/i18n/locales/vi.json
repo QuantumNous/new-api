@@ -2787,6 +2787,7 @@
     "分段计费使用倍率模式计费（1倍率 = $2/1M tokens）。您可以为每个配置设置多个模型（逗号分割，支持通配符*），根据输入/输出Token数量的不同范围使用不同的倍率。规则按顺序匹配，第一条匹配的规则将被使用。支持通过价格快速计算倍率。": "Giá theo bậc sử dụng chế độ tỷ lệ (1 tỷ lệ = $2/1M tokens). Bạn có thể đặt nhiều mô hình cho mỗi cấu hình (phân cách bằng dấu phẩy, hỗ trợ *), sử dụng các tỷ lệ khác nhau dựa trên phạm vi token.",
     "使用分段计费规则：{{tierName}}": "Sử dụng quy tắc giá theo bậc: {{tierName}}",
     "此模型启用了分段计费，点击展开按钮查看各阶段价格详情": "Mô hình này đã bật giá theo bậc, nhấp để xem chi tiết",
+    "此模型启用了分段计费，已展开显示各阶段价格详情": "Mô hình này đã bật giá theo bậc, chi tiết đã được hiển thị bên dưới",
     "不同用户分组的价格信息（包含分段计费）": "Thông tin giá cho các nhóm khác nhau (với giá theo bậc)",
     "价格模式": "Chế độ giá",
     "相对于基础倍率": "Tương đối với tỷ lệ cơ bản",
