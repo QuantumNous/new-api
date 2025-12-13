@@ -26,6 +26,7 @@ type GeneralErrorResponse struct {
 	Msg      string          `json:"msg"`
 	Err      string          `json:"err"`
 	ErrorMsg string          `json:"error_msg"`
+	Metadata json.RawMessage   `json:"metadata,omitempty"`
 	Header   struct {
 		Message string `json:"message"`
 	} `json:"header"`
