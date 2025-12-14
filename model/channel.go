@@ -878,7 +878,8 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 		if err != nil {
 			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
 			channel.OtherSettings = "{}" // 清空设置以避免后续错误
-			_ = channel.Save()           // 保存修改
+			// Avoid clobbering non-loaded fields (e.g. key) with zero-values.
+			_ = DB.Model(channel).Select("settings").Update("settings", channel.OtherSettings).Error
 		}
 	}
 	return setting
