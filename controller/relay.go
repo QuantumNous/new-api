@@ -164,13 +164,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		Retry:      common.GetPointer(0),
 	}
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	maxRetryTimes := common.RetryTimes // 默认使用全局配置，获取到渠道后动态更新
+	for ; retryParam.GetRetry() <= maxRetryTimes; retryParam.IncreaseRetry() {
 		channel, err := getChannel(c, relayInfo, retryParam)
 		if err != nil {
 			logger.LogError(c, err.Error())
 			newAPIError = err
 			break
 		}
+		// 每次获取到渠道后，使用该渠道的重试配置（渠道配置优先，全局配置兜底）
+		maxRetryTimes = channel.GetEffectiveRetryTimes()
 
 		addUsedChannel(c, channel.Id)
 		requestBody, _ := common.GetRequestBody(c)
@@ -193,7 +196,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry(c, newAPIError, maxRetryTimes-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -401,7 +404,7 @@ func RelayNotFound(c *gin.Context) {
 }
 
 func RelayTask(c *gin.Context) {
-	retryTimes := common.RetryTimes
+	retryTimes := common.RetryTimes // 默认使用全局配置
 	channelId := c.GetInt("channel_id")
 	c.Set("use_channel", []string{fmt.Sprintf("%d", channelId)})
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
@@ -425,6 +428,8 @@ func RelayTask(c *gin.Context) {
 			taskErr = service.TaskErrorWrapperLocal(newAPIError.Err, "get_channel_failed", http.StatusInternalServerError)
 			break
 		}
+		// 每次获取到渠道后，使用该渠道的重试配置（渠道配置优先，全局配置兜底）
+		retryTimes = channel.GetEffectiveRetryTimes()
 		channelId = channel.Id
 		useChannel := c.GetStringSlice("use_channel")
 		useChannel = append(useChannel, fmt.Sprintf("%d", channelId))

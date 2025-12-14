@@ -31,6 +31,15 @@ type ChannelOtherSettings struct {
 	DisableStore          bool          `json:"disable_store,omitempty"`           // 是否禁用 store 透传（默认允许透传，禁用后可能导致 Codex 无法使用）
 	AllowSafetyIdentifier bool          `json:"allow_safety_identifier,omitempty"` // 是否允许 safety_identifier 透传（默认过滤以保护用户隐私）
 	AwsKeyType            AwsKeyType    `json:"aws_key_type,omitempty"`
+	RetryTimes            *int          `json:"retry_times,omitempty"` // 渠道级别失败重试次数，nil 表示使用全局配置
+}
+
+// GetEffectiveRetryTimes 获取有效的重试次数，渠道配置优先，全局配置兜底
+func (s *ChannelOtherSettings) GetEffectiveRetryTimes(globalRetryTimes int) int {
+	if s != nil && s.RetryTimes != nil {
+		return *s.RetryTimes
+	}
+	return globalRetryTimes
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

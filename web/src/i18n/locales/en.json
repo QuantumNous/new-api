@@ -2180,6 +2180,8 @@
     "默认补全倍率": "Default completion ratio",
     "跨分组重试": "Cross-group retry",
     "跨分组": "Cross-group",
-    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "After enabling, when the current group channel fails, it will try the next group's channel in order"
+    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "After enabling, when the current group channel fails, it will try the next group's channel in order",
+    "不填则使用全局配置": "Leave blank to use global configuration",
+    "设置该渠道的失败重试次数，留空则使用系统全局配置": "Set the number of retry attempts for this channel, leave blank to use the system global configuration"
   }
 }

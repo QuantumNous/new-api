@@ -571,6 +571,8 @@ const EditChannelModal = (props) => {
           data.disable_store = parsedSettings.disable_store || false;
           data.allow_safety_identifier =
             parsedSettings.allow_safety_identifier || false;
+          // 读取渠道级别重试次数
+          data.retry_times = parsedSettings.retry_times;
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -1224,6 +1226,8 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
+    // 清理渠道级别重试次数临时字段（已存入settings）
+    delete localInputs.retry_times;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -2668,6 +2672,20 @@ const EditChannelModal = (props) => {
                         '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
                       )}
                       initValue={autoBan}
+                    />
+
+                    <Form.InputNumber
+                      field='retry_times'
+                      label={t('失败重试次数')}
+                      placeholder={t('不填则使用全局配置')}
+                      min={0}
+                      onChange={(value) =>
+                        handleChannelOtherSettingsChange('retry_times', value)
+                      }
+                      extraText={t(
+                        '设置该渠道的失败重试次数，留空则使用系统全局配置',
+                      )}
+                      style={{ width: '100%' }}
                     />
 
                     <Form.TextArea

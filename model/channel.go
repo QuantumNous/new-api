@@ -915,6 +915,12 @@ func (channel *Channel) GetHeaderOverride() map[string]interface{} {
 	return headerOverride
 }
 
+// GetEffectiveRetryTimes 获取渠道的有效重试次数，渠道配置优先，全局配置兜底
+func (channel *Channel) GetEffectiveRetryTimes() int {
+	settings := channel.GetOtherSettings()
+	return settings.GetEffectiveRetryTimes(common.RetryTimes)
+}
+
 func GetChannelsByIds(ids []int) ([]*Channel, error) {
 	var channels []*Channel
 	err := DB.Where("id in (?)", ids).Find(&channels).Error
