@@ -68,7 +68,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
 	// common headers operation
 	anthropicBeta := c.Request.Header.Get("anthropic-beta")
-	if anthropicBeta != "" {
+	if anthropicBeta != "" && req.Get("anthropic-beta") == "" {
 		req.Set("anthropic-beta", anthropicBeta)
 	}
 	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
