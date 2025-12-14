@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { Button, Col, Form, Row, Spin, Select } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -31,6 +31,7 @@ import {
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [quotaUnit, setQuotaUnit] = useState('Token'); // Token, USD, CNY, CUSTOM
   const [inputs, setInputs] = useState({
     QuotaForNewUser: '',
     PreConsumedQuota: '',
@@ -41,11 +42,89 @@ export default function SettingsCreditLimit(props) {
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
+  // 获取汇率配置
+  const quotaPerUnit = useMemo(() => {
+    return parseFloat(props.options?.QuotaPerUnit) || 500000;
+  }, [props.options]);
+
+  const usdExchangeRate = useMemo(() => {
+    return parseFloat(props.options?.USDExchangeRate) || 7;
+  }, [props.options]);
+
+  const customExchangeRate = useMemo(() => {
+    return parseFloat(props.options?.['general_setting.custom_currency_exchange_rate']) || 1;
+  }, [props.options]);
+
+  const customCurrencySymbol = useMemo(() => {
+    return props.options?.['general_setting.custom_currency_symbol'] || '¤';
+  }, [props.options]);
+
+  // Token 转换为显示单位
+  const tokenToDisplay = (tokenValue) => {
+    if (!tokenValue && tokenValue !== 0) return '';
+    const tokens = parseFloat(tokenValue);
+    if (isNaN(tokens)) return '';
+
+    switch (quotaUnit) {
+      case 'USD':
+        return (tokens / quotaPerUnit).toFixed(6);
+      case 'CNY':
+        return ((tokens / quotaPerUnit) * usdExchangeRate).toFixed(6);
+      case 'CUSTOM':
+        return ((tokens / quotaPerUnit) * customExchangeRate).toFixed(6);
+      default: // Token
+        return String(tokens);
+    }
+  };
+
+  // 显示单位转换为 Token
+  const displayToToken = (displayValue) => {
+    if (!displayValue && displayValue !== 0) return '';
+    const value = parseFloat(displayValue);
+    if (isNaN(value)) return '';
+
+    switch (quotaUnit) {
+      case 'USD':
+        return String(Math.round(value * quotaPerUnit));
+      case 'CNY':
+        return String(Math.round((value / usdExchangeRate) * quotaPerUnit));
+      case 'CUSTOM':
+        return String(Math.round((value / customExchangeRate) * quotaPerUnit));
+      default: // Token
+        return String(value);
+    }
+  };
+
+  // 获取当前单位后缀
+  const getUnitSuffix = () => {
+    switch (quotaUnit) {
+      case 'USD':
+        return 'USD';
+      case 'CNY':
+        return 'CNY';
+      case 'CUSTOM':
+        return customCurrencySymbol;
+      default:
+        return 'Token';
+    }
+  };
+
+  // 用于显示的值（根据单位转换）
+  const displayInputs = useMemo(() => {
+    return {
+      QuotaForNewUser: tokenToDisplay(inputs.QuotaForNewUser),
+      PreConsumedQuota: tokenToDisplay(inputs.PreConsumedQuota),
+      QuotaForInviter: tokenToDisplay(inputs.QuotaForInviter),
+      QuotaForInvitee: tokenToDisplay(inputs.QuotaForInvitee),
+      'quota_setting.enable_free_model_pre_consume': inputs['quota_setting.enable_free_model_pre_consume'],
+    };
+  }, [inputs, quotaUnit, quotaPerUnit, usdExchangeRate, customExchangeRate]);
+
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
-      let value = '';
+      let value;
       if (typeof inputs[item.key] === 'boolean') {
         value = String(inputs[item.key]);
       } else {
@@ -91,24 +170,42 @@ export default function SettingsCreditLimit(props) {
     <>
       <Spin spinning={loading}>
         <Form
-          values={inputs}
+          values={displayInputs}
           getFormApi={(formAPI) => (refForm.current = formAPI)}
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('额度设置')}>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Slot label={t('额度单位')}>
+                  <Select
+                    value={quotaUnit}
+                    onChange={setQuotaUnit}
+                    style={{ width: '100%' }}
+                  >
+                    <Select.Option value='Token'>Token</Select.Option>
+                    <Select.Option value='USD'>USD ($)</Select.Option>
+                    <Select.Option value='CNY'>CNY (¥)</Select.Option>
+                    <Select.Option value='CUSTOM'>
+                      {t('自定义')} ({customCurrencySymbol})
+                    </Select.Option>
+                  </Select>
+                </Form.Slot>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   label={t('新用户初始额度')}
                   field={'QuotaForNewUser'}
-                  step={1}
+                  step={quotaUnit === 'Token' ? 1 : 0.000001}
                   min={0}
-                  suffix={'Token'}
+                  suffix={getUnitSuffix()}
                   placeholder={''}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForNewUser: String(value),
+                      QuotaForNewUser: displayToToken(value),
                     })
                   }
                 />
@@ -117,15 +214,15 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('请求预扣费额度')}
                   field={'PreConsumedQuota'}
-                  step={1}
+                  step={quotaUnit === 'Token' ? 1 : 0.000001}
                   min={0}
-                  suffix={'Token'}
+                  suffix={getUnitSuffix()}
                   extraText={t('请求结束后多退少补')}
                   placeholder={''}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      PreConsumedQuota: String(value),
+                      PreConsumedQuota: displayToToken(value),
                     })
                   }
                 />
@@ -134,15 +231,15 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('邀请新用户奖励额度')}
                   field={'QuotaForInviter'}
-                  step={1}
+                  step={quotaUnit === 'Token' ? 1 : 0.000001}
                   min={0}
-                  suffix={'Token'}
+                  suffix={getUnitSuffix()}
                   extraText={''}
                   placeholder={t('例如：2000')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForInviter: String(value),
+                      QuotaForInviter: displayToToken(value),
                     })
                   }
                 />
@@ -153,15 +250,15 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('新用户使用邀请码奖励额度')}
                   field={'QuotaForInvitee'}
-                  step={1}
+                  step={quotaUnit === 'Token' ? 1 : 0.000001}
                   min={0}
-                  suffix={'Token'}
+                  suffix={getUnitSuffix()}
                   extraText={''}
                   placeholder={t('例如：1000')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForInvitee: String(value),
+                      QuotaForInvitee: displayToToken(value),
                     })
                   }
                 />
