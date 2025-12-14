@@ -118,6 +118,24 @@ func (c *ChatCompletionsStreamResponseChoiceDelta) SetReasoningContent(s string)
 	//c.Reasoning = &s
 }
 
+// GetReasoning 返回Delta中的reasoning内容
+func (c *ChatCompletionsStreamResponseChoiceDelta) GetReasoning() string {
+	if c.Reasoning == nil {
+		return ""
+	}
+	return *c.Reasoning
+}
+
+// SetReasoning 设置Delta中的reasoning内容
+func (c *ChatCompletionsStreamResponseChoiceDelta) SetReasoning(reasoning string) {
+	c.Reasoning = &reasoning
+}
+
+// SetReasoningToNil 将reasoning字段设为nil，用于从JSON中完全移除
+func (c *ChatCompletionsStreamResponseChoiceDelta) SetReasoningToNil() {
+	c.Reasoning = nil
+}
+
 type ToolCallResponse struct {
 	// Index is not nil only in chat completion chunk object
 	Index    *int             `json:"index,omitempty"`

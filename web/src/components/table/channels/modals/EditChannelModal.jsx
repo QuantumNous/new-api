@@ -163,6 +163,7 @@ const EditChannelModal = (props) => {
     allow_service_tier: false,
     disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
+    openrouter_convert_to_openai: false, // OpenRouter转换为OpenAI格式
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -190,6 +191,7 @@ const EditChannelModal = (props) => {
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
   const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false); // 豆包渠道自定义 API 地址隐藏入口
+  const [openrouterConvertToOpenAI, setOpenrouterConvertToOpenAI] = useState(false);
   const redirectModelList = useMemo(() => {
     const mapping = inputs.model_mapping;
     if (typeof mapping !== 'string') return [];
@@ -355,6 +357,7 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
+    openrouter_convert_to_openai: false,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -571,6 +574,8 @@ const EditChannelModal = (props) => {
           data.disable_store = parsedSettings.disable_store || false;
           data.allow_safety_identifier =
             parsedSettings.allow_safety_identifier || false;
+          // 读取OpenRouter转换为OpenAI格式设置
+          data.openrouter_convert_to_openai = parsedSettings.openrouter_convert_to_openai || false;
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -611,6 +616,7 @@ const EditChannelModal = (props) => {
       }
       // 同步企业账户状态
       setIsEnterpriseAccount(data.is_enterprise_account || false);
+      setOpenrouterConvertToOpenAI(data.openrouter_convert_to_openai || false);
       setBasicModels(getChannelModels(data.type));
       // 同步更新channelSettings状态显示
       setChannelSettings({
@@ -620,6 +626,7 @@ const EditChannelModal = (props) => {
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
+        openrouter_convert_to_openai: data.openrouter_convert_to_openai || false,
       });
       initialModelsRef.current = (data.models || [])
         .map((model) => (model || '').trim())
@@ -878,6 +885,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
+      openrouter_convert_to_openai: false,
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -886,6 +894,8 @@ const EditChannelModal = (props) => {
     // 重置豆包隐藏入口状态
     setDoubaoApiEditUnlocked(false);
     doubaoApiClickCountRef.current = 0;
+    // 重置OpenRouter转换为OpenAI格式状态
+    setOpenrouterConvertToOpenAI(false);
     // 清空表单中的key_mode字段
     if (formApiRef.current) {
       formApiRef.current.setValue('key_mode', undefined);
@@ -1181,6 +1191,7 @@ const EditChannelModal = (props) => {
     if (localInputs.type === 20) {
       settings.openrouter_enterprise =
         localInputs.is_enterprise_account === true;
+      settings.openrouter_convert_to_openai = localInputs.openrouter_convert_to_openai === true;
     }
 
     // type === 33 (AWS): 保存 aws_key_type 到 settings
@@ -1224,6 +1235,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
+    delete localInputs.openrouter_convert_to_openai;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -2931,6 +2943,22 @@ const EditChannelModal = (props) => {
                         extraText={t(
                           '强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）',
                         )}
+                      />
+                    )}
+
+                    {inputs.type === 20 && (
+                      <Form.Switch
+                        field='openrouter_convert_to_openai'
+                        label={t('转换为 OpenAI 兼容格式')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange('openrouter_convert_to_openai', value)
+                        }
+                        extraText={t(
+                          '将 OpenRouter 响应数据转换为标准 OpenAI 格式，确保 reasoning 字段转换为 reasoning_content',
+                        )}
+                        initValue={inputs.openrouter_convert_to_openai}
                       />
                     )}
 
