@@ -423,12 +423,9 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
-			maxTokens := uint(10)
+			maxTokens := uint(16)
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 				maxTokens = 3000
-			}
-			if channel.Type == constant.ChannelTypeOpenRouter {
-				maxTokens = uint(16)
 			}
 			return &dto.GeneralOpenAIRequest{
 				Model:  model,
