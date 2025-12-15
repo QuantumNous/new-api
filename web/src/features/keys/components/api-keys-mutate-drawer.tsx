@@ -95,7 +95,7 @@ export function ApiKeysMutateDrawer({
 
   // Add auto group if configured
   if (!groups.some((g) => g.value === 'auto')) {
-    groups.unshift({ value: 'auto', label: 'Auto (Circuit Breaker)' })
+    groups.unshift({ value: 'auto', label: t('Auto (Circuit Breaker)') })
   }
 
   const form = useForm<ApiKeyFormValues>({
@@ -158,7 +158,9 @@ export function ApiKeysMutateDrawer({
 
         if (successCount > 0) {
           toast.success(
-            `Successfully created ${successCount} API Key${successCount > 1 ? 's' : ''}`
+            t('Successfully created {{count}} API Key(s)', {
+              count: successCount,
+            })
           )
           onOpenChange(false)
           triggerRefresh()
@@ -227,7 +229,7 @@ export function ApiKeysMutateDrawer({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t('Name')}</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder={t('Enter a name')} />
                   </FormControl>
@@ -263,6 +265,33 @@ export function ApiKeysMutateDrawer({
                 </FormItem>
               )}
             />
+
+            {form.watch('group') === 'auto' && (
+              <FormField
+                control={form.control}
+                name='cross_group_retry'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Cross-group retry')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={!!field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -347,7 +376,7 @@ export function ApiKeysMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(1, 0, 0)}
                       >
-                        1M
+                        {t('1 Month')}
                       </Button>
                       <Button
                         type='button'
@@ -355,7 +384,7 @@ export function ApiKeysMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 1, 0)}
                       >
-                        1D
+                        {t('1 Day')}
                       </Button>
                       <Button
                         type='button'
@@ -363,7 +392,7 @@ export function ApiKeysMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 0, 1)}
                       >
-                        1H
+                        {t('1 Hour')}
                       </Button>
                     </div>
                   </div>
@@ -473,7 +502,7 @@ export function ApiKeysMutateDrawer({
             <Button variant='outline'>{t('Close')}</Button>
           </SheetClose>
           <Button form='api-key-form' type='submit' disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save changes'}
+            {isSubmitting ? t('Saving...') : t('Save changes')}
           </Button>
         </SheetFooter>
       </SheetContent>

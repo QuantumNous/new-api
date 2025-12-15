@@ -15,6 +15,7 @@ export const apiKeyFormSchema = z.object({
   model_limits: z.array(z.string()),
   allow_ips: z.string().optional(),
   group: z.string().optional(),
+  cross_group_retry: z.boolean().optional(),
   tokenCount: z.number().min(1).optional(),
 })
 
@@ -32,6 +33,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   model_limits: [],
   allow_ips: '',
   group: DEFAULT_GROUP,
+  cross_group_retry: false,
   tokenCount: 1,
 }
 
@@ -58,6 +60,7 @@ export function transformFormDataToPayload(
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
     group: data.group || '',
+    cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
   }
 }
 
@@ -80,6 +83,7 @@ export function transformApiKeyToFormDefaults(
       : [],
     allow_ips: apiKey.allow_ips || '',
     group: apiKey.group || DEFAULT_GROUP,
+    cross_group_retry: !!apiKey.cross_group_retry,
     tokenCount: 1,
   }
 }

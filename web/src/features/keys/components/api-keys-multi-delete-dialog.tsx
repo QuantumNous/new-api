@@ -32,9 +32,7 @@ export function ApiKeysMultiDeleteDialog<TData>({
 
       if (result.success) {
         const count = result.data || ids.length
-        toast.success(
-          `Successfully deleted ${count} API key${count > 1 ? 's' : ''}`
-        )
+        toast.success(t('Successfully deleted {{count}} API key(s)', { count }))
         table.resetRowSelection()
         triggerRefresh()
         onOpenChange(false)
@@ -56,16 +54,17 @@ export function ApiKeysMultiDeleteDialog<TData>({
       handleConfirm={handleConfirm}
       isLoading={isDeleting}
       className='max-w-md'
-      title={`Delete ${selectedRows.length} API key${selectedRows.length > 1 ? 's' : ''}?`}
+      title={t('Delete {{count}} API key(s)?', { count: selectedRows.length })}
       desc={
         <>
-          {t('You are about to delete')} <strong>{selectedRows.length}</strong>{' '}
-          {t('API key')}
-          {selectedRows.length > 1 ? 's' : ''}. <br />
+          {t('You are about to delete {{count}} API key(s).', {
+            count: selectedRows.length,
+          })}{' '}
+          <br />
           {t('This action cannot be undone.')}
         </>
       }
-      confirmText='Delete'
+      confirmText={t('Delete')}
     />
   )
 }

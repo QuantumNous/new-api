@@ -54,7 +54,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'name',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Name' />
+        <DataTableColumnHeader column={column} title={t('Name')} />
       ),
       cell: ({ row }) => {
         return (
@@ -68,7 +68,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'status',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Status' />
+        <DataTableColumnHeader column={column} title={t('Status')} />
       ),
       cell: ({ row }) => {
         const statusValue = row.getValue('status') as number
@@ -80,7 +80,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
 
         return (
           <StatusBadge
-            label={statusConfig.label}
+            label={t(statusConfig.label)}
             variant={statusConfig.variant}
             showDot={statusConfig.showDot}
             copyable={false}
@@ -111,7 +111,9 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
               </PopoverTrigger>
               <PopoverContent className='w-auto'>
                 <div className='space-y-2'>
-                  <p className='text-muted-foreground text-xs'>Full API Key:</p>
+                  <p className='text-muted-foreground text-xs'>
+                    {t('Full API Key:')}
+                  </p>
                   <Input value={fullKey} readOnly className='h-8 font-mono' />
                 </div>
               </PopoverContent>
@@ -120,8 +122,8 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
               value={fullKey}
               className='size-7'
               iconClassName='size-3.5'
-              tooltip='Copy API key'
-              aria-label='Copy API key'
+              tooltip={t('Copy API key')}
+              aria-label={t('Copy API key')}
             />
           </div>
         )
@@ -133,12 +135,12 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'quota',
       accessorKey: 'remain_quota',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Quota' />
+        <DataTableColumnHeader column={column} title={t('Quota')} />
       ),
       cell: ({ row }) => {
         const apiKey = row.original
         if (apiKey.unlimited_quota) {
-          return <Badge variant='outline'>Unlimited</Badge>
+          return <Badge variant='outline'>{t('Unlimited')}</Badge>
         }
 
         const used = apiKey.used_quota
@@ -183,15 +185,18 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'group',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Group' />
+        <DataTableColumnHeader column={column} title={t('Group')} />
       ),
       cell: ({ row }) => {
+        const apiKey = row.original
         const group = row.getValue('group') as string
         if (group === 'auto') {
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant='secondary'>Auto</Badge>
+                <Badge variant='secondary'>
+                  Auto{apiKey.cross_group_retry ? ` (${t('Cross-group')})` : ''}
+                </Badge>
               </TooltipTrigger>
               <TooltipContent>
                 <span className='text-xs'>
@@ -203,14 +208,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             </Tooltip>
           )
         }
-        return <Badge variant='outline'>{group || 'Default'}</Badge>
+        return <Badge variant='outline'>{group || t('Default')}</Badge>
       },
       meta: { label: t('Group') },
     },
     {
       accessorKey: 'created_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Created' />
+        <DataTableColumnHeader column={column} title={t('Created')} />
       ),
       cell: ({ row }) => {
         return (
@@ -224,12 +229,12 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'expired_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Expires' />
+        <DataTableColumnHeader column={column} title={t('Expires')} />
       ),
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
         if (expiredTime === -1) {
-          return <Badge variant='outline'>Never</Badge>
+          return <Badge variant='outline'>{t('Never')}</Badge>
         }
         const isExpired = expiredTime * 1000 < Date.now()
         return (
