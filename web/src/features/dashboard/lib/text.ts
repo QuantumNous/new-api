@@ -1,5 +1,5 @@
 /**
- * 获取纯文本预览（去除HTML标签和Markdown格式）
+ * Get plain text preview (strip HTML tags and Markdown formatting)
  */
 export function getPreviewText(
   content: string,
@@ -7,8 +7,8 @@ export function getPreviewText(
 ): string {
   if (!content) return ''
   const plainText = content
-    .replace(/<[^>]*>/g, '') // 去除HTML标签
-    .replace(/[#*_]/g, '') // 去除Markdown格式符号
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/[#*_]/g, '') // Remove Markdown formatting symbols
     .trim()
   return plainText.length > maxLength
     ? plainText.substring(0, maxLength) + '...'

@@ -1,14 +1,30 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { VChart } from '@visactor/react-vchart'
+import { PieChart as PieChartIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { TimeGranularity } from '@/lib/time'
+import { VCHART_OPTION } from '@/lib/vchart'
+import { useTheme } from '@/context/theme-provider'
+import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { processChartData } from '@/features/dashboard/lib'
-import type { QuotaDataItem } from '@/features/dashboard/types'
-import {
-  QuotaDistributionChart,
-  CallProportionChart,
-  TopModelsChart,
-  CallTrendChart,
-  TotalCallsTrendChart,
-} from './charts'
+import type {
+  ProcessedChartData,
+  QuotaDataItem,
+} from '@/features/dashboard/types'
+
+type ChartTab = '1' | '2' | '3' | '4'
+
+const CHART_TABS: {
+  value: ChartTab
+  labelKey: string
+  specKey: keyof ProcessedChartData
+}[] = [
+  { value: '1', labelKey: 'Quota Distribution', specKey: 'spec_line' },
+  { value: '2', labelKey: 'Call Trend', specKey: 'spec_model_line' },
+  { value: '3', labelKey: 'Call Proportion', specKey: 'spec_pie' },
+  { value: '4', labelKey: 'Top Models', specKey: 'spec_rank_bar' },
+]
 
 interface ModelChartsProps {
   data: QuotaDataItem[]
@@ -21,46 +37,65 @@ export function ModelCharts({
   loading = false,
   timeGranularity = 'day',
 }: ModelChartsProps) {
-  // 统一的数据聚合和转换逻辑
+  const { t } = useTranslation()
+  const { resolvedTheme } = useTheme()
+  const [activeTab, setActiveTab] = useState<ChartTab>('1')
+  const [themeReady, setThemeReady] = useState(false)
+
+  useEffect(() => {
+    setThemeReady(false)
+    import('@visactor/vchart').then(({ ThemeManager }) => {
+      ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
+      setThemeReady(true)
+    })
+  }, [resolvedTheme])
+
   const chartData = useMemo(
-    () => processChartData(data, timeGranularity),
-    [data, timeGranularity]
+    () => processChartData(loading ? [] : data, timeGranularity, t),
+    [data, loading, timeGranularity, t]
   )
 
-  return (
-    <div className='col-span-full space-y-4'>
-      {/* 消耗分布 */}
-      <QuotaDistributionChart
-        data={chartData.distributionData}
-        uniqueModels={chartData.uniqueModels}
-        chartConfig={chartData.chartConfig}
-        loading={loading}
-      />
+  const activeSpec = CHART_TABS.find((tab) => tab.value === activeTab)
+  const spec = activeSpec ? chartData[activeSpec.specKey] : null
 
-      {/* 调用占比 和 模型排行 - 并排显示 */}
-      <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-        <CallProportionChart
-          data={chartData.pieData}
-          chartConfig={chartData.chartConfig}
-          loading={loading}
-        />
-        <TopModelsChart
-          data={chartData.rankData}
-          chartConfig={chartData.chartConfig}
-          loading={loading}
-        />
+  return (
+    <Card className='!rounded-2xl !py-0'>
+      <div className='flex w-full flex-col gap-3 px-6 pt-6 lg:flex-row lg:items-center lg:justify-between'>
+        <div className='flex items-center gap-2'>
+          <PieChartIcon className='h-4 w-4' />
+          <div className='leading-none font-semibold'>
+            {t('Model Analytics')}
+          </div>
+        </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as ChartTab)}
+        >
+          <TabsList>
+            {CHART_TABS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {t(tab.labelKey)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
-      {/* 调用趋势 */}
-      <CallTrendChart
-        data={chartData.trendData}
-        uniqueModels={chartData.uniqueModels}
-        chartConfig={chartData.chartConfig}
-        loading={loading}
-      />
-
-      {/* 全模型调用总量趋势 */}
-      <TotalCallsTrendChart data={chartData.totalTrendData} loading={loading} />
-    </div>
+      <CardContent className='px-0 pt-0'>
+        <div className='h-96 p-2'>
+          {themeReady && spec && (
+            <VChart
+              key={`${activeTab}-${resolvedTheme}`}
+              spec={{
+                ...spec,
+                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                background: 'transparent',
+              }}
+              option={VCHART_OPTION}
+            />
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

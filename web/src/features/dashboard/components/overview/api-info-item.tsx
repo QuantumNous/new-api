@@ -25,9 +25,9 @@ export function ApiInfoItemComponent({
   const { t } = useTranslation()
   return (
     <div className='group relative flex items-center justify-between gap-3 py-2.5 text-sm'>
-      {/* 左侧：状态点 + 内容区 */}
+      {/* Left: status dot + content */}
       <div className='flex min-w-0 flex-1 items-center gap-3'>
-        {/* 彩色状态点 */}
+        {/* Colored status dot */}
         <span
           className={cn(
             'inline-block h-2 w-2 shrink-0 rounded-full',
@@ -35,7 +35,7 @@ export function ApiInfoItemComponent({
           )}
         />
 
-        {/* 名称和 URL */}
+        {/* Name and URL */}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
           <div className='flex items-baseline gap-2'>
             <span className='shrink-0 font-medium'>{item.route}</span>
@@ -49,9 +49,9 @@ export function ApiInfoItemComponent({
         </div>
       </div>
 
-      {/* 右侧：状态 + 操作按钮 */}
+      {/* Right: status + action buttons */}
       <div className='flex shrink-0 items-center gap-2'>
-        {/* 延迟状态徽章 */}
+        {/* Latency status badge */}
         <div className='flex items-center'>
           {status.testing && (
             <Badge
@@ -83,7 +83,7 @@ export function ApiInfoItemComponent({
           )}
         </div>
 
-        {/* 操作按钮组 - 始终显示 */}
+        {/* Action buttons - always visible */}
         <div className='flex items-center gap-0.5'>
           <Button
             variant='ghost'

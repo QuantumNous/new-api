@@ -4,38 +4,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface PanelWrapperProps {
-  /**
-   * 面板标题（包含图标的元素）
-   */
+  /** Panel title (element with icon) */
   title: ReactNode
-  /**
-   * 是否处于加载状态
-   */
+  /** Whether in loading state */
   loading?: boolean
-  /**
-   * 是否为空状态
-   */
+  /** Whether in empty state */
   empty?: boolean
-  /**
-   * 空状态提示文本
-   */
+  /** Empty state message */
   emptyMessage?: string
-  /**
-   * 内容区域高度（用于 loading 和 empty 状态）
-   */
+  /** Content area height (for loading and empty states) */
   height?: string
-  /**
-   * Header 右侧的操作按钮（可选）
-   */
+  /** Optional header action buttons */
   headerActions?: ReactNode
-  /**
-   * 正常状态下的内容
-   */
+  /** Normal state content */
   children?: ReactNode
 }
 
 /**
- * 统一的面板包装组件 - 自动处理 loading/empty/normal 三种状态
+ * Unified panel wrapper - handles loading/empty/normal states
  */
 export function PanelWrapper({
   title,
@@ -49,7 +35,7 @@ export function PanelWrapper({
   const { t } = useTranslation()
   const resolvedEmptyMessage = emptyMessage ?? t('No data available')
 
-  // Loading state - 返回带骨架屏的卡片
+  // Loading state - return card with skeleton
   if (loading) {
     return (
       <Card>
@@ -63,7 +49,7 @@ export function PanelWrapper({
     )
   }
 
-  // Empty state - 返回带空状态提示的卡片
+  // Empty state - return card with empty message
   if (empty) {
     return (
       <Card>
@@ -81,7 +67,7 @@ export function PanelWrapper({
     )
   }
 
-  // Normal state - 返回完整的卡片结构
+  // Normal state - return full card structure
   return (
     <Card>
       <CardHeader>

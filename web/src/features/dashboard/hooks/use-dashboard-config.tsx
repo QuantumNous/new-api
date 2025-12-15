@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
   key: string
@@ -49,26 +50,16 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Average RPM'),
       description: t('Requests per minute'),
       icon: Gauge,
-      getValue: (stat, timeRangeMinutes = 1) => {
-        const count = stat?.rpm ?? 0
-        const result = count / timeRangeMinutes
-        return isNaN(result) || !isFinite(result)
-          ? 0
-          : Math.round(result * 1000) / 1000
-      },
+      getValue: (stat, timeRangeMinutes = 1) =>
+        safeDivide(stat?.rpm ?? 0, timeRangeMinutes),
     },
     {
       key: 'avgTpm',
       title: t('Average TPM'),
       description: t('Tokens per minute'),
       icon: Zap,
-      getValue: (stat, timeRangeMinutes = 1) => {
-        const tokens = stat?.tpm ?? 0
-        const result = tokens / timeRangeMinutes
-        return isNaN(result) || !isFinite(result)
-          ? 0
-          : Math.round(result * 1000) / 1000
-      },
+      getValue: (stat, timeRangeMinutes = 1) =>
+        safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
     },
   ]
 }

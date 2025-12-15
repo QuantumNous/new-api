@@ -4,14 +4,16 @@ import { computeTimeRange } from '@/lib/time'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
-import { DEFAULT_TIME_RANGE_DAYS } from '@/features/dashboard/constants'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
   buildQueryParams,
   calculateDashboardStats,
+  getDefaultDays,
 } from '@/features/dashboard/lib'
-import type { QuotaDataItem } from '@/features/dashboard/types'
-import { type DashboardFilters } from '@/features/dashboard/types'
+import type {
+  QuotaDataItem,
+  DashboardFilters,
+} from '@/features/dashboard/types'
 
 interface LogStatCardsProps {
   filters?: DashboardFilters
@@ -34,27 +36,23 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
     let mounted = true
     setLoading(true)
     setError(false)
-    onDataUpdate?.([], true) // 通知父组件开始加载
+    onDataUpdate?.([], true)
 
     const timeRange = computeTimeRange(
-      DEFAULT_TIME_RANGE_DAYS,
+      getDefaultDays(filters?.time_granularity),
       filters?.start_timestamp,
       filters?.end_timestamp
     )
-    const params = buildQueryParams(timeRange, filters)
-
-    // 计算时间范围（分钟数）
-    const timeDiffMinutes =
+    const timeDiff =
       (timeRange.end_timestamp - timeRange.start_timestamp) / 60000
-    setTimeRangeMinutes(timeDiffMinutes)
+    setTimeRangeMinutes(timeDiff)
 
-    getUserQuotaDates(params)
+    getUserQuotaDates(buildQueryParams(timeRange, filters))
       .then((res) => {
         if (!mounted) return
         const data = res?.data || []
-        const calculatedStats = calculateDashboardStats(data)
-        setStats(calculatedStats)
-        onDataUpdate?.(data, false) // 通知父组件数据已加载
+        setStats(calculateDashboardStats(data))
+        onDataUpdate?.(data, false)
       })
       .catch(() => {
         setStats(null)
@@ -68,11 +66,11 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
     }
   }, [filters, onDataUpdate])
 
-  // 构造数据适配器，将新的数据格式转换为配置期望的格式
+  // Adapt data format to match config expectations
   const adaptedStats = {
-    rpm: stats?.totalCount ?? 0, // 总次数
-    quota: stats?.totalQuota ?? 0, // 总额度
-    tpm: stats?.totalTokens ?? 0, // 总 tokens
+    rpm: stats?.totalCount ?? 0,
+    quota: stats?.totalQuota ?? 0,
+    tpm: stats?.totalTokens ?? 0,
   }
 
   const items = statCardsConfig.map((config) => ({

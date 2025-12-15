@@ -1,7 +1,7 @@
 import { useStatus } from '@/hooks/use-status'
 
 /**
- * 获取状态数据中的特定列表
+ * Get specific list from status data
  */
 export function useStatusData<T = any>(
   enabledKey: string,
@@ -15,21 +15,21 @@ export function useStatusData<T = any>(
 }
 
 /**
- * 获取 API 信息列表
+ * Get API info list
  */
 export function useApiInfo() {
   return useStatusData('api_info_enabled', 'api_info')
 }
 
 /**
- * 获取公告列表
+ * Get announcements list
  */
 export function useAnnouncements() {
   return useStatusData('announcements_enabled', 'announcements')
 }
 
 /**
- * 获取 FAQ 列表
+ * Get FAQ list
  */
 export function useFAQ() {
   return useStatusData('faq_enabled', 'faq')

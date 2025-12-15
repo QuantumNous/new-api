@@ -25,14 +25,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DateTimePicker } from '@/components/datetime-picker'
-import { DEFAULT_TIME_RANGE_DAYS } from '@/features/dashboard/constants'
-import { cleanFilters } from '@/features/dashboard/lib'
 import {
-  type DashboardFilters,
+  DEFAULT_TIME_GRANULARITY,
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
   EMPTY_DASHBOARD_FILTERS,
-} from '@/features/dashboard/types'
+} from '@/features/dashboard/constants'
+import {
+  cleanFilters,
+  getSavedGranularity,
+  saveGranularity,
+  getDefaultDays,
+} from '@/features/dashboard/lib'
+import { type DashboardFilters } from '@/features/dashboard/types'
 
 interface ModelsFilterProps {
   onFilterChange: (filters: DashboardFilters) => void
@@ -70,15 +75,18 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
 
   const [open, setOpen] = useState(false)
   const [filters, setFilters] = useState<DashboardFilters>(() => {
-    const { start, end } = getNormalizedDateRange(DEFAULT_TIME_RANGE_DAYS)
+    const granularity = getSavedGranularity()
+    const days = getDefaultDays(granularity)
+    const { start, end } = getNormalizedDateRange(days)
     return {
       ...EMPTY_DASHBOARD_FILTERS,
       start_timestamp: start,
       end_timestamp: end,
+      time_granularity: granularity,
     }
   })
-  const [selectedRange, setSelectedRange] = useState<number | null>(
-    DEFAULT_TIME_RANGE_DAYS
+  const [selectedRange, setSelectedRange] = useState<number | null>(() =>
+    getDefaultDays()
   )
 
   const handleApply = () => {
@@ -87,13 +95,16 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
   }
 
   const handleReset = () => {
-    const { start, end } = getNormalizedDateRange(DEFAULT_TIME_RANGE_DAYS)
+    const days = getDefaultDays(DEFAULT_TIME_GRANULARITY)
+    const { start, end } = getNormalizedDateRange(days)
     setFilters({
       ...EMPTY_DASHBOARD_FILTERS,
       start_timestamp: start,
       end_timestamp: end,
+      time_granularity: DEFAULT_TIME_GRANULARITY,
     })
-    setSelectedRange(DEFAULT_TIME_RANGE_DAYS)
+    setSelectedRange(days)
+    saveGranularity(DEFAULT_TIME_GRANULARITY)
     onReset()
     setOpen(false)
   }
@@ -103,10 +114,10 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
     value: Date | string | undefined
   ) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
-    // Clear quick range selection when manually changing time fields
-    if (field === 'start_timestamp' || field === 'end_timestamp') {
+    if (field === 'start_timestamp' || field === 'end_timestamp')
       setSelectedRange(null)
-    }
+    if (field === 'time_granularity' && typeof value === 'string')
+      saveGranularity(value as TimeGranularity)
   }
 
   const handleQuickRange = (days: number) => {
@@ -140,7 +151,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
 
         <ScrollArea className='flex-1 pr-4'>
           <div className='grid gap-4 py-4'>
-            {/* 快捷时间范围选择 */}
+            {/* Quick time range selection */}
             <div className='grid gap-2'>
               <Label className='flex items-center gap-2'>
                 <Calendar className='h-4 w-4' />
@@ -170,7 +181,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
 
             <SectionDivider label={t('Custom Time Range')} />
 
-            {/* 自定义时间范围 */}
+            {/* Custom time range */}
             <div className='grid gap-4'>
               <div className='grid gap-2'>
                 <Label htmlFor='start_timestamp'>{t('Start Time')}</Label>
@@ -218,7 +229,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
               </Select>
             </div>
 
-            {/* 管理员专属字段 */}
+            {/* Admin-only fields */}
             {isAdmin && (
               <>
                 <SectionDivider label={t('Admin Only')} />

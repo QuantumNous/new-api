@@ -68,7 +68,8 @@ const statusBadgeVariants = cva(
 )
 
 export interface StatusBadgeProps
-  extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'>,
+  extends
+    Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'>,
     VariantProps<typeof statusBadgeVariants> {
   /** 状态文本 */
   label: string

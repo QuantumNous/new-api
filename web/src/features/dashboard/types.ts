@@ -1,8 +1,9 @@
 import type { TimeGranularity } from '@/lib/time'
 
-/**
- * Dashboard API 数据类型
- */
+// ============================================================================
+// Quota & Usage Data Types
+// ============================================================================
+
 export interface QuotaDataItem {
   id?: number
   user_id?: number
@@ -13,6 +14,10 @@ export interface QuotaDataItem {
   count?: number
   quota?: number
 }
+
+// ============================================================================
+// Uptime Monitoring Types
+// ============================================================================
 
 export interface UptimeMonitor {
   name: string
@@ -26,9 +31,10 @@ export interface UptimeGroupResult {
   monitors: UptimeMonitor[]
 }
 
-/**
- * Dashboard 过滤器类型定义
- */
+// ============================================================================
+// Dashboard Filter Types
+// ============================================================================
+
 export interface DashboardFilters {
   start_timestamp?: Date
   end_timestamp?: Date
@@ -36,41 +42,10 @@ export interface DashboardFilters {
   username?: string
 }
 
-/**
- * 时间粒度选项
- */
-export const TIME_GRANULARITY_OPTIONS: ReadonlyArray<{
-  label: string
-  value: TimeGranularity
-}> = [
-  { label: 'Hour', value: 'hour' },
-  { label: 'Day', value: 'day' },
-  { label: 'Week', value: 'week' },
-] as const
+// ============================================================================
+// API Info Types
+// ============================================================================
 
-/**
- * 快捷时间范围选项
- */
-export const TIME_RANGE_PRESETS = [
-  { label: '1D', days: 1 },
-  { label: '7D', days: 7 },
-  { label: '14D', days: 14 },
-  { label: '29D', days: 29 },
-] as const
-
-/**
- * 空过滤器默认值
- */
-export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
-  start_timestamp: undefined,
-  end_timestamp: undefined,
-  time_granularity: 'day',
-  username: '',
-}
-
-/**
- * API Info 相关类型
- */
 export interface ApiInfoItem {
   url: string
   route: string
@@ -86,40 +61,16 @@ export interface PingStatus {
 
 export type PingStatusMap = Record<string, PingStatus>
 
-/**
- * 图表数据类型定义
- */
-export interface ChartDataPoint {
-  time: string
-  [key: string]: number | string
-}
+// ============================================================================
+// Chart Types
+// ============================================================================
 
-export interface PieDataPoint {
-  name: string
-  value: number
-  fill: string
-  [key: string]: string | number
-}
-
-export interface RankDataPoint {
-  model: string
-  count: number
-  quota: number
-  tokens: number
-}
-
-export interface TotalTrendDataPoint {
-  time: string
-  calls: number
-  quota: number
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type VChartSpec = Record<string, any>
 
 export interface ProcessedChartData {
-  uniqueModels: string[]
-  distributionData: ChartDataPoint[]
-  trendData: ChartDataPoint[]
-  pieData: PieDataPoint[]
-  rankData: RankDataPoint[]
-  totalTrendData: TotalTrendDataPoint[]
-  chartConfig: any // ChartConfig from @/components/ui/chart
+  spec_pie: VChartSpec
+  spec_line: VChartSpec
+  spec_model_line: VChartSpec
+  spec_rank_bar: VChartSpec
 }

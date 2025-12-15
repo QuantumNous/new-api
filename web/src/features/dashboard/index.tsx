@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, lazy, Suspense } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppHeader, Main } from '@/components/layout'
-import { LogStatCards } from './components/models/log-stat-cards'
-import { ModelCharts } from './components/models/model-charts'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { AnnouncementsPanel } from './components/overview/announcements-panel'
 import { ApiInfoPanel } from './components/overview/api-info-panel'
@@ -16,6 +16,44 @@ import { type DashboardFilters } from './types'
 const route = getRouteApi('/_authenticated/dashboard/')
 
 type DashboardTab = 'overview' | 'models'
+
+const LazyLogStatCards = lazy(() =>
+  import('./components/models/log-stat-cards').then((m) => ({
+    default: m.LogStatCards,
+  }))
+)
+
+const LazyModelCharts = lazy(() =>
+  import('./components/models/model-charts').then((m) => ({
+    default: m.ModelCharts,
+  }))
+)
+
+function LogStatCardsFallback() {
+  return (
+    <Card>
+      <CardContent>
+        <Skeleton className='h-32 w-full' />
+      </CardContent>
+    </Card>
+  )
+}
+
+function ModelChartsFallback() {
+  return (
+    <Card className='!rounded-2xl !py-0'>
+      <div className='flex w-full flex-col gap-3 px-6 pt-6 lg:flex-row lg:items-center lg:justify-between'>
+        <Skeleton className='h-5 w-36' />
+        <Skeleton className='h-9 w-80' />
+      </div>
+      <CardContent className='px-0 pt-0'>
+        <div className='h-96 p-2'>
+          <Skeleton className='h-full w-full' />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export function Dashboard() {
   const { t } = useTranslation()
@@ -97,16 +135,20 @@ export function Dashboard() {
             </div>
           </TabsContent>
           <TabsContent value='models' className='space-y-4'>
-            <LogStatCards
-              filters={modelFilters}
-              onDataUpdate={handleDataUpdate}
-            />
-            <div className='grid grid-cols-1 gap-4'>
-              <ModelCharts
-                data={modelData}
-                loading={dataLoading}
-                timeGranularity={modelFilters.time_granularity || 'day'}
+            <Suspense fallback={<LogStatCardsFallback />}>
+              <LazyLogStatCards
+                filters={modelFilters}
+                onDataUpdate={handleDataUpdate}
               />
+            </Suspense>
+            <div className='grid grid-cols-1 gap-4'>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyModelCharts
+                  data={modelData}
+                  loading={dataLoading}
+                  timeGranularity={modelFilters.time_granularity || 'day'}
+                />
+              </Suspense>
             </div>
           </TabsContent>
         </Tabs>

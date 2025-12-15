@@ -18,7 +18,8 @@ const glowVariants = cva('absolute w-full', {
 })
 
 export interface GlowProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof glowVariants> {}
 
 export function Glow({ className, variant, ...props }: GlowProps) {

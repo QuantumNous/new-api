@@ -1,34 +1,104 @@
 import { getChartColor } from '@/lib/colors'
-import { getCurrencyDisplay } from '@/lib/currency'
+import { formatQuotaWithCurrency, getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
-import { sanitizeCssVariableName } from '@/lib/utils'
-import type { ChartConfig } from '@/components/ui/chart'
+import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import type { ProcessedChartData } from '@/features/dashboard/types'
 
+type TFunction = (key: string) => string
+
 /**
- * 处理和聚合图表数据
+ * Process and aggregate chart data
  */
 export function processChartData(
   data: QuotaDataItem[],
-  timeGranularity: TimeGranularity = 'day'
+  timeGranularity: TimeGranularity = 'day',
+  t?: TFunction
 ): ProcessedChartData {
+  const tt: TFunction = t ?? ((x) => x)
+
+  const formatInt = (value: number) =>
+    Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
+
   if (!data || data.length === 0) {
     return {
-      uniqueModels: [],
-      distributionData: [],
-      trendData: [],
-      pieData: [],
-      rankData: [],
-      totalTrendData: [],
-      chartConfig: {} as ChartConfig,
+      spec_pie: {
+        type: 'pie',
+        data: [{ id: 'id0', values: [{ type: 'null', value: 0 }] }],
+        outerRadius: 0.8,
+        innerRadius: 0.5,
+        padAngle: 0.6,
+        valueField: 'value',
+        categoryField: 'type',
+        title: {
+          visible: true,
+          text: tt('Call Proportion'),
+          subtext: `${tt('Total:')} ${formatInt(0)}`,
+        },
+        legends: { visible: true, orient: 'left' },
+        label: { visible: true },
+        tooltip: {
+          mark: {
+            content: [
+              {
+                key: (datum: any) => datum?.type,
+                value: (datum: any) => formatInt(Number(datum?.value) || 0),
+              },
+            ],
+          },
+        },
+      },
+      spec_line: {
+        type: 'bar',
+        data: [{ id: 'barData', values: [] }],
+        xField: 'Time',
+        yField: 'Usage',
+        seriesField: 'Model',
+        stack: true,
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Quota Distribution'),
+          subtext: `${tt('Total:')} ${formatQuotaWithCurrency(0, {
+            digitsLarge: 2,
+            digitsSmall: 2,
+            abbreviate: false,
+          })}`,
+        },
+      },
+      spec_model_line: {
+        type: 'line',
+        data: [{ id: 'lineData', values: [] }],
+        xField: 'Time',
+        yField: 'Count',
+        seriesField: 'Model',
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Call Trend'),
+          subtext: `${tt('Total:')} ${formatInt(0)}`,
+        },
+      },
+      spec_rank_bar: {
+        type: 'bar',
+        data: [{ id: 'rankData', values: [] }],
+        xField: 'Model',
+        yField: 'Count',
+        seriesField: 'Model',
+        legends: { visible: true, selectMode: 'single' },
+        title: {
+          visible: true,
+          text: tt('Top Models'),
+          subtext: `${tt('Total:')} ${formatInt(0)}`,
+        },
+      },
     }
   }
 
   const { config } = getCurrencyDisplay()
   const quotaPerUnit = config.quotaPerUnit
 
-  // 按时间和模型聚合所有指标
+  // Aggregate all metrics by time and model
   const timeModelMap = new Map<
     string,
     Map<string, { quota: number; count: number; tokens: number }>
@@ -46,7 +116,7 @@ export function processChartData(
     const count = Number(item.count) || 0
     const tokens = Number(item.token_used) || 0
 
-    // 按时间和模型聚合
+    // Aggregate by time and model
     if (!timeModelMap.has(timeKey)) {
       timeModelMap.set(timeKey, new Map())
     }
@@ -58,7 +128,7 @@ export function processChartData(
       tokens: existing.tokens + tokens,
     })
 
-    // 总计
+    // Calculate totals
     const totalExisting = modelTotalsMap.get(model) || {
       quota: 0,
       count: 0,
@@ -71,83 +141,288 @@ export function processChartData(
     })
   })
 
-  const uniqueModels = Array.from(modelTotalsMap.keys()).sort()
+  const allModels = Array.from(modelTotalsMap.keys())
   const sortedTimes = Array.from(timeModelMap.keys()).sort()
+  const sortedModels = [...allModels].sort()
 
-  // 生成 chart config
-  const chartConfig = uniqueModels.reduce<ChartConfig>(
-    (config, model, index) => {
-      config[model] = {
-        label: model,
-        color: getChartColor(index),
-      }
-      return config
+  // Pad time points if too few (default 7 points)
+  const MAX_TREND_POINTS = MAX_CHART_TREND_POINTS
+  const fillTimePoints = (times: string[]) => {
+    if (times.length >= MAX_TREND_POINTS) return times
+    const lastTime = Math.max(
+      ...data.map((item) => Number(item.created_at) || 0)
+    )
+    const intervalSec =
+      timeGranularity === 'week'
+        ? 604800
+        : timeGranularity === 'day'
+          ? 86400
+          : 3600
+    const padded = Array.from({ length: MAX_TREND_POINTS }, (_, i) =>
+      formatChartTime(
+        lastTime - (MAX_TREND_POINTS - 1 - i) * intervalSec,
+        timeGranularity
+      )
+    )
+    return padded
+  }
+  const chartTimes = fillTimePoints(sortedTimes)
+
+  const modelColorMap = sortedModels.reduce<Record<string, string>>(
+    (acc, model, index) => {
+      acc[model] = getChartColor(index)
+      return acc
     },
     {}
   )
 
-  // 生成各图表所需的数据格式
-  const distributionData = sortedTimes.map((time) => {
-    const modelData = timeModelMap.get(time)!
-    const dataPoint: any = { time }
-    uniqueModels.forEach((model) => {
-      const stats = modelData.get(model) || { quota: 0, count: 0, tokens: 0 }
-      dataPoint[model] = stats.quota / quotaPerUnit // 转换为 USD
-    })
-    return dataPoint
-  })
+  const totalTimes = Array.from(modelTotalsMap.values()).reduce(
+    (sum, x) => sum + (Number(x.count) || 0),
+    0
+  )
+  const totalQuotaRaw = Array.from(modelTotalsMap.values()).reduce(
+    (sum, x) => sum + (Number(x.quota) || 0),
+    0
+  )
 
-  const trendData = sortedTimes.map((time) => {
-    const modelData = timeModelMap.get(time)!
-    const dataPoint: any = { time }
-    uniqueModels.forEach((model) => {
-      const stats = modelData.get(model) || { quota: 0, count: 0, tokens: 0 }
-      dataPoint[model] = stats.count
-    })
-    return dataPoint
-  })
-
-  const pieData = Array.from(modelTotalsMap.entries())
+  // Pie chart (model call count proportion)
+  const pieValues = Array.from(modelTotalsMap.entries())
     .map(([model, stats]) => ({
-      name: model,
-      value: stats.count,
-      fill: `var(--color-${sanitizeCssVariableName(model)})`,
+      type: model,
+      value: Number(stats.count) || 0,
     }))
     .sort((a, b) => b.value - a.value)
 
-  const rankData = Array.from(modelTotalsMap.entries())
-    .map(([model, stats]) => ({
-      model,
-      count: stats.count,
-      quota: stats.quota / quotaPerUnit,
-      tokens: stats.tokens,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10)
+  // Stacked bar: model quota distribution (quota -> USD)
+  const lineValues: Array<{
+    Time: string
+    Model: string
+    rawQuota: number
+    Usage: number
+    TimeSum: number
+  }> = []
 
-  // 全模型调用总量趋势数据
-  const totalTrendData = sortedTimes.map((time) => {
-    const modelData = timeModelMap.get(time)!
-    let totalCalls = 0
-    let totalQuota = 0
-    modelData.forEach((stats) => {
-      totalCalls += stats.count
-      totalQuota += stats.quota
+  chartTimes.forEach((time) => {
+    let timeData = sortedModels.map((model) => {
+      const stats = timeModelMap.get(time)?.get(model)
+      const rawQuota = Number(stats?.quota) || 0
+      const usd = rawQuota ? rawQuota / quotaPerUnit : 0
+      // Match legacy frontend getQuotaWithUnit(..., 4)
+      const usage = usd ? Number(usd.toFixed(4)) : 0
+      return {
+        Time: time,
+        Model: model,
+        rawQuota,
+        Usage: usage,
+        TimeSum: 0,
+      }
     })
-    return {
-      time,
-      calls: totalCalls,
-      quota: totalQuota / quotaPerUnit,
-    }
+
+    const timeSum = timeData.reduce((sum, item) => sum + item.rawQuota, 0)
+    timeData.sort((a, b) => b.rawQuota - a.rawQuota)
+    timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }))
+    lineValues.push(...timeData)
   })
+  lineValues.sort((a, b) => a.Time.localeCompare(b.Time))
+
+  // Line chart: model call trend
+  const modelLineValues: Array<{
+    Time: string
+    Model: string
+    Count: number
+  }> = []
+  chartTimes.forEach((time) => {
+    const timeData = sortedModels.map((model) => {
+      const stats = timeModelMap.get(time)?.get(model)
+      return {
+        Time: time,
+        Model: model,
+        Count: Number(stats?.count) || 0,
+      }
+    })
+    modelLineValues.push(...timeData)
+  })
+  modelLineValues.sort((a, b) => a.Time.localeCompare(b.Time))
+
+  // Rank bar: model call count ranking
+  const rankValues = Array.from(modelTotalsMap.entries())
+    .map(([model, stats]) => ({
+      Model: model,
+      Count: Number(stats.count) || 0,
+    }))
+    .sort((a, b) => b.Count - a.Count)
+  // No top10 truncation (legacy behavior)
 
   return {
-    uniqueModels,
-    distributionData,
-    trendData,
-    pieData,
-    rankData,
-    totalTrendData,
-    chartConfig,
+    spec_pie: {
+      type: 'pie',
+      data: [{ id: 'id0', values: pieValues }],
+      outerRadius: 0.8,
+      innerRadius: 0.5,
+      padAngle: 0.6,
+      valueField: 'value',
+      categoryField: 'type',
+      pie: {
+        style: { cornerRadius: 10 },
+        state: {
+          hover: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
+          selected: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
+        },
+      },
+      title: {
+        visible: true,
+        text: tt('Call Proportion'),
+        subtext: `${tt('Total:')} ${formatInt(totalTimes)}`,
+      },
+      legends: { visible: true, orient: 'left' },
+      label: { visible: true },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: any) => datum?.type,
+              value: (datum: any) => formatInt(Number(datum?.value) || 0),
+            },
+          ],
+        },
+      },
+      color: { specified: modelColorMap },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_line: {
+      type: 'bar',
+      data: [{ id: 'barData', values: lineValues }],
+      xField: 'Time',
+      yField: 'Usage',
+      seriesField: 'Model',
+      stack: true,
+      legends: { visible: true, selectMode: 'single' },
+      title: {
+        visible: true,
+        text: tt('Quota Distribution'),
+        subtext: `${tt('Total:')} ${formatQuotaWithCurrency(totalQuotaRaw, {
+          digitsLarge: 2,
+          digitsSmall: 2,
+          abbreviate: false,
+        })}`,
+      },
+      bar: {
+        state: {
+          hover: { stroke: '#000', lineWidth: 1 },
+        },
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: any) => datum?.Model,
+              value: (datum: any) =>
+                formatQuotaWithCurrency(Number(datum?.rawQuota) || 0, {
+                  digitsLarge: 4,
+                  digitsSmall: 4,
+                  abbreviate: false,
+                }),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: any) => datum?.Model,
+              value: (datum: any) => Number(datum?.rawQuota) || 0,
+            },
+          ],
+          updateContent: (array: any[]) => {
+            array.sort(
+              (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
+            )
+            let sum = 0
+            for (let i = 0; i < array.length; i++) {
+              if (array[i].key === 'Other') continue
+              const v = Number(array[i].value) || 0
+              if (array[i].datum && array[i].datum.TimeSum) {
+                sum = Number(array[i].datum.TimeSum) || sum
+              }
+              array[i].value = formatQuotaWithCurrency(v, {
+                digitsLarge: 4,
+                digitsSmall: 4,
+                abbreviate: false,
+              })
+            }
+            array.unshift({
+              key: tt('Total:'),
+              value: formatQuotaWithCurrency(sum, {
+                digitsLarge: 4,
+                digitsSmall: 4,
+                abbreviate: false,
+              }),
+            })
+            return array
+          },
+        },
+      },
+      color: { specified: modelColorMap },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_model_line: {
+      type: 'line',
+      data: [{ id: 'lineData', values: modelLineValues }],
+      xField: 'Time',
+      yField: 'Count',
+      seriesField: 'Model',
+      legends: { visible: true, selectMode: 'single' },
+      title: {
+        visible: true,
+        text: tt('Call Trend'),
+        subtext: `${tt('Total:')} ${formatInt(totalTimes)}`,
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: any) => datum?.Model,
+              value: (datum: any) => formatInt(Number(datum?.Count) || 0),
+            },
+          ],
+        },
+      },
+      color: { specified: modelColorMap },
+      point: { visible: false },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_rank_bar: {
+      type: 'bar',
+      data: [{ id: 'rankData', values: rankValues }],
+      xField: 'Model',
+      yField: 'Count',
+      seriesField: 'Model',
+      legends: { visible: true, selectMode: 'single' },
+      title: {
+        visible: true,
+        text: tt('Top Models'),
+        subtext: `${tt('Total:')} ${formatInt(totalTimes)}`,
+      },
+      bar: {
+        state: {
+          hover: { stroke: '#000', lineWidth: 1 },
+        },
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: any) => datum?.Model,
+              value: (datum: any) => formatInt(Number(datum?.Count) || 0),
+            },
+          ],
+        },
+      },
+      color: { specified: modelColorMap },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
   }
 }

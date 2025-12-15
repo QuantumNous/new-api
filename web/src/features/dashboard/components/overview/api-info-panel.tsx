@@ -16,7 +16,7 @@ export function ApiInfoPanel() {
   const { items: list, loading } = useApiInfo()
   const [pingStatus, setPingStatus] = useState<PingStatusMap>({})
 
-  // 测速函数
+  // Speed test function
   const handleTest = useCallback(async (url: string) => {
     setPingStatus((prev) => ({
       ...prev,

@@ -1,7 +1,7 @@
 import type { PingStatus } from '@/features/dashboard/types'
 
 /**
- * 获取延迟状态的颜色类名
+ * Get color class for latency status
  */
 export function getLatencyColorClass(latency: number): string {
   if (latency < 200) {
@@ -14,7 +14,7 @@ export function getLatencyColorClass(latency: number): string {
 }
 
 /**
- * 测试 URL 延迟
+ * Test URL latency
  */
 export async function testUrlLatency(url: string): Promise<PingStatus> {
   try {
@@ -34,7 +34,7 @@ export async function testUrlLatency(url: string): Promise<PingStatus> {
 }
 
 /**
- * 打开外部测速链接
+ * Open external speed test link
  */
 export function openExternalSpeedTest(url: string): void {
   const encodedUrl = encodeURIComponent(url)
@@ -43,7 +43,7 @@ export function openExternalSpeedTest(url: string): void {
 }
 
 /**
- * 获取默认的 Ping 状态
+ * Get default ping status
  */
 export function getDefaultPingStatus(): PingStatus {
   return {
