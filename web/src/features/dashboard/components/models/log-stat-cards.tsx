@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { DEFAULT_TIME_RANGE_DAYS } from '@/features/dashboard/constants'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -10,7 +12,6 @@ import {
 } from '@/features/dashboard/lib'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { type DashboardFilters } from '@/features/dashboard/types'
-import { StatCard } from '../ui/stat-card'
 
 interface LogStatCardsProps {
   filters?: DashboardFilters
@@ -85,18 +86,52 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
   }))
 
   return (
-    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
-      {items.map((it) => (
-        <StatCard
-          key={it.title}
-          title={it.title}
-          value={it.value}
-          description={it.desc}
-          icon={it.icon}
-          loading={loading}
-          error={error}
-        />
-      ))}
-    </div>
+    <Card>
+      <CardContent>
+        <div className='grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5'>
+          {items.map((it) => {
+            const Icon = it.icon
+            return (
+              <div
+                key={it.title}
+                className='group hover:bg-accent/50 -m-2 rounded-lg p-2 transition-colors'
+              >
+                <div className='flex items-center gap-2'>
+                  <Icon className='text-muted-foreground h-4 w-4 shrink-0' />
+                  <div className='text-muted-foreground truncate text-sm font-medium'>
+                    {it.title}
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className='mt-2 space-y-2'>
+                    <Skeleton className='h-8 w-28' />
+                    <Skeleton className='h-4 w-36' />
+                  </div>
+                ) : error ? (
+                  <>
+                    <div className='text-muted-foreground mt-2 text-2xl font-semibold tracking-tight tabular-nums'>
+                      --
+                    </div>
+                    <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
+                      {it.desc}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className='mt-2 text-2xl font-semibold tracking-tight tabular-nums'>
+                      {it.value}
+                    </div>
+                    <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
+                      {it.desc}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
