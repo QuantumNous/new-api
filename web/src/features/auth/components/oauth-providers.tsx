@@ -51,7 +51,7 @@ export function OAuthProviders({
   if (status?.wechat_login && onWeChatLogin) {
     providerButtons.push({
       key: 'wechat',
-      label: 'WeChat',
+      label: t('Continue with WeChat'),
       onClick: onWeChatLogin,
       icon: <IconWeChat className='h-4 w-4' />,
       disabled: isWeChatLoading,
@@ -61,7 +61,7 @@ export function OAuthProviders({
   if (status?.github_oauth) {
     providerButtons.push({
       key: 'github',
-      label: githubButtonText || 'GitHub',
+      label: githubButtonText || t('Continue with GitHub'),
       onClick: handleGitHubLogin,
       icon: <IconGithub className='h-4 w-4' />,
       disabled: githubButtonDisabled,
@@ -71,7 +71,7 @@ export function OAuthProviders({
   if (status?.discord_oauth) {
     providerButtons.push({
       key: 'discord',
-      label: 'Discord',
+      label: t('Continue with Discord'),
       onClick: handleDiscordLogin,
       icon: <IconDiscord className='h-4 w-4' />,
     })
@@ -80,7 +80,7 @@ export function OAuthProviders({
   if (status?.oidc_enabled) {
     providerButtons.push({
       key: 'oidc',
-      label: 'OIDC',
+      label: t('Continue with OIDC'),
       onClick: handleOIDCLogin,
     })
   }
@@ -88,7 +88,7 @@ export function OAuthProviders({
   if (status?.linuxdo_oauth) {
     providerButtons.push({
       key: 'linuxdo',
-      label: 'LinuxDO',
+      label: t('Continue with LinuxDO'),
       onClick: handleLinuxDOLogin,
       icon: <IconLinuxDo className='h-4 w-4' />,
     })
@@ -97,7 +97,7 @@ export function OAuthProviders({
   if (status?.telegram_oauth) {
     providerButtons.push({
       key: 'telegram',
-      label: 'Telegram',
+      label: t('Continue with Telegram'),
       onClick: handleTelegramLogin,
     })
   }

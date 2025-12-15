@@ -147,7 +147,9 @@ export function Dashboard() {
                 <LazyModelCharts
                   data={modelData}
                   loading={dataLoading}
-                  timeGranularity={modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY}
+                  timeGranularity={
+                    modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                  }
                 />
               </Suspense>
             </div>

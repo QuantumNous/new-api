@@ -43,8 +43,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
       filters?.start_timestamp,
       filters?.end_timestamp
     )
-    const timeDiff =
-      (timeRange.end_timestamp - timeRange.start_timestamp) / 60000
+    const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
     setTimeRangeMinutes(timeDiff)
 
     getUserQuotaDates(buildQueryParams(timeRange, filters))

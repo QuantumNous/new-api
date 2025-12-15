@@ -60,7 +60,7 @@ export function ModelCharts({
   const spec = activeSpec ? chartData[activeSpec.specKey] : null
 
   return (
-    <Card className='!rounded-2xl !py-0'>
+    <Card className='!gap-0 !rounded-2xl !py-0'>
       <div className='flex w-full flex-col gap-3 px-6 pt-6 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <PieChartIcon className='h-4 w-4' />
