@@ -476,7 +476,7 @@ export function ApiKeysMutateDrawer({
                   name='allow_ips'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('IP Whitelist')}</FormLabel>
+                      <FormLabel>{t('IP Whitelist (supports CIDR)')}</FormLabel>
                       <FormControl>
                         <Textarea
                           {...field}
@@ -487,7 +487,9 @@ export function ApiKeysMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('Restrict access to specific IPs')}
+                        {t(
+                          'Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
