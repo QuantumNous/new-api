@@ -7,6 +7,7 @@ import { VCHART_OPTION } from '@/lib/vchart'
 import { useTheme } from '@/context/theme-provider'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DEFAULT_TIME_GRANULARITY } from '@/features/dashboard/constants'
 import { processChartData } from '@/features/dashboard/lib'
 import type {
   ProcessedChartData,
@@ -35,7 +36,7 @@ interface ModelChartsProps {
 export function ModelCharts({
   data,
   loading = false,
-  timeGranularity = 'day',
+  timeGranularity = DEFAULT_TIME_GRANULARITY,
 }: ModelChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()

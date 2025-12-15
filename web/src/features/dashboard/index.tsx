@@ -11,6 +11,7 @@ import { ApiInfoPanel } from './components/overview/api-info-panel'
 import { FAQPanel } from './components/overview/faq-panel'
 import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
+import { DEFAULT_TIME_GRANULARITY } from './constants'
 import { type DashboardFilters } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/')
@@ -146,7 +147,7 @@ export function Dashboard() {
                 <LazyModelCharts
                   data={modelData}
                   loading={dataLoading}
-                  timeGranularity={modelFilters.time_granularity || 'day'}
+                  timeGranularity={modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY}
                 />
               </Suspense>
             </div>
