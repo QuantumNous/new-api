@@ -2,12 +2,14 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -240,13 +242,20 @@ func TokenAuth() func(c *gin.Context) {
 			return
 		}
 
-		allowIpsMap := token.GetIpLimitsMap()
-		if len(allowIpsMap) != 0 {
+		allowIps := token.GetIpLimits()
+		if len(allowIps) > 0 {
 			clientIp := c.ClientIP()
-			if _, ok := allowIpsMap[clientIp]; !ok {
+			logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
+			ip := net.ParseIP(clientIp)
+			if ip == nil {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
+				return
+			}
+			if common.IsIpInCIDRList(ip, allowIps) == false {
 				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中")
 				return
 			}
+			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)

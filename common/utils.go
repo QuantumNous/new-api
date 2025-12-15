@@ -217,11 +217,6 @@ func IntMax(a int, b int) int {
 	}
 }
 
-func IsIP(s string) bool {
-	ip := net.ParseIP(s)
-	return ip != nil
-}
-
 func GetUUID() string {
 	code := uuid.New().String()
 	code = strings.Replace(code, "-", "", -1)
