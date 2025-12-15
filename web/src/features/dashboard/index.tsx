@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppHeader, Main } from '@/components/layout'
@@ -12,9 +13,30 @@ import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
 import { type DashboardFilters } from './types'
 
+const route = getRouteApi('/_authenticated/dashboard/')
+
+type DashboardTab = 'overview' | 'models'
+
 export function Dashboard() {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('overview')
+  const navigate = route.useNavigate()
+  const search = route.useSearch()
+  const activeTab: DashboardTab = search.tab ?? 'overview'
+
+  const setActiveTab = useCallback(
+    (tab: string) => {
+      if (tab !== 'overview' && tab !== 'models') return
+      const nextTab: DashboardTab = tab
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          tab: nextTab === 'overview' ? undefined : nextTab,
+        }),
+        replace: true,
+      })
+    },
+    [navigate]
+  )
   const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
   const [modelData, setModelData] = useState<any[]>([])
   const [dataLoading, setDataLoading] = useState(false)
