@@ -1,4 +1,5 @@
 import { getChartColor } from '@/lib/colors'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { sanitizeCssVariableName } from '@/lib/utils'
 import type { ChartConfig } from '@/components/ui/chart'
@@ -23,6 +24,9 @@ export function processChartData(
       chartConfig: {} as ChartConfig,
     }
   }
+
+  const { config } = getCurrencyDisplay()
+  const quotaPerUnit = config.quotaPerUnit
 
   // 按时间和模型聚合所有指标
   const timeModelMap = new Map<
@@ -88,7 +92,7 @@ export function processChartData(
     const dataPoint: any = { time }
     uniqueModels.forEach((model) => {
       const stats = modelData.get(model) || { quota: 0, count: 0, tokens: 0 }
-      dataPoint[model] = stats.quota / 100 // 转换为美元
+      dataPoint[model] = stats.quota / quotaPerUnit // 转换为 USD
     })
     return dataPoint
   })
@@ -115,7 +119,7 @@ export function processChartData(
     .map(([model, stats]) => ({
       model,
       count: stats.count,
-      quota: stats.quota / 100,
+      quota: stats.quota / quotaPerUnit,
       tokens: stats.tokens,
     }))
     .sort((a, b) => b.count - a.count)
@@ -133,7 +137,7 @@ export function processChartData(
     return {
       time,
       calls: totalCalls,
-      quota: totalQuota / 100,
+      quota: totalQuota / quotaPerUnit,
     }
   })
 

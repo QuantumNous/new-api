@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts'
 import { getChartColor } from '@/lib/colors'
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
+  type ChartConfig,
 } from '@/components/ui/chart'
 import { PaginatedChartLegendContent } from '@/components/paginated-chart-legend'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
@@ -16,10 +17,15 @@ import type { RankDataPoint } from '@/features/dashboard/types'
 
 interface TopModelsChartProps {
   data: RankDataPoint[]
+  chartConfig: ChartConfig
   loading?: boolean
 }
 
-export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
+export function TopModelsChart({
+  data,
+  chartConfig,
+  loading = false,
+}: TopModelsChartProps) {
   const { t } = useTranslation()
   const isEmpty = !data || data.length === 0
 
@@ -75,16 +81,20 @@ export function TopModelsChart({ data, loading = false }: TopModelsChartProps) {
           <ChartTooltip
             content={
               <ChartTooltipContent
+                indicator='line'
                 formatter={(value, name) => [value.toString(), name]}
               />
             }
           />
           <ChartLegend content={<PaginatedChartLegendContent />} />
-          <Bar
-            dataKey='count'
-            fill='var(--color-count)'
-            radius={[0, 4, 4, 0]}
-          />
+          <Bar dataKey='count' fill='var(--color-count)' radius={[0, 4, 4, 0]}>
+            {data.map((entry, index) => (
+              <Cell
+                key={entry.model}
+                fill={chartConfig?.[entry.model]?.color || getChartColor(index)}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ChartContainer>
     </PanelWrapper>

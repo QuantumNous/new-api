@@ -78,6 +78,7 @@ export function TotalCallsTrendChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
+                indicator='line'
                 formatter={(value, name) => {
                   if (name === 'Total Quota') {
                     return [formatCurrencyUSD(Number(value)), name]

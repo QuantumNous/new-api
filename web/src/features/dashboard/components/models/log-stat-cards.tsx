@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { getUserQuotaDates } from '@/features/dashboard/api'
+import { DEFAULT_TIME_RANGE_DAYS } from '@/features/dashboard/constants'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
   buildQueryParams,
@@ -35,7 +36,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
     onDataUpdate?.([], true) // 通知父组件开始加载
 
     const timeRange = computeTimeRange(
-      30,
+      DEFAULT_TIME_RANGE_DAYS,
       filters?.start_timestamp,
       filters?.end_timestamp
     )
@@ -75,7 +76,10 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
 
   const items = statCardsConfig.map((config) => ({
     title: config.title,
-    value: formatNumber(config.getValue(adaptedStats, timeRangeMinutes)),
+    value:
+      config.key === 'quota'
+        ? formatQuota(config.getValue(adaptedStats, timeRangeMinutes))
+        : formatNumber(config.getValue(adaptedStats, timeRangeMinutes)),
     desc: config.description,
     icon: config.icon,
   }))

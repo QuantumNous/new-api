@@ -44,7 +44,11 @@ export function ModelCharts({
           chartConfig={chartData.chartConfig}
           loading={loading}
         />
-        <TopModelsChart data={chartData.rankData} loading={loading} />
+        <TopModelsChart
+          data={chartData.rankData}
+          chartConfig={chartData.chartConfig}
+          loading={loading}
+        />
       </div>
 
       {/* 调用趋势 */}

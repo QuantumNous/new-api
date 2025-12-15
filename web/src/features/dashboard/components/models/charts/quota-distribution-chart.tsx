@@ -122,6 +122,7 @@ export function QuotaDistributionChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
+                indicator='line'
                 formatter={(value, name) => [
                   formatCurrencyUSD(Number(value)),
                   name,

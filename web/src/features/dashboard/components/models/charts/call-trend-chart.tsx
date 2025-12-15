@@ -69,6 +69,7 @@ export function CallTrendChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
+                indicator='line'
                 formatter={(value, name) => [
                   formatCompactNumber(Number(value)),
                   name,
