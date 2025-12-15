@@ -548,6 +548,7 @@
     "参数值": "Parameter value",
     "参数覆盖": "Parameters override",
     "参照生视频": "Reference video generation",
+    "视频Remix": "Video remix",
     "友情链接": "Friendly links",
     "发布日期": "Publish Date",
     "发布时间": "Publish Time",
@@ -2176,6 +2177,9 @@
     "默认区域，如: us-central1": "Default region, e.g.: us-central1",
     "默认折叠侧边栏": "Default collapse sidebar",
     "默认测试模型": "Default Test Model",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "跨分组重试": "Cross-group retry",
+    "跨分组": "Cross-group",
+    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "After enabling, when the current group channel fails, it will try the next group's channel in order"
   }
 }

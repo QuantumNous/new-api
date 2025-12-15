@@ -317,7 +317,7 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 	for i, file := range meta.Files {
 		switch file.FileType {
 		case types.FileTypeImage:
-			if common.IsOpenAITextModel(info.OriginModelName) {
+			if common.IsOpenAITextModel(model) {
 				token, err := getImageToken(file, model, info.IsStream)
 				if err != nil {
 					return 0, fmt.Errorf("error counting image token, media index[%d], original data[%s], err: %v", i, file.OriginData, err)

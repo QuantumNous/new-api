@@ -42,7 +42,7 @@ type Adaptor struct {
 // support OAI models: o1-mini/o3-mini/o4-mini/o1/o3 etc...
 // minimal effort only available in gpt-5
 func parseReasoningEffortFromModelSuffix(model string) (string, string) {
-	effortSuffixes := []string{"-high", "-minimal", "-low", "-medium", "-none"}
+	effortSuffixes := []string{"-high", "-minimal", "-low", "-medium", "-none", "-xhigh"}
 	for _, suffix := range effortSuffixes {
 		if strings.HasSuffix(model, suffix) {
 			effort := strings.TrimPrefix(suffix, "-")

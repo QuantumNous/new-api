@@ -181,7 +181,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return newApiErr
 	}
 
-	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
+	if usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0 {
 		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
 	} else {
 		postConsumeQuota(c, info, usage.(*dto.Usage), "")

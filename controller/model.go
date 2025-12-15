@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
@@ -275,7 +276,7 @@ func RetrieveModel(c *gin.Context, modelType int) {
 			c.JSON(200, aiModel)
 		}
 	} else {
-		openAIError := dto.OpenAIError{
+		openAIError := types.OpenAIError{
 			Message: fmt.Sprintf("The model '%s' does not exist", modelId),
 			Type:    "invalid_request_error",
 			Param:   "model",

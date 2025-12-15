@@ -510,6 +510,7 @@
     "参数值": "Giá trị tham số",
     "参数覆盖": "Ghi đè tham số",
     "参照生视频": "Tạo video tham chiếu",
+    "视频Remix": "Remix video",
     "友情链接": "Liên kết thân thiện",
     "发布日期": "Ngày xuất bản",
     "发布时间": "Thời gian xuất bản",
@@ -2735,6 +2736,9 @@
     "默认用户消息": "Xin chào",
     "默认助手消息": "Xin chào! Tôi có thể giúp gì cho bạn?",
     "可选，用于复现结果": "Tùy chọn, để tái tạo kết quả",
-    "随机种子 (留空为随机)": "Hạt giống ngẫu nhiên (để trống cho ngẫu nhiên)"
+    "随机种子 (留空为随机)": "Hạt giống ngẫu nhiên (để trống cho ngẫu nhiên)",
+    "跨分组重试": "Thử lại giữa các nhóm",
+    "跨分组": "Giữa các nhóm",
+    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "Sau khi bật, khi kênh nhóm hiện tại thất bại, nó sẽ thử kênh của nhóm tiếp theo theo thứ tự"
   }
 }

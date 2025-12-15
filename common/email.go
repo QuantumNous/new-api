@@ -32,7 +32,7 @@ func SendEmail(subject string, receiver string, content string) error {
 	}
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 	mail := []byte(fmt.Sprintf("To: %s\r\n"+
-		"From: %s<%s>\r\n"+
+		"From: %s <%s>\r\n"+
 		"Subject: %s\r\n"+
 		"Date: %s\r\n"+
 		"Message-ID: %s\r\n"+ // 添加 Message-ID 头
