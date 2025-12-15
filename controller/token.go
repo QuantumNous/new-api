@@ -30,7 +30,8 @@ func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
 	token := c.Query("token")
-	tokens, err := model.SearchUserTokens(userId, keyword, token)
+	group := c.Query("group")
+	tokens, err := model.SearchUserTokens(userId, keyword, token, group)
 	if err != nil {
 		common.ApiError(c, err)
 		return
