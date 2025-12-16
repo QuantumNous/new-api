@@ -247,7 +247,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	// 统一的推理字段转换：支持OpenAI和OpenRouter
 	forceFormat := info.ChannelSetting.ForceFormat
 	if forceFormat && (info.ChannelType == constant.ChannelTypeOpenRouter || info.ChannelType == constant.ChannelTypeOpenAI) {
-		convertOpenRouterReasoningFields(&simpleResponse)
+		normalizeReasoningFields(&simpleResponse)
 	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
@@ -664,10 +664,10 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 	return 0, false
 }
 
-// convertOpenRouterReasoningFields 转换OpenRouter响应中的reasoning字段为reasoning_content
-// convertOpenRouterReasoningFields converts OpenRouter-style `reasoning` fields into `reasoning_content` for every choice's message in the provided OpenAITextResponse.
+// normalizeReasoningFields normalizes `reasoning` fields into `reasoning_content` for every choice's message in the provided OpenAITextResponse.
+// This function is used for both OpenAI and OpenRouter channels to standardize reasoning field formats.
 // It modifies the response in place and is a no-op if `response` is nil or contains no choices.
-func convertOpenRouterReasoningFields(response *dto.OpenAITextResponse) {
+func normalizeReasoningFields(response *dto.OpenAITextResponse) {
 	if response == nil || len(response.Choices) == 0 {
 		return
 	}

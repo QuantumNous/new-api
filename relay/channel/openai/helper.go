@@ -32,7 +32,7 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
 			logger.LogError(c, fmt.Sprintf("failed to unmarshal stream data for reasoning conversion: channel_type=%s, data_size=%d, error=%v", info.ChannelType, len(data), err))
 		} else {
-			convertOpenRouterReasoningFieldsStream(&streamResponse)
+			normalizeReasoningFieldsStream(&streamResponse)
 			newData, err := common.Marshal(streamResponse)
 			if err != nil {
 				logger.LogError(c, fmt.Sprintf("failed to marshal stream data after reasoning conversion: channel_type=%s, error=%v", info.ChannelType, err))
@@ -282,10 +282,10 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 	helper.ResponseChunkData(c, streamResponse, data)
 }
 
-// convertOpenRouterReasoningFieldsStream converts each choice's `Delta` in a streaming ChatCompletions response
-// by normalizing any `reasoning` fields into `reasoning_content`.
+// normalizeReasoningFieldsStream normalizes each choice's `Delta` in a streaming ChatCompletions response
+// by converting any `reasoning` fields into `reasoning_content`.
 // It applies ConvertReasoningField to every choice's Delta and is a no-op if `response` is nil or has no choices.
-func convertOpenRouterReasoningFieldsStream(response *dto.ChatCompletionsStreamResponse) {
+func normalizeReasoningFieldsStream(response *dto.ChatCompletionsStreamResponse) {
 	if response == nil || len(response.Choices) == 0 {
 		return
 	}
