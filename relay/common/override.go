@@ -11,6 +11,8 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+var negativeIndexRegexp = regexp.MustCompile(`\.(-\d+)`)
+
 type ConditionOperation struct {
 	Path           string      `json:"path"`             // JSON路径
 	Mode           string      `json:"mode"`             // full, prefix, suffix, contains, gt, gte, lt, lte
@@ -186,8 +188,7 @@ func checkSingleCondition(jsonStr, contextJSON string, condition ConditionOperat
 }
 
 func processNegativeIndex(jsonStr string, path string) string {
-	re := regexp.MustCompile(`\.(-\d+)`)
-	matches := re.FindAllStringSubmatch(path, -1)
+	matches := negativeIndexRegexp.FindAllStringSubmatch(path, -1)
 
 	if len(matches) == 0 {
 		return path

@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -166,6 +165,30 @@ func GetAllChannels(c *gin.Context) {
 	return
 }
 
+func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, error) {
+	var headers http.Header
+	switch channel.Type {
+	case constant.ChannelTypeAnthropic:
+		headers = GetClaudeAuthHeader(key)
+	default:
+		headers = GetAuthHeader(key)
+	}
+
+	headerOverride := channel.GetHeaderOverride()
+	for k, v := range headerOverride {
+		str, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid header override for key %s", k)
+		}
+		if strings.Contains(str, "{api_key}") {
+			str = strings.ReplaceAll(str, "{api_key}", key)
+		}
+		headers.Set(k, str)
+	}
+
+	return headers, nil
+}
+
 func FetchUpstreamModels(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -192,10 +215,20 @@ func FetchUpstreamModels(c *gin.Context) {
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
 	case constant.ChannelTypeZhipu_v4:
-		url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		} else {
+			url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
+		}
 	case constant.ChannelTypeVolcEngine:
-		if baseURL == volcengine.DoubaoCodingPlan {
-			url = fmt.Sprintf("%s/v1/models", volcengine.DoubaoCodingPlanOpenAIBaseURL)
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
+		} else {
+			url = fmt.Sprintf("%s/v1/models", baseURL)
+		}
+	case constant.ChannelTypeMoonshot:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
@@ -214,14 +247,13 @@ func FetchUpstreamModels(c *gin.Context) {
 	}
 	key = strings.TrimSpace(key)
 
-	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
-	var body []byte
-	switch channel.Type {
-	case constant.ChannelTypeAnthropic:
-		body, err = GetResponseBody("GET", url, channel, GetClaudeAuthHeader(key))
-	default:
-		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key))
+	headers, err := buildFetchModelsHeaders(channel, key)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
+
+	body, err := GetResponseBody("GET", url, channel, headers)
 	if err != nil {
 		common.ApiError(c, err)
 		return

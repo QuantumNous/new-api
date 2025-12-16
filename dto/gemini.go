@@ -142,7 +142,7 @@ type GeminiThinkingConfig struct {
 	IncludeThoughts bool `json:"includeThoughts,omitempty"`
 	ThinkingBudget  *int `json:"thinkingBudget,omitempty"`
 	// TODO Conflict with thinkingbudget.
-	ThinkingLevel json.RawMessage `json:"thinkingLevel,omitempty"`
+	ThinkingLevel string `json:"thinkingLevel,omitempty"`
 }
 
 // UnmarshalJSON allows GeminiThinkingConfig to accept both snake_case and camelCase fields.
@@ -150,9 +150,9 @@ func (c *GeminiThinkingConfig) UnmarshalJSON(data []byte) error {
 	type Alias GeminiThinkingConfig
 	var aux struct {
 		Alias
-		IncludeThoughtsSnake *bool           `json:"include_thoughts,omitempty"`
-		ThinkingBudgetSnake  *int            `json:"thinking_budget,omitempty"`
-		ThinkingLevelSnake   json.RawMessage `json:"thinking_level,omitempty"`
+		IncludeThoughtsSnake *bool  `json:"include_thoughts,omitempty"`
+		ThinkingBudgetSnake  *int   `json:"thinking_budget,omitempty"`
+		ThinkingLevelSnake   string `json:"thinking_level,omitempty"`
 	}
 
 	if err := common.Unmarshal(data, &aux); err != nil {
@@ -169,7 +169,7 @@ func (c *GeminiThinkingConfig) UnmarshalJSON(data []byte) error {
 		c.ThinkingBudget = aux.ThinkingBudgetSnake
 	}
 
-	if len(aux.ThinkingLevelSnake) > 0 {
+	if aux.ThinkingLevelSnake != "" {
 		c.ThinkingLevel = aux.ThinkingLevelSnake
 	}
 

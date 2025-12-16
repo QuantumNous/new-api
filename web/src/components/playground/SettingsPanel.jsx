@@ -122,7 +122,7 @@ const SettingsPanel = ({
             </Typography.Text>
             {customRequestMode && (
               <Typography.Text className='text-xs text-orange-600'>
-                (已在自定义模式中忽略)
+                ({t('已在自定义模式中忽略')})
               </Typography.Text>
             )}
           </div>
@@ -154,7 +154,7 @@ const SettingsPanel = ({
             </Typography.Text>
             {customRequestMode && (
               <Typography.Text className='text-xs text-orange-600'>
-                (已在自定义模式中忽略)
+                ({t('已在自定义模式中忽略')})
               </Typography.Text>
             )}
           </div>
@@ -206,19 +206,19 @@ const SettingsPanel = ({
             <div className='flex items-center gap-2'>
               <ToggleLeft size={16} className='text-gray-500' />
               <Typography.Text strong className='text-sm'>
-                流式输出
+                {t('流式输出')}
               </Typography.Text>
               {customRequestMode && (
                 <Typography.Text className='text-xs text-orange-600'>
-                  (已在自定义模式中忽略)
+                  ({t('已在自定义模式中忽略')})
                 </Typography.Text>
               )}
             </div>
             <Switch
               checked={inputs.stream}
               onChange={(checked) => onInputChange('stream', checked)}
-              checkedText='开'
-              uncheckedText='关'
+              checkedText={t('开')}
+              uncheckedText={t('关')}
               size='small'
               disabled={customRequestMode}
             />
