@@ -22,22 +22,20 @@ import (
 
 // HandleStreamFormat processes a streaming response payload according to the provided RelayInfo and forwards it to the appropriate format-specific handler.
 //
-// It increments info.SendResponseCount, optionally converts OpenRouter "reasoning" fields to "reasoning_content" when the channel is OpenRouter and OpenRouterConvertToOpenAI is enabled, and then dispatches the (possibly modified) JSON string to the handler for the configured RelayFormat (OpenAI, Claude, or Gemini). It returns any error produced by the selected handler or nil if no handler is invoked.
+// It increments info.SendResponseCount, optionally converts "reasoning" fields to "reasoning_content" when the channel is OpenRouter or OpenAI and forceFormat is enabled, and then dispatches the (possibly modified) JSON string to the handler for the configured RelayFormat (OpenAI, Claude, or Gemini). It returns any error produced by the selected handler or nil if no handler is invoked.
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 
-	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
-	// 仅当启用转换为OpenAI兼容格式时执行
-	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
+	// 统一的推理字段转换：支持OpenAI和OpenRouter
+	if forceFormat && (info.ChannelType == constant.ChannelTypeOpenRouter || info.ChannelType == constant.ChannelTypeOpenAI) {
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
-			logger.LogError(c, fmt.Sprintf("failed to unmarshal stream data for OpenRouter reasoning conversion: channel_type=%s, data_size=%d, error=%v", info.ChannelType, len(data), err))
+			logger.LogError(c, fmt.Sprintf("failed to unmarshal stream data for reasoning conversion: channel_type=%s, data_size=%d, error=%v", info.ChannelType, len(data), err))
 		} else {
 			convertOpenRouterReasoningFieldsStream(&streamResponse)
-			// 重新序列化为JSON
 			newData, err := common.Marshal(streamResponse)
 			if err != nil {
-				logger.LogError(c, fmt.Sprintf("failed to marshal stream data after OpenRouter reasoning conversion: channel_type=%s, error=%v", info.ChannelType, err))
+				logger.LogError(c, fmt.Sprintf("failed to marshal stream data after reasoning conversion: channel_type=%s, error=%v", info.ChannelType, err))
 			} else {
 				data = string(newData)
 			}

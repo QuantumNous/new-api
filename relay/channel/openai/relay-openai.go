@@ -194,21 +194,21 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 }
 
 // OpenaiHandler processes an upstream OpenAI-like HTTP response, normalizes or infers token usage,
-// optionally converts OpenRouter reasoning fields to OpenAI-compatible `reasoning_content`, adapts
+// optionally converts reasoning fields to OpenAI-compatible `reasoning_content`, adapts
 // the response to the configured relay format (OpenAI, Claude, or Gemini), writes the final body
 // to the client, and returns the computed usage.
 //
 // It will:
-// - Handle OpenRouter enterprise wrapper responses when the channel is OpenRouter Enterprise.
-// - Unmarshal the upstream body into an internal simple response and, when configured,
-//   convert OpenRouter `reasoning` fields into `reasoning_content`.
-// - If usage prompt tokens are missing, infer completion tokens by counting tokens in choices
-//   (falling back to per-choice text token counting) and set Prompt/Completion/Total tokens.
-// - Apply channel-specific post-processing to usage (cached token adjustments).
-// - Depending on RelayFormat and channel settings, inject updated usage into the body,
-//   reserialize the converted simple response when ForceFormat is enabled or when OpenRouter
-//   conversion was applied, or convert the response to Claude/Gemini formats.
-// - Write the final response body to the client via a graceful copy helper.
+//   - Handle OpenRouter enterprise wrapper responses when the channel is OpenRouter Enterprise.
+//   - Unmarshal the upstream body into an internal simple response and, when configured,
+//     convert reasoning fields into `reasoning_content`.
+//   - If usage prompt tokens are missing, infer completion tokens by counting tokens in choices
+//     (falling back to per-choice text token counting) and set Prompt/Completion/Total tokens.
+//   - Apply channel-specific post-processing to usage (cached token adjustments).
+//   - Depending on RelayFormat and channel settings, inject updated usage into the body,
+//     reserialize the converted simple response when ForceFormat is enabled or when OpenRouter
+//     conversion was applied, or convert the response to Claude/Gemini formats.
+//   - Write the final response body to the client via a graceful copy helper.
 //
 // Returns the final usage (possibly inferred or modified) or a NewAPIError describing any failure
 // encountered while reading, parsing, or transforming the upstream response.
@@ -244,19 +244,14 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
-	// OpenRouter reasoning 字段转换：reasoning -> reasoning_content
-	// 仅当启用转换为OpenAI兼容格式时执行（修改现有无条件转换）
-	if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
+	// 统一的推理字段转换：支持OpenAI和OpenRouter
+	forceFormat := info.ChannelSetting.ForceFormat
+	if forceFormat && (info.ChannelType == constant.ChannelTypeOpenRouter || info.ChannelType == constant.ChannelTypeOpenAI) {
 		convertOpenRouterReasoningFields(&simpleResponse)
 	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
-	}
-
-	forceFormat := false
-	if info.ChannelSetting.ForceFormat {
-		forceFormat = true
 	}
 
 	usageModified := false
@@ -295,13 +290,6 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
 		} else {
-			// 对于 OpenRouter，仅在执行转换后重新序列化
-			if info.ChannelType == constant.ChannelTypeOpenRouter && info.ChannelOtherSettings.OpenRouterConvertToOpenAI {
-				responseBody, err = common.Marshal(simpleResponse)
-				if err != nil {
-					return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
-				}
-			}
 			break
 		}
 	case types.RelayFormatClaude:
