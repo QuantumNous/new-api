@@ -846,7 +846,7 @@
     "开始批量测试 ${count} 个模型，已清空上次结果...": "Starting batch test of ${count} models, cleared previous results...",
     "开始时间": "start time",
     "弱变换": "High Variation",
-    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Force format responses to OpenAI standard format, supporting reasoning content field conversion (for OpenAI and OpenRouter channels).",
+    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Force format responses to OpenAI standard format, supporting reasoning content field conversion (for OpenAI and OpenRouter channels)",
     "强制格式化": "Force format",
     "强制要求": "Mandatory requirement",
     "强变换": "Low Variation",

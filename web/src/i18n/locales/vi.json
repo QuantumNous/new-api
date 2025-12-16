@@ -802,7 +802,7 @@
     "开始批量测试 ${count} 个模型，已清空上次结果...": "Bắt đầu kiểm tra hàng loạt ${count} mô hình, đã xóa kết quả trước đó...",
     "开始时间": "thời gian bắt đầu",
     "弱变换": "Biến thể cao",
-    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Buộc định dạng phản hồi theo định dạng chuẩn OpenAI, hỗ trợ chuyển đổi trường nội dung suy luận (cho các kênh OpenAI và OpenRouter).",
+    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Buộc định dạng phản hồi theo định dạng chuẩn OpenAI, hỗ trợ chuyển đổi trường nội dung suy luận (cho các kênh OpenAI và OpenRouter)",
     "强制格式化": "Buộc định dạng",
     "强制要求": "Yêu cầu bắt buộc",
     "强变换": "Biến thể thấp",

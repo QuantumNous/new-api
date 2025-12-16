@@ -854,7 +854,7 @@
     "开始批量测试 ${count} 个模型，已清空上次结果...": "Démarrage du test par lots de ${count} modèles, résultats précédents effacés...",
     "开始时间": "heure de début",
     "弱变换": "Faible variation",
-    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Forcer le formatage des réponses au format standard OpenAI, supportant la conversion des champs de contenu de raisonnement (pour les canaux OpenAI et OpenRouter).",
+    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Forcer le formatage des réponses au format standard OpenAI, supportant la conversion des champs de contenu de raisonnement (pour les canaux OpenAI et OpenRouter)",
     "强制格式化": "Forcer le format",
     "强制要求": "Exigence obligatoire",
     "强变换": "Forte variation",
