@@ -97,6 +97,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
 			requestPath = "/v1/images/generations"
 		}
+
+		// responses 专供
+		if strings.Contains(testModel, "codex") {
+			requestPath = "/v1/responses"
+		}
 	}
 
 	c.Request = &http.Request{
@@ -466,7 +471,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 	}
 
 	if strings.HasPrefix(model, "o") {
-		testRequest.MaxCompletionTokens = 10
+		testRequest.MaxCompletionTokens = 16
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
 			testRequest.MaxTokens = 50
@@ -474,7 +479,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 	} else if strings.Contains(model, "gemini") {
 		testRequest.MaxTokens = 3000
 	} else {
-		testRequest.MaxTokens = 10
+		testRequest.MaxTokens = 16
 	}
 
 	return testRequest
