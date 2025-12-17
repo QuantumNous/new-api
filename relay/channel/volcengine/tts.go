@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -224,7 +225,13 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 			http.StatusBadGateway,
 		)
 	}
+	// ensure finish event is sent before closing connection
 	defer conn.Close()
+	defer func() {
+		if err := FinishConnectionRequest(conn); err != nil {
+			logger.Warnf("volcengine: FinishConnectionRequest failed: %v", err)
+		}
+	}()
 
 	payload, marshalErr := json.Marshal(volcRequest)
 	if marshalErr != nil {

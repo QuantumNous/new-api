@@ -531,3 +531,20 @@ func FullClientRequest(conn *websocket.Conn, payload []byte) error {
 	}
 	return conn.WriteMessage(websocket.BinaryMessage, frame)
 }
+
+func FinishConnectionRequest(conn *websocket.Conn) error {
+	msg, err := NewMessage(MsgTypeFullClientRequest, MsgTypeFlagWithEvent)
+	if err != nil {
+		return err
+	}
+
+	msg.EventType = EventType_FinishConnection
+	msg.Payload = []byte("{}")
+
+	frame, err := msg.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return conn.WriteMessage(websocket.BinaryMessage, frame)
+}
