@@ -98,8 +98,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 			requestPath = "/v1/images/generations"
 		}
 
-		// responses 专供
-		if strings.Contains(testModel, "codex") {
+		// responses-only models
+		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"
 		}
 	}
@@ -455,6 +455,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
+		}
+	}
+
+	// Responses-only models (e.g. codex series)
+	if strings.Contains(strings.ToLower(model), "codex") {
+		return &dto.OpenAIResponsesRequest{
+			Model: model,
+			Input: json.RawMessage("\"hi\""),
 		}
 	}
 
