@@ -245,6 +245,26 @@ func GetOIDCDiscovery(c *gin.Context) {
 		})
 		return
 	}
+	fetchSetting := system_setting.GetFetchSetting()
+	// SSRF防护 - 验证URL安全性
+	err := common.ValidateURLWithFetchSetting(
+		wellKnownURL,
+		true,
+		true,
+		false,
+		false,
+		fetchSetting.DomainList,
+		fetchSetting.IpList,
+		fetchSetting.AllowedPorts,
+		true,
+	)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("URL SSRF安全验证失败: %s", err.Error()),
+		})
+		return
+	}
 
 	// 请求OIDC发现端点
 	client := http.Client{
