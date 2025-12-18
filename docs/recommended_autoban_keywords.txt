@@ -1,0 +1,62 @@
+# 推荐的自动禁用关键词列表
+# 将以下内容复制到：系统设置 → 运营设置 → 通用设置 → 自动禁用关键词
+# 每行一个关键词，会被自动转为小写匹配
+
+# 系统已内置的关键词（供参考，无需重复添加）：
+# Your credit balance is too low
+# This organization has been disabled.
+# You exceeded your current quota
+# Permission denied
+# The security token included in the request is invalid
+# Operation not allowed
+# Your account is not authorized
+
+# ============================================
+# 以下是建议添加的号商账号特有错误关键词
+# ============================================
+
+# 余额/额度相关
+balance not enough
+credits exhausted
+quota exceeded
+insufficient credits
+no remaining quota
+limit reached
+usage limit exceeded
+
+# 账号状态相关
+account suspended
+account disabled
+account deactivated
+account blocked
+api key disabled
+key has been disabled
+key is invalid
+trial expired
+trial period ended
+free tier exhausted
+subscription inactive
+subscription expired
+plan limit reached
+
+# 认证/权限相关
+access denied
+unauthorized access
+forbidden access
+authentication failed
+invalid credentials
+token expired
+api key revoked
+
+# 付费相关
+payment required
+billing issue
+payment failed
+overdue payment
+unpaid balance
+
+# 服务状态相关
+service unavailable for your account
+account not activated
+account under review
+account verification required

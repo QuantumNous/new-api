@@ -1,0 +1,70 @@
+[
+  {
+    "name": "便宜池-OpenAI-号商A",
+    "type": 1,
+    "key": "sk-xxx1\nsk-xxx2\nsk-xxx3",
+    "base_url": "",
+    "models": "gpt-4o,gpt-4o-mini",
+    "priority": 100,
+    "weight": 10,
+    "group": "default,vip,free",
+    "auto_ban": 1,
+    "tag": "merchant-a-batch1",
+    "channel_info": {
+      "is_multi_key": true,
+      "multi_key_mode": "random"
+    }
+  },
+  {
+    "name": "便宜池-Claude-号商B",
+    "type": 14,
+    "key": "sk-ant-xxx1\nsk-ant-xxx2",
+    "base_url": "",
+    "models": "claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022",
+    "priority": 100,
+    "weight": 10,
+    "group": "default,vip,free",
+    "auto_ban": 1,
+    "tag": "merchant-b-batch1",
+    "channel_info": {
+      "is_multi_key": true,
+      "multi_key_mode": "random"
+    }
+  },
+  {
+    "name": "中转池-第三方中转A",
+    "type": 8,
+    "key": "sk-transit-xxx",
+    "base_url": "https://api.transit.example.com",
+    "models": "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-20241022",
+    "priority": 50,
+    "weight": 10,
+    "group": "default,vip",
+    "auto_ban": 1,
+    "tag": "transit-provider-a"
+  },
+  {
+    "name": "官方池-OpenAI",
+    "type": 1,
+    "key": "sk-official-openai-xxx",
+    "base_url": "",
+    "models": "gpt-4o,gpt-4o-mini,gpt-4-turbo,o1-preview,o1-mini",
+    "priority": 0,
+    "weight": 10,
+    "group": "vip",
+    "auto_ban": 1,
+    "tag": "official-openai"
+  },
+  {
+    "name": "官方池-Anthropic",
+    "type": 14,
+    "key": "sk-ant-official-xxx",
+    "base_url": "",
+    "models": "claude-3-5-sonnet-20241022,claude-3-opus-20240229",
+    "priority": 0,
+    "weight": 10,
+    "group": "vip",
+    "auto_ban": 1,
+    "tag": "official-anthropic"
+  }
+]
