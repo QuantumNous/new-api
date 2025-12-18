@@ -114,7 +114,7 @@ func DiscordOAuth(c *gin.Context) {
 		DiscordBind(c)
 		return
 	}
-		if !system_setting.GetDiscordSettings().Enabled {
+	if !system_setting.GetDiscordSettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 Discord 登录以及注册",

@@ -9,6 +9,7 @@ var CountToken bool
 var GetMediaToken bool
 var GetMediaTokenNotStream bool
 var UpdateTask bool
+var MaxRequestBodyMB int
 var AzureDefaultAPIVersion string
 var GeminiVisionMaxImageNum int
 var NotifyLimitCount int

@@ -94,6 +94,14 @@ type NewAPIError struct {
 	StatusCode     int
 }
 
+// Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
+func (e *NewAPIError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 func (e *NewAPIError) GetErrorCode() ErrorCode {
 	if e == nil {
 		return ""
