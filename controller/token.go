@@ -28,9 +28,21 @@ func GetAllTokens(c *gin.Context) {
 
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	role := c.GetInt("role")
+
 	keyword := c.Query("keyword")
 	token := c.Query("token")
-	tokens, err := model.SearchUserTokens(userId, keyword, token)
+	scope := c.Query("scope")
+
+	var tokens []*model.Token
+	var err error
+
+	if scope == "global" && role >= common.RoleAdminUser {
+		tokens, err = model.SearchAllTokens(keyword, token)
+	} else {
+		tokens, err = model.SearchUserTokens(userId, keyword, token)
+	}
+
 	if err != nil {
 		common.ApiError(c, err)
 		return
