@@ -207,12 +207,12 @@ const InvitationCard = ({
             </div>
             <div className='mt-2'>
               <a
-                href='https://youke1.picui.cn/s1/2025/11/22/69217a7c230b6.png'
+                href='https://free.picui.cn/free/2025/11/24/6924387a01122.png'
                 target='_blank'
                 rel='noopener noreferrer'
               >
                 <img
-                  src='https://youke1.picui.cn/s1/2025/11/22/69217a7c230b6.png'
+                  src='https://free.picui.cn/free/2025/11/24/6924387a01122.png'
                   alt=''
                   className='rounded-md'
                   style={{ maxWidth: '100%' }}
