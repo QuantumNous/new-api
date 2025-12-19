@@ -304,7 +304,7 @@ const EditTokenModal = (props) => {
           <Space>
             <Button
               theme='solid'
-              className='!rounded-lg'
+              className='rounded-lg!'
               onClick={() => formApiRef.current?.submitForm()}
               icon={<IconSave />}
               loading={loading}
@@ -313,7 +313,7 @@ const EditTokenModal = (props) => {
             </Button>
             <Button
               theme='light'
-              className='!rounded-lg'
+              className='rounded-lg!'
               type='primary'
               onClick={handleCancel}
               icon={<IconClose />}
@@ -336,7 +336,7 @@ const EditTokenModal = (props) => {
           {({ values }) => (
             <div className='p-2'>
               {/* 基本信息 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='rounded-2xl! shadow-xs border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='blue' className='mr-2 shadow-md'>
                     <IconKey size={16} />
@@ -378,7 +378,12 @@ const EditTokenModal = (props) => {
                       />
                     )}
                   </Col>
-                  <Col span={24} style={{ display: values.group === 'auto' ? 'block' : 'none' }}>
+                  <Col
+                    span={24}
+                    style={{
+                      display: values.group === 'auto' ? 'block' : 'none',
+                    }}
+                  >
                     <Form.Switch
                       field='cross_group_retry'
                       label={t('跨分组重试')}
@@ -470,7 +475,7 @@ const EditTokenModal = (props) => {
               </Card>
 
               {/* 额度设置 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='rounded-2xl! shadow-xs border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='green' className='mr-2 shadow-md'>
                     <IconCreditCard size={16} />
@@ -520,7 +525,7 @@ const EditTokenModal = (props) => {
               </Card>
 
               {/* 访问限制 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='rounded-2xl! shadow-xs border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar
                     size='small'
@@ -561,7 +566,9 @@ const EditTokenModal = (props) => {
                       placeholder={t('允许的IP，一行一个，不填写则不限制')}
                       autosize
                       rows={1}
-                      extraText={t('请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用')}
+                      extraText={t(
+                        '请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用',
+                      )}
                       showClear
                       style={{ width: '100%' }}
                     />

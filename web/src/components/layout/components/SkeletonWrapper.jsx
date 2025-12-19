@@ -71,7 +71,7 @@ const SkeletonWrapper = ({
           loading={true}
           active
           placeholder={
-            <Skeleton.Avatar active size='extra-small' className='shadow-sm' />
+            <Skeleton.Avatar active size='extra-small' className='shadow-xs' />
           }
         />
         <div className='ml-1.5 mr-1'>
@@ -99,7 +99,7 @@ const SkeletonWrapper = ({
         placeholder={
           <Skeleton.Image
             active
-            className={`absolute inset-0 !rounded-full ${className}`}
+            className={`absolute inset-0 rounded-full! ${className}`}
             style={{ width: '100%', height: '100%' }}
           />
         }
@@ -159,7 +159,7 @@ const SkeletonWrapper = ({
           className={`flex items-center p-2 mb-1 rounded-md ${className}`}
         >
           {/* 图标骨架屏 */}
-          <div className='sidebar-icon-container flex-shrink-0'>
+          <div className='sidebar-icon-container shrink-0'>
             <Skeleton
               loading={true}
               active
@@ -247,9 +247,7 @@ const SkeletonWrapper = ({
           margin: '3px 8px',
         }}
       >
-        <div className='sidebar-icon-container flex-shrink-0'>
-          {renderIcon()}
-        </div>
+        <div className='sidebar-icon-container shrink-0'>{renderIcon()}</div>
         {renderLabel(labelWidth)}
       </div>
     );

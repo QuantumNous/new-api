@@ -49,7 +49,7 @@ const UptimePanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='shadow-xs rounded-2xl! lg:col-span-1'
       title={
         <div className='flex items-center justify-between w-full gap-2'>
           <div className='flex items-center gap-2'>
@@ -63,7 +63,7 @@ const UptimePanel = ({
             size='small'
             theme='borderless'
             type='tertiary'
-            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full!'
           />
         </div>
       }

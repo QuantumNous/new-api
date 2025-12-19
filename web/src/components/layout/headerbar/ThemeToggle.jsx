@@ -54,8 +54,8 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
 
   const getItemClassName = (isSelected) =>
     isSelected
-      ? '!bg-semi-color-primary-light-default !font-semibold'
-      : 'hover:!bg-semi-color-fill-1';
+      ? 'bg-semi-color-primary-light-default! font-semibold!'
+      : 'hover:bg-semi-color-fill-1!';
 
   const currentButtonIcon = useMemo(() => {
     const currentOption = themeOptions.find((option) => option.key === theme);
@@ -100,7 +100,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
         aria-label={t('切换主题')}
         theme='borderless'
         type='tertiary'
-        className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
+        className='p-1.5! text-current! focus:bg-semi-color-fill-1! rounded-full! bg-semi-color-fill-0! hover:bg-semi-color-fill-1!'
       />
     </Dropdown>
   );

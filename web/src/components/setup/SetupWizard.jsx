@@ -271,7 +271,7 @@ const SetupWizard = () => {
   return (
     <div className='min-h-screen flex items-center justify-center px-4'>
       <div className='w-full max-w-4xl'>
-        <Card className='!rounded-2xl shadow-sm border-0'>
+        <Card className='rounded-2xl! shadow-xs border-0'>
           <div className='mb-4'>
             <div className='text-xl font-semibold'>{t('系统初始化')}</div>
             <div className='text-xs text-gray-600'>

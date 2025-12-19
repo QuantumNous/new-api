@@ -651,7 +651,7 @@ const JSONEditor = ({
         }
         headerStyle={{ padding: '12px 16px' }}
         bodyStyle={{ padding: '16px' }}
-        className='!rounded-2xl'
+        className='rounded-2xl!'
       >
         {/* JSON错误提示 */}
         {hasJsonError && (

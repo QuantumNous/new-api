@@ -141,9 +141,9 @@ export default function SettingGlobalModel(props) {
                       'global.pass_through_request_enabled': value,
                     })
                   }
-                  extraText={
-                    t('开启后，所有请求将直接透传给上游，不会进行任何处理（重定向和渠道适配也将失效）,请谨慎开启')
-                  }
+                  extraText={t(
+                    '开启后，所有请求将直接透传给上游，不会进行任何处理（重定向和渠道适配也将失效）,请谨慎开启',
+                  )}
                 />
               </Col>
             </Row>
@@ -152,11 +152,7 @@ export default function SettingGlobalModel(props) {
                 <Form.TextArea
                   label={t('禁用思考处理的模型列表')}
                   field={'global.thinking_model_blacklist'}
-                  placeholder={
-                    t('例如：') +
-                    '\n' +
-                    thinkingExample
-                  }
+                  placeholder={t('例如：') + '\n' + thinkingExample}
                   rows={4}
                   rules={[
                     {
@@ -185,7 +181,9 @@ export default function SettingGlobalModel(props) {
                 <Col span={24}>
                   <Banner
                     type='warning'
-                    description={t('警告：启用保活后，如果已经写入保活数据后渠道出错，系统无法重试，如果必须开启，推荐设置尽可能大的Ping间隔')}
+                    description={t(
+                      '警告：启用保活后，如果已经写入保活数据后渠道出错，系统无法重试，如果必须开启，推荐设置尽可能大的Ping间隔',
+                    )}
                   />
                 </Col>
               </Row>

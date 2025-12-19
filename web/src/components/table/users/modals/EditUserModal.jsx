@@ -192,7 +192,7 @@ const EditUserModal = (props) => {
             {({ values }) => (
               <div className='p-2'>
                 {/* 基本信息 */}
-                <Card className='!rounded-2xl shadow-sm border-0'>
+                <Card className='rounded-2xl! shadow-xs border-0'>
                   <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
@@ -254,7 +254,7 @@ const EditUserModal = (props) => {
 
                 {/* 权限设置 */}
                 {userId && (
-                  <Card className='!rounded-2xl shadow-sm border-0'>
+                  <Card className='rounded-2xl! shadow-xs border-0'>
                     <div className='flex items-center mb-2'>
                       <Avatar
                         size='small'
@@ -311,7 +311,7 @@ const EditUserModal = (props) => {
                 )}
 
                 {/* 绑定信息 */}
-                <Card className='!rounded-2xl shadow-sm border-0'>
+                <Card className='rounded-2xl! shadow-xs border-0'>
                   <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'

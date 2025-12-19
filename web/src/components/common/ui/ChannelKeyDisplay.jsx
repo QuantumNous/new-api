@@ -154,7 +154,7 @@ const ChannelKeyDisplay = ({
           {parsedKeys.map((keyItem) => (
             <Card
               key={keyItem.id}
-              className='!rounded-lg !border !border-gray-200 dark:!border-gray-700'
+              className='rounded-lg! border! border-gray-200! dark:border-gray-700!'
             >
               <div className='space-y-2'>
                 <div className='flex items-center justify-between'>
@@ -246,7 +246,7 @@ const ChannelKeyDisplay = ({
         <div className='bg-yellow-50 dark:bg-yellow-900 rounded-lg p-4'>
           <div className='flex items-start'>
             <svg
-              className='w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 mr-3 flex-shrink-0'
+              className='w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 mr-3 shrink-0'
               fill='currentColor'
               viewBox='0 0 20 20'
             >

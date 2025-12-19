@@ -73,7 +73,7 @@ const ImageUrlInput = ({
             checkedText={t('启用')}
             uncheckedText={t('停用')}
             size='small'
-            className='flex-shrink-0'
+            className='shrink-0'
             disabled={disabled}
           />
           <Button
@@ -82,7 +82,7 @@ const ImageUrlInput = ({
             theme='solid'
             type='primary'
             onClick={handleAddImageUrl}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={!imageEnabled || disabled}
           />
         </div>
@@ -117,7 +117,7 @@ const ImageUrlInput = ({
                 placeholder={`https://example.com/image${index + 1}.jpg`}
                 value={url}
                 onChange={(value) => handleUpdateImageUrl(index, value)}
-                className='!rounded-lg'
+                className='rounded-lg!'
                 size='small'
                 prefix={<IconFile size='small' />}
                 disabled={!imageEnabled || disabled}
@@ -129,7 +129,7 @@ const ImageUrlInput = ({
               theme='borderless'
               type='danger'
               onClick={() => handleRemoveImageUrl(index)}
-              className='!rounded-full !w-6 !h-6 !p-0 !min-w-0 !text-red-500 hover:!bg-red-50 flex-shrink-0'
+              className='rounded-full! w-6! h-6! p-0! min-w-0! text-red-500! hover:bg-red-50! shrink-0'
               disabled={!imageEnabled || disabled}
             />
           </div>

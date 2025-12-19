@@ -30,64 +30,67 @@ const CustomInputRender = (props) => {
     detailProps;
   const containerRef = useRef(null);
 
-  const handlePaste = useCallback(async (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
+  const handlePaste = useCallback(
+    async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        
-        if (file) {
-          try {
-            if (!imageEnabled) {
-              Toast.warning({
-                content: t('请先在设置中启用图片功能'),
-                duration: 3,
-              });
-              return;
-            }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const base64 = event.target.result;
-              
-              if (onPasteImage) {
-                onPasteImage(base64);
-                Toast.success({
-                  content: t('图片已添加'),
-                  duration: 2,
+        if (item.type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = item.getAsFile();
+
+          if (file) {
+            try {
+              if (!imageEnabled) {
+                Toast.warning({
+                  content: t('请先在设置中启用图片功能'),
+                  duration: 3,
                 });
-              } else {
-                Toast.error({
-                  content: t('无法添加图片'),
-                  duration: 2,
-                });
+                return;
               }
-            };
-            reader.onerror = () => {
-              console.error('Failed to read image file:', reader.error);
+
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const base64 = event.target.result;
+
+                if (onPasteImage) {
+                  onPasteImage(base64);
+                  Toast.success({
+                    content: t('图片已添加'),
+                    duration: 2,
+                  });
+                } else {
+                  Toast.error({
+                    content: t('无法添加图片'),
+                    duration: 2,
+                  });
+                }
+              };
+              reader.onerror = () => {
+                console.error('Failed to read image file:', reader.error);
+                Toast.error({
+                  content: t('粘贴图片失败'),
+                  duration: 2,
+                });
+              };
+              reader.readAsDataURL(file);
+            } catch (error) {
+              console.error('Failed to paste image:', error);
               Toast.error({
                 content: t('粘贴图片失败'),
                 duration: 2,
               });
-            };
-            reader.readAsDataURL(file);
-          } catch (error) {
-            console.error('Failed to paste image:', error);
-            Toast.error({
-              content: t('粘贴图片失败'),
-              duration: 2,
-            });
+            }
           }
+          break;
         }
-        break;
       }
-    }
-  }, [onPasteImage, imageEnabled, t]);
+    },
+    [onPasteImage, imageEnabled, t],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -102,7 +105,7 @@ const CustomInputRender = (props) => {
   // 清空按钮
   const styledClearNode = clearContextNode
     ? React.cloneElement(clearContextNode, {
-        className: `!rounded-full !bg-gray-100 hover:!bg-red-500 hover:!text-white flex-shrink-0 transition-all ${clearContextNode.props.className || ''}`,
+        className: `rounded-full! bg-gray-100! hover:bg-red-500! hover:text-white! shrink-0 transition-all ${clearContextNode.props.className || ''}`,
         style: {
           ...clearContextNode.props.style,
           width: '32px',
@@ -118,7 +121,7 @@ const CustomInputRender = (props) => {
 
   // 发送按钮
   const styledSendNode = React.cloneElement(sendNode, {
-    className: `!rounded-full !bg-purple-500 hover:!bg-purple-600 flex-shrink-0 transition-all ${sendNode.props.className || ''}`,
+    className: `rounded-full! bg-purple-500! hover:bg-purple-600! shrink-0 transition-all ${sendNode.props.className || ''}`,
     style: {
       ...sendNode.props.style,
       width: '32px',
@@ -134,7 +137,7 @@ const CustomInputRender = (props) => {
   return (
     <div className='p-2 sm:p-4' ref={containerRef}>
       <div
-        className='flex items-center gap-2 sm:gap-3 p-2 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
+        className='flex items-center gap-2 sm:gap-3 p-2 bg-gray-50 rounded-xl sm:rounded-2xl shadow-xs hover:shadow-md transition-shadow'
         style={{ border: '1px solid var(--semi-color-border)' }}
         onClick={onClick}
         title={t('支持 Ctrl+V 粘贴图片')}

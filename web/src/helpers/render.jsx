@@ -164,21 +164,21 @@ export const getModelCategories = (() => {
       gemini: {
         label: 'Gemini',
         icon: <Gemini.Color />,
-        filter: (model) => 
-          model.model_name.toLowerCase().includes('gemini') || 
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('gemini') ||
           model.model_name.toLowerCase().includes('gemma') ||
-          model.model_name.toLowerCase().includes('learnlm') || 
+          model.model_name.toLowerCase().includes('learnlm') ||
           model.model_name.toLowerCase().startsWith('embedding-') ||
           model.model_name.toLowerCase().includes('text-embedding-004') ||
-          model.model_name.toLowerCase().includes('imagen-4') || 
-          model.model_name.toLowerCase().includes('veo-') || 
-          model.model_name.toLowerCase().includes('aqa') ,
+          model.model_name.toLowerCase().includes('imagen-4') ||
+          model.model_name.toLowerCase().includes('veo-') ||
+          model.model_name.toLowerCase().includes('aqa'),
       },
       moonshot: {
         label: 'Moonshot',
         icon: <Moonshot />,
-        filter: (model) => 
-          model.model_name.toLowerCase().includes('moonshot') || 
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('moonshot') ||
           model.model_name.toLowerCase().includes('kimi'),
       },
       zhipu: {
@@ -186,8 +186,8 @@ export const getModelCategories = (() => {
         icon: <Zhipu.Color />,
         filter: (model) =>
           model.model_name.toLowerCase().includes('chatglm') ||
-          model.model_name.toLowerCase().includes('glm-') || 
-          model.model_name.toLowerCase().includes('cogview') || 
+          model.model_name.toLowerCase().includes('glm-') ||
+          model.model_name.toLowerCase().includes('cogview') ||
           model.model_name.toLowerCase().includes('cogvideo'),
       },
       qwen: {
@@ -203,8 +203,8 @@ export const getModelCategories = (() => {
       minimax: {
         label: 'MiniMax',
         icon: <Minimax.Color />,
-        filter: (model) => 
-          model.model_name.toLowerCase().includes('abab') || 
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('abab') ||
           model.model_name.toLowerCase().includes('minimax'),
       },
       baidu: {
@@ -230,7 +230,7 @@ export const getModelCategories = (() => {
       cohere: {
         label: 'Cohere',
         icon: <Cohere.Color />,
-        filter: (model) => 
+        filter: (model) =>
           model.model_name.toLowerCase().includes('command') ||
           model.model_name.toLowerCase().includes('c4ai-') ||
           model.model_name.toLowerCase().includes('embed-'),
@@ -253,7 +253,7 @@ export const getModelCategories = (() => {
       mistral: {
         label: 'Mistral AI',
         icon: <Mistral.Color />,
-        filter: (model) => 
+        filter: (model) =>
           model.model_name.toLowerCase().includes('mistral') ||
           model.model_name.toLowerCase().includes('codestral') ||
           model.model_name.toLowerCase().includes('pixtral') ||

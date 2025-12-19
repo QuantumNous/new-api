@@ -116,7 +116,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
           <div className='flex items-center gap-2'>
             <Typography.Text
               strong
-              className='!text-[var(--semi-color-text-0)] !text-base'
+              className='text-(--semi-color-text-0)! text-base!'
             >
               {t('未配置的模型列表')}
             </Typography.Text>
@@ -130,7 +130,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
       onCancel={onClose}
       footer={null}
       size={isMobile ? 'full-width' : 'medium'}
-      className='!rounded-lg'
+      className='rounded-lg!'
     >
       <Spin spinning={loading}>
         {missingModels.length === 0 && !loading ? (
@@ -153,7 +153,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
                   setSearchKeyword(v);
                   setCurrentPage(1);
                 }}
-                className='!w-full'
+                className='w-full!'
                 prefix={<IconSearch />}
                 showClear
               />

@@ -209,7 +209,7 @@ const ConfigManager = ({
             theme='borderless'
             type='tertiary'
             size='small'
-            className='!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50'
+            className='rounded-lg! text-gray-600! hover:text-blue-600! hover:bg-blue-50!'
           />
         </Dropdown>
 
@@ -238,7 +238,7 @@ const ConfigManager = ({
           theme='borderless'
           type='danger'
           onClick={handleReset}
-          className='!rounded-full !text-xs !px-2'
+          className='rounded-full! text-xs! px-2!'
         />
       </div>
 
@@ -250,7 +250,7 @@ const ConfigManager = ({
           theme='solid'
           type='primary'
           onClick={handleExport}
-          className='!rounded-lg flex-1 !text-xs !h-7'
+          className='rounded-lg! flex-1 text-xs! h-7!'
         >
           {t('导出')}
         </Button>
@@ -261,7 +261,7 @@ const ConfigManager = ({
           theme='outline'
           type='primary'
           onClick={handleImportClick}
-          className='!rounded-lg flex-1 !text-xs !h-7'
+          className='rounded-lg! flex-1 text-xs! h-7!'
         >
           {t('导入')}
         </Button>

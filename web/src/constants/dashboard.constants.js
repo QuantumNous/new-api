@@ -27,11 +27,11 @@ export const CARD_PROPS = {
 };
 
 export const FORM_FIELD_PROPS = {
-  className: 'w-full mb-2 !rounded-lg',
+  className: 'w-full mb-2 rounded-lg!',
   size: 'large',
 };
 
-export const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
+export const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 rounded-full!';
 export const FLEX_CENTER_GAP2 = 'flex items-center gap-2';
 
 export const ILLUSTRATION_SIZE = { width: 96, height: 96 };

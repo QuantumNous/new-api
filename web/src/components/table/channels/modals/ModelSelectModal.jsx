@@ -91,7 +91,9 @@ const ModelSelectModal = ({
   }, [normalizedRedirectModels, normalizedSelectedSet]);
 
   const filteredModels = models.filter((m) =>
-    String(m || '').toLowerCase().includes(keyword.toLowerCase()),
+    String(m || '')
+      .toLowerCase()
+      .includes(keyword.toLowerCase()),
   );
 
   // 分类模型：新获取的模型和已有模型
@@ -299,7 +301,7 @@ const ModelSelectModal = ({
           <Typography.Title heading={5} className='m-0'>
             {t('选择模型')}
           </Typography.Title>
-          <div className='flex-shrink-0'>
+          <div className='shrink-0'>
             <Tabs
               type='slash'
               size='small'

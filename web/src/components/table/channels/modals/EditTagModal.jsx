@@ -399,7 +399,7 @@ const EditTagModal = (props) => {
         {() => (
           <Spin spinning={loading}>
             <div className='p-2'>
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+              <Card className='rounded-2xl! shadow-xs border-0 mb-6'>
                 {/* Header: Tag Info */}
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='blue' className='mr-2 shadow-md'>
@@ -416,7 +416,7 @@ const EditTagModal = (props) => {
                 <Banner
                   type='warning'
                   description={t('所有编辑均为覆盖操作，留空则不更改')}
-                  className='!rounded-lg mb-4'
+                  className='rounded-lg! mb-4'
                 />
 
                 <div className='space-y-4'>
@@ -429,7 +429,7 @@ const EditTagModal = (props) => {
                 </div>
               </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+              <Card className='rounded-2xl! shadow-xs border-0 mb-6'>
                 {/* Header: Model Config */}
                 <div className='flex items-center mb-2'>
                   <Avatar
@@ -453,7 +453,7 @@ const EditTagModal = (props) => {
                     description={t(
                       '当前模型列表为该标签下所有渠道模型列表最长的一个，并非所有渠道的并集，请注意可能导致某些渠道模型丢失。',
                     )}
-                    className='!rounded-lg mb-4'
+                    className='rounded-lg! mb-4'
                   />
                   <Form.Select
                     field='models'
@@ -497,7 +497,7 @@ const EditTagModal = (props) => {
                     extraText={
                       <Space>
                         <Text
-                          className='!text-semi-color-primary cursor-pointer'
+                          className='text-semi-color-primary! cursor-pointer'
                           onClick={() =>
                             handleInputChange(
                               'model_mapping',
@@ -508,7 +508,7 @@ const EditTagModal = (props) => {
                           {t('填入模板')}
                         </Text>
                         <Text
-                          className='!text-semi-color-primary cursor-pointer'
+                          className='text-semi-color-primary! cursor-pointer'
                           onClick={() =>
                             handleInputChange(
                               'model_mapping',
@@ -519,7 +519,7 @@ const EditTagModal = (props) => {
                           {t('清空重定向')}
                         </Text>
                         <Text
-                          className='!text-semi-color-primary cursor-pointer'
+                          className='text-semi-color-primary! cursor-pointer'
                           onClick={() => handleInputChange('model_mapping', '')}
                         >
                           {t('不更改')}
@@ -530,10 +530,14 @@ const EditTagModal = (props) => {
                 </div>
               </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+              <Card className='rounded-2xl! shadow-xs border-0 mb-6'>
                 {/* Header: Advanced Settings */}
                 <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+                  <Avatar
+                    size='small'
+                    color='orange'
+                    className='mr-2 shadow-md'
+                  >
                     <IconSetting size={16} />
                   </Avatar>
                   <div>
@@ -549,9 +553,7 @@ const EditTagModal = (props) => {
                     field='param_override'
                     label={t('参数覆盖')}
                     placeholder={
-                      t(
-                        '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
-                      ) +
+                      t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
                       '\n' +
                       t('旧格式（直接覆盖）：') +
                       '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
@@ -567,7 +569,7 @@ const EditTagModal = (props) => {
                     extraText={
                       <div className='flex gap-2 flex-wrap'>
                         <Text
-                          className='!text-semi-color-primary cursor-pointer'
+                          className='text-semi-color-primary! cursor-pointer'
                           onClick={() =>
                             handleInputChange(
                               'param_override',
@@ -578,7 +580,7 @@ const EditTagModal = (props) => {
                           {t('旧格式模板')}
                         </Text>
                         <Text
-                          className='!text-semi-color-primary cursor-pointer'
+                          className='text-semi-color-primary! cursor-pointer'
                           onClick={() =>
                             handleInputChange(
                               'param_override',
@@ -609,7 +611,7 @@ const EditTagModal = (props) => {
                           {t('新格式模板')}
                         </Text>
                         <Text
-                          className='!text-semi-color-primary cursor-pointer'
+                          className='text-semi-color-primary! cursor-pointer'
                           onClick={() =>
                             handleInputChange('param_override', null)
                           }
@@ -638,7 +640,7 @@ const EditTagModal = (props) => {
                       <div className='flex flex-col gap-1'>
                         <div className='flex gap-2 flex-wrap items-center'>
                           <Text
-                            className='!text-semi-color-primary cursor-pointer'
+                            className='text-semi-color-primary! cursor-pointer'
                             onClick={() =>
                               handleInputChange(
                                 'header_override',
@@ -657,7 +659,7 @@ const EditTagModal = (props) => {
                             {t('填入模板')}
                           </Text>
                           <Text
-                            className='!text-semi-color-primary cursor-pointer'
+                            className='text-semi-color-primary! cursor-pointer'
                             onClick={() =>
                               handleInputChange('header_override', null)
                             }
@@ -681,7 +683,7 @@ const EditTagModal = (props) => {
                 </div>
               </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='rounded-2xl! shadow-xs border-0'>
                 {/* Header: Group Settings */}
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='green' className='mr-2 shadow-md'>

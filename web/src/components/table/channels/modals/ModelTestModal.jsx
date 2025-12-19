@@ -207,7 +207,7 @@ const ModelTestModal = ({
             <div className='flex items-center gap-2'>
               <Typography.Text
                 strong
-                className='!text-[var(--semi-color-text-0)] !text-base'
+                className='text-(--semi-color-text-0)! text-base!'
               >
                 {currentTestChannel.name} {t('渠道的模型测试')}
               </Typography.Text>
@@ -249,7 +249,7 @@ const ModelTestModal = ({
         ) : null
       }
       maskClosable={!isBatchTesting}
-      className='!rounded-lg'
+      className='rounded-lg!'
       size={isMobile ? 'full-width' : 'large'}
     >
       {hasChannel && (
@@ -261,7 +261,7 @@ const ModelTestModal = ({
               value={selectedEndpointType}
               onChange={setSelectedEndpointType}
               optionList={endpointTypeOptions}
-              className='!w-full'
+              className='w-full!'
               placeholder={t('选择端点类型')}
             />
           </div>
@@ -275,7 +275,7 @@ const ModelTestModal = ({
                 setModelSearchKeyword(v);
                 setModelTablePage(1);
               }}
-              className='!w-full'
+              className='w-full!'
               prefix={<IconSearch />}
               showClear
             />

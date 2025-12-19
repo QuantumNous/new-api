@@ -119,12 +119,12 @@ const PasswordResetForm = () => {
           <div className='w-full max-w-md'>
             <div className='flex items-center justify-center mb-6 gap-2'>
               <img src={logo} alt='Logo' className='h-10 rounded-full' />
-              <Title heading={3} className='!text-gray-800'>
+              <Title heading={3} className='text-gray-800!'>
                 {systemName}
               </Title>
             </div>
 
-            <Card className='border-0 !rounded-2xl overflow-hidden'>
+            <Card className='border-0 rounded-2xl! overflow-hidden'>
               <div className='flex justify-center pt-6 pb-2'>
                 <Title heading={3} className='text-gray-800 dark:text-gray-200'>
                   {t('密码重置')}
@@ -145,7 +145,7 @@ const PasswordResetForm = () => {
                   <div className='space-y-2 pt-2'>
                     <Button
                       theme='solid'
-                      className='w-full !rounded-full'
+                      className='w-full rounded-full!'
                       type='primary'
                       htmlType='submit'
                       onClick={handleSubmit}

@@ -192,7 +192,7 @@ const SelectableButtonGroup = ({
                 onClick={() => {
                   /* disabled */
                 }}
-                theme={isActive ? 'light' : 'outline'}
+                theme={isActive ? 'light' : 'outline-solid'}
                 type={isActive ? 'primary' : 'tertiary'}
                 disabled={isDisabled}
                 className='sbg-button'
@@ -229,7 +229,7 @@ const SelectableButtonGroup = ({
           <Col span={getColSpan()} key={item.value}>
             <Button
               onClick={() => onChange(item.value)}
-              theme={isActive ? 'light' : 'outline'}
+              theme={isActive ? 'light' : 'outline-solid'}
               type={isActive ? 'primary' : 'tertiary'}
               disabled={isDisabled}
               className='sbg-button'

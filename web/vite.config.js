@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, transformWithEsbuild } from 'vite';
-import pkg from '@douyinfe/vite-plugin-semi';
+import vitePluginSemi from '@douyinfe/vite-plugin-semi';
 import path from 'path';
-const { vitePluginSemi } = pkg;
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -47,6 +47,7 @@ export default defineConfig({
       },
     },
     react(),
+    tailwindcss(),
     vitePluginSemi({
       cssLayer: true,
     }),

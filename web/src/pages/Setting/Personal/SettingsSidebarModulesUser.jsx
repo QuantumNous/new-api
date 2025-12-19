@@ -353,7 +353,7 @@ export default function SettingsSidebarModulesUser() {
     );
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='rounded-2xl! shadow-xs border-0'>
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
         <Avatar size='small' color='purple' className='mr-3 shadow-md'>
@@ -399,7 +399,7 @@ export default function SettingsSidebarModulesUser() {
             {section.modules.map((module) => (
               <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
                 <Card
-                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                  className={`rounded-xl! border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
                     sidebarModulesUser[section.key]?.enabled ? '' : 'opacity-50'
                   }`}
                   bodyStyle={{ padding: '16px' }}
@@ -435,7 +435,7 @@ export default function SettingsSidebarModulesUser() {
         <Button
           type='tertiary'
           onClick={resetSidebarModules}
-          className='!rounded-lg'
+          className='rounded-lg!'
         >
           {t('重置为默认')}
         </Button>
@@ -443,7 +443,7 @@ export default function SettingsSidebarModulesUser() {
           type='primary'
           onClick={onSubmit}
           loading={loading}
-          className='!rounded-lg'
+          className='rounded-lg!'
         >
           {t('保存设置')}
         </Button>

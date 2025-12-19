@@ -233,7 +233,7 @@ const ModelsList = ({ t, models, modelsLoading, copyText }) => {
                           <Tag
                             color='grey'
                             type='light'
-                            className='cursor-pointer !rounded-lg'
+                            className='cursor-pointer rounded-lg!'
                             onClick={() => setIsModelsExpanded(false)}
                             icon={<IconChevronUp />}
                           >
@@ -255,7 +255,7 @@ const ModelsList = ({ t, models, modelsLoading, copyText }) => {
                           <Tag
                             color='grey'
                             type='light'
-                            className='cursor-pointer !rounded-lg'
+                            className='cursor-pointer rounded-lg!'
                             onClick={() => setIsModelsExpanded(true)}
                             icon={<IconChevronDown />}
                           >

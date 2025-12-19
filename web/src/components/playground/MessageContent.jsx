@@ -174,9 +174,9 @@ const MessageContent = ({
   ) {
     return (
       <div
-        className={`${className} flex items-center gap-2 sm:gap-4 bg-gradient-to-r from-purple-50 to-indigo-50`}
+        className={`${className} flex items-center gap-2 sm:gap-4 bg-linear-to-r from-purple-50 to-indigo-50`}
       >
-        <div className='w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg'>
+        <div className='w-5 h-5 rounded-full bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg'>
           <Loader2
             className='animate-spin text-white'
             size={styleState.isMobile ? 16 : 20}
@@ -191,10 +191,10 @@ const MessageContent = ({
       {message.role === 'system' && (
         <div className='mb-2 sm:mb-4'>
           <div
-            className='flex items-center gap-2 p-2 sm:p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg'
+            className='flex items-center gap-2 p-2 sm:p-3 bg-linear-to-r from-amber-50 to-orange-50 rounded-lg'
             style={{ border: '1px solid var(--semi-color-border)' }}
           >
-            <div className='w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm'>
+            <div className='w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-linear-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-xs'>
               <Typography.Text className='text-white text-xs font-bold'>
                 S
               </Typography.Text>
@@ -228,7 +228,7 @@ const MessageContent = ({
               fontSize: styleState.isMobile ? '14px' : '15px',
               lineHeight: '1.6',
             }}
-            className='!border-blue-200 focus:!border-blue-400 !bg-blue-50/50'
+            className='border-blue-200! focus:border-blue-400! bg-blue-50/50!'
           />
           <div className='flex items-center gap-2 w-full'>
             <Button
@@ -273,7 +273,7 @@ const MessageContent = ({
                         <img
                           src={imgItem.image_url.url}
                           alt={`用户上传的图片 ${index + 1}`}
-                          className='rounded-lg max-w-full h-auto shadow-sm border'
+                          className='rounded-lg max-w-full h-auto shadow-xs border'
                           style={{ maxHeight: '300px' }}
                           onError={(e) => {
                             e.target.style.display = 'none';

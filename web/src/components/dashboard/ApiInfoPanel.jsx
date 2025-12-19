@@ -38,7 +38,7 @@ const ApiInfoPanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='bg-gray-50 border-0 !rounded-2xl'
+      className='bg-gray-50 border-0 rounded-2xl!'
       title={
         <div className={FLEX_CENTER_GAP2}>
           <Server size={16} />
@@ -52,14 +52,14 @@ const ApiInfoPanel = ({
           apiInfoData.map((api) => (
             <React.Fragment key={api.id}>
               <div className='flex p-2 hover:bg-white rounded-lg transition-colors cursor-pointer'>
-                <div className='flex-shrink-0 mr-3'>
+                <div className='shrink-0 mr-3'>
                   <Avatar size='extra-small' color={api.color}>
                     {api.route.substring(0, 2)}
                   </Avatar>
                 </div>
                 <div className='flex-1'>
                   <div className='flex flex-wrap items-center justify-between mb-1 w-full gap-2'>
-                    <span className='text-sm font-medium text-gray-900 !font-bold break-all'>
+                    <span className='text-sm font-medium text-gray-900 font-bold! break-all'>
                       {api.route}
                     </span>
                     <div className='flex items-center gap-1 mt-1 lg:mt-0'>
@@ -88,7 +88,7 @@ const ApiInfoPanel = ({
                     </div>
                   </div>
                   <div
-                    className='!text-semi-color-primary break-all cursor-pointer hover:underline mb-1'
+                    className='text-semi-color-primary! break-all cursor-pointer hover:underline mb-1'
                     onClick={() => handleCopyUrl(api.url)}
                   >
                     {api.url}
@@ -100,7 +100,7 @@ const ApiInfoPanel = ({
             </React.Fragment>
           ))
         ) : (
-          <div className='flex justify-center items-center min-h-[20rem] w-full'>
+          <div className='flex justify-center items-center min-h-80 w-full'>
             <Empty
               image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
               darkModeImage={

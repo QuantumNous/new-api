@@ -68,9 +68,9 @@ const SettingsPanel = ({
       }}
     >
       {/* 标题区域 - 与调试面板保持一致 */}
-      <div className='flex items-center justify-between mb-6 flex-shrink-0'>
+      <div className='flex items-center justify-between mb-6 shrink-0'>
         <div className='flex items-center'>
-          <div className='w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3'>
+          <div className='w-10 h-10 rounded-full bg-linear-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3'>
             <Settings size={20} className='text-white' />
           </div>
           <Typography.Title heading={5} className='mb-0'>
@@ -85,14 +85,14 @@ const SettingsPanel = ({
             theme='borderless'
             type='tertiary'
             size='small'
-            className='!rounded-lg'
+            className='rounded-lg!'
           />
         )}
       </div>
 
       {/* 移动端配置管理 */}
       {styleState.isMobile && (
-        <div className='mb-4 flex-shrink-0'>
+        <div className='mb-4 shrink-0'>
           <ConfigManager
             currentConfig={currentConfig}
             onConfigImport={onConfigImport}
@@ -140,7 +140,7 @@ const SettingsPanel = ({
             renderOptionItem={renderGroupOption}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
-            className='!rounded-lg'
+            className='rounded-lg!'
             disabled={customRequestMode}
           />
         </div>
@@ -171,7 +171,7 @@ const SettingsPanel = ({
             optionList={models}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
-            className='!rounded-lg'
+            className='rounded-lg!'
             disabled={customRequestMode}
           />
         </div>
@@ -228,7 +228,7 @@ const SettingsPanel = ({
 
       {/* 桌面端的配置管理放在底部 */}
       {!styleState.isMobile && (
-        <div className='flex-shrink-0 pt-3'>
+        <div className='shrink-0 pt-3'>
           <ConfigManager
             currentConfig={currentConfig}
             onConfigImport={onConfigImport}

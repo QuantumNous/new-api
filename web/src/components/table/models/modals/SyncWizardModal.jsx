@@ -100,7 +100,7 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
 
       {step === 1 && (
         <div className='mt-2'>
-          <div className='mb-2 text-[var(--semi-color-text-2)]'>
+          <div className='mb-2 text-(--semi-color-text-2)'>
             {t('请选择同步语言')}
           </div>
           <div className='flex justify-center'>

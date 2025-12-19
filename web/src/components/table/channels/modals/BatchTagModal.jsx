@@ -38,7 +38,7 @@ const BatchTagModal = ({
       maskClosable={false}
       centered={true}
       size='small'
-      className='!rounded-lg'
+      className='rounded-lg!'
     >
       <div className='mb-5'>
         <Typography.Text>{t('请输入要设置的标签名称')}</Typography.Text>

@@ -299,7 +299,7 @@ export const useTokensData = (openFluentNotification) => {
       footer: (
         <div className='flex gap-2'>
           <button
-            className='px-3 py-1 bg-gray-200 rounded'
+            className='px-3 py-1 bg-gray-200 rounded-sm'
             onClick={async () => {
               let content = '';
               for (let i = 0; i < selectedKeys.length; i++) {
@@ -313,7 +313,7 @@ export const useTokensData = (openFluentNotification) => {
             {t('名称+密钥')}
           </button>
           <button
-            className='px-3 py-1 bg-blue-500 text-white rounded'
+            className='px-3 py-1 bg-blue-500 text-white rounded-sm'
             onClick={async () => {
               let content = '';
               for (let i = 0; i < selectedKeys.length; i++) {

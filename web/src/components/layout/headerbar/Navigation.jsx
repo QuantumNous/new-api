@@ -30,7 +30,7 @@ const Navigation = ({
 }) => {
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
+      'shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
     const hoverClasses = 'hover:text-semi-color-primary';
     const spacingClasses = isMobile ? 'p-1' : 'p-2';
 

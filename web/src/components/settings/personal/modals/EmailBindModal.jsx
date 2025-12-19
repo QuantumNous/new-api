@@ -61,13 +61,13 @@ const EmailBindModal = ({
             name='email'
             type='email'
             size='large'
-            className='!rounded-lg flex-1'
+            className='rounded-lg! flex-1'
             prefix={<IconMail />}
           />
           <Button
             onClick={sendVerificationCode}
             disabled={disableButton || loading}
-            className='!rounded-lg'
+            className='rounded-lg!'
             type='primary'
             theme='outline'
             size='large'
@@ -86,7 +86,7 @@ const EmailBindModal = ({
             handleInputChange('email_verification_code', value)
           }
           size='large'
-          className='!rounded-lg'
+          className='rounded-lg!'
           prefix={<IconKey />}
         />
 

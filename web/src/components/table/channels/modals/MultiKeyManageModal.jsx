@@ -597,7 +597,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         {/* Table */}
         <div className='flex-1 flex flex-col min-h-0'>
           <Spin spinning={loading}>
-            <Card className='!rounded-xl'>
+            <Card className='rounded-xl!'>
               <Table
                 title={() => (
                   <Row gutter={12} style={{ width: '100%' }}>
