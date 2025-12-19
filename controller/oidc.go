@@ -249,14 +249,14 @@ func GetOIDCDiscovery(c *gin.Context) {
 	// SSRF防护 - 验证URL安全性
 	err := common.ValidateURLWithFetchSetting(
 		wellKnownURL,
-		true,
-		true,
-		false,
-		false,
+		fetchSetting.EnableSSRFProtection,
+		fetchSetting.AllowPrivateIp,
+		fetchSetting.DomainFilterMode,
+		fetchSetting.IpFilterMode,
 		fetchSetting.DomainList,
 		fetchSetting.IpList,
 		fetchSetting.AllowedPorts,
-		true,
+		fetchSetting.ApplyIPFilterForDomain,
 	)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{
