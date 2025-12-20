@@ -1,4 +1,13 @@
 import { Shield, User, Users } from 'lucide-react'
+import type { User as UserType } from './types'
+
+// ============================================================================
+// User Utilities
+// ============================================================================
+
+export const isUserDeleted = (user: UserType): boolean => {
+  return user.DeletedAt != null
+}
 
 // ============================================================================
 // User Status Configuration
@@ -11,22 +20,28 @@ export const USER_STATUS = {
 
 export const USER_STATUSES = {
   [USER_STATUS.ENABLED]: {
-    label: 'Enabled',
+    labelKey: 'Enabled',
     variant: 'success' as const,
     value: USER_STATUS.ENABLED,
     showDot: true,
   },
   [USER_STATUS.DISABLED]: {
-    label: 'Disabled',
+    labelKey: 'Disabled',
     variant: 'neutral' as const,
     value: USER_STATUS.DISABLED,
     showDot: true,
   },
+  DELETED: {
+    labelKey: 'Deleted',
+    variant: 'danger' as const,
+    value: -1,
+    showDot: false,
+  },
 } as const
 
-export const USER_STATUS_OPTIONS = [
-  { label: 'Enabled', value: String(USER_STATUS.ENABLED) },
-  { label: 'Disabled', value: String(USER_STATUS.DISABLED) },
+export const getUserStatusOptions = (t: (key: string) => string) => [
+  { label: t('Enabled'), value: String(USER_STATUS.ENABLED) },
+  { label: t('Disabled'), value: String(USER_STATUS.DISABLED) },
 ]
 
 // ============================================================================
@@ -41,26 +56,26 @@ export const USER_ROLE = {
 
 export const USER_ROLES = {
   [USER_ROLE.USER]: {
-    label: 'User',
+    labelKey: 'User',
     value: USER_ROLE.USER,
     icon: User,
   },
   [USER_ROLE.ADMIN]: {
-    label: 'Admin',
+    labelKey: 'Admin',
     value: USER_ROLE.ADMIN,
     icon: Users,
   },
   [USER_ROLE.ROOT]: {
-    label: 'Root',
+    labelKey: 'Root',
     value: USER_ROLE.ROOT,
     icon: Shield,
   },
 } as const
 
-export const USER_ROLE_OPTIONS = [
-  { label: 'User', value: String(USER_ROLE.USER), icon: User },
-  { label: 'Admin', value: String(USER_ROLE.ADMIN), icon: Users },
-  { label: 'Root', value: String(USER_ROLE.ROOT), icon: Shield },
+export const getUserRoleOptions = (t: (key: string) => string) => [
+  { label: t('User'), value: String(USER_ROLE.USER), icon: User },
+  { label: t('Admin'), value: String(USER_ROLE.ADMIN), icon: Users },
+  { label: t('Root'), value: String(USER_ROLE.ROOT), icon: Shield },
 ]
 
 // ============================================================================

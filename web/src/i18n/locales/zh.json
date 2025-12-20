@@ -543,6 +543,7 @@
     "Delete invalid codes (used/disabled/expired)": "删除无效代码（已使用/已禁用/已过期）",
     "Delete invalid redemption codes": "删除无效兑换码",
     "Delete logs": "删除日志",
+    "Deleted": "已注销",
     "Delete selected API keys": "删除选定的 API 密钥",
     "Delete selected channels": "删除所选渠道",
     "Delete selected models": "删除选定的模型",

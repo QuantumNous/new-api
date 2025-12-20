@@ -543,6 +543,7 @@
     "Delete invalid codes (used/disabled/expired)": "Supprimer les codes invalides (utilisés/désactivés/expirés)",
     "Delete invalid redemption codes": "Supprimer les codes de rachat invalides",
     "Delete logs": "Supprimer les journaux",
+    "Deleted": "Supprimé",
     "Delete selected API keys": "Supprimer les clés API sélectionnées",
     "Delete selected channels": "Supprimer les canaux sélectionnés",
     "Delete selected models": "Supprimer les modèles sélectionnés",

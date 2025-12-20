@@ -36,7 +36,7 @@ export const userSchema = z.object({
   role: userRoleSchema,
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
-  deleted_at: z.number().nullable().optional(),
+  DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
 })
 export type User = z.infer<typeof userSchema>

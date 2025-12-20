@@ -543,6 +543,7 @@
     "Delete invalid codes (used/disabled/expired)": "無効なコード（使用済み/無効/期限切れ）を削除",
     "Delete invalid redemption codes": "無効な引き換えコードを削除",
     "Delete logs": "ログを削除",
+    "Deleted": "削除済み",
     "Delete selected API keys": "選択したAPIキーを削除",
     "Delete selected channels": "選択したチャネルを削除",
     "Delete selected models": "選択したモデルを削除",

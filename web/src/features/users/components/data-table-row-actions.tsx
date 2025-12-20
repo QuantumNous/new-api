@@ -24,7 +24,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
-import { USER_STATUS, USER_ROLE, ERROR_MESSAGES } from '../constants'
+import {
+  USER_STATUS,
+  USER_ROLE,
+  ERROR_MESSAGES,
+  isUserDeleted,
+} from '../constants'
 import { getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
 import { useUsers } from './users-provider'
@@ -101,6 +106,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
+
+  if (isUserDeleted(user)) {
+    return null
+  }
 
   return (
     <>

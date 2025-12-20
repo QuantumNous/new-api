@@ -33,8 +33,9 @@ import {
 import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
-  USER_STATUS_OPTIONS,
-  USER_ROLE_OPTIONS,
+  getUserStatusOptions,
+  getUserRoleOptions,
+  isUserDeleted,
 } from '../constants'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
@@ -162,12 +163,12 @@ export function UsersTable() {
           {
             columnId: 'status',
             title: 'Status',
-            options: USER_STATUS_OPTIONS,
+            options: getUserStatusOptions(t),
           },
           {
             columnId: 'role',
             title: 'Role',
-            options: USER_ROLE_OPTIONS,
+            options: getUserRoleOptions(t),
           },
         ]}
       />
@@ -203,26 +204,30 @@ export function UsersTable() {
                 )}
               />
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className={
-                    row.original.status === USER_STATUS.DISABLED
-                      ? 'opacity-50'
-                      : undefined
-                  }
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const user = row.original
+                const isDeleted = isUserDeleted(user)
+                const isDisabled = user.status === USER_STATUS.DISABLED
+
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && 'selected'}
+                    className={
+                      isDeleted || isDisabled ? 'opacity-50' : undefined
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

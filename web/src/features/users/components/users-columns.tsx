@@ -12,7 +12,12 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
-import { USER_STATUSES, USER_ROLES, DEFAULT_GROUP } from '../constants'
+import {
+  USER_STATUSES,
+  USER_ROLES,
+  DEFAULT_GROUP,
+  isUserDeleted,
+} from '../constants'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -110,10 +115,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
       cell: ({ row }) => {
-        const statusValue = row.getValue('status') as number
-        const statusConfig =
-          USER_STATUSES[statusValue as keyof typeof USER_STATUSES]
-        const requestCount = row.original.request_count
+        const user = row.original
+        const requestCount = user.request_count
+
+        const statusConfig = isUserDeleted(user)
+          ? USER_STATUSES.DELETED
+          : USER_STATUSES[user.status as keyof typeof USER_STATUSES]
 
         if (!statusConfig) {
           return null
@@ -124,7 +131,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipTrigger asChild>
               <div className='cursor-help'>
                 <StatusBadge
-                  label={statusConfig.label}
+                  label={t(statusConfig.labelKey)}
                   variant={statusConfig.variant}
                   showDot={statusConfig.showDot}
                   copyable={false}
@@ -230,7 +237,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             {roleConfig.icon && (
               <roleConfig.icon size={16} className='text-muted-foreground' />
             )}
-            <span className='text-sm'>{roleConfig.label}</span>
+            <span className='text-sm'>{t(roleConfig.labelKey)}</span>
           </div>
         )
       },

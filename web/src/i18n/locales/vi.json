@@ -543,6 +543,7 @@
     "Delete invalid codes (used/disabled/expired)": "Xóa mã không hợp lệ (đã sử dụng/đã vô hiệu hóa/đ",
     "Delete invalid redemption codes": "Xóa mã đổi thưởng không hợp lệ",
     "Delete logs": "Xóa nhật ký",
+    "Deleted": "Đã xóa",
     "Delete selected API keys": "Xóa các khóa API đã chọn",
     "Delete selected channels": "Xóa các kênh đã chọn",
     "Delete selected models": "Xóa các mô hình đã chọn",

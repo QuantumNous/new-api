@@ -543,6 +543,7 @@
     "Delete invalid codes (used/disabled/expired)": "Удалить недействительные коды (использованные/отключенные/истекшие)",
     "Delete invalid redemption codes": "Удалить недействительные коды активации",
     "Delete logs": "Удалить логи",
+    "Deleted": "Удалён",
     "Delete selected API keys": "Удалить выбранные ключи API",
     "Delete selected channels": "Удалить выбранные каналы",
     "Delete selected models": "Удалить выбранные модели",
