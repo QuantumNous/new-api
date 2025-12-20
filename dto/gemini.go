@@ -219,7 +219,7 @@ type GeminiFunctionResponse struct {
 	Response     map[string]interface{} `json:"response"`
 	WillContinue json.RawMessage        `json:"willContinue,omitempty"`
 	Scheduling   json.RawMessage        `json:"scheduling,omitempty"`
-	Parts        json.RawMessage        `json:"parts,omitempty"`
+	Parts        []GeminiPart           `json:"parts,omitempty"`
 	ID           json.RawMessage        `json:"id,omitempty"`
 }
 
