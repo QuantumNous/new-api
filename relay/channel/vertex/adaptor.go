@@ -168,12 +168,19 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 				), nil
 			}
 		} else if a.RequestMode == RequestModeLlama {
-			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
-				region,
-				adc.ProjectID,
-				region,
-			), nil
+			if region == "global" {
+				return fmt.Sprintf(
+					"https://aiplatform.googleapis.com/v1beta1/projects/%s/locations/global/endpoints/openapi/chat/completions",
+					adc.ProjectID,
+				), nil
+			} else {
+				return fmt.Sprintf(
+					"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
+					region,
+					adc.ProjectID,
+					region,
+				), nil
+			}
 		}
 	} else {
 		var keyPrefix string
