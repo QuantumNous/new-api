@@ -94,7 +94,7 @@ func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.Cha
 func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var responseText string
 	var lastStreamData string
-	var responseId string
+	responseId := helper.GetResponseID(c)
 	var created int64
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -117,11 +117,11 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 		}
 
 		response := streamResponseTencent2OpenAI(&tencentResponse)
+		response.Id = responseId
 		if len(response.Choices) != 0 {
 			responseText += response.Choices[0].Delta.GetContentString()
 		}
 
-		responseId = response.Id
 		created = response.Created
 
 		if jsonData, err := common.Marshal(response); err == nil {

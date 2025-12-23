@@ -153,9 +153,11 @@ func requestOpenAI2Dify(c *gin.Context, info *relaycommon.RelayInfo, request dto
 					media := mediaContent.GetImageMedia()
 					var file *DifyFile
 					if media.IsRemoteImage() {
-						file.Type = media.MimeType
-						file.TransferMode = "remote_url"
-						file.URL = media.Url
+						file = &DifyFile{
+							Type:         media.MimeType,
+							TransferMode: "remote_url",
+							URL:          media.Url,
+						}
 					} else {
 						file = uploadDifyFile(c, info, difyReq.User, mediaContent)
 					}

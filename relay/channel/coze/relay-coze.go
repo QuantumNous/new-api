@@ -172,6 +172,8 @@ func handleCozeEvent(c *gin.Context, info *relaycommon.RelayInfo, event string, 
 		if jsonData, err := common.Marshal(stopResponse); err == nil {
 			*lastStreamData = string(jsonData)
 			_ = openai.HandleStreamFormat(c, info, *lastStreamData, false, false)
+		} else {
+			common.SysLog("error marshalling coze stop response: " + err.Error())
 		}
 
 	case "conversation.message.delta":
@@ -208,6 +210,8 @@ func handleCozeEvent(c *gin.Context, info *relaycommon.RelayInfo, event string, 
 		if jsonData, err := common.Marshal(openaiResponse); err == nil {
 			*lastStreamData = string(jsonData)
 			_ = openai.HandleStreamFormat(c, info, *lastStreamData, false, false)
+		} else {
+			common.SysLog("error marshalling coze stream response: " + err.Error())
 		}
 
 	case "error":
