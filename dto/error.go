@@ -22,6 +22,7 @@ type OpenAIErrorWithStatusCode struct {
 
 type GeneralErrorResponse struct {
 	Error    json.RawMessage `json:"error"`
+	Detail   string          `json:"detail"`
 	Message  string          `json:"message"`
 	Msg      string          `json:"msg"`
 	Err      string          `json:"err"`
@@ -56,6 +57,9 @@ func (e GeneralErrorResponse) ToMessage() string {
 			if err == nil && openAIError.Message != "" {
 				return openAIError.Message
 			}
+			// Some upstreams return an object without a "message" field.
+			// Falling back to the raw JSON is better than returning an empty string.
+			return string(e.Error)
 		case "string":
 			var msg string
 			err := common.Unmarshal(e.Error, &msg)
@@ -68,6 +72,9 @@ func (e GeneralErrorResponse) ToMessage() string {
 	}
 	if e.Message != "" {
 		return e.Message
+	}
+	if e.Detail != "" {
+		return e.Detail
 	}
 	if e.Msg != "" {
 		return e.Msg

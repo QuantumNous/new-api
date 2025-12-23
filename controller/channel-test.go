@@ -75,6 +75,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	}
 
+	originTestModel := testModel
+
 	requestPath := "/v1/chat/completions"
 
 	// 如果指定了端点类型，使用指定的端点类型
@@ -319,6 +321,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+			// 自动检测模式下，如果上游不支持 chat.completions 的 messages 参数，尝试切换到 Responses API 再测一次。
+			if endpointType == "" && requestPath == "/v1/chat/completions" && err != nil {
+				lowerErr := strings.ToLower(err.Error())
+				if strings.Contains(lowerErr, "unsupported parameter") && strings.Contains(lowerErr, "messages") {
+					return testChannel(channel, originTestModel, string(constant.EndpointTypeOpenAIResponse))
+				}
+			}
 			return testResult{
 				context:     c,
 				localErr:    err,
@@ -417,9 +426,12 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 			}
 		case constant.EndpointTypeOpenAIResponse:
 			// 返回 OpenAIResponsesRequest
+			maxOutputTokens := uint(10)
 			return &dto.OpenAIResponsesRequest{
-				Model: model,
-				Input: json.RawMessage("\"hi\""),
+				Model:           model,
+				Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
+				MaxOutputTokens: maxOutputTokens,
+				Stream:          true,
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
