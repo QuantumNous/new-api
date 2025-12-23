@@ -84,71 +84,72 @@ func TestApplyWildcardReplacement(t *testing.T) {
 func TestFindMappedModel(t *testing.T) {
 	tests := []struct {
 		name          string
-		modelMap      map[string]interface{}
+		jsonStr       string
 		modelName     string
 		expectedModel string
 		expectedFound bool
 	}{
 		{
-			name: "exact match string value",
-			modelMap: map[string]interface{}{
-				"gpt-3.5-turbo": "gpt-3.5-turbo-0125",
-			},
+			name:          "exact match string value",
+			jsonStr:       `{"gpt-3.5-turbo": "gpt-3.5-turbo-0125"}`,
 			modelName:     "gpt-3.5-turbo",
 			expectedModel: "gpt-3.5-turbo-0125",
 			expectedFound: true,
 		},
 		{
-			name: "wildcard prefix match",
-			modelMap: map[string]interface{}{
-				"Pro/*": "deepseek-r1",
-			},
+			name:          "wildcard prefix match",
+			jsonStr:       `{"Pro/*": "deepseek-r1"}`,
 			modelName:     "Pro/deepseek-ai/DeepSeek-R1",
 			expectedModel: "deepseek-r1",
 			expectedFound: true,
 		},
 		{
-			name: "wildcard with replacement",
-			modelMap: map[string]interface{}{
-				"Pro/*": "*",
-			},
+			name:          "wildcard with replacement",
+			jsonStr:       `{"Pro/*": "*"}`,
 			modelName:     "Pro/deepseek-ai/DeepSeek-R1",
 			expectedModel: "deepseek-ai/DeepSeek-R1",
 			expectedFound: true,
 		},
 		{
-			name: "no match",
-			modelMap: map[string]interface{}{
-				"gpt-4": "gpt-4-turbo",
-			},
+			name:          "no match",
+			jsonStr:       `{"gpt-4": "gpt-4-turbo"}`,
 			modelName:     "claude-3",
 			expectedModel: "",
 			expectedFound: false,
 		},
 		{
-			name: "exact match takes priority over wildcard",
-			modelMap: map[string]interface{}{
-				"gpt-*":   "generic-gpt",
-				"gpt-4":   "gpt-4-turbo",
-			},
+			name:          "exact match takes priority over wildcard",
+			jsonStr:       `{"gpt-*": "generic-gpt", "gpt-4": "gpt-4-turbo"}`,
 			modelName:     "gpt-4",
 			expectedModel: "gpt-4-turbo",
 			expectedFound: true,
 		},
 		{
-			name: "array value should not be matched by findMappedModel",
-			modelMap: map[string]interface{}{
-				"DeepSeek-R1": []interface{}{"Pro/deepseek-ai/DeepSeek-R1", "deepseek-ai/DeepSeek-R1"},
-			},
+			name:          "array value should not be matched by findMappedModel",
+			jsonStr:       `{"DeepSeek-R1": ["Pro/deepseek-ai/DeepSeek-R1", "deepseek-ai/DeepSeek-R1"]}`,
 			modelName:     "DeepSeek-R1",
 			expectedModel: "",
 			expectedFound: false,
+		},
+		{
+			name:          "order preserved - first match wins",
+			jsonStr:       `{"gpt-*": "first-match", "*-turbo": "second-match"}`,
+			modelName:     "gpt-4-turbo",
+			expectedModel: "first-match",
+			expectedFound: true,
+		},
+		{
+			name:          "order preserved - second pattern first in json",
+			jsonStr:       `{"*-turbo": "turbo-match", "gpt-*": "gpt-match"}`,
+			modelName:     "gpt-4-turbo",
+			expectedModel: "turbo-match",
+			expectedFound: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, found := findMappedModel(tt.modelMap, tt.modelName)
+			result, found := findMappedModel(tt.jsonStr, tt.modelName)
 			if found != tt.expectedFound {
 				t.Errorf("findMappedModel() found = %v, expected %v", found, tt.expectedFound)
 			}
