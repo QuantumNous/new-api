@@ -75,9 +75,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	}
 
-	originTestModel := testModel
-
-	requestPath := "/v1/chat/completions"
+	requestPath := "/v1/responses"
 
 	// 如果指定了端点类型，使用指定的端点类型
 	if endpointType != "" {
@@ -86,10 +84,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	} else {
 		// 如果没有指定端点类型，使用原有的自动检测逻辑
-		if common.IsOpenAIResponseOnlyModel(testModel) {
-			requestPath = "/v1/responses"
-		}
-
 		// 先判断是否为 Embedding 模型
 		if strings.Contains(strings.ToLower(testModel), "embedding") ||
 			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
@@ -143,7 +137,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		// 根据指定的端点类型设置 relayFormat
 		switch constant.EndpointType(endpointType) {
 		case constant.EndpointTypeOpenAI:
-			relayFormat = types.RelayFormatOpenAI
+			relayFormat = types.RelayFormatOpenAIResponses
 		case constant.EndpointTypeOpenAIResponse:
 			relayFormat = types.RelayFormatOpenAIResponses
 		case constant.EndpointTypeAnthropic:
@@ -161,7 +155,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	} else {
 		// 根据请求路径自动检测
-		relayFormat = types.RelayFormatOpenAI
+		relayFormat = types.RelayFormatOpenAIResponses
 		if c.Request.URL.Path == "/v1/embeddings" {
 			relayFormat = types.RelayFormatEmbedding
 		}
@@ -182,7 +176,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType)
+	request := buildTestRequest(testModel, endpointType, requestPath)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -325,13 +319,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
-			// 自动检测模式下，如果上游不支持 chat.completions 的 messages 参数，尝试切换到 Responses API 再测一次。
-			if endpointType == "" && requestPath == "/v1/chat/completions" && err != nil {
-				lowerErr := strings.ToLower(err.Error())
-				if strings.Contains(lowerErr, "unsupported parameter") && strings.Contains(lowerErr, "messages") {
-					return testChannel(channel, originTestModel, string(constant.EndpointTypeOpenAIResponse))
-				}
-			}
 			return testResult{
 				context:     c,
 				localErr:    err,
@@ -402,7 +389,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	}
 }
 
-func buildTestRequest(model string, endpointType string) dto.Request {
+func buildTestRequest(model string, endpointType string, requestPath string) dto.Request {
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
@@ -428,17 +415,16 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 				Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
 				TopN:      2,
 			}
-		case constant.EndpointTypeOpenAIResponse:
+		case constant.EndpointTypeOpenAIResponse, constant.EndpointTypeOpenAI:
 			// 返回 OpenAIResponsesRequest
-			maxOutputTokens := uint(10)
 			return &dto.OpenAIResponsesRequest{
 				Model:           model,
 				Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
-				MaxOutputTokens: maxOutputTokens,
-				Stream:          true,
+				MaxOutputTokens: 10,
+				Stream:          false,
 			}
-		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
-			// 返回 GeneralOpenAIRequest
+		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini:
+			// 返回 GeneralOpenAIRequest（兼容现有适配逻辑）
 			maxTokens := uint(10)
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 				maxTokens = 3000
@@ -457,53 +443,28 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 		}
 	}
 
-	// 自动检测逻辑（保持原有行为）
-	if common.IsOpenAIResponseOnlyModel(model) {
-		maxOutputTokens := uint(10)
-		return &dto.OpenAIResponsesRequest{
-			Model:           model,
-			Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
-			MaxOutputTokens: maxOutputTokens,
-			Stream:          true,
-		}
-	}
-
-	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") ||
-		strings.Contains(model, "bge-") {
-		// 返回 EmbeddingRequest
+	// 自动检测逻辑（按最终请求路径构造）
+	switch requestPath {
+	case "/v1/embeddings":
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
 		}
-	}
-
-	// Chat/Completion 请求 - 返回 GeneralOpenAIRequest
-	testRequest := &dto.GeneralOpenAIRequest{
-		Model:  model,
-		Stream: false,
-		Messages: []dto.Message{
-			{
-				Role:    "user",
-				Content: "hi",
-			},
-		},
-	}
-
-	if strings.HasPrefix(model, "o") {
-		testRequest.MaxCompletionTokens = 10
-	} else if strings.Contains(model, "thinking") {
-		if !strings.Contains(model, "claude") {
-			testRequest.MaxTokens = 50
+	case "/v1/images/generations":
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      1,
+			Size:   "1024x1024",
 		}
-	} else if strings.Contains(model, "gemini") {
-		testRequest.MaxTokens = 3000
-	} else {
-		testRequest.MaxTokens = 10
+	default:
+		return &dto.OpenAIResponsesRequest{
+			Model:           model,
+			Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			MaxOutputTokens: 10,
+			Stream:          false,
+		}
 	}
-
-	return testRequest
 }
 
 func TestChannel(c *gin.Context) {
