@@ -42,8 +42,7 @@ const { Text, Title } = Typography;
 
 // Example endpoint template for quick fill
 const ENDPOINT_TEMPLATE = {
-  openai: { path: '/v1/chat/completions', method: 'POST' },
-  'openai-response': { path: '/v1/responses', method: 'POST' },
+  openai: { path: '/v1/responses', method: 'POST' },
   anthropic: { path: '/v1/messages', method: 'POST' },
   gemini: { path: '/v1beta/models/{model}:generateContent', method: 'POST' },
   'jina-rerank': { path: '/rerank', method: 'POST' },
@@ -449,7 +448,7 @@ const EditModelModal = (props) => {
                       field='endpoints'
                       label={t('端点映射')}
                       placeholder={
-                        '{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'
+                        '{\n  "openai": {"path": "/v1/responses", "method": "POST"}\n}'
                       }
                       value={values.endpoints}
                       onChange={(val) =>

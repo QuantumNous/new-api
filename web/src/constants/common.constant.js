@@ -24,7 +24,6 @@ export const DEFAULT_ENDPOINT = '/api/ratio_config';
 export const TABLE_COMPACT_MODES_KEY = 'table_compact_modes';
 
 export const API_ENDPOINTS = [
-  '/v1/chat/completions',
   '/v1/responses',
   '/v1/messages',
   '/v1beta/models',
