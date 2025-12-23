@@ -86,6 +86,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	} else {
 		// 如果没有指定端点类型，使用原有的自动检测逻辑
+		if common.IsOpenAIResponseOnlyModel(testModel) {
+			requestPath = "/v1/responses"
+		}
+
 		// 先判断是否为 Embedding 模型
 		if strings.Contains(strings.ToLower(testModel), "embedding") ||
 			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
@@ -454,6 +458,16 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 	}
 
 	// 自动检测逻辑（保持原有行为）
+	if common.IsOpenAIResponseOnlyModel(model) {
+		maxOutputTokens := uint(10)
+		return &dto.OpenAIResponsesRequest{
+			Model:           model,
+			Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			MaxOutputTokens: maxOutputTokens,
+			Stream:          true,
+		}
+	}
+
 	// 先判断是否为 Embedding 模型
 	if strings.Contains(strings.ToLower(model), "embedding") ||
 		strings.HasPrefix(model, "m3e") ||
