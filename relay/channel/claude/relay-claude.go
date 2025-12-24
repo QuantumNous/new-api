@@ -483,9 +483,11 @@ func StreamResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse
 				}
 			}
 		} else if claudeResponse.Type == "message_delta" {
-			finishReason := stopReasonClaude2OpenAI(*claudeResponse.Delta.StopReason)
-			if finishReason != "null" {
-				choice.FinishReason = &finishReason
+			if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
+				finishReason := stopReasonClaude2OpenAI(*claudeResponse.Delta.StopReason)
+				if finishReason != "null" {
+					choice.FinishReason = &finishReason
+				}
 			}
 			//claudeUsage = &claudeResponse.Usage
 		} else if claudeResponse.Type == "message_stop" {
