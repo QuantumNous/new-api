@@ -46,6 +46,7 @@ const DEFAULT_GEMINI_INPUTS = {
   'gemini.thinking_adapter_enabled': false,
   'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
   'gemini.function_call_thought_signature_enabled': true,
+  'gemini.remove_function_response_id_enabled': true,
 };
 
 export default function SettingGeminiModel(props) {
@@ -181,6 +182,23 @@ export default function SettingGeminiModel(props) {
                     setInputs({
                       ...inputs,
                       'gemini.function_call_thought_signature_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={16}>
+                <Form.Switch
+                  label={t('移除 functionResponse.id 字段')}
+                  field={'gemini.remove_function_response_id_enabled'}
+                  extraText={t(
+                    'Vertex AI 不支持 functionResponse.id 字段，开启后将自动移除该字段',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'gemini.remove_function_response_id_enabled': value,
                     })
                   }
                 />

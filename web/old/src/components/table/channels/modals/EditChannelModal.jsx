@@ -1604,7 +1604,7 @@ const EditChannelModal = (props) => {
         >
           {() => (
             <Spin spinning={loading}>
-              <div className='p-2' ref={formContainerRef}>
+              <div className='p-2 space-y-3' ref={formContainerRef}>
                 <div ref={(el) => (formSectionRefs.current.basicInfo = el)}>
                   <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: Basic Info */}

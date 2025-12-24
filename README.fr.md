@@ -146,7 +146,7 @@ docker run --name new-api -d --restart always \
 
 🎉 Après le déploiement, visitez `http://localhost:3000` pour commencer à utiliser!
 
-📖 Pour plus de méthodes de déploiement, veuillez vous référer à [Guide de déploiement](https://docs.newapi.pro/installation)
+📖 Pour plus de méthodes de déploiement, veuillez vous référer à [Guide de déploiement](https://docs.newapi.pro/en/docs/installation)
 
 ---
 
@@ -154,7 +154,7 @@ docker run --name new-api -d --restart always \
 
 <div align="center">
 
-### 📖 [Documentation officielle](https://docs.newapi.pro/) | [![Demander à DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/QuantumNous/new-api)
+### 📖 [Documentation officielle](https://docs.newapi.pro/en/docs) | [![Demander à DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/QuantumNous/new-api)
 
 </div>
 
@@ -162,17 +162,17 @@ docker run --name new-api -d --restart always \
 
 | Catégorie | Lien |
 |------|------|
-| 🚀 Guide de déploiement | [Documentation d'installation](https://docs.newapi.pro/installation) |
-| ⚙️ Configuration de l'environnement | [Variables d'environnement](https://docs.newapi.pro/installation/environment-variables) |
-| 📡 Documentation de l'API | [Documentation de l'API](https://docs.newapi.pro/api) |
-| ❓ FAQ | [FAQ](https://docs.newapi.pro/support/faq) |
-| 💬 Interaction avec la communauté | [Canaux de communication](https://docs.newapi.pro/support/community-interaction) |
+| 🚀 Guide de déploiement | [Documentation d'installation](https://docs.newapi.pro/en/docs/installation) |
+| ⚙️ Configuration de l'environnement | [Variables d'environnement](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables) |
+| 📡 Documentation de l'API | [Documentation de l'API](https://docs.newapi.pro/en/docs/api) |
+| ❓ FAQ | [FAQ](https://docs.newapi.pro/en/docs/support/faq) |
+| 💬 Interaction avec la communauté | [Canaux de communication](https://docs.newapi.pro/en/docs/support/community-interaction) |
 
 ---
 
 ## ✨ Fonctionnalités clés
 
-> Pour les fonctionnalités détaillées, veuillez vous référer à [Présentation des fonctionnalités](https://docs.newapi.pro/wiki/features-introduction) |
+> Pour les fonctionnalités détaillées, veuillez vous référer à [Présentation des fonctionnalités](https://docs.newapi.pro/en/docs/guide/wiki/basic-concepts/features-introduction) |
 
 ### 🎨 Fonctions principales
 
@@ -200,11 +200,11 @@ docker run --name new-api -d --restart always \
 ### 🚀 Fonctionnalités avancées
 
 **Prise en charge des formats d'API:**
-- ⚡ [OpenAI Responses](https://docs.newapi.pro/api/openai-responses)
-- ⚡ [OpenAI Realtime API](https://docs.newapi.pro/api/openai-realtime) (y compris Azure)
-- ⚡ [Claude Messages](https://docs.newapi.pro/api/anthropic-chat)
-- ⚡ [Google Gemini](https://docs.newapi.pro/api/google-gemini-chat/)
-- 🔄 [Modèles Rerank](https://docs.newapi.pro/api/jinaai-rerank) (Cohere, Jina)
+- ⚡ [OpenAI Responses](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/create-response)
+- ⚡ [OpenAI Realtime API](https://docs.newapi.pro/en/docs/api/ai-model/realtime/create-realtime-session) (y compris Azure)
+- ⚡ [Claude Messages](https://docs.newapi.pro/en/docs/api/ai-model/chat/create-message)
+- ⚡ [Google Gemini](https://doc.newapi.pro/en/api/google-gemini-chat)
+- 🔄 [Modèles Rerank](https://docs.newapi.pro/en/docs/api/ai-model/rerank/create-rerank) (Cohere, Jina)
 
 **Routage intelligent:**
 - ⚖️ Sélection aléatoire pondérée des canaux
@@ -242,16 +242,16 @@ docker run --name new-api -d --restart always \
 
 ## 🤖 Prise en charge des modèles
 
-> Pour les détails, veuillez vous référer à [Documentation de l'API - Interface de relais](https://docs.newapi.pro/api)
+> Pour les détails, veuillez vous référer à [Documentation de l'API - Interface de relais](https://docs.newapi.pro/en/docs/api)
 
 | Type de modèle | Description | Documentation |
 |---------|------|------|
 | 🤖 OpenAI GPTs | série gpt-4-gizmo-* | - |
-| 🎨 Midjourney-Proxy | [Midjourney-Proxy(Plus)](https://github.com/novicezk/midjourney-proxy) | [Documentation](https://docs.newapi.pro/api/midjourney-proxy-image) |
-| 🎵 Suno-API | [Suno API](https://github.com/Suno-API/Suno-API) | [Documentation](https://docs.newapi.pro/api/suno-music) |
-| 🔄 Rerank | Cohere, Jina | [Documentation](https://docs.newapi.pro/api/jinaai-rerank) |
-| 💬 Claude | Format Messages | [Documentation](https://docs.newapi.pro/api/anthropic-chat) |
-| 🌐 Gemini | Format Google Gemini | [Documentation](https://docs.newapi.pro/api/google-gemini-chat/) |
+| 🎨 Midjourney-Proxy | [Midjourney-Proxy(Plus)](https://github.com/novicezk/midjourney-proxy) | [Documentation](https://doc.newapi.pro/en/api/midjourney-proxy-image) |
+| 🎵 Suno-API | [Suno API](https://github.com/Suno-API/Suno-API) | [Documentation](https://doc.newapi.pro/en/api/suno-music) |
+| 🔄 Rerank | Cohere, Jina | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/rerank/create-rerank) |
+| 💬 Claude | Format Messages | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/create-message) |
+| 🌐 Gemini | Format Google Gemini | [Documentation](https://doc.newapi.pro/en/api/google-gemini-chat) |
 | 🔧 Dify | Mode ChatFlow | - |
 | 🎯 Personnalisé | Prise en charge de l'adresse d'appel complète | - |
 
@@ -260,16 +260,16 @@ docker run --name new-api -d --restart always \
 <details>
 <summary>Voir la liste complète des interfaces</summary>
 
-- [Interface de discussion (Chat Completions)](https://docs.newapi.pro/api/openai-chat)
-- [Interface de réponse (Responses)](https://docs.newapi.pro/api/openai-responses)
-- [Interface d'image (Image)](https://docs.newapi.pro/api/openai-image)
-- [Interface audio (Audio)](https://docs.newapi.pro/api/openai-audio)
-- [Interface vidéo (Video)](https://docs.newapi.pro/api/openai-video)
-- [Interface d'incorporation (Embeddings)](https://docs.newapi.pro/api/openai-embeddings)
-- [Interface de rerank (Rerank)](https://docs.newapi.pro/api/jinaai-rerank)
-- [Conversation en temps réel (Realtime)](https://docs.newapi.pro/api/openai-realtime)
-- [Discussion Claude](https://docs.newapi.pro/api/anthropic-chat)
-- [Discussion Google Gemini](https://docs.newapi.pro/api/google-gemini-chat/)
+- [Interface de discussion (Chat Completions)](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/create-chat-completion)
+- [Interface de réponse (Responses)](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/create-response)
+- [Interface d'image (Image)](https://docs.newapi.pro/en/docs/api/ai-model/images/openai/v1-images-generations--post)
+- [Interface audio (Audio)](https://docs.newapi.pro/en/docs/api/ai-model/audio/openai/create-transcription)
+- [Interface vidéo (Video)](https://docs.newapi.pro/en/docs/api/ai-model/videos/create-video-generation)
+- [Interface d'incorporation (Embeddings)](https://docs.newapi.pro/en/docs/api/ai-model/embeddings/create-embedding)
+- [Interface de rerank (Rerank)](https://docs.newapi.pro/en/docs/api/ai-model/rerank/create-rerank)
+- [Conversation en temps réel (Realtime)](https://docs.newapi.pro/en/docs/api/ai-model/realtime/create-realtime-session)
+- [Discussion Claude](https://docs.newapi.pro/en/docs/api/ai-model/chat/create-message)
+- [Discussion Google Gemini](https://doc.newapi.pro/en/api/google-gemini-chat)
 
 </details>
 
@@ -301,10 +301,11 @@ docker run --name new-api -d --restart always \
 | `REDIS_CONN_STRING` | Chaine de connexion Redis | - |
 | `STREAMING_TIMEOUT` | Délai d'expiration du streaming (secondes) | `300` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | Taille max du buffer par ligne (Mo) pour le scanner SSE ; à augmenter quand les sorties image/base64 sont très volumineuses (ex. images 4K) | `64` |
+| `MAX_REQUEST_BODY_MB` | Taille maximale du corps de requête (Mo, comptée **après décompression** ; évite les requêtes énormes/zip bombs qui saturent la mémoire). Dépassement ⇒ `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Version de l'API Azure | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | Interrupteur du journal d'erreurs | `false` |
 
-📖 **Configuration complète:** [Documentation des variables d'environnement](https://docs.newapi.pro/installation/environment-variables)
+📖 **Configuration complète:** [Documentation des variables d'environnement](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables)
 
 </details>
 
@@ -404,10 +405,10 @@ docker run --name new-api -d --restart always \
 
 | Ressource | Lien |
 |------|------|
-| 📘 FAQ | [FAQ](https://docs.newapi.pro/support/faq) |
-| 💬 Interaction avec la communauté | [Canaux de communication](https://docs.newapi.pro/support/community-interaction) |
-| 🐛 Commentaires sur les problèmes | [Commentaires sur les problèmes](https://docs.newapi.pro/support/feedback-issues) |
-| 📚 Documentation complète | [Documentation officielle](https://docs.newapi.pro/support) |
+| 📘 FAQ | [FAQ](https://docs.newapi.pro/en/docs/support/faq) |
+| 💬 Interaction avec la communauté | [Canaux de communication](https://docs.newapi.pro/en/docs/support/community-interaction) |
+| 🐛 Commentaires sur les problèmes | [Commentaires sur les problèmes](https://docs.newapi.pro/en/docs/support/feedback-issues) |
+| 📚 Documentation complète | [Documentation officielle](https://docs.newapi.pro/en/docs) |
 
 ### 🤝 Guide de contribution
 
@@ -436,7 +437,7 @@ Bienvenue à toutes les formes de contribution!
 
 Si ce projet vous est utile, bienvenue à nous donner une ⭐️ Étoile！
 
-**[Documentation officielle](https://docs.newapi.pro/)** • **[Commentaires sur les problèmes](https://github.com/Calcium-Ion/new-api/issues)** • **[Dernière version](https://github.com/Calcium-Ion/new-api/releases)**
+**[Documentation officielle](https://docs.newapi.pro/en/docs)** • **[Commentaires sur les problèmes](https://github.com/Calcium-Ion/new-api/issues)** • **[Dernière version](https://github.com/Calcium-Ion/new-api/releases)**
 
 <sub>Construit avec ❤️ par QuantumNous</sub>
 

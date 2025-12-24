@@ -16,6 +16,7 @@ new-api
 tiktoken_cache
 .eslintcache
 .gocache
+.gomodcache/
 .cache
 web/bun.lock
 

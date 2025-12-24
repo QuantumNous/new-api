@@ -596,7 +596,7 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 		if usage.PromptTokensDetails.CachedTokens == 0 && usage.PromptCacheHitTokens != 0 {
 			usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 		}
-	case constant.ChannelTypeZhipu_v4:
+	case constant.ChannelTypeZhipu_v4, constant.ChannelTypeMoonshot:
 		if usage.PromptTokensDetails.CachedTokens == 0 {
 			if usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0 {
 				usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens

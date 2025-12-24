@@ -4,7 +4,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
-// GeminiSettings 定义Gemini模型的配置
+// GeminiSettings defines Gemini model configuration. 注意bool要以enabled结尾才可以生效编辑
 type GeminiSettings struct {
 	SafetySettings                        map[string]string `json:"safety_settings"`
 	VersionSettings                       map[string]string `json:"version_settings"`
@@ -12,6 +12,7 @@ type GeminiSettings struct {
 	ThinkingAdapterEnabled                bool              `json:"thinking_adapter_enabled"`
 	ThinkingAdapterBudgetTokensPercentage float64           `json:"thinking_adapter_budget_tokens_percentage"`
 	FunctionCallThoughtSignatureEnabled   bool              `json:"function_call_thought_signature_enabled"`
+	RemoveFunctionResponseIdEnabled       bool              `json:"remove_function_response_id_enabled"`
 }
 
 // 默认配置
@@ -30,6 +31,7 @@ var defaultGeminiSettings = GeminiSettings{
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
 	FunctionCallThoughtSignatureEnabled:   true,
+	RemoveFunctionResponseIdEnabled:       true,
 }
 
 // 全局实例

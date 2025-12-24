@@ -254,6 +254,9 @@ func (channel *Channel) Save() error {
 }
 
 func (channel *Channel) SaveWithoutKey() error {
+	if channel.Id == 0 {
+		return errors.New("channel ID is 0")
+	}
 	return DB.Omit("key").Save(channel).Error
 }
 

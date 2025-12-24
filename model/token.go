@@ -112,7 +112,12 @@ func ValidateUserToken(key string) (token *Token, err error) {
 		}
 		return token, nil
 	}
-	return nil, errors.New("无效的令牌")
+	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.New("无效的令牌")
+	} else {
+		return nil, errors.New("无效的令牌，数据库查询出错，请联系管理员")
+	}
 }
 
 func GetTokenByIds(id int, userId int) (*Token, error) {

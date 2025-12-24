@@ -51,8 +51,41 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	// Vertex AI does not support functionResponse.id; keep it stripped here for consistency.
+	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+		removeFunctionResponseID(request)
+	}
 	geminiAdaptor := gemini.Adaptor{}
 	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
+}
+
+func removeFunctionResponseID(request *dto.GeminiChatRequest) {
+	if request == nil {
+		return
+	}
+
+	if len(request.Contents) > 0 {
+		for i := range request.Contents {
+			if len(request.Contents[i].Parts) == 0 {
+				continue
+			}
+			for j := range request.Contents[i].Parts {
+				part := &request.Contents[i].Parts[j]
+				if part.FunctionResponse == nil {
+					continue
+				}
+				if len(part.FunctionResponse.ID) > 0 {
+					part.FunctionResponse.ID = nil
+				}
+			}
+		}
+	}
+
+	if len(request.Requests) > 0 {
+		for i := range request.Requests {
+			removeFunctionResponseID(&request.Requests[i])
+		}
+	}
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {

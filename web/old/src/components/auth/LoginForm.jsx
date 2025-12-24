@@ -469,7 +469,7 @@ const LoginForm = () => {
                 {status.wechat_login && (
                   <Button
                     theme='outline'
-                    className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={
                       <Icon svg={<WeChatIcon />} style={{ color: '#07C160' }} />
@@ -484,7 +484,7 @@ const LoginForm = () => {
                 {status.github_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
@@ -498,7 +498,7 @@ const LoginForm = () => {
                 {status.discord_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={<SiDiscord style={{ color: '#5865F2', width: '20px', height: '20px' }} />}
                     onClick={handleDiscordClick}
@@ -511,7 +511,7 @@ const LoginForm = () => {
                 {status.oidc_enabled && (
                   <Button
                     theme='outline'
-                    className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={<OIDCIcon style={{ color: '#1877F2' }} />}
                     onClick={handleOIDCClick}
@@ -524,7 +524,7 @@ const LoginForm = () => {
                 {status.linuxdo_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={
                       <LinuxDoIcon
@@ -554,7 +554,7 @@ const LoginForm = () => {
                 {status.passkey_login && passkeySupported && (
                   <Button
                     theme='outline'
-                    className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={<IconKey size='large' />}
                     onClick={handlePasskeyLogin}
@@ -571,7 +571,7 @@ const LoginForm = () => {
                 <Button
                   theme='solid'
                   type='primary'
-                  className='w-full flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
                   icon={<IconMail size='large' />}
                   onClick={handleEmailLoginClick}
                   loading={emailLoginLoading}
@@ -658,7 +658,7 @@ const LoginForm = () => {
                 <Button
                   theme='outline'
                   type='tertiary'
-                  className='w-full flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
+                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
                   icon={<IconKey size='large' />}
                   onClick={handlePasskeyLogin}
                   loading={passkeyLoading}

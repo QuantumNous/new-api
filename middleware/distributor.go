@@ -162,7 +162,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			}
 			midjourneyModel, mjErr, success := service.GetMjRequestModel(relayMode, &midjourneyRequest)
 			if mjErr != nil {
-				return nil, false, fmt.Errorf(mjErr.Description)
+				return nil, false, fmt.Errorf("%s", mjErr.Description)
 			}
 			if midjourneyModel == "" {
 				if !success {
