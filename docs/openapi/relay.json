@@ -183,68 +183,6 @@
         ]
       }
     },
-    "/v1/chat/completions": {
-      "post": {
-        "summary": "创建聊天对话",
-        "deprecated": false,
-        "description": "根据对话历史创建模型响应。支持流式和非流式响应。\n\n兼容 OpenAI Chat Completions API。\n",
-        "operationId": "createChatCompletion",
-        "tags": [
-          "OpenAI格式(Chat)"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatCompletionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "成功创建响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatCompletionResponse"
-                }
-              }
-            },
-            "headers": {}
-          },
-          "400": {
-            "description": "请求参数错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "headers": {}
-          },
-          "429": {
-            "description": "请求频率限制",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
     "/v1/responses": {
       "post": {
         "summary": "创建响应 (OpenAI Responses API)",
@@ -1498,46 +1436,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingResponse"
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/completions": {
-      "post": {
-        "summary": "创建文本补全",
-        "deprecated": false,
-        "description": "基于给定提示创建文本补全",
-        "operationId": "createCompletion",
-        "tags": [
-          "文本补全(Completions)"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompletionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "成功创建响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CompletionResponse"
                 }
               }
             },

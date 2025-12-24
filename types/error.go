@@ -124,7 +124,12 @@ func (e *NewAPIError) Error() string {
 		// fallback message when underlying error is missing
 		return string(e.errorCode)
 	}
-	return e.Err.Error()
+	msg := e.Err.Error()
+	if msg == "" {
+		// Avoid returning an empty string to callers/UI.
+		return string(e.errorCode)
+	}
+	return msg
 }
 
 func (e *NewAPIError) MaskSensitiveError() string {

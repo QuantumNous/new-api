@@ -114,10 +114,33 @@ export const buildApiPayload = (
     });
   }
 
+  const toResponsesContent = (content) => {
+    if (!Array.isArray(content)) return content;
+
+    return content
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+
+        if (item.type === 'text') {
+          return { type: 'input_text', text: item.text || '' };
+        }
+        if (item.type === 'image_url') {
+          const url = item.image_url?.url;
+          if (!url) return null;
+          return { type: 'input_image', image_url: url };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  };
+
   const payload = {
     model: inputs.model,
     group: inputs.group,
-    messages: processedMessages,
+    input: processedMessages.map((m) => ({
+      role: m.role,
+      content: toResponsesContent(m.content),
+    })),
     stream: inputs.stream,
   };
 
@@ -125,15 +148,12 @@ export const buildApiPayload = (
   const parameterMappings = {
     temperature: 'temperature',
     top_p: 'top_p',
-    max_tokens: 'max_tokens',
-    frequency_penalty: 'frequency_penalty',
-    presence_penalty: 'presence_penalty',
-    seed: 'seed',
+    max_tokens: 'max_output_tokens',
   };
 
   Object.entries(parameterMappings).forEach(([key, param]) => {
     const enabled = parameterEnabled[key];
-    const value = inputs[param];
+    const value = inputs[key];
     const hasValue = value !== undefined && value !== null;
 
     if (enabled && hasValue) {
@@ -236,9 +256,7 @@ async function prepareOAuthState(options = {}) {
   if (shouldLogout) {
     try {
       await API.get('/api/user/logout', { skipErrorHandler: true });
-    } catch (err) {
-
-    }
+    } catch (err) {}
     localStorage.removeItem('user');
     updateAPI();
   }
