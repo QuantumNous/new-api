@@ -631,6 +631,8 @@
     "Enable Data Dashboard": "データダッシュボードを有効にする",
     "Enable Discord OAuth": "Discord OAuthを有効にする",
     "Enable FunctionCall thoughtSignature Fill": "FunctionCall用のthoughtSignature自動付与を有効化",
+    "Remove functionResponse.id field": "functionResponse.id フィールドを削除",
+    "Vertex AI does not support functionResponse.id. Enable this to remove the field automatically.": "Vertex AI は functionResponse.id フィールドをサポートしません。有効にすると自動的に削除します。",
     "Enable GitHub OAuth": "GitHub OAuthを有効にする",
     "Enable Groups": "グループを有効にする",
     "Enable LinuxDO OAuth": "LinuxDO OAuthを有効にする",

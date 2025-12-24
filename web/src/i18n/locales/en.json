@@ -631,6 +631,8 @@
     "Enable Data Dashboard": "Enable Data Dashboard",
     "Enable Discord OAuth": "Enable Discord OAuth",
     "Enable FunctionCall thoughtSignature Fill": "Enable FunctionCall thoughtSignature Fill",
+    "Remove functionResponse.id field": "Remove functionResponse.id field",
+    "Vertex AI does not support functionResponse.id. Enable this to remove the field automatically.": "Vertex AI does not support functionResponse.id. Enable this to remove the field automatically.",
     "Enable GitHub OAuth": "Enable GitHub OAuth",
     "Enable Groups": "Enable Groups",
     "Enable LinuxDO OAuth": "Enable LinuxDO OAuth",

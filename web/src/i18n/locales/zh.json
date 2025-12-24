@@ -631,6 +631,8 @@
     "Enable Data Dashboard": "启用数据仪表板",
     "Enable Discord OAuth": "启用 Discord OAuth",
     "Enable FunctionCall thoughtSignature Fill": "启用FunctionCall思维签名填充",
+    "Remove functionResponse.id field": "移除 functionResponse.id 字段",
+    "Vertex AI does not support functionResponse.id. Enable this to remove the field automatically.": "Vertex AI 不支持 functionResponse.id 字段，开启后将自动移除该字段",
     "Enable GitHub OAuth": "启用 GitHub OAuth",
     "Enable Groups": "启用分组",
     "Enable LinuxDO OAuth": "启用 LinuxDO OAuth",

@@ -631,6 +631,8 @@
     "Enable Data Dashboard": "Kích hoạt Trang tổng quan Dữ liệu",
     "Enable Discord OAuth": "Bật Discord OAuth",
     "Enable FunctionCall thoughtSignature Fill": "Bật tính năng điền FunctionCall thoughtSignature",
+    "Remove functionResponse.id field": "Loại bỏ trường functionResponse.id",
+    "Vertex AI does not support functionResponse.id. Enable this to remove the field automatically.": "Vertex AI không hỗ trợ functionResponse.id. Bật để tự động loại bỏ trường này.",
     "Enable GitHub OAuth": "Kích hoạt GitHub OAuth",
     "Enable Groups": "Bật Nhóm",
     "Enable LinuxDO OAuth": "Bật LinuxDO OAuth",

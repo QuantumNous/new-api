@@ -631,6 +631,8 @@
     "Enable Data Dashboard": "Включить панель данных",
     "Enable Discord OAuth": "Включить Discord OAuth",
     "Enable FunctionCall thoughtSignature Fill": "Включить автозаполнение thoughtSignature для FunctionCall",
+    "Remove functionResponse.id field": "Удалить поле functionResponse.id",
+    "Vertex AI does not support functionResponse.id. Enable this to remove the field automatically.": "Vertex AI не поддерживает functionResponse.id. Включите, чтобы автоматически удалить это поле.",
     "Enable GitHub OAuth": "Включить GitHub OAuth",
     "Enable Groups": "Включить группы",
     "Enable LinuxDO OAuth": "Включить LinuxDO OAuth",
