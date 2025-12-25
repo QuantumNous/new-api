@@ -250,6 +250,76 @@ export const useModelsData = () => {
     }
   };
 
+  // Preview config file differences
+  const previewConfigDiff = async ({ file, locale }) => {
+    if (!file) {
+      showError(t('请先选择文件'));
+      return { missing: [], conflicts: [] };
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    if (locale) formData.append('locale', locale);
+    setPreviewing(true);
+    try {
+      const res = await API.post('/api/models/sync_config/preview', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { success, message, data } = res.data || {};
+      if (success) {
+        return data || { missing: [], conflicts: [] };
+      }
+      showError(message || t('预览失败'));
+      return { missing: [], conflicts: [] };
+    } catch (e) {
+      showError(t('预览失败'));
+      return { missing: [], conflicts: [] };
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  // Sync with config file (create missing + optional overwrite)
+  const syncConfig = async ({ file, locale, overwrite = [] }) => {
+    if (!file) {
+      showError(t('请先选择文件'));
+      return false;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    if (locale) formData.append('locale', locale);
+    if (overwrite && overwrite.length > 0) {
+      formData.append('overwrite', JSON.stringify(overwrite));
+    }
+    setSyncing(true);
+    try {
+      const res = await API.post('/api/models/sync_config', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { success, message, data } = res.data || {};
+      if (success) {
+        const createdModels = data?.created_models || 0;
+        const updatedModels = data?.updated_models || 0;
+        const createdVendors = data?.created_vendors || 0;
+        const skipped = (data?.skipped_models || []).length || 0;
+        showSuccess(
+          t(
+            `完成：新增 ${createdModels} 模型，更新 ${updatedModels} 模型，新增 ${createdVendors} 供应商，跳过 ${skipped} 项`,
+          ),
+        );
+        await loadVendors();
+        await refresh();
+        return true;
+      }
+      showError(message || t('同步失败'));
+      return false;
+    } catch (e) {
+      showError(t('同步失败'));
+      return false;
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Search models with keyword and vendor
   const searchModels = async () => {
     const { searchKeyword = '', searchVendor = '' } = getFormValues();
@@ -493,5 +563,7 @@ export const useModelsData = () => {
     syncUpstream,
     previewUpstreamDiff,
     applyUpstreamOverwrite,
+    previewConfigDiff,
+    syncConfig,
   };
 };
