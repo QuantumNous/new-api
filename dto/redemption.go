@@ -8,6 +8,9 @@ type CreateRedemptionRequest struct {
 	// Backward-compatible count.
 	Count int `json:"count"`
 
+	// Optional explicit switch for random generation (for compatibility with some clients).
+	RandomEnabledFlag *bool `json:"random_enabled"`
+
 	// New random generation fields.
 	RandomMin    *int64  `json:"random_min"`
 	RandomMax    *int64  `json:"random_max"`
@@ -23,5 +26,14 @@ func (r CreateRedemptionRequest) EffectiveCount() int {
 }
 
 func (r CreateRedemptionRequest) RandomEnabled() bool {
-	return r.RandomMin != nil || r.RandomMax != nil || r.RandomPrefix != "" || r.RandomCount != nil
+	heuristic := r.RandomMin != nil || r.RandomMax != nil || r.RandomPrefix != "" || r.RandomCount != nil
+	if r.RandomEnabledFlag == nil {
+		return heuristic
+	}
+	// If explicitly enabled, force random branch (and controller will validate min/max).
+	// If explicitly disabled, still allow heuristic trigger for compatibility.
+	if *r.RandomEnabledFlag {
+		return true
+	}
+	return heuristic
 }

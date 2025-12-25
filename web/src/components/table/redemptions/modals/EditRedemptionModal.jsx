@@ -197,7 +197,12 @@ const EditRedemptionModal = (props) => {
       );
     }
 
-    delete localInputs.random_enabled;
+    if (isEdit) {
+      delete localInputs.random_enabled;
+    } else {
+      // Keep backward compatibility with servers that require random_enabled
+      localInputs.random_enabled = randomEnabled;
+    }
 
     if (!isEdit && randomEnabled) {
       const randomMin = toIntOrNull(values.random_min);
