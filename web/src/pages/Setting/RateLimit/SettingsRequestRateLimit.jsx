@@ -32,27 +32,76 @@ import { useTranslation } from 'react-i18next';
 export default function RequestRateLimit(props) {
   const { t } = useTranslation();
 
-  const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
+  const DEFAULT_INPUTS = {
     ModelRequestRateLimitEnabled: false,
     ModelRequestRateLimitCount: -1,
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
     ModelRequestRateLimitExemptUserIDs: '',
-  });
+  };
+
+  const [loading, setLoading] = useState(false);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
+
+  function normalizeInputsForForm(rawInputs) {
+    const nextInputs = { ...DEFAULT_INPUTS, ...(rawInputs || {}) };
+    nextInputs.ModelRequestRateLimitEnabled =
+      nextInputs.ModelRequestRateLimitEnabled === true ||
+      nextInputs.ModelRequestRateLimitEnabled === 'true';
+    nextInputs.ModelRequestRateLimitCount = Number(
+      nextInputs.ModelRequestRateLimitCount,
+    );
+    nextInputs.ModelRequestRateLimitSuccessCount = Number(
+      nextInputs.ModelRequestRateLimitSuccessCount,
+    );
+    nextInputs.ModelRequestRateLimitDurationMinutes = Number(
+      nextInputs.ModelRequestRateLimitDurationMinutes,
+    );
+    nextInputs.ModelRequestRateLimitGroup = String(
+      nextInputs.ModelRequestRateLimitGroup ?? '',
+    );
+    nextInputs.ModelRequestRateLimitExemptUserIDs = String(
+      nextInputs.ModelRequestRateLimitExemptUserIDs ?? '',
+    );
+    return nextInputs;
+  }
+
+  function normalizeInputsForCompare(rawInputs) {
+    const nextInputs = { ...DEFAULT_INPUTS, ...(rawInputs || {}) };
+    for (const key of Object.keys(nextInputs)) {
+      const value = nextInputs[key];
+      if (typeof value === 'boolean') continue;
+      if (value === null || value === undefined) {
+        nextInputs[key] = '';
+        continue;
+      }
+      let text = String(value);
+      if (key === 'ModelRequestRateLimitExemptUserIDs') {
+        text = text.replace(/\r\n/g, '\n');
+      }
+      nextInputs[key] = text;
+    }
+    nextInputs.ModelRequestRateLimitEnabled =
+      nextInputs.ModelRequestRateLimitEnabled === true ||
+      nextInputs.ModelRequestRateLimitEnabled === 'true';
+    return nextInputs;
+  }
 
   function onSubmit() {
-    const updateArray = compareObjects(inputs, inputsRow);
+    const normalizedInputs = normalizeInputsForCompare(inputs);
+    const normalizedInputsRow = normalizeInputsForCompare(inputsRow);
+
+    const updateArray = compareObjects(normalizedInputs, normalizedInputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
       let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
+      if (typeof normalizedInputs[item.key] === 'boolean') {
+        value = String(normalizedInputs[item.key]);
       } else {
-        value = inputs[item.key];
+        value = normalizedInputs[item.key];
       }
       return API.put('/api/option/', {
         key: item.key,
@@ -87,15 +136,18 @@ export default function RequestRateLimit(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+    const currentInputs = { ...DEFAULT_INPUTS };
+
+    for (const key of Object.keys(DEFAULT_INPUTS)) {
+      if (Object.prototype.hasOwnProperty.call(props.options, key)) {
         currentInputs[key] = props.options[key];
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+
+    const normalized = normalizeInputsForForm(currentInputs);
+    setInputs(normalized);
+    setInputsRow(structuredClone(normalized));
+    refForm.current?.setValues(normalized);
   }, [props.options]);
 
   return (
