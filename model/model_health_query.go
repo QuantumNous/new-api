@@ -14,10 +14,26 @@ type ModelHealthHourlyStat struct {
 	SuccessRate   float64 `json:"success_rate"`
 }
 
-func hourStartExprSQL() string {
-	// Cross-DB: MySQL/SQLite/Postgres all support integer division on BIGINT.
-	// Align 5m slice timestamp (seconds) to hour start.
+func hourStartExprSQL(db *gorm.DB) string {
+	// Align 5m slice timestamp (seconds) to hour start, and keep the result INTEGER.
+	// Notes:
+	// - MySQL: `/` is floating division; use `DIV` for integer division.
+	// - SQLite: `/` returns REAL; cast back to INTEGER.
+	// - Postgres: int/int is integer division.
+	if db != nil && db.Dialector != nil {
+		switch db.Dialector.Name() {
+		case "mysql":
+			return "((slice_start_ts DIV 3600) * 3600)"
+		case "sqlite":
+			return "(CAST((slice_start_ts / 3600) AS INTEGER) * 3600)"
+		}
+	}
 	return "((slice_start_ts / 3600) * 3600)"
+}
+
+func successRateExprSQL() string {
+	// Force float division across DBs (Postgres int/int would otherwise truncate).
+	return "CASE WHEN COUNT(*) = 0 THEN 0 ELSE (1.0 * SUM(has_success_qualified)) / COUNT(*) END"
 }
 
 func GetModelHealthHourlyStats(db *gorm.DB, modelName string, startHourTs int64, endHourTs int64) ([]ModelHealthHourlyStat, error) {
@@ -38,7 +54,7 @@ model_name as model_name,
 %s as hour_start_ts,
 SUM(has_success_qualified) as success_slices,
 COUNT(*) as total_slices,
-CASE WHEN COUNT(*) = 0 THEN 0 ELSE SUM(has_success_qualified) / COUNT(*) END as success_rate`, hourStartExprSQL())).
+%s as success_rate`, hourStartExprSQL(db), successRateExprSQL())).
 		Where("model_name = ?", modelName).
 		Where("slice_start_ts >= ? AND slice_start_ts < ?", startHourTs, endHourTs).
 		Group("model_name, hour_start_ts").
@@ -65,7 +81,7 @@ model_name as model_name,
 %s as hour_start_ts,
 SUM(has_success_qualified) as success_slices,
 COUNT(*) as total_slices,
-CASE WHEN COUNT(*) = 0 THEN 0 ELSE SUM(has_success_qualified) / COUNT(*) END as success_rate`, hourStartExprSQL())).
+%s as success_rate`, hourStartExprSQL(db), successRateExprSQL())).
 		Where("slice_start_ts >= ? AND slice_start_ts < ?", startHourTs, endHourTs).
 		Group("model_name, hour_start_ts").
 		Order("model_name ASC, hour_start_ts ASC").
