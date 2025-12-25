@@ -3,7 +3,6 @@ package controller
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -15,34 +14,6 @@ type userHourlyCallsRankRespItem struct {
 	UserId     int    `json:"user_id"`
 	Username   string `json:"username,omitempty"`
 	TotalCalls int64  `json:"total_calls"`
-}
-
-func parseHourListParam(raw string) ([]int64, bool, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, false, nil
-	}
-	parts := strings.Split(raw, ",")
-	hours := make([]int64, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		ts, err := strconv.ParseInt(p, 10, 64)
-		if err != nil {
-			return nil, true, err
-		}
-		hours = append(hours, ts)
-	}
-	if len(hours) == 0 {
-		return nil, false, nil
-	}
-	return hours, true, nil
-}
-
-func isAlignedHour(ts int64) bool {
-	return ts > 0 && ts%3600 == 0
 }
 
 // GetUserHourlyCallsRankAPI
