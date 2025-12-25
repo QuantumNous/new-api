@@ -297,7 +297,7 @@ export default function ModelHealthPublicPage() {
         {/* Stats Cards */}
         <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6'>
           <StatCard
-            icon={<IconCheckCircle className='text-white' />}
+            icon={<IconTickCircle className='text-white' />}
             title='监控模型数'
             value={stats.totalModels}
             subtitle={`${stats.healthyModels} 个健康`}
@@ -305,7 +305,7 @@ export default function ModelHealthPublicPage() {
             bgGradient='linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
           />
           <StatCard
-            icon={<IconCheckCircle className='text-white' />}
+            icon={<IconTickCircle className='text-white' />}
             title='整体成功率'
             value={formatRate(stats.overallRate)}
             subtitle={`${stats.totalSuccessSlices}/${stats.totalSlices} 时间片`}
