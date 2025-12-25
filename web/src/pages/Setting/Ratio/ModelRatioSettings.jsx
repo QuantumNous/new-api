@@ -45,6 +45,7 @@ export default function ModelRatioSettings(props) {
     CacheRatio: '',
     CompletionRatio: '',
     ImageRatio: '',
+    ImageOutputRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
     ExposeRatioEnabled: false,
@@ -243,6 +244,32 @@ export default function ModelRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ImageRatio: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('图片输出倍率（仅部分模型支持该计费）')}
+              extraText={t(
+                '图片输出相关的倍率设置，键为模型名称，值为倍率，仅部分模型支持该计费',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为倍率，例如：{"gemini-3-pro-image-preview": 60}',
+              )}
+              field={'ImageOutputRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, ImageOutputRatio: value })
+              }
             />
           </Col>
         </Row>

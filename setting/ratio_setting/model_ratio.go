@@ -362,6 +362,11 @@ func InitRatioSettings() {
 	imageRatioMap = defaultImageRatio
 	imageRatioMapMutex.Unlock()
 
+	// initialize imageOutputRatioMap
+	imageOutputRatioMapMutex.Lock()
+	imageOutputRatioMap = defaultImageOutputRatio
+	imageOutputRatioMapMutex.Unlock()
+
 	// initialize audioRatioMap
 	audioRatioMapMutex.Lock()
 	audioRatioMap = defaultAudioRatio
@@ -687,6 +692,10 @@ var defaultImageRatio = map[string]float64{
 }
 var imageRatioMap map[string]float64
 var imageRatioMapMutex sync.RWMutex
+
+var defaultImageOutputRatio = map[string]float64{}
+var imageOutputRatioMap map[string]float64
+var imageOutputRatioMapMutex sync.RWMutex
 var (
 	audioRatioMap      map[string]float64 = nil
 	audioRatioMapMutex                    = sync.RWMutex{}
@@ -710,7 +719,11 @@ func UpdateImageRatioByJSONString(jsonStr string) error {
 	imageRatioMapMutex.Lock()
 	defer imageRatioMapMutex.Unlock()
 	imageRatioMap = make(map[string]float64)
-	return common.Unmarshal([]byte(jsonStr), &imageRatioMap)
+	err := common.Unmarshal([]byte(jsonStr), &imageRatioMap)
+	if err == nil {
+		InvalidateExposedDataCache()
+	}
+	return err
 }
 
 func GetImageRatio(name string) (float64, bool) {
@@ -719,6 +732,37 @@ func GetImageRatio(name string) (float64, bool) {
 	ratio, ok := imageRatioMap[name]
 	if !ok {
 		return 1, false // Default to 1 if not found
+	}
+	return ratio, true
+}
+
+func ImageOutputRatio2JSONString() string {
+	imageOutputRatioMapMutex.RLock()
+	defer imageOutputRatioMapMutex.RUnlock()
+	jsonBytes, err := common.Marshal(imageOutputRatioMap)
+	if err != nil {
+		common.SysError("error marshalling image output ratio: " + err.Error())
+	}
+	return string(jsonBytes)
+}
+
+func UpdateImageOutputRatioByJSONString(jsonStr string) error {
+	imageOutputRatioMapMutex.Lock()
+	defer imageOutputRatioMapMutex.Unlock()
+	imageOutputRatioMap = make(map[string]float64)
+	err := common.Unmarshal([]byte(jsonStr), &imageOutputRatioMap)
+	if err == nil {
+		InvalidateExposedDataCache()
+	}
+	return err
+}
+
+func GetImageOutputRatio(name string) (float64, bool) {
+	imageOutputRatioMapMutex.RLock()
+	defer imageOutputRatioMapMutex.RUnlock()
+	ratio, ok := imageOutputRatioMap[name]
+	if !ok {
+		return 1, false
 	}
 	return ratio, true
 }
@@ -783,6 +827,26 @@ func GetAudioCompletionRatioCopy() map[string]float64 {
 	defer audioCompletionRatioMapMutex.RUnlock()
 	copyMap := make(map[string]float64, len(audioCompletionRatioMap))
 	for k, v := range audioCompletionRatioMap {
+		copyMap[k] = v
+	}
+	return copyMap
+}
+
+func GetImageRatioCopy() map[string]float64 {
+	imageRatioMapMutex.RLock()
+	defer imageRatioMapMutex.RUnlock()
+	copyMap := make(map[string]float64, len(imageRatioMap))
+	for k, v := range imageRatioMap {
+		copyMap[k] = v
+	}
+	return copyMap
+}
+
+func GetImageOutputRatioCopy() map[string]float64 {
+	imageOutputRatioMapMutex.RLock()
+	defer imageOutputRatioMapMutex.RUnlock()
+	copyMap := make(map[string]float64, len(imageOutputRatioMap))
+	for k, v := range imageOutputRatioMap {
 		copyMap[k] = v
 	}
 	return copyMap

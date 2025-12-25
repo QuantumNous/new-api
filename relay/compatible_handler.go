@@ -203,6 +203,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
 	imageTokens := usage.PromptTokensDetails.ImageTokens
 	audioTokens := usage.PromptTokensDetails.AudioTokens
+	completionImageTokens := usage.CompletionTokenDetails.ImageTokens
 	completionTokens := usage.CompletionTokens
 	cachedCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
 
@@ -212,6 +213,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	completionRatio := relayInfo.PriceData.CompletionRatio
 	cacheRatio := relayInfo.PriceData.CacheRatio
 	imageRatio := relayInfo.PriceData.ImageRatio
+	imageOutputRatio := relayInfo.PriceData.ImageOutputRatio
 	modelRatio := relayInfo.PriceData.ModelRatio
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
@@ -223,10 +225,12 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	dImageTokens := decimal.NewFromInt(int64(imageTokens))
 	dAudioTokens := decimal.NewFromInt(int64(audioTokens))
 	dCompletionTokens := decimal.NewFromInt(int64(completionTokens))
+	dCompletionImageTokens := decimal.NewFromInt(int64(completionImageTokens))
 	dCachedCreationTokens := decimal.NewFromInt(int64(cachedCreationTokens))
 	dCompletionRatio := decimal.NewFromFloat(completionRatio)
 	dCacheRatio := decimal.NewFromFloat(cacheRatio)
 	dImageRatio := decimal.NewFromFloat(imageRatio)
+	dImageOutputRatio := decimal.NewFromFloat(imageOutputRatio)
 	dModelRatio := decimal.NewFromFloat(modelRatio)
 	dGroupRatio := decimal.NewFromFloat(groupRatio)
 	dModelPrice := decimal.NewFromFloat(modelPrice)
@@ -338,7 +342,14 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 			Add(imageTokensWithRatio).
 			Add(dCachedCreationTokensWithRatio)
 
-		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
+		baseCompletionTokens := dCompletionTokens
+		var completionImageTokensWithRatio decimal.Decimal
+		if !dCompletionImageTokens.IsZero() {
+			baseCompletionTokens = baseCompletionTokens.Sub(dCompletionImageTokens)
+			completionImageTokensWithRatio = dCompletionImageTokens.Mul(dImageOutputRatio)
+		}
+
+		completionQuota := baseCompletionTokens.Mul(dCompletionRatio).Add(completionImageTokensWithRatio)
 
 		quotaCalculateDecimal = promptQuota.Add(completionQuota).Mul(ratio)
 
@@ -418,7 +429,11 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	if imageTokens != 0 {
 		other["image"] = true
 		other["image_ratio"] = imageRatio
-		other["image_output"] = imageTokens
+		other["image_input_tokens"] = imageTokens
+	}
+	if completionImageTokens != 0 {
+		other["completion_image_tokens"] = completionImageTokens
+		other["image_output_ratio"] = imageOutputRatio
 	}
 	if cachedCreationTokens != 0 {
 		other["cache_creation_tokens"] = cachedCreationTokens
