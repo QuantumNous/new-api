@@ -8,13 +8,27 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+
+	"github.com/gin-gonic/gin"
 )
 
-const OptionKeyModelRoleMappings = "ModelRoleMappings"
-
 type ModelRoleMappings map[string]map[string]string
+
+type RequestRoleSnapshot struct {
+	GeneralOpenAI *GeneralOpenAIRoleSnapshot
+	Responses     *ResponsesRoleSnapshot
+}
+
+type GeneralOpenAIRoleSnapshot struct {
+	MessagesRoles []string
+}
+
+type ResponsesRoleSnapshot struct {
+	InputRoles []string
+}
 
 var (
 	allowedOpenAIRoles = map[string]struct{}{
@@ -87,19 +101,29 @@ func IsAllowedOpenAIRole(role string) bool {
 	return ok
 }
 
-func GetModelRoleMappingsFromOptions(ctx context.Context) (ModelRoleMappings, bool) {
-	common.OptionMapRWMutex.RLock()
-	raw := common.OptionMap[OptionKeyModelRoleMappings]
-	common.OptionMapRWMutex.RUnlock()
-
-	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "{}" {
+func GetModelRoleMappingsFromChannelSettings(ctx context.Context) (ModelRoleMappings, bool) {
+	ginCtx, ok := ctx.(*gin.Context)
+	if !ok || ginCtx == nil {
 		return nil, false
 	}
 
-	m, err := ParseAndValidateModelRoleMappingsJSON(raw)
+	setting, ok := common.GetContextKeyType[dto.ChannelSettings](ginCtx, constant.ContextKeyChannelSetting)
+	if !ok {
+		return nil, false
+	}
+	if len(setting.ModelRoleMappings) == 0 {
+		return nil, false
+	}
+
+	// Validate config defensively (it comes from persisted JSON)
+	b, err := common.Marshal(setting.ModelRoleMappings)
 	if err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("invalid %s: %v", OptionKeyModelRoleMappings, err))
+		logger.LogWarn(ctx, fmt.Sprintf("invalid channel model_role_mappings: %v", err))
+		return nil, false
+	}
+	m, err := ParseAndValidateModelRoleMappingsJSON(string(b))
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("invalid channel model_role_mappings: %v", err))
 		return nil, false
 	}
 	if len(m) == 0 {
@@ -131,12 +155,96 @@ func ResolveRoleMappingForModel(model string, mappings ModelRoleMappings) (map[s
 	return bestMap, true
 }
 
+func SnapshotRequestRoles(request dto.Request) *RequestRoleSnapshot {
+	if request == nil {
+		return nil
+	}
+
+	switch r := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		roles := make([]string, len(r.Messages))
+		for i := range r.Messages {
+			roles[i] = r.Messages[i].Role
+		}
+		return &RequestRoleSnapshot{
+			GeneralOpenAI: &GeneralOpenAIRoleSnapshot{MessagesRoles: roles},
+		}
+	case *dto.OpenAIResponsesRequest:
+		if len(r.Input) == 0 || common.GetJsonType(r.Input) != "array" {
+			return &RequestRoleSnapshot{Responses: &ResponsesRoleSnapshot{InputRoles: nil}}
+		}
+		var inputs []dto.Input
+		if err := common.Unmarshal(r.Input, &inputs); err != nil {
+			return &RequestRoleSnapshot{Responses: &ResponsesRoleSnapshot{InputRoles: nil}}
+		}
+		roles := make([]string, len(inputs))
+		for i := range inputs {
+			roles[i] = inputs[i].Role
+		}
+		return &RequestRoleSnapshot{
+			Responses: &ResponsesRoleSnapshot{InputRoles: roles},
+		}
+	default:
+		return nil
+	}
+}
+
+func RestoreRequestRoles(request dto.Request, snapshot *RequestRoleSnapshot) {
+	if request == nil || snapshot == nil {
+		return
+	}
+
+	switch r := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		if snapshot.GeneralOpenAI == nil {
+			return
+		}
+		if len(snapshot.GeneralOpenAI.MessagesRoles) != len(r.Messages) {
+			return
+		}
+		for i := range r.Messages {
+			r.Messages[i].Role = snapshot.GeneralOpenAI.MessagesRoles[i]
+		}
+	case *dto.OpenAIResponsesRequest:
+		if snapshot.Responses == nil {
+			return
+		}
+		if len(r.Input) == 0 || common.GetJsonType(r.Input) != "array" {
+			return
+		}
+		var inputs []dto.Input
+		if err := common.Unmarshal(r.Input, &inputs); err != nil {
+			return
+		}
+		if len(snapshot.Responses.InputRoles) != len(inputs) {
+			return
+		}
+		changed := false
+		for i := range inputs {
+			if inputs[i].Role != snapshot.Responses.InputRoles[i] {
+				inputs[i].Role = snapshot.Responses.InputRoles[i]
+				changed = true
+			}
+		}
+		if !changed {
+			return
+		}
+		b, err := common.Marshal(inputs)
+		if err != nil {
+			return
+		}
+		r.Input = b
+	default:
+		return
+	}
+}
+
 func ApplyModelRoleMappingsToRequest(ctx context.Context, request dto.Request) {
 	if request == nil {
 		return
 	}
 
-	mappings, ok := GetModelRoleMappingsFromOptions(ctx)
+	mappings, ok := GetModelRoleMappingsFromChannelSettings(ctx)
 	if !ok {
 		return
 	}

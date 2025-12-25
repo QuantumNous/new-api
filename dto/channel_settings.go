@@ -7,6 +7,9 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+
+	// per-channel role mapping: { [modelPrefix]: { [fromRole]: toRole } }
+	ModelRoleMappings map[string]map[string]string `json:"model_role_mappings,omitempty"`
 }
 
 type VertexKeyType string

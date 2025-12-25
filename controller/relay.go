@@ -114,7 +114,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	service.ApplyModelRoleMappingsToRequest(c, request)
+	// Keep an original snapshot so we can re-apply per-channel role mappings on retries.
+	roleSnapshot := service.SnapshotRequestRoles(request)
 
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
@@ -187,6 +188,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = channelErr
 			break
 		}
+
+		// Restore original roles then apply per-channel mappings (channel settings are available after selection).
+		service.RestoreRequestRoles(request, roleSnapshot)
+		service.ApplyModelRoleMappingsToRequest(c, request)
 
 		addUsedChannel(c, channel.Id)
 		requestBody, bodyErr := common.GetRequestBody(c)

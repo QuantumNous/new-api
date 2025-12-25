@@ -152,6 +152,8 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    // 渠道额外设置：模型角色映射（JSON）
+    model_role_mappings: '',
     settings: '',
     // 仅 Vertex: 密钥格式（存入 settings.vertex_key_type）
     vertex_key_type: 'json',
@@ -536,6 +538,16 @@ const EditChannelModal = (props) => {
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
+
+          if (parsedSettings.model_role_mappings) {
+            data.model_role_mappings = JSON.stringify(
+              parsedSettings.model_role_mappings,
+              null,
+              2,
+            );
+          } else {
+            data.model_role_mappings = '';
+          }
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -544,6 +556,7 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
+          data.model_role_mappings = '';
         }
       } else {
         data.force_format = false;
@@ -552,6 +565,7 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
+        data.model_role_mappings = '';
       }
 
       if (data.settings) {
@@ -1165,6 +1179,25 @@ const EditChannelModal = (props) => {
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
+
+    const hasModelRoleMappings =
+      typeof localInputs.model_role_mappings === 'string' &&
+      localInputs.model_role_mappings.trim() !== '';
+    if (hasModelRoleMappings) {
+      if (!verifyJSON(localInputs.model_role_mappings)) {
+        showInfo(t('角色映射必须是合法的 JSON 格式！'));
+        return;
+      }
+      try {
+        channelExtraSettings.model_role_mappings = JSON.parse(
+          localInputs.model_role_mappings,
+        );
+      } catch (error) {
+        showInfo(t('角色映射必须是合法的 JSON 格式！'));
+        return;
+      }
+    }
+
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
     // 处理 settings 字段（包括企业账户设置和字段透传控制）
@@ -1215,6 +1248,7 @@ const EditChannelModal = (props) => {
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
+    delete localInputs.model_role_mappings;
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
@@ -3003,6 +3037,33 @@ const EditChannelModal = (props) => {
                       }
                       extraText={t(
                         '如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面',
+                      )}
+                    />
+
+                    <JSONEditor
+                      key={`model_role_mappings-${isEdit ? channelId : 'new'}`}
+                      field='model_role_mappings'
+                      label={t('模型角色映射')}
+                      placeholder={t(
+                        '此项可选，用于将请求中的消息 role 按模型维度进行转换（仅作用于当前渠道）。格式为 JSON：\n{\n  "gpt-4o": {\n    "system": "developer"\n  },\n  "default": {\n    "assistant": "user"\n  }\n}',
+                      )}
+                      value={inputs.model_role_mappings || ''}
+                      onChange={(value) =>
+                        handleInputChange('model_role_mappings', value)
+                      }
+                      template={{
+                        default: {
+                          system: 'developer',
+                        },
+                        'gpt-4o': {
+                          system: 'developer',
+                        },
+                      }}
+                      templateLabel={t('填入模板')}
+                      editorType='json'
+                      formApi={formApiRef.current}
+                      extraText={t(
+                        '键为模型名（或 default），值为 role 映射对象：{ "fromRole": "toRole" }',
                       )}
                     />
                   </Card>
