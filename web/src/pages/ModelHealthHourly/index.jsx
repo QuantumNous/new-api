@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, Form, Button, Spin, Table, Typography } from '@douyinfe/semi-ui';
+import { Card, Form, Button, Spin, Table, Typography, Select } from '@douyinfe/semi-ui';
 import { VChart } from '@visactor/react-vchart';
 import { API, selectFilter, showError, timestamp2string } from '../../helpers';
 
@@ -285,18 +285,22 @@ export default function ModelHealthHourlyPage() {
             </div>
           )}
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-            <Form.Select
-              field='model_name'
-              label='model_name'
-              placeholder='选择或输入模型名称'
-              optionList={modelOptions}
-              filter={selectFilter}
-              loading={modelsLoading}
-              showClear
-              allowCreate
-              value={inputs.model_name}
-              onChange={(v) => setInputs((prev) => ({ ...prev, model_name: v || '' }))}
-            />
+            <div>
+              <label className='semi-form-field-label'>
+                <span className='semi-form-field-label-text'>model_name</span>
+              </label>
+              <Select
+                placeholder='选择或输入模型名称'
+                optionList={modelOptions}
+                filter={selectFilter}
+                loading={modelsLoading}
+                showClear
+                allowCreate
+                value={inputs.model_name}
+                onChange={(v) => setInputs((prev) => ({ ...prev, model_name: v || '' }))}
+                style={{ width: '100%' }}
+              />
+            </div>
 
             <Form.InputNumber
               field='start_hour'

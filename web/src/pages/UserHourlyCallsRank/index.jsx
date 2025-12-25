@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Form, Space, Table, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, Form, Select, Space, Table, Typography } from '@douyinfe/semi-ui';
 import { API, showError } from '../../helpers';
 
 function floorToHour(tsSec) {
@@ -180,19 +180,23 @@ export default function UserHourlyCallsRankPage() {
               onChange={(v) => setInputs((prev) => ({ ...prev, end_hour: Number(v) }))}
             />
 
-            <Form.Select
-              field='limit'
-              label='limit'
-              optionList={[
-                { label: '20', value: 20 },
-                { label: '50', value: 50 },
-                { label: '100', value: 100 },
-                { label: '200', value: 200 },
-                { label: '500', value: 500 },
-              ]}
-              value={inputs.limit}
-              onChange={(v) => setInputs((prev) => ({ ...prev, limit: Number(v) || 50 }))}
-            />
+            <div>
+              <label className='semi-form-field-label'>
+                <span className='semi-form-field-label-text'>limit</span>
+              </label>
+              <Select
+                optionList={[
+                  { label: '20', value: 20 },
+                  { label: '50', value: 50 },
+                  { label: '100', value: 100 },
+                  { label: '200', value: 200 },
+                  { label: '500', value: 500 },
+                ]}
+                value={inputs.limit}
+                onChange={(v) => setInputs((prev) => ({ ...prev, limit: Number(v) || 50 }))}
+                style={{ width: '100%' }}
+              />
+            </div>
           </div>
 
           <div className='flex gap-2 mt-2'>

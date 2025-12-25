@@ -25,6 +25,7 @@ import {
   Card,
   Collapse,
   Form,
+  Select,
   SideSheet,
   Space,
   Table,
@@ -502,17 +503,21 @@ export default function RecentCallsPage() {
       >
         <Form layout='vertical'>
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-            <Form.Select
-              field='limit'
-              label='limit'
-              optionList={[
-                { label: '20', value: 20 },
-                { label: '50', value: 50 },
-                { label: '100', value: 100 },
-              ]}
-              value={limit}
-              onChange={(v) => setLimit(Number(v) || 100)}
-            />
+            <div>
+              <label className='semi-form-field-label'>
+                <span className='semi-form-field-label-text'>limit</span>
+              </label>
+              <Select
+                optionList={[
+                  { label: '20', value: 20 },
+                  { label: '50', value: 50 },
+                  { label: '100', value: 100 },
+                ]}
+                value={limit}
+                onChange={(v) => setLimit(Number(v) || 100)}
+                style={{ width: '100%' }}
+              />
+            </div>
 
             <Form.Input
               field='before_id'
