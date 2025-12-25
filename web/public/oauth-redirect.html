@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全跳转中...</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --error-color: #ef4444;
+            --text-main: #1f2937;
+            --text-sub: #6b7280;
+            --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            transition: transform 0.3s ease;
+        }
+
+        .icon-wrapper {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Loading Animation */
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e5e7eb;
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Error Icon (Hidden by default) */
+        .error-icon {
+            display: none;
+            color: var(--error-color);
+        }
+        .error-icon svg {
+            width: 56px;
+            height: 56px;
+        }
+
+        h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        p {
+            margin: 0;
+            color: var(--text-sub);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .domain-tag {
+            display: inline-block;
+            background: #eff6ff;
+            color: var(--primary-color);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-weight: 500;
+            font-size: 13px;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+
+        /* State: Error */
+        .card.is-error .spinner { display: none; }
+        .card.is-error .error-icon { display: block; }
+        .card.is-error h2 { color: var(--error-color); }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="status-card">
+        <div class="icon-wrapper">
+            <div class="spinner" id="spinner"></div>
+            <div class="error-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+        
+        <h2 id="status-title">正在验证授权</h2>
+        <p id="status-desc">请稍候，正在为您跳转回原站点...</p>
+        <div id="target-domain-container" style="display:none;">
+            <span class="domain-tag" id="domain-text"></span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // UI Helper Functions
+            const ui = {
+                card: document.getElementById('status-card'),
+                title: document.getElementById('status-title'),
+                desc: document.getElementById('status-desc'),
+                domainContainer: document.getElementById('target-domain-container'),
+                domainText: document.getElementById('domain-text'),
+                
+                showError: function(title, message) {
+                    this.card.classList.add('is-error');
+                    this.title.textContent = title;
+                    this.desc.textContent = message;
+                    this.domainContainer.style.display = 'none';
+                },
+                
+                updateStatus: function(domain) {
+                    this.title.textContent = '授权成功';
+                    this.desc.textContent = '正在跳转至以下站点';
+                    this.domainText.textContent = domain;
+                    this.domainContainer.style.display = 'block';
+                }
+            };
+
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const code = params.get('code');
+                const finalState = params.get('state');
+                const error = params.get('error');
+                
+                // 1. 处理 OAuth 错误返回
+                if (error) {
+                    const errorDescription = params.get('error_description') || '用户取消或授权失败';
+                    ui.showError('登录被中断', errorDescription);
+                    return;
+                }
+                
+                // 2. 检查必要参数
+                if (!code || !finalState) {
+                    ui.showError('参数错误', '请求中缺少 code 或 state 参数。');
+                    return;
+                }
+                
+                // 3. 解析 State 和 域名
+                const parts = finalState.split('|');
+                let redirectUrl = '';
+                
+                if (parts.length !== 2) {
+                    // 没有域名信息的兜底逻辑
+                    redirectUrl = `/oauth/linuxdo?code=${code}&state=${finalState}`;
+                    ui.updateStatus(window.location.host);
+                } else {
+                    const baseState = parts[0];
+                    const encodedDomain = parts[1];
+                    
+                    try {
+                        const originDomain = atob(encodedDomain);
+                        // 更新 UI 显示目标域名，增加信任感
+                        ui.updateStatus(originDomain);
+                        
+                        // 构造 URL
+                        const protocol = window.location.protocol;
+                        redirectUrl = `${protocol}//${originDomain}/oauth/linuxdo?code=${code}&state=${baseState}`;
+                    } catch (e) {
+                        ui.showError('解码失败', '无法解析目标域名信息。');
+                        return;
+                    }
+                }
+                
+                // 4. 执行跳转 (设置一个小延迟让用户能看清状态，体验更好，如果需要极速跳转可设为0)
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 800);
+
+            } catch (e) {
+                console.error('跳转逻辑异常:', e);
+                ui.showError('系统错误', '处理跳转请求时发生未知错误。');
+            }
+        })();
+    </script>
+</body>
+</html>

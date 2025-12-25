@@ -139,6 +139,18 @@ export default function ModelHealthHourlyPage() {
     if (data && typeof data === 'object') {
       if (Array.isArray(data.models)) return data.models;
       if (Array.isArray(data.data)) return data.data;
+
+      // 兼容对象映射结构：{ "1": [...], "37": null, ... }
+      const flattened = Object.values(data)
+        .filter(Array.isArray)
+        .flat();
+
+      const unique = Array.from(new Set(flattened)).filter((m) => typeof m === 'string' && m.trim());
+
+      // 稳定可预期：去重后按字典序排序
+      unique.sort((a, b) => a.localeCompare(b));
+
+      return unique;
     }
 
     return [];
@@ -158,8 +170,9 @@ export default function ModelHealthHourlyPage() {
       }
 
       const modelList = normalizeModelList(data);
-      if (!Array.isArray(data) && modelList.length === 0) {
-        const errMsg = '模型列表返回结构异常（期望数组）';
+      const dataType = Array.isArray(data) ? 'array' : typeof data;
+      if (data != null && dataType !== 'array' && dataType !== 'object' && modelList.length === 0) {
+        const errMsg = '模型列表返回结构异常（期望数组或对象）';
         setModelsError(errMsg);
         showError(errMsg);
       }
