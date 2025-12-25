@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -356,7 +357,16 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	return availableBalanceUsd, nil
 }
 
+type BalanceUpdater interface {
+	UpdateBalance(channel *model.Channel) (float64, error)
+}
+
 func updateChannelBalance(channel *model.Channel) (float64, error) {
+	if adaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channel.Type))); adaptor != nil {
+		if balanceUpdater, ok := adaptor.(BalanceUpdater); ok {
+			return balanceUpdater.UpdateBalance(channel)
+		}
+	}
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() == "" {
 		channel.BaseURL = &baseURL
