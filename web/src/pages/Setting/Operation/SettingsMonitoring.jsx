@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next';
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
+  const originInputs = {
     ChannelDisableThreshold: '',
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
@@ -40,9 +40,11 @@ export default function SettingsMonitoring(props) {
     AutomaticDisableKeywords: '',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
-  });
+    'monitor_setting.auto_test_disabled_channel_minutes': 0,
+  };
+  const [inputs, setInputs] = useState(originInputs);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(originInputs);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -82,12 +84,15 @@ export default function SettingsMonitoring(props) {
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(originInputs).includes(key)) {
         currentInputs[key] = props.options[key];
+        if (typeof originInputs[key] === 'boolean') {
+          currentInputs[key] = String(props.options[key]) === 'true';
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
+    setInputs((inputs) => ({ ...inputs, ...currentInputs }));
+    setInputsRow((inputs) => ({ ...inputs, ...currentInputs }));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
 
@@ -129,6 +134,24 @@ export default function SettingsMonitoring(props) {
                     setInputs({
                       ...inputs,
                       'monitor_setting.auto_test_channel_minutes':
+                        parseInt(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('自动测试禁用通道间隔时间')}
+                  step={1}
+                  min={0}
+                  suffix={t('分钟')}
+                  extraText={t('设置为 0 则不自动测试')}
+                  placeholder={''}
+                  field={'monitor_setting.auto_test_disabled_channel_minutes'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_disabled_channel_minutes':
                         parseInt(value),
                     })
                   }

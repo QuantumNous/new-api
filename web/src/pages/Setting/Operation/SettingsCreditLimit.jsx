@@ -31,15 +31,16 @@ import {
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
+  const originInputs = {
     QuotaForNewUser: '',
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
-  });
+  };
+  const [inputs, setInputs] = useState(originInputs);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(originInputs);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -79,12 +80,15 @@ export default function SettingsCreditLimit(props) {
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(originInputs).includes(key)) {
         currentInputs[key] = props.options[key];
+        if (typeof originInputs[key] === 'boolean') {
+          currentInputs[key] = String(props.options[key]) === 'true';
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
+    setInputs((inputs) => ({ ...inputs, ...currentInputs }));
+    setInputsRow((inputs) => ({ ...inputs, ...currentInputs }));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
   return (

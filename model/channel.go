@@ -1006,3 +1006,9 @@ func CountChannelsGroupByType() (map[int64]int64, error) {
 	}
 	return counts, nil
 }
+
+func GetChannelsByStatus(status int) ([]*Channel, error) {
+	var channels []*Channel
+	err := DB.Where("status = ?", status).Find(&channels).Error
+	return channels, err
+}

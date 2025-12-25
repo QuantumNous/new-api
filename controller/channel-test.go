@@ -533,6 +533,82 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
+func testOneChannel(channel *model.Channel, disableThreshold int64) {
+	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
+	tik := time.Now()
+	result := testChannel(channel, "", "")
+	tok := time.Now()
+	milliseconds := tok.Sub(tik).Milliseconds()
+
+	shouldBanChannel := false
+	newAPIError := result.newAPIError
+	// request error disables the channel
+	if newAPIError != nil {
+		shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.newAPIError)
+	}
+
+	// 当错误检查通过，才检查响应时间
+	if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
+		if milliseconds > disableThreshold {
+			err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+			newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+			shouldBanChannel = true
+		}
+	}
+
+	// disable channel
+	if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
+		processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+	}
+
+	// enable channel
+	if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
+		service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+	}
+
+	channel.UpdateResponseTime(milliseconds)
+}
+
+var testDisabledChannelsLock sync.Mutex
+var testDisabledChannelsRunning bool = false
+
+func testDisabledChannels(notify bool) error {
+	testDisabledChannelsLock.Lock()
+	if testDisabledChannelsRunning {
+		testDisabledChannelsLock.Unlock()
+		return errors.New("测试已在运行中")
+	}
+	testDisabledChannelsRunning = true
+	testDisabledChannelsLock.Unlock()
+	channels, err := model.GetChannelsByStatus(common.ChannelStatusAutoDisabled)
+	if err != nil {
+		testDisabledChannelsLock.Lock()
+		testDisabledChannelsRunning = false
+		testDisabledChannelsLock.Unlock()
+		return err
+	}
+	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
+	if disableThreshold == 0 {
+		disableThreshold = 10000000 // a impossible value
+	}
+	gopool.Go(func() {
+		defer func() {
+			testDisabledChannelsLock.Lock()
+			testDisabledChannelsRunning = false
+			testDisabledChannelsLock.Unlock()
+		}()
+
+		for _, channel := range channels {
+			testOneChannel(channel, disableThreshold)
+			time.Sleep(common.RequestInterval)
+		}
+		if notify {
+			service.NotifyRootUser(dto.NotifyTypeChannelTest, "禁用通道测试完成", "所有禁用通道测试已完成")
+		}
+	})
+	return nil
+}
+
 func testAllChannels(notify bool) error {
 
 	testAllChannelsLock.Lock()
@@ -544,6 +620,9 @@ func testAllChannels(notify bool) error {
 	testAllChannelsLock.Unlock()
 	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
 	if getChannelErr != nil {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = false
+		testAllChannelsLock.Unlock()
 		return getChannelErr
 	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
@@ -559,39 +638,7 @@ func testAllChannels(notify bool) error {
 		}()
 
 		for _, channel := range channels {
-			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
-			tik := time.Now()
-			result := testChannel(channel, "", "")
-			tok := time.Now()
-			milliseconds := tok.Sub(tik).Milliseconds()
-
-			shouldBanChannel := false
-			newAPIError := result.newAPIError
-			// request error disables the channel
-			if newAPIError != nil {
-				shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.newAPIError)
-			}
-
-			// 当错误检查通过，才检查响应时间
-			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
-				if milliseconds > disableThreshold {
-					err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-					newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-					shouldBanChannel = true
-				}
-			}
-
-			// disable channel
-			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
-			}
-
-			// enable channel
-			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
-			}
-
-			channel.UpdateResponseTime(milliseconds)
+			testOneChannel(channel, disableThreshold)
 			time.Sleep(common.RequestInterval)
 		}
 
@@ -622,22 +669,46 @@ func AutomaticallyTestChannels() {
 		return
 	}
 	autoTestChannelsOnce.Do(func() {
-		for {
-			if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
-				time.Sleep(1 * time.Minute)
-				continue
-			}
+		gopool.Go(func() {
 			for {
-				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
-				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
-				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
-				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
-				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
-					break
+					time.Sleep(1 * time.Minute)
+					continue
+				}
+				for {
+					frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
+					time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+					common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
+					common.SysLog("automatically testing all channels")
+					_ = testAllChannels(false)
+					common.SysLog("automatically channel test finished")
+					if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
+						break
+					}
 				}
 			}
-		}
+		})
+
+		gopool.Go(func() {
+			for {
+				// 获取禁用的通道测试频率
+				disabledFrequency := operation_setting.GetMonitorSetting().AutoTestDisabledChannelMinutes
+				if disabledFrequency <= 0 {
+					time.Sleep(1 * time.Minute)
+					continue
+				}
+				for {
+					disabledFrequency = operation_setting.GetMonitorSetting().AutoTestDisabledChannelMinutes
+					if disabledFrequency <= 0 {
+						break
+					}
+					time.Sleep(time.Duration(int(math.Round(disabledFrequency))) * time.Minute)
+					common.SysLog(fmt.Sprintf("automatically test disabled channels with interval %f minutes", disabledFrequency))
+					common.SysLog("automatically testing disabled channels")
+					_ = testDisabledChannels(false)
+					common.SysLog("automatically disabled channel test finished")
+				}
+			}
+		})
 	})
 }
