@@ -7,7 +7,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/reasoning"
 )
 
 // from songquanpeng/one-api
@@ -827,10 +826,6 @@ func FormatMatchingModelName(name string) string {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*")
 	} else if strings.HasPrefix(name, "gemini-2.5-pro") {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
-	}
-
-	if base, _, ok := reasoning.TrimEffortSuffix(name); ok {
-		name = base
 	}
 
 	if strings.HasPrefix(name, "gpt-4-gizmo") {
