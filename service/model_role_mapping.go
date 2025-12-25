@@ -138,15 +138,24 @@ func ResolveRoleMappingForModel(model string, mappings ModelRoleMappings) (map[s
 	}
 
 	var (
-		bestPrefix string
-		bestMap    map[string]string
+		bestLen int = -1
+		bestMap map[string]string
 	)
 	for prefix, roleMap := range mappings {
-		if strings.HasPrefix(model, prefix) {
-			if len(prefix) > len(bestPrefix) {
-				bestPrefix = prefix
-				bestMap = roleMap
-			}
+		matched := false
+		candidateLen := len(prefix)
+
+		if prefix == "*" {
+			// Wildcard: matches any model but should have the lowest priority.
+			matched = true
+			candidateLen = 0
+		} else if strings.HasPrefix(model, prefix) {
+			matched = true
+		}
+
+		if matched && candidateLen > bestLen {
+			bestLen = candidateLen
+			bestMap = roleMap
 		}
 	}
 	if bestMap == nil {

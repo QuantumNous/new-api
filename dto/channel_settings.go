@@ -1,5 +1,63 @@
 package dto
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
+// ModelRoleMappingsField supports both object form and "json string" form:
+//
+// 1) Object: { "gpt-4o": { "system": "developer" } }
+// 2) String: "{\"gpt-4o\":{\"system\":\"developer\"}}"
+//
+// It also tolerates legacy object: { "system": "developer" } which will be treated as wildcard prefix "*".
+type ModelRoleMappingsField map[string]map[string]string
+
+func (m *ModelRoleMappingsField) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*m = nil
+		return nil
+	}
+
+	// If it's a JSON string, parse the inner JSON.
+	if len(data) > 0 && data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		sBytes := bytes.TrimSpace([]byte(s))
+		if len(sBytes) == 0 {
+			*m = nil
+			return nil
+		}
+		return m.UnmarshalJSON(sBytes)
+	}
+
+	// First try the desired shape: map[string]map[string]string
+	var nested map[string]map[string]string
+	if err := json.Unmarshal(data, &nested); err == nil {
+		*m = ModelRoleMappingsField(nested)
+		return nil
+	}
+
+	// Then try legacy shape: map[string]string (apply to all models via wildcard "*")
+	var flat map[string]string
+	if err := json.Unmarshal(data, &flat); err == nil {
+		*m = ModelRoleMappingsField(map[string]map[string]string{
+			"*": flat,
+		})
+		return nil
+	}
+
+	// Return the original error for better diagnostics
+	return json.Unmarshal(data, &nested)
+}
+
+func (m ModelRoleMappingsField) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]map[string]string(m))
+}
+
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
@@ -9,7 +67,7 @@ type ChannelSettings struct {
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
 
 	// per-channel role mapping: { [modelPrefix]: { [fromRole]: toRole } }
-	ModelRoleMappings map[string]map[string]string `json:"model_role_mappings,omitempty"`
+	ModelRoleMappings ModelRoleMappingsField `json:"model_role_mappings,omitempty"`
 }
 
 type VertexKeyType string

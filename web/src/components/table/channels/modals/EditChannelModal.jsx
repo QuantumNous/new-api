@@ -540,11 +540,30 @@ const EditChannelModal = (props) => {
             parsedSettings.system_prompt_override || false;
 
           if (parsedSettings.model_role_mappings) {
-            data.model_role_mappings = JSON.stringify(
-              parsedSettings.model_role_mappings,
-              null,
-              2,
-            );
+            const rawMappings = parsedSettings.model_role_mappings;
+
+            // 兼容后端/历史数据：model_role_mappings 可能被存成 JSON 字符串
+            // - object: { "gpt-4o": { "system": "developer" } }
+            // - string: "{\"gpt-4o\":{\"system\":\"developer\"}}"
+            if (typeof rawMappings === 'string') {
+              const trimmed = rawMappings.trim();
+              if (trimmed && verifyJSON(trimmed)) {
+                try {
+                  data.model_role_mappings = JSON.stringify(
+                    JSON.parse(trimmed),
+                    null,
+                    2,
+                  );
+                } catch (e) {
+                  // fallback：保持原始字符串展示
+                  data.model_role_mappings = rawMappings;
+                }
+              } else {
+                data.model_role_mappings = rawMappings;
+              }
+            } else {
+              data.model_role_mappings = JSON.stringify(rawMappings, null, 2);
+            }
           } else {
             data.model_role_mappings = '';
           }
