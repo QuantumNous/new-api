@@ -291,8 +291,14 @@ export async function onLinuxDOOAuthClicked(
 ) {
   const state = await prepareOAuthState(options);
   if (!state) return;
+
+  // 多站点回跳：把来源站点 host 打进 state，供 `web/public/oauth-redirect.html` 解析并跳回原站点
+  // 格式：baseState|base64(originHost)
+  const originHost = window.location.host;
+  const finalState = `${state}|${btoa(originHost)}`;
+
   window.open(
-    `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
+    `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${encodeURIComponent(finalState)}`,
   );
 }
 

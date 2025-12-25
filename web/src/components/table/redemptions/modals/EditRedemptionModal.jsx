@@ -86,14 +86,13 @@ const EditRedemptionModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
 
-  const [randomEnabled, setRandomEnabled] = useState(false);
-
   const getInitValues = () => ({
     name: '',
     quota: 100000,
     count: 1,
     expired_time: null,
 
+    random_enabled: false,
     random_prefix: '',
     random_min: '',
     random_max: '',
@@ -114,7 +113,6 @@ const EditRedemptionModal = (props) => {
       } else {
         data.expired_time = new Date(data.expired_time * 1000);
       }
-      setRandomEnabled(false);
       formApiRef.current?.setValues({ ...getInitValues(), ...data });
     } else {
       showError(message);
@@ -127,7 +125,6 @@ const EditRedemptionModal = (props) => {
       if (isEdit) {
         loadRedemption();
       } else {
-        setRandomEnabled(false);
         formApiRef.current.setValues(getInitValues());
       }
     }
@@ -161,6 +158,8 @@ const EditRedemptionModal = (props) => {
   };
 
   const submit = async (values) => {
+    const randomEnabled = !isEdit && !!values.random_enabled;
+
     let name = values.name;
     if (!isEdit && (!name || name === '')) {
       name = renderQuota(values.quota);
@@ -477,7 +476,7 @@ const EditRedemptionModal = (props) => {
                     <div className='flex items-center mb-2'>
                       <Avatar
                         size='small'
-                        color={randomEnabled ? 'orange' : 'blue'}
+                        color={values.random_enabled ? 'orange' : 'blue'}
                         className='mr-2 shadow-md'
                       >
                         <IconGift size={16} />
@@ -487,7 +486,7 @@ const EditRedemptionModal = (props) => {
                           <Text className='text-lg font-medium'>
                             {t('生成方式')}
                           </Text>
-                          {randomEnabled ? (
+                          {values.random_enabled ? (
                             <Tag color='orange' shape='circle'>
                               {t('随机模式')}
                             </Tag>
@@ -498,7 +497,7 @@ const EditRedemptionModal = (props) => {
                           )}
                         </div>
                         <div className='text-xs text-gray-600'>
-                          {randomEnabled
+                          {values.random_enabled
                             ? t(
                                 '随机模式：在区间内生成不重复数字并拼接前缀',
                               )
@@ -507,13 +506,15 @@ const EditRedemptionModal = (props) => {
                       </div>
                       <Form.Switch
                         field='random_enabled'
-                        checked={randomEnabled}
-                        onChange={(v) => setRandomEnabled(!!v)}
+                        checked={!!values.random_enabled}
+                        onChange={(v) => {
+                          formApiRef.current?.setValue('random_enabled', !!v);
+                        }}
                         extraText={t('随机生成')}
                       />
                     </div>
 
-                    {randomEnabled && (
+                    {values.random_enabled && (
                       <Row gutter={12}>
                         <Col span={24}>
                           <Form.Input
