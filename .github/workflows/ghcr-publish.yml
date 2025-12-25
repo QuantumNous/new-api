@@ -27,9 +27,6 @@ jobs:
             echo "IS_SEMVER=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -49,14 +46,23 @@ jobs:
             type=ref,event=tag
             type=raw,value=latest,enable=${{ env.IS_SEMVER == 'true' }}
 
-      - name: Build and push
+      - name: Build and push (amd64 only)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ============================================
+  # 以下是原来的 QEMU 多架构构建配置（已注释）
+  # 如需恢复 arm64 支持，取消注释 platforms 行
+  # ============================================
+  # - name: Set up QEMU
+  #   uses: docker/setup-qemu-action@v3
+  #
+  # platforms: linux/amd64,linux/arm64
