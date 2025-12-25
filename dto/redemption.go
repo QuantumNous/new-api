@@ -8,32 +8,25 @@ type CreateRedemptionRequest struct {
 	// Backward-compatible count.
 	Count int `json:"count"`
 
-	// Optional explicit switch for random generation (for compatibility with some clients).
-	RandomEnabledFlag *bool `json:"random_enabled"`
+	// Key prefix for generated redemption codes (e.g., "VIP-").
+	KeyPrefix string `json:"key_prefix"`
 
-	// New random generation fields.
-	RandomMin    *int64  `json:"random_min"`
-	RandomMax    *int64  `json:"random_max"`
-	RandomPrefix string  `json:"random_prefix"`
-	RandomCount  *int    `json:"random_count"`
+	// Random quota mode: generate redemption codes with random quota in [QuotaMin, QuotaMax].
+	RandomQuotaEnabled *bool `json:"random_quota_enabled"`
+	QuotaMin           *int  `json:"quota_min"`
+	QuotaMax           *int  `json:"quota_max"`
 }
 
 func (r CreateRedemptionRequest) EffectiveCount() int {
-	if r.RandomCount != nil && *r.RandomCount > 0 {
-		return *r.RandomCount
+	if r.Count <= 0 {
+		return 1
 	}
 	return r.Count
 }
 
-func (r CreateRedemptionRequest) RandomEnabled() bool {
-	heuristic := r.RandomMin != nil || r.RandomMax != nil || r.RandomPrefix != "" || r.RandomCount != nil
-	if r.RandomEnabledFlag == nil {
-		return heuristic
-	}
-	// If explicitly enabled, force random branch (and controller will validate min/max).
-	// If explicitly disabled, still allow heuristic trigger for compatibility.
-	if *r.RandomEnabledFlag {
+func (r CreateRedemptionRequest) RandomQuotaMode() bool {
+	if r.RandomQuotaEnabled != nil && *r.RandomQuotaEnabled {
 		return true
 	}
-	return heuristic
+	return r.QuotaMin != nil && r.QuotaMax != nil
 }

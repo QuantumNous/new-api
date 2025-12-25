@@ -51,32 +51,12 @@ import {
 
 const { Text, Title } = Typography;
 
-const RANDOM_COUNT_LIMIT = 100000;
-const UUID_COUNT_LIMIT = 100;
+const MAX_COUNT = 100;
 
 const toIntOrNull = (v) => {
   if (v === undefined || v === null || v === '') return null;
   const num = Number.parseInt(String(v), 10);
   return Number.isFinite(num) ? num : null;
-};
-
-const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
-
-const buildRandomPreview = (values) => {
-  const prefix = isNonEmptyString(values?.random_prefix)
-    ? values.random_prefix.trim()
-    : '';
-
-  const min = toIntOrNull(values?.random_min);
-  const max = toIntOrNull(values?.random_max);
-
-  const uuidCount = toIntOrNull(values?.count) ?? 0;
-  const randomCount = toIntOrNull(values?.random_count);
-  const quantity = randomCount ?? uuidCount;
-
-  const capacity = min !== null && max !== null && max >= min ? max - min + 1 : null;
-
-  return { prefix, min, max, quantity, capacity };
 };
 
 const EditRedemptionModal = (props) => {
@@ -91,12 +71,10 @@ const EditRedemptionModal = (props) => {
     quota: 100000,
     count: 1,
     expired_time: null,
-
-    random_enabled: false,
-    random_prefix: '',
-    random_min: '',
-    random_max: '',
-    random_count: '',
+    key_prefix: '',
+    random_quota_enabled: false,
+    quota_min: '',
+    quota_max: '',
   });
 
   const handleCancel = () => {
@@ -130,107 +108,74 @@ const EditRedemptionModal = (props) => {
     }
   }, [props.editingRedemption.id]);
 
-  const validateRandomMode = (values) => {
-    const min = toIntOrNull(values.random_min);
-    const max = toIntOrNull(values.random_max);
-    const uuidCount = toIntOrNull(values.count);
-    const randomCount = toIntOrNull(values.random_count);
+  const validateRandomQuotaMode = (values) => {
+    const min = toIntOrNull(values.quota_min);
+    const max = toIntOrNull(values.quota_max);
 
     if (min === null || max === null) {
-      return t('随机模式下 random_min 和 random_max 必填，且必须为整数');
+      return t('随机额度模式下 quota_min 和 quota_max 必填');
+    }
+    if (min <= 0 || max <= 0) {
+      return t('quota_min 和 quota_max 必须大于 0');
     }
     if (min > max) {
-      return t('随机模式下 random_min 必须小于等于 random_max');
-    }
-
-    const capacity = max - min + 1;
-    const quantity = (randomCount ?? uuidCount) ?? 0;
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      return t('生成数量必须大于 0');
-    }
-    if (quantity > RANDOM_COUNT_LIMIT) {
-      return t('随机生成数量上限为 100000');
-    }
-    if (capacity < quantity) {
-      return t('区间容量不足：请扩大 random_min ~ random_max 或减少生成数量');
+      return t('quota_min 必须小于等于 quota_max');
     }
     return null;
   };
 
   const submit = async (values) => {
-    const randomEnabled = !isEdit && !!values.random_enabled;
+    const randomQuotaEnabled = !isEdit && !!values.random_quota_enabled;
 
     let name = values.name;
     if (!isEdit && (!name || name === '')) {
-      name = renderQuota(values.quota);
+      if (randomQuotaEnabled) {
+        const min = toIntOrNull(values.quota_min);
+        const max = toIntOrNull(values.quota_max);
+        name = `${renderQuota(min)} ~ ${renderQuota(max)}`;
+      } else {
+        name = renderQuota(values.quota);
+      }
     }
 
-    const uuidCount = toIntOrNull(values.count) ?? 0;
+    const count = toIntOrNull(values.count) ?? 1;
 
-    if (!isEdit && randomEnabled) {
-      const msg = validateRandomMode(values);
+    if (!isEdit && randomQuotaEnabled) {
+      const msg = validateRandomQuotaMode(values);
       if (msg) {
         showError(msg);
         return;
       }
     }
 
-    if (!isEdit && !randomEnabled) {
-      if (uuidCount > UUID_COUNT_LIMIT) {
-        showError(t('非随机模式下生成数量上限为 100'));
-        return;
-      }
+    if (!isEdit && count > MAX_COUNT) {
+      showError(t('生成数量上限为 100'));
+      return;
     }
 
     setLoading(true);
 
-    let localInputs = { ...values };
-    localInputs.count = uuidCount;
-    localInputs.quota = toIntOrNull(localInputs.quota) || 0;
-    localInputs.name = name;
+    let localInputs = {
+      name: name,
+      count: count,
+      expired_time: 0,
+      key_prefix: (values.key_prefix || '').trim(),
+    };
 
-    if (!localInputs.expired_time) {
-      localInputs.expired_time = 0;
-    } else {
+    if (values.expired_time) {
       localInputs.expired_time = Math.floor(
-        localInputs.expired_time.getTime() / 1000,
+        values.expired_time.getTime() / 1000,
       );
     }
 
     if (isEdit) {
-      delete localInputs.random_enabled;
+      localInputs.quota = toIntOrNull(values.quota) || 0;
+    } else if (randomQuotaEnabled) {
+      localInputs.random_quota_enabled = true;
+      localInputs.quota_min = toIntOrNull(values.quota_min);
+      localInputs.quota_max = toIntOrNull(values.quota_max);
     } else {
-      // Keep backward compatibility with servers that require random_enabled
-      localInputs.random_enabled = randomEnabled;
-    }
-
-    if (!isEdit && randomEnabled) {
-      const randomMin = toIntOrNull(values.random_min);
-      const randomMax = toIntOrNull(values.random_max);
-      const randomCount = toIntOrNull(values.random_count);
-      const randomPrefix = isNonEmptyString(values.random_prefix)
-        ? values.random_prefix.trim()
-        : '';
-
-      localInputs.random_min = randomMin;
-      localInputs.random_max = randomMax;
-
-      if (randomCount !== null) {
-        localInputs.random_count = randomCount;
-      } else {
-        delete localInputs.random_count;
-      }
-
-      if (randomPrefix) {
-        localInputs.random_prefix = randomPrefix;
-      } else {
-        delete localInputs.random_prefix;
-      }
-    } else {
-      delete localInputs.random_min;
-      delete localInputs.random_max;
-      delete localInputs.random_count;
-      delete localInputs.random_prefix;
+      localInputs.quota = toIntOrNull(values.quota) || 0;
     }
 
     let res;
@@ -240,9 +185,7 @@ const EditRedemptionModal = (props) => {
         id: parseInt(props.editingRedemption.id),
       });
     } else {
-      res = await API.post(`/api/redemption/`, {
-        ...localInputs,
-      });
+      res = await API.post(`/api/redemption/`, localInputs);
     }
 
     const { success, message, data, keys } = res.data;
@@ -344,7 +287,6 @@ const EditRedemptionModal = (props) => {
             {({ values }) => (
               <div className='p-2'>
                 <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Basic Info */}
                   <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
@@ -368,7 +310,7 @@ const EditRedemptionModal = (props) => {
                       <Form.Input
                         field='name'
                         label={t('名称')}
-                        placeholder={t('请输入名称')}
+                        placeholder={t('请输入名称（留空自动生成）')}
                         style={{ width: '100%' }}
                         rules={
                           !isEdit
@@ -388,11 +330,22 @@ const EditRedemptionModal = (props) => {
                         showClear
                       />
                     </Col>
+                    {!isEdit && (
+                      <Col span={24}>
+                        <Form.Input
+                          field='key_prefix'
+                          label={t('Key 前缀')}
+                          placeholder={t('可选，如 VIP-、GIFT-')}
+                          style={{ width: '100%' }}
+                          showClear
+                          extraText={t('生成的兑换码将以此前缀开头')}
+                        />
+                      </Col>
+                    )}
                   </Row>
                 </Card>
 
                 <Card className='!rounded-2xl shadow-sm border-0'>
-                  {/* Header: Quota Settings */}
                   <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
@@ -401,56 +354,142 @@ const EditRedemptionModal = (props) => {
                     >
                       <IconCreditCard size={16} />
                     </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('额度设置')}
-                      </Text>
+                    <div className='flex-1'>
+                      <div className='flex items-center gap-2'>
+                        <Text className='text-lg font-medium'>
+                          {t('额度设置')}
+                        </Text>
+                        {!isEdit && values.random_quota_enabled ? (
+                          <Tag color='orange' shape='circle'>
+                            {t('随机额度')}
+                          </Tag>
+                        ) : (
+                          <Tag color='blue' shape='circle'>
+                            {t('固定额度')}
+                          </Tag>
+                        )}
+                      </div>
                       <div className='text-xs text-gray-600'>
-                        {t('设置兑换码的额度和数量')}
+                        {!isEdit && values.random_quota_enabled
+                          ? t('每个兑换码的额度将在指定区间内随机生成')
+                          : t('所有兑换码使用相同的固定额度')}
                       </div>
                     </div>
+                    {!isEdit && (
+                      <Form.Switch
+                        field='random_quota_enabled'
+                        checked={!!values.random_quota_enabled}
+                        onChange={(v) => {
+                          formApiRef.current?.setValue('random_quota_enabled', !!v);
+                        }}
+                      />
+                    )}
                   </div>
 
                   <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.AutoComplete
-                        field='quota'
-                        label={t('额度')}
-                        placeholder={t('请输入额度')}
-                        style={{ width: '100%' }}
-                        type='number'
-                        rules={[
-                          { required: true, message: t('请输入额度') },
-                          {
-                            validator: (rule, v) => {
-                              const num = parseInt(v, 10);
-                              return num > 0
-                                ? Promise.resolve()
-                                : Promise.reject(t('额度必须大于0'));
+                    {!isEdit && values.random_quota_enabled ? (
+                      <>
+                        <Col span={12}>
+                          <Form.AutoComplete
+                            field='quota_min'
+                            label={t('最小额度')}
+                            placeholder={t('请输入最小额度')}
+                            style={{ width: '100%' }}
+                            type='number'
+                            rules={[
+                              { required: true, message: t('请输入最小额度') },
+                              {
+                                validator: (rule, v) => {
+                                  const num = parseInt(v, 10);
+                                  return num > 0
+                                    ? Promise.resolve()
+                                    : Promise.reject(t('额度必须大于0'));
+                                },
+                              },
+                            ]}
+                            extraText={renderQuotaWithPrompt(
+                              Number(values.quota_min) || 0,
+                            )}
+                            data={[
+                              { value: 500000, label: '1元' },
+                              { value: 5000000, label: '10元' },
+                              { value: 25000000, label: '50元' },
+                            ]}
+                            showClear
+                          />
+                        </Col>
+                        <Col span={12}>
+                          <Form.AutoComplete
+                            field='quota_max'
+                            label={t('最大额度')}
+                            placeholder={t('请输入最大额度')}
+                            style={{ width: '100%' }}
+                            type='number'
+                            rules={[
+                              { required: true, message: t('请输入最大额度') },
+                              {
+                                validator: (rule, v) => {
+                                  const num = parseInt(v, 10);
+                                  return num > 0
+                                    ? Promise.resolve()
+                                    : Promise.reject(t('额度必须大于0'));
+                                },
+                              },
+                            ]}
+                            extraText={renderQuotaWithPrompt(
+                              Number(values.quota_max) || 0,
+                            )}
+                            data={[
+                              { value: 5000000, label: '10元' },
+                              { value: 50000000, label: '100元' },
+                              { value: 500000000, label: '1000元' },
+                            ]}
+                            showClear
+                          />
+                        </Col>
+                      </>
+                    ) : (
+                      <Col span={12}>
+                        <Form.AutoComplete
+                          field='quota'
+                          label={t('额度')}
+                          placeholder={t('请输入额度')}
+                          style={{ width: '100%' }}
+                          type='number'
+                          rules={[
+                            { required: true, message: t('请输入额度') },
+                            {
+                              validator: (rule, v) => {
+                                const num = parseInt(v, 10);
+                                return num > 0
+                                  ? Promise.resolve()
+                                  : Promise.reject(t('额度必须大于0'));
+                              },
                             },
-                          },
-                        ]}
-                        extraText={renderQuotaWithPrompt(
-                          Number(values.quota) || 0,
-                        )}
-                        data={[
-                          { value: 500000, label: '1$' },
-                          { value: 5000000, label: '10$' },
-                          { value: 25000000, label: '50$' },
-                          { value: 50000000, label: '100$' },
-                          { value: 250000000, label: '500$' },
-                          { value: 500000000, label: '1000$' },
-                        ]}
-                        showClear
-                      />
-                    </Col>
+                          ]}
+                          extraText={renderQuotaWithPrompt(
+                            Number(values.quota) || 0,
+                          )}
+                          data={[
+                            { value: 500000, label: '1元' },
+                            { value: 5000000, label: '10元' },
+                            { value: 25000000, label: '50元' },
+                            { value: 50000000, label: '100元' },
+                            { value: 250000000, label: '500元' },
+                            { value: 500000000, label: '1000元' },
+                          ]}
+                          showClear
+                        />
+                      </Col>
+                    )}
 
                     {!isEdit && (
                       <Col span={12}>
                         <Form.InputNumber
                           field='count'
-                          label={t('UUID 模式生成数量')}
+                          label={t('生成数量')}
                           min={1}
+                          max={MAX_COUNT}
                           rules={[
                             { required: true, message: t('请输入生成数量') },
                             {
@@ -459,9 +498,9 @@ const EditRedemptionModal = (props) => {
                                 if (!Number.isFinite(num) || num <= 0) {
                                   return Promise.reject(t('生成数量必须大于0'));
                                 }
-                                if (num > UUID_COUNT_LIMIT) {
+                                if (num > MAX_COUNT) {
                                   return Promise.reject(
-                                    t('非随机模式下生成数量上限为 100'),
+                                    t('生成数量上限为 100'),
                                   );
                                 }
                                 return Promise.resolve();
@@ -469,171 +508,13 @@ const EditRedemptionModal = (props) => {
                             },
                           ]}
                           style={{ width: '100%' }}
+                          extraText={t('单次最多生成 100 个')}
                           showClear
                         />
                       </Col>
                     )}
                   </Row>
                 </Card>
-
-                {!isEdit && (
-                  <Card className='!rounded-2xl shadow-sm border-0 mt-6'>
-                    <div className='flex items-center mb-2'>
-                      <Avatar
-                        size='small'
-                        color={values.random_enabled ? 'orange' : 'blue'}
-                        className='mr-2 shadow-md'
-                      >
-                        <IconGift size={16} />
-                      </Avatar>
-                      <div className='flex-1'>
-                        <div className='flex items-center gap-2'>
-                          <Text className='text-lg font-medium'>
-                            {t('生成方式')}
-                          </Text>
-                          {values.random_enabled ? (
-                            <Tag color='orange' shape='circle'>
-                              {t('随机模式')}
-                            </Tag>
-                          ) : (
-                            <Tag color='blue' shape='circle'>
-                              {t('UUID 模式')}
-                            </Tag>
-                          )}
-                        </div>
-                        <div className='text-xs text-gray-600'>
-                          {values.random_enabled
-                            ? t(
-                                '随机模式：在区间内生成不重复数字并拼接前缀',
-                              )
-                            : t('UUID 模式：生成随机 UUID 兑换码')}
-                        </div>
-                      </div>
-                      <Form.Switch
-                        field='random_enabled'
-                        checked={!!values.random_enabled}
-                        onChange={(v) => {
-                          formApiRef.current?.setValue('random_enabled', !!v);
-                        }}
-                        extraText={t('随机生成')}
-                      />
-                    </div>
-
-                    {values.random_enabled && (
-                      <Row gutter={12}>
-                        <Col span={24}>
-                          <Form.Input
-                            field='random_prefix'
-                            label={t('random_prefix（可选）')}
-                            placeholder={t('例如：VIP- 或 RAD-')}
-                            style={{ width: '100%' }}
-                            showClear
-                          />
-                        </Col>
-
-                        <Col span={12}>
-                          <Form.InputNumber
-                            field='random_min'
-                            label={t('random_min')}
-                            min={0}
-                            rules={[
-                              {
-                                required: true,
-                                message: t('请输入 random_min'),
-                              },
-                              {
-                                validator: (rule, v) => {
-                                  const num = toIntOrNull(v);
-                                  return num === null
-                                    ? Promise.reject(t('必须为整数'))
-                                    : Promise.resolve();
-                                },
-                              },
-                            ]}
-                            style={{ width: '100%' }}
-                            showClear
-                          />
-                        </Col>
-
-                        <Col span={12}>
-                          <Form.InputNumber
-                            field='random_max'
-                            label={t('random_max')}
-                            min={0}
-                            rules={[
-                              {
-                                required: true,
-                                message: t('请输入 random_max'),
-                              },
-                              {
-                                validator: (rule, v) => {
-                                  const num = toIntOrNull(v);
-                                  return num === null
-                                    ? Promise.reject(t('必须为整数'))
-                                    : Promise.resolve();
-                                },
-                              },
-                            ]}
-                            style={{ width: '100%' }}
-                            showClear
-                          />
-                        </Col>
-
-                        <Col span={24}>
-                          <Form.InputNumber
-                            field='random_count'
-                            label={t('random_count（可选）')}
-                            min={1}
-                            rules={[
-                              {
-                                validator: (rule, v) => {
-                                  if (v === '' || v === null || v === undefined) {
-                                    return Promise.resolve();
-                                  }
-                                  const num = toIntOrNull(v);
-                                  if (num === null || num <= 0) {
-                                    return Promise.reject(t('必须为正整数'));
-                                  }
-                                  if (num > RANDOM_COUNT_LIMIT) {
-                                    return Promise.reject(
-                                      t('随机生成数量上限为 100000'),
-                                    );
-                                  }
-                                  return Promise.resolve();
-                                },
-                              },
-                            ]}
-                            style={{ width: '100%' }}
-                            extraText={
-                              <div className='text-xs text-gray-600'>
-                                <div>
-                                  {t('优先使用 random_count，否则回退 UUID 模式生成数量')}
-                                </div>
-                                <div>
-                                  {t('上限：')} {RANDOM_COUNT_LIMIT}
-                                </div>
-                                {(() => {
-                                  const preview = buildRandomPreview(values);
-                                  return (
-                                    <div>
-                                      {t('生成数量：')}
-                                      {preview.quantity || '-'}，{t('区间容量：')}
-                                      {preview.capacity ?? '-'}，{t('前缀预览：')}
-                                      {preview.prefix
-                                        ? `${preview.prefix}${preview.min ?? ''}`
-                                        : `${preview.min ?? ''}`}
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            }
-                            showClear
-                          />
-                        </Col>
-                      </Row>
-                    )}
-                  </Card>
-                )}
               </div>
             )}
           </Form>
