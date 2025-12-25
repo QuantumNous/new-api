@@ -139,7 +139,8 @@ export default function ModelHealthPublicPage() {
       },
     ];
 
-    const hourColumns = hourStarts.map((ts) => ({
+    // 反转小时列顺序，最近的小时离model列越近
+    const hourColumns = [...hourStarts].reverse().map((ts) => ({
       title: hourLabel(ts),
       dataIndex: `h_${ts}`,
       key: `h_${ts}`,
