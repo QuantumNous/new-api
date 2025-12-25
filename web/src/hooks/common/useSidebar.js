@@ -48,6 +48,7 @@ export const useSidebar = () => {
       enabled: true,
       detail: true,
       model_health: true,
+      user_hourly_calls_rank: true,
       recent_calls: true,
       token: true,
       log: true,

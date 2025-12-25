@@ -48,6 +48,9 @@ export default function SettingsSidebarModulesAdmin(props) {
     console: {
       enabled: true,
       detail: true,
+      model_health: true,
+      user_hourly_calls_rank: true,
+      recent_calls: true,
       token: true,
       log: true,
       midjourney: true,
@@ -178,6 +181,9 @@ export default function SettingsSidebarModulesAdmin(props) {
           console: {
             enabled: true,
             detail: true,
+            model_health: true,
+            user_hourly_calls_rank: true,
+            recent_calls: true,
             token: true,
             log: true,
             midjourney: true,
@@ -219,6 +225,9 @@ export default function SettingsSidebarModulesAdmin(props) {
       description: t('数据管理和日志查看'),
       modules: [
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
+        { key: 'model_health', title: t('模型健康度'), description: t('模型健康状态监控') },
+        { key: 'user_hourly_calls_rank', title: t('用户小时调用排行'), description: t('用户调用次数统计') },
+        { key: 'recent_calls', title: t('最近调用'), description: t('最近API调用记录') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
         {
