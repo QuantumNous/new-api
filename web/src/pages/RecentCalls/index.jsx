@@ -24,8 +24,8 @@ import {
   Button,
   Card,
   Collapse,
-  Drawer,
   Form,
+  SideSheet,
   Space,
   Table,
   Tag,
@@ -219,7 +219,8 @@ function RecentCallDetailDrawer({ open, recordId, onClose }) {
   }, [record, resp]);
 
   return (
-    <Drawer
+    <SideSheet
+      placement='right'
       title={
         <div className='flex items-center gap-2'>
           <Typography.Text strong>最近调用详情</Typography.Text>
@@ -229,9 +230,8 @@ function RecentCallDetailDrawer({ open, recordId, onClose }) {
         </div>
       }
       visible={open}
-      onClose={onClose}
+      onCancel={onClose}
       width={900}
-      maskClosable
       bodyStyle={{ padding: 16 }}
     >
       <Card
@@ -247,10 +247,14 @@ function RecentCallDetailDrawer({ open, recordId, onClose }) {
             <div className='flex flex-wrap items-center gap-2'>
               <Tag color='grey'>{formatTime(record.created_at)}</Tag>
               <Tag color='teal'>uid: {record.user_id}</Tag>
-              {record.model_name && <Tag color='violet'>{record.model_name}</Tag>}
+              {record.model_name && (
+                <Tag color='violet'>{record.model_name}</Tag>
+              )}
               <Tag color='blue'>{record.method}</Tag>
               <Tag color='grey'>{record.path}</Tag>
-              {computeRecordTruncated(record) && <Tag color='orange'>truncated</Tag>}
+              {computeRecordTruncated(record) && (
+                <Tag color='orange'>truncated</Tag>
+              )}
             </div>
 
             <Collapse defaultActiveKey={['req']}>
@@ -259,11 +263,10 @@ function RecentCallDetailDrawer({ open, recordId, onClose }) {
                 header={
                   <div className='flex items-center gap-2'>
                     <Typography.Text strong>客户端原始请求</Typography.Text>
+                    <Tag color='grey'>headers 脱敏</Tag>
                     <Tag color='grey'>
-                      headers 脱敏
-                    </Tag>
-                    <Tag color='grey'>
-                      body: {bodySummary(req?.body_type, req?.omitted, req?.truncated)}
+                      body:{' '}
+                      {bodySummary(req?.body_type, req?.omitted, req?.truncated)}
                     </Tag>
                   </div>
                 }
@@ -290,7 +293,12 @@ function RecentCallDetailDrawer({ open, recordId, onClose }) {
                       <>
                         <Tag color='blue'>status: {resp.status_code}</Tag>
                         <Tag color='grey'>
-                          body: {bodySummary(resp?.body_type, resp?.omitted, resp?.truncated)}
+                          body:{' '}
+                          {bodySummary(
+                            resp?.body_type,
+                            resp?.omitted,
+                            resp?.truncated,
+                          )}
                         </Tag>
                       </>
                     ) : (
@@ -341,7 +349,7 @@ function RecentCallDetailDrawer({ open, recordId, onClose }) {
           </div>
         )}
       </Card>
-    </Drawer>
+    </SideSheet>
   );
 }
 
