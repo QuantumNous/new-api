@@ -81,11 +81,24 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
+// RelayErrorHandler converts an HTTP error response into a structured types.NewAPIError.
+// It returns a NewAPIError initialized with the response status code and one of:
+// - an Err describing an absent or unreadable body,
+// - an Err containing the unmarshaled error message (or status + raw body when showBodyWhenFail is true), or
+// - an embedded OpenAI-style error when the response body contains a compatible error object.
+// The returned NewAPIError's status code reflects resp.StatusCode.
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
+	if resp.Body == nil {
+		newApiErr.Err = errors.New("response body is nil")
+		return
+	}
+
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		CloseResponseBodyGracefully(resp)
+		newApiErr.Err = fmt.Errorf("read response body failed: %w", err)
 		return
 	}
 	CloseResponseBodyGracefully(resp)

@@ -110,6 +110,8 @@ func GetAndValidateEmbeddingRequest(c *gin.Context, relayMode int) (*dto.Embeddi
 	return embeddingRequest, nil
 }
 
+// GetAndValidateResponsesRequest parses the HTTP request body into an OpenAIResponsesRequest and ensures the Model field is provided.
+// It returns the parsed request, or an error if the body cannot be parsed or the Model is empty.
 func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest, error) {
 	request := &dto.OpenAIResponsesRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
@@ -118,9 +120,6 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	}
 	if request.Model == "" {
 		return nil, errors.New("model is required")
-	}
-	if request.Input == nil {
-		return nil, errors.New("input is required")
 	}
 	return request, nil
 }

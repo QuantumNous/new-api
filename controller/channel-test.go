@@ -40,6 +40,13 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+// testChannel executes a test request against the given channel using the provided testModel and optional endpointType,
+// and returns a testResult containing the test context and any encountered error information.
+// It selects or derives a model when testModel is empty, auto-detects the request endpoint (chat, responses, embeddings, images, rerank) when endpointType is not specified,
+// converts and relays the request to the upstream adapter, and parses the upstream response to collect usage and pricing information.
+// On upstream responses that indicate the chat/completions `messages` parameter is unsupported and endpointType was not specified, it will retry the test using the Responses API.
+// The function records consumption logs and returns a testResult with a populated context on success, or with localErr/newAPIError set on failure;
+// for channel types that are not supported for testing it returns a localErr explaining that the channel test is not supported.
 func testChannel(channel *model.Channel, testModel string, endpointType string) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
@@ -75,6 +82,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	}
 
+	originTestModel := testModel
+
 	requestPath := "/v1/chat/completions"
 
 	// 如果指定了端点类型，使用指定的端点类型
@@ -84,6 +93,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 	} else {
 		// 如果没有指定端点类型，使用原有的自动检测逻辑
+		if common.IsOpenAIResponseOnlyModel(testModel) {
+			requestPath = "/v1/responses"
+		}
+
 		// 先判断是否为 Embedding 模型
 		if strings.Contains(strings.ToLower(testModel), "embedding") ||
 			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
@@ -319,6 +332,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+			// 自动检测模式下，如果上游不支持 chat.completions 的 messages 参数，尝试切换到 Responses API 再测一次。
+			if endpointType == "" && requestPath == "/v1/chat/completions" && err != nil {
+				lowerErr := strings.ToLower(err.Error())
+				if strings.Contains(lowerErr, "unsupported parameter") && strings.Contains(lowerErr, "messages") {
+					return testChannel(channel, originTestModel, string(constant.EndpointTypeOpenAIResponse))
+				}
+			}
 			return testResult{
 				context:     c,
 				localErr:    err,
@@ -389,6 +409,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	}
 }
 
+// for embedding models, and otherwise a chat/completion request with model-specific token limit heuristics.
 func buildTestRequest(model string, endpointType string) dto.Request {
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
@@ -417,9 +438,12 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 			}
 		case constant.EndpointTypeOpenAIResponse:
 			// 返回 OpenAIResponsesRequest
+			maxOutputTokens := uint(10)
 			return &dto.OpenAIResponsesRequest{
-				Model: model,
-				Input: json.RawMessage("\"hi\""),
+				Model:           model,
+				Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
+				MaxOutputTokens: maxOutputTokens,
+				Stream:          true,
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
@@ -442,6 +466,16 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 	}
 
 	// 自动检测逻辑（保持原有行为）
+	if common.IsOpenAIResponseOnlyModel(model) {
+		maxOutputTokens := uint(10)
+		return &dto.OpenAIResponsesRequest{
+			Model:           model,
+			Input:           json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			MaxOutputTokens: maxOutputTokens,
+			Stream:          true,
+		}
+	}
+
 	// 先判断是否为 Embedding 模型
 	if strings.Contains(strings.ToLower(model), "embedding") ||
 		strings.HasPrefix(model, "m3e") ||
