@@ -160,7 +160,9 @@ export default function ModelHealthHourlyPage() {
     setModelsLoading(true);
     setModelsError('');
     try {
-      const res = await API.get('/api/models', { skipErrorHandler: true });
+      // 工作台（管理员）更适合使用“系统当前启用的模型列表”，而不是 dashboard 的聚合列表。
+      // /api/channel/models_enabled: AdminAuth, data: []string
+      const res = await API.get('/api/channel/models_enabled', { skipErrorHandler: true });
       const { success, message, data } = res.data || {};
       if (!success) {
         const errMsg = message || '加载模型列表失败';
