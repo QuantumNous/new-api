@@ -44,7 +44,13 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	helper.SetEventStreamHeaders(c)
 
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
+
 		var xAIResp *dto.ChatCompletionsStreamResponse
 		err := json.Unmarshal([]byte(data), &xAIResp)
 		if err != nil {
@@ -68,6 +74,8 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 		return true
 	})
+
+	service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, responseTextBuilder.String())
 
 	if !containStreamUsage {
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())

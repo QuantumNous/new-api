@@ -79,7 +79,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
 
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
@@ -129,6 +134,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		return true
 	})
+
+	service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, responseTextBuilder.String())
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量

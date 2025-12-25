@@ -710,8 +710,15 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
+
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	var err *types.NewAPIError
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
+
 		err = HandleStreamResponseData(c, info, claudeInfo, data, requestMode)
 		if err != nil {
 			return false
@@ -721,6 +728,8 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	if err != nil {
 		return nil, err
 	}
+
+	service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, claudeInfo.ResponseText.String())
 
 	HandleStreamFinalResponse(c, info, claudeInfo, requestMode)
 	return claudeInfo.Usage, nil

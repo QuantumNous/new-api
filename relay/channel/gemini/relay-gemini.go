@@ -1077,7 +1077,13 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var imageCount int
 	responseText := strings.Builder{}
 
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
+
 		var geminiResponse dto.GeminiChatResponse
 		err := common.UnmarshalJsonStr(data, &geminiResponse)
 		if err != nil {
@@ -1114,6 +1120,8 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 		return callback(data, &geminiResponse)
 	})
+
+	service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, responseText.String())
 
 	if imageCount != 0 {
 		if usage.CompletionTokens == 0 {
@@ -1209,6 +1217,10 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+
+	rawUpstreamBody := append([]byte(nil), responseBody...)
+	service.RecentCallsCache().UpsertUpstreamResponseByContext(c, resp, rawUpstreamBody)
+
 	service.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
 		println(string(responseBody))

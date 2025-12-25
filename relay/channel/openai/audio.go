@@ -35,7 +35,13 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	c.Writer.WriteHeader(resp.StatusCode)
 
 	if info.IsStream {
+		service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 		helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+			if data != "" {
+				service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+			}
+
 			if service.SundaySearch(data, "usage") {
 				var simpleResponse dto.SimpleResponse
 				err := common.Unmarshal([]byte(data), &simpleResponse)
@@ -51,6 +57,8 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 			_ = helper.StringData(c, data)
 			return true
 		})
+
+		service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, "")
 	} else {
 		common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
 		// 读取响应体到缓冲区

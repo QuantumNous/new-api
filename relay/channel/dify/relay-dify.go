@@ -216,7 +216,14 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	usage := &dto.Usage{}
 	var nodeToken int
 	helper.SetEventStreamHeaders(c)
+
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
+
 		var difyResponse DifyChunkChatCompletionResponse
 		err := json.Unmarshal([]byte(data), &difyResponse)
 		if err != nil {
@@ -244,6 +251,9 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		}
 		return true
 	})
+
+	service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, responseText)
+
 	helper.Done(c)
 	if usage.TotalTokens == 0 {
 		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())

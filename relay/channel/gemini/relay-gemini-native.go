@@ -24,6 +24,9 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
+	rawUpstreamBody := append([]byte(nil), responseBody...)
+	service.RecentCallsCache().UpsertUpstreamResponseByContext(c, resp, rawUpstreamBody)
+
 	if common.DebugEnabled {
 		println(string(responseBody))
 	}
@@ -65,6 +68,9 @@ func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *rel
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
+	rawUpstreamBody := append([]byte(nil), responseBody...)
+	service.RecentCallsCache().UpsertUpstreamResponseByContext(c, resp, rawUpstreamBody)
+
 	if common.DebugEnabled {
 		println(string(responseBody))
 	}
@@ -93,7 +99,13 @@ func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *rel
 func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	helper.SetEventStreamHeaders(c)
 
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	return geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
+
 		err := helper.StringData(c, data)
 		if err != nil {
 			logger.LogError(c, "failed to write stream data: "+err.Error())

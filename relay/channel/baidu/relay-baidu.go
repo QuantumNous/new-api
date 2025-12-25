@@ -115,7 +115,14 @@ func embeddingResponseBaidu2OpenAI(response *BaiduEmbeddingResponse) *dto.OpenAI
 
 func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	usage := &dto.Usage{}
+
+	service.RecentCallsCache().EnsureStreamByContext(c, resp)
+
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if data != "" {
+			service.RecentCallsCache().AppendStreamChunkByContext(c, data)
+		}
+
 		var baiduResponse BaiduChatStreamResponse
 		err := common.Unmarshal([]byte(data), &baiduResponse)
 		if err != nil {
@@ -134,6 +141,9 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		}
 		return true
 	})
+
+	service.RecentCallsCache().FinalizeStreamAggregatedTextByContext(c, "")
+
 	service.CloseResponseBodyGracefully(resp)
 	return nil, usage
 }
