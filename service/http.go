@@ -29,6 +29,10 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 
 	body := io.NopCloser(bytes.NewBuffer(data))
 
+	if c != nil {
+		c.Set("response_bytes", len(data))
+	}
+
 	// We shouldn't set the header before we parse the response body, because the parse part may fail.
 	// And then we will have to send an error response, but in this case, the header has already been set.
 	// So the httpClient will be confused by the response.

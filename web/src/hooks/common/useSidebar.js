@@ -47,6 +47,8 @@ export const useSidebar = () => {
     console: {
       enabled: true,
       detail: true,
+      model_health: true,
+      recent_calls: true,
       token: true,
       log: true,
       midjourney: true,

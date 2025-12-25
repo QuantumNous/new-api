@@ -50,6 +50,9 @@ import SetupCheck from './components/layout/SetupCheck';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ModelHealthHourly = lazy(() => import('./pages/ModelHealthHourly'));
+const RecentCalls = lazy(() => import('./pages/RecentCalls'));
+const UserHourlyCallsRank = lazy(() => import('./pages/UserHourlyCallsRank'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -264,6 +267,40 @@ function App() {
             </PrivateRoute>
           }
         />
+
+        <Route
+          path='/console/model-health-hourly'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <ModelHealthHourly />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path='/console/user-hourly-calls-rank'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <UserHourlyCallsRank />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path='/console/recent-calls'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <RecentCalls />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
+
         <Route
           path='/console/midjourney'
           element={

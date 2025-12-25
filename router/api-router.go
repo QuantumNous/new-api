@@ -48,6 +48,13 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 		apiRouter.GET("/verify/status", middleware.UserAuth(), controller.GetVerificationStatus)
 
+		debugRoute := apiRouter.Group("/debug")
+		debugRoute.Use(middleware.AdminAuth())
+		{
+			debugRoute.GET("/recent_calls", controller.GetRecentCalls)
+			debugRoute.GET("/recent_calls/:id", controller.GetRecentCallByID)
+		}
+
 		userRoute := apiRouter.Group("/user")
 		{
 			userRoute.POST("/register", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.Register)
@@ -255,6 +262,18 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
+		}
+
+		userRankRoute := apiRouter.Group("/user_rank")
+		userRankRoute.Use(middleware.AdminAuth())
+		{
+			userRankRoute.GET("/hourly_calls", controller.GetUserHourlyCallsRankAPI)
+		}
+
+		modelHealthRoute := apiRouter.Group("/model_health")
+		modelHealthRoute.Use(middleware.AdminAuth())
+		{
+			modelHealthRoute.GET("/hourly", controller.GetModelHealthHourlyStatsAPI)
 		}
 	}
 }

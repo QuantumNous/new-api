@@ -42,6 +42,9 @@ const routerMap = {
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
+  model_health: '/console/model-health-hourly',
+  user_hourly_calls_rank: '/console/user-hourly-calls-rank',
+  recent_calls: '/console/recent-calls',
   pricing: '/pricing',
   task: '/console/task',
   models: '/console/models',
@@ -76,6 +79,23 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           localStorage.getItem('enable_data_export') === 'true'
             ? ''
             : 'tableHiddle',
+      },
+      {
+        text: t('模型健康度'),
+        itemKey: 'model_health',
+        to: '/console/model-health-hourly',
+      },
+      {
+        text: t('用户小时调用排行'),
+        itemKey: 'user_hourly_calls_rank',
+        to: '/console/user-hourly-calls-rank',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('最近调用'),
+        itemKey: 'recent_calls',
+        to: '/console/recent-calls',
+        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('令牌管理'),

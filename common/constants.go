@@ -71,6 +71,10 @@ var EmailLoginAuthServerList = []string{
 var DebugEnabled bool
 var MemoryCacheEnabled bool
 
+// HourlyCallRankCountFailedEnabled 控制“用户小时调用排行”是否把失败请求计入 total_calls。
+// 需求口径是“总调用次数”，默认应计入失败（只要发生调用就算）。
+var HourlyCallRankCountFailedEnabled = true
+
 var LogConsumeEnabled = true
 
 var SMTPServer = ""

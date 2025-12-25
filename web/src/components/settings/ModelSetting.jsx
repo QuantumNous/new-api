@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import SettingGeminiModel from '../../pages/Setting/Model/SettingGeminiModel';
 import SettingClaudeModel from '../../pages/Setting/Model/SettingClaudeModel';
 import SettingGlobalModel from '../../pages/Setting/Model/SettingGlobalModel';
+import SettingModelRoleMappings from '../../pages/Setting/Model/SettingModelRoleMappings';
 
 const ModelSetting = () => {
   const { t } = useTranslation();
@@ -43,6 +44,7 @@ const ModelSetting = () => {
     'general_setting.ping_interval_seconds': 60,
     'gemini.thinking_adapter_enabled': false,
     'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+    ModelRoleMappings: '{}',
   });
 
   let [loading, setLoading] = useState(false);
@@ -73,6 +75,15 @@ const ModelSetting = () => {
         }
       });
 
+      // Ensure ModelRoleMappings always exists for the editor
+      if (
+        newInputs.ModelRoleMappings === undefined ||
+        newInputs.ModelRoleMappings === null ||
+        String(newInputs.ModelRoleMappings).trim() === ''
+      ) {
+        newInputs.ModelRoleMappings = '{}';
+      }
+
       setInputs(newInputs);
     } else {
       showError(message);
@@ -102,6 +113,12 @@ const ModelSetting = () => {
         <Card style={{ marginTop: '10px' }}>
           <SettingGlobalModel options={inputs} refresh={onRefresh} />
         </Card>
+
+        {/* Model role mappings */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingModelRoleMappings options={inputs} refresh={onRefresh} />
+        </Card>
+
         {/* Gemini */}
         <Card style={{ marginTop: '10px' }}>
           <SettingGeminiModel options={inputs} refresh={onRefresh} />

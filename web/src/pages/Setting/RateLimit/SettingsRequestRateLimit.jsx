@@ -39,6 +39,7 @@ export default function RequestRateLimit(props) {
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
+    ModelRequestRateLimitExemptUserIDs: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -225,6 +226,25 @@ export default function RequestRateLimit(props) {
                   }
                   onChange={(value) => {
                     setInputs({ ...inputs, ModelRequestRateLimitGroup: value });
+                  }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={16}>
+                <Form.TextArea
+                  label={t('RPM 豁免用户')}
+                  placeholder={t('例如：\n1\n2,3\n10086')}
+                  field={'ModelRequestRateLimitExemptUserIDs'}
+                  autosize={{ minRows: 3, maxRows: 10 }}
+                  extraText={t(
+                    '填写 userId 列表（逗号/换行分隔）。命中的用户将跳过“用户模型请求速率限制”，不影响其他限流。',
+                  )}
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      ModelRequestRateLimitExemptUserIDs: value,
+                    });
                   }}
                 />
               </Col>

@@ -114,6 +114,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	service.ApplyModelRoleMappingsToRequest(c, request)
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
@@ -197,6 +199,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 			break
 		}
+
+		if _, ok := c.Get(service.RecentCallsContextKeyID); !ok {
+			service.RecentCallsCache().BeginFromContext(c, relayInfo, requestBody)
+		}
+
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 
 		switch relayFormat {
@@ -344,6 +351,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
+
+	service.RecentCallsCache().UpsertErrorByContext(c, err.MaskSensitiveError(), err.GetErrorType(), err.GetErrorCode(), err.StatusCode)
+
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(channelError.ChannelType, err) && channelError.AutoBan {
