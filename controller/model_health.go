@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -11,6 +13,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// 公共模型健康度缓存配置
+const (
+	publicModelHealthCacheKey = "public_model_health:hourly_last24h"
+	publicModelHealthCacheTTL = 5 * time.Minute // 缓存 5 分钟
+)
+
+// 内存缓存（当 Redis 不可用时使用）
+var (
+	publicModelHealthMemCache     *publicModelHealthCacheData
+	publicModelHealthMemCacheLock sync.RWMutex
+)
+
+type publicModelHealthCacheData struct {
+	Data      interface{}
+	ExpireAt  time.Time
+}
 
 type modelHealthHourlyRespItem struct {
 	ModelName     string  `json:"model_name"`
@@ -120,7 +139,15 @@ func GetModelHealthHourlyStatsAPI(c *gin.Context) {
 
 // GetPublicModelsHealthHourlyLast24hAPI 公共接口：查询所有模型最近 24 小时每小时健康度。
 // GET /api/public/model_health/hourly_last24h
+// 支持 Redis 缓存和内存缓存
 func GetPublicModelsHealthHourlyLast24hAPI(c *gin.Context) {
+	// 尝试从缓存获取
+	if cachedData, ok := getPublicModelHealthCache(); ok {
+		common.ApiSuccess(c, cachedData)
+		return
+	}
+
+	// 缓存未命中，从数据库查询
 	now := time.Now().Unix()
 	endHourTs := now - (now % 3600) + 3600 // exclusive, aligned to next hour
 	startHourTs := endHourTs - 24*3600
@@ -173,9 +200,58 @@ func GetPublicModelsHealthHourlyLast24hAPI(c *gin.Context) {
 		}
 	}
 
-	common.ApiSuccess(c, gin.H{
+	result := gin.H{
 		"start_hour": startHourTs,
 		"end_hour":   endHourTs,
 		"rows":       resp,
-	})
+	}
+
+	// 存入缓存
+	setPublicModelHealthCache(result)
+
+	common.ApiSuccess(c, result)
+}
+
+// getPublicModelHealthCache 从缓存获取公共模型健康度数据
+func getPublicModelHealthCache() (interface{}, bool) {
+	// 优先使用 Redis 缓存
+	if common.RedisEnabled {
+		cached, err := common.RedisGet(publicModelHealthCacheKey)
+		if err == nil && cached != "" {
+			var data map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &data); err == nil {
+				return data, true
+			}
+		}
+	}
+
+	// 回退到内存缓存
+	publicModelHealthMemCacheLock.RLock()
+	defer publicModelHealthMemCacheLock.RUnlock()
+
+	if publicModelHealthMemCache != nil && time.Now().Before(publicModelHealthMemCache.ExpireAt) {
+		return publicModelHealthMemCache.Data, true
+	}
+
+	return nil, false
+}
+
+// setPublicModelHealthCache 将公共模型健康度数据存入缓存
+func setPublicModelHealthCache(data interface{}) {
+	// 存入 Redis 缓存
+	if common.RedisEnabled {
+		jsonData, err := json.Marshal(data)
+		if err == nil {
+			_ = common.RedisSet(publicModelHealthCacheKey, string(jsonData), publicModelHealthCacheTTL)
+		}
+	}
+
+	// 同时存入内存缓存（作为备份）
+	publicModelHealthMemCacheLock.Lock()
+	defer publicModelHealthMemCacheLock.Unlock()
+
+	publicModelHealthMemCache = &publicModelHealthCacheData{
+		Data:     data,
+		ExpireAt: time.Now().Add(publicModelHealthCacheTTL),
+	}
 }

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Form, Button, Spin, Table, Typography, Select, Avatar, Tooltip, DatePicker } from '@douyinfe/semi-ui';
-import { IconSearch, IconRefresh, IconCheckCircle, IconAlertTriangle, IconClock, IconPulse } from '@douyinfe/semi-icons';
+import { IconSearch, IconRefresh, IconTickCircle, IconAlertTriangle, IconClock, IconActivity } from '@douyinfe/semi-icons';
 import { VChart } from '@visactor/react-vchart';
 import { API, selectFilter, showError, timestamp2string } from '../../helpers';
 
@@ -447,14 +447,14 @@ export default function ModelHealthHourlyPage() {
         {rows.length > 0 && (
           <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6'>
             <StatCard
-              icon={<IconPulse className='text-white' />}
+              icon={<IconActivity className='text-white' />}
               title='平均成功率'
               value={formatRate(stats.avgRate)}
               color='#667eea'
               bgGradient='linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
             />
             <StatCard
-              icon={<IconCheckCircle className='text-white' />}
+              icon={<IconTickCircle className='text-white' />}
               title='成功时间片'
               value={stats.totalSuccess}
               color='#22c55e'

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Spin, Typography, Button, Avatar, Tooltip, Input } from '@douyinfe/semi-ui';
-import { IconRefresh, IconSearch, IconCheckCircle, IconAlertTriangle, IconClose } from '@douyinfe/semi-icons';
+import { IconRefresh, IconSearch, IconTickCircle, IconAlertTriangle, IconClose } from '@douyinfe/semi-icons';
 import { API, showError, timestamp2string } from '../../helpers';
 
 function formatRate(rate) {
