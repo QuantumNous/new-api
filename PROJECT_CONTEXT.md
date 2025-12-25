@@ -60,3 +60,11 @@
   - 镜像仓库：[`ghcr.io/${{ github.repository }}`](.github/workflows/ghcr-publish.yml:47)
   - tags 由 metadata action 生成并用于 build-push：[`tags: ${{ steps.meta.outputs.tags }}`](.github/workflows/ghcr-publish.yml:59)
 - 构建平台：[`linux/amd64,linux/arm64`](.github/workflows/ghcr-publish.yml:57)（使用 QEMU + Buildx：[`Set up QEMU`](.github/workflows/ghcr-publish.yml:30)、[`Set up Docker Buildx`](.github/workflows/ghcr-publish.yml:33)）。
+
+
+## 约定
+
+- 约定：`tag++` 的默认含义
+  - 执行 `git tag --sort=-creatordate | head -n 10` 拉取最近 10 个 tag
+  - 从中解析出“最新的可自增 tag”（优先 semver，例如 `vX.Y.Z`），将其 `+1`（默认补丁号 `Z+1`）
+  - 创建并推送新的 tag 到仓库（用于触发发布流水线）
