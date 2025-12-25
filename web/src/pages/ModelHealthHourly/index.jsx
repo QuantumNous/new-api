@@ -45,6 +45,9 @@ export default function ModelHealthHourlyPage() {
   const [modelOptions, setModelOptions] = useState([]);
   const [rows, setRows] = useState([]);
 
+  const [modelsError, setModelsError] = useState('');
+  const [rowsError, setRowsError] = useState('');
+
   const defaultRange = useMemo(() => getDefaultHourRangeLast24h(), []);
   const [inputs, setInputs] = useState({
     model_name: '',
@@ -129,22 +132,46 @@ export default function ModelHealthHourlyPage() {
     [],
   );
 
+  function normalizeModelList(data) {
+    if (Array.isArray(data)) return data;
+
+    // 兼容可能的返回结构：{ models: [...] } 或 { data: [...] }
+    if (data && typeof data === 'object') {
+      if (Array.isArray(data.models)) return data.models;
+      if (Array.isArray(data.data)) return data.data;
+    }
+
+    return [];
+  }
+
   async function loadModels() {
     setModelsLoading(true);
+    setModelsError('');
     try {
       const res = await API.get('/api/models', { skipErrorHandler: true });
       const { success, message, data } = res.data || {};
       if (!success) {
-        showError(message || '加载模型列表失败');
+        const errMsg = message || '加载模型列表失败';
+        setModelsError(errMsg);
+        showError(errMsg);
         return;
       }
-      const opts = (data || []).map((m) => ({ label: m, value: m }));
+
+      const modelList = normalizeModelList(data);
+      if (!Array.isArray(data) && modelList.length === 0) {
+        const errMsg = '模型列表返回结构异常（期望数组）';
+        setModelsError(errMsg);
+        showError(errMsg);
+      }
+
+      const opts = modelList.map((m) => ({ label: m, value: m }));
       setModelOptions(opts);
 
       if (!inputs.model_name && opts.length > 0) {
         setInputs((prev) => ({ ...prev, model_name: opts[0].value }));
       }
     } catch (e) {
+      setModelsError('加载模型列表失败');
       showError(e);
     } finally {
       setModelsLoading(false);
@@ -171,6 +198,7 @@ export default function ModelHealthHourlyPage() {
     }
 
     setLoading(true);
+    setRowsError('');
     try {
       const res = await API.get('/api/model_health/hourly', {
         params: {
@@ -181,11 +209,23 @@ export default function ModelHealthHourlyPage() {
       });
       const { success, message, data } = res.data || {};
       if (!success) {
-        showError(message || '查询失败');
+        const errMsg = message || '查询失败';
+        setRowsError(errMsg);
+        showError(errMsg);
         return;
       }
-      setRows(Array.isArray(data) ? data : []);
+
+      if (!Array.isArray(data)) {
+        const errMsg = '接口返回结构异常（期望 data 为数组）';
+        setRowsError(errMsg);
+        setRows([]);
+        showError(errMsg);
+        return;
+      }
+
+      setRows(data);
     } catch (e) {
+      setRowsError('查询失败');
       showError(e);
     } finally {
       setLoading(false);
@@ -222,6 +262,13 @@ export default function ModelHealthHourlyPage() {
         }
       >
         <Form layout='vertical'>
+          {(modelsError || rowsError) && (
+            <div className='mb-2'>
+              <Typography.Text type='danger'>
+                {modelsError || rowsError}
+              </Typography.Text>
+            </div>
+          )}
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
             <Form.Select
               field='model_name'
@@ -272,11 +319,21 @@ export default function ModelHealthHourlyPage() {
               <Card className='!rounded-2xl' title='明细（每小时）' bodyStyle={{ padding: 0 }}>
                 <Table
                   columns={tableColumns}
-                  dataSource={(rows || []).map((r, idx) => ({ ...r, key: `${r.hour_start_ts}-${idx}` }))}
+                  dataSource={(Array.isArray(rows) ? rows : []).map((r, idx) => ({
+                    ...r,
+                    key: `${r.hour_start_ts}-${idx}`,
+                  }))}
                   pagination={false}
                   size='small'
                   bordered
                 />
+                {!loading && (!Array.isArray(rows) || rows.length === 0) && (
+                  <div className='px-4 py-3'>
+                    <Typography.Text type='tertiary'>
+                      {rowsError ? '数据异常，已降级为空列表' : '暂无数据'}
+                    </Typography.Text>
+                  </div>
+                )}
               </Card>
             </div>
           </Spin>
