@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -12,6 +13,14 @@ import (
 )
 
 type modelHealthHourlyRespItem struct {
+	ModelName     string  `json:"model_name"`
+	HourStartTs   int64   `json:"hour_start_ts"`
+	SuccessSlices int64   `json:"success_slices"`
+	TotalSlices   int64   `json:"total_slices"`
+	SuccessRate   float64 `json:"success_rate"`
+}
+
+type publicModelsHealthHourlyLast24hRespItem struct {
 	ModelName     string  `json:"model_name"`
 	HourStartTs   int64   `json:"hour_start_ts"`
 	SuccessSlices int64   `json:"success_slices"`
@@ -107,4 +116,66 @@ func GetModelHealthHourlyStatsAPI(c *gin.Context) {
 	}
 
 	common.ApiSuccess(c, resp)
+}
+
+// GetPublicModelsHealthHourlyLast24hAPI 公共接口：查询所有模型最近 24 小时每小时健康度。
+// GET /api/public/model_health/hourly_last24h
+func GetPublicModelsHealthHourlyLast24hAPI(c *gin.Context) {
+	now := time.Now().Unix()
+	endHourTs := now - (now % 3600) + 3600 // exclusive, aligned to next hour
+	startHourTs := endHourTs - 24*3600
+
+	rows, err := model.GetAllModelsHealthHourlyStats(model.DB, startHourTs, endHourTs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// Fill missing hours per model with zeros for stable UI rendering.
+	// Build desired hours list
+	wantHours := make([]int64, 0, 24)
+	for h := startHourTs; h < endHourTs; h += 3600 {
+		wantHours = append(wantHours, h)
+	}
+
+	// Group by model_name
+	grouped := make(map[string]map[int64]model.ModelHealthHourlyStat)
+	modelOrder := make([]string, 0)
+	for _, r := range rows {
+		if _, ok := grouped[r.ModelName]; !ok {
+			grouped[r.ModelName] = make(map[int64]model.ModelHealthHourlyStat)
+			modelOrder = append(modelOrder, r.ModelName)
+		}
+		grouped[r.ModelName][r.HourStartTs] = r
+	}
+
+	resp := make([]publicModelsHealthHourlyLast24hRespItem, 0, len(modelOrder)*len(wantHours))
+	for _, modelName := range modelOrder {
+		hourMap := grouped[modelName]
+		for _, h := range wantHours {
+			if stat, ok := hourMap[h]; ok {
+				resp = append(resp, publicModelsHealthHourlyLast24hRespItem{
+					ModelName:     stat.ModelName,
+					HourStartTs:   stat.HourStartTs,
+					SuccessSlices: stat.SuccessSlices,
+					TotalSlices:   stat.TotalSlices,
+					SuccessRate:   stat.SuccessRate,
+				})
+				continue
+			}
+			resp = append(resp, publicModelsHealthHourlyLast24hRespItem{
+				ModelName:     modelName,
+				HourStartTs:   h,
+				SuccessSlices: 0,
+				TotalSlices:   0,
+				SuccessRate:   0,
+			})
+		}
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"start_hour": startHourTs,
+		"end_hour":   endHourTs,
+		"rows":       resp,
+	})
 }

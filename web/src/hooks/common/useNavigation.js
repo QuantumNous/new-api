@@ -25,13 +25,16 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     const defaultModules = {
       home: true,
       console: true,
+      model_health: true,
       pricing: true,
       docs: true,
       about: true,
     };
 
-    // 使用传入的配置或默认配置
-    const modules = headerNavModules || defaultModules;
+    // 兼容旧配置：HeaderNavModules 可能缺少新 key（如 model_health）
+    const modules = headerNavModules
+      ? { ...defaultModules, ...headerNavModules }
+      : defaultModules;
 
     const allLinks = [
       {
@@ -43,6 +46,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('控制台'),
         itemKey: 'console',
         to: '/console',
+      },
+      {
+        text: t('模型健康度'),
+        itemKey: 'model_health',
+        to: '/model-health',
       },
       {
         text: t('模型广场'),

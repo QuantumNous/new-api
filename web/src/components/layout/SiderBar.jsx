@@ -84,6 +84,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('模型健康度'),
         itemKey: 'model_health',
         to: '/console/model-health-hourly',
+        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('用户小时调用排行'),

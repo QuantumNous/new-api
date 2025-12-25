@@ -51,6 +51,7 @@ import SetupCheck from './components/layout/SetupCheck';
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ModelHealthHourly = lazy(() => import('./pages/ModelHealthHourly'));
+const ModelHealthPublic = lazy(() => import('./pages/ModelHealthPublic'));
 const RecentCalls = lazy(() => import('./pages/RecentCalls'));
 const UserHourlyCallsRank = lazy(() => import('./pages/UserHourlyCallsRank'));
 const About = lazy(() => import('./pages/About'));
@@ -269,13 +270,22 @@ function App() {
         />
 
         <Route
+          path='/model-health'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <ModelHealthPublic />
+            </Suspense>
+          }
+        />
+
+        <Route
           path='/console/model-health-hourly'
           element={
-            <PrivateRoute>
+            <AdminRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <ModelHealthHourly />
               </Suspense>
-            </PrivateRoute>
+            </AdminRoute>
           }
         />
 

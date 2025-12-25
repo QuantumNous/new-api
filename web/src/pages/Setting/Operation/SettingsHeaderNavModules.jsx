@@ -42,6 +42,7 @@ export default function SettingsHeaderNavModules(props) {
   const [headerNavModules, setHeaderNavModules] = useState({
     home: true,
     console: true,
+    model_health: true,
     pricing: {
       enabled: true,
       requireAuth: false, // 默认不需要登录鉴权
@@ -82,6 +83,7 @@ export default function SettingsHeaderNavModules(props) {
     const defaultModules = {
       home: true,
       console: true,
+      model_health: true,
       pricing: {
         enabled: true,
         requireAuth: false,
@@ -148,6 +150,7 @@ export default function SettingsHeaderNavModules(props) {
         const defaultModules = {
           home: true,
           console: true,
+          model_health: true,
           pricing: {
             enabled: true,
             requireAuth: false,
@@ -171,6 +174,11 @@ export default function SettingsHeaderNavModules(props) {
       key: 'console',
       title: t('控制台'),
       description: t('用户控制面板，管理账户'),
+    },
+    {
+      key: 'model_health',
+      title: t('模型健康度'),
+      description: t('所有模型最近24小时健康度'),
     },
     {
       key: 'pricing',

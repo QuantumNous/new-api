@@ -275,5 +275,11 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			modelHealthRoute.GET("/hourly", controller.GetModelHealthHourlyStatsAPI)
 		}
+
+		// Public model health view (no auth): last 24h hourly stats for all models
+		publicModelHealthRoute := apiRouter.Group("/public/model_health")
+		{
+			publicModelHealthRoute.GET("/hourly_last24h", controller.GetPublicModelsHealthHourlyLast24hAPI)
+		}
 	}
 }
