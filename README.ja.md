@@ -313,6 +313,13 @@ docker run --name new-api -d --restart always \
 | `MAX_REQUEST_BODY_MB` | リクエストボディ最大サイズ（MB、**解凍後**に計測。巨大リクエスト/zip bomb によるメモリ枯渇を防止）。超過時は `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Azure APIバージョン | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | エラーログスイッチ | `false` |
+| `PYROSCOPE_URL` | Pyroscopeサーバーのアドレス | - |
+| `PYROSCOPE_APP_NAME` | Pyroscopeアプリ名 | `new-api` |
+| `PYROSCOPE_BASIC_AUTH_USER` | Pyroscope Basic Authユーザー | - |
+| `PYROSCOPE_BASIC_AUTH_PASSWORD` | Pyroscope Basic Authパスワード | - |
+| `PYROSCOPE_MUTEX_RATE` | Pyroscope mutexサンプリング率 | `5` |
+| `PYROSCOPE_BLOCK_RATE` | Pyroscope blockサンプリング率 | `5` |
+| `HOSTNAME` | Pyroscope用のホスト名タグ | `new-api` |
 
 📖 **完全な設定:** [環境変数ドキュメント](https://docs.newapi.pro/ja/docs/installation/config-maintenance/environment-variables)
 
