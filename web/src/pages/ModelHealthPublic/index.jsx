@@ -104,7 +104,7 @@ export default function ModelHealthPublicPage() {
       byModel.get(name).set(Number(r.hour_start_ts), r);
     }
 
-    const models = Array.from(byModel.keys()).sort((a, b) => a.localeCompare(b));
+    const models = Array.from(byModel.keys());
 
     const baseColumns = [
       {
@@ -117,6 +117,16 @@ export default function ModelHealthPublicPage() {
           <Typography.Text strong style={{ wordBreak: 'break-all' }}>
             {v}
           </Typography.Text>
+        ),
+      },
+      {
+        title: '总成功',
+        dataIndex: 'total_success',
+        key: 'total_success',
+        width: 80,
+        fixed: 'left',
+        render: (v) => (
+          <Typography.Text strong>{v}</Typography.Text>
         ),
       },
       {
@@ -138,13 +148,18 @@ export default function ModelHealthPublicPage() {
         const rate = Number(cell?.success_rate) || 0;
         const total = Number(cell?.total_slices) || 0;
         const success = Number(cell?.success_slices) || 0;
+        const isFilled = cell?.is_filled;
 
         return (
           <div className='flex flex-col gap-1'>
-            <Tag color={getRateColor(rate)}>{formatRate(rate)}</Tag>
-            <Typography.Text type='tertiary' size='small'>
-              {success}/{total}
-            </Typography.Text>
+            <Tag color={getRateColor(rate)}>
+              {isFilled ? `~${formatRate(rate)}` : formatRate(rate)}
+            </Tag>
+            {!isFilled && (
+              <Typography.Text type='tertiary' size='small'>
+                {success}/{total}
+              </Typography.Text>
+            )}
           </div>
         );
       },
@@ -154,30 +169,50 @@ export default function ModelHealthPublicPage() {
 
     const dataSource = models.map((modelName) => {
       const hourMap = byModel.get(modelName);
-      let sumRate = 0;
-      let count = 0;
+      let totalSuccess = 0;
 
       const row = {
         key: modelName,
         model_name: modelName,
       };
 
+      // 第一遍：计算总成功时间片和总时间片
+      let totalSlices = 0;
       for (const ts of hourStarts) {
-        const stat = hourMap?.get(ts) || {
-          hour_start_ts: ts,
-          model_name: modelName,
-          success_slices: 0,
-          total_slices: 0,
-          success_rate: 0,
-        };
-        row[`h_${ts}`] = stat;
-        sumRate += Number(stat.success_rate) || 0;
-        count += 1;
+        const stat = hourMap?.get(ts);
+        if (stat && Number(stat.total_slices) > 0) {
+          totalSuccess += Number(stat.success_slices) || 0;
+          totalSlices += Number(stat.total_slices) || 0;
+        }
       }
 
-      row.avg_rate = count > 0 ? sumRate / count : 0;
+      const avgRate = totalSlices > 0 ? totalSuccess / totalSlices : 0;
+      row.avg_rate = avgRate;
+      row.total_success = totalSuccess;
+
+      // 第二遍：填充数据，无数据的小时使用平均值
+      for (const ts of hourStarts) {
+        const stat = hourMap?.get(ts);
+        if (stat && Number(stat.total_slices) > 0) {
+          row[`h_${ts}`] = stat;
+        } else {
+          // 无数据，使用平均值填充
+          row[`h_${ts}`] = {
+            hour_start_ts: ts,
+            model_name: modelName,
+            success_slices: 0,
+            total_slices: 0,
+            success_rate: avgRate,
+            is_filled: true,
+          };
+        }
+      }
+
       return row;
     });
+
+    // 按总成功次数降序排序
+    dataSource.sort((a, b) => b.total_success - a.total_success);
 
     return { columns: allColumns, dataSource };
   }, [payload?.rows, hourStarts]);
