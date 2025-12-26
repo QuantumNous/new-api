@@ -3,6 +3,7 @@ package controller
 import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,9 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 
+	// 获取分阶段计费配置
+	tierPricingConfig := operation_setting.GetTokenTierPricingConfig()
+
 	c.JSON(200, gin.H{
 		"success":            true,
 		"data":               pricing,
@@ -46,6 +50,7 @@ func GetPricing(c *gin.Context) {
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),
+		"token_tier_pricing": tierPricingConfig,
 	})
 }
 

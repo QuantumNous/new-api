@@ -42,6 +42,7 @@ const ModelDetailSideSheet = ({
   vendorsMap,
   endpointMap,
   autoGroups,
+  tokenTierPricing,
   t,
 }) => {
   const isMobile = useIsMobile();
@@ -97,6 +98,7 @@ const ModelDetailSideSheet = ({
               showRatio={showRatio}
               usableGroup={usableGroup}
               autoGroups={autoGroups}
+              tokenTierPricing={tokenTierPricing}
               t={t}
             />
           </>
