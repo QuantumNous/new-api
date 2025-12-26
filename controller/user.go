@@ -299,6 +299,20 @@ func SearchUsers(c *gin.Context) {
 		"telegram_id": c.Query("telegram_id"),
 		"linux_do_id": c.Query("linux_do_id"),
 	}
+
+	// 检查是否至少有一个搜索条件
+	hasFilter := keyword != "" || group != ""
+	for _, v := range filters {
+		if v != "" {
+			hasFilter = true
+			break
+		}
+	}
+	if !hasFilter {
+		common.ApiErrorMsg(c, "at least one search parameter is required")
+		return
+	}
+
 	pageInfo := common.GetPageQuery(c)
 	users, total, err := model.SearchUsers(keyword, group, filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
