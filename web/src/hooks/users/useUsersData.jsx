@@ -88,6 +88,8 @@ export const useUsersData = () => {
   };
 
   // Search users with keyword and group
+  const VALID_SEARCH_FIELDS = ['github_id', 'discord_id', 'oidc_id', 'wechat_id', 'email', 'telegram_id', 'linux_do_id'];
+
   const searchUsers = async (
     startIdx,
     pageSize,
@@ -101,6 +103,11 @@ export const useUsersData = () => {
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
       searchField = formValues.searchField;
+    }
+
+    // Validate searchField
+    if (searchField && !VALID_SEARCH_FIELDS.includes(searchField)) {
+      searchField = '';
     }
 
     if (searchKeyword === '' && searchGroup === '') {
