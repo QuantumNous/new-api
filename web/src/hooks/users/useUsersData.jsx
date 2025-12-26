@@ -47,6 +47,7 @@ export const useUsersData = () => {
   const formInitValues = {
     searchKeyword: '',
     searchGroup: '',
+    searchField: '',
   };
 
   // Form API reference
@@ -58,6 +59,7 @@ export const useUsersData = () => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
+      searchField: formValues.searchField || '',
     };
   };
 
@@ -86,17 +88,26 @@ export const useUsersData = () => {
   };
 
   // Search users with keyword and group
+  const VALID_SEARCH_FIELDS = ['github_id', 'discord_id', 'oidc_id', 'wechat_id', 'email', 'telegram_id', 'linux_do_id'];
+
   const searchUsers = async (
     startIdx,
     pageSize,
     searchKeyword = null,
     searchGroup = null,
+    searchField = null,
   ) => {
     // If no parameters passed, get values from form
-    if (searchKeyword === null || searchGroup === null) {
+    if (searchKeyword === null || searchGroup === null || searchField === null) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
+      searchField = formValues.searchField;
+    }
+
+    // Validate searchField
+    if (searchField && !VALID_SEARCH_FIELDS.includes(searchField)) {
+      searchField = '';
     }
 
     if (searchKeyword === '' && searchGroup === '') {
@@ -105,9 +116,20 @@ export const useUsersData = () => {
       return;
     }
     setSearching(true);
-    const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
-    );
+
+    let url = `/api/user/search?p=${startIdx}&page_size=${pageSize}`;
+    if (searchGroup) {
+      url += `&group=${encodeURIComponent(searchGroup)}`;
+    }
+    if (searchKeyword) {
+      if (searchField) {
+        url += `&${searchField}=${encodeURIComponent(searchKeyword)}`;
+      } else {
+        url += `&keyword=${encodeURIComponent(searchKeyword)}`;
+      }
+    }
+
+    const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -191,11 +213,11 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup } = getFormValues();
+    const { searchKeyword, searchGroup, searchField } = getFormValues();
     if (searchKeyword === '' && searchGroup === '') {
       loadUsers(page, pageSize).then();
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup).then();
+      searchUsers(page, pageSize, searchKeyword, searchGroup, searchField).then();
     }
   };
 
@@ -226,11 +248,11 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup } = getFormValues();
+    const { searchKeyword, searchGroup, searchField } = getFormValues();
     if (searchKeyword === '' && searchGroup === '') {
       await loadUsers(page, pageSize);
     } else {
-      await searchUsers(page, pageSize, searchKeyword, searchGroup);
+      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchField);
     }
   };
 
