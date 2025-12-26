@@ -71,6 +71,25 @@ func SearchUserTokens(userId int, keyword string, token string) (tokens []*Token
 	return tokens, err
 }
 
+func SearchAllTokens(keyword string, token string, limit int) (tokens []*Token, err error) {
+	if token != "" {
+		token = strings.Trim(token, "sk-")
+	}
+
+	query := DB.Where("name LIKE ?", "%"+keyword+"%").Where(commonKeyCol+" LIKE ?", "%"+token+"%")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err = query.Find(&tokens).Error
+
+	for _, t := range tokens {
+		t.Clean()
+	}
+
+	return tokens, err
+}
 func ValidateUserToken(key string) (token *Token, err error) {
 	if key == "" {
 		return nil, errors.New("未提供令牌")
