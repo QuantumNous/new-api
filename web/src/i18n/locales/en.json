@@ -595,6 +595,7 @@
     "启用Ping间隔": "Enable Ping interval",
     "启用SMTP SSL": "Enable SMTP SSL",
     "启用SSRF防护（推荐开启以保护服务器安全）": "Enable SSRF Protection (Recommended for server security)",
+    "启用微信扫码直接登录": "Enable WeChat QR Code Direct Login",
     "启用全部": "Enable all",
     "启用后将使用 Creem Test Mode": "Use Creem Test Mode after enabling",
     "启用密钥失败": "Failed to enable key",

@@ -100,6 +100,7 @@ func InitOptionMap() {
 	common.OptionMap["WeChatServerAddress"] = ""
 	common.OptionMap["WeChatServerToken"] = ""
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
+	common.OptionMap["WeChatDirectLoginEnabled"] = strconv.FormatBool(common.WeChatDirectLoginEnabled)
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
@@ -378,6 +379,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.WeChatServerToken = value
 	case "WeChatAccountQRCodeImageURL":
 		common.WeChatAccountQRCodeImageURL = value
+	case "WeChatDirectLoginEnabled":
+		common.WeChatDirectLoginEnabled = value == "true"
 	case "TelegramBotToken":
 		common.TelegramBotToken = value
 	case "TelegramBotName":
