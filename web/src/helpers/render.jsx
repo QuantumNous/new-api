@@ -31,6 +31,7 @@ import {
   Zhipu,
   Qwen,
   DeepSeek,
+  DeepInfra,
   Minimax,
   Wenxin,
   Spark,
@@ -200,6 +201,11 @@ export const getModelCategories = (() => {
         icon: <DeepSeek.Color />,
         filter: (model) => model.model_name.toLowerCase().includes('deepseek'),
       },
+      deepinfra: {
+        label: 'DeepInfra',
+        icon: <DeepInfra />,
+        filter: (model) => model.model_name.toLowerCase().includes('deepinfra'),
+      },
       minimax: {
         label: 'MiniMax',
         icon: <Minimax.Color />,
@@ -352,6 +358,8 @@ export function getChannelIcon(channelType) {
       return <Jina size={iconSize} />;
     case 40: // SiliconCloud
       return <SiliconCloud.Color size={iconSize} />;
+    case 57: // DeepInfra
+      return <DeepInfra size={iconSize} />;
     case 42: // Mistral AI
       return <Mistral.Color size={iconSize} />;
     case 45: // 字节火山方舟、豆包通用
