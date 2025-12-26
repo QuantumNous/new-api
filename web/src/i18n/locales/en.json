@@ -1249,6 +1249,7 @@
     "模型重定向里的下列模型尚未添加到“模型”列表，调用时会因为缺少可用模型而失败：": "The following models from the redirect have not been added to the “Models” list and requests will fail due to no available model:",
     "模型限制列表": "Model restrictions list",
     "模板示例": "Template example",
+    "模糊搜索 (ID/用户名/显示名/邮箱)": "Fuzzy search (ID/Username/Display name/Email)",
     "模糊搜索模型名称": "Fuzzy search model name",
     "次": "times",
     "欢迎使用，请完成以下设置以开始使用系统": "Welcome! Please complete the following settings to start using the system",

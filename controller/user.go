@@ -290,8 +290,17 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	filters := map[string]string{
+		"github_id":   c.Query("github_id"),
+		"discord_id":  c.Query("discord_id"),
+		"oidc_id":     c.Query("oidc_id"),
+		"wechat_id":   c.Query("wechat_id"),
+		"email":       c.Query("email"),
+		"telegram_id": c.Query("telegram_id"),
+		"linux_do_id": c.Query("linux_do_id"),
+	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return

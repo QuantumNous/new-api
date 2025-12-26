@@ -1257,6 +1257,7 @@
     "模型重定向里的下列模型尚未添加到“模型”列表，调用时会因为缺少可用模型而失败：": "Les modèles suivants provenant de la redirection n'ont pas été ajoutés à la liste « Modèles », l'appel échouera faute de modèle disponible :",
     "模型限制列表": "Liste des restrictions de modèle",
     "模板示例": "Exemple de modèle",
+    "模糊搜索 (ID/用户名/显示名/邮箱)": "Recherche floue (ID/Nom d'utilisateur/Nom affiché/Email)",
     "模糊搜索模型名称": "Recherche floue de nom de modèle",
     "次": "Fois",
     "欢迎使用，请完成以下设置以开始使用系统": "Bienvenue, veuillez compléter les paramètres suivants pour commencer à utiliser le système",
