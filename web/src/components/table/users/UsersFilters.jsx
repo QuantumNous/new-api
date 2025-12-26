@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
@@ -34,6 +34,17 @@ const UsersFilters = ({
   t,
 }) => {
   const formApiRef = useRef(null);
+
+  const filterFields = useMemo(() => [
+    { value: '', label: t('模糊搜索 (ID/用户名/显示名/邮箱)') },
+    { value: 'github_id', label: 'GitHub ID' },
+    { value: 'discord_id', label: 'Discord ID' },
+    { value: 'oidc_id', label: 'OIDC ID' },
+    { value: 'wechat_id', label: 'WeChat ID' },
+    { value: 'email', label: 'Email' },
+    { value: 'telegram_id', label: 'Telegram ID' },
+    { value: 'linux_do_id', label: 'LinuxDO ID' },
+  ], [t]);
 
   const handleReset = () => {
     if (!formApiRef.current) return;
@@ -61,11 +72,20 @@ const UsersFilters = ({
       className='w-full md:w-auto order-1 md:order-2'
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
+        <div className='w-full md:w-32'>
+          <Form.Select
+            field='searchField'
+            optionList={filterFields}
+            className='w-full'
+            pure
+            size='small'
+          />
+        </div>
         <div className='relative w-full md:w-64'>
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
-            placeholder={t('支持搜索用户的 ID、用户名、显示名称和邮箱地址')}
+            placeholder={t('输入搜索值')}
             showClear
             pure
             size='small'
