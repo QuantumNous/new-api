@@ -1067,9 +1067,34 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 	return nil
 }
 
+func applyGeminiTokensDetailsToPromptUsage(usage *dto.Usage, details []dto.GeminiTokensDetails) {
+	for _, detail := range details {
+		switch detail.Modality {
+		case "AUDIO":
+			usage.PromptTokensDetails.AudioTokens = detail.TokenCount
+		case "TEXT":
+			usage.PromptTokensDetails.TextTokens = detail.TokenCount
+		case "IMAGE":
+			usage.PromptTokensDetails.ImageTokens = detail.TokenCount
+		}
+	}
+}
+
+func applyGeminiTokensDetailsToCompletionUsage(usage *dto.Usage, details []dto.GeminiTokensDetails) {
+	for _, detail := range details {
+		switch detail.Modality {
+		case "AUDIO":
+			usage.CompletionTokenDetails.AudioTokens = detail.TokenCount
+		case "TEXT":
+			usage.CompletionTokenDetails.TextTokens = detail.TokenCount
+		case "IMAGE":
+			usage.CompletionTokenDetails.ImageTokens = detail.TokenCount
+		}
+	}
+}
+
 func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
-	var imageCount int
 	responseText := strings.Builder{}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
@@ -1080,12 +1105,8 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			return false
 		}
 
-		// 统计图片数量
 		for _, candidate := range geminiResponse.Candidates {
 			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil && part.InlineData.MimeType != "" {
-					imageCount++
-				}
 				if part.Text != "" {
 					responseText.WriteString(part.Text)
 				}
@@ -1093,31 +1114,30 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 
 		// 更新使用量统计
-		if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
+		if geminiResponse.UsageMetadata.TotalTokenCount != 0 ||
+			geminiResponse.UsageMetadata.PromptTokenCount != 0 ||
+			geminiResponse.UsageMetadata.CandidatesTokenCount != 0 ||
+			geminiResponse.UsageMetadata.ThoughtsTokenCount != 0 ||
+			len(geminiResponse.UsageMetadata.PromptTokensDetails) > 0 ||
+			len(geminiResponse.UsageMetadata.CandidatesTokensDetails) > 0 {
 			usage.PromptTokens = geminiResponse.UsageMetadata.PromptTokenCount
-			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
-			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
-			usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
-			for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
-				if detail.Modality == "AUDIO" {
-					usage.PromptTokensDetails.AudioTokens = detail.TokenCount
-				} else if detail.Modality == "TEXT" {
-					usage.PromptTokensDetails.TextTokens = detail.TokenCount
-				}
+			if geminiResponse.UsageMetadata.TotalTokenCount != 0 {
+				usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
+				usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+			} else {
+				usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
+				usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 			}
+			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+			applyGeminiTokensDetailsToPromptUsage(usage, geminiResponse.UsageMetadata.PromptTokensDetails)
+			applyGeminiTokensDetailsToCompletionUsage(usage, geminiResponse.UsageMetadata.CandidatesTokensDetails)
 		}
 
 		return callback(data, &geminiResponse)
 	})
 
-	if imageCount != 0 {
-		if usage.CompletionTokens == 0 {
-			usage.CompletionTokens = imageCount * 1400
-		}
-	}
-
 	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
-	if usage.TotalTokens > 0 {
+	if usage.TotalTokens > 0 && usage.PromptTokens > 0 {
 		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
 	}
 
@@ -1223,22 +1243,22 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
+
 	usage := dto.Usage{
-		PromptTokens:     geminiResponse.UsageMetadata.PromptTokenCount,
-		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount,
-		TotalTokens:      geminiResponse.UsageMetadata.TotalTokenCount,
+		PromptTokens: geminiResponse.UsageMetadata.PromptTokenCount,
+		TotalTokens:  geminiResponse.UsageMetadata.TotalTokenCount,
 	}
 
 	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
-	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
-
-	for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
-		if detail.Modality == "AUDIO" {
-			usage.PromptTokensDetails.AudioTokens = detail.TokenCount
-		} else if detail.Modality == "TEXT" {
-			usage.PromptTokensDetails.TextTokens = detail.TokenCount
-		}
+	if usage.TotalTokens > 0 {
+		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+	} else {
+		usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
+
+	applyGeminiTokensDetailsToPromptUsage(&usage, geminiResponse.UsageMetadata.PromptTokensDetails)
+	applyGeminiTokensDetailsToCompletionUsage(&usage, geminiResponse.UsageMetadata.CandidatesTokensDetails)
 
 	fullTextResponse.Usage = usage
 
