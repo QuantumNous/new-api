@@ -2919,7 +2919,7 @@ const EditChannelModal = (props) => {
                       </div>
                     </div>
 
-                    {inputs.type === 1 && (
+                    {(inputs.type === 1 || inputs.type === 20) && (
                       <Form.Switch
                         field='force_format'
                         label={t('强制格式化')}
@@ -2929,10 +2929,12 @@ const EditChannelModal = (props) => {
                           handleChannelSettingsChange('force_format', value)
                         }
                         extraText={t(
-                          '强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）',
+                          '强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）',
                         )}
                       />
                     )}
+
+
 
                     <Form.Switch
                       field='thinking_to_content'
