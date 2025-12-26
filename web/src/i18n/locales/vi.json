@@ -2057,7 +2057,7 @@
     "请输入填充值": "Vui lòng nhập giá trị điền",
     "请输入备注（仅管理员可见）": "Vui lòng nhập ghi chú (chỉ quản trị viên mới thấy)",
     "请输入完整的 JSON 格式密钥内容": "Vui lòng nhập nội dung khóa định dạng JSON đầy đủ",
-    "请输入完整的URL，例如：https://api.openai.com/v1/chat/completions": "Vui lòng nhập URL đầy đủ, ví dụ: https://api.openai.com/v1/chat/completions",
+    "请输入完整的URL，例如：https://api.openai.com/v1/responses": "Vui lòng nhập URL đầy đủ, ví dụ: https://api.openai.com/v1/responses",
     "请输入完整的URL链接": "Vui lòng nhập liên kết URL đầy đủ",
     "请输入密钥，一行一个": "Vui lòng nhập khóa, mỗi dòng một cái",
     "请输入密钥！": "Vui lòng nhập khóa!",

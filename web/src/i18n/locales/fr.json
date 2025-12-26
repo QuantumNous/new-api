@@ -1844,7 +1844,7 @@
     "请输入填充值": "Veuillez saisir une valeur",
     "请输入备注（仅管理员可见）": "Veuillez saisir une remarque (visible uniquement par les administrateurs)",
     "请输入完整的 JSON 格式密钥内容": "Veuillez saisir le contenu complet de la clé au format JSON",
-    "请输入完整的URL，例如：https://api.openai.com/v1/chat/completions": "Veuillez saisir l'URL complète, par exemple : https://api.openai.com/v1/chat/completions",
+    "请输入完整的URL，例如：https://api.openai.com/v1/responses": "Veuillez saisir l'URL complète, par exemple : https://api.openai.com/v1/responses",
     "请输入完整的URL链接": "Veuillez saisir le lien URL complet",
     "请输入密码": "Veuillez saisir un mot de passe",
     "请输入密钥": "Veuillez saisir la clé",

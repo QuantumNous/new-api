@@ -64,8 +64,7 @@ const ModelTestModal = ({
 
   const endpointTypeOptions = [
     { value: '', label: t('自动检测') },
-    { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
-    { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
+    { value: 'openai', label: 'OpenAI (/v1/responses)' },
     { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
     {
       value: 'gemini',

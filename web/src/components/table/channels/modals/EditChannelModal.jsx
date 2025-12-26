@@ -108,7 +108,7 @@ function type2secretPrompt(type) {
     case 33:
       return '按照如下格式输入：Ak|Sk|Region';
     case 45:
-        return '请输入渠道对应的鉴权密钥, 豆包语音输入：AppId|AccessToken';
+      return '请输入渠道对应的鉴权密钥, 豆包语音输入：AppId|AccessToken';
     case 50:
       return '按照如下格式输入: AccessKey|SecretKey, 如果上游是New API，则直接输ApiKey';
     case 51:
@@ -197,17 +197,11 @@ const EditChannelModal = (props) => {
     if (!trimmed) return [];
     try {
       const parsed = JSON.parse(trimmed);
-      if (
-        !parsed ||
-        typeof parsed !== 'object' ||
-        Array.isArray(parsed)
-      ) {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         return [];
       }
       const values = Object.values(parsed)
-        .map((value) =>
-          typeof value === 'string' ? value.trim() : undefined,
-        )
+        .map((value) => (typeof value === 'string' ? value.trim() : undefined))
         .filter((value) => value);
       return Array.from(new Set(values));
     } catch (error) {
@@ -1684,7 +1678,10 @@ const EditChannelModal = (props) => {
                           style={{ width: '100%' }}
                           value={inputs.aws_key_type || 'ak_sk'}
                           onChange={(value) => {
-                            handleChannelOtherSettingsChange('aws_key_type', value);
+                            handleChannelOtherSettingsChange(
+                              'aws_key_type',
+                              value,
+                            );
                           }}
                           extraText={t(
                             'AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key',
@@ -1764,7 +1761,9 @@ const EditChannelModal = (props) => {
                           placeholder={
                             inputs.type === 33
                               ? inputs.aws_key_type === 'api_key'
-                                ? t('请输入 API Key，一行一个，格式：APIKey|Region')
+                                ? t(
+                                    '请输入 API Key，一行一个，格式：APIKey|Region',
+                                  )
                                 : t(
                                     '请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region',
                                   )
@@ -1967,7 +1966,9 @@ const EditChannelModal = (props) => {
                               inputs.type === 33
                                 ? inputs.aws_key_type === 'api_key'
                                   ? t('请输入 API Key，格式：APIKey|Region')
-                                  : t('按照如下格式输入：AccessKey|SecretAccessKey|Region')
+                                  : t(
+                                      '按照如下格式输入：AccessKey|SecretAccessKey|Region',
+                                    )
                                 : t(type2secretPrompt(inputs.type))
                             }
                             rules={
@@ -2257,7 +2258,7 @@ const EditChannelModal = (props) => {
                               field='base_url'
                               label={t('完整的 Base URL，支持变量{model}')}
                               placeholder={t(
-                                '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
+                                '请输入完整的URL，例如：https://api.openai.com/v1/responses',
                               )}
                               onChange={(value) =>
                                 handleInputChange('base_url', value)
@@ -2355,10 +2356,10 @@ const EditChannelModal = (props) => {
                                 label:
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
-                                {
-                                    value: 'doubao-coding-plan',
-                                    label: 'Doubao Coding Plan',
-                                },
+                              {
+                                value: 'doubao-coding-plan',
+                                label: 'Doubao Coding Plan',
+                              },
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
                           />

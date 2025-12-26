@@ -1822,7 +1822,7 @@
     "请输入填充值": "请输入填充值",
     "请输入备注（仅管理员可见）": "请输入备注（仅管理员可见）",
     "请输入完整的 JSON 格式密钥内容": "请输入完整的 JSON 格式密钥内容",
-    "请输入完整的URL，例如：https://api.openai.com/v1/chat/completions": "请输入完整的URL，例如：https://api.openai.com/v1/chat/completions",
+    "请输入完整的URL，例如：https://api.openai.com/v1/responses": "请输入完整的URL，例如：https://api.openai.com/v1/responses",
     "请输入完整的URL链接": "请输入完整的URL链接",
     "请输入密码": "请输入密码",
     "请输入密钥": "请输入密钥",

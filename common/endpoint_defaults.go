@@ -8,7 +8,7 @@ import "github.com/QuantumNous/new-api/constant"
 // 目前均为 POST，后续可扩展
 //
 // json 标签用于直接序列化到 API 输出
-// 例如：{"path":"/v1/chat/completions","method":"POST"}
+// 例如：{"path":"/v1/responses","method":"POST"}
 
 type EndpointInfo struct {
 	Path   string `json:"path"`
@@ -17,7 +17,7 @@ type EndpointInfo struct {
 
 // defaultEndpointInfoMap 保存内置端点的默认 Path 与 Method
 var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
-	constant.EndpointTypeOpenAI:          {Path: "/v1/chat/completions", Method: "POST"},
+	constant.EndpointTypeOpenAI:          {Path: "/v1/responses", Method: "POST"},
 	constant.EndpointTypeOpenAIResponse:  {Path: "/v1/responses", Method: "POST"},
 	constant.EndpointTypeAnthropic:       {Path: "/v1/messages", Method: "POST"},
 	constant.EndpointTypeGemini:          {Path: "/v1beta/models/{model}:generateContent", Method: "POST"},

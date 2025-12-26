@@ -15,10 +15,10 @@ times=()
 
 for ((i=1; i<=count; i++)); do
   result=$(curl -o /dev/null -s -w "%{http_code} %{time_total}\\n" \
-           https://"$domain"/v1/chat/completions \
+           https://"$domain"/v1/responses \
            -H "Content-Type: application/json" \
            -H "Authorization: Bearer $key" \
-           -d '{"messages": [{"content": "echo hi", "role": "user"}], "model": "'"$model"'", "stream": false, "max_tokens": 1}')
+           -d '{"input": [{"role": "user", "content": "echo hi"}], "model": "'"$model"'", "stream": false, "max_output_tokens": 1}')
   http_code=$(echo "$result" | awk '{print $1}')
   time=$(echo "$result" | awk '{print $2}')
   echo "HTTP status code: $http_code, Time taken: $time"
