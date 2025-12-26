@@ -1964,6 +1964,7 @@
     "输入邮箱地址": "输入邮箱地址",
     "输入项目名称，按回车添加": "输入项目名称，按回车添加",
     "输入验证码": "输入验证码",
+    "输入搜索值": "输入搜索值",
     "输入验证码完成设置": "输入验证码完成设置",
     "输出": "输出",
     "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}",

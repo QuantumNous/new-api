@@ -1885,6 +1885,7 @@
     "输入邮箱地址": "メールアドレスを入力",
     "输入项目名称，按回车添加": "プロジェクト名を入力してEnterで追加",
     "输入验证码": "認証コードを入力してください",
+    "输入搜索值": "検索値を入力",
     "输入验证码完成设置": "認証コードを入力して設定を完了してください",
     "输出": "出力",
     "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "補完 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}",

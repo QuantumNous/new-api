@@ -1976,6 +1976,7 @@
     "输入邮箱地址": "Enter Email Address",
     "输入项目名称，按回车添加": "Enter the item name, press Enter to add",
     "输入验证码": "Enter Verification Code",
+    "输入搜索值": "Enter search value",
     "输入验证码完成设置": "Enter verification code to complete setup",
     "输出": "Output",
     "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Output {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}} * {{ratioType}} {{ratio}}",

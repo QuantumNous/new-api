@@ -37,13 +37,13 @@ const UsersFilters = ({
 
   const filterFields = useMemo(() => [
     { value: '', label: t('模糊搜索 (ID/用户名/显示名/邮箱)') },
-    { value: 'github_id', label: 'GitHub ID' },
-    { value: 'discord_id', label: 'Discord ID' },
-    { value: 'oidc_id', label: 'OIDC ID' },
-    { value: 'wechat_id', label: 'WeChat ID' },
-    { value: 'email', label: 'Email' },
-    { value: 'telegram_id', label: 'Telegram ID' },
-    { value: 'linux_do_id', label: 'LinuxDO ID' },
+    { value: 'github_id', label: t('GitHub ID') },
+    { value: 'discord_id', label: t('Discord ID') },
+    { value: 'oidc_id', label: t('OIDC ID') },
+    { value: 'wechat_id', label: t('微信') + ' ID' },
+    { value: 'email', label: t('邮箱') },
+    { value: 'telegram_id', label: t('Telegram ID') },
+    { value: 'linux_do_id', label: t('LinuxDO ID') },
   ], [t]);
 
   const handleReset = () => {

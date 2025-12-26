@@ -1986,6 +1986,7 @@
     "输入邮箱地址": "Saisir l'adresse e-mail",
     "输入项目名称，按回车添加": "Saisissez le nom de l'élément, appuyez sur Entrée pour ajouter",
     "输入验证码": "Saisir le code de vérification",
+    "输入搜索值": "Entrez la valeur de recherche",
     "输入验证码完成设置": "Saisissez le code de vérification pour terminer la configuration",
     "输出": "Sortie",
     "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Sortie {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}} * {{ratioType}} {{ratio}}",

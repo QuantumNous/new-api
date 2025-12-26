@@ -2181,6 +2181,7 @@
     "输入认证器应用显示的6位数字验证码": "Nhập mã xác minh 6 chữ số hiển thị trên ứng dụng xác thực",
     "输入邮箱地址": "Nhập địa chỉ email",
     "输入项目名称，按回车添加": "Nhập tên dự án, nhấn Enter để thêm",
+    "输入搜索值": "Nhập giá trị tìm kiếm",
     "输入验证码完成设置": "Nhập mã xác minh để hoàn tất cài đặt",
     "输出": "Đầu ra",
     "输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}": "Đầu ra {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}",
