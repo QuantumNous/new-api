@@ -238,9 +238,20 @@ func SearchUsers(keyword string, group string, filters map[string]string, startI
 	// 构建基础查询
 	query := tx.Unscoped().Model(&User{})
 
+	// 允许的过滤字段白名单
+	allowedFields := map[string]bool{
+		"github_id":   true,
+		"discord_id":  true,
+		"oidc_id":     true,
+		"wechat_id":   true,
+		"email":       true,
+		"telegram_id": true,
+		"linux_do_id": true,
+	}
+
 	// 应用精确匹配过滤器
 	for field, value := range filters {
-		if value != "" {
+		if value != "" && allowedFields[field] {
 			query = query.Where(field+" = ?", value)
 		}
 	}
