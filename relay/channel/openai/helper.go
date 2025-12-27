@@ -172,7 +172,7 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	shouldSendLastResp *bool) error {
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
+	if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
 		return err
 	}
 

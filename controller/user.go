@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -109,18 +110,17 @@ func setupLogin(user *model.User, c *gin.Context) {
 		})
 		return
 	}
-	cleanUser := model.User{
-		Id:          user.Id,
-		Username:    user.Username,
-		DisplayName: user.DisplayName,
-		Role:        user.Role,
-		Status:      user.Status,
-		Group:       user.Group,
-	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
-		"data":    cleanUser,
+		"data": map[string]any{
+			"id":           user.Id,
+			"username":     user.Username,
+			"display_name": user.DisplayName,
+			"role":         user.Role,
+			"status":       user.Status,
+			"group":        user.Group,
+		},
 	})
 }
 
@@ -452,6 +452,7 @@ func GetSelf(c *gin.Context) {
 		"status":            user.Status,
 		"email":             user.Email,
 		"github_id":         user.GitHubId,
+		"discord_id":        user.DiscordId,
 		"oidc_id":           user.OidcId,
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
@@ -579,7 +580,7 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := setting.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {
@@ -762,7 +763,10 @@ func checkUpdatePassword(originalPassword string, newPassword string, userId int
 	if err != nil {
 		return
 	}
-	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) {
+
+	// 密码不为空,需要验证原密码
+	// 支持第一次账号绑定时原密码为空的情况
+	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) && currentUser.Password != "" {
 		err = fmt.Errorf("原密码错误")
 		return
 	}

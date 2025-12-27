@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/types"
 )
 
 var groupRatio = map[string]float64{
@@ -13,6 +15,7 @@ var groupRatio = map[string]float64{
 	"vip":     1,
 	"svip":    1,
 }
+
 var groupRatioMutex sync.RWMutex
 
 var (
@@ -23,6 +26,42 @@ var (
 	}
 	groupGroupRatioMutex sync.RWMutex
 )
+
+var defaultGroupSpecialUsableGroup = map[string]map[string]string{
+	"vip": {
+		"append_1":   "vip_special_group_1",
+		"-:remove_1": "vip_removed_group_1",
+	},
+}
+
+type GroupRatioSetting struct {
+	GroupRatio              map[string]float64                      `json:"group_ratio"`
+	GroupGroupRatio         map[string]map[string]float64           `json:"group_group_ratio"`
+	GroupSpecialUsableGroup *types.RWMap[string, map[string]string] `json:"group_special_usable_group"`
+}
+
+var groupRatioSetting GroupRatioSetting
+
+func init() {
+	groupSpecialUsableGroup := types.NewRWMap[string, map[string]string]()
+	groupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
+
+	groupRatioSetting = GroupRatioSetting{
+		GroupSpecialUsableGroup: groupSpecialUsableGroup,
+		GroupRatio:              groupRatio,
+		GroupGroupRatio:         GroupGroupRatio,
+	}
+
+	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
+}
+
+func GetGroupRatioSetting() *GroupRatioSetting {
+	if groupRatioSetting.GroupSpecialUsableGroup == nil {
+		groupRatioSetting.GroupSpecialUsableGroup = types.NewRWMap[string, map[string]string]()
+		groupRatioSetting.GroupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
+	}
+	return &groupRatioSetting
+}
 
 func GetGroupRatioCopy() map[string]float64 {
 	groupRatioMutex.RLock()

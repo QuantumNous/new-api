@@ -47,7 +47,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeImagesGenerations:
 			fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/text2image/image-synthesis", info.ChannelBaseUrl)
 		case constant.RelayModeImagesEdits:
-			fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+			if isWanModel(info.OriginModelName) {
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image2image/image-synthesis", info.ChannelBaseUrl)
+			} else {
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+			}
 		case constant.RelayModeCompletions:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
 		default:
@@ -71,6 +75,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		req.Set("X-DashScope-Async", "enable")
 	}
 	if info.RelayMode == constant.RelayModeImagesEdits {
+		if isWanModel(info.OriginModelName) {
+			req.Set("X-DashScope-Async", "enable")
+		}
 		req.Set("Content-Type", "application/json")
 	}
 	return nil
@@ -82,15 +89,15 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	// docs: https://bailian.console.aliyun.com/?tab=api#/api/?type=model&url=2712216
 	// fix: InternalError.Algo.InvalidParameter: The value of the enable_thinking parameter is restricted to True.
-	if strings.Contains(request.Model, "thinking") {
-		request.EnableThinking = true
-		request.Stream = true
-		info.IsStream = true
-	}
-	// fix: ali parameter.enable_thinking must be set to false for non-streaming calls
-	if !info.IsStream {
-		request.EnableThinking = false
-	}
+	//if strings.Contains(request.Model, "thinking") {
+	//	request.EnableThinking = true
+	//	request.Stream = true
+	//	info.IsStream = true
+	//}
+	//// fix: ali parameter.enable_thinking must be set to false for non-streaming calls
+	//if !info.IsStream {
+	//	request.EnableThinking = false
+	//}
 
 	switch info.RelayMode {
 	default:
@@ -107,6 +114,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 		return aliRequest, nil
 	} else if info.RelayMode == constant.RelayModeImagesEdits {
+		if isWanModel(info.OriginModelName) {
+			return oaiFormEdit2WanxImageEdit(c, info, request)
+		}
 		// ali image edit https://bailian.console.aliyun.com/?tab=api#/api/?type=model&url=2976416
 		// 如果用户使用表单，则需要解析表单数据
 		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
@@ -161,7 +171,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		case constant.RelayModeImagesGenerations:
 			err, usage = aliImageHandler(c, resp, info)
 		case constant.RelayModeImagesEdits:
-			err, usage = aliImageEditHandler(c, resp, info)
+			if isWanModel(info.OriginModelName) {
+				err, usage = aliImageHandler(c, resp, info)
+			} else {
+				err, usage = aliImageEditHandler(c, resp, info)
+			}
 		case constant.RelayModeRerank:
 			err, usage = RerankHandler(c, resp, info)
 		default:

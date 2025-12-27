@@ -95,7 +95,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		return err
 	}
 
-	token, err := model.GetTokenByKey(strings.TrimLeft(relayInfo.TokenKey, "sk-"), false)
+	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
-	autoGroup, exists := ctx.Get("auto_group")
+	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
 		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
 		log.Printf("final group ratio: %f", groupRatio)
@@ -251,7 +251,11 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
 
 	cacheCreationRatio := relayInfo.PriceData.CacheCreationRatio
+	cacheCreationRatio5m := relayInfo.PriceData.CacheCreation5mRatio
+	cacheCreationRatio1h := relayInfo.PriceData.CacheCreation1hRatio
 	cacheCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
+	cacheCreationTokens5m := usage.ClaudeCacheCreation5mTokens
+	cacheCreationTokens1h := usage.ClaudeCacheCreation1hTokens
 
 	if relayInfo.ChannelType == constant.ChannelTypeOpenRouter {
 		promptTokens -= cacheTokens
@@ -269,7 +273,12 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	if !relayInfo.PriceData.UsePrice {
 		calculateQuota = float64(promptTokens)
 		calculateQuota += float64(cacheTokens) * cacheRatio
-		calculateQuota += float64(cacheCreationTokens) * cacheCreationRatio
+		calculateQuota += float64(cacheCreationTokens5m) * cacheCreationRatio5m
+		calculateQuota += float64(cacheCreationTokens1h) * cacheCreationRatio1h
+		remainingCacheCreationTokens := cacheCreationTokens - cacheCreationTokens5m - cacheCreationTokens1h
+		if remainingCacheCreationTokens > 0 {
+			calculateQuota += float64(remainingCacheCreationTokens) * cacheCreationRatio
+		}
 		calculateQuota += float64(completionTokens) * completionRatio
 		calculateQuota = calculateQuota * groupRatio * modelRatio
 	} else {
@@ -322,7 +331,11 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	}
 
 	other := GenerateClaudeOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio,
-		cacheTokens, cacheRatio, cacheCreationTokens, cacheCreationRatio, modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		cacheTokens, cacheRatio,
+		cacheCreationTokens, cacheCreationRatio,
+		cacheCreationTokens5m, cacheCreationRatio5m,
+		cacheCreationTokens1h, cacheCreationRatio1h,
+		modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     promptTokens,
@@ -535,7 +548,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 		}
 		if quotaTooLow {
 			prompt := "您的额度即将用尽"
-			topUpLink := fmt.Sprintf("%s/topup", system_setting.ServerAddress)
+			topUpLink := fmt.Sprintf("%s/console/topup", system_setting.ServerAddress)
 
 			// 根据通知方式生成不同的内容格式
 			var content string

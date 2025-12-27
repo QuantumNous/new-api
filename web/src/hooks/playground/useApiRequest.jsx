@@ -179,6 +179,8 @@ export const useApiRequest = (
         request: payload,
         timestamp: new Date().toISOString(),
         response: null,
+        sseMessages: null, // 非流式请求清除 SSE 消息
+        isStreaming: false,
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
@@ -229,7 +231,7 @@ export const useApiRequest = (
         if (data.choices?.[0]) {
           const choice = data.choices[0];
           let content = choice.message?.content || '';
-          let reasoningContent = choice.message?.reasoning_content || '';
+          let reasoningContent = choice.message?.reasoning_content || choice.message?.reasoning || '';
 
           const processed = processThinkTags(content, reasoningContent);
 
@@ -291,6 +293,8 @@ export const useApiRequest = (
         request: payload,
         timestamp: new Date().toISOString(),
         response: null,
+        sseMessages: [], // 新增：存储 SSE 消息数组
+        isStreaming: true, // 新增：标记流式状态
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
@@ -314,7 +318,12 @@ export const useApiRequest = (
           isStreamComplete = true; // 标记流正常完成
           source.close();
           sseSourceRef.current = null;
-          setDebugData((prev) => ({ ...prev, response: responseData }));
+          setDebugData((prev) => ({ 
+            ...prev, 
+            response: responseData,
+            sseMessages: [...(prev.sseMessages || []), '[DONE]'], // 添加 DONE 标记
+            isStreaming: false,
+          }));
           completeMessage();
           return;
         }
@@ -328,10 +337,19 @@ export const useApiRequest = (
             hasReceivedFirstResponse = true;
           }
 
+          // 新增：将 SSE 消息添加到数组
+          setDebugData((prev) => ({
+            ...prev,
+            sseMessages: [...(prev.sseMessages || []), e.data],
+          }));
+
           const delta = payload.choices?.[0]?.delta;
           if (delta) {
             if (delta.reasoning_content) {
               streamMessageUpdate(delta.reasoning_content, 'reasoning');
+            }
+            if (delta.reasoning) {
+              streamMessageUpdate(delta.reasoning, 'reasoning');
             }
             if (delta.content) {
               streamMessageUpdate(delta.content, 'content');
@@ -344,6 +362,8 @@ export const useApiRequest = (
           setDebugData((prev) => ({
             ...prev,
             response: responseData + `\n\nError: ${errorInfo}`,
+            sseMessages: [...(prev.sseMessages || []), e.data], // 即使解析失败也保存原始数据
+            isStreaming: false,
           }));
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
 

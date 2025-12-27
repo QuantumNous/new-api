@@ -1,15 +1,9 @@
 package openai
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
-	"math"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -26,7 +20,6 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
 )
 
 func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
@@ -128,6 +121,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var usage = &dto.Usage{}
 	var streamItems []string // store stream items
 	var lastStreamData string
+	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
+
+	// 检查是否为音频模型
+	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		if lastStreamData != "" {
@@ -137,11 +134,34 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 		if len(data) > 0 {
+			// 对音频模型，保存倒数第二个stream data
+			if isAudioModel && lastStreamData != "" {
+				secondLastStreamData = lastStreamData
+			}
+
 			lastStreamData = data
 			streamItems = append(streamItems, data)
 		}
 		return true
 	})
+
+	// 对音频模型，从倒数第二个stream data中提取usage信息
+	if isAudioModel && secondLastStreamData != "" {
+		var streamResp struct {
+			Usage *dto.Usage `json:"usage"`
+		}
+		err := common.Unmarshal([]byte(secondLastStreamData), &streamResp)
+		if err == nil && streamResp.Usage != nil && service.ValidUsage(streamResp.Usage) {
+			usage = streamResp.Usage
+			containStreamUsage = true
+
+			if common.DebugEnabled {
+				logger.LogDebug(c, fmt.Sprintf("Audio model usage extracted from second last SSE: PromptTokens=%d, CompletionTokens=%d, TotalTokens=%d, InputTokens=%d, OutputTokens=%d",
+					usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens,
+					usage.InputTokens, usage.OutputTokens))
+			}
+		}
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true
@@ -162,7 +182,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(responseTextBuilder.String(), info.UpstreamModelName, info.PromptTokens)
+		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
 
@@ -224,9 +244,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			}
 		}
 		simpleResponse.Usage = dto.Usage{
-			PromptTokens:     info.PromptTokens,
+			PromptTokens:     info.GetEstimatePromptTokens(),
 			CompletionTokens: completionTokens,
-			TotalTokens:      info.PromptTokens + completionTokens,
+			TotalTokens:      info.GetEstimatePromptTokens() + completionTokens,
 		}
 		usageModified = true
 	}
@@ -304,114 +324,6 @@ func streamTTSResponse(c *gin.Context, resp *http.Response) {
 			break
 		}
 	}
-}
-
-func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *dto.Usage {
-	// the status code has been judged before, if there is a body reading failure,
-	// it should be regarded as a non-recoverable error, so it should not return err for external retry.
-	// Analogous to nginx's load balancing, it will only retry if it can't be requested or
-	// if the upstream returns a specific status code, once the upstream has already written the header,
-	// the subsequent failure of the response body should be regarded as a non-recoverable error,
-	// and can be terminated directly.
-	defer service.CloseResponseBodyGracefully(resp)
-	usage := &dto.Usage{}
-	usage.PromptTokens = info.PromptTokens
-	usage.TotalTokens = info.PromptTokens
-	for k, v := range resp.Header {
-		c.Writer.Header().Set(k, v[0])
-	}
-	c.Writer.WriteHeader(resp.StatusCode)
-
-	isStreaming := resp.ContentLength == -1 || resp.Header.Get("Content-Length") == ""
-	if isStreaming {
-		streamTTSResponse(c, resp)
-	} else {
-		c.Writer.WriteHeaderNow()
-		_, err := io.Copy(c.Writer, resp.Body)
-		if err != nil {
-			logger.LogError(c, err.Error())
-		}
-	}
-	return usage
-}
-
-func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, responseFormat string) (*types.NewAPIError, *dto.Usage) {
-	defer service.CloseResponseBodyGracefully(resp)
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError), nil
-	}
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-
-	var responseData struct {
-		Usage *dto.Usage `json:"usage"`
-	}
-	if err := json.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
-		if responseData.Usage.TotalTokens > 0 {
-			usage := responseData.Usage
-			if usage.PromptTokens == 0 {
-				usage.PromptTokens = usage.InputTokens
-			}
-			if usage.CompletionTokens == 0 {
-				usage.CompletionTokens = usage.OutputTokens
-			}
-			return nil, usage
-		}
-	}
-
-	audioTokens, err := countAudioTokens(c)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeCountTokenFailed), nil
-	}
-	usage := &dto.Usage{}
-	usage.PromptTokens = audioTokens
-	usage.CompletionTokens = 0
-	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-	return nil, usage
-}
-
-func countAudioTokens(c *gin.Context) (int, error) {
-	body, err := common.GetRequestBody(c)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-
-	var reqBody struct {
-		File *multipart.FileHeader `form:"file" binding:"required"`
-	}
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	if err = c.ShouldBind(&reqBody); err != nil {
-		return 0, errors.WithStack(err)
-	}
-	ext := filepath.Ext(reqBody.File.Filename) // 获取文件扩展名
-	reqFp, err := reqBody.File.Open()
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-	defer reqFp.Close()
-
-	tmpFp, err := os.CreateTemp("", "audio-*"+ext)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-	defer os.Remove(tmpFp.Name())
-
-	_, err = io.Copy(tmpFp, reqFp)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-	if err = tmpFp.Close(); err != nil {
-		return 0, errors.WithStack(err)
-	}
-
-	duration, err := common.GetAudioDuration(c.Request.Context(), tmpFp.Name(), ext)
-	if err != nil {
-		return 0, errors.WithStack(err)
-	}
-
-	return int(math.Round(math.Ceil(duration) / 60.0 * 1000)), nil // 1 minute 相当于 1k tokens
 }
 
 func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
@@ -684,7 +596,7 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 		if usage.PromptTokensDetails.CachedTokens == 0 && usage.PromptCacheHitTokens != 0 {
 			usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 		}
-	case constant.ChannelTypeZhipu_v4:
+	case constant.ChannelTypeZhipu_v4, constant.ChannelTypeMoonshot:
 		if usage.PromptTokensDetails.CachedTokens == 0 {
 			if usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0 {
 				usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
@@ -712,7 +624,7 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 		} `json:"usage"`
 	}
 
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := common.Unmarshal(body, &payload); err != nil {
 		return 0, false
 	}
 

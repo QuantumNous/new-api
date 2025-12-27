@@ -58,11 +58,7 @@ func oaiImage2Ali(request dto.ImageRequest) (*AliImageRequest, error) {
 	return &imageRequest, nil
 }
 
-func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (*AliImageRequest, error) {
-	var imageRequest AliImageRequest
-	imageRequest.Model = request.Model
-	imageRequest.ResponseFormat = request.ResponseFormat
-
+func getImageBase64sFromForm(c *gin.Context, fieldName string) ([]string, error) {
 	mf := c.Request.MultipartForm
 	if mf == nil {
 		if _, err := c.MultipartForm(); err != nil {
@@ -98,9 +94,9 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 		return nil, errors.New("image is required")
 	}
 
-	if len(imageFiles) > 1 {
-		return nil, errors.New("only one image is supported for qwen edit")
-	}
+	//if len(imageFiles) > 1 {
+	//	return nil, errors.New("only one image is supported for qwen edit")
+	//}
 
 	// 获取base64编码的图片
 	var imageBase64s []string
@@ -127,7 +123,18 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 		imageBase64s = append(imageBase64s, dataURL)
 		image.Close()
 	}
+	return imageBase64s, nil
+}
 
+func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (*AliImageRequest, error) {
+	var imageRequest AliImageRequest
+	imageRequest.Model = request.Model
+	imageRequest.ResponseFormat = request.ResponseFormat
+
+	imageBase64s, err := getImageBase64sFromForm(c, "image")
+	if err != nil {
+		return nil, fmt.Errorf("get image base64s from form failed: %w", err)
+	}
 	//dto.MediaContent{}
 	mediaContents := make([]AliMediaContent, len(imageBase64s))
 	for i, b64 := range imageBase64s {

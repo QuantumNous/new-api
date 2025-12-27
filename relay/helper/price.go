@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
+const claudeCacheCreation1hMultiplier = 6 / 3.75
 
 // HandleGroupRatio checks for "auto_group" in the context and updates the group ratio and relayInfo.UsingGroup if present
 func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.GroupRatioInfo {
@@ -22,9 +26,7 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 	// check auto group
 	autoGroup, exists := ctx.Get("auto_group")
 	if exists {
-		if common.DebugEnabled {
-			println(fmt.Sprintf("final group: %s", autoGroup))
-		}
+		logger.LogDebug(ctx, fmt.Sprintf("final group: %s", autoGroup))
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
@@ -54,6 +56,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var cacheRatio float64
 	var imageRatio float64
 	var cacheCreationRatio float64
+	var cacheCreationRatio5m float64
+	var cacheCreationRatio1h float64
 	var audioRatio float64
 	var audioCompletionRatio float64
 	var freeModel bool
@@ -77,6 +81,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
+		cacheCreationRatio5m = cacheCreationRatio
+		// 固定1h和5min缓存写入价格的比例
+		cacheCreationRatio1h = cacheCreationRatio * claudeCacheCreation1hMultiplier
 		imageRatio, _ = ratio_setting.GetImageRatio(info.OriginModelName)
 		audioRatio = ratio_setting.GetAudioRatio(info.OriginModelName)
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
@@ -92,7 +99,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	// check if free model pre-consume is disabled
 	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
 		// if model price or ratio is 0, do not pre-consume quota
-		if usePrice {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		} else if usePrice {
 			if modelPrice == 0 {
 				preConsumedQuota = 0
 				freeModel = true
@@ -117,6 +127,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		AudioRatio:           audioRatio,
 		AudioCompletionRatio: audioCompletionRatio,
 		CacheCreationRatio:   cacheCreationRatio,
+		CacheCreation5mRatio: cacheCreationRatio5m,
+		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
 	}
 

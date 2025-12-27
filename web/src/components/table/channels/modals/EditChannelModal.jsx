@@ -191,6 +191,31 @@ const EditChannelModal = (props) => {
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
+  const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false); // 豆包渠道自定义 API 地址隐藏入口
+  const redirectModelList = useMemo(() => {
+    const mapping = inputs.model_mapping;
+    if (typeof mapping !== 'string') return [];
+    const trimmed = mapping.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed)
+      ) {
+        return [];
+      }
+      const values = Object.values(parsed)
+        .map((value) =>
+          typeof value === 'string' ? value.trim() : undefined,
+        )
+        .filter((value) => value);
+      return Array.from(new Set(values));
+    } catch (error) {
+      return [];
+    }
+  }, [inputs.model_mapping]);
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
 
@@ -237,6 +262,9 @@ const EditChannelModal = (props) => {
     'channelExtraSettings',
   ];
   const formContainerRef = useRef(null);
+  const doubaoApiClickCountRef = useRef(0);
+  const initialModelsRef = useRef([]);
+  const initialModelMappingRef = useRef('');
 
   // 2FA状态更新辅助函数
   const updateTwoFAState = (updates) => {
@@ -323,6 +351,20 @@ const EditChannelModal = (props) => {
 
     setCurrentSectionIndex(newIndex);
     scrollToSection(availableSections[newIndex]);
+  };
+
+  const handleApiConfigSecretClick = () => {
+    if (inputs.type !== 45) return;
+    const next = doubaoApiClickCountRef.current + 1;
+    doubaoApiClickCountRef.current = next;
+    if (next >= 10) {
+      setDoubaoApiEditUnlocked((unlocked) => {
+        if (!unlocked) {
+          showInfo(t('已解锁豆包自定义 API 地址编辑'));
+        }
+        return true;
+      });
+    }
   };
 
   // 渠道额外设置状态
@@ -603,6 +645,10 @@ const EditChannelModal = (props) => {
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
+      initialModelsRef.current = (data.models || [])
+        .map((model) => (model || '').trim())
+        .filter(Boolean);
+      initialModelMappingRef.current = data.model_mapping || '';
 
       let parsedIonet = null;
       if (data.other_info) {
@@ -771,6 +817,13 @@ const EditChannelModal = (props) => {
   };
 
   useEffect(() => {
+    if (inputs.type !== 45) {
+      doubaoApiClickCountRef.current = 0;
+      setDoubaoApiEditUnlocked(false);
+    }
+  }, [inputs.type]);
+
+  useEffect(() => {
     const modelMap = new Map();
 
     originModelOptions.forEach((option) => {
@@ -853,6 +906,13 @@ const EditChannelModal = (props) => {
     }
   }, [props.visible, channelId]);
 
+  useEffect(() => {
+    if (!isEdit) {
+      initialModelsRef.current = [];
+      initialModelMappingRef.current = '';
+    }
+  }, [isEdit, props.visible]);
+
   // 统一的模态框重置函数
   const resetModalState = () => {
     formApiRef.current?.reset();
@@ -869,6 +929,9 @@ const EditChannelModal = (props) => {
     setKeyMode('append');
     // 重置企业账户状态
     setIsEnterpriseAccount(false);
+    // 重置豆包隐藏入口状态
+    setDoubaoApiEditUnlocked(false);
+    doubaoApiClickCountRef.current = 0;
     // 清空表单中的key_mode字段
     if (formApiRef.current) {
       formApiRef.current.setValue('key_mode', undefined);
@@ -921,6 +984,80 @@ const EditChannelModal = (props) => {
         );
       }
     })();
+  };
+
+  const confirmMissingModelMappings = (missingModels) =>
+    new Promise((resolve) => {
+      const modal = Modal.confirm({
+        title: t('模型未加入列表，可能无法调用'),
+        content: (
+          <div className='text-sm leading-6'>
+            <div>
+              {t(
+                '模型重定向里的下列模型尚未添加到“模型”列表，调用时会因为缺少可用模型而失败：',
+              )}
+            </div>
+            <div className='font-mono text-xs break-all text-red-600 mt-1'>
+              {missingModels.join(', ')}
+            </div>
+            <div className='mt-2'>
+              {t(
+                '你可以在“自定义模型名称”处手动添加它们，然后点击填入后再提交，或者直接使用下方操作自动处理。',
+              )}
+            </div>
+          </div>
+        ),
+        centered: true,
+        footer: (
+          <Space align='center' className='w-full justify-end'>
+            <Button
+              type='tertiary'
+              onClick={() => {
+                modal.destroy();
+                resolve('cancel');
+              }}
+            >
+              {t('返回修改')}
+            </Button>
+            <Button
+              type='primary'
+              theme='light'
+              onClick={() => {
+                modal.destroy();
+                resolve('submit');
+              }}
+            >
+              {t('直接提交')}
+            </Button>
+            <Button
+              type='primary'
+              theme='solid'
+              onClick={() => {
+                modal.destroy();
+                resolve('add');
+              }}
+            >
+              {t('添加后提交')}
+            </Button>
+          </Space>
+        ),
+      });
+    });
+
+  const hasModelConfigChanged = (normalizedModels, modelMappingStr) => {
+    if (!isEdit) return true;
+    const initialModels = initialModelsRef.current;
+    if (normalizedModels.length !== initialModels.length) {
+      return true;
+    }
+    for (let i = 0; i < normalizedModels.length; i++) {
+      if (normalizedModels[i] !== initialModels[i]) {
+        return true;
+      }
+    }
+    const normalizedMapping = (modelMappingStr || '').trim();
+    const initialMapping = (initialModelMappingRef.current || '').trim();
+    return normalizedMapping !== initialMapping;
   };
 
   const submit = async () => {
@@ -1006,14 +1143,55 @@ const EditChannelModal = (props) => {
       showInfo(t('请输入API地址！'));
       return;
     }
-    if (
-      localInputs.model_mapping &&
-      localInputs.model_mapping !== '' &&
-      !verifyJSON(localInputs.model_mapping)
-    ) {
-      showInfo(t('模型映射必须是合法的 JSON 格式！'));
-      return;
+    const hasModelMapping =
+      typeof localInputs.model_mapping === 'string' &&
+      localInputs.model_mapping.trim() !== '';
+    let parsedModelMapping = null;
+    if (hasModelMapping) {
+      if (!verifyJSON(localInputs.model_mapping)) {
+        showInfo(t('模型映射必须是合法的 JSON 格式！'));
+        return;
+      }
+      try {
+        parsedModelMapping = JSON.parse(localInputs.model_mapping);
+      } catch (error) {
+        showInfo(t('模型映射必须是合法的 JSON 格式！'));
+        return;
+      }
     }
+
+    const normalizedModels = (localInputs.models || [])
+      .map((model) => (model || '').trim())
+      .filter(Boolean);
+    localInputs.models = normalizedModels;
+
+    if (
+      parsedModelMapping &&
+      typeof parsedModelMapping === 'object' &&
+      !Array.isArray(parsedModelMapping)
+    ) {
+      const modelSet = new Set(normalizedModels);
+      const missingModels = Object.keys(parsedModelMapping)
+        .map((key) => (key || '').trim())
+        .filter((key) => key && !modelSet.has(key));
+      const shouldPromptMissing =
+        missingModels.length > 0 &&
+        hasModelConfigChanged(normalizedModels, localInputs.model_mapping);
+      if (shouldPromptMissing) {
+        const confirmAction = await confirmMissingModelMappings(missingModels);
+        if (confirmAction === 'cancel') {
+          return;
+        }
+        if (confirmAction === 'add') {
+          const updatedModels = Array.from(
+            new Set([...normalizedModels, ...missingModels]),
+          );
+          localInputs.models = updatedModels;
+          handleInputChange('models', updatedModels);
+        }
+      }
+    }
+
     if (localInputs.base_url && localInputs.base_url.endsWith('/')) {
       localInputs.base_url = localInputs.base_url.slice(
         0,
@@ -1054,6 +1232,13 @@ const EditChannelModal = (props) => {
     // type === 33 (AWS): 保存 aws_key_type 到 settings
     if (localInputs.type === 33) {
       settings.aws_key_type = localInputs.aws_key_type || 'ak_sk';
+    }
+
+    // type === 41 (Vertex): 始终保存 vertex_key_type 到 settings，避免编辑时被重置
+    if (localInputs.type === 41) {
+      settings.vertex_key_type = localInputs.vertex_key_type || 'json';
+    } else if ('vertex_key_type' in settings) {
+      delete settings.vertex_key_type;
     }
 
     // type === 1 (OpenAI) 或 type === 14 (Claude): 设置字段透传控制（显式保存布尔值）
@@ -1465,7 +1650,7 @@ const EditChannelModal = (props) => {
         >
           {() => (
             <Spin spinning={loading}>
-              <div className='p-2' ref={formContainerRef}>
+              <div className='p-2 space-y-3' ref={formContainerRef}>
                 <div ref={(el) => (formSectionRefs.current.basicInfo = el)}>
                   <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                     {/* Header: Basic Info */}
@@ -2028,7 +2213,10 @@ const EditChannelModal = (props) => {
                   <div ref={(el) => (formSectionRefs.current.apiConfig = el)}>
                     <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                       {/* Header: API Config */}
-                      <div className='flex items-center mb-2'>
+                      <div
+                        className='flex items-center mb-2'
+                        onClick={handleApiConfigSecretClick}
+                      >
                         <Avatar
                           size='small'
                           color='green'
@@ -2165,7 +2353,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
-                        inputs.type !== 45 && (
+                        (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
                               field='base_url'
@@ -2221,7 +2409,7 @@ const EditChannelModal = (props) => {
                   </div>
                 )}
 
-                {inputs.type === 45 && (
+                {inputs.type === 45 && !doubaoApiEditUnlocked && (
                     <div>
                       <Form.Select
                           field='base_url'
@@ -2239,8 +2427,11 @@ const EditChannelModal = (props) => {
                               value: 'https://ark.ap-southeast.bytepluses.com',
                               label: 'https://ark.ap-southeast.bytepluses.com',
                             },
-                          ]}
-                          defaultValue='https://ark.cn-beijing.volces.com'
+                          {
+                          value: 'doubao-coding-plan',
+                                    label: 'Doubao Coding Plan',
+                                },
+                            ]}defaultValue='https://ark.cn-beijing.volces.com'
                           disabled={isIonetLocked}
                       />
                     </div>
@@ -2964,6 +3155,7 @@ const EditChannelModal = (props) => {
         visible={modelModalVisible}
         models={fetchedModels}
         selected={inputs.models}
+        redirectModels={redirectModelList}
         onConfirm={(selectedModels) => {
           handleInputChange('models', selectedModels);
           showSuccess(t('模型列表已更新'));

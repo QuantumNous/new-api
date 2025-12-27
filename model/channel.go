@@ -138,9 +138,11 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 			enabledIdx = append(enabledIdx, i)
 		}
 	}
-	// If no specific status list or none enabled, fall back to first key
+	// If no specific status list or none enabled, return an explicit error so caller can
+	// properly handle a channel with no available keys (e.g. mark channel disabled).
+	// Returning the first key here caused requests to keep using an already-disabled key.
 	if len(enabledIdx) == 0 {
-		return keys[0], 0, nil
+		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
 	switch channel.ChannelInfo.MultiKeyMode {
@@ -252,6 +254,9 @@ func (channel *Channel) Save() error {
 }
 
 func (channel *Channel) SaveWithoutKey() error {
+	if channel.Id == 0 {
+		return errors.New("channel ID is 0")
+	}
 	return DB.Omit("key").Save(channel).Error
 }
 
@@ -270,13 +275,17 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool) ([]*Chan
 	return channels, err
 }
 
-func GetChannelsByTag(tag string, idSort bool) ([]*Channel, error) {
+func GetChannelsByTag(tag string, idSort bool, selectAll bool) ([]*Channel, error) {
 	var channels []*Channel
 	order := "priority desc"
 	if idSort {
 		order = "id desc"
 	}
-	err := DB.Where("tag = ?", tag).Order(order).Find(&channels).Error
+	query := DB.Where("tag = ?", tag).Order(order)
+	if !selectAll {
+		query = query.Omit("key")
+	}
+	err := query.Find(&channels).Error
 	return channels, err
 }
 
@@ -688,7 +697,7 @@ func DisableChannelByTag(tag string) error {
 	return err
 }
 
-func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint) error {
+func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag
@@ -714,13 +723,19 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	if weight != nil {
 		updateData.Weight = weight
 	}
+	if paramOverride != nil {
+		updateData.ParamOverride = paramOverride
+	}
+	if headerOverride != nil {
+		updateData.HeaderOverride = headerOverride
+	}
 
 	err := DB.Model(&Channel{}).Where("tag = ?", tag).Updates(updateData).Error
 	if err != nil {
 		return err
 	}
 	if shouldReCreateAbilities {
-		channels, err := GetChannelsByTag(updatedTag, false)
+		channels, err := GetChannelsByTag(updatedTag, false, false)
 		if err == nil {
 			for _, channel := range channels {
 				err = channel.UpdateAbilities(nil)

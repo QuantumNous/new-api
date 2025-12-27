@@ -39,7 +39,11 @@ import {
   showError,
 } from '../../../helpers';
 import { CHANNEL_OPTIONS } from '../../../constants';
-import { IconTreeTriangleDown, IconMore } from '@douyinfe/semi-icons';
+import {
+  IconTreeTriangleDown,
+  IconMore,
+  IconAlertTriangle,
+} from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
@@ -242,6 +246,28 @@ const renderResponseTime = (responseTime, t) => {
   }
 };
 
+const isRequestPassThroughEnabled = (record) => {
+  if (!record || record.children !== undefined) {
+    return false;
+  }
+  const settingValue = record.setting;
+  if (!settingValue) {
+    return false;
+  }
+  if (typeof settingValue === 'object') {
+    return settingValue.pass_through_body_enabled === true;
+  }
+  if (typeof settingValue !== 'string') {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(settingValue);
+    return parsed?.pass_through_body_enabled === true;
+  } catch (error) {
+    return false;
+  }
+};
+
 export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
@@ -275,8 +301,9 @@ export const getChannelsColumns = ({
       title: t('名称'),
       dataIndex: 'name',
       render: (text, record, index) => {
-        if (record.remark && record.remark.trim() !== '') {
-          return (
+        const passThroughEnabled = isRequestPassThroughEnabled(record);
+        const nameNode =
+          record.remark && record.remark.trim() !== '' ? (
             <Tooltip
               content={
                 <div className='flex flex-col gap-2 max-w-xs'>
@@ -306,9 +333,32 @@ export const getChannelsColumns = ({
             >
               <span>{text}</span>
             </Tooltip>
+          ) : (
+            <span>{text}</span>
           );
+
+        if (!passThroughEnabled) {
+          return nameNode;
         }
-        return text;
+
+        return (
+          <Space spacing={6} align='center'>
+            {nameNode}
+            <Tooltip
+              content={t(
+                '该渠道已开启请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
+              )}
+              trigger='hover'
+              position='topLeft'
+            >
+              <span className='inline-flex items-center'>
+                <IconAlertTriangle
+                  style={{ color: 'var(--semi-color-warning)' }}
+                />
+              </span>
+            </Tooltip>
+          </Space>
+        );
       },
     },
     {

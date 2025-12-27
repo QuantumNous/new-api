@@ -57,8 +57,9 @@ type Task struct {
 	FinishTime int64                 `json:"finish_time" gorm:"index"`
 	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
 	Properties Properties            `json:"properties" gorm:"type:json"`
-
-	Data json.RawMessage `json:"data" gorm:"type:json"`
+	// 禁止返回给用户，内部可能包含key等隐私信息
+	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
+	Data        json.RawMessage `json:"data" gorm:"type:json"`
 }
 
 func (t *Task) SetData(data any) {
@@ -72,16 +73,44 @@ func (t *Task) GetData(v any) error {
 }
 
 type Properties struct {
-	Input string `json:"input"`
+	Input             string `json:"input"`
+	UpstreamModelName string `json:"upstream_model_name,omitempty"`
+	OriginModelName   string `json:"origin_model_name,omitempty"`
 }
 
 func (m *Properties) Scan(val interface{}) error {
 	bytesValue, _ := val.([]byte)
+	if len(bytesValue) == 0 {
+		*m = Properties{}
+		return nil
+	}
 	return json.Unmarshal(bytesValue, m)
 }
 
 func (m Properties) Value() (driver.Value, error) {
+	if m == (Properties{}) {
+		return nil, nil
+	}
 	return json.Marshal(m)
+}
+
+type TaskPrivateData struct {
+	Key string `json:"key,omitempty"`
+}
+
+func (p *TaskPrivateData) Scan(val interface{}) error {
+	bytesValue, _ := val.([]byte)
+	if len(bytesValue) == 0 {
+		return nil
+	}
+	return json.Unmarshal(bytesValue, p)
+}
+
+func (p TaskPrivateData) Value() (driver.Value, error) {
+	if (p == TaskPrivateData{}) {
+		return nil, nil
+	}
+	return json.Marshal(p)
 }
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -98,14 +127,30 @@ type SyncTaskQueryParams struct {
 }
 
 func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) *Task {
+	properties := Properties{}
+	privateData := TaskPrivateData{}
+	if relayInfo != nil && relayInfo.ChannelMeta != nil {
+		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini {
+			privateData.Key = relayInfo.ChannelMeta.ApiKey
+		}
+		if relayInfo.UpstreamModelName != "" {
+			properties.UpstreamModelName = relayInfo.UpstreamModelName
+		}
+		if relayInfo.OriginModelName != "" {
+			properties.OriginModelName = relayInfo.OriginModelName
+		}
+	}
+
 	t := &Task{
-		UserId:     relayInfo.UserId,
-		Group:      relayInfo.UsingGroup,
-		SubmitTime: time.Now().Unix(),
-		Status:     TaskStatusNotStart,
-		Progress:   "0%",
-		ChannelId:  relayInfo.ChannelId,
-		Platform:   platform,
+		UserId:      relayInfo.UserId,
+		Group:       relayInfo.UsingGroup,
+		SubmitTime:  time.Now().Unix(),
+		Status:      TaskStatusNotStart,
+		Progress:    "0%",
+		ChannelId:   relayInfo.ChannelId,
+		Platform:    platform,
+		Properties:  properties,
+		PrivateData: privateData,
 	}
 	return t
 }
@@ -383,4 +428,15 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	}
 	_ = query.Count(&total).Error
 	return total
+}
+func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = t.TaskID
+	openAIVideo.Status = t.Status.ToVideoStatus()
+	openAIVideo.Model = t.Properties.OriginModelName
+	openAIVideo.SetProgressStr(t.Progress)
+	openAIVideo.CreatedAt = t.CreatedAt
+	openAIVideo.CompletedAt = t.UpdatedAt
+	openAIVideo.SetMetadata("url", t.FailReason)
+	return openAIVideo
 }

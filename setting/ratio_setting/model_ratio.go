@@ -136,6 +136,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-2.1":                                4,     // $8 / 1M tokens
 	"claude-3-haiku-20240307":                   0.125, // $0.25 / 1M tokens
 	"claude-3-5-haiku-20241022":                 0.5,   // $1 / 1M tokens
+	"claude-haiku-4-5-20251001":                 0.5,   // $1 / 1M tokens
 	"claude-3-sonnet-20240229":                  1.5,   // $3 / 1M tokens
 	"claude-3-5-sonnet-20240620":                1.5,
 	"claude-3-5-sonnet-20241022":                1.5,
@@ -143,6 +144,7 @@ var defaultModelRatio = map[string]float64{
 	"claude-3-7-sonnet-20250219-thinking":       1.5,
 	"claude-sonnet-4-20250514":                  1.5,
 	"claude-sonnet-4-5-20250929":                1.5,
+	"claude-opus-4-5-20251101":                  2.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
@@ -268,31 +270,33 @@ var defaultModelRatio = map[string]float64{
 }
 
 var defaultModelPrice = map[string]float64{
-	"suno_music":              0.1,
-	"suno_lyrics":             0.01,
-	"dall-e-3":                0.04,
-	"imagen-3.0-generate-002": 0.03,
-	"gpt-4-gizmo-*":           0.1,
-	"mj_video":                0.8,
-	"mj_imagine":              0.1,
-	"mj_edits":                0.1,
-	"mj_variation":            0.1,
-	"mj_reroll":               0.1,
-	"mj_blend":                0.1,
-	"mj_modal":                0.1,
-	"mj_zoom":                 0.1,
-	"mj_shorten":              0.1,
-	"mj_high_variation":       0.1,
-	"mj_low_variation":        0.1,
-	"mj_pan":                  0.1,
-	"mj_inpaint":              0,
-	"mj_custom_zoom":          0,
-	"mj_describe":             0.05,
-	"mj_upscale":              0.05,
-	"swap_face":               0.05,
-	"mj_upload":               0.05,
-	"sora-2":                  0.3,
-	"sora-2-pro":              0.5,
+	"suno_music":                     0.1,
+	"suno_lyrics":                    0.01,
+	"dall-e-3":                       0.04,
+	"imagen-3.0-generate-002":        0.03,
+	"black-forest-labs/flux-1.1-pro": 0.04,
+	"gpt-4-gizmo-*":                  0.1,
+	"mj_video":                       0.8,
+	"mj_imagine":                     0.1,
+	"mj_edits":                       0.1,
+	"mj_variation":                   0.1,
+	"mj_reroll":                      0.1,
+	"mj_blend":                       0.1,
+	"mj_modal":                       0.1,
+	"mj_zoom":                        0.1,
+	"mj_shorten":                     0.1,
+	"mj_high_variation":              0.1,
+	"mj_low_variation":               0.1,
+	"mj_pan":                         0.1,
+	"mj_inpaint":                     0,
+	"mj_custom_zoom":                 0,
+	"mj_describe":                    0.05,
+	"mj_upscale":                     0.05,
+	"swap_face":                      0.05,
+	"mj_upload":                      0.05,
+	"sora-2":                         0.3,
+	"sora-2-pro":                     0.5,
+	"gpt-4o-mini-tts":                0.3,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -300,11 +304,13 @@ var defaultAudioRatio = map[string]float64{
 	"gpt-4o-mini-audio-preview":    66.67,
 	"gpt-4o-realtime-preview":      8,
 	"gpt-4o-mini-realtime-preview": 16.67,
+	"gpt-4o-mini-tts":              25,
 }
 
 var defaultAudioCompletionRatio = map[string]float64{
 	"gpt-4o-realtime":      2,
 	"gpt-4o-mini-realtime": 2,
+	"gpt-4o-mini-tts":      1,
 }
 
 var (
@@ -532,7 +538,10 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			if name == "gpt-4o-2024-05-13" {
 				return 3, true
 			}
-			return 4, true
+			if strings.HasPrefix(name, "gpt-4o-mini-tts") {
+				return 20, false
+			}
+			return 4, false
 		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
@@ -557,7 +566,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 
 	if strings.Contains(name, "claude-3") {
 		return 5, true
-	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") {
+	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") || strings.Contains(name, "claude-haiku-4") {
 		return 5, true
 	} else if strings.Contains(name, "claude-instant-1") || strings.Contains(name, "claude-2") {
 		return 3, true
@@ -597,6 +606,11 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 2.5 / 0.3, false
 		} else if strings.HasPrefix(name, "gemini-robotics-er-1.5") {
 			return 2.5 / 0.3, false
+		} else if strings.HasPrefix(name, "gemini-3-pro") {
+			if strings.HasPrefix(name, "gemini-3-pro-image") {
+				return 60, false
+			}
+			return 6, false
 		}
 		return 4, false
 	}
@@ -821,4 +835,17 @@ func FormatMatchingModelName(name string) string {
 		name = "gpt-4o-gizmo-*"
 	}
 	return name
+}
+
+// result: 倍率or价格， usePrice， exist
+func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or ratio
+	price, usePrice := GetModelPrice(model, false)
+	if usePrice {
+		return price, true, true
+	}
+	modelRatio, success, _ := GetModelRatio(model)
+	if success {
+		return modelRatio, false, true
+	}
+	return 37.5, false, false
 }

@@ -93,7 +93,7 @@ func GetAllChannels(c *gin.Context) {
 			if tag == nil || *tag == "" {
 				continue
 			}
-			tagChannels, err := model.GetChannelsByTag(*tag, idSort)
+			tagChannels, err := model.GetChannelsByTag(*tag, idSort, false)
 			if err != nil {
 				continue
 			}
@@ -165,6 +165,30 @@ func GetAllChannels(c *gin.Context) {
 		"type_counts": typeCounts,
 	})
 	return
+}
+
+func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, error) {
+	var headers http.Header
+	switch channel.Type {
+	case constant.ChannelTypeAnthropic:
+		headers = GetClaudeAuthHeader(key)
+	default:
+		headers = GetAuthHeader(key)
+	}
+
+	headerOverride := channel.GetHeaderOverride()
+	for k, v := range headerOverride {
+		str, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid header override for key %s", k)
+		}
+		if strings.Contains(str, "{api_key}") {
+			str = strings.ReplaceAll(str, "{api_key}", key)
+		}
+		headers.Set(k, str)
+	}
+
+	return headers, nil
 }
 
 func FetchUpstreamModels(c *gin.Context) {
@@ -244,20 +268,45 @@ func FetchUpstreamModels(c *gin.Context) {
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
 	case constant.ChannelTypeZhipu_v4:
-		url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		} else {
+			url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
+		}
+	case constant.ChannelTypeVolcEngine:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
+		} else {
+			url = fmt.Sprintf("%s/v1/models", baseURL)
+		}
+	case constant.ChannelTypeMoonshot:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		} else {
+			url = fmt.Sprintf("%s/v1/models", baseURL)
+		}
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
 
-	// 获取响应体 - 根据渠道类型决定是否添加 AuthHeader
-	var body []byte
-	key := strings.Split(channel.Key, "\n")[0]
-	switch channel.Type {
-	case constant.ChannelTypeAnthropic:
-		body, err = GetResponseBody("GET", url, channel, GetClaudeAuthHeader(key))
-	default:
-		body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key))
+	// 获取用于请求的可用密钥（多密钥渠道优先使用启用状态的密钥）
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("获取渠道密钥失败: %s", apiErr.Error()),
+		})
+		return
 	}
+	key = strings.TrimSpace(key)
+
+	headers, err := buildFetchModelsHeaders(channel, key)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	body, err := GetResponseBody("GET", url, channel, headers)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -324,7 +373,7 @@ func SearchChannels(c *gin.Context) {
 		}
 		for _, tag := range tags {
 			if tag != nil && *tag != "" {
-				tagChannel, err := model.GetChannelsByTag(*tag, idSort)
+				tagChannel, err := model.GetChannelsByTag(*tag, idSort, false)
 				if err == nil {
 					channelData = append(channelData, tagChannel...)
 				}
@@ -702,13 +751,15 @@ func DeleteDisabledChannel(c *gin.Context) {
 }
 
 type ChannelTag struct {
-	Tag          string  `json:"tag"`
-	NewTag       *string `json:"new_tag"`
-	Priority     *int64  `json:"priority"`
-	Weight       *uint   `json:"weight"`
-	ModelMapping *string `json:"model_mapping"`
-	Models       *string `json:"models"`
-	Groups       *string `json:"groups"`
+	Tag            string  `json:"tag"`
+	NewTag         *string `json:"new_tag"`
+	Priority       *int64  `json:"priority"`
+	Weight         *uint   `json:"weight"`
+	ModelMapping   *string `json:"model_mapping"`
+	Models         *string `json:"models"`
+	Groups         *string `json:"groups"`
+	ParamOverride  *string `json:"param_override"`
+	HeaderOverride *string `json:"header_override"`
 }
 
 func DisableTagChannels(c *gin.Context) {
@@ -774,7 +825,29 @@ func EditTagChannels(c *gin.Context) {
 		})
 		return
 	}
-	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight)
+	if channelTag.ParamOverride != nil {
+		trimmed := strings.TrimSpace(*channelTag.ParamOverride)
+		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "参数覆盖必须是合法的 JSON 格式",
+			})
+			return
+		}
+		channelTag.ParamOverride = common.GetPointer[string](trimmed)
+	}
+	if channelTag.HeaderOverride != nil {
+		trimmed := strings.TrimSpace(*channelTag.HeaderOverride)
+		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "请求头覆盖必须是合法的 JSON 格式",
+			})
+			return
+		}
+		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
+	}
+	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1072,7 +1145,7 @@ func GetTagModels(c *gin.Context) {
 		return
 	}
 
-	channels, err := model.GetChannelsByTag(tag, false) // Assuming false for idSort is fine here
+	channels, err := model.GetChannelsByTag(tag, false, false) // idSort=false, selectAll=false
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

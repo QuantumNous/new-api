@@ -90,24 +90,38 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	}
 	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
+	buildErrWithBody := func(message string) error {
+		if message == "" {
+			return fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody))
+		}
+		return fmt.Errorf("bad response status code %d, message: %s, body: %s", resp.StatusCode, message, string(responseBody))
+	}
 
 	err = common.Unmarshal(responseBody, &errResponse)
 	if err != nil {
 		if showBodyWhenFail {
-			newApiErr.Err = fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody))
+			newApiErr.Err = buildErrWithBody("")
 		} else {
-			if common.DebugEnabled {
-				logger.LogInfo(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody)))
-			}
+			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody)))
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
 		return
 	}
-	if errResponse.Error.Message != "" {
+
+	if common.GetJsonType(errResponse.Error) == "object" {
 		// General format error (OpenAI, Anthropic, Gemini, etc.)
-		newApiErr = types.WithOpenAIError(errResponse.Error, resp.StatusCode)
-	} else {
-		newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+		oaiError := errResponse.TryToOpenAIError()
+		if oaiError != nil {
+			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			if showBodyWhenFail {
+				newApiErr.Err = buildErrWithBody(newApiErr.Error())
+			}
+			return
+		}
+	}
+	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	if showBodyWhenFail {
+		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
 	return
 }

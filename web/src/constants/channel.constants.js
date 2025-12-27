@@ -179,6 +179,11 @@ export const CHANNEL_OPTIONS = [
     color: 'green',
     label: 'Sora',
   },
+  {
+    value: 56,
+    color: 'blue',
+    label: 'Replicate',
+  },
 ];
 
 export const MODEL_TABLE_PAGE_SIZE = 10;
