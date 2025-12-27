@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Popconfirm } from '@douyinfe/semi-ui';
+import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const DeploymentsActions = ({
   selectedKeys,
@@ -26,7 +27,8 @@ const DeploymentsActions = ({
   setEditingDeployment,
   setShowEdit,
   batchDeleteDeployments,
-  refresh,
+  compactMode,
+  setCompactMode,
   showCreateModal,
   setShowCreateModal,
   t,
@@ -63,15 +65,6 @@ const DeploymentsActions = ({
         {t('新建容器')}
       </Button>
 
-      <Button
-        type='tertiary'
-        className='flex-1 md:flex-initial'
-        onClick={() => refresh?.()}
-        size='small'
-      >
-        {t('刷新')}
-      </Button>
-
       {hasSelected && (
         <>
           <Popconfirm
@@ -102,6 +95,13 @@ const DeploymentsActions = ({
           </Button>
         </>
       )}
+
+      {/* Compact Mode */}
+      <CompactModeToggle
+        compactMode={compactMode}
+        setCompactMode={setCompactMode}
+        t={t}
+      />
     </div>
   );
 };

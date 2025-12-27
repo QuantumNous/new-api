@@ -70,7 +70,7 @@ const ConfirmationDialog = ({
       }}
       width={480}
     >
-      <div className="space-y-3">
+      <div className="space-y-4">
         <Text type="danger" strong>
           {t('此操作具有风险，请确认要继续执行')}。
         </Text>

@@ -2185,23 +2185,6 @@
     "默认补全倍率": "Default completion ratio",
     "跨分组重试": "Cross-group retry",
     "跨分组": "Cross-group",
-    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "After enabling, when the current group channel fails, it will try the next group's channel in order",
-    "模型部署": "Model deployments",
-    "监控状态、资源和运行详情": "Monitor status, resources, and runtime details",
-    "加载设置中...": "Loading settings...",
-    "模型部署服务未启用": "Model deployment service is not enabled",
-    "访问模型部署功能需要先启用 io.net 部署服务": "To access model deployments, enable the io.net deployment service first",
-    "需要配置的项目": "Items to configure",
-    "启用 io.net 部署开关": "Enable the io.net deployment toggle",
-    "配置有效的 io.net API Key": "Configure a valid io.net API Key",
-    "前往设置页面": "Go to settings page",
-    "配置完成后刷新页面即可使用模型部署功能": "After configuring, refresh the page to use model deployments",
-    "正在检测 io.net 连接...": "Checking io.net connection...",
-    "API Key 已过期": "API Key has expired",
-    "io.net 连接不可用": "io.net connection unavailable",
-    "当前 API Key 已过期，请前往设置页面更新。": "The current API Key has expired. Please go to settings to update it.",
-    "当前配置无法连接 io.net，请检查网络或 API Key。": "Cannot connect to io.net with the current configuration. Check the network or API Key.",
-    "前往设置": "Go to settings",
-    "重试连接": "Retry connection"
+    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "After enabling, when the current group channel fails, it will try the next group's channel in order"
   }
 }

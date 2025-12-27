@@ -256,7 +256,7 @@ const DeploymentAccessGuard = ({
       <div className='mt-[60px] px-2'>
         <Card loading={true} style={{ minHeight: '400px' }}>
           <div style={{ textAlign: 'center', padding: '50px 0' }}>
-            <Text type="secondary">{t('正在检测 io.net 连接...')}</Text>
+            <Text type="secondary">{t('Checking io.net connection...')}</Text>
           </div>
         </Card>
       </div>
@@ -266,11 +266,11 @@ const DeploymentAccessGuard = ({
   if (connectionOk === false) {
     const isExpired = connectionError?.type === 'expired';
     const title = isExpired
-      ? t('API Key 已过期')
-      : t('io.net 连接不可用');
+      ? t('API key expired')
+      : t('io.net connection unavailable');
     const description = isExpired
-      ? t('当前 API Key 已过期，请前往设置页面更新。')
-      : t('当前配置无法连接 io.net，请检查网络或 API Key。');
+      ? t('The current API key is expired. Please update it in settings.')
+      : t('Unable to connect to io.net with the current configuration.');
     const detail = connectionError?.message || '';
 
     return (
@@ -357,11 +357,11 @@ const DeploymentAccessGuard = ({
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <Button type="primary" icon={<Settings size={18} />} onClick={handleGoToSettings}>
-                {t('前往设置')}
+                {t('Go to settings')}
               </Button>
               {onRetry ? (
                 <Button type="tertiary" onClick={onRetry}>
-                  {t('重试连接')}
+                  {t('Retry connection')}
                 </Button>
               ) : null}
             </div>

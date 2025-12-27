@@ -198,9 +198,9 @@ const UpdateConfigModal = ({
       width={700}
       className="update-config-modal"
     >
-      <div className="space-y-5 max-h-[600px] overflow-y-auto">
+      <div className="space-y-4 max-h-[600px] overflow-y-auto">
         {/* Container Info */}
-        <Card className="border-0 bg-gray-50 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+        <Card className="border-0 bg-gray-50">
           <div className="flex items-center justify-between">
             <div>
               <Text strong className="text-base">
@@ -233,7 +233,7 @@ const UpdateConfigModal = ({
           getFormApi={(api) => (formRef.current = api)}
           layout="vertical"
         >
-          <Collapse defaultActiveKey={['docker']} className="rounded-lg border border-gray-100">
+          <Collapse defaultActiveKey={['docker']}>
             {/* Docker Configuration */}
             <Collapse.Panel 
               header={
@@ -452,7 +452,7 @@ const UpdateConfigModal = ({
         </Form>
 
         {/* Final Warning */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <div className="flex items-start gap-2">
             <FaExclamationTriangle className="text-yellow-600 mt-0.5" />
             <div>

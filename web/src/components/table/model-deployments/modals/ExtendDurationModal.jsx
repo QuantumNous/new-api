@@ -321,8 +321,8 @@ const ExtendDurationModal = ({
       width={600}
       className='extend-duration-modal'
     >
-      <div className='space-y-5'>
-        <Card className='border-0 bg-gray-50 shadow-sm' bodyStyle={{ padding: '16px 20px' }}>
+      <div className='space-y-4'>
+        <Card className='border-0 bg-gray-50'>
           <div className='flex items-center justify-between'>
             <div>
               <Text strong className='text-base'>
@@ -404,7 +404,7 @@ const ExtendDurationModal = ({
           <Text size='small' type='secondary'>
             {t('快速选择')}:
           </Text>
-          <div className='flex flex-wrap gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2'>
+          <Space wrap>
             {[1, 2, 6, 12, 24, 48, 72, 168].map((hours) => (
               <Button
                 key={hours}
@@ -423,7 +423,7 @@ const ExtendDurationModal = ({
                   : `${hours / 24}${t('天')}`}
               </Button>
             ))}
-          </div>
+          </Space>
         </div>
 
         <Divider />
@@ -435,8 +435,7 @@ const ExtendDurationModal = ({
               <span>{t('费用预估')}</span>
             </div>
           }
-          className='border-0 shadow-sm'
-          bodyStyle={{ padding: '16px 20px' }}
+          className='border border-green-200'
         >
           {priceEstimation ? (
             <div className='space-y-3'>

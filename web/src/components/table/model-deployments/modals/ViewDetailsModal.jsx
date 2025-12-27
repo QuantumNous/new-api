@@ -123,7 +123,6 @@ const ViewDetailsModal = ({
   };
 
   const statusConfig = getStatusConfig(deployment?.status);
-  const cardBodyStyle = { padding: '16px 20px' };
 
   return (
     <Modal
@@ -158,7 +157,7 @@ const ViewDetailsModal = ({
           <Spin size="large" tip={t('加载详情中...')} />
         </div>
       ) : details ? (
-        <div className="space-y-5 max-h-[600px] overflow-y-auto">
+        <div className="space-y-4 max-h-[600px] overflow-y-auto">
           {/* Basic Info */}
           <Card 
             title={
@@ -168,7 +167,6 @@ const ViewDetailsModal = ({
               </div>
             }
             className="border-0 shadow-sm"
-            bodyStyle={cardBodyStyle}
           >
             <Descriptions data={[
               {
@@ -223,7 +221,6 @@ const ViewDetailsModal = ({
               </div>
             }
             className="border-0 shadow-sm"
-            bodyStyle={cardBodyStyle}
           >
             <div className="space-y-4">
               <Descriptions data={[
@@ -288,7 +285,6 @@ const ViewDetailsModal = ({
                 </div>
               }
               className="border-0 shadow-sm"
-              bodyStyle={cardBodyStyle}
             >
               <div className="space-y-3">
                 <Descriptions data={[
@@ -344,7 +340,6 @@ const ViewDetailsModal = ({
               </div>
             }
             className="border-0 shadow-sm"
-            bodyStyle={cardBodyStyle}
           >
             {containersLoading ? (
               <div className="flex items-center justify-center py-6">
@@ -426,7 +421,6 @@ const ViewDetailsModal = ({
                 </div>
               }
               className="border-0 shadow-sm"
-              bodyStyle={cardBodyStyle}
             >
               <div className="flex flex-wrap gap-2">
                 {details.locations.map((location) => (
@@ -450,7 +444,6 @@ const ViewDetailsModal = ({
               </div>
             }
             className="border-0 shadow-sm"
-            bodyStyle={cardBodyStyle}
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
@@ -482,7 +475,6 @@ const ViewDetailsModal = ({
               </div>
             }
             className="border-0 shadow-sm"
-            bodyStyle={cardBodyStyle}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">

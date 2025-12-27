@@ -173,7 +173,7 @@ const EditDeploymentModal = ({
             labelPosition='top'
             style={{ width: '100%' }}
           >
-            <Card className='border-0 shadow-sm' bodyStyle={{ padding: '16px 20px' }}>
+            <Card>
               <Title heading={5} style={{ marginBottom: 16 }}>
                 {t('修改部署名称')}
               </Title>

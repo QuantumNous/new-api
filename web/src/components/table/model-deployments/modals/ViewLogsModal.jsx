@@ -353,7 +353,7 @@ const ViewLogsModal = ({
   const renderLogEntry = (line, index) => (
     <div
       key={`${index}-${line.slice(0, 20)}`}
-      className="py-1.5 px-3 hover:bg-gray-50 font-mono text-[13px] border-b border-gray-100 whitespace-pre-wrap break-words"
+      className="py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words"
     >
       {line}
     </div>
@@ -378,9 +378,9 @@ const ViewLogsModal = ({
       className="logs-modal"
       style={{ top: 20 }}
     >
-      <div className="flex flex-col h-full max-h-[620px]">
+      <div className="flex flex-col h-full max-h-[600px]">
         {/* Controls */}
-        <Card className="mb-4 border-0 shadow-sm" bodyStyle={{ padding: '12px 16px' }}>
+        <Card className="mb-4 border-0 shadow-sm">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <Space wrap>
               <Select
@@ -452,7 +452,7 @@ const ViewLogsModal = ({
               </div>
             </Space>
 
-            <div className="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1">
+            <Space>
               <Tooltip content={t('刷新日志')}>
                 <Button 
                   icon={<IconRefresh />} 
@@ -482,7 +482,7 @@ const ViewLogsModal = ({
                   disabled={logLines.length === 0}
                 />
               </Tooltip>
-            </div>
+            </Space>
           </div>
           
           {/* Status Info */}
@@ -615,7 +615,7 @@ const ViewLogsModal = ({
         </Card>
 
         {/* Log Content */}
-        <div className="flex-1 flex flex-col border rounded-xl bg-gray-50 overflow-hidden">
+        <div className="flex-1 flex flex-col border rounded-lg bg-gray-50 overflow-hidden">
           <div 
             ref={logContainerRef}
             className="flex-1 overflow-y-auto bg-white"
@@ -642,7 +642,7 @@ const ViewLogsModal = ({
           
           {/* Footer status */}
           {logLines.length > 0 && (
-            <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t text-xs text-gray-500">
+            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t text-xs text-gray-500">
               <span>
                 {following ? t('正在跟随最新日志') : t('日志已加载')}
               </span>
