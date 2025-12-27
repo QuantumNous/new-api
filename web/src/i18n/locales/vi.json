@@ -2744,6 +2744,23 @@
     "随机种子 (留空为随机)": "Hạt giống ngẫu nhiên (để trống cho ngẫu nhiên)",
     "跨分组重试": "Thử lại giữa các nhóm",
     "跨分组": "Giữa các nhóm",
-    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "Sau khi bật, khi kênh nhóm hiện tại thất bại, nó sẽ thử kênh của nhóm tiếp theo theo thứ tự"
+    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "Sau khi bật, khi kênh nhóm hiện tại thất bại, nó sẽ thử kênh của nhóm tiếp theo theo thứ tự",
+    "模型部署": "Triển khai mô hình",
+    "监控状态、资源和运行详情": "Theo dõi trạng thái, tài nguyên và chi tiết vận hành",
+    "加载设置中...": "Đang tải cài đặt...",
+    "模型部署服务未启用": "Dịch vụ triển khai mô hình chưa được bật",
+    "访问模型部署功能需要先启用 io.net 部署服务": "Để truy cập triển khai mô hình, hãy bật dịch vụ triển khai io.net trước",
+    "需要配置的项目": "Các mục cần cấu hình",
+    "启用 io.net 部署开关": "Bật công tắc triển khai io.net",
+    "配置有效的 io.net API Key": "Cấu hình API Key io.net hợp lệ",
+    "前往设置页面": "Đi tới trang cài đặt",
+    "配置完成后刷新页面即可使用模型部署功能": "Sau khi cấu hình, hãy tải lại trang để sử dụng triển khai mô hình",
+    "正在检测 io.net 连接...": "Đang kiểm tra kết nối io.net...",
+    "API Key 已过期": "API Key đã hết hạn",
+    "io.net 连接不可用": "Kết nối io.net không khả dụng",
+    "当前 API Key 已过期，请前往设置页面更新。": "API Key hiện tại đã hết hạn. Vui lòng vào trang cài đặt để cập nhật.",
+    "当前配置无法连接 io.net，请检查网络或 API Key。": "Không thể kết nối io.net với cấu hình hiện tại. Hãy kiểm tra mạng hoặc API Key.",
+    "前往设置": "Đi tới cài đặt",
+    "重试连接": "Thử kết nối lại"
   }
 }

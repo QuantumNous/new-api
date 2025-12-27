@@ -85,7 +85,6 @@ const ColumnSelectorModal = ({
       onCancel={onCancel}
       footer={
         <div className='flex justify-end gap-2'>
-          <Button onClick={handleReset}>{t('重置')}</Button>
           <Button onClick={onCancel}>{t('取消')}</Button>
           <Button type='primary' onClick={handleConfirm}>
             {t('确定')}
@@ -93,7 +92,7 @@ const ColumnSelectorModal = ({
         </div>
       }
     >
-      <div style={{ marginBottom: 20 }}>
+      <div className="flex items-center justify-between rounded-md border border-gray-100 bg-gray-50 px-3 py-2 mb-4">
         <Checkbox
           checked={allSelected}
           indeterminate={indeterminate}
@@ -101,6 +100,9 @@ const ColumnSelectorModal = ({
         >
           {t('全选')}
         </Checkbox>
+        <Button size="small" theme="borderless" onClick={handleReset}>
+          {t('重置')}
+        </Button>
       </div>
       <div
         className='flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4'

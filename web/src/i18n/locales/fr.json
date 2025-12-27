@@ -2234,6 +2234,23 @@
     "默认补全倍率": "Taux de complétion par défaut",
     "跨分组重试": "Nouvelle tentative inter-groupes",
     "跨分组": "Inter-groupes",
-    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "Après activation, lorsque le canal du groupe actuel échoue, il essaiera le canal du groupe suivant dans l'ordre"
+    "开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道": "Après activation, lorsque le canal du groupe actuel échoue, il essaiera le canal du groupe suivant dans l'ordre",
+    "模型部署": "Déploiements de modèles",
+    "监控状态、资源和运行详情": "Surveillez l'état, les ressources et les détails d'exécution",
+    "加载设置中...": "Chargement des paramètres...",
+    "模型部署服务未启用": "Le service de déploiement de modèles n'est pas activé",
+    "访问模型部署功能需要先启用 io.net 部署服务": "Pour accéder aux déploiements de modèles, activez d'abord le service de déploiement io.net",
+    "需要配置的项目": "Éléments à configurer",
+    "启用 io.net 部署开关": "Activer l'option de déploiement io.net",
+    "配置有效的 io.net API Key": "Configurer une clé API io.net valide",
+    "前往设置页面": "Aller à la page des paramètres",
+    "配置完成后刷新页面即可使用模型部署功能": "Après la configuration, actualisez la page pour utiliser les déploiements de modèles",
+    "正在检测 io.net 连接...": "Vérification de la connexion io.net...",
+    "API Key 已过期": "La clé API a expiré",
+    "io.net 连接不可用": "Connexion io.net indisponible",
+    "当前 API Key 已过期，请前往设置页面更新。": "La clé API actuelle a expiré. Veuillez aller aux paramètres pour la mettre à jour.",
+    "当前配置无法连接 io.net，请检查网络或 API Key。": "Impossible de se connecter à io.net avec la configuration actuelle. Vérifiez le réseau ou la clé API.",
+    "前往设置": "Aller aux paramètres",
+    "重试连接": "Réessayer la connexion"
   }
 }

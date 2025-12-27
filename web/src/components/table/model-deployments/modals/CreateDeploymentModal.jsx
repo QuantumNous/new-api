@@ -848,40 +848,44 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         style={{ maxHeight: '70vh', overflowY: 'auto' }}
         labelPosition="top"
       >
-        <Space
-          wrap
-          spacing={8}
-          style={{ justifyContent: 'flex-end', width: '100%', marginBottom: 8 }}
-        >
-          <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
-            onClick={() => scrollToSection(basicSectionRef)}
+        <div className="mb-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+          <Space
+            wrap
+            spacing={8}
+            style={{ justifyContent: 'flex-end', width: '100%' }}
           >
-            {t('部署配置')}
-          </Button>
-          <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
-            onClick={() => scrollToSection(priceSectionRef)}
-          >
-            {t('价格预估')}
-          </Button>
-          <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
-            onClick={() => scrollToSection(advancedSectionRef)}
-          >
-            {t('高级配置')}
-          </Button>
-        </Space>
+            <Button
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={() => scrollToSection(basicSectionRef)}
+            >
+              {t('部署配置')}
+            </Button>
+            <Button
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={() => scrollToSection(priceSectionRef)}
+            >
+              {t('价格预估')}
+            </Button>
+            <Button
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={() => scrollToSection(advancedSectionRef)}
+            >
+              {t('高级配置')}
+            </Button>
+          </Space>
+        </div>
 
         <div ref={basicSectionRef}>
-          <Card className="mb-4">
-            <Title heading={6}>{t('部署配置')}</Title>
+          <Card className="mb-5 border-0 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+            <Title heading={6} style={{ marginBottom: 12 }}>
+              {t('部署配置')}
+            </Title>
             
             <Form.Input
               field="resource_private_name"
@@ -1167,10 +1171,12 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           </Row>
 
           <div ref={advancedSectionRef}>
-            <Collapse className="mt-4">
+            <Collapse className="mt-5">
               <Collapse.Panel header={t('高级配置')} itemKey="advanced">
-                <Card>
-                  <Title heading={6}>{t('镜像仓库配置')}</Title>
+                <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+                  <Title heading={6} style={{ marginBottom: 12 }}>
+                    {t('镜像仓库配置')}
+                  </Title>
                   <Row gutter={16}>
                     <Col span={12}>
                       <Form.Input
@@ -1192,8 +1198,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
                 <Divider />
 
-                <Card>
-                  <Title heading={6}>{t('容器启动配置')}</Title>
+                <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+                  <Title heading={6} style={{ marginBottom: 12 }}>
+                    {t('容器启动配置')}
+                  </Title>
 
                   <div style={{ marginBottom: 16 }}>
                     <Text strong>{t('启动命令 (Entrypoint)')}</Text>
@@ -1250,8 +1258,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
                 <Divider />
 
-                <Card>
-                  <Title heading={6}>{t('环境变量')}</Title>
+                <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
+                  <Title heading={6} style={{ marginBottom: 12 }}>
+                    {t('环境变量')}
+                  </Title>
 
                   <div style={{ marginBottom: 16 }}>
                     <Text strong>{t('普通环境变量')}</Text>
@@ -1339,7 +1349,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         </div>
 
         <div ref={priceSectionRef}>
-          <Card className="mb-4">
+          <Card className="mb-5 border-0 shadow-sm" bodyStyle={{ padding: '16px 20px' }}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Title heading={6} style={{ margin: 0 }}>
                   {t('价格预估')}
