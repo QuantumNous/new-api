@@ -57,6 +57,7 @@ const ChannelsTable = (channelsData) => {
     setEditingTag,
     copySelectedChannel,
     refresh,
+    checkOllamaVersion,
     // Multi-key management
     setShowMultiKeyManageModal,
     setCurrentMultiKeyChannel,
@@ -82,6 +83,7 @@ const ChannelsTable = (channelsData) => {
       refresh,
       activePage,
       channels,
+      checkOllamaVersion,
       setShowMultiKeyManageModal,
       setCurrentMultiKeyChannel,
     });
@@ -103,6 +105,7 @@ const ChannelsTable = (channelsData) => {
     refresh,
     activePage,
     channels,
+    checkOllamaVersion,
     setShowMultiKeyManageModal,
     setCurrentMultiKeyChannel,
   ]);

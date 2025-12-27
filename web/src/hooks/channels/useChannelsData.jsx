@@ -35,7 +35,7 @@ import {
 } from '../../constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Button } from '@douyinfe/semi-ui';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -775,6 +775,67 @@ export const useChannelsData = () => {
     }
   };
 
+  const checkOllamaVersion = async (record) => {
+    try {
+      const res = await API.get(`/api/channel/ollama/version/${record.id}`);
+      const { success, message, data } = res.data;
+
+      if (success) {
+        const version = data?.version || '-';
+        const infoMessage = t('当前 Ollama 版本为 ${version}').replace(
+          '${version}',
+          version,
+        );
+
+        const handleCopyVersion = async () => {
+          if (!version || version === '-') {
+            showInfo(t('暂无可复制的版本信息'));
+            return;
+          }
+
+          const copied = await copy(version);
+          if (copied) {
+            showSuccess(t('已复制版本号'));
+          } else {
+            showError(t('复制失败，请手动复制'));
+          }
+        };
+
+        Modal.info({
+          title: t('Ollama 版本信息'),
+          content: infoMessage,
+          centered: true,
+          footer: (
+            <div className='flex justify-end gap-2'>
+              <Button type='tertiary' onClick={handleCopyVersion}>
+                {t('复制版本号')}
+              </Button>
+              <Button
+                type='primary'
+                theme='solid'
+                onClick={() => Modal.destroyAll()}
+              >
+                {t('关闭')}
+              </Button>
+            </div>
+          ),
+          hasCancel: false,
+          hasOk: false,
+          closable: true,
+          maskClosable: true,
+        });
+      } else {
+        showError(message || t('获取 Ollama 版本失败'));
+      }
+    } catch (error) {
+      const errMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        t('获取 Ollama 版本失败');
+      showError(errMsg);
+    }
+  };
+
   // Test channel - 单个模型测试，参考旧版实现
   const testChannel = async (record, model, endpointType = '') => {
     const testKey = `${record.id}-${model}`;
@@ -1132,6 +1193,7 @@ export const useChannelsData = () => {
     updateAllChannelsBalance,
     updateChannelBalance,
     fixChannelsAbilities,
+    checkOllamaVersion,
     testChannel,
     batchTestModels,
     handleCloseModal,
