@@ -147,10 +147,9 @@ type Deployment struct {
 
 // DeploymentList represents a list of deployments with pagination
 type DeploymentList struct {
-	Deployments []Deployment `json:"deployments"` // Changed from "deployments" to match API
+	Deployments []Deployment `json:"deployments"`
 	Total       int          `json:"total"`
 	Statuses    []string     `json:"statuses"`
-	// Note: API doesn't return page/page_size, handled by controller
 }
 
 // AvailableReplica represents replica availability for a location

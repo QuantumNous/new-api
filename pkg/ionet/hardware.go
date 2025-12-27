@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // GetAvailableReplicas retrieves available replicas per location for specified hardware
@@ -27,42 +29,28 @@ func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableR
 		return nil, fmt.Errorf("failed to get available replicas: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs:
-	// {
-	//   "data": [
-	//     {
-	//       "id": 0,
-	//       "iso2": "string",
-	//       "name": "string",
-	//       "available_replicas": 0
-	//     }
-	//   ]
-	// }
-	var apiResp struct {
-		Data []struct {
-			ID                int    `json:"id"`
-			ISO2              string `json:"iso2"`
-			Name              string `json:"name"`
-			AvailableReplicas int    `json:"available_replicas"`
-		} `json:"data"`
+	type availableReplicaPayload struct {
+		ID                int    `json:"id"`
+		ISO2              string `json:"iso2"`
+		Name              string `json:"name"`
+		AvailableReplicas int    `json:"available_replicas"`
 	}
+	var payload []availableReplicaPayload
 
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	if err := decodeData(resp.Body, &payload); err != nil {
 		return nil, fmt.Errorf("failed to parse available replicas response: %w", err)
 	}
 
-	// Convert to our internal format
-	replicas := make([]AvailableReplica, 0, len(apiResp.Data))
-	for _, item := range apiResp.Data {
-		replicas = append(replicas, AvailableReplica{
+	replicas := lo.Map(payload, func(item availableReplicaPayload, _ int) AvailableReplica {
+		return AvailableReplica{
 			LocationID:     item.ID,
 			LocationName:   item.Name,
 			HardwareID:     hardwareID,
 			HardwareName:   "",
 			AvailableCount: item.AvailableReplicas,
 			MaxGPUs:        gpuCount,
-		})
-	}
+		}
+	})
 
 	return &AvailableReplicasResponse{Replicas: replicas}, nil
 }
@@ -74,30 +62,12 @@ func (c *Client) GetMaxGPUsPerContainer() (*MaxGPUResponse, error) {
 		return nil, fmt.Errorf("failed to get max GPUs per container: %w", err)
 	}
 
-	// API returns wrapped shape:
-	// {
-	//   "data": {
-	//     "hardware": [
-	//       {
-	//         "max_gpus_per_container": 8,
-	//         "available": 24,
-	//         "hardware_id": 203,
-	//         "hardware_name": "H100 PCIe",
-	//         "brand_name": "NVIDIA"
-	//       }
-	//     ],
-	//     "total": 32
-	//   }
-	// }
-	var wrapped struct {
-		Data MaxGPUResponse `json:"data"`
-	}
-
-	if err := json.Unmarshal(resp.Body, &wrapped); err != nil {
+	var maxGPUResp MaxGPUResponse
+	if err := decodeData(resp.Body, &maxGPUResp); err != nil {
 		return nil, fmt.Errorf("failed to parse max GPU response: %w", err)
 	}
 
-	return &wrapped.Data, nil
+	return &maxGPUResp, nil
 }
 
 // ListHardwareTypes retrieves available hardware types using the max GPUs endpoint
@@ -107,14 +77,13 @@ func (c *Client) ListHardwareTypes() ([]HardwareType, int, error) {
 		return nil, 0, fmt.Errorf("failed to list hardware types: %w", err)
 	}
 
-	mapped := make([]HardwareType, 0, len(maxGPUResp.Hardware))
-	for _, hw := range maxGPUResp.Hardware {
+	mapped := lo.Map(maxGPUResp.Hardware, func(hw MaxGPUInfo, _ int) HardwareType {
 		name := strings.TrimSpace(hw.HardwareName)
 		if name == "" {
 			name = fmt.Sprintf("Hardware %d", hw.HardwareID)
 		}
 
-		mapped = append(mapped, HardwareType{
+		return HardwareType{
 			ID:             hw.HardwareID,
 			Name:           name,
 			GPUType:        "",
@@ -127,16 +96,14 @@ func (c *Client) ListHardwareTypes() ([]HardwareType, int, error) {
 			Available:      hw.Available > 0,
 			BrandName:      strings.TrimSpace(hw.BrandName),
 			AvailableCount: hw.Available,
-		})
-	}
+		}
+	})
 
 	totalAvailable := maxGPUResp.Total
 	if totalAvailable == 0 {
-		sum := 0
-		for _, hw := range maxGPUResp.Hardware {
-			sum += hw.Available
-		}
-		totalAvailable = sum
+		totalAvailable = lo.SumBy(maxGPUResp.Hardware, func(hw MaxGPUInfo) int {
+			return hw.Available
+		})
 	}
 
 	return mapped, totalAvailable, nil
@@ -149,28 +116,23 @@ func (c *Client) ListLocations() (*LocationsResponse, error) {
 		return nil, fmt.Errorf("failed to list locations: %w", err)
 	}
 
-	var wrapped struct {
-		Data LocationsResponse `json:"data"`
-	}
-
-	if err := json.Unmarshal(resp.Body, &wrapped); err != nil {
+	var locations LocationsResponse
+	if err := decodeData(resp.Body, &locations); err != nil {
 		return nil, fmt.Errorf("failed to parse locations response: %w", err)
 	}
 
-	for i := range wrapped.Data.Locations {
-		location := &wrapped.Data.Locations[i]
+	locations.Locations = lo.Map(locations.Locations, func(location Location, _ int) Location {
 		location.ISO2 = strings.ToUpper(strings.TrimSpace(location.ISO2))
+		return location
+	})
+
+	if locations.Total == 0 {
+		locations.Total = lo.SumBy(locations.Locations, func(location Location) int {
+			return location.Available
+		})
 	}
 
-	if wrapped.Data.Total == 0 {
-		total := 0
-		for _, location := range wrapped.Data.Locations {
-			total += location.Available
-		}
-		wrapped.Data.Total = total
-	}
-
-	return &wrapped.Data, nil
+	return &locations, nil
 }
 
 // GetHardwareType retrieves details about a specific hardware type

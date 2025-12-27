@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 // decodeWithFlexibleTimes unmarshals API responses while tolerating timestamp strings
@@ -23,18 +25,38 @@ func decodeWithFlexibleTimes(data []byte, target interface{}) error {
 	return json.Unmarshal(reencoded, target)
 }
 
+func decodeData[T any](data []byte, target *T) error {
+	var wrapper struct {
+		Data T `json:"data"`
+	}
+	if err := json.Unmarshal(data, &wrapper); err != nil {
+		return err
+	}
+	*target = wrapper.Data
+	return nil
+}
+
+func decodeDataWithFlexibleTimes[T any](data []byte, target *T) error {
+	var wrapper struct {
+		Data T `json:"data"`
+	}
+	if err := decodeWithFlexibleTimes(data, &wrapper); err != nil {
+		return err
+	}
+	*target = wrapper.Data
+	return nil
+}
+
 func normalizeTimeValues(value interface{}) interface{} {
 	switch v := value.(type) {
 	case map[string]interface{}:
-		for key, val := range v {
-			v[key] = normalizeTimeValues(val)
-		}
-		return v
+		return lo.MapValues(v, func(val interface{}, _ string) interface{} {
+			return normalizeTimeValues(val)
+		})
 	case []interface{}:
-		for i, item := range v {
-			v[i] = normalizeTimeValues(item)
-		}
-		return v
+		return lo.Map(v, func(item interface{}, _ int) interface{} {
+			return normalizeTimeValues(item)
+		})
 	case string:
 		if normalized, changed := normalizeTimeString(v); changed {
 			return normalized

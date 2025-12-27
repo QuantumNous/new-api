@@ -58,7 +58,7 @@ const DeploymentsActions = ({
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
         type='primary'
-        className='w-full md:w-auto'
+        className='flex-1 md:flex-initial'
         onClick={handleAddDeployment}
         size='small'
       >
@@ -77,7 +77,7 @@ const DeploymentsActions = ({
           >
             <Button
               type='danger'
-              className='w-full md:w-auto'
+              className='flex-1 md:flex-initial'
               disabled={selectedKeys.length === 0}
               size='small'
             >
@@ -87,7 +87,7 @@ const DeploymentsActions = ({
 
           <Button
             type='tertiary'
-            className='w-full md:w-auto'
+            className='flex-1 md:flex-initial'
             onClick={handleDeselectAll}
             size='small'
           >

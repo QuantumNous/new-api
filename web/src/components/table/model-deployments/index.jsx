@@ -101,28 +101,32 @@ const DeploymentsPage = () => {
       {/* Main Content */}
       <CardPro
         type='type3'
-        actionsArea={<DeploymentsActions
-          selectedKeys={selectedKeys}
-          setSelectedKeys={setSelectedKeys}
-          setEditingDeployment={setEditingDeployment}
-          setShowEdit={setShowEdit}
-          batchDeleteDeployments={batchDeleteDeployments}
-          compactMode={compactMode}
-          setCompactMode={setCompactMode}
-          showCreateModal={showCreateModal}
-          setShowCreateModal={setShowCreateModal}
-          setShowColumnSelector={setShowColumnSelector}
-          t={t}
-        />}
-        searchArea={<DeploymentsFilters
-          formInitValues={formInitValues}
-          setFormApi={setFormApi}
-          searchDeployments={searchDeployments}
-          loading={loading}
-          searching={searching}
-          setShowColumnSelector={setShowColumnSelector}
-          t={t}
-        />}
+        actionsArea={
+          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+            <DeploymentsActions
+              selectedKeys={selectedKeys}
+              setSelectedKeys={setSelectedKeys}
+              setEditingDeployment={setEditingDeployment}
+              setShowEdit={setShowEdit}
+              batchDeleteDeployments={batchDeleteDeployments}
+              compactMode={compactMode}
+              setCompactMode={setCompactMode}
+              showCreateModal={showCreateModal}
+              setShowCreateModal={setShowCreateModal}
+              setShowColumnSelector={setShowColumnSelector}
+              t={t}
+            />
+            <DeploymentsFilters
+              formInitValues={formInitValues}
+              setFormApi={setFormApi}
+              searchDeployments={searchDeployments}
+              loading={loading}
+              searching={searching}
+              setShowColumnSelector={setShowColumnSelector}
+              t={t}
+            />
+          </div>
+        }
         paginationArea={createCardProPagination({
           currentPage: deploymentsData.activePage,
           pageSize: deploymentsData.pageSize,

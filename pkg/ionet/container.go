@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 // ListContainers retrieves all containers for a specific deployment
@@ -20,22 +22,12 @@ func (c *Client) ListContainers(deploymentID string) (*ContainerList, error) {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs:
-	// {
-	//   "data": {
-	//     "total": 0,
-	//     "workers": [...]
-	//   }
-	// }
-	var apiResp struct {
-		Data ContainerList `json:"data"`
-	}
-
-	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
+	var containerList ContainerList
+	if err := decodeDataWithFlexibleTimes(resp.Body, &containerList); err != nil {
 		return nil, fmt.Errorf("failed to parse containers list: %w", err)
 	}
 
-	return &apiResp.Data, nil
+	return &containerList, nil
 }
 
 // GetContainerDetails retrieves detailed information about a specific container
@@ -79,22 +71,12 @@ func (c *Client) GetContainerJobs(deploymentID, containerID string) (*ContainerL
 		return nil, fmt.Errorf("failed to get container jobs: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs (same as containers):
-	// {
-	//   "data": {
-	//     "total": 0,
-	//     "workers": [...]
-	//   }
-	// }
-	var apiResp struct {
-		Data ContainerList `json:"data"`
-	}
-
-	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
+	var containerList ContainerList
+	if err := decodeDataWithFlexibleTimes(resp.Body, &containerList); err != nil {
 		return nil, fmt.Errorf("failed to parse container jobs: %w", err)
 	}
 
-	return &apiResp.Data, nil
+	return &containerList, nil
 }
 
 // buildLogEndpoint constructs the request path for fetching logs
@@ -122,14 +104,14 @@ func buildLogEndpoint(deploymentID, containerID string, opts *GetLogsOptions) (s
 			params["cursor"] = opts.Cursor
 		}
 		if opts.Follow {
-			params["follow"] = "true"
+			params["follow"] = true
 		}
 
 		if opts.StartTime != nil {
-			params["start_time"] = opts.StartTime.Format(time.RFC3339)
+			params["start_time"] = opts.StartTime
 		}
 		if opts.EndTime != nil {
-			params["end_time"] = opts.EndTime.Format(time.RFC3339)
+			params["end_time"] = opts.EndTime
 		}
 	}
 
@@ -155,12 +137,13 @@ func (c *Client) GetContainerLogs(deploymentID, containerID string, opts *GetLog
 	}
 
 	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
-	for _, line := range strings.Split(normalized, "\n") {
+	lines := strings.Split(normalized, "\n")
+	logs.Logs = lo.FilterMap(lines, func(line string, _ int) (LogEntry, bool) {
 		if strings.TrimSpace(line) == "" {
-			continue
+			return LogEntry{}, false
 		}
-		logs.Logs = append(logs.Logs, LogEntry{Message: line})
-	}
+		return LogEntry{Message: line}, true
+	})
 
 	return logs, nil
 }
@@ -199,25 +182,10 @@ func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *Get
 	}
 	opts.Follow = true
 
-	params := map[string]interface{}{
-		"follow": true,
-		"level":  opts.Level,
-		"limit":  opts.Limit,
-		"cursor": opts.Cursor,
+	endpoint, err := buildLogEndpoint(deploymentID, containerID, opts)
+	if err != nil {
+		return err
 	}
-
-	if opts.Stream != "" {
-		params["stream"] = opts.Stream
-	}
-
-	if opts.StartTime != nil {
-		params["start_time"] = *opts.StartTime
-	}
-	if opts.EndTime != nil {
-		params["end_time"] = *opts.EndTime
-	}
-
-	endpoint := fmt.Sprintf("/deployment/%s/log/%s", deploymentID, containerID) + buildQueryParams(params)
 
 	// Note: This is a simplified implementation. In a real scenario, you might want to use
 	// Server-Sent Events (SSE) or WebSocket for streaming logs
@@ -247,8 +215,10 @@ func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *Get
 		// Update cursor for next request
 		if logs.NextCursor != "" {
 			opts.Cursor = logs.NextCursor
-			params["cursor"] = logs.NextCursor
-			endpoint = fmt.Sprintf("/deployment/%s/log/%s", deploymentID, containerID) + buildQueryParams(params)
+			endpoint, err = buildLogEndpoint(deploymentID, containerID, opts)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Wait a bit before next poll to avoid overwhelming the API

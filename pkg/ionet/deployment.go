@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // DeployContainer deploys a new container with the specified configuration
@@ -70,30 +72,18 @@ func (c *Client) ListDeployments(opts *ListDeploymentsOptions) (*DeploymentList,
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs:
-	// {
-	//   "data": {
-	//     "clusters": [...],
-	//     "total": 0,
-	//     "statuses": ["string"]
-	//   }
-	// }
-	var apiResp struct {
-		Data DeploymentList `json:"data"`
-	}
-
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	var deploymentList DeploymentList
+	if err := decodeData(resp.Body, &deploymentList); err != nil {
 		return nil, fmt.Errorf("failed to parse deployments list: %w", err)
 	}
 
-	// Set derived fields for controller compatibility
-	for i := range apiResp.Data.Deployments {
-		deployment := &apiResp.Data.Deployments[i]
+	deploymentList.Deployments = lo.Map(deploymentList.Deployments, func(deployment Deployment, _ int) Deployment {
 		deployment.GPUCount = deployment.HardwareQuantity
 		deployment.Replicas = deployment.HardwareQuantity // Assuming 1:1 mapping for now
-	}
+		return deployment
+	})
 
-	return &apiResp.Data, nil
+	return &deploymentList, nil
 }
 
 // GetDeployment retrieves detailed information about a specific deployment
@@ -109,23 +99,12 @@ func (c *Client) GetDeployment(deploymentID string) (*DeploymentDetail, error) {
 		return nil, fmt.Errorf("failed to get deployment details: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs:
-	// {
-	//   "data": {
-	//     "id": "...",
-	//     "status": "string",
-	//     ...
-	//   }
-	// }
-	var apiResp struct {
-		Data DeploymentDetail `json:"data"`
-	}
-
-	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
+	var deploymentDetail DeploymentDetail
+	if err := decodeDataWithFlexibleTimes(resp.Body, &deploymentDetail); err != nil {
 		return nil, fmt.Errorf("failed to parse deployment details: %w", err)
 	}
 
-	return &apiResp.Data, nil
+	return &deploymentDetail, nil
 }
 
 // UpdateDeployment updates the configuration of an existing deployment
@@ -173,17 +152,12 @@ func (c *Client) ExtendDeployment(deploymentID string, req *ExtendDurationReques
 		return nil, fmt.Errorf("failed to extend deployment: %w", err)
 	}
 
-	// Parse according to the actual API response format from docs:
-	// Returns the full deployment details structure
-	var apiResp struct {
-		Data DeploymentDetail `json:"data"`
-	}
-
-	if err := decodeWithFlexibleTimes(resp.Body, &apiResp); err != nil {
+	var deploymentDetail DeploymentDetail
+	if err := decodeDataWithFlexibleTimes(resp.Body, &deploymentDetail); err != nil {
 		return nil, fmt.Errorf("failed to parse extended deployment details: %w", err)
 	}
 
-	return &apiResp.Data, nil
+	return &deploymentDetail, nil
 }
 
 // DeleteDeployment deletes an active deployment
@@ -280,15 +254,8 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 		apiDurationType = "hourly"
 	}
 
-	// Build location_ids parameter as array format
-	locationIDStrs := make([]string, len(req.LocationIDs))
-	for i, id := range req.LocationIDs {
-		locationIDStrs[i] = fmt.Sprintf("%d", id)
-	}
-	locationIDsParam := fmt.Sprintf("[%s]", strings.Join(locationIDStrs, ","))
-
 	params := map[string]interface{}{
-		"location_ids":       locationIDsParam,
+		"location_ids":       req.LocationIDs,
 		"hardware_id":        req.HardwareID,
 		"hardware_qty":       hardwareQty,
 		"gpus_per_container": req.GPUsPerContainer,
@@ -320,21 +287,19 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	//     "total_cost_usdc": 0
 	//   }
 	// }
-	var apiResp struct {
-		Data struct {
-			ReplicaCount                 int     `json:"replica_count"`
-			GPUsPerContainer             int     `json:"gpus_per_container"`
-			AvailableReplicaCount        []int   `json:"available_replica_count"`
-			Discount                     float64 `json:"discount"`
-			IonetFee                     float64 `json:"ionet_fee"`
-			IonetFeePercent              float64 `json:"ionet_fee_percent"`
-			CurrencyConversionFee        float64 `json:"currency_conversion_fee"`
-			CurrencyConversionFeePercent float64 `json:"currency_conversion_fee_percent"`
-			TotalCostUSDC                float64 `json:"total_cost_usdc"`
-		} `json:"data"`
+	var pricingData struct {
+		ReplicaCount                 int     `json:"replica_count"`
+		GPUsPerContainer             int     `json:"gpus_per_container"`
+		AvailableReplicaCount        []int   `json:"available_replica_count"`
+		Discount                     float64 `json:"discount"`
+		IonetFee                     float64 `json:"ionet_fee"`
+		IonetFeePercent              float64 `json:"ionet_fee_percent"`
+		CurrencyConversionFee        float64 `json:"currency_conversion_fee"`
+		CurrencyConversionFeePercent float64 `json:"currency_conversion_fee_percent"`
+		TotalCostUSDC                float64 `json:"total_cost_usdc"`
 	}
 
-	if err := json.Unmarshal(resp.Body, &apiResp); err != nil {
+	if err := decodeData(resp.Body, &pricingData); err != nil {
 		return nil, fmt.Errorf("failed to parse price estimation response: %w", err)
 	}
 
@@ -345,13 +310,13 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	}
 
 	priceResp := &PriceEstimationResponse{
-		EstimatedCost:   apiResp.Data.TotalCostUSDC,
+		EstimatedCost:   pricingData.TotalCostUSDC,
 		Currency:        strings.ToUpper(currency),
 		EstimationValid: true,
 		PriceBreakdown: PriceBreakdown{
-			ComputeCost: apiResp.Data.TotalCostUSDC - apiResp.Data.IonetFee - apiResp.Data.CurrencyConversionFee,
-			TotalCost:   apiResp.Data.TotalCostUSDC,
-			HourlyRate:  apiResp.Data.TotalCostUSDC / durationHoursFloat,
+			ComputeCost: pricingData.TotalCostUSDC - pricingData.IonetFee - pricingData.CurrencyConversionFee,
+			TotalCost:   pricingData.TotalCostUSDC,
+			HourlyRate:  pricingData.TotalCostUSDC / durationHoursFloat,
 		},
 	}
 

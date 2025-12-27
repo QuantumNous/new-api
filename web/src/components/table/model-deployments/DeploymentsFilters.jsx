@@ -63,25 +63,26 @@ const DeploymentsFilters = ({
         setFormApi(formApi);
         formApiRef.current = formApi;
       }}
-      className='w-full'
+      className='w-full md:w-auto order-1 md:order-2'
     >
-      <div className='flex flex-col md:flex-row items-center gap-2 w-full'>
-        <div className='flex flex-col sm:flex-row gap-2 flex-1 w-full'>
+      <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
+        <div className='w-full md:w-64'>
           <Form.Input
             field='searchKeyword'
             placeholder={t('搜索部署名称')}
             prefix={<IconSearch />}
-            className='flex-1'
             showClear
             size='small'
             pure
           />
+        </div>
 
+        <div className='w-full md:w-48'>
           <Form.Select
             field='searchStatus'
             placeholder={t('选择状态')}
             optionList={statusOptions}
-            className='w-full sm:w-40'
+            className='w-full'
             showClear
             size='small'
             pure
@@ -96,7 +97,7 @@ const DeploymentsFilters = ({
             loading={searching}
             disabled={loading}
             size='small'
-            className='w-full md:w-auto'
+            className='flex-1 md:flex-initial md:w-auto'
           >
             {t('查询')}
           </Button>
@@ -107,7 +108,7 @@ const DeploymentsFilters = ({
             onClick={handleReset}
             disabled={loading || searching}
             size='small'
-            className='w-full md:w-auto'
+            className='flex-1 md:flex-initial md:w-auto'
           >
             {t('重置')}
           </Button>
@@ -116,7 +117,7 @@ const DeploymentsFilters = ({
             type='tertiary'
             onClick={() => setShowColumnSelector(true)}
             size='small'
-            className='w-full md:w-auto'
+            className='flex-1 md:flex-initial md:w-auto'
           >
             {t('列设置')}
           </Button>

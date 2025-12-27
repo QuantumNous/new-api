@@ -165,23 +165,50 @@ func buildQueryParams(params map[string]interface{}) string {
 
 	values := url.Values{}
 	for key, value := range params {
-		if value != nil {
-			switch v := value.(type) {
-			case string:
-				if v != "" {
-					values.Add(key, v)
-				}
-			case int:
-				if v != 0 {
-					values.Add(key, strconv.Itoa(v))
-				}
-			case bool:
-				values.Add(key, strconv.FormatBool(v))
-			case time.Time:
-				if !v.IsZero() {
-					values.Add(key, v.Format(time.RFC3339))
+		if value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case string:
+			if v != "" {
+				values.Add(key, v)
+			}
+		case int:
+			if v != 0 {
+				values.Add(key, strconv.Itoa(v))
+			}
+		case int64:
+			if v != 0 {
+				values.Add(key, strconv.FormatInt(v, 10))
+			}
+		case float64:
+			if v != 0 {
+				values.Add(key, strconv.FormatFloat(v, 'f', -1, 64))
+			}
+		case bool:
+			values.Add(key, strconv.FormatBool(v))
+		case time.Time:
+			if !v.IsZero() {
+				values.Add(key, v.Format(time.RFC3339))
+			}
+		case *time.Time:
+			if v != nil && !v.IsZero() {
+				values.Add(key, v.Format(time.RFC3339))
+			}
+		case []int:
+			if len(v) > 0 {
+				if encoded, err := json.Marshal(v); err == nil {
+					values.Add(key, string(encoded))
 				}
 			}
+		case []string:
+			if len(v) > 0 {
+				if encoded, err := json.Marshal(v); err == nil {
+					values.Add(key, string(encoded))
+				}
+			}
+		default:
+			values.Add(key, fmt.Sprint(v))
 		}
 	}
 

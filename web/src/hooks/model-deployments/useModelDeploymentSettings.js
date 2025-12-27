@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { API, toBoolean } from '../../helpers';
 
 export const useModelDeploymentSettings = () => {
@@ -25,6 +25,11 @@ export const useModelDeploymentSettings = () => {
   const [settings, setSettings] = useState({
     'model_deployment.ionet.enabled': false,
     'model_deployment.ionet.api_key': '',
+  });
+  const [connectionState, setConnectionState] = useState({
+    loading: false,
+    ok: null,
+    error: null,
   });
 
   const getSettings = async () => {
@@ -60,14 +65,79 @@ export const useModelDeploymentSettings = () => {
     getSettings();
   }, []);
 
+  const apiKey = settings['model_deployment.ionet.api_key'];
   const isIoNetEnabled = settings['model_deployment.ionet.enabled'] && 
-                        settings['model_deployment.ionet.api_key'] && 
-                        settings['model_deployment.ionet.api_key'].trim() !== '';
+                        apiKey && 
+                        apiKey.trim() !== '';
+
+  const buildConnectionError = (rawMessage, fallbackMessage = 'Connection failed') => {
+    const message = (rawMessage || fallbackMessage).trim();
+    const normalized = message.toLowerCase();
+    if (normalized.includes('expired') || normalized.includes('expire')) {
+      return { type: 'expired', message };
+    }
+    if (normalized.includes('invalid') || normalized.includes('unauthorized') || normalized.includes('api key')) {
+      return { type: 'invalid', message };
+    }
+    if (normalized.includes('network') || normalized.includes('timeout')) {
+      return { type: 'network', message };
+    }
+    return { type: 'unknown', message };
+  };
+
+  const testConnection = useCallback(async (apiKey) => {
+    const key = (apiKey || '').trim();
+    if (key === '') {
+      setConnectionState({ loading: false, ok: null, error: null });
+      return;
+    }
+
+    setConnectionState({ loading: true, ok: null, error: null });
+    try {
+      const response = await API.post(
+        '/api/deployments/test-connection',
+        { api_key: key },
+        { skipErrorHandler: true },
+      );
+
+      if (response?.data?.success) {
+        setConnectionState({ loading: false, ok: true, error: null });
+        return;
+      }
+
+      const message = response?.data?.message || 'Connection failed';
+      setConnectionState({ loading: false, ok: false, error: buildConnectionError(message) });
+    } catch (error) {
+      if (error?.code === 'ERR_NETWORK') {
+        setConnectionState({
+          loading: false,
+          ok: false,
+          error: { type: 'network', message: 'Network connection failed' },
+        });
+        return;
+      }
+      const rawMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+      setConnectionState({ loading: false, ok: false, error: buildConnectionError(rawMessage, 'Connection failed') });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && isIoNetEnabled) {
+      testConnection(apiKey);
+      return;
+    }
+    setConnectionState({ loading: false, ok: null, error: null });
+  }, [loading, isIoNetEnabled, apiKey, testConnection]);
 
   return {
     loading,
     settings,
+    apiKey,
     isIoNetEnabled,
     refresh: getSettings,
+    connectionLoading: connectionState.loading,
+    connectionOk: connectionState.ok,
+    connectionError: connectionState.error,
+    testConnection,
   };
 };
