@@ -153,6 +153,10 @@ export type IntegrationSettings = {
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
+  CreemApiKey: string
+  CreemWebhookSecret: string
+  CreemTestMode: boolean
+  CreemProducts: string
 }
 
 export type ModelSettings = {

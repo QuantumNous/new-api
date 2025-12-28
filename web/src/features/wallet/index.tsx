@@ -6,14 +6,26 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { AppHeader, Main } from '@/components/layout'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
+import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE } from './constants'
-import { useTopupInfo, usePayment, useAffiliate, useRedemption } from './hooks'
+import {
+  useTopupInfo,
+  usePayment,
+  useAffiliate,
+  useRedemption,
+  useCreemPayment,
+} from './hooks'
 import { getDefaultPaymentType, getMinTopupAmount } from './lib'
-import type { UserWalletData, PaymentMethod, PresetAmount } from './types'
+import type {
+  UserWalletData,
+  PaymentMethod,
+  PresetAmount,
+  CreemProduct,
+} from './types'
 
 export function Wallet() {
   const { t } = useTranslation()
@@ -28,6 +40,9 @@ export function Wallet() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
+  const [creemDialogOpen, setCreemDialogOpen] = useState(false)
+  const [selectedCreemProduct, setSelectedCreemProduct] =
+    useState<CreemProduct | null>(null)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -53,6 +68,7 @@ export function Wallet() {
     transferring,
   } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
+  const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -158,6 +174,24 @@ export function Wallet() {
     return success
   }
 
+  // Handle Creem product selection
+  const handleCreemProductSelect = (product: CreemProduct) => {
+    setSelectedCreemProduct(product)
+    setCreemDialogOpen(true)
+  }
+
+  // Handle Creem payment confirmation
+  const handleCreemConfirm = async () => {
+    if (!selectedCreemProduct) return
+
+    const success = await processCreemPayment(selectedCreemProduct.productId)
+    if (success) {
+      setCreemDialogOpen(false)
+      setSelectedCreemProduct(null)
+      await fetchUser()
+    }
+  }
+
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
@@ -198,6 +232,9 @@ export function Wallet() {
               priceRatio={status?.price || 1}
               usdExchangeRate={effectiveUsdExchangeRate}
               onOpenBilling={() => setBillingDialogOpen(true)}
+              creemProducts={topupInfo?.creem_products}
+              enableCreemTopup={topupInfo?.enable_creem_topup}
+              onCreemProductSelect={handleCreemProductSelect}
             />
           </div>
 
@@ -239,6 +276,15 @@ export function Wallet() {
         <BillingHistoryDialog
           open={billingDialogOpen}
           onOpenChange={setBillingDialogOpen}
+        />
+
+        {/* Creem Confirmation Dialog */}
+        <CreemConfirmDialog
+          open={creemDialogOpen}
+          onOpenChange={setCreemDialogOpen}
+          onConfirm={handleCreemConfirm}
+          product={selectedCreemProduct}
+          processing={creemProcessing}
         />
       </Main>
     </>

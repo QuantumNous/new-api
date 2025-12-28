@@ -21,6 +21,33 @@ export type PaymentResponse = ApiResponse<any> & { url?: string }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
+export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
+
+/**
+ * Creem product configuration
+ */
+export interface CreemProduct {
+  /** Product display name */
+  name: string
+  /** Creem product ID */
+  productId: string
+  /** Product price */
+  price: number
+  /** Quota amount to credit */
+  quota: number
+  /** Currency (USD or EUR) */
+  currency: 'USD' | 'EUR'
+}
+
+/**
+ * Creem payment request
+ */
+export interface CreemPaymentRequest {
+  /** Creem product ID */
+  product_id: string
+  /** Payment method identifier */
+  payment_method: 'creem'
+}
 
 /**
  * Payment method configuration
@@ -56,6 +83,10 @@ export interface TopupInfo {
   discount: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
+  /** Whether Creem topup is enabled */
+  enable_creem_topup?: boolean
+  /** Available Creem products */
+  creem_products?: CreemProduct[]
 }
 
 /**

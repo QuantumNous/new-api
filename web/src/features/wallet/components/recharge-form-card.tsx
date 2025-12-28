@@ -21,7 +21,13 @@ import {
   getMinTopupAmount,
   calculatePresetPricing,
 } from '../lib'
-import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
+import type {
+  PaymentMethod,
+  PresetAmount,
+  TopupInfo,
+  CreemProduct,
+} from '../types'
+import { CreemProductsSection } from './creem-products-section'
 
 interface RechargeFormCardProps {
   topupInfo: TopupInfo | null
@@ -43,6 +49,9 @@ interface RechargeFormCardProps {
   priceRatio?: number
   usdExchangeRate?: number
   onOpenBilling?: () => void
+  creemProducts?: CreemProduct[]
+  enableCreemTopup?: boolean
+  onCreemProductSelect?: (product: CreemProduct) => void
 }
 
 export function RechargeFormCard({
@@ -65,6 +74,9 @@ export function RechargeFormCard({
   priceRatio = 1,
   usdExchangeRate = 1,
   onOpenBilling,
+  creemProducts,
+  enableCreemTopup,
+  onCreemProductSelect,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -319,6 +331,22 @@ export function RechargeFormCard({
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Creem Products Section */}
+        {enableCreemTopup &&
+          Array.isArray(creemProducts) &&
+          creemProducts.length > 0 &&
+          onCreemProductSelect && (
+            <div className='space-y-3 border-t pt-6'>
+              <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                {t('Creem Payment')}
+              </Label>
+              <CreemProductsSection
+                products={creemProducts}
+                onProductSelect={onCreemProductSelect}
+              />
+            </div>
+          )}
 
         {/* Redemption Code Section */}
         <div className='space-y-3 border-t pt-8'>

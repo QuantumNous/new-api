@@ -5,11 +5,36 @@ import {
   mergePresetAmounts,
   getMinTopupAmount,
 } from '../lib'
-import type { TopupInfo, PresetAmount } from '../types'
+import type { TopupInfo, PresetAmount, CreemProduct } from '../types'
 
 // ============================================================================
 // Topup Info Hook
 // ============================================================================
+
+/**
+ * Parse creem_products from backend response
+ * Backend returns it as a JSON string, need to parse it
+ */
+function parseCreemProducts(data: unknown): CreemProduct[] {
+  if (!data) return []
+
+  // If already an array, return as-is
+  if (Array.isArray(data)) {
+    return data
+  }
+
+  // If it's a string, try to parse it
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+
+  return []
+}
 
 export function useTopupInfo() {
   const [topupInfo, setTopupInfo] = useState<TopupInfo | null>(null)
@@ -27,7 +52,13 @@ export function useTopupInfo() {
         return
       }
 
-      setTopupInfo(response.data)
+      // Parse creem_products from JSON string if needed
+      const processedData: TopupInfo = {
+        ...response.data,
+        creem_products: parseCreemProducts(response.data.creem_products),
+      }
+
+      setTopupInfo(processedData)
 
       // Generate preset amounts
       if (response.data.amount_options?.length > 0) {

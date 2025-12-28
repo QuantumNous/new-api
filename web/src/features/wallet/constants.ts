@@ -15,6 +15,7 @@ export const PAYMENT_TYPES = {
   ALIPAY: 'alipay',
   WECHAT: 'wxpay',
   STRIPE: 'stripe',
+  CREEM: 'creem',
 } as const
 
 /**
@@ -29,6 +30,7 @@ export const PAYMENT_ICON_COLORS = {
   [PAYMENT_TYPES.ALIPAY]: '#1677FF',
   [PAYMENT_TYPES.WECHAT]: '#07C160',
   [PAYMENT_TYPES.STRIPE]: '#635BFF',
+  [PAYMENT_TYPES.CREEM]: '#6366F1',
 } as const
 
 /**

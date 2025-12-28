@@ -40,6 +40,10 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   StripeUnitPrice: 8.0,
   StripeMinTopUp: 1,
   StripePromotionCodesEnabled: false,
+  CreemApiKey: '',
+  CreemWebhookSecret: '',
+  CreemTestMode: false,
+  CreemProducts: '[]',
 }
 
 export function IntegrationSettings() {
@@ -83,6 +87,10 @@ export function IntegrationSettings() {
               StripeUnitPrice: settings.StripeUnitPrice,
               StripeMinTopUp: settings.StripeMinTopUp,
               StripePromotionCodesEnabled: settings.StripePromotionCodesEnabled,
+              CreemApiKey: settings.CreemApiKey,
+              CreemWebhookSecret: settings.CreemWebhookSecret,
+              CreemTestMode: settings.CreemTestMode,
+              CreemProducts: settings.CreemProducts,
             }}
           />
 

@@ -14,6 +14,8 @@ import type {
   AffiliateTransferResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
+  CreemPaymentRequest,
+  CreemPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -92,6 +94,18 @@ export async function requestStripePayment(
   request: PaymentRequest
 ): Promise<StripePaymentResponse> {
   const res = await api.post('/api/user/stripe/pay', request, {
+    skipBusinessError: true,
+  } as any)
+  return res.data
+}
+
+/**
+ * Request Creem payment
+ */
+export async function requestCreemPayment(
+  request: CreemPaymentRequest
+): Promise<CreemPaymentResponse> {
+  const res = await api.post('/api/user/creem/pay', request, {
     skipBusinessError: true,
   } as any)
   return res.data
