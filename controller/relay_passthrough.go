@@ -63,7 +63,7 @@ func RelayPassthrough(c *gin.Context) {
 	relayInfo.SetEstimatePromptTokens(0)
 
 	// 获取价格数据
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, 0, nil)
+	priceData, err := helper.ModelPriceHelper(c, relayInfo, 0, &types.TokenCountMeta{})
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError)
 		return
