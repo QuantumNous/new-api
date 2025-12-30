@@ -1174,7 +1174,9 @@ export function renderModelPrice(
   cacheRatio = 1.0,
   image = false,
   imageRatio = 1.0,
-  imageOutputTokens = 0,
+  imageInputTokens = 0,
+  completionImageTokens = 0,
+  imageOutputRatio = 1.0,
   webSearch = false,
   webSearchCallCount = 0,
   webSearchPrice = 0,
@@ -1217,22 +1219,31 @@ export function renderModelPrice(
     let completionRatioPrice = modelRatio * 2.0 * completionRatio;
     let cacheRatioPrice = modelRatio * 2.0 * cacheRatio;
     let imageRatioPrice = modelRatio * 2.0 * imageRatio;
+    let imageOutputRatioPrice = modelRatio * 2.0 * imageOutputRatio;
 
     // Calculate effective input tokens (non-cached + cached with ratio applied)
     let effectiveInputTokens =
       inputTokens - cacheTokens + cacheTokens * cacheRatio;
     // Handle image tokens if present
-    if (image && imageOutputTokens > 0) {
+    if (image && imageInputTokens > 0) {
       effectiveInputTokens =
-        inputTokens - imageOutputTokens + imageOutputTokens * imageRatio;
+        inputTokens - imageInputTokens + imageInputTokens * imageRatio;
     }
     if (audioInputTokens > 0) {
       effectiveInputTokens -= audioInputTokens;
     }
+
+    const baseCompletionTokens = Math.max(
+      completionTokens - completionImageTokens,
+      0,
+    );
+    const shouldSplitOutput =
+      completionImageTokens > 0 && imageOutputRatio !== completionRatio;
     let price =
       (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
       (audioInputTokens / 1000000) * audioInputPrice * groupRatio +
-      (completionTokens / 1000000) * completionRatioPrice * groupRatio +
+      (baseCompletionTokens / 1000000) * completionRatioPrice * groupRatio +
+      (completionImageTokens / 1000000) * imageOutputRatioPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
       (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
       imageGenerationCallPrice * groupRatio;
@@ -1252,17 +1263,44 @@ export function renderModelPrice(
               },
             )}
           </p>
-          <p>
-            {i18next.t(
-              '输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})',
-              {
-                symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
-                total: (completionRatioPrice * rate).toFixed(6),
-                completionRatio: completionRatio,
-              },
-            )}
-          </p>
+          {shouldSplitOutput ? (
+            <>
+              <p>
+                {i18next.t(
+                  '文字输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})',
+                  {
+                    symbol: symbol,
+                    price: (inputRatioPrice * rate).toFixed(6),
+                    total: (completionRatioPrice * rate).toFixed(6),
+                    completionRatio: completionRatio,
+                  },
+                )}
+              </p>
+              <p>
+                {i18next.t(
+                  '图片输出价格：{{symbol}}{{price}} * {{imageOutputRatio}} = {{symbol}}{{total}} / 1M tokens (图片输出倍率: {{imageOutputRatio}})',
+                  {
+                    symbol: symbol,
+                    price: (inputRatioPrice * rate).toFixed(6),
+                    total: (imageOutputRatioPrice * rate).toFixed(6),
+                    imageOutputRatio: imageOutputRatio,
+                  },
+                )}
+              </p>
+            </>
+          ) : (
+            <p>
+              {i18next.t(
+                '输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})',
+                {
+                  symbol: symbol,
+                  price: (inputRatioPrice * rate).toFixed(6),
+                  total: (completionRatioPrice * rate).toFixed(6),
+                  completionRatio: completionRatio,
+                },
+              )}
+            </p>
+          )}
           {cacheTokens > 0 && (
             <p>
               {i18next.t(
@@ -1276,7 +1314,7 @@ export function renderModelPrice(
               )}
             </p>
           )}
-          {image && imageOutputTokens > 0 && (
+          {image && imageInputTokens > 0 && (
             <p>
               {i18next.t(
                 '图片输入价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (图片倍率: {{imageRatio}})',
@@ -1318,12 +1356,12 @@ export function renderModelPrice(
             {(() => {
               // 构建输入部分描述
               let inputDesc = '';
-              if (image && imageOutputTokens > 0) {
+              if (image && imageInputTokens > 0) {
                 inputDesc = i18next.t(
                   '(输入 {{nonImageInput}} tokens + 图片输入 {{imageInput}} tokens * {{imageRatio}} / 1M tokens * {{symbol}}{{price}}',
                   {
-                    nonImageInput: inputTokens - imageOutputTokens,
-                    imageInput: imageOutputTokens,
+                    nonImageInput: inputTokens - imageInputTokens,
+                    imageInput: imageInputTokens,
                     imageRatio: imageRatio,
                     symbol: symbol,
                     price: (inputRatioPrice * rate).toFixed(6),
@@ -1363,16 +1401,29 @@ export function renderModelPrice(
               }
 
               // 构建输出部分描述
-              const outputDesc = i18next.t(
-                '输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}',
-                {
-                  completion: completionTokens,
-                  symbol: symbol,
-                  compPrice: (completionRatioPrice * rate).toFixed(6),
-                  ratio: groupRatio,
-                  ratioType: ratioLabel,
-                },
-              );
+              const outputDesc = shouldSplitOutput
+                  ? i18next.t(
+                      '输出 文字输出 {{textCompletion}} tokens / 1M tokens * {{symbol}}{{textCompPrice}} + 图片输出 {{imageCompletion}} tokens / 1M tokens * {{symbol}}{{imageCompPrice}}) * {{ratioType}} {{ratio}}',
+                      {
+                        textCompletion: baseCompletionTokens,
+                        imageCompletion: completionImageTokens,
+                        symbol: symbol,
+                        textCompPrice: (completionRatioPrice * rate).toFixed(6),
+                        imageCompPrice: (imageOutputRatioPrice * rate).toFixed(6),
+                        ratio: groupRatio,
+                        ratioType: ratioLabel,
+                      },
+                    )
+                  : i18next.t(
+                      '输出 {{completion}} tokens / 1M tokens * {{symbol}}{{compPrice}}) * {{ratioType}} {{ratio}}',
+                      {
+                        completion: completionTokens,
+                        symbol: symbol,
+                        compPrice: (completionRatioPrice * rate).toFixed(6),
+                        ratio: groupRatio,
+                        ratioType: ratioLabel,
+                      },
+                    );
 
               // 构建额外服务描述
               const extraServices = [

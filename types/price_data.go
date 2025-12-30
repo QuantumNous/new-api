@@ -18,6 +18,7 @@ type PriceData struct {
 	CacheCreation5mRatio float64
 	CacheCreation1hRatio float64
 	ImageRatio           float64
+	ImageOutputRatio     float64
 	AudioRatio           float64
 	AudioCompletionRatio float64
 	OtherRatios          map[string]float64
