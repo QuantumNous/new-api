@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -149,6 +150,24 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
+	// 非无限额度时，检查额度值是否超出有效范围
+	if !token.UnlimitedQuota {
+		if token.RemainQuota < 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "额度值不能为负数",
+			})
+			return
+		}
+		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
+		if token.RemainQuota > maxQuotaValue {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("额度值超出有效范围，最大值为 %d", maxQuotaValue),
+			})
+			return
+		}
+	}
 	key, err := common.GenerateKey()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -216,6 +235,23 @@ func UpdateToken(c *gin.Context) {
 		})
 		return
 	}
+	if !token.UnlimitedQuota {
+		if token.RemainQuota < 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "额度值不能为负数",
+			})
+			return
+		}
+		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
+		if token.RemainQuota > maxQuotaValue {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("额度值超出有效范围，最大值为 %d", maxQuotaValue),
+			})
+			return
+		}
+	}
 	cleanToken, err := model.GetTokenByIds(token.Id, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -261,7 +297,6 @@ func UpdateToken(c *gin.Context) {
 		"message": "",
 		"data":    cleanToken,
 	})
-	return
 }
 
 type TokenBatch struct {

@@ -401,7 +401,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 						},
 					})
 				}
-				
+
 				if len(toolCall.Function.Arguments) > 0 {
 					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 						Index: &idx,

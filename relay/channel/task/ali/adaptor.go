@@ -192,6 +192,10 @@ func sizeToResolution(size string) (string, error) {
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
 	aliRatios := map[string]map[string]float64{
+		"wan2.6-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
 		"wan2.5-t2v-preview": {
 			"480P":  1,
 			"720P":  2,

@@ -55,6 +55,7 @@ import {
   selectFilter,
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
+import OllamaModelModal from './OllamaModelModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
@@ -180,6 +181,7 @@ const EditChannelModal = (props) => {
   const [isModalOpenurl, setIsModalOpenurl] = useState(false);
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [fetchedModels, setFetchedModels] = useState([]);
+  const [ollamaModalVisible, setOllamaModalVisible] = useState(false);
   const formApiRef = useRef(null);
   const [vertexKeys, setVertexKeys] = useState([]);
   const [vertexFileList, setVertexFileList] = useState([]);
@@ -214,6 +216,8 @@ const EditChannelModal = (props) => {
       return [];
     }
   }, [inputs.model_mapping]);
+  const [isIonetChannel, setIsIonetChannel] = useState(false);
+  const [ionetMetadata, setIonetMetadata] = useState(null);
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -224,6 +228,21 @@ const EditChannelModal = (props) => {
   // 专门的2FA验证状态（用于TwoFactorAuthModal）
   const [show2FAVerifyModal, setShow2FAVerifyModal] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
+
+  useEffect(() => {
+    if (!isEdit) {
+      setIsIonetChannel(false);
+      setIonetMetadata(null);
+    }
+  }, [isEdit]);
+
+  const handleOpenIonetDeployment = () => {
+    if (!ionetMetadata?.deployment_id) {
+      return;
+    }
+    const targetUrl = `/console/deployment?deployment_id=${ionetMetadata.deployment_id}`;
+    window.open(targetUrl, '_blank', 'noopener');
+  };
   const [verifyLoading, setVerifyLoading] = useState(false);
 
   // 表单块导航相关状态
@@ -404,7 +423,12 @@ const EditChannelModal = (props) => {
     handleInputChange('settings', settingsJson);
   };
 
+  const isIonetLocked = isIonetChannel && isEdit;
+
   const handleInputChange = (name, value) => {
+    if (isIonetChannel && isEdit && ['type', 'key', 'base_url'].includes(name)) {
+      return;
+    }
     if (formApiRef.current) {
       formApiRef.current.setValue(name, value);
     }
@@ -625,6 +649,25 @@ const EditChannelModal = (props) => {
         .map((model) => (model || '').trim())
         .filter(Boolean);
       initialModelMappingRef.current = data.model_mapping || '';
+
+      let parsedIonet = null;
+      if (data.other_info) {
+        try {
+          const maybeMeta = JSON.parse(data.other_info);
+          if (
+            maybeMeta &&
+            typeof maybeMeta === 'object' &&
+            maybeMeta.source === 'ionet'
+          ) {
+            parsedIonet = maybeMeta;
+          }
+        } catch (error) {
+          // ignore parse error
+        }
+      }
+      const managedByIonet = !!parsedIonet;
+      setIsIonetChannel(managedByIonet);
+      setIonetMetadata(parsedIonet);
       // console.log(data);
     } else {
       showError(message);
@@ -632,7 +675,8 @@ const EditChannelModal = (props) => {
     setLoading(false);
   };
 
-  const fetchUpstreamModelList = async (name) => {
+  const fetchUpstreamModelList = async (name, options = {}) => {
+    const silent = !!options.silent;
     // if (inputs['type'] !== 1) {
     //   showError(t('仅支持 OpenAI 接口格式'));
     //   return;
@@ -683,7 +727,9 @@ const EditChannelModal = (props) => {
     if (!err) {
       const uniqueModels = Array.from(new Set(models));
       setFetchedModels(uniqueModels);
-      setModelModalVisible(true);
+      if (!silent) {
+        setModelModalVisible(true);
+      }
     } else {
       showError(t('获取模型列表失败'));
     }
@@ -1626,20 +1672,44 @@ const EditChannelModal = (props) => {
                       </div>
                     </div>
 
-                    <Form.Select
-                      field='type'
-                      label={t('类型')}
-                      placeholder={t('请选择渠道类型')}
-                      rules={[{ required: true, message: t('请选择渠道类型') }]}
-                      optionList={channelOptionList}
-                      style={{ width: '100%' }}
-                      filter={selectFilter}
-                      autoClearSearchValue={false}
-                      searchPosition='dropdown'
-                      onSearch={(value) => setChannelSearchValue(value)}
-                      renderOptionItem={renderChannelOption}
-                      onChange={(value) => handleInputChange('type', value)}
-                    />
+                    {isIonetChannel && (
+                    <Banner
+                      type='info'
+                      closeIcon={null}
+                      className='mb-4 rounded-xl'
+                      description={t('此渠道由 IO.NET 自动同步，类型、密钥和 API 地址已锁定。')}
+                    >
+                      <Space>
+                        {ionetMetadata?.deployment_id && (
+                          <Button
+                            size='small'
+                            theme='light'
+                            type='primary'
+                            icon={<IconGlobe />}
+                            onClick={handleOpenIonetDeployment}
+                          >
+                            {t('查看关联部署')}
+                          </Button>
+                        )}
+                      </Space>
+                    </Banner>
+                  )}
+
+                  <Form.Select
+                    field='type'
+                    label={t('类型')}
+                    placeholder={t('请选择渠道类型')}
+                    rules={[{ required: true, message: t('请选择渠道类型') }]}
+                    optionList={channelOptionList}
+                    style={{ width: '100%' }}
+                    filter={selectFilter}
+                    autoClearSearchValue={false}
+                    searchPosition='dropdown'
+                    onSearch={(value) => setChannelSearchValue(value)}
+                    renderOptionItem={renderChannelOption}
+                    onChange={(value) => handleInputChange('type', value)}
+                    disabled={isIonetLocked}
+                  />
 
                     {inputs.type === 20 && (
                       <Form.Switch
@@ -1778,87 +1848,86 @@ const EditChannelModal = (props) => {
                           autosize
                           autoComplete='new-password'
                           onChange={(value) => handleInputChange('key', value)}
-                          extraText={
-                            <div className='flex items-center gap-2 flex-wrap'>
-                              {isEdit &&
-                                isMultiKeyChannel &&
-                                keyMode === 'append' && (
-                                  <Text type='warning' size='small'>
-                                    {t(
-                                      '追加模式：新密钥将添加到现有密钥列表的末尾',
-                                    )}
-                                  </Text>
-                                )}
-                              {isEdit && (
+                          disabled={isIonetLocked}
+                        extraText={
+                          <div className='flex items-center gap-2 flex-wrap'>
+                            {isEdit &&
+                              isMultiKeyChannel &&
+                              keyMode === 'append' && (
+                                <Text type='warning' size='small'>
+                                  {t(
+                                    '追加模式：新密钥将添加到现有密钥列表的末尾',
+                                  )}
+                                </Text>
+                              )}
+                            {isEdit && (
+                              <Button
+                                size='small'
+                                type='primary'
+                                theme='outline'
+                                onClick={handleShow2FAModal}
+                              >
+                                {t('查看密钥')}
+                              </Button>
+                            )}
+                            {batchExtra}
+                          </div>
+                        }
+                        showClear
+                      />
+                    )
+                  ) : (
+                    <>
+                      {inputs.type === 41 &&
+                      (inputs.vertex_key_type || 'json') === 'json' ? (
+                        <>
+                          {!batch && (
+                            <div className='flex items-center justify-between mb-3'>
+                              <Text className='text-sm font-medium'>
+                                {t('密钥输入方式')}
+                              </Text>
+                              <Space>
                                 <Button
                                   size='small'
-                                  type='primary'
-                                  theme='outline'
-                                  onClick={handleShow2FAModal}
+                                  type={
+                                    !useManualInput ? 'primary' : 'tertiary'
+                                  }
+                                  onClick={() => {
+                                    setUseManualInput(false);
+                                    // 切换到文件上传模式时清空手动输入的密钥
+                                    if (formApiRef.current) {
+                                      formApiRef.current.setValue('key', '');
+                                    }
+                                    handleInputChange('key', '');
+                                  }}
                                 >
-                                  {t('查看密钥')}
+                                  {t('文件上传')}
                                 </Button>
-                              )}
-                              {batchExtra}
+                                <Button
+                                  size='small'
+                                  type={useManualInput ? 'primary' : 'tertiary'}
+                                  onClick={() => {
+                                    setUseManualInput(true);
+                                    // 切换到手动输入模式时清空文件上传相关状态
+                                    setVertexKeys([]);
+                                    setVertexFileList([]);
+                                    if (formApiRef.current) {
+                                      formApiRef.current.setValue(
+                                        'vertex_files',
+                                        [],
+                                      );
+                                    }
+                                    setInputs((prev) => ({
+                                      ...prev,
+                                      vertex_files: [],
+                                    }));
+                                  }}
+                                >
+                                  {t('手动输入')}
+                                </Button>
+                              </Space>
                             </div>
-                          }
-                          showClear
-                        />
-                      )
-                    ) : (
-                      <>
-                        {inputs.type === 41 &&
-                        (inputs.vertex_key_type || 'json') === 'json' ? (
-                          <>
-                            {!batch && (
-                              <div className='flex items-center justify-between mb-3'>
-                                <Text className='text-sm font-medium'>
-                                  {t('密钥输入方式')}
-                                </Text>
-                                <Space>
-                                  <Button
-                                    size='small'
-                                    type={
-                                      !useManualInput ? 'primary' : 'tertiary'
-                                    }
-                                    onClick={() => {
-                                      setUseManualInput(false);
-                                      // 切换到文件上传模式时清空手动输入的密钥
-                                      if (formApiRef.current) {
-                                        formApiRef.current.setValue('key', '');
-                                      }
-                                      handleInputChange('key', '');
-                                    }}
-                                  >
-                                    {t('文件上传')}
-                                  </Button>
-                                  <Button
-                                    size='small'
-                                    type={
-                                      useManualInput ? 'primary' : 'tertiary'
-                                    }
-                                    onClick={() => {
-                                      setUseManualInput(true);
-                                      // 切换到手动输入模式时清空文件上传相关状态
-                                      setVertexKeys([]);
-                                      setVertexFileList([]);
-                                      if (formApiRef.current) {
-                                        formApiRef.current.setValue(
-                                          'vertex_files',
-                                          [],
-                                        );
-                                      }
-                                      setInputs((prev) => ({
-                                        ...prev,
-                                        vertex_files: [],
-                                      }));
-                                    }}
-                                  >
-                                    {t('手动输入')}
-                                  </Button>
-                                </Space>
-                              </div>
-                            )}
+                          )}
 
                             {batch && (
                               <Banner
@@ -2189,84 +2258,86 @@ const EditChannelModal = (props) => {
                         />
                       )}
 
-                      {inputs.type === 3 && (
-                        <>
-                          <Banner
-                            type='warning'
-                            description={t(
-                              '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
+                    {inputs.type === 3 && (
+                      <>
+                        <Banner
+                          type='warning'
+                          description={t(
+                            '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
+                          )}
+                          className='!rounded-lg'
+                        />
+                        <div>
+                          <Form.Input
+                            field='base_url'
+                            label='AZURE_OPENAI_ENDPOINT'
+                            placeholder={t(
+                              '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
                             )}
-                            className='!rounded-lg'
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            showClear
+                            disabled={isIonetLocked}
                           />
-                          <div>
-                            <Form.Input
-                              field='base_url'
-                              label='AZURE_OPENAI_ENDPOINT'
-                              placeholder={t(
-                                '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
-                              )}
-                              onChange={(value) =>
-                                handleInputChange('base_url', value)
-                              }
-                              showClear
-                            />
-                          </div>
-                          <div>
-                            <Form.Input
-                              field='other'
-                              label={t('默认 API 版本')}
-                              placeholder={t(
-                                '请输入默认 API 版本，例如：2025-04-01-preview',
-                              )}
-                              onChange={(value) =>
-                                handleInputChange('other', value)
-                              }
-                              showClear
-                            />
-                          </div>
-                          <div>
-                            <Form.Input
-                              field='azure_responses_version'
-                              label={t(
-                                '默认 Responses API 版本，为空则使用上方版本',
-                              )}
-                              placeholder={t('例如：preview')}
-                              onChange={(value) =>
-                                handleChannelOtherSettingsChange(
-                                  'azure_responses_version',
-                                  value,
-                                )
-                              }
-                              showClear
-                            />
-                          </div>
-                        </>
-                      )}
+                        </div>
+                        <div>
+                          <Form.Input
+                            field='other'
+                            label={t('默认 API 版本')}
+                            placeholder={t(
+                              '请输入默认 API 版本，例如：2025-04-01-preview',
+                            )}
+                            onChange={(value) =>
+                              handleInputChange('other', value)
+                            }
+                            showClear
+                          />
+                        </div>
+                        <div>
+                          <Form.Input
+                            field='azure_responses_version'
+                            label={t(
+                              '默认 Responses API 版本，为空则使用上方版本',
+                            )}
+                            placeholder={t('例如：preview')}
+                            onChange={(value) =>
+                              handleChannelOtherSettingsChange(
+                                'azure_responses_version',
+                                value,
+                              )
+                            }
+                            showClear
+                          />
+                        </div>
+                      </>
+                    )}
 
-                      {inputs.type === 8 && (
-                        <>
-                          <Banner
-                            type='warning'
-                            description={t(
-                              '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
+                    {inputs.type === 8 && (
+                      <>
+                        <Banner
+                          type='warning'
+                          description={t(
+                            '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
+                          )}
+                          className='!rounded-lg'
+                        />
+                        <div>
+                          <Form.Input
+                            field='base_url'
+                            label={t('完整的 Base URL，支持变量{model}')}
+                            placeholder={t(
+                              '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
                             )}
-                            className='!rounded-lg'
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            showClear
+                            disabled={isIonetLocked}
                           />
-                          <div>
-                            <Form.Input
-                              field='base_url'
-                              label={t('完整的 Base URL，支持变量{model}')}
-                              placeholder={t(
-                                '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
-                              )}
-                              onChange={(value) =>
-                                handleInputChange('base_url', value)
-                              }
-                              showClear
-                            />
-                          </div>
-                        </>
-                      )}
+                        </div>
+                      </>
+                    )}
 
                       {inputs.type === 37 && (
                         <Banner
@@ -2294,76 +2365,77 @@ const EditChannelModal = (props) => {
                                 handleInputChange('base_url', value)
                               }
                               showClear
-                              extraText={t(
-                                '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
-                              )}
-                            />
-                          </div>
-                        )}
-
-                      {inputs.type === 22 && (
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label={t('私有部署地址')}
-                            placeholder={t(
-                              '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
+                              disabled={isIonetLocked}
+                            extraText={t(
+                              '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
                             )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
                           />
                         </div>
                       )}
 
-                      {inputs.type === 36 && (
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label={t(
-                              '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
-                            )}
-                            placeholder={t(
-                              '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                          />
-                        </div>
-                      )}
+                    {inputs.type === 22 && (
+                      <div>
+                        <Form.Input
+                          field='base_url'
+                          label={t('私有部署地址')}
+                          placeholder={t(
+                            '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
+                          )}
+                          onChange={(value) =>
+                            handleInputChange('base_url', value)
+                          }
+                          showClear
+                          disabled={isIonetLocked}
+                        />
+                      </div>
+                    )}
 
-                      {inputs.type === 45 && !doubaoApiEditUnlocked && (
-                        <div>
-                          <Form.Select
-                            field='base_url'
-                            label={t('API地址')}
-                            placeholder={t('请选择API地址')}
-                            onChange={(value) =>
+                    {inputs.type === 36 && (
+                      <div>
+                        <Form.Input
+                          field='base_url'
+                          label={t(
+                            '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
+                          )}
+                      placeholder={t(
+                        '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
+                      )}
+                      onChange={(value) =>
+                        handleInputChange('base_url', value)
+                      }
+                      showClear
+                      disabled={isIonetLocked}
+                    />
+                  </div>
+                )}
+
+                {inputs.type === 45 && !doubaoApiEditUnlocked && (
+                    <div>
+                      <Form.Select
+                          field='base_url'
+                          label={t('API地址')}
+                          placeholder={t('请选择API地址')}
+                          onChange={(value) =>
                               handleInputChange('base_url', value)
-                            }
-                            optionList={[
-                              {
-                                value: 'https://ark.cn-beijing.volces.com',
-                                label: 'https://ark.cn-beijing.volces.com',
-                              },
-                              {
-                                value:
-                                  'https://ark.ap-southeast.bytepluses.com',
-                                label:
-                                  'https://ark.ap-southeast.bytepluses.com',
-                              },
-                                {
-                                    value: 'doubao-coding-plan',
+                          }
+                          optionList={[
+                            {
+                              value: 'https://ark.cn-beijing.volces.com',
+                              label: 'https://ark.cn-beijing.volces.com',
+                            },
+                            {
+                              value: 'https://ark.ap-southeast.bytepluses.com',
+                              label: 'https://ark.ap-southeast.bytepluses.com',
+                            },
+                          {
+                          value: 'doubao-coding-plan',
                                     label: 'Doubao Coding Plan',
                                 },
-                            ]}
-                            defaultValue='https://ark.cn-beijing.volces.com'
-                          />
-                        </div>
-                      )}
+                            ]}defaultValue='https://ark.cn-beijing.volces.com'
+                          disabled={isIonetLocked}
+                      />
+                    </div>
+                )}
                     </Card>
                   </div>
                 )}
@@ -2458,72 +2530,80 @@ const EditChannelModal = (props) => {
                               {t('获取模型列表')}
                             </Button>
                           )}
+                          {inputs.type === 4 && isEdit && (
                           <Button
                             size='small'
-                            type='warning'
-                            onClick={() => handleInputChange('models', [])}
+                            type='primary'
+                            theme='light'
+                            onClick={() => setOllamaModalVisible(true)}
                           >
-                            {t('清除所有模型')}
+                            {t('Ollama 模型管理')}
                           </Button>
-                          <Button
-                            size='small'
-                            type='tertiary'
-                            onClick={() => {
-                              if (inputs.models.length === 0) {
-                                showInfo(t('没有模型可以复制'));
-                                return;
-                              }
-                              try {
-                                copy(inputs.models.join(','));
-                                showSuccess(t('模型列表已复制到剪贴板'));
-                              } catch (error) {
-                                showError(t('复制失败'));
-                              }
-                            }}
-                          >
-                            {t('复制所有模型')}
-                          </Button>
-                          {modelGroups &&
-                            modelGroups.length > 0 &&
-                            modelGroups.map((group) => (
-                              <Button
-                                key={group.id}
-                                size='small'
-                                type='primary'
-                                onClick={() => {
-                                  let items = [];
-                                  try {
-                                    if (Array.isArray(group.items)) {
-                                      items = group.items;
-                                    } else if (
-                                      typeof group.items === 'string'
-                                    ) {
-                                      const parsed = JSON.parse(
-                                        group.items || '[]',
-                                      );
-                                      if (Array.isArray(parsed)) items = parsed;
-                                    }
-                                  } catch {}
-                                  const current =
-                                    formApiRef.current?.getValue('models') ||
-                                    inputs.models ||
-                                    [];
-                                  const merged = Array.from(
-                                    new Set(
-                                      [...current, ...items]
-                                        .map((m) => (m || '').trim())
-                                        .filter(Boolean),
-                                    ),
-                                  );
-                                  handleInputChange('models', merged);
-                                }}
-                              >
-                                {group.name}
-                              </Button>
-                            ))}
-                        </Space>
-                      }
-                    />
+                        )}
+                        <Button
+                          size='small'
+                          type='warning'
+                          onClick={() => handleInputChange('models', [])}
+                        >
+                          {t('清除所有模型')}
+                        </Button>
+                        <Button
+                          size='small'
+                          type='tertiary'
+                          onClick={() => {
+                            if (inputs.models.length === 0) {
+                              showInfo(t('没有模型可以复制'));
+                              return;
+                            }
+                            try {
+                              copy(inputs.models.join(','));
+                              showSuccess(t('模型列表已复制到剪贴板'));
+                            } catch (error) {
+                              showError(t('复制失败'));
+                            }
+                          }}
+                        >
+                          {t('复制所有模型')}
+                        </Button>
+                        {modelGroups &&
+                          modelGroups.length > 0 &&
+                          modelGroups.map((group) => (
+                            <Button
+                              key={group.id}
+                              size='small'
+                              type='primary'
+                              onClick={() => {
+                                let items = [];
+                                try {
+                                  if (Array.isArray(group.items)) {
+                                    items = group.items;
+                                  } else if (typeof group.items === 'string') {
+                                    const parsed = JSON.parse(
+                                      group.items || '[]',
+                                    );
+                                    if (Array.isArray(parsed)) items = parsed;
+                                  }
+                                } catch {}
+                                const current =
+                                  formApiRef.current?.getValue('models') ||
+                                  inputs.models ||
+                                  [];
+                                const merged = Array.from(
+                                  new Set(
+                                    [...current, ...items]
+                                      .map((m) => (m || '').trim())
+                                      .filter(Boolean),
+                                  ),
+                                );
+                                handleInputChange('models', merged);
+                              }}
+                            >
+                              {group.name}
+                            </Button>
+                          ))}
+                      </Space>
+                    }
+                  />
 
                     <Form.Input
                       field='custom_model'
@@ -3082,6 +3162,33 @@ const EditChannelModal = (props) => {
           setModelModalVisible(false);
         }}
         onCancel={() => setModelModalVisible(false)}
+      />
+
+      <OllamaModelModal
+        visible={ollamaModalVisible}
+        onCancel={() => setOllamaModalVisible(false)}
+        channelId={channelId}
+        channelInfo={inputs}
+        onModelsUpdate={(options = {}) => {
+          // 当模型更新后，重新获取模型列表以更新表单
+          fetchUpstreamModelList('models', { silent: !!options.silent });
+        }}
+        onApplyModels={({ mode, modelIds } = {}) => {
+          if (!Array.isArray(modelIds) || modelIds.length === 0) {
+            return;
+          }
+          const existingModels = Array.isArray(inputs.models)
+            ? inputs.models.map(String)
+            : [];
+          const incoming = modelIds.map(String);
+          const nextModels = Array.from(new Set([...existingModels, ...incoming]));
+
+          handleInputChange('models', nextModels);
+          if (formApiRef.current) {
+            formApiRef.current.setValue('models', nextModels);
+          }
+          showSuccess(t('模型列表已追加更新'));
+        }}
       />
     </>
   );
