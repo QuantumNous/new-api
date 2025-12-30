@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -87,9 +88,33 @@ func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gi
 	}
 }
 
+// apiPathPrefixes 定义需要跳过 Web 限流的 API 路径前缀
+var apiPathPrefixes = []string{
+	"/v1",
+	"/api",
+	"/mj",
+	"/suno",
+	"/pg",
+	"/video",
+	"/kling",
+	"/jimeng",
+	"/dashboard",
+}
+
 func GlobalWebRateLimit() func(c *gin.Context) {
 	if common.GlobalWebRateLimitEnable {
-		return rateLimitFactory(common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration, "GW")
+		limiter := rateLimitFactory(common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration, "GW")
+		return func(c *gin.Context) {
+			path := c.Request.URL.Path
+			// 跳过 API 路径，避免与其他限流中间件重复
+			for _, prefix := range apiPathPrefixes {
+				if strings.HasPrefix(path, prefix) {
+					c.Next()
+					return
+				}
+			}
+			limiter(c)
+		}
 	}
 	return defNext
 }
