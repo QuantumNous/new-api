@@ -149,7 +149,7 @@ func genPassthroughRelayInfo(c *gin.Context, modelName string, isStream bool) *r
 		startTime = time.Now()
 	}
 
-	return &relaycommon.RelayInfo{
+	info := &relaycommon.RelayInfo{
 		UserId:          common.GetContextKeyInt(c, constant.ContextKeyUserId),
 		UsingGroup:      common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:       common.GetContextKeyString(c, constant.ContextKeyUserGroup),
@@ -165,6 +165,11 @@ func genPassthroughRelayInfo(c *gin.Context, modelName string, isStream bool) *r
 		RelayFormat:     types.RelayFormatOpenAI,
 		RequestURLPath:  "/v1/chat/completions", // 传透模式使用标准路径
 	}
+
+	// 初始化 ChannelMeta，从上下文中获取 Distribute 中间件设置的渠道信息
+	info.InitChannelMeta(c)
+
+	return info
 }
 
 // getPassthroughChannel 获取传透模式的渠道
