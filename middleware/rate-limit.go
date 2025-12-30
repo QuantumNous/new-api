@@ -95,10 +95,9 @@ var apiPathPrefixes = []string{
 	"/mj",
 	"/suno",
 	"/pg",
-	"/video",
 	"/kling",
-	"/jimeng",
 	"/dashboard",
+	"jimeng", // 无前导斜杠，与 video-router.go 中 router.Group("jimeng") 保持一致
 }
 
 func GlobalWebRateLimit() func(c *gin.Context) {
