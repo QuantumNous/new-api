@@ -182,6 +182,15 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatGemini)
 		})
 	}
+
+	// /chat-stream - 传透模式路由
+	chatStreamRouter := router.Group("/chat-stream")
+	chatStreamRouter.Use(middleware.TokenAuth())
+	chatStreamRouter.Use(middleware.ModelRequestRateLimit())
+	chatStreamRouter.Use(middleware.Distribute())
+	{
+		chatStreamRouter.POST("", controller.RelayPassthrough)
+	}
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
@@ -204,14 +213,5 @@ func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 		relayMjRouter.POST("/task/list-by-condition", controller.RelayMidjourney)
 		relayMjRouter.POST("/insight-face/swap", controller.RelayMidjourney)
 		relayMjRouter.POST("/submit/upload-discord-images", controller.RelayMidjourney)
-	}
-
-	// /chat-stream - 传透模式路由（移除 /api 前缀）
-	chatStreamRouter := router.Group("/chat-stream")
-	chatStreamRouter.Use(middleware.TokenAuth())
-	chatStreamRouter.Use(middleware.ModelRequestRateLimit())
-	chatStreamRouter.Use(middleware.Distribute())
-	{
-		chatStreamRouter.POST("", controller.RelayPassthrough)
 	}
 }
