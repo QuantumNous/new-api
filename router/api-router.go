@@ -181,6 +181,13 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				tokenUsageRoute.GET("/", controller.GetTokenUsage)
 			}
+
+			// /api/usage/api/balance - Token 余额查询接口
+			balanceRoute := usageRoute.Group("/api")
+			balanceRoute.Use(middleware.TokenAuth())
+			{
+				balanceRoute.GET("/balance", controller.GetTokenBalance)
+			}
 		}
 
 		redemptionRoute := apiRouter.Group("/redemption")
