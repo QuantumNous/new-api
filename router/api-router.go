@@ -181,13 +181,6 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				tokenUsageRoute.GET("/", controller.GetTokenUsage)
 			}
-
-			// /api/usage/api/balance - Token 余额查询接口
-			balanceRoute := usageRoute.Group("/api")
-			balanceRoute.Use(middleware.TokenAuth())
-			{
-				balanceRoute.GET("/balance", controller.GetTokenBalance)
-			}
 		}
 
 		redemptionRoute := apiRouter.Group("/redemption")
@@ -307,5 +300,13 @@ func SetApiRouter(router *gin.Engine) {
 			// deploymentsRoute.POST("/batch_start", controller.BatchStartDeployments)
 			// deploymentsRoute.POST("/batch_stop", controller.BatchStopDeployments)
 		}
+	}
+
+	// /usage/api/balance - Token 余额查询接口（移除 /api 前缀）
+	usageBalanceRoute := router.Group("/usage/api")
+	usageBalanceRoute.Use(middleware.CriticalRateLimit())
+	usageBalanceRoute.Use(middleware.TokenAuth())
+	{
+		usageBalanceRoute.GET("/balance", controller.GetTokenBalance)
 	}
 }
