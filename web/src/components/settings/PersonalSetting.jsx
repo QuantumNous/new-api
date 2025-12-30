@@ -314,10 +314,10 @@ const PersonalSetting = () => {
   };
 
   const changePassword = async () => {
-    if (inputs.original_password === '') {
-      showError(t('请输入原密码！'));
-      return;
-    }
+    // if (inputs.original_password === '') {
+    //   showError(t('请输入原密码！'));
+    //   return;
+    // }
     if (inputs.set_new_password === '') {
       showError(t('请输入新密码！'));
       return;

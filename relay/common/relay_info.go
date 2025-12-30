@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -73,11 +74,17 @@ type ChannelMeta struct {
 	SupportStreamOptions bool // 是否支持流式选项
 }
 
+type TokenCountMeta struct {
+	//promptTokens int
+	estimatePromptTokens int
+}
+
 type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
+	TokenGroup        string
 	UserId            int
-	UsingGroup        string // 使用的分组
+	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
 	UserGroup         string // 用户所在分组
 	TokenUnlimited    bool
 	StartTime         time.Time
@@ -91,7 +98,6 @@ type RelayInfo struct {
 	RelayMode              int
 	OriginModelName        string
 	RequestURLPath         string
-	PromptTokens           int
 	ShouldIncludeUsage     bool
 	DisablePing            bool // 是否禁止向下游发送自定义 Ping
 	ClientWs               *websocket.Conn
@@ -115,6 +121,7 @@ type RelayInfo struct {
 	Request dto.Request
 
 	ThinkingContentInfo
+	TokenCountMeta
 	*ClaudeConvertInfo
 	*RerankerInfo
 	*ResponsesUsageInfo
@@ -189,7 +196,7 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "IsPlayground: %t, ", info.IsPlayground)
 	fmt.Fprintf(b, "RequestURLPath: %q, ", info.RequestURLPath)
 	fmt.Fprintf(b, "OriginModelName: %q, ", info.OriginModelName)
-	fmt.Fprintf(b, "PromptTokens: %d, ", info.PromptTokens)
+	fmt.Fprintf(b, "EstimatePromptTokens: %d, ", info.estimatePromptTokens)
 	fmt.Fprintf(b, "ShouldIncludeUsage: %t, ", info.ShouldIncludeUsage)
 	fmt.Fprintf(b, "DisablePing: %t, ", info.DisablePing)
 	fmt.Fprintf(b, "SendResponseCount: %d, ", info.SendResponseCount)
@@ -368,6 +375,12 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	//channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
 	//paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 
+	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	// 当令牌分组为空时，表示使用用户分组
+	if tokenGroup == "" {
+		tokenGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	}
+
 	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 	if startTime.IsZero() {
 		startTime = time.Now()
@@ -391,11 +404,11 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
-		PromptTokens:    common.GetContextKeyInt(c, constant.ContextKeyPromptTokens),
 
 		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
 		TokenUnlimited: common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
+		TokenGroup:     tokenGroup,
 
 		isFirstResponse: true,
 		RelayMode:       relayconstant.Path2RelayMode(c.Request.URL.Path),
@@ -407,6 +420,10 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,
+		},
+		TokenCountMeta: TokenCountMeta{
+			//promptTokens: common.GetContextKeyInt(c, constant.ContextKeyPromptTokens),
+			estimatePromptTokens: common.GetContextKeyInt(c, constant.ContextKeyEstimatedTokens),
 		},
 	}
 
@@ -463,8 +480,16 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	}
 }
 
-func (info *RelayInfo) SetPromptTokens(promptTokens int) {
-	info.PromptTokens = promptTokens
+//func (info *RelayInfo) SetPromptTokens(promptTokens int) {
+//	info.promptTokens = promptTokens
+//}
+
+func (info *RelayInfo) SetEstimatePromptTokens(promptTokens int) {
+	info.estimatePromptTokens = promptTokens
+}
+
+func (info *RelayInfo) GetEstimatePromptTokens() int {
+	return info.estimatePromptTokens
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {
@@ -606,6 +631,50 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	jsonDataAfter, err := common.Marshal(data)
 	if err != nil {
 		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
+		return jsonData, nil
+	}
+	return jsonDataAfter, nil
+}
+
+// RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data
+// Currently supports removing functionResponse.id field which Vertex AI does not support
+func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
+	if !model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+		return jsonData, nil
+	}
+
+	var data map[string]interface{}
+	if err := common.Unmarshal(jsonData, &data); err != nil {
+		common.SysError("RemoveGeminiDisabledFields Unmarshal error: " + err.Error())
+		return jsonData, nil
+	}
+
+	// Process contents array
+	// Handle both camelCase (functionResponse) and snake_case (function_response)
+	if contents, ok := data["contents"].([]interface{}); ok {
+		for _, content := range contents {
+			if contentMap, ok := content.(map[string]interface{}); ok {
+				if parts, ok := contentMap["parts"].([]interface{}); ok {
+					for _, part := range parts {
+						if partMap, ok := part.(map[string]interface{}); ok {
+							// Check functionResponse (camelCase)
+							if funcResp, ok := partMap["functionResponse"].(map[string]interface{}); ok {
+								delete(funcResp, "id")
+							}
+							// Check function_response (snake_case)
+							if funcResp, ok := partMap["function_response"].(map[string]interface{}); ok {
+								delete(funcResp, "id")
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	jsonDataAfter, err := common.Marshal(data)
+	if err != nil {
+		common.SysError("RemoveGeminiDisabledFields Marshal error: " + err.Error())
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil

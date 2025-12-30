@@ -67,3 +67,40 @@ type OllamaEmbeddingResponse struct {
 	Embeddings      [][]float64 `json:"embeddings"`
 	PromptEvalCount int         `json:"prompt_eval_count,omitempty"`
 }
+
+type OllamaTagsResponse struct {
+	Models []OllamaModel `json:"models"`
+}
+
+type OllamaModel struct {
+	Name       string            `json:"name"`
+	Size       int64             `json:"size"`
+	Digest     string            `json:"digest,omitempty"`
+	ModifiedAt string            `json:"modified_at"`
+	Details    OllamaModelDetail `json:"details,omitempty"`
+}
+
+type OllamaModelDetail struct {
+	ParentModel       string   `json:"parent_model,omitempty"`
+	Format            string   `json:"format,omitempty"`
+	Family            string   `json:"family,omitempty"`
+	Families          []string `json:"families,omitempty"`
+	ParameterSize     string   `json:"parameter_size,omitempty"`
+	QuantizationLevel string   `json:"quantization_level,omitempty"`
+}
+
+type OllamaPullRequest struct {
+	Name   string `json:"name"`
+	Stream bool   `json:"stream,omitempty"`
+}
+
+type OllamaPullResponse struct {
+	Status    string `json:"status"`
+	Digest    string `json:"digest,omitempty"`
+	Total     int64  `json:"total,omitempty"`
+	Completed int64  `json:"completed,omitempty"`
+}
+
+type OllamaDeleteRequest struct {
+	Name string `json:"name"`
+}

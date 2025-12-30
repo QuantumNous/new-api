@@ -30,6 +30,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
 		apiRouter.GET("/oauth/github", middleware.CriticalRateLimit(), controller.GitHubOAuth)
+		apiRouter.GET("/oauth/discord", middleware.CriticalRateLimit(), controller.DiscordOAuth)
 		apiRouter.GET("/oauth/oidc", middleware.CriticalRateLimit(), controller.OidcAuth)
 		apiRouter.GET("/oauth/linuxdo", middleware.CriticalRateLimit(), controller.LinuxdoOAuth)
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
@@ -151,6 +152,10 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/fix", controller.FixChannelsAbilities)
 			channelRoute.GET("/fetch_models/:id", controller.FetchUpstreamModels)
 			channelRoute.POST("/fetch_models", controller.FetchModels)
+			channelRoute.POST("/ollama/pull", controller.OllamaPullModel)
+			channelRoute.POST("/ollama/pull/stream", controller.OllamaPullModelStream)
+			channelRoute.DELETE("/ollama/delete", controller.OllamaDeleteModel)
+			channelRoute.GET("/ollama/version/:id", controller.OllamaVersion)
 			channelRoute.POST("/batch/tag", controller.BatchSetChannelTag)
 			channelRoute.GET("/tag/models", controller.GetTagModels)
 			channelRoute.POST("/copy/:id", controller.CopyChannel)
@@ -254,6 +259,46 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
+		}
+
+		// Deployments (model deployment management)
+		deploymentsRoute := apiRouter.Group("/deployments")
+		deploymentsRoute.Use(middleware.AdminAuth())
+		{
+			// List and search deployments
+			deploymentsRoute.GET("/", controller.GetAllDeployments)
+			deploymentsRoute.GET("/search", controller.SearchDeployments)
+
+			// Connection utilities
+			deploymentsRoute.POST("/test-connection", controller.TestIoNetConnection)
+
+			// Resource and configuration endpoints
+			deploymentsRoute.GET("/hardware-types", controller.GetHardwareTypes)
+			deploymentsRoute.GET("/locations", controller.GetLocations)
+			deploymentsRoute.GET("/available-replicas", controller.GetAvailableReplicas)
+			deploymentsRoute.POST("/price-estimation", controller.GetPriceEstimation)
+			deploymentsRoute.GET("/check-name", controller.CheckClusterNameAvailability)
+
+			// Create new deployment
+			deploymentsRoute.POST("/", controller.CreateDeployment)
+
+			// Individual deployment operations
+			deploymentsRoute.GET("/:id", controller.GetDeployment)
+			deploymentsRoute.GET("/:id/logs", controller.GetDeploymentLogs)
+			deploymentsRoute.GET("/:id/containers", controller.ListDeploymentContainers)
+			deploymentsRoute.GET("/:id/containers/:container_id", controller.GetContainerDetails)
+			deploymentsRoute.PUT("/:id", controller.UpdateDeployment)
+			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
+			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
+			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+
+			// Future batch operations:
+			// deploymentsRoute.POST("/:id/start", controller.StartDeployment)
+			// deploymentsRoute.POST("/:id/stop", controller.StopDeployment)
+			// deploymentsRoute.POST("/:id/restart", controller.RestartDeployment)
+			// deploymentsRoute.POST("/batch_delete", controller.BatchDeleteDeployments)
+			// deploymentsRoute.POST("/batch_start", controller.BatchStartDeployments)
+			// deploymentsRoute.POST("/batch_stop", controller.BatchStopDeployments)
 		}
 	}
 }
