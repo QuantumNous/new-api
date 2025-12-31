@@ -19,22 +19,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PassthroughHelper 传透模式处理器
+// PassthroughHelperWithUsage 传透模式处理器（带 usage 提取）
 // 直接将请求转发到上游服务商，不做额外处理或转换
-// 支持流式响应的透传
-func PassthroughHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+// 从响应中提取 usage 信息用于精确计费
+func PassthroughHelperWithUsage(c *gin.Context, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+		return nil, types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
 
 	// 直接获取原始请求体，不做任何转换
 	body, err := common.GetRequestBody(c)
 	if err != nil {
-		return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	if common.DebugEnabled {
@@ -46,7 +46,7 @@ func PassthroughHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAP
 	// 发送请求到上游
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	var httpResp *http.Response
@@ -57,18 +57,24 @@ func PassthroughHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAP
 
 		if httpResp.StatusCode != http.StatusOK {
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			return newApiErr
+			return nil, newApiErr
 		}
 	}
 
-	// 直接透传响应
-	return passthroughResponse(c, httpResp, info)
+	// 透传响应并提取 usage
+	return passthroughResponseWithUsage(c, httpResp, info)
 }
 
-// passthroughResponse 直接透传上游响应到客户端
-func passthroughResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+// PassthroughHelper 传透模式处理器（兼容旧接口）
+func PassthroughHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	_, err := PassthroughHelperWithUsage(c, info)
+	return err
+}
+
+// passthroughResponseWithUsage 透传响应并提取 usage 信息
+func passthroughResponseWithUsage(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
-		return types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
 	defer service.CloseResponseBodyGracefully(resp)
@@ -81,38 +87,44 @@ func passthroughResponse(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 
 	if info.IsStream {
-		// 流式响应透传
-		return passthroughStreamResponse(c, resp, info)
+		// 流式响应透传，同时收集数据提取 usage
+		return passthroughStreamResponseWithUsage(c, resp, info)
 	}
 
 	// 非流式响应透传
-	return passthroughNonStreamResponse(c, resp, info)
+	return passthroughNonStreamResponseWithUsage(c, resp, info)
 }
 
-// passthroughStreamResponse 流式响应透传
-func passthroughStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+// passthroughStreamResponseWithUsage 流式响应透传（带 usage 提取）
+func passthroughStreamResponseWithUsage(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	helper.SetEventStreamHeaders(c)
 
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
 		logger.LogWarn(c, "streaming not supported, falling back to buffered response")
-		_, err := io.Copy(c.Writer, resp.Body)
+		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+			return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 		}
-		return nil
+		c.Writer.Write(responseBody)
+		return extractUsageFromStreamData(responseBody), nil
 	}
 
+	// 收集所有流数据用于提取 usage
+	var allData bytes.Buffer
 	buffer := make([]byte, 4096)
 	for {
 		n, err := resp.Body.Read(buffer)
 		if n > 0 {
 			info.SetFirstResponseTime()
+			// 写入客户端
 			if _, writeErr := c.Writer.Write(buffer[:n]); writeErr != nil {
 				logger.LogError(c, "passthrough stream write error: "+writeErr.Error())
 				break
 			}
 			flusher.Flush()
+			// 同时收集数据
+			allData.Write(buffer[:n])
 		}
 		if err != nil {
 			if err != io.EOF {
@@ -122,14 +134,16 @@ func passthroughStreamResponse(c *gin.Context, resp *http.Response, info *relayc
 		}
 	}
 
-	return nil
+	// 从流数据中提取 usage
+	usage := extractUsageFromStreamData(allData.Bytes())
+	return usage, nil
 }
 
-// passthroughNonStreamResponse 非流式响应透传
-func passthroughNonStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+// passthroughNonStreamResponseWithUsage 非流式响应透传（带 usage 提取）
+func passthroughNonStreamResponseWithUsage(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 
 	info.SetFirstResponseTime()
@@ -139,7 +153,51 @@ func passthroughNonStreamResponse(c *gin.Context, resp *http.Response, info *rel
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
+
+	// 提取 usage
+	usage := GetPassthroughUsage(responseBody, info)
+	return usage, nil
+}
+
+// extractUsageFromStreamData 从流式数据中提取 usage 信息
+func extractUsageFromStreamData(data []byte) *dto.Usage {
+	// 流式响应的最后一个数据块通常包含 usage 信息
+	// 格式: data: {"id":"...","usage":{"prompt_tokens":10,"completion_tokens":20,...}}
+	lines := bytes.Split(data, []byte("\n"))
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := bytes.TrimSpace(lines[i])
+		if bytes.HasPrefix(line, []byte("data: ")) {
+			jsonData := bytes.TrimPrefix(line, []byte("data: "))
+			if bytes.Equal(jsonData, []byte("[DONE]")) {
+				continue
+			}
+			var streamResp struct {
+				Usage *dto.Usage `json:"usage"`
+			}
+			if err := common.Unmarshal(jsonData, &streamResp); err == nil && streamResp.Usage != nil {
+				return streamResp.Usage
+			}
+		}
+	}
 	return nil
+}
+
+// passthroughResponse 直接透传上游响应到客户端（兼容旧接口）
+func passthroughResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+	_, err := passthroughResponseWithUsage(c, resp, info)
+	return err
+}
+
+// passthroughStreamResponse 流式响应透传（兼容旧接口）
+func passthroughStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+	_, err := passthroughStreamResponseWithUsage(c, resp, info)
+	return err
+}
+
+// passthroughNonStreamResponse 非流式响应透传（兼容旧接口）
+func passthroughNonStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+	_, err := passthroughNonStreamResponseWithUsage(c, resp, info)
+	return err
 }
 
 // GetPassthroughUsage 从响应中提取 usage 信息（用于计费）

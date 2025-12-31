@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -23,13 +24,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ChatStreamRequest 加密请求格式
+type ChatStreamRequest struct {
+	EncryptedData string   `json:"encrypted_data"`
+	IV            string   `json:"iv"`
+	Data          string   `json:"data"`
+	Images        []string `json:"images"`
+	Model         string   `json:"model"`
+}
+
 // RelayPassthrough 传透模式接口处理器
-// 直接将请求转发到上游服务商，不做额外处理或转换
-// 支持 SSE 流式响应的透传
+// 请求/响应内容透传，但使用 new-api 内置的计费、模型映射、渠道适配功能
 func RelayPassthrough(c *gin.Context) {
 	requestId := c.GetString(common.RequestIdKey)
 
 	var newAPIError *types.NewAPIError
+	var usage *dto.Usage
 
 	defer func() {
 		if newAPIError != nil {
@@ -41,29 +51,27 @@ func RelayPassthrough(c *gin.Context) {
 		}
 	}()
 
-	// 解析请求获取模型名称（用于渠道选择）
-	var modelRequest struct {
-		Model  string `json:"model"`
-		Stream bool   `json:"stream"`
-	}
-	if err := common.UnmarshalBodyReusable(c, &modelRequest); err != nil {
+	// 解析请求获取模型名称（用于渠道选择和计费）
+	var chatStreamReq ChatStreamRequest
+	if err := common.UnmarshalBodyReusable(c, &chatStreamReq); err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 
-	if modelRequest.Model == "" {
+	if chatStreamReq.Model == "" {
 		newAPIError = types.NewError(errors.New("model is required"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 
 	// 生成 RelayInfo
-	relayInfo := genPassthroughRelayInfo(c, modelRequest.Model, modelRequest.Stream)
+	relayInfo := genPassthroughRelayInfo(c, chatStreamReq.Model, true)
 
-	// 预估 token（简化处理，传透模式不做精确计算）
-	relayInfo.SetEstimatePromptTokens(0)
+	// 本地估算输入 token（基于 data 字段长度）
+	estimatedInputTokens := estimateInputTokens(chatStreamReq)
+	relayInfo.SetEstimatePromptTokens(estimatedInputTokens)
 
-	// 获取价格数据
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, 0, &types.TokenCountMeta{})
+	// 获取价格数据（使用模型倍率、分组倍率）
+	priceData, err := helper.ModelPriceHelper(c, relayInfo, estimatedInputTokens, &types.TokenCountMeta{})
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError)
 		return
@@ -102,6 +110,15 @@ func RelayPassthrough(c *gin.Context) {
 
 		addUsedChannel(c, channel.Id)
 
+		// 重新初始化 ChannelMeta（渠道可能在重试时改变）
+		relayInfo.InitChannelMeta(c)
+
+		// 应用模型映射
+		if err := applyModelMapping(c, relayInfo); err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+			break
+		}
+
 		requestBody, bodyErr := common.GetRequestBody(c)
 		if bodyErr != nil {
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
@@ -113,12 +130,12 @@ func RelayPassthrough(c *gin.Context) {
 		}
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 
-		// 执行传透请求
-		newAPIError = relay.PassthroughHelper(c, relayInfo)
+		// 执行传透请求，获取 usage 信息
+		usage, newAPIError = relay.PassthroughHelperWithUsage(c, relayInfo)
 
 		if newAPIError == nil {
-			// 成功，记录消费
-			postPassthroughConsumeQuota(c, relayInfo)
+			// 成功，根据本地计算的 token 记录消费
+			postPassthroughConsumeQuotaWithUsage(c, relayInfo, usage, estimatedInputTokens)
 			return
 		}
 
@@ -205,13 +222,104 @@ func getPassthroughChannel(c *gin.Context, info *relaycommon.RelayInfo, retryPar
 	return channel, nil
 }
 
-// postPassthroughConsumeQuota 传透模式的消费记录
-func postPassthroughConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
+// applyModelMapping 应用模型映射
+func applyModelMapping(c *gin.Context, info *relaycommon.RelayInfo) error {
+	return helper.ModelMappedHelper(c, info, nil)
+}
+
+// estimateInputTokens 估算输入 token 数量
+// 注意：排除 encrypted_data、data、iv 字段，只计算其他有效内容
+func estimateInputTokens(req ChatStreamRequest) int {
+	estimatedTokens := 0
+
+	// 图片 token 估算：每张图片约 85-1105 tokens，取中间值 500
+	estimatedTokens += len(req.Images) * 500
+
+	// model 字段 token 估算：模型名称通常较短
+	if req.Model != "" {
+		estimatedTokens += len(req.Model) / 4
+		if estimatedTokens < 1 {
+			estimatedTokens = 1
+		}
+	}
+
+	// 如果没有任何有效内容，返回最小值 1
+	if estimatedTokens < 1 {
+		estimatedTokens = 1
+	}
+
+	return estimatedTokens
+}
+
+// postPassthroughConsumeQuotaWithUsage 传透模式的消费记录（带 usage 信息）
+// estimatedInputTokens: 本地估算的输入 token 数量（仅用于预扣费参考）
+// 计费逻辑：优先使用上游返回的 usage，如果上游未返回则输出 token 计为 0
+func postPassthroughConsumeQuotaWithUsage(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, estimatedInputTokens int) {
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	tokenName := ctx.GetString("token_name")
 
-	// 传透模式无法精确计算 token，使用预估值
-	quota := relayInfo.FinalPreConsumedQuota
+	var promptTokens, completionTokens int
+	var logContent string
+
+	// 计费逻辑：完全依赖上游返回的 usage
+	if usage != nil && (usage.PromptTokens > 0 || usage.CompletionTokens > 0) {
+		// 使用上游返回的 usage 进行计费
+		promptTokens = usage.PromptTokens
+		completionTokens = usage.CompletionTokens
+		logContent = "传透模式（上游计费）"
+	} else {
+		// 上游未返回 usage，输出 token 计为 0，输入 token 使用本地估算
+		promptTokens = estimatedInputTokens
+		completionTokens = 0
+		logContent = "传透模式（上游无 usage，本地估算输入）"
+	}
+
+	// 根据 token 计算配额
+	modelRatio := relayInfo.PriceData.ModelRatio
+	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
+	completionRatio := relayInfo.PriceData.CompletionRatio
+	modelPrice := relayInfo.PriceData.ModelPrice
+	usePrice := relayInfo.PriceData.UsePrice
+
+	var quota int
+
+	if !usePrice {
+		// 基于 token 计算
+		calculateQuota := float64(promptTokens) + float64(completionTokens)*completionRatio
+		calculateQuota = calculateQuota * groupRatio * modelRatio
+		quota = int(calculateQuota)
+		logContent += fmt.Sprintf("，模型倍率 %.2f，补全倍率 %.2f，分组倍率 %.2f", modelRatio, completionRatio, groupRatio)
+	} else {
+		// 基于价格计算
+		quota = int(modelPrice * common.QuotaPerUnit * groupRatio)
+		logContent += fmt.Sprintf("，模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
+	}
+
+	// 处理预扣费差额
+	quotaDelta := quota - relayInfo.FinalPreConsumedQuota
+
+	if quotaDelta > 0 {
+		logger.LogInfo(ctx, fmt.Sprintf("传透模式预扣费后补扣费：%s（实际消耗：%s，预扣费：%s）",
+			logger.FormatQuota(quotaDelta),
+			logger.FormatQuota(quota),
+			logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
+		))
+	} else if quotaDelta < 0 {
+		logger.LogInfo(ctx, fmt.Sprintf("传透模式预扣费后返还扣费：%s（实际消耗：%s，预扣费：%s）",
+			logger.FormatQuota(-quotaDelta),
+			logger.FormatQuota(quota),
+			logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
+		))
+	}
+
+	if quotaDelta != 0 {
+		err := service.PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
+		if err != nil {
+			logger.LogError(ctx, "error consuming token remain quota: "+err.Error())
+		}
+	}
+
+	// 更新使用量统计
 	if quota > 0 {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
@@ -219,15 +327,18 @@ func postPassthroughConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayI
 
 	other := make(map[string]interface{})
 	other["passthrough"] = true
+	if usage != nil {
+		other["usage"] = usage
+	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
-		PromptTokens:     0,
-		CompletionTokens: 0,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
 		ModelName:        relayInfo.OriginModelName,
 		TokenName:        tokenName,
 		Quota:            quota,
-		Content:          "传透模式请求",
+		Content:          logContent,
 		TokenId:          relayInfo.TokenId,
 		UseTimeSeconds:   int(useTimeSeconds),
 		IsStream:         relayInfo.IsStream,
