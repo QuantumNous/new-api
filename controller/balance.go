@@ -43,7 +43,8 @@ func GetTokenBalance(c *gin.Context) {
 	}
 	tokenKey := parts[1]
 
-	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
+	// 强制从数据库读取，确保余额数据准确
+	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
