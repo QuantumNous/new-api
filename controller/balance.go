@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -9,32 +10,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// BalanceResponse 余额查询响应结构
-type BalanceResponse struct {
-	Name         string  `json:"name"`
-	RemainQuota  int64   `json:"remain_quota"`
-	RemainAmount float64 `json:"remain_amount"`
-	Unlimited    bool    `json:"unlimited"`
-	ExpiredTime  int64   `json:"expired_time"`
-	Status       int     `json:"status"`
-	StatusText   string  `json:"status_text"`
-}
-
 // GetTokenBalance 获取 Token 余额信息
 // GET /usage/api/balance
+// 与 GetTokenUsage 保持完全一致的实现方式
 func GetTokenBalance(c *gin.Context) {
-	// 从中间件设置的 context 中获取 token_id（由 TokenAuth 中间件设置）
-	tokenId := c.GetInt("token_id")
-	if tokenId == 0 {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "Invalid token",
+			"message": "No Authorization header",
 		})
 		return
 	}
 
-	// 从数据库获取最新的 token 信息（与 GetSubscription 保持一致）
-	token, err := model.GetTokenById(tokenId)
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Invalid Bearer token",
+		})
+		return
+	}
+	tokenKey := parts[1]
+
+	// 强制从数据库读取，确保余额数据准确（不使用 Redis 缓存）
+	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -43,7 +43,7 @@ func GetTokenBalance(c *gin.Context) {
 		return
 	}
 
-	// 计算 remain_amount
+	// 计算 remain_amount: remain_quota / QuotaPerUnit (500000)
 	remainAmount := float64(token.RemainQuota) / common.QuotaPerUnit
 
 	// 获取状态文本
@@ -51,14 +51,14 @@ func GetTokenBalance(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data": BalanceResponse{
-			Name:         token.Name,
-			RemainQuota:  int64(token.RemainQuota),
-			RemainAmount: remainAmount,
-			Unlimited:    token.UnlimitedQuota,
-			ExpiredTime:  token.ExpiredTime,
-			Status:       token.Status,
-			StatusText:   statusText,
+		"data": gin.H{
+			"name":          token.Name,
+			"remain_quota":  token.RemainQuota,
+			"remain_amount": remainAmount,
+			"unlimited":     token.UnlimitedQuota,
+			"expired_time":  token.ExpiredTime,
+			"status":        token.Status,
+			"status_text":   statusText,
 		},
 	})
 }
