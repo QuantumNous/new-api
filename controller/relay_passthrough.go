@@ -262,7 +262,7 @@ func calculateInputTokens(req ChatStreamRequest, modelName string) int {
 		imageTokens, err := service.GetImageTokenForPassthrough(fileMeta, modelName)
 		if err != nil {
 			// 计算失败，使用默认估算值 500
-			logger.SysLog(fmt.Sprintf("calculate image token failed: %v, using default 500", err))
+			common.SysLog(fmt.Sprintf("calculate image token failed: %v, using default 500", err))
 			imageTokens = 500
 		}
 		totalTokens += imageTokens
