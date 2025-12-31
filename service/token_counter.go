@@ -450,3 +450,9 @@ func CountTextToken(text string, model string) int {
 		return EstimateTokenByModel(model, text)
 	}
 }
+
+// GetImageTokenForPassthrough 计算图片 token（供传透模式使用）
+// 这是 getImageToken 的公开版本，用于外部调用
+func GetImageTokenForPassthrough(fileMeta *types.FileMeta, model string) (int, error) {
+	return getImageToken(fileMeta, model, true)
+}

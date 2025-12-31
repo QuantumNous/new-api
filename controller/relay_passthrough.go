@@ -19,6 +19,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -63,11 +64,21 @@ func RelayPassthrough(c *gin.Context) {
 		return
 	}
 
+	// 敏感词检测（仅检测 data 字段）
+	if setting.ShouldCheckPromptSensitive() && chatStreamReq.Data != "" {
+		contains, words := service.CheckSensitiveText(chatStreamReq.Data)
+		if contains {
+			logger.LogWarn(c, fmt.Sprintf("passthrough sensitive words detected: %s", strings.Join(words, ", ")))
+			newAPIError = types.NewError(errors.New("sensitive words detected"), types.ErrorCodeSensitiveWordsDetected, types.ErrOptionWithSkipRetry())
+			return
+		}
+	}
+
 	// 生成 RelayInfo
 	relayInfo := genPassthroughRelayInfo(c, chatStreamReq.Model, true)
 
-	// 本地估算输入 token（基于 data 字段长度）
-	estimatedInputTokens := estimateInputTokens(chatStreamReq)
+	// 精确计算输入 token
+	estimatedInputTokens := calculateInputTokens(chatStreamReq, relayInfo.OriginModelName)
 	relayInfo.SetEstimatePromptTokens(estimatedInputTokens)
 
 	// 获取价格数据（使用模型倍率、分组倍率）
@@ -227,28 +238,47 @@ func applyModelMapping(c *gin.Context, info *relaycommon.RelayInfo) error {
 	return helper.ModelMappedHelper(c, info, nil)
 }
 
-// estimateInputTokens 估算输入 token 数量
-// 注意：排除 encrypted_data、data、iv 字段，只计算其他有效内容
-func estimateInputTokens(req ChatStreamRequest) int {
-	estimatedTokens := 0
+// calculateInputTokens 精确计算输入 token 数量
+// 排除 encrypted_data、iv 字段，计算 data、images、model 字段的 token
+func calculateInputTokens(req ChatStreamRequest, modelName string) int {
+	totalTokens := 0
 
-	// 图片 token 估算：每张图片约 85-1105 tokens，取中间值 500
-	estimatedTokens += len(req.Images) * 500
+	// 1. 对 data 字段使用精确 token 计算
+	if req.Data != "" {
+		totalTokens += service.CountTextToken(req.Data, modelName)
+	}
 
-	// model 字段 token 估算：模型名称通常较短
-	if req.Model != "" {
-		estimatedTokens += len(req.Model) / 4
-		if estimatedTokens < 1 {
-			estimatedTokens = 1
+	// 2. 对 images 数组计算图片 token
+	for _, imageData := range req.Images {
+		if imageData == "" {
+			continue
 		}
+		// 构建 FileMeta 用于图片 token 计算
+		fileMeta := &types.FileMeta{
+			FileType:   types.FileTypeImage,
+			OriginData: imageData,
+		}
+		// 尝试精确计算图片 token，失败则使用默认值
+		imageTokens, err := service.GetImageTokenForPassthrough(fileMeta, modelName)
+		if err != nil {
+			// 计算失败，使用默认估算值 500
+			logger.SysLog(fmt.Sprintf("calculate image token failed: %v, using default 500", err))
+			imageTokens = 500
+		}
+		totalTokens += imageTokens
 	}
 
-	// 如果没有任何有效内容，返回最小值 1
-	if estimatedTokens < 1 {
-		estimatedTokens = 1
+	// 3. 对 model 字段计算 token
+	if req.Model != "" {
+		totalTokens += service.CountTextToken(req.Model, modelName)
 	}
 
-	return estimatedTokens
+	// 最小返回值为 1
+	if totalTokens < 1 {
+		totalTokens = 1
+	}
+
+	return totalTokens
 }
 
 // postPassthroughConsumeQuotaWithUsage 传透模式的消费记录（带 usage 信息）
@@ -280,6 +310,7 @@ func postPassthroughConsumeQuotaWithUsage(ctx *gin.Context, relayInfo *relaycomm
 	completionRatio := relayInfo.PriceData.CompletionRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
 	usePrice := relayInfo.PriceData.UsePrice
+	userGroupRatio := relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio
 
 	var quota int
 
@@ -325,7 +356,8 @@ func postPassthroughConsumeQuotaWithUsage(ctx *gin.Context, relayInfo *relaycomm
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
-	other := make(map[string]interface{})
+	// 构建 other 字段，包含前端显示价格所需的所有信息
+	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, 0, 0.0, modelPrice, userGroupRatio)
 	other["passthrough"] = true
 	if usage != nil {
 		other["usage"] = usage
