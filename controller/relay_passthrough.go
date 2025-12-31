@@ -194,6 +194,9 @@ func genPassthroughRelayInfo(c *gin.Context, modelName string, isStream bool) *r
 		RequestURLPath:  "/v1/chat/completions", // 传透模式使用标准路径
 	}
 
+	// 初始化首字时间相关字段（与 genBaseRelayInfo 保持一致）
+	info.InitFirstResponseTime(startTime)
+
 	// 初始化 ChannelMeta，从上下文中获取 Distribute 中间件设置的渠道信息
 	info.InitChannelMeta(c)
 

@@ -499,6 +499,13 @@ func (info *RelayInfo) SetFirstResponseTime() {
 	}
 }
 
+// InitFirstResponseTime 初始化首字时间相关字段
+// 用于传透模式等手动创建 RelayInfo 的场景
+func (info *RelayInfo) InitFirstResponseTime(startTime time.Time) {
+	info.FirstResponseTime = startTime.Add(-time.Second)
+	info.isFirstResponse = true
+}
+
 func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }
