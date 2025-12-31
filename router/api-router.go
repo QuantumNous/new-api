@@ -265,6 +265,8 @@ func SetApiRouter(router *gin.Engine) {
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())
 		{
+			deploymentsRoute.GET("/settings", controller.GetModelDeploymentSettings)
+			deploymentsRoute.POST("/settings/test-connection", controller.TestIoNetConnection)
 			deploymentsRoute.GET("/", controller.GetAllDeployments)
 			deploymentsRoute.GET("/search", controller.SearchDeployments)
 			deploymentsRoute.POST("/test-connection", controller.TestIoNetConnection)

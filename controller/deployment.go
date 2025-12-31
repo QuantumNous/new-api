@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -21,6 +23,20 @@ func getIoAPIKey(c *gin.Context) (string, bool) {
 		return "", false
 	}
 	return apiKey, true
+}
+
+func GetModelDeploymentSettings(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	enabled := common.OptionMap["model_deployment.ionet.enabled"] == "true"
+	hasAPIKey := strings.TrimSpace(common.OptionMap["model_deployment.ionet.api_key"]) != ""
+	common.OptionMapRWMutex.RUnlock()
+
+	common.ApiSuccess(c, gin.H{
+		"provider":    "io.net",
+		"enabled":     enabled,
+		"configured":  hasAPIKey,
+		"can_connect": enabled && hasAPIKey,
+	})
 }
 
 func getIoClient(c *gin.Context) (*ionet.Client, bool) {
@@ -44,15 +60,28 @@ func TestIoNetConnection(c *gin.Context) {
 		APIKey string `json:"api_key"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "invalid request payload")
+	rawBody, err := c.GetRawData()
+	if err != nil {
+		common.ApiError(c, err)
 		return
+	}
+	if len(bytes.TrimSpace(rawBody)) > 0 {
+		if err := json.Unmarshal(rawBody, &req); err != nil {
+			common.ApiErrorMsg(c, "invalid request payload")
+			return
+		}
 	}
 
 	apiKey := strings.TrimSpace(req.APIKey)
 	if apiKey == "" {
-		common.ApiErrorMsg(c, "api_key is required")
-		return
+		common.OptionMapRWMutex.RLock()
+		storedKey := strings.TrimSpace(common.OptionMap["model_deployment.ionet.api_key"])
+		common.OptionMapRWMutex.RUnlock()
+		if storedKey == "" {
+			common.ApiErrorMsg(c, "api_key is required")
+			return
+		}
+		apiKey = storedKey
 	}
 
 	client := ionet.NewEnterpriseClient(apiKey)

@@ -2107,6 +2107,7 @@
     "请输入 API Key，格式：APIKey|Region": "Enter API Key, format: APIKey|Region",
     "请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com": "Please enter AZURE_OPENAI_ENDPOINT, e.g.: https://docs-test-001.openai.azure.com",
     "请输入 io.net API Key": "Please enter io.net API Key",
+    "请输入 io.net API Key（敏感信息不显示）": "Please enter io.net API Key (sensitive information not displayed)",
     "请输入 JSON 格式的密钥内容，例如：\n{\n  \"type\": \"service_account\",\n  \"project_id\": \"your-project-id\",\n  \"private_key_id\": \"...\",\n  \"private_key\": \"...\",\n  \"client_email\": \"...\",\n  \"client_id\": \"...\",\n  \"auth_uri\": \"...\",\n  \"token_uri\": \"...\",\n  \"auth_provider_x509_cert_url\": \"...\",\n  \"client_x509_cert_url\": \"...\"\n}": "Please enter the key content in JSON format, for example:\n{\n  \"type\": \"service_account\",\n  \"project_id\": \"your-project-id\",\n  \"private_key_id\": \"...\",\n  \"private_key\": \"...\",\n  \"client_email\": \"...\",\n  \"client_id\": \"...\",\n  \"auth_uri\": \"...\",\n  \"token_uri\": \"...\",\n  \"auth_provider_x509_cert_url\": \"...\",\n  \"client_x509_cert_url\": \"...\"\n}",
     "请输入 OIDC 的 Well-Known URL": "Please enter the Well-Known URL for OIDC",
     "请输入6位验证码或8位备用码": "Please enter a 6-digit verification code or 8-digit backup code",

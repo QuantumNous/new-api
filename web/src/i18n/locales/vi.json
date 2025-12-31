@@ -2520,6 +2520,7 @@
     "请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com": "Vui lòng nhập AZURE_OPENAI_ENDPOINT, ví dụ: https://docs-test-001.openai.azure.com",
     "请输入 ID": "Vui lòng nhập ID",
     "请输入 io.net API Key": "Please enter io.net API Key",
+    "请输入 io.net API Key（敏感信息不显示）": "Please enter io.net API Key (sensitive information not displayed)",
     "请输入 JSON 格式的密钥内容，例如：\n{\n  \"type\": \"service_account\",\n  \"project_id\": \"your-project-id\",\n  \"private_key_id\": \"...\",\n  \"private_key\": \"...\",\n  \"client_email\": \"...\",\n  \"client_id\": \"...\",\n  \"auth_uri\": \"...\",\n  \"token_uri\": \"...\",\n  \"auth_provider_x509_cert_url\": \"...\",\n  \"client_x509_cert_url\": \"...\"\n}": "Vui lòng nhập nội dung khóa ở định dạng JSON, ví dụ:\n{\n  \"type\": \"service_account\",\n  \"project_id\": \"your-project-id\",\n  \"private_key_id\": \"...\",\n  \"private_key\": \"...\",\n  \"client_email\": \"...\",\n  \"client_id\": \"...\",\n  \"auth_uri\": \"...\",\n  \"token_uri\": \"...\",\n  \"auth_provider_x509_cert_url\": \"...\",\n  \"client_x509_cert_url\": \"...\"\n}",
     "请输入 OIDC 的 Well-Known URL": "Vui lòng nhập Well-Known URL của OIDC",
     "请输入 URL": "Vui lòng nhập URL",

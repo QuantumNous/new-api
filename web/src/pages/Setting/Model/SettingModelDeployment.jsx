@@ -48,10 +48,6 @@ export default function SettingModelDeployment(props) {
 
   const testApiKey = async () => {
     const apiKey = inputs['model_deployment.ionet.api_key'];
-    if (!apiKey || apiKey.trim() === '') {
-      showError(t('请先填写 API Key'));
-      return;
-    }
 
     const getLocalizedMessage = (message) => {
       switch (message) {
@@ -69,10 +65,8 @@ export default function SettingModelDeployment(props) {
     setTesting(true);
     try {
       const response = await API.post(
-        '/api/deployments/test-connection',
-        {
-          api_key: apiKey.trim(),
-        },
+        '/api/deployments/settings/test-connection',
+        apiKey && apiKey.trim() !== '' ? { api_key: apiKey.trim() } : {},
         {
           skipErrorHandler: true,
         },
@@ -108,12 +102,6 @@ export default function SettingModelDeployment(props) {
   };
 
   function onSubmit() {
-    // 前置校验：如果启用了 io.net 但没有填写 API Key
-    if (inputs['model_deployment.ionet.enabled'] && 
-        (!inputs['model_deployment.ionet.api_key'] || inputs['model_deployment.ionet.api_key'].trim() === '')) {
-      return showError(t('启用 io.net 部署时必须填写 API Key'));
-    }
-
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     
@@ -229,7 +217,7 @@ export default function SettingModelDeployment(props) {
                     <Form.Input
                       label={t('API Key')}
                       field={'model_deployment.ionet.api_key'}
-                      placeholder={t('请输入 io.net API Key')}
+                      placeholder={t('请输入 io.net API Key（敏感信息不显示）')}
                       onChange={(value) =>
                         setInputs({
                           ...inputs,
@@ -248,9 +236,7 @@ export default function SettingModelDeployment(props) {
                         onClick={testApiKey}
                         loading={testing}
                         disabled={
-                          !inputs['model_deployment.ionet.enabled'] ||
-                          !inputs['model_deployment.ionet.api_key'] ||
-                          inputs['model_deployment.ionet.api_key'].trim() === ''
+                          !inputs['model_deployment.ionet.enabled']
                         }
                         style={{
                           height: '32px',

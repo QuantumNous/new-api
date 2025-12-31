@@ -20,7 +20,11 @@ func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if strings.HasSuffix(k, "Token") || strings.HasSuffix(k, "Secret") || strings.HasSuffix(k, "Key") {
+		if strings.HasSuffix(k, "Token") ||
+			strings.HasSuffix(k, "Secret") ||
+			strings.HasSuffix(k, "Key") ||
+			strings.HasSuffix(k, "secret") ||
+			strings.HasSuffix(k, "api_key") {
 			continue
 		}
 		options = append(options, &model.Option{
