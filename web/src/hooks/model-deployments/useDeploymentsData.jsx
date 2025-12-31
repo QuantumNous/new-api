@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
@@ -26,6 +26,7 @@ import { useTableCompactMode } from '../common/useTableCompactMode';
 export const useDeploymentsData = () => {
   const { t } = useTranslation();
   const [compactMode, setCompactMode] = useTableCompactMode('deployments');
+  const requestSeq = useRef(0);
 
   // State management
   const [deployments, setDeployments] = useState([]);
@@ -34,6 +35,7 @@ export const useDeploymentsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
   const [deploymentCount, setDeploymentCount] = useState(0);
+  const [query, setQuery] = useState({ keyword: '', status: '' });
 
   // Modal states
   const [showEdit, setShowEdit] = useState(false);
@@ -80,17 +82,11 @@ export const useDeploymentsData = () => {
     }, 500);
   };
 
-  // Set deployment format with key field
-  const setDeploymentFormat = (deployments) => {
-    for (let i = 0; i < deployments.length; i++) {
-      deployments[i].key = deployments[i].id;
-    }
-    setDeployments(deployments);
+  const normalizeQuery = (terms) => {
+    const keyword = (terms?.searchKeyword ?? '').trim();
+    const status = (terms?.searchStatus ?? '').trim();
+    return { keyword, status };
   };
-
-  // Status tabs
-  const [activeStatusKey, setActiveStatusKey] = useState('all');
-  const [statusCounts, setStatusCounts] = useState({});
 
   // Column visibility
   const COLUMN_KEYS = useMemo(
@@ -160,114 +156,127 @@ export const useDeploymentsData = () => {
   // Save column visibility to localStorage
   const saveColumnVisibility = (newVisibleColumns) => {
     const normalized = ensureRequiredColumns(newVisibleColumns);
-    localStorage.setItem('deployments_visible_columns', JSON.stringify(normalized));
+    localStorage.setItem(
+      'deployments_visible_columns',
+      JSON.stringify(normalized),
+    );
     setVisibleColumnsState(normalized);
   };
 
-  // Load deployments data
-  const loadDeployments = async (
-    page = 1,
-    size = pageSize,
-    statusKey = activeStatusKey,
-  ) => {
-    setLoading(true);
+  const applyDeploymentsData = ({ data, page }) => {
+    const items = extractItems(data);
+    setActivePage(data?.page ?? page);
+    setDeploymentCount(data?.total ?? items.length);
+    setSelectedKeys([]);
+    setDeployments(
+      items.map((deployment) => ({ ...deployment, key: deployment.id })),
+    );
+  };
+
+  const fetchDeployments = async ({ page, size, keyword, status }) => {
+    const seq = ++requestSeq.current;
+    const isSearchMode = Boolean(keyword) || Boolean(status);
+
+    if (isSearchMode) {
+      setSearching(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      let url = `/api/deployments/?p=${page}&page_size=${size}`;
-      if (statusKey && statusKey !== 'all') {
-        url = `/api/deployments/search?status=${statusKey}&p=${page}&page_size=${size}`;
+      let url;
+      if (isSearchMode) {
+        const params = new URLSearchParams({
+          p: String(page),
+          page_size: String(size),
+        });
+
+        if (keyword) params.append('keyword', keyword);
+        if (status) params.append('status', status);
+
+        url = `/api/deployments/search?${params.toString()}`;
+      } else {
+        url = `/api/deployments/?p=${page}&page_size=${size}`;
       }
 
       const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        const newPageData = extractItems(data);
-        setActivePage(data.page || page);
-        setDeploymentCount(data.total || newPageData.length);
-        setDeploymentFormat(newPageData);
+      if (seq !== requestSeq.current) return;
 
-        if (data.status_counts) {
-          const sumAll = Object.values(data.status_counts).reduce(
-            (acc, v) => acc + v,
-            0,
-          );
-          setStatusCounts({ ...data.status_counts, all: sumAll });
-        }
-      } else {
+      const { success, message, data } = res.data;
+      if (!success) {
         showError(message);
         setDeployments([]);
+        setDeploymentCount(0);
+        return;
       }
+
+      applyDeploymentsData({ data, page });
     } catch (error) {
+      if (seq !== requestSeq.current) return;
       console.error(error);
-      showError(t('获取部署列表失败'));
+      showError(isSearchMode ? t('搜索失败') : t('获取部署列表失败'));
       setDeployments([]);
+      setDeploymentCount(0);
+    } finally {
+      if (seq !== requestSeq.current) return;
+      setLoading(false);
+      setSearching(false);
     }
-    setLoading(false);
-  };
-
-  // Search deployments
-  const searchDeployments = async (searchTerms) => {
-    setSearching(true);
-    try {
-      const { searchKeyword, searchStatus } = searchTerms;
-      const params = new URLSearchParams({
-        p: '1',
-        page_size: pageSize.toString(),
-      });
-
-      if (searchKeyword?.trim()) {
-        params.append('keyword', searchKeyword.trim());
-      }
-      if (searchStatus && searchStatus !== 'all') {
-        params.append('status', searchStatus);
-      }
-
-      const res = await API.get(`/api/deployments/search?${params}`);
-      const { success, message, data } = res.data;
-      
-      if (success) {
-        const items = extractItems(data);
-        setActivePage(1);
-        setDeploymentCount(data.total || items.length);
-        setDeploymentFormat(items);
-      } else {
-        showError(message);
-        setDeployments([]);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      showError(t('搜索失败'));
-      setDeployments([]);
-    }
-    setSearching(false);
   };
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    await loadDeployments(page, pageSize);
+    await fetchDeployments({
+      page,
+      size: pageSize,
+      keyword: query.keyword,
+      status: query.status,
+    });
   };
 
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    if (!searching) {
-      loadDeployments(page, pageSize);
-    }
+    fetchDeployments({
+      page,
+      size: pageSize,
+      keyword: query.keyword,
+      status: query.status,
+    });
   };
 
   // Handle page size change
   const handlePageSizeChange = (size) => {
     setPageSize(size);
     setActivePage(1);
-    if (!searching) {
-      loadDeployments(1, size);
-    }
+    fetchDeployments({
+      page: 1,
+      size,
+      keyword: query.keyword,
+      status: query.status,
+    });
   };
 
-  // Handle tab change
-  const handleTabChange = (statusKey) => {
-    setActiveStatusKey(statusKey);
+  const loadDeployments = async (page = 1, size = pageSize) => {
+    await fetchDeployments({
+      page,
+      size,
+      keyword: query.keyword,
+      status: query.status,
+    });
+  };
+
+  // Search deployments (also supports pagination)
+  const searchDeployments = async (searchTerms) => {
+    const nextQuery = normalizeQuery(searchTerms);
+    setQuery(nextQuery);
     setActivePage(1);
-    loadDeployments(1, pageSize, statusKey);
+    await fetchDeployments({
+      page: 1,
+      size: pageSize,
+      keyword: nextQuery.keyword,
+      status: nextQuery.status,
+    });
   };
 
   // Deployment operations
@@ -323,7 +332,9 @@ export const useDeploymentsData = () => {
     }
 
     try {
-      const containersResp = await API.get(`/api/deployments/${deployment.id}/containers`);
+      const containersResp = await API.get(
+        `/api/deployments/${deployment.id}/containers`,
+      );
       if (!containersResp.data?.success) {
         showError(containersResp.data?.message || t('获取容器信息失败'));
         return;
@@ -344,15 +355,20 @@ export const useDeploymentsData = () => {
         return;
       }
 
-      const baseName = deployment.container_name || deployment.deployment_name || deployment.name || deployment.id;
+      const baseName =
+        deployment.container_name ||
+        deployment.deployment_name ||
+        deployment.name ||
+        deployment.id;
       const safeName = String(baseName || 'ionet').slice(0, 60);
       const channelName = `[IO.NET] ${safeName}`;
 
       let randomKey;
       try {
-        randomKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
-          ? `ionet-${crypto.randomUUID().replace(/-/g, '')}`
-          : null;
+        randomKey =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? `ionet-${crypto.randomUUID().replace(/-/g, '')}`
+            : null;
       } catch (err) {
         randomKey = null;
       }
@@ -396,7 +412,9 @@ export const useDeploymentsData = () => {
 
   const updateDeploymentName = async (deploymentId, newName) => {
     try {
-      const res = await API.put(`/api/deployments/${deploymentId}/name`, { name: newName });
+      const res = await API.put(`/api/deployments/${deploymentId}/name`, {
+        name: newName,
+      });
       if (res.data.success) {
         showSuccess(t('部署名称更新成功'));
         await refresh();
@@ -415,9 +433,9 @@ export const useDeploymentsData = () => {
   // Batch operations
   const batchDeleteDeployments = async () => {
     if (selectedKeys.length === 0) return;
-    
+
     try {
-      const ids = selectedKeys.map(deployment => deployment.id);
+      const ids = selectedKeys.map((deployment) => deployment.id);
       const res = await API.post('/api/deployments/batch_delete', { ids });
       if (res.data.success) {
         showSuccess(t('批量删除成功'));
@@ -452,8 +470,6 @@ export const useDeploymentsData = () => {
     activePage,
     pageSize,
     deploymentCount,
-    statusCounts,
-    activeStatusKey,
     compactMode,
     setCompactMode,
 
@@ -488,7 +504,6 @@ export const useDeploymentsData = () => {
     refresh,
     handlePageChange,
     handlePageSizeChange,
-    handleTabChange,
     handleRow,
 
     // Deployment operations

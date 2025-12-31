@@ -39,10 +39,13 @@ export const useDeploymentResources = () => {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
       if (response.data.success) {
-        const { hardware_types: hardwareList = [], total_available } = response.data.data || {};
+        const { hardware_types: hardwareList = [], total_available } =
+          response.data.data || {};
         const normalizedHardware = hardwareList.map((hardware) => {
           const availableCountValue = Number(hardware.available_count);
-          const availableCount = Number.isNaN(availableCountValue) ? 0 : availableCountValue;
+          const availableCount = Number.isNaN(availableCountValue)
+            ? 0
+            : availableCountValue;
           const availableBool =
             typeof hardware.available === 'boolean'
               ? hardware.available
@@ -57,7 +60,9 @@ export const useDeploymentResources = () => {
 
         const providedTotal = Number(total_available);
         const fallbackTotal = normalizedHardware.reduce(
-          (acc, item) => acc + (Number.isNaN(item.available_count) ? 0 : item.available_count),
+          (acc, item) =>
+            acc +
+            (Number.isNaN(item.available_count) ? 0 : item.available_count),
           0,
         );
         const hasProvidedTotal =
@@ -85,37 +90,64 @@ export const useDeploymentResources = () => {
     }
   }, []);
 
-  const fetchLocations = useCallback(async () => {
+  const fetchLocations = useCallback(async (hardwareId, gpuCount = 1) => {
+    if (!hardwareId) {
+      setLocations([]);
+      setLocationsTotalAvailable(0);
+      return [];
+    }
+
     try {
       setLoadingLocations(true);
-      const response = await API.get('/api/deployments/locations');
+      const response = await API.get(
+        `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
+      );
       if (response.data.success) {
-        const { locations: locationsList = [], total } = response.data.data || {};
-        const normalizedLocations = locationsList.map((location) => {
-          const iso2 = (location.iso2 || '').toString().toUpperCase();
-          const availableValue = Number(location.available);
-          const available = Number.isNaN(availableValue) ? 0 : availableValue;
+        const replicas = response.data.data?.replicas || [];
+        const nextLocationsMap = new Map();
+        replicas.forEach((replica) => {
+          const rawId = replica?.location_id ?? replica?.location?.id;
+          if (rawId === null || rawId === undefined) return;
 
-          return {
-            ...location,
+          const mapKey = String(rawId);
+          if (nextLocationsMap.has(mapKey)) return;
+
+          const rawIso2 =
+            replica?.iso2 ?? replica?.location_iso2 ?? replica?.location?.iso2;
+          const iso2 = rawIso2 ? String(rawIso2).toUpperCase() : '';
+          const name =
+            replica?.location_name ??
+            replica?.location?.name ??
+            replica?.name ??
+            String(rawId);
+
+          nextLocationsMap.set(mapKey, {
+            id: rawId,
+            name: String(name),
             iso2,
-            available,
-          };
+            region:
+              replica?.region ??
+              replica?.location_region ??
+              replica?.location?.region,
+            country:
+              replica?.country ??
+              replica?.location_country ??
+              replica?.location?.country,
+            code:
+              replica?.code ??
+              replica?.location_code ??
+              replica?.location?.code,
+            available: Number(replica?.available_count) || 0,
+          });
         });
-        const providedTotal = Number(total);
-        const fallbackTotal = normalizedLocations.reduce(
-          (acc, item) => acc + (Number.isNaN(item.available) ? 0 : item.available),
-          0,
-        );
-        const hasProvidedTotal =
-          total !== undefined &&
-          total !== null &&
-          total !== '' &&
-          !Number.isNaN(providedTotal);
 
+        const normalizedLocations = Array.from(nextLocationsMap.values());
         setLocations(normalizedLocations);
         setLocationsTotalAvailable(
-          hasProvidedTotal ? providedTotal : fallbackTotal,
+          normalizedLocations.reduce(
+            (acc, item) => acc + (item.available || 0),
+            0,
+          ),
         );
         return normalizedLocations;
       } else {
@@ -132,34 +164,37 @@ export const useDeploymentResources = () => {
     }
   }, []);
 
-  const fetchAvailableReplicas = useCallback(async (hardwareId, gpuCount = 1) => {
-    if (!hardwareId) {
-      setAvailableReplicas([]);
-      return [];
-    }
-
-    try {
-      setLoadingReplicas(true);
-      const response = await API.get(
-        `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`
-      );
-      if (response.data.success) {
-        const replicas = response.data.data.replicas || [];
-        setAvailableReplicas(replicas);
-        return replicas;
-      } else {
-        showError('获取可用资源失败: ' + response.data.message);
+  const fetchAvailableReplicas = useCallback(
+    async (hardwareId, gpuCount = 1) => {
+      if (!hardwareId) {
         setAvailableReplicas([]);
         return [];
       }
-    } catch (error) {
-      console.error('Load available replicas error:', error);
-      setAvailableReplicas([]);
-      return [];
-    } finally {
-      setLoadingReplicas(false);
-    }
-  }, []);
+
+      try {
+        setLoadingReplicas(true);
+        const response = await API.get(
+          `/api/deployments/available-replicas?hardware_id=${hardwareId}&gpu_count=${gpuCount}`,
+        );
+        if (response.data.success) {
+          const replicas = response.data.data.replicas || [];
+          setAvailableReplicas(replicas);
+          return replicas;
+        } else {
+          showError('获取可用资源失败: ' + response.data.message);
+          setAvailableReplicas([]);
+          return [];
+        }
+      } catch (error) {
+        console.error('Load available replicas error:', error);
+        setAvailableReplicas([]);
+        return [];
+      } finally {
+        setLoadingReplicas(false);
+      }
+    },
+    [],
+  );
 
   const calculatePrice = useCallback(async (params) => {
     const {
@@ -167,10 +202,16 @@ export const useDeploymentResources = () => {
       hardwareId,
       gpusPerContainer,
       durationHours,
-      replicaCount
+      replicaCount,
     } = params;
 
-    if (!locationIds?.length || !hardwareId || !gpusPerContainer || !durationHours || !replicaCount) {
+    if (
+      !locationIds?.length ||
+      !hardwareId ||
+      !gpusPerContainer ||
+      !durationHours ||
+      !replicaCount
+    ) {
       setPriceEstimation(null);
       return null;
     }
@@ -185,7 +226,10 @@ export const useDeploymentResources = () => {
         replica_count: replicaCount,
       };
 
-      const response = await API.post('/api/deployments/price-estimation', requestData);
+      const response = await API.post(
+        '/api/deployments/price-estimation',
+        requestData,
+      );
       if (response.data.success) {
         const estimation = response.data.data;
         setPriceEstimation(estimation);
@@ -208,7 +252,9 @@ export const useDeploymentResources = () => {
     if (!name?.trim()) return false;
 
     try {
-      const response = await API.get(`/api/deployments/check-name?name=${encodeURIComponent(name.trim())}`);
+      const response = await API.get(
+        `/api/deployments/check-name?name=${encodeURIComponent(name.trim())}`,
+      );
       if (response.data.success) {
         return response.data.data.available;
       } else {

@@ -44,18 +44,19 @@ import {
   FaLink,
 } from 'react-icons/fa';
 import { IconRefresh, IconDownload } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, copy, timestamp2string } from '../../../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  copy,
+  timestamp2string,
+} from '../../../../helpers';
 
 const { Text } = Typography;
 
 const ALL_CONTAINERS = '__all__';
 
-const ViewLogsModal = ({ 
-  visible, 
-  onCancel, 
-  deployment, 
-  t 
-}) => {
+const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
   const [logLines, setLogLines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -63,12 +64,13 @@ const ViewLogsModal = ({
   const [following, setFollowing] = useState(false);
   const [containers, setContainers] = useState([]);
   const [containersLoading, setContainersLoading] = useState(false);
-  const [selectedContainerId, setSelectedContainerId] = useState(ALL_CONTAINERS);
+  const [selectedContainerId, setSelectedContainerId] =
+    useState(ALL_CONTAINERS);
   const [containerDetails, setContainerDetails] = useState(null);
   const [containerDetailsLoading, setContainerDetailsLoading] = useState(false);
   const [streamFilter, setStreamFilter] = useState('stdout');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
-  
+
   const logContainerRef = useRef(null);
   const autoRefreshRef = useRef(null);
 
@@ -100,7 +102,10 @@ const ViewLogsModal = ({
   const fetchLogs = async (containerIdOverride = undefined) => {
     if (!deployment?.id) return;
 
-    const containerId = typeof containerIdOverride === 'string' ? containerIdOverride : selectedContainerId;
+    const containerId =
+      typeof containerIdOverride === 'string'
+        ? containerIdOverride
+        : selectedContainerId;
 
     if (!containerId || containerId === ALL_CONTAINERS) {
       setLogLines([]);
@@ -120,10 +125,13 @@ const ViewLogsModal = ({
       }
       if (following) params.append('follow', 'true');
 
-      const response = await API.get(`/api/deployments/${deployment.id}/logs?${params}`);
+      const response = await API.get(
+        `/api/deployments/${deployment.id}/logs?${params}`,
+      );
 
       if (response.data.success) {
-        const rawContent = typeof response.data.data === 'string' ? response.data.data : '';
+        const rawContent =
+          typeof response.data.data === 'string' ? response.data.data : '';
         const normalized = rawContent.replace(/\r\n?/g, '\n');
         const lines = normalized ? normalized.split('\n') : [];
 
@@ -133,7 +141,11 @@ const ViewLogsModal = ({
         setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
-      showError(t('获取日志失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('获取日志失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
     } finally {
       setLoading(false);
     }
@@ -144,14 +156,19 @@ const ViewLogsModal = ({
 
     setContainersLoading(true);
     try {
-      const response = await API.get(`/api/deployments/${deployment.id}/containers`);
+      const response = await API.get(
+        `/api/deployments/${deployment.id}/containers`,
+      );
 
       if (response.data.success) {
         const list = response.data.data?.containers || [];
         setContainers(list);
 
         setSelectedContainerId((current) => {
-          if (current !== ALL_CONTAINERS && list.some(item => item.container_id === current)) {
+          if (
+            current !== ALL_CONTAINERS &&
+            list.some((item) => item.container_id === current)
+          ) {
             return current;
           }
 
@@ -163,7 +180,11 @@ const ViewLogsModal = ({
         }
       }
     } catch (error) {
-      showError(t('获取容器列表失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('获取容器列表失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
     } finally {
       setContainersLoading(false);
     }
@@ -177,13 +198,19 @@ const ViewLogsModal = ({
 
     setContainerDetailsLoading(true);
     try {
-      const response = await API.get(`/api/deployments/${deployment.id}/containers/${containerId}`);
+      const response = await API.get(
+        `/api/deployments/${deployment.id}/containers/${containerId}`,
+      );
 
       if (response.data.success) {
         setContainerDetails(response.data.data || null);
       }
     } catch (error) {
-      showError(t('获取容器详情失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('获取容器详情失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
     } finally {
       setContainerDetailsLoading(false);
     }
@@ -205,13 +232,14 @@ const ViewLogsModal = ({
   const renderContainerStatusTag = (status) => {
     if (!status) {
       return (
-        <Tag color="grey" size="small">
+        <Tag color='grey' size='small'>
           {t('未知状态')}
         </Tag>
       );
     }
 
-    const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+    const normalized =
+      typeof status === 'string' ? status.trim().toLowerCase() : '';
     const statusMap = {
       running: { color: 'green', label: '运行中' },
       pending: { color: 'orange', label: '准备中' },
@@ -225,15 +253,16 @@ const ViewLogsModal = ({
     const config = statusMap[normalized] || { color: 'grey', label: status };
 
     return (
-      <Tag color={config.color} size="small">
+      <Tag color={config.color} size='small'>
         {t(config.label)}
       </Tag>
     );
   };
 
-  const currentContainer = selectedContainerId !== ALL_CONTAINERS
-    ? containers.find((ctr) => ctr.container_id === selectedContainerId)
-    : null;
+  const currentContainer =
+    selectedContainerId !== ALL_CONTAINERS
+      ? containers.find((ctr) => ctr.container_id === selectedContainerId)
+      : null;
 
   const refreshLogs = () => {
     if (selectedContainerId && selectedContainerId !== ALL_CONTAINERS) {
@@ -254,9 +283,10 @@ const ViewLogsModal = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const safeContainerId = selectedContainerId && selectedContainerId !== ALL_CONTAINERS
-      ? selectedContainerId.replace(/[^a-zA-Z0-9_-]/g, '-')
-      : '';
+    const safeContainerId =
+      selectedContainerId && selectedContainerId !== ALL_CONTAINERS
+        ? selectedContainerId.replace(/[^a-zA-Z0-9_-]/g, '-')
+        : '';
     const fileName = safeContainerId
       ? `deployment-${deployment.id}-container-${safeContainerId}-logs.txt`
       : `deployment-${deployment.id}-logs.txt`;
@@ -265,7 +295,7 @@ const ViewLogsModal = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     showSuccess(t('日志已下载'));
   };
 
@@ -346,14 +376,15 @@ const ViewLogsModal = ({
   // Filter logs based on search term
   const filteredLogs = logLines
     .map((line) => line ?? '')
-    .filter((line) =>
-      !searchTerm || line.toLowerCase().includes(searchTerm.toLowerCase()),
+    .filter(
+      (line) =>
+        !searchTerm || line.toLowerCase().includes(searchTerm.toLowerCase()),
     );
 
   const renderLogEntry = (line, index) => (
     <div
       key={`${index}-${line.slice(0, 20)}`}
-      className="py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words"
+      className='py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words'
     >
       {line}
     </div>
@@ -362,10 +393,10 @@ const ViewLogsModal = ({
   return (
     <Modal
       title={
-        <div className="flex items-center gap-2">
-          <FaTerminal className="text-blue-500" />
+        <div className='flex items-center gap-2'>
+          <FaTerminal className='text-blue-500' />
           <span>{t('容器日志')}</span>
-          <Text type="secondary" size="small">
+          <Text type='secondary' size='small'>
             - {deployment?.container_name || deployment?.id}
           </Text>
         </div>
@@ -375,13 +406,13 @@ const ViewLogsModal = ({
       footer={null}
       width={1000}
       height={700}
-      className="logs-modal"
+      className='logs-modal'
       style={{ top: 20 }}
     >
-      <div className="flex flex-col h-full max-h-[600px]">
+      <div className='flex flex-col h-full max-h-[600px]'>
         {/* Controls */}
-        <Card className="mb-4 border-0 shadow-sm">
-          <div className="flex items-center justify-between flex-wrap gap-3">
+        <Card className='mb-4 border-0 shadow-sm'>
+          <div className='flex items-center justify-between flex-wrap gap-3'>
             <Space wrap>
               <Select
                 prefix={<FaServer />}
@@ -389,7 +420,7 @@ const ViewLogsModal = ({
                 value={selectedContainerId}
                 onChange={handleContainerChange}
                 style={{ width: 240 }}
-                size="small"
+                size='small'
                 loading={containersLoading}
                 dropdownStyle={{ maxHeight: 320, overflowY: 'auto' }}
               >
@@ -397,10 +428,15 @@ const ViewLogsModal = ({
                   {t('全部容器')}
                 </Select.Option>
                 {containers.map((ctr) => (
-                  <Select.Option key={ctr.container_id} value={ctr.container_id}>
-                    <div className="flex flex-col">
-                      <span className="font-mono text-xs">{ctr.container_id}</span>
-                      <span className="text-xs text-gray-500">
+                  <Select.Option
+                    key={ctr.container_id}
+                    value={ctr.container_id}
+                  >
+                    <div className='flex flex-col'>
+                      <span className='font-mono text-xs'>
+                        {ctr.container_id}
+                      </span>
+                      <span className='text-xs text-gray-500'>
                         {ctr.brand_name || 'IO.NET'}
                         {ctr.hardware ? ` · ${ctr.hardware}` : ''}
                       </span>
@@ -415,114 +451,118 @@ const ViewLogsModal = ({
                 value={searchTerm}
                 onChange={setSearchTerm}
                 style={{ width: 200 }}
-                size="small"
+                size='small'
               />
-              
-              <Space align="center" className="ml-2">
-                <Text size="small" type="secondary">
+
+              <Space align='center' className='ml-2'>
+                <Text size='small' type='secondary'>
                   {t('日志流')}
                 </Text>
                 <Radio.Group
-                  type="button"
-                  size="small"
+                  type='button'
+                  size='small'
                   value={streamFilter}
                   onChange={handleStreamChange}
                 >
-                  <Radio value="stdout">STDOUT</Radio>
-                  <Radio value="stderr">STDERR</Radio>
+                  <Radio value='stdout'>STDOUT</Radio>
+                  <Radio value='stderr'>STDERR</Radio>
                 </Radio.Group>
               </Space>
 
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <Switch
                   checked={autoRefresh}
                   onChange={setAutoRefresh}
-                  size="small"
+                  size='small'
                 />
-                <Text size="small">{t('自动刷新')}</Text>
+                <Text size='small'>{t('自动刷新')}</Text>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <Switch
                   checked={following}
                   onChange={setFollowing}
-                  size="small"
+                  size='small'
                 />
-                <Text size="small">{t('跟随日志')}</Text>
+                <Text size='small'>{t('跟随日志')}</Text>
               </div>
             </Space>
 
             <Space>
               <Tooltip content={t('刷新日志')}>
-                <Button 
-                  icon={<IconRefresh />} 
+                <Button
+                  icon={<IconRefresh />}
                   onClick={refreshLogs}
                   loading={loading}
-                  size="small"
-                  theme="borderless"
+                  size='small'
+                  theme='borderless'
                 />
               </Tooltip>
-              
+
               <Tooltip content={t('复制日志')}>
-                <Button 
-                  icon={<FaCopy />} 
+                <Button
+                  icon={<FaCopy />}
                   onClick={copyAllLogs}
-                  size="small"
-                  theme="borderless"
+                  size='small'
+                  theme='borderless'
                   disabled={logLines.length === 0}
                 />
               </Tooltip>
-              
+
               <Tooltip content={t('下载日志')}>
-                <Button 
-                  icon={<IconDownload />} 
+                <Button
+                  icon={<IconDownload />}
                   onClick={downloadLogs}
-                  size="small"
-                  theme="borderless"
+                  size='small'
+                  theme='borderless'
                   disabled={logLines.length === 0}
                 />
               </Tooltip>
             </Space>
           </div>
-          
+
           {/* Status Info */}
-          <Divider margin="12px" />
-          <div className="flex items-center justify-between">
-            <Space size="large">
-              <Text size="small" type="secondary">
+          <Divider margin='12px' />
+          <div className='flex items-center justify-between'>
+            <Space size='large'>
+              <Text size='small' type='secondary'>
                 {t('共 {{count}} 条日志', { count: logLines.length })}
               </Text>
               {searchTerm && (
-                <Text size="small" type="secondary">
-                  {t('(筛选后显示 {{count}} 条)', { count: filteredLogs.length })}
+                <Text size='small' type='secondary'>
+                  {t('(筛选后显示 {{count}} 条)', {
+                    count: filteredLogs.length,
+                  })}
                 </Text>
               )}
               {autoRefresh && (
-                <Tag color="green" size="small">
-                  <FaClock className="mr-1" />
+                <Tag color='green' size='small'>
+                  <FaClock className='mr-1' />
                   {t('自动刷新中')}
                 </Tag>
               )}
             </Space>
-            
-            <Text size="small" type="secondary">
+
+            <Text size='small' type='secondary'>
               {t('状态')}: {deployment?.status || 'unknown'}
             </Text>
           </div>
 
           {selectedContainerId !== ALL_CONTAINERS && (
             <>
-              <Divider margin="12px" />
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
+              <Divider margin='12px' />
+              <div className='flex flex-col gap-3'>
+                <div className='flex items-center justify-between flex-wrap gap-2'>
                   <Space>
-                    <Tag color="blue" size="small">
+                    <Tag color='blue' size='small'>
                       {t('容器')}
                     </Tag>
-                    <Text className="font-mono text-xs">
+                    <Text className='font-mono text-xs'>
                       {selectedContainerId}
                     </Text>
-                    {renderContainerStatusTag(containerDetails?.status || currentContainer?.status)}
+                    {renderContainerStatusTag(
+                      containerDetails?.status || currentContainer?.status,
+                    )}
                   </Space>
 
                   <Space>
@@ -530,9 +570,11 @@ const ViewLogsModal = ({
                       <Tooltip content={containerDetails.public_url}>
                         <Button
                           icon={<FaLink />}
-                          size="small"
-                          theme="borderless"
-                          onClick={() => window.open(containerDetails.public_url, '_blank')}
+                          size='small'
+                          theme='borderless'
+                          onClick={() =>
+                            window.open(containerDetails.public_url, '_blank')
+                          }
                         />
                       </Tooltip>
                     )}
@@ -540,8 +582,8 @@ const ViewLogsModal = ({
                       <Button
                         icon={<IconRefresh />}
                         onClick={refreshContainerDetails}
-                        size="small"
-                        theme="borderless"
+                        size='small'
+                        theme='borderless'
                         loading={containerDetailsLoading}
                       />
                     </Tooltip>
@@ -549,27 +591,36 @@ const ViewLogsModal = ({
                 </div>
 
                 {containerDetailsLoading ? (
-                  <div className="flex items-center justify-center py-6">
+                  <div className='flex items-center justify-center py-6'>
                     <Spin tip={t('加载容器详情中...')} />
                   </div>
                 ) : containerDetails ? (
-                  <div className="grid gap-4 md:grid-cols-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <FaInfoCircle className="text-blue-500" />
-                      <Text type="secondary">{t('硬件')}</Text>
+                  <div className='grid gap-4 md:grid-cols-2 text-sm'>
+                    <div className='flex items-center gap-2'>
+                      <FaInfoCircle className='text-blue-500' />
+                      <Text type='secondary'>{t('硬件')}</Text>
                       <Text>
-                        {containerDetails?.brand_name || currentContainer?.brand_name || t('未知品牌')}
-                        {(containerDetails?.hardware || currentContainer?.hardware) ? ` · ${containerDetails?.hardware || currentContainer?.hardware}` : ''}
+                        {containerDetails?.brand_name ||
+                          currentContainer?.brand_name ||
+                          t('未知品牌')}
+                        {containerDetails?.hardware ||
+                        currentContainer?.hardware
+                          ? ` · ${containerDetails?.hardware || currentContainer?.hardware}`
+                          : ''}
                       </Text>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <FaServer className="text-purple-500" />
-                      <Text type="secondary">{t('GPU/容器')}</Text>
-                      <Text>{containerDetails?.gpus_per_container ?? currentContainer?.gpus_per_container ?? 0}</Text>
+                    <div className='flex items-center gap-2'>
+                      <FaServer className='text-purple-500' />
+                      <Text type='secondary'>{t('GPU/容器')}</Text>
+                      <Text>
+                        {containerDetails?.gpus_per_container ??
+                          currentContainer?.gpus_per_container ??
+                          0}
+                      </Text>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <FaClock className="text-orange-500" />
-                      <Text type="secondary">{t('创建时间')}</Text>
+                    <div className='flex items-center gap-2'>
+                      <FaClock className='text-orange-500' />
+                      <Text type='secondary'>{t('创建时间')}</Text>
                       <Text>
                         {containerDetails?.created_at
                           ? timestamp2string(containerDetails.created_at)
@@ -578,51 +629,64 @@ const ViewLogsModal = ({
                             : t('未知')}
                       </Text>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <FaInfoCircle className="text-green-500" />
-                      <Text type="secondary">{t('运行时长')}</Text>
-                      <Text>{containerDetails?.uptime_percent ?? currentContainer?.uptime_percent ?? 0}%</Text>
+                    <div className='flex items-center gap-2'>
+                      <FaInfoCircle className='text-green-500' />
+                      <Text type='secondary'>{t('运行时长')}</Text>
+                      <Text>
+                        {containerDetails?.uptime_percent ??
+                          currentContainer?.uptime_percent ??
+                          0}
+                        %
+                      </Text>
                     </div>
                   </div>
                 ) : (
-                  <Text size="small" type="secondary">
+                  <Text size='small' type='secondary'>
                     {t('暂无容器详情')}
                   </Text>
                 )}
 
-                {containerDetails?.events && containerDetails.events.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <Text size="small" type="secondary">
-                      {t('最近事件')}
-                    </Text>
-                    <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
-                      {containerDetails.events.slice(0, 5).map((event, index) => (
-                        <div key={`${event.time}-${index}`} className="flex gap-3 text-xs font-mono">
-                          <span className="text-gray-500">
-                            {event.time ? timestamp2string(event.time) : '--'}
-                          </span>
-                          <span className="text-gray-700 break-all flex-1">
-                            {event.message}
-                          </span>
-                        </div>
-                      ))}
+                {containerDetails?.events &&
+                  containerDetails.events.length > 0 && (
+                    <div className='bg-gray-50 rounded-lg p-3'>
+                      <Text size='small' type='secondary'>
+                        {t('最近事件')}
+                      </Text>
+                      <div className='mt-2 space-y-2 max-h-32 overflow-y-auto'>
+                        {containerDetails.events
+                          .slice(0, 5)
+                          .map((event, index) => (
+                            <div
+                              key={`${event.time}-${index}`}
+                              className='flex gap-3 text-xs font-mono'
+                            >
+                              <span className='text-gray-500'>
+                                {event.time
+                                  ? timestamp2string(event.time)
+                                  : '--'}
+                              </span>
+                              <span className='text-gray-700 break-all flex-1'>
+                                {event.message}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </>
           )}
         </Card>
 
         {/* Log Content */}
-        <div className="flex-1 flex flex-col border rounded-lg bg-gray-50 overflow-hidden">
-          <div 
+        <div className='flex-1 flex flex-col border rounded-lg bg-gray-50 overflow-hidden'>
+          <div
             ref={logContainerRef}
-            className="flex-1 overflow-y-auto bg-white"
+            className='flex-1 overflow-y-auto bg-white'
             style={{ maxHeight: '400px' }}
           >
             {loading && logLines.length === 0 ? (
-              <div className="flex items-center justify-center p-8">
+              <div className='flex items-center justify-center p-8'>
                 <Spin tip={t('加载日志中...')} />
               </div>
             ) : filteredLogs.length === 0 ? (
@@ -639,15 +703,14 @@ const ViewLogsModal = ({
               </div>
             )}
           </div>
-          
+
           {/* Footer status */}
           {logLines.length > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t text-xs text-gray-500">
+            <div className='flex items-center justify-between px-3 py-2 bg-gray-50 border-t text-xs text-gray-500'>
+              <span>{following ? t('正在跟随最新日志') : t('日志已加载')}</span>
               <span>
-                {following ? t('正在跟随最新日志') : t('日志已加载')}
-              </span>
-              <span>
-                {t('最后更新')}: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '--'}
+                {t('最后更新')}:{' '}
+                {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '--'}
               </span>
             </div>
           )}

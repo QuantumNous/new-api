@@ -265,24 +265,16 @@ func SetApiRouter(router *gin.Engine) {
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())
 		{
-			// List and search deployments
 			deploymentsRoute.GET("/", controller.GetAllDeployments)
 			deploymentsRoute.GET("/search", controller.SearchDeployments)
-
-			// Connection utilities
 			deploymentsRoute.POST("/test-connection", controller.TestIoNetConnection)
-
-			// Resource and configuration endpoints
 			deploymentsRoute.GET("/hardware-types", controller.GetHardwareTypes)
 			deploymentsRoute.GET("/locations", controller.GetLocations)
 			deploymentsRoute.GET("/available-replicas", controller.GetAvailableReplicas)
 			deploymentsRoute.POST("/price-estimation", controller.GetPriceEstimation)
 			deploymentsRoute.GET("/check-name", controller.CheckClusterNameAvailability)
-
-			// Create new deployment
 			deploymentsRoute.POST("/", controller.CreateDeployment)
 
-			// Individual deployment operations
 			deploymentsRoute.GET("/:id", controller.GetDeployment)
 			deploymentsRoute.GET("/:id/logs", controller.GetDeploymentLogs)
 			deploymentsRoute.GET("/:id/containers", controller.ListDeploymentContainers)
@@ -291,14 +283,6 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
-
-			// Future batch operations:
-			// deploymentsRoute.POST("/:id/start", controller.StartDeployment)
-			// deploymentsRoute.POST("/:id/stop", controller.StopDeployment)
-			// deploymentsRoute.POST("/:id/restart", controller.RestartDeployment)
-			// deploymentsRoute.POST("/batch_delete", controller.BatchDeleteDeployments)
-			// deploymentsRoute.POST("/batch_start", controller.BatchStartDeployments)
-			// deploymentsRoute.POST("/batch_stop", controller.BatchStopDeployments)
 		}
 	}
 }
