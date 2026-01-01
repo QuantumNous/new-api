@@ -219,7 +219,7 @@ export function timestamp2string(timestamp) {
 
 export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour') {
   let date = new Date(timestamp * 1000);
-  // let year = date.getFullYear().toString();
+  let year = date.getFullYear().toString();
   let month = (date.getMonth() + 1).toString();
   let day = date.getDate().toString();
   let hour = date.getHours().toString();
@@ -235,11 +235,12 @@ export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour') {
   if (hour.length === 1) {
     hour = '0' + hour;
   }
-  let str = month + '-' + day;
+  let str = year + '-' + month + '-' + day;
   if (dataExportDefaultTime === 'hour') {
     str += ' ' + hour + ':00';
   } else if (dataExportDefaultTime === 'week') {
     let nextWeek = new Date(timestamp * 1000 + 6 * 24 * 60 * 60 * 1000);
+    let nextYear = nextWeek.getFullYear().toString();
     let nextMonth = (nextWeek.getMonth() + 1).toString();
     let nextDay = nextWeek.getDate().toString();
     if (nextMonth.length === 1) {
@@ -248,7 +249,7 @@ export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour') {
     if (nextDay.length === 1) {
       nextDay = '0' + nextDay;
     }
-    str += ' - ' + nextMonth + '-' + nextDay;
+    str += ' - ' + nextYear + '-' + nextMonth + '-' + nextDay;
   }
   return str;
 }
