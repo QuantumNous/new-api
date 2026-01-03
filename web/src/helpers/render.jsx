@@ -73,6 +73,7 @@ import {
   Settings,
   CircleUser,
   Package,
+  Server,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -114,6 +115,8 @@ export function getLucideIcon(key, selected = false) {
       return <User {...commonProps} color={iconColor} />;
     case 'models':
       return <Package {...commonProps} color={iconColor} />;
+    case 'deployment':
+      return <Server {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     default:
@@ -1086,9 +1089,12 @@ function renderPriceSimpleCore({
   );
   const finalGroupRatio = effectiveGroupRatio;
 
+  const { symbol, rate } = getCurrencyConfig();
   if (modelPrice !== -1) {
-    return i18next.t('价格：${{price}} * {{ratioType}}：{{ratio}}', {
-      price: modelPrice,
+    const displayPrice = (modelPrice * rate).toFixed(6);
+    return i18next.t('价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}}', {
+      symbol: symbol,
+      price: displayPrice,
       ratioType: ratioLabel,
       ratio: finalGroupRatio,
     });

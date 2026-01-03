@@ -13,6 +13,7 @@ import (
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -23,11 +24,8 @@ import (
 )
 
 const (
-	contextKeyTTSRequest          = "volcengine_tts_request"
-	contextKeyResponseFormat      = "response_format"
-	DoubaoCodingPlan              = "doubao-coding-plan"
-	DoubaoCodingPlanClaudeBaseURL = "https://ark.cn-beijing.volces.com/api/coding"
-	DoubaoCodingPlanOpenAIBaseURL = "https://ark.cn-beijing.volces.com/api/coding/v3"
+	contextKeyTTSRequest     = "volcengine_tts_request"
+	contextKeyResponseFormat = "response_format"
 )
 
 type Adaptor struct {
@@ -39,6 +37,10 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertClaudeRequest(c, info, req)
+	}
 	adaptor := openai.Adaptor{}
 	return adaptor.ConvertClaudeRequest(c, info, req)
 }
@@ -238,11 +240,12 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if baseUrl == "" {
 		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
 	}
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if baseUrl == DoubaoCodingPlan {
-			return fmt.Sprintf("%s/v1/messages", DoubaoCodingPlanClaudeBaseURL), nil
+		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
 			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
@@ -251,8 +254,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeChatCompletions:
-			if baseUrl == DoubaoCodingPlan {
-				return fmt.Sprintf("%s/chat/completions", DoubaoCodingPlanOpenAIBaseURL), nil
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 			}
 			if strings.HasPrefix(info.UpstreamModelName, "bot") {
 				return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
@@ -267,6 +270,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		//	return fmt.Sprintf("%s/api/v3/images/edits", baseUrl), nil
 		case constant.RelayModeRerank:
 			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
+		case constant.RelayModeResponses:
+			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
@@ -320,7 +325,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -340,6 +345,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatClaude {
+		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+			if info.IsStream {
+				return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
+			}
+			return claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
+		}
+	}
+
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		encoding := mapEncoding(c.GetString(contextKeyResponseFormat))
 		if info.IsStream {

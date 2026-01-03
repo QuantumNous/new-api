@@ -192,6 +192,10 @@ func sizeToResolution(size string) (string, error) {
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
 	aliRatios := map[string]map[string]float64{
+		"wan2.6-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
 		"wan2.5-t2v-preview": {
 			"480P":  1,
 			"720P":  2,
@@ -287,7 +291,9 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 				aliReq.Parameters.Size = "1280*720"
 			}
 		} else {
-			if strings.HasPrefix(req.Model, "wan2.5") {
+			if strings.HasPrefix(req.Model, "wan2.6") {
+				aliReq.Parameters.Resolution = "1080P"
+			} else if strings.HasPrefix(req.Model, "wan2.5") {
 				aliReq.Parameters.Resolution = "1080P"
 			} else if strings.HasPrefix(req.Model, "wan2.2-i2v-flash") {
 				aliReq.Parameters.Resolution = "720P"
@@ -393,7 +399,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 }
 
 // FetchTask 查询任务状态
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -408,7 +414,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 
 	req.Header.Set("Authorization", "Bearer "+key)
 
-	return service.GetHttpClient().Do(req)
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

@@ -3,8 +3,9 @@ package constant
 type ContextKey string
 
 const (
-	ContextKeyTokenCountMeta ContextKey = "token_count_meta"
-	ContextKeyPromptTokens   ContextKey = "prompt_tokens"
+	ContextKeyTokenCountMeta  ContextKey = "token_count_meta"
+	ContextKeyPromptTokens    ContextKey = "prompt_tokens"
+	ContextKeyEstimatedTokens ContextKey = "estimated_tokens"
 
 	ContextKeyOriginalModel    ContextKey = "original_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
@@ -17,6 +18,7 @@ const (
 	ContextKeyTokenSpecificChannelId ContextKey = "specific_channel_id"
 	ContextKeyTokenModelLimitEnabled ContextKey = "token_model_limit_enabled"
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
+	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"
@@ -35,6 +37,10 @@ const (
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
+
+	ContextKeyAutoGroup           ContextKey = "auto_group"
+	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
+	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"

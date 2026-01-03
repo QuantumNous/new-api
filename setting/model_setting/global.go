@@ -32,7 +32,7 @@ func GetGlobalSettings() *GlobalSettings {
 	return &globalSettings
 }
 
-// ShouldPreserveThinkingSuffix 判断模型是否配置为保留 thinking/-nothinking 后缀
+// ShouldPreserveThinkingSuffix 判断模型是否配置为保留 thinking/-nothinking/-low/-high/-medium 后缀
 func ShouldPreserveThinkingSuffix(modelName string) bool {
 	target := strings.TrimSpace(modelName)
 	if target == "" {

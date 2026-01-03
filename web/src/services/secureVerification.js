@@ -42,12 +42,12 @@ export class SecureVerificationService {
           isPasskeySupported(),
         ]);
 
-      console.log('=== DEBUGGING VERIFICATION METHODS ===');
-      console.log('2FA Response:', JSON.stringify(twoFAResponse, null, 2));
-      console.log(
-        'Passkey Response:',
-        JSON.stringify(passkeyResponse, null, 2),
-      );
+      // console.log('=== DEBUGGING VERIFICATION METHODS ===');
+      // console.log('2FA Response:', JSON.stringify(twoFAResponse, null, 2));
+      // console.log(
+      //   'Passkey Response:',
+      //   JSON.stringify(passkeyResponse, null, 2),
+      // );
 
       const has2FA =
         twoFAResponse.data?.success &&

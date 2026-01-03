@@ -20,7 +20,11 @@ func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if strings.HasSuffix(k, "Token") || strings.HasSuffix(k, "Secret") || strings.HasSuffix(k, "Key") {
+		if strings.HasSuffix(k, "Token") ||
+			strings.HasSuffix(k, "Secret") ||
+			strings.HasSuffix(k, "Key") ||
+			strings.HasSuffix(k, "secret") ||
+			strings.HasSuffix(k, "api_key") {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -68,6 +72,14 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
+			})
+			return
+		}
+	case "discord.enabled":
+		if option.Value == "true" && system_setting.GetDiscordSettings().ClientId == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 Discord OAuth，请先填入 Discord Client Id 以及 Discord Client Secret！",
 			})
 			return
 		}

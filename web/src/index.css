@@ -108,6 +108,7 @@ code {
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
+  background: var(--semi-color-bg-0);
 }
 
 .sidebar-nav {
@@ -219,6 +220,22 @@ code {
 /* 侧边栏区域容器 */
 .sidebar-section {
   padding-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .sidebar-container {
+    background: var(--semi-color-bg-1);
+    border-right: 1px solid var(--semi-color-border);
+  }
+
+  .sidebar-nav {
+    background: var(--semi-color-bg-1);
+  }
+
+  .sidebar-collapse-button {
+    background-color: var(--semi-color-bg-1);
+    box-shadow: 0 -10px 10px -5px var(--semi-color-bg-1);
+  }
 }
 
 /* ==================== 聊天界面样式 ==================== */
