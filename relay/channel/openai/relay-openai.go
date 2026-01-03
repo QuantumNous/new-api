@@ -290,7 +290,7 @@ func (b *chatStreamResponsesBridge) computeUsage(c *gin.Context, info *relaycomm
 	if text == "" {
 		return &dto.Usage{}
 	}
-	return service.ResponseText2Usage(c, text, info.UpstreamModelName, info.PromptTokens)
+	return service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 }
 
 func (b *chatStreamResponsesBridge) finalize(c *gin.Context, usage *dto.Usage, includeUsage bool) error {

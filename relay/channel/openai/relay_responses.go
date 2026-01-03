@@ -220,7 +220,7 @@ func streamResponsesAsChat(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	})
 
 	if !service.ValidUsage(usage) {
-		textUsage := service.ResponseText2Usage(c, state.textBuilder.String(), info.UpstreamModelName, info.PromptTokens)
+		textUsage := service.ResponseText2Usage(c, state.textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage = textUsage
 	}
 
