@@ -39,6 +39,7 @@ import { useTranslation } from 'react-i18next';
 import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
+import CheckinCalendar from './personal/cards/CheckinCalendar';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
@@ -446,6 +447,13 @@ const PersonalSetting = () => {
         <div className='w-full max-w-7xl mx-auto px-2'>
           {/* 顶部用户信息区域 */}
           <UserInfoHeader t={t} userState={userState} />
+
+          {/* 签到日历 - 仅在启用时显示 */}
+          {status?.checkin_enabled && (
+            <div className='mt-4 md:mt-6'>
+              <CheckinCalendar t={t} status={status} />
+            </div>
+          )}
 
           {/* 账户管理和其他设置 */}
           <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>

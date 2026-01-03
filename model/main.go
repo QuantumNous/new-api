@@ -248,26 +248,27 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
-    err := DB.AutoMigrate(
-        &Channel{},
-        &Token{},
-        &User{},
-        &PasskeyCredential{},
+	err := DB.AutoMigrate(
+		&Channel{},
+		&Token{},
+		&User{},
+		&PasskeyCredential{},
 		&Option{},
-        &Redemption{},
-        &Ability{},
-        &Log{},
-        &Midjourney{},
-        &TopUp{},
-        &QuotaData{},
-        &Task{},
-        &Model{},
-        &Vendor{},
-        &PrefillGroup{},
-        &Setup{},
-        &TwoFA{},
-        &TwoFABackupCode{},
-    )
+		&Redemption{},
+		&Ability{},
+		&Log{},
+		&Midjourney{},
+		&TopUp{},
+		&QuotaData{},
+		&Task{},
+		&Model{},
+		&Vendor{},
+		&PrefillGroup{},
+		&Setup{},
+		&TwoFA{},
+		&TwoFABackupCode{},
+		&Checkin{},
+	)
 	if err != nil {
 		return err
 	}
@@ -278,29 +279,30 @@ func migrateDBFast() error {
 
 	var wg sync.WaitGroup
 
-    migrations := []struct {
-        model interface{}
-        name  string
-    }{
-        {&Channel{}, "Channel"},
-        {&Token{}, "Token"},
-        {&User{}, "User"},
-        {&PasskeyCredential{}, "PasskeyCredential"},
+	migrations := []struct {
+		model interface{}
+		name  string
+	}{
+		{&Channel{}, "Channel"},
+		{&Token{}, "Token"},
+		{&User{}, "User"},
+		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
-        {&Redemption{}, "Redemption"},
-        {&Ability{}, "Ability"},
-        {&Log{}, "Log"},
-        {&Midjourney{}, "Midjourney"},
-        {&TopUp{}, "TopUp"},
-        {&QuotaData{}, "QuotaData"},
-        {&Task{}, "Task"},
-        {&Model{}, "Model"},
-        {&Vendor{}, "Vendor"},
-        {&PrefillGroup{}, "PrefillGroup"},
-        {&Setup{}, "Setup"},
-        {&TwoFA{}, "TwoFA"},
-        {&TwoFABackupCode{}, "TwoFABackupCode"},
-    }
+		{&Redemption{}, "Redemption"},
+		{&Ability{}, "Ability"},
+		{&Log{}, "Log"},
+		{&Midjourney{}, "Midjourney"},
+		{&TopUp{}, "TopUp"},
+		{&QuotaData{}, "QuotaData"},
+		{&Task{}, "Task"},
+		{&Model{}, "Model"},
+		{&Vendor{}, "Vendor"},
+		{&PrefillGroup{}, "PrefillGroup"},
+		{&Setup{}, "Setup"},
+		{&TwoFA{}, "TwoFA"},
+		{&TwoFABackupCode{}, "TwoFABackupCode"},
+		{&Checkin{}, "Checkin"},
+	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
 
