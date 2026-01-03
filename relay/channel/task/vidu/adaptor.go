@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/gin-gonic/gin"
-
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 
 	"github.com/pkg/errors"
 )
@@ -120,10 +119,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 
-	if info.Action == constant.TaskActionReferenceGenerate {
+	switch info.Action {
+	case constant.TaskActionReferenceGenerate, constant.TaskActionTextGenerate:
+		// 参考图生视频和文生视频只能用 viduq2 模型, 不能带有pro或turbo后缀 https://platform.vidu.cn/docs/reference-to-video
 		if strings.Contains(body.Model, "viduq2") {
-			// 参考图生视频只能用 viduq2 模型, 不能带有pro或turbo后缀 https://platform.vidu.cn/docs/reference-to-video
 			body.Model = "viduq2"
+		}
+	case constant.TaskActionGenerate, constant.TaskActionFirstTailGenerate:
+		// 图生视频和首尾帧生视频只能用 viduq2-turbo 或 viduq2-pro
+		if body.Model == "viduq2" {
+			body.Model = "viduq2-turbo"
 		}
 	}
 
