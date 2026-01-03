@@ -763,7 +763,10 @@ func checkUpdatePassword(originalPassword string, newPassword string, userId int
 	if err != nil {
 		return
 	}
-	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) {
+
+	// 密码不为空,需要验证原密码
+	// 支持第一次账号绑定时原密码为空的情况
+	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) && currentUser.Password != "" {
 		err = fmt.Errorf("原密码错误")
 		return
 	}

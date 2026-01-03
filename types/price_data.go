@@ -26,12 +26,22 @@ type PriceData struct {
 	GroupRatioInfo       GroupRatioInfo
 }
 
+func (p *PriceData) AddOtherRatio(key string, ratio float64) {
+	if p.OtherRatios == nil {
+		p.OtherRatios = make(map[string]float64)
+	}
+	if ratio <= 0 {
+		return
+	}
+	p.OtherRatios[key] = ratio
+}
+
 type PerCallPriceData struct {
 	ModelPrice     float64
 	Quota          int
 	GroupRatioInfo GroupRatioInfo
 }
 
-func (p PriceData) ToSetting() string {
+func (p *PriceData) ToSetting() string {
 	return fmt.Sprintf("ModelPrice: %f, ModelRatio: %f, CompletionRatio: %f, CacheRatio: %f, GroupRatio: %f, UsePrice: %t, CacheCreationRatio: %f, CacheCreation5mRatio: %f, CacheCreation1hRatio: %f, QuotaToPreConsume: %d, ImageRatio: %f, AudioRatio: %f, AudioCompletionRatio: %f", p.ModelPrice, p.ModelRatio, p.CompletionRatio, p.CacheRatio, p.GroupRatioInfo.GroupRatio, p.UsePrice, p.CacheCreationRatio, p.CacheCreation5mRatio, p.CacheCreation1hRatio, p.QuotaToPreConsume, p.ImageRatio, p.AudioRatio, p.AudioCompletionRatio)
 }

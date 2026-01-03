@@ -26,12 +26,20 @@ func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, requ
 	if wanInput.Images, err = getImageBase64sFromForm(c, "image"); err != nil {
 		return nil, fmt.Errorf("get image base64s from form failed: %w", err)
 	}
-	wanParams := WanImageParameters{
+	//wanParams := WanImageParameters{
+	//	N: int(request.N),
+	//}
+	imageRequest.Input = wanInput
+	imageRequest.Parameters = AliImageParameters{
 		N: int(request.N),
 	}
-	imageRequest.Input = wanInput
-	imageRequest.Parameters = wanParams
+	info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
+
 	return &imageRequest, nil
+}
+
+func isOldWanModel(modelName string) bool {
+	return strings.Contains(modelName, "wan") && !strings.Contains(modelName, "wan2.6")
 }
 
 func isWanModel(modelName string) bool {
