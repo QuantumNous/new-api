@@ -1,0 +1,10 @@
+$transition_duration-collapsible-height: 250ms;//折叠-高度-动画持续时间
+$transition_function-collapsible-height: cubic-bezier(0.25,0.1,0.25,1);//折叠-高度-过渡曲线
+$transition_delay-collapsible-height: var(--semi-transition_delay-none);//折叠-高度-延迟时间
+
+$transition_duration-collapsible-opacity: 250ms;//折叠-透明度-动画持续时间
+$transition_function-collapsible-opacity: var(--semi-transition_function-easeIn);//折叠-透明度-过渡曲线
+$transition_delay-collapsible-opacity: var(--semi-transition_delay-none);//折叠-透明度-延迟时间
+
+
+

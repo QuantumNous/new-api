@@ -1,0 +1,73 @@
+// Other
+$spacing-switch_unchecked-translateX: 2px; // 未选中开关右侧偏移量
+$spacing-switch_spin_unchecked-translateX: 2px; // 未选中开关加载图标右侧偏移量
+$spacing-switch_checked-translateX: 18px; // 选中开关右侧偏移量
+$spacing-switch_spin_checked-translateX: 16px; // 选中开关加载图标右侧偏移量
+$spacing-switch_expand_large-translateX: 10px;
+$spacing-switch_unchecked_large-translateX: 3px; // 大尺寸未选中开关右侧偏移量
+$spacing-switch_spin_unchecked_large-translateX: 2px;  // 大尺寸未选中开关加载图标右侧偏移量
+$spacing-switch_checked_large-translateX: 26px; // 大尺寸选中开关右侧偏移量
+$spacing-switch_spin_checked_large-translateX: 22px; // 大尺寸选中开关加载图标右侧偏移量
+$spacing-switch_expand_small-translateX: 2px;
+$spacing-switch_unchecked_small-translateX: 1px; // 小尺寸未选中开关右侧偏移量
+$spacing-switch_spin_unchecked_small-translateX: 2px; // 小尺寸未选中开关加载图标右侧偏移量
+$spacing-switch_checked_small-translateX: 11px; // 小尺寸选中开关右侧偏移量
+$spacing-switch_spin_checked_small-translateX: 10px; // 小尺寸选中开关加载图标右侧偏移量
+$motion-switch-transitionDuration: 200ms; // 开关动画时长
+
+// Color
+$color-switch_default-bg-default: var(--semi-color-fill-0); // 关闭态开关背景色 - 默认
+$color-switch_default-bg-hover: var(--semi-color-fill-1); // 关闭态开关背景色 - 悬浮
+$color-switch_default-bg-active: var(--semi-color-fill-2); // 关闭态开关背景色 - 按下
+$color-switch_default-border-default: transparent; // 关闭态开关描边颜色
+$color-switch_checked-bg-default: var(--semi-color-success); // 开启态开关背景色 - 默认
+$color-switch_checked-bg-hover: var(--semi-color-success-hover); // 开启态开关背景色 - 悬浮
+$color-switch_checked-bg-active: var(--semi-color-success-active); // 开启态开关背景色 - 按下
+$color-switch_disabled-bg-default: transparent; // 禁用态开关背景色
+$color-switch_disabled-bg-hover: transparent; // 禁用态开关背景色 - 悬浮
+$color-switch_disabled-bg-active: transparent; // 禁用态开关背景色 - 按下
+$color-switch_disabled-border-default: var(--semi-color-border); // 禁用态开关描边颜色
+$color-switch_disabled-bg-hover: transparent; // 禁用态开关背景色 - 悬浮
+$color-switch_checked_disabled-bg-default: var(--semi-color-success-disabled); // 禁用开启态开关背景颜色
+$color-switch_checked_disabled-border-default: transparent; // 禁用开启态开关描边颜色
+$color-switch_knob-bg-default: rgba(var(--semi-white), 1); // 开关按钮背景颜色
+$color-switch_knob-border-default: var(--semi-color-border); // 开关按钮描边颜色
+$color-switch_checked-text-default: var(--semi-color-white); // 开启态开关按钮文字颜色
+$color-switch_unchecked-text-default: var(--semi-color-text-2); // 关闭态开关按钮文字颜色
+$color-switch_loading_spin-default: var(--semi-color-white); // 加载态开关loading图标颜色
+$color-switch_spin_checked-bg-default: var(--semi-color-success-hover); // 已开启开关加载态loading背景颜色
+$color-switch_spin_unchecked-bg-default: var(--semi-color-fill-1); // 已关闭开关加载态loading背景颜色
+$color-switch_primary-outline-focus: var(--semi-color-primary-light-active); // 开关轮廓 - 聚焦
+
+// Width/Height
+$width-switch: 40px; // 开关宽度
+$height-switch: 24px; // 开关高度
+$width-switch_knob_expand: 6px; // 开关按钮形变宽度
+$width-switch_knob_default: 18px; // 开关按钮宽度
+$width-switch_knob_active: $width-switch_knob_default + $width-switch_knob_expand; // 开关按钮按下态宽度
+$height-switch_large: 32px; // 大尺寸开关高度
+$width-switch_large: 54px; // 大尺寸开关宽度
+$width-switch_knob_large: 24px; // 大尺寸开关按钮宽度
+$width-switch_knob_large_active: $width-switch_knob_large + $spacing-switch_expand_large-translateX; // 大尺寸开关按钮按下态宽度
+$height-switch_small: 16px; // 小尺寸开关高度
+$width-switch_small: 26px; // 小尺寸开关宽度
+$width-switch_knob_large_small: 12px; // 小尺寸开关按钮宽度
+$width-switch_knob_small_active: $width-switch_knob_large_small + $spacing-switch_expand_small-translateX; // 小尺寸开关按钮按下态宽度
+$width-switch_knob_disabled-border: 1px; // 小尺寸开关按钮宽度
+$width-switch_checked_unchecked_text: 26px; // 开关按钮文字宽度
+$width-switch_spin-small: 10px; // 小尺寸开关加载 spin 宽度
+$width-switch_spin-default: 18px; // 默认尺寸开关加载 spin 宽度
+$width-switch_spin-large: 28px; // 大尺寸开关加载 spin 宽度
+$width-switch-outline: 2px; // 开关轮廓宽度
+
+
+// Spacing
+$spacing-switch_knob-padding: 2px; // 开关按钮顶部边距
+$spacing-switch_knob_large-padding: 3px; // 大尺寸开关按钮内边距
+$spacing-switch_knob_small-padding: 1px; // 小尺寸开关按钮内边距
+$spacing-switch_knob-left: 0px; // 开关左侧偏移距离
+
+// Radius
+$radius-switch: $height-switch * 0.5; // 开关圆角
+$radius-switch_large: $height-switch_large * 0.5; // 大尺寸开关圆角
+$radius-switch_small: $height-switch_small * 0.5; // 小尺寸开关圆角

@@ -1,0 +1,359 @@
+$module: #{$prefix}-steps;
+$item: #{$module}-item;
+$basicType: #{$module}-basic;
+
+.#{$basicType} {
+
+    &.#{$module}-horizontal {
+        display: flex;
+        flex-flow: row nowrap;
+
+        &.#{$module}-hasline {
+            .#{$item}-title {
+
+                &::after {
+                    content: "";
+                    position: absolute;
+                    top: 50%;
+                    left: 100%;
+                    display: block;
+                    width: $width-steps_title_after;
+                    height: $height-steps_title_after;
+                    background: $color-steps_title_after-bg;
+                }
+            }
+        }
+
+        .#{$item} {
+            padding-left: $spacing-steps_basic_item-paddingLeft;
+
+            &:first-child {
+                padding-left: 0;
+            }
+
+            &:last-child {
+                flex: none;
+
+                .#{$item}-title {
+                    max-width: 100%;
+                    padding-right: 0;
+
+                    &::after {
+                        display: none;
+                    }
+                }
+            }
+
+            &-done {
+                .#{$item}-container {
+                    .#{$item}-title {
+
+                        &::after {
+                            background: $color-steps_item_done_after-bg;
+                        }
+                    }
+                }
+            }
+
+            .#{$item}-content {
+                flex: 1;
+            }
+
+            .#{$item}-description {
+                @include font-size-small;
+                color: $color-steps_minor-text-default;
+                width: $width-steps_basic_item_description;
+                max-width: $width-steps_basic_item_description-maxWidth;
+                @include text-overflow-hidden;
+            }
+
+            .#{$item}-title {
+                max-width: $width-steps_basic_item_title-maxWidth;
+                
+                .#{$item}-title-text {
+                    @include text-overflow-hidden;
+                    transition: color $transition_duration-steps_item_title-text $transition_function-steps_item_title-text $transition_delay-steps_item_title-text
+                       
+                }
+            }
+
+        }
+    }
+
+    &.#{$module}-vertical {
+        display: flex;
+        flex-flow: column nowrap;
+
+        .#{$item}-icon {
+            box-sizing: content-box;
+        }
+
+        &.#{$module}-small {
+            .#{$item} {
+                .#{$item}-content {
+                    min-height: $height-steps_basic_vertical_small_item_content-minHeight;
+                }
+            }
+        }
+
+        &.#{$module}-hasline {
+            .#{$item}-icon {
+
+                &::after {
+                    content: "";
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    display: block;
+                    width: $width-steps_vertical_icon_after;
+                    height: $height-steps_vertical_icon_after;
+                    background: $color-steps_icon_after-bg;
+                }
+            }
+        }
+
+        .#{$item} {
+            padding-top: $spacing-steps_basic_vertical_item-paddingTop;
+
+            &:first-child {
+                padding-top: 0;
+            }
+
+            &:last-child {
+                .#{$item}-icon {
+
+                    &::after {
+                        display: none;
+                    }
+                }
+            }
+
+            &-done {
+                .#{$item}-icon {
+
+                    &::after {
+                        background: $color-steps_item_done_icon_after-bg;
+                    }
+                }
+            }
+
+            .#{$item}-content {
+                min-height: $height-steps_basic_vertical_icon_content-minHeight;
+                padding-bottom: $spacing-steps_basic_vertical_item_content-paddingBottom;
+            }
+
+            .#{$item}-icon {
+                display: inline-flex;
+                position: relative;
+                padding-bottom: $spacing-steps_basic_vertical_item_icon-paddingBottom;
+            }
+
+            .#{$item}-description {
+                @include font-size-small;
+                color: $color-steps_minor-text-default;
+                width: $width-steps_basic_vertical_item_description;
+            }
+
+            .#{$item}-title {
+                max-width: $width-steps_basic_vertical_item_title-maxWidth;
+
+                .#{$item}-title-text {
+                    @include text-overflow-hidden;
+                }
+            }
+        }
+    }
+
+    .#{$item} {
+        @include box-sizing;
+        position: relative;
+        display: inline-block;
+        vertical-align: top;
+        overflow: hidden;
+        flex: 1;
+        transition: color $transition_duration-steps_item_title-text $transition_function-steps_item_title-text $transition_delay-steps_item_title-text, //step文字color的transition变化
+        background-color $transition_duration-steps_item-backgroundColor $transition_function-steps_item_backgroundColor $transition_delay-steps_item_backgroundColor; //step backgroundColor 的transition变化
+        
+        transform:scale($transform_scale-step-item);
+
+        &-clickable {
+            cursor: pointer;
+        }
+
+        &-hover:hover {
+
+            .#{$item}-title {
+                color: $color-steps_item_title-text-hover;
+            }
+
+            .#{$item}-description {
+                color: $color-steps_item_description-text-hover;
+            }
+        }
+
+        .#{$item}-container {
+            display: flex;
+            align-items: flex-start;
+        }
+        .#{$item}-left {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: $spacing-steps_basic_item_left-marginRight;
+            
+
+            .#{$item}-icon {
+                display: flex;
+                height: $height-steps_basic_item_left-icon;
+                align-items: center;
+            }
+
+            .#{$item}-number-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: $width-steps_basic_item_left_number-icon;
+                height: $height-steps_basic_item_left_number-icon;
+                @include font-size-header-6;
+                font-weight: $font-steps_basic_item_left_number_icon-fontWeight;
+                background: $color-steps_item_left_number_icon-bg;
+                border-radius: $radius-steps_basic_item_left_number_icon;
+                color: $color-steps_item_left_number_icon-icon;
+                transition: color $transition_duration-steps_item_title-icon $transition_function-steps_item_title-icon $transition_delay-steps_item_title-icon; //step icon color的transition变化
+            }
+        }
+
+
+        .#{$item}-title {
+            position: relative;
+            display: inline-block;
+            @include font-size-header-6;
+            line-height: $font-steps_basic_item_title-lineHeight;
+            font-weight: $font-steps_basic_item_title-fontWeight;
+            color: $color-steps_main-text-default;
+            vertical-align: top;
+            padding-right: $spacing-steps_basic_item_title-paddingRight;
+            margin-bottom: $spacing-steps_basic_item_title-paddingBottom;
+            transition: color $transition_duration-steps_item_title-text $transition_function-steps_item_title-text $transition_delay-steps_item_title-text; //step文字color的transition变化
+       
+        }
+
+        // 完成状态的样式
+
+        &-finish {
+            .#{$item}-left {
+
+                .#{$item}-icon {
+                    color: $color-steps_item_finish-icon;
+
+                    .#{$item}-number-icon {
+                        color: $color-steps_item_finish_number-icon;
+                    }
+                }
+            }
+
+
+        }
+
+        // 等待状态的样式
+
+        &-wait {
+            .#{$item}-title {
+                color: $color-steps_item_wait_title-text;
+            }
+
+            .#{$item}-left {
+
+                .#{$item}-icon {
+                    color: $color-steps_item_wait_left_icon-icon;
+
+                    .#{$item}-number-icon {
+                        background: $color-steps_item_wait_left_number_icon-bg;
+                        color: $color-steps_item_wait_left_number_icon-icon;
+                    }
+                }
+            }
+
+            &-hover:hover {
+                .#{$item}-left {
+
+                    .#{$item}-icon {
+
+                        .#{$item}-number-icon {
+                            background: $color-steps_item_wait_left_number_icon-bg-hover;
+                            color: $color-steps_item_wait_left_number_icon-icon-hover;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 进行状态的样式
+
+        &-process {
+            .#{$item}-left {
+
+                .#{$item}-icon {
+                    color: $color-steps_item_process_left-icon;
+
+                    .#{$item}-number-icon {
+                        color: $color-steps_item_process_left_number-icon;
+                    }
+                }
+            }
+        }
+
+        // 错误状态的样式
+
+        &-error {
+            .#{$item}-left {
+
+                .#{$item}-icon {
+                    color: $color-steps_item_error_left-icon;
+
+                    .#{$item}-number-icon {
+                        color: $color-steps_item_error_left_number-icon;
+                    }
+                }
+            }
+        }
+
+        // 警告状态的样式
+
+        &-warning {
+            .#{$item}-left {
+
+                .#{$item}-icon {
+                    color: $color-steps_item_warning_left-icon;
+
+                    .#{$item}-number-icon {
+                        color: $color-steps_item_warning_left_number-icon;
+                    }
+                }
+            }
+        }
+    }
+
+    &.#{$module}-small {
+
+        .#{$item} {
+
+            .#{$item}-title {
+                @include font-size-regular;
+            }
+
+            .#{$item}-left {
+
+                .#{$item}-icon {
+                    height: $height-steps_basic_small_item_left-icon;
+
+                    .#{$item}-number-icon {
+                        @include font-size-small;
+                        width: $width-steps_basic_small_item_left_number-icon;
+                        height: $width-steps_basic_small_item_left_number-icon;
+                    }
+                }
+            }
+        }
+    }
+}

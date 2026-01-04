@@ -1,0 +1,98 @@
+/* 用于 suggestion */
+/* Dropdown menu */
+.dropdown-menu {
+    background: var(--semi-color-white);
+    border: 1px solid var(--semi-color-border);
+    border-radius: 0.7rem;
+    box-shadow: var(--semi-color-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    overflow: auto;
+    padding: 0.4rem;
+    position: relative;
+}
+
+.dropdown-menu div {
+    align-items: center;
+    background-color: transparent;
+    display: flex;
+    gap: 0.25rem;
+    text-align: left;
+    width: 100%;
+}
+
+.dropdown-menu .optionItem {
+    border-radius: 4px;
+    padding: 4px 8px;
+    justify-content: space-between;
+    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 20px;
+
+    .option-item-arrow {
+        color: var(--semi-color-text-2);
+    }
+}
+
+.dropdown-menu .optionItem:hover, .dropdown-menu .optionItem:hover.is-selected {
+    background-color: var(--semi-color-fill-0);
+}
+
+.dropdown-menu .optionItem.is-selected {
+    background-color: var(--semi-color-fill-0);
+}
+
+.mention {
+    background-color: var(--semi-color-success);
+    color: var(--semi-color-primary);
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 6px 6px;
+}
+
+.level2Item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    width: 100%;
+    flex-shrink: 1;
+    min-width: 0;
+  
+    .name {
+        flex-shrink: 0;
+    }
+  
+    .icon {
+        flex-shrink: 0;
+    }
+  
+    .path {
+        flex-shrink: 1;
+        opacity: 0.5;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+        overflow: hidden;
+        display: inline-block;
+    }
+}
+
+.refer-slot {
+    background: var(--semi-color-fill-1);
+    color: var(--semi-color-text-1);
+    padding: 0px 4px;
+    font-size: 14px;
+    line-height: 24px;
+    border-radius: 4px;
+    outline: none;
+
+    &-wrapper {
+        display: inline-flex;
+        position: relative;
+        margin: 2px 2px;
+        border-radius: 4px;
+    }
+}

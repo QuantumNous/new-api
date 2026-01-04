@@ -1,0 +1,6 @@
+$transition_duration-rating-color: var(--semi-transition_duration-none);//评分-背景色-动画持续时间
+$transition_function-rating-color: var(--semi-transition_function-easeIn);//评分-背景色-过渡曲线
+$transition_delay-rating-color: var(--semi-transition_delay-none);//评分-背景色-延迟时间
+
+// transform token
+$transform_scale-rating: var(--semi-transform_scale-none);//评分-变大

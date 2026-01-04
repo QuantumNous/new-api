@@ -1,0 +1,117 @@
+@import "./animation.scss";
+@import './variables.scss';
+$module: #{$prefix}-skeleton;
+
+.#{$module} {
+    &-avatar,
+    &-image,
+    &-title,
+    &-button {
+        background: $color-skeleton_default-bg-default;
+        border-radius: $radius-skeleton_item;
+    }
+
+    &-avatar {
+        &-circle {
+            border-radius: 50%;
+        }
+
+        &-extra-extra-small {
+            width: $width-skeleton_avatar_extra_extra_small;
+            height: $width-skeleton_avatar_extra_extra_small;
+        }
+
+        &-extra-small {
+            width: $width-skeleton_avatar_extra_small;
+            height: $width-skeleton_avatar_extra_small;
+        }
+
+        &-medium {
+            width: $width-skeleton_avatar_medium;
+            height: $width-skeleton_avatar_medium;
+        }
+
+        &-small {
+            width: $width-skeleton_avatar_small;
+            height: $width-skeleton_avatar_small;
+        }
+
+        &-large {
+            width: $width-skeleton_avatar_large;
+            height: $width-skeleton_avatar_large;
+        }
+
+        &-extra-large {
+            width: $width-skeleton_avatar_extra_large;
+            height: $width-skeleton_avatar_extra_large;
+        }
+    }
+
+    &-paragraph {
+        margin: $spacing-none;
+        padding: $spacing-none;
+        list-style-type: none;
+
+        li {
+            background: $color-skeleton_default-bg-default;
+            border-radius: $radius-skeleton_li;
+            width: 100%;
+            height: $height-skeleton_li;
+            margin-bottom: $spacing-skeleton_li-marginBottom;
+
+            &:last-child {
+                width: 60%;
+                margin-bottom: $spacing-none;
+            }
+
+            &:first-child {
+                width: 100%;
+            }
+        }
+    }
+
+    &-title {
+        width: 100%;
+        height: $height-skeleton_title;
+    }
+
+    &-button {
+        width: $width-skeleton_button;
+        height: $height-skeleton_button;
+    }
+
+    &-image {
+        width: 100%;
+        height: 100%;
+    }
+
+    &-active {
+        .#{$module}-avatar,
+        .#{$module}-image,
+        .#{$module}-title,
+        .#{$module}-button,
+        .#{$module}-paragraph li {
+            background: linear-gradient(
+                90deg,
+                $color-skeleton_default-bg-default 25%,
+                $color-skeleton_loading-gradient-bg-active 44%,
+                $color-skeleton_default-bg-default 88%
+            );
+            background-size: 400% 100%;
+            animation: $animation_duration-skeleton-highlight skeleton-loading $animation_function-skeleton-highlight infinite;
+            animation-fill-mode: forwards;
+        }
+    }
+
+    @keyframes skeleton-loading {
+        0% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0 50%;
+        }
+    }
+}
+
+@import './rtl.scss';

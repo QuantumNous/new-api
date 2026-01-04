@@ -1,0 +1,41 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-pincode;
+
+
+
+.#{$module} {
+    &-wrapper{
+        display: flex;
+
+        .#{$prefix}-input-wrapper{
+            &-small{
+                width: $width-pinCode_input_small;
+                margin-right: $spacing-pinCode_small-marginRight;
+                &:last-child{
+                    margin-right: 0px;
+                }
+            }
+
+            &-default{
+                width: $width-pinCode_input_default;
+                margin-right: $spacing-pinCode_default-marginRight;
+                &:last-child{
+                    margin-right: 0px;
+                }
+            }
+
+            &-large{
+                width: $width-pinCode_input_large;
+                margin-right: $spacing-pinCode_large-marginRight;
+                &:last-child{
+                    margin-right: 0px;
+                }
+            }
+            input{
+                padding: 0;
+                text-align: center;
+            }
+        }
+    }
+}

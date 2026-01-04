@@ -1,0 +1,24 @@
+$height-inputNumber_button_default: $height-control-default; // 数字输入框高度 - 默认
+$height-inputNumber_button_large: $height-control-large; // 数字输入框高度 - 大
+$height-inputNumber_button_small: $height-control-small; // 数字输入框高度 - 小
+$height-inputNumber_button_inner_default: $height-control-default - 2px; // 隐藏步进器的数字输入框高度 - 默认
+$height-inputNumber_button_inner_large: $height-control-large - 2px; // 隐藏步进器的数字输入框高度 - 大
+$height-inputNumber_button_inner_small: $height-control-small - 2px; // 隐藏步进器的数字输入框高度 - 小
+
+$width-inputNumber_button: 14px; // 步进器按钮宽度
+$radius-inputNumber: var(--semi-border-radius-small); // 步进器按钮圆角 - 外部
+$radius-inputNumber_inner: var(--semi-border-radius-small); // 步进器按钮圆角 - 内部
+$spacing-inputNumber_button-marginLeft: 4px; // 步进器按钮左侧外边距
+$color-inputNumber_button-text-default: var(--semi-color-text-2); // 步进器按钮图标颜色
+$color-inputNumber_button-text-disabled: var(--semi-color-disabled-text); // 步进器按钮图标颜色 - 禁用
+$color-inputNumber_button-bg-default: var(--semi-color-bg-2); // 步进器按钮背景颜色
+$color-inputNumber_button-bg-disabled: var(--semi-color-disabled-fill); // 步进器按钮背景颜色 - 禁用
+$color-inputNumber_button-bg-hover: var(--semi-color-fill-0); // 步进器按钮图标颜色 - 悬浮
+$color-inputNumber_button-bg-active: var(--semi-color-fill-1); // 步进器按钮图标颜色 - 按下
+$color-inputNumber_button-border-default: var(--semi-color-border); // 步进器按钮描边颜色
+$color-inputNumber_button-border-hover: var(--semi-color-fill-2); // 步进器按钮描边颜色 - 悬浮
+
+$width-inputNumber_button-border: 1px; // 步进器按钮描边宽度
+
+$spacing-inputNumber_button_inner-marginLeft: $spacing-tight; // 隐藏步进器按钮左侧外边距
+$spacing-inputNumber_clearbtn_suffix-marginLeft: -$spacing-extra-tight; // 清空按钮左侧外边距

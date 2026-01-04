@@ -1,0 +1,33 @@
+$module: #{$prefix}-breadcrumb;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+
+        &-wrapper {
+            direction: rtl;
+        }
+
+        &-item-wrap {
+            margin-right: 0;
+            margin-left: $spacing-breadcrumb_item_wrap-marginRight;
+        }
+
+        &-item {
+            margin-right: 0;
+            margin-left: $spacing-breadcrumb_item-marginRight;
+        }
+
+
+        &-restItem {
+            margin-right: 0;
+            margin-left: $spacing-breadcrumb_restItem-marginRight;
+        }
+    }
+
+    .#{$module}-item-icon + .#{$module}-item-title {
+        margin-left: 0;
+        margin-right: $spacing-breadcrumb_item_text-marginLeft;
+        display: inline-block;
+    }
+}

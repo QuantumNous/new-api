@@ -1,0 +1,32 @@
+// Color
+$color-popconfirm_header-text: var(--semi-color-text-0); // 标题文字颜色
+$color-popconfirm_body-text: var(--semi-color-text-2); // 正文文字颜色
+$color-popconfirm_header_alert-icon: var(--semi-color-warning); // 警示图标颜色
+
+// Width/Height
+$width-popconfirm-icon: 24px; // 图标宽度
+$width-popconfirm_close_btn: 24px; // 关闭按钮宽度
+$width-popconfirm-maxWidth: 400px; // 整体最大宽度
+
+// Spacing
+$spacing-popconfirm-top: 24px; // 顶部内边距
+$spacing-popconfirm-bottom: 20px; // 底部内边距
+$spacing-popconfirm_btn_close-margin: 24px; // 关闭按钮顶部 & 右侧外边距
+$spacing-popconfirm_with_arrow-padding: 12px; // 顶部内边距
+$spacing-popconfirm_header_title-marginBottom: 8px; // header 标题底部外边距
+$spacing-popconfirm_header_content_p-padding: 0; // header 正文内边距
+$spacing-popconfirm_header_content_p-margin: 0; // header 正文外边距
+$spacing-popconfirm_body_p-padding: 0; // body 正文内边距
+$spacing-popconfirm_body_p-margin: 0; // body 正文外边距
+$spacing-popconfirm_footer-marginTop: 25px; // footer 顶部外边距
+$spacing-popconfirm_footer_btn-marginRight: 8px; // footer 按钮右侧外边距
+$spacing-popconfirm_popover_with_arrow_inner-padding: ($spacing-popconfirm-top - $spacing-popconfirm_with_arrow-padding) ($spacing-popconfirm-top - $spacing-popconfirm_with_arrow-padding) ($spacing-popconfirm-top - $spacing-popconfirm_with_arrow-padding) ($spacing-popconfirm-bottom - $spacing-popconfirm_with_arrow-padding); // 带三角形箭头时的内边距
+$spacing-popconfirm_popover_with_arrow_inner_rtl-padding: ($spacing-popconfirm-top - $spacing-popconfirm_with_arrow-padding) ($spacing-popconfirm-bottom - $spacing-popconfirm_with_arrow-padding) ($spacing-popconfirm-top - $spacing-popconfirm_with_arrow-padding) ($spacing-popconfirm-top - $spacing-popconfirm_with_arrow-padding); // 带三角形箭头时的内边距(rtl)
+$spacing-popconfirm_popover_with_arrow_inner_btn_close-marginTop: $spacing-popconfirm_btn_close-margin - $spacing-popconfirm_with_arrow-padding; // 带三角形箭头时关闭按钮的顶部外边距
+$spacing-popconfirm_header_icon-marginRight: 12px; // header 图标的右侧外边距
+
+// Font
+$font-popconfirm_header_title-fontWeight: $font-weight-bold; // header 标题字重
+
+// Radius
+$radius-popconfirm-popover: var(--semi-border-radius-medium); // 气泡确认框圆角大小

@@ -1,0 +1,50 @@
+// Spacing
+$spacing-autoComplete_loading_wrapper-paddingTop: $spacing-tight; //加载搜索结果时的顶部内边距
+$spacing-autoComplete_loading_wrapper-paddingBottom: $spacing-tight; //加载搜索结果时的底部内边距
+
+
+
+
+
+$color-autoComplete_option_keyword-text: var(--semi-color-primary); // 自动完成菜单选项匹配搜索结果文本颜色
+$color-autoComplete_option-bg-default: transparent; // 自动完成菜单选项背景颜色 - 默认态
+$color-autoComplete_option-icon-default: transparent; // 自动完成菜单选项图标颜色 - 默认态
+$color-autoComplete_option-bg-hover: var(--semi-color-fill-0); // 自动完成菜单选项背景颜色 - 悬停态
+$color-autoComplete_option-bg-active: var(--semi-color-fill-1); // 自动完成菜单选项背景颜色 - 按下态
+$color-autoComplete_option_disabled-text: var(--semi-color-disabled-text); // 禁用自动完成菜单选项文字颜色
+$color-autoComplete_option_disabled-bg: transparent; // 禁用自动完成菜单选项背景颜色
+$color-autoComplete_option-icon-active: var(--semi-color-text-2); // 禁用自动完成菜单选项图标颜色 - 选中态
+$color-autoComplete_option-border-default: var(--semi-color-border); // 分组自动完成菜单项描边颜色
+
+$width-autoComplete_option_tick: $width-icon-small; // 自动完成菜单项选中对勾图标大小
+$spacing-autoComplete_option_tick-marginRight: $spacing-tight; // 自动完成菜单选中对勾右侧外边距
+
+$spacing-autoComplete_option-paddingLeft: $spacing-base-tight; // 自动完成菜单项左侧内边距
+$spacing-autoComplete_option-paddingRight: $spacing-base-tight; // 自动完成菜单项右侧内边距
+$spacing-autoComplete_option-paddingTop: $spacing-tight; // 自动完成菜单项顶部内边距
+$spacing-autoComplete_option-paddingBottom: $spacing-tight; // 自动完成菜单项底部内边距
+$spacing-autoComplete_option_first-marginTop: $spacing-extra-tight; // 自动完成第一个菜单项顶部外边距
+$spacing-autoComplete_option_last-marginBottom: $spacing-extra-tight; // 自动完成最后一个菜单项顶部外边距
+
+$spacing-autoComplete_option_list-paddingTop: 0px; // 自动完成内容区顶部内边距
+$spacing-autoComplete_option_list-paddingRight: 0px; // 自动完成内容区右侧内边距
+$spacing-autoComplete_option_list-paddingBottom: 0px; // 自动完成内容区底部内边距
+$spacing-autoComplete_option_list-paddingLeft: 0px; // 自动完成内容区左侧内边距
+
+$radius-autoComplete_option: 0px; // 自动完成待选项圆角
+
+$color-autoComplete_option_main-text: var(--semi-color-text-0); // 自动完成菜单选项文本颜色
+
+$color-autoComplete_option-bg-default: transparent; // 自动完成菜单选项背景颜色 - 默认态
+$color-autoComplete_option-icon-default: transparent; // 自动完成菜单选项图标颜色 - 默认态
+$color-autoComplete_option-bg-hover: var(--semi-color-fill-0); // 自动完成菜单选项背景颜色 - 悬停态
+$color-autoComplete_option-bg-active: var(--semi-color-fill-1); // 自动完成菜单选项背景颜色 - 按下态
+$color-autoComplete_option_disabled-text: var(--semi-color-disabled-text); // 禁用自动完成菜单选项文字颜色
+$color-autoComplete_option_disabled-bg: transparent; // 禁用自动完成菜单选项背景颜色
+$color-autoComplete_option-icon-active: var(--semi-color-text-2); // 禁用自动完成菜单选项图标颜色 - 选中态
+$color-autoComplete_option-border-default: var(--semi-color-border); // 分组自动完成菜单项描边颜色
+
+
+$font-autoComplete-fontWeight: $font-weight-regular; // 自动完成文本字重
+$font-autoComplete_inset_label-fontWeight: 600; // 自动完成内嵌标签文本字重
+$font-autoComplete_keyword-fontWeight: 600; // 自动完成搜索结果命关键词中文本字重

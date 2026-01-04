@@ -1,0 +1,414 @@
+//@import '../theme/variables.scss';
+// @import '../theme/mixin.scss';
+@import "./animation.scss";
+@import "./variables.scss";
+@import "./mixin.scss";
+
+$module: #{$prefix}-checkbox;
+
+.#{$module} {
+    @include box-sizing;
+    // box-sizing: border-box;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    @include font-size-regular;
+    cursor: pointer;
+    transition: background-color $transition_duration-checkbox-bg $transition_function-checkbox-bg $transition_delay-checkbox-bg,
+    border $transition_duration-checkbox-border $transition_function-checkbox-border $transition_delay-checkbox-border;
+    transform: scale($transform_scale-checkbox);
+    column-gap: $spacing-checkbox_label-paddingLeft;
+
+    input[type="checkbox"] {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+    }
+
+    &-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        row-gap: $spacing-checkbox_extra-marginTop;
+    }
+
+    &-addon {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        color: $color-checkbox_label-text-default;
+        line-height: $font-checkbox_label-lineHeight;
+        user-select: none;
+    }
+
+    &:hover {
+        .#{$module}-inner-display {
+            background: $color-checkbox_default-bg-hover;
+            box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_default-border-hover;
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                background: $color-checkbox_checked-bg-hover;
+                box-shadow: none;
+            }
+        }
+    }
+
+    &:active {
+        .#{$module}-inner-display {
+            background: $color-checkbox_default-bg-active;
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                background: $color-checkbox_checked-bg-active;
+                box-shadow: none;
+            }
+        }
+    }
+
+    &.#{$module}-disabled:hover,
+    &.#{$module}-disabled:active {
+        .#{$module}-inner-display {
+            background: $color-checkbox_disabled-bg-default;
+            box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_disabled-border-default;
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                color: $color-checkbox_checked-icon-disabled;
+                background: $color-checkbox_checked-bg-disabled;
+                box-shadow: none;
+            }
+        }
+    }
+
+    &-inner {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: $width-checkbox_inner;
+        height: $height-checkbox_inner;
+        user-select: none; // prevent text under it will be selected when double click
+        cursor: pointer;
+
+        &-display {
+            @include box-sizing;
+            position: relative;
+            width: $width-checkbox_inner;
+            height: $width-checkbox_inner;
+            margin: 0;
+            background: $color-checkbox_default-bg-default;
+            transition: background-color $transition_duration-checkbox-bg $transition_function-checkbox-bg $transition_delay-checkbox-bg,
+                border $transition_duration-checkbox-border $transition_function-checkbox-border $transition_delay-checkbox-border;
+
+            box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_default-border-default;
+            border-radius: $radius-checkbox_inner;
+
+            .#{$prefix}-icon {
+                font-size: 16px;
+            }
+        }
+    }
+
+    &-inner-checked {
+        .#{$module}-inner-display {
+            background: $color-checkbox_checked-bg-default;
+            color: $color-checkbox_checked-icon-default;
+
+            box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_checked-border-default;
+            border-radius: $radius-checkbox_inner;
+        }
+
+        &>.#{$module}-addon {
+            color: $color-checkbox_label-text-default;
+        }
+    }
+
+    &:hover {
+        .#{$module}-inner-display {
+            background: $color-checkbox_default-bg-hover;
+        }
+
+        &.#{$module}-indeterminate .#{$module}-inner-display {
+            background: $color-checkbox_checked-bg-hover;
+            box-shadow: none;
+            color: $color-checkbox_checked-icon-hover;
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                background: $color-checkbox_checked-bg-hover;
+                border-color: $color-checkbox_checked-border-hover;
+                color: $color-checkbox_checked-icon-hover;
+            }
+        }
+
+        &.#{$module}-cardType.#{$module}-unChecked.#{$module}-cardType_enable {
+            .#{$module}-inner-display {
+                background: $color-checkbox_cardType_inner-bg-hover;
+            }
+        }
+    }
+
+    &:active {
+        .#{$module}-inner-display {
+            background: $color-checkbox_default-bg-active;
+        }
+
+        &.#{$module}-indeterminate .#{$module}-inner-display {
+            background: $color-checkbox_checked-bg-active;
+            border-color: $color-checkbox_checked-border-active;
+            color: $color-checkbox_checked-icon-active;
+            box-shadow: none;
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                background: $color-checkbox_checked-bg-active;
+                border-color: $color-checkbox_checked-border-active;
+                color: $color-checkbox_checked-icon-active;
+            }
+        }
+
+        &.#{$module}-cardType.#{$module}-unChecked.#{$module}-cardType_enable {
+            .#{$module}-inner-display {
+                background: $color-checkbox_cardType_inner-bg-active;
+            }
+        }
+    }
+
+    &-cardType {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        border-radius: $radius-checkbox_cardType;
+        padding: $spacing-checkbox_cardType-paddingY $spacing-checkbox_cardType-paddingX;
+        background: transparent;
+        border: $width-checkbox_cardType_checked-border solid $color-checkbox_cardType-border-default;
+
+
+        .#{$module}-inner {
+            position: relative;
+            flex-shrink: 0;
+
+            &-display {
+                background: $color-checkbox_cardType_inner-bg-default;
+            }
+        }
+
+        .#{$module}-inner-pureCardType {
+            // Reasons to use opacity:0 & width: 0 instead of display: none
+            // The a11y keyboard focus event of the checkbox depends on the implementation of the input focus/blur event
+            // input focus/blur cannot take effect when display: none
+            opacity: 0;
+            width: 0;
+        }
+
+        .#{$module}-addon {
+            font-weight: $font-checkbox_cardType_addon-fontWeight;
+            font-size: $font-checkbox_cardType_addon-size;
+            line-height: $font-checkbox_cardType_addon-lineHeight;
+            color: $color-checkbox_cardType_addon-text-default;
+        }
+
+        .#{$module}-extra {
+            font-weight: $font-checkbox_cardType_extra-fontWeight;
+            font-size: $font-checkbox_cardType_extra-size;
+            line-height: $font-checkbox_cardType_extra-lineHeight;
+            color: $color-checkbox_cardType_extra-text-default;
+
+            &.#{$module}-cardType_extra_noChildren {
+                margin-top: 0;
+            }
+        }
+
+        &:hover {
+            background: $color-checkbox_cardType-bg-hover;
+        }
+
+        &:active {
+            background: $color-checkbox_cardType-bg-active;
+        }
+
+        &_checked {
+            background: $color-checkbox_cardType_checked-bg;
+            border: $width-checkbox_cardType_checked-border solid $color-checkbox_cardType_checked_border-default;
+
+            &:hover {
+                background: $color-checkbox_cardType_checked-bg;
+                border-color: $color-checkbox_cardType_checked_border-hover;
+
+                .#{$module}-inner-checked .#{$module}-inner-display {
+                    box-shadow: none;
+                }
+            }
+
+            &:active {
+                background: $color-checkbox_cardType_checked-bg;
+                border-color: $color-checkbox_cardType_checked_border-active;
+            }
+        }
+
+        &_disabled {
+            &:active {
+                background: transparent;
+            }
+
+            &:hover {
+                background: transparent;
+            }
+        }
+
+        &_checked_disabled.#{$module}-cardType {
+            background: $color-checkbox_cardType_checked_disabled-bg;
+            border: $width-checkbox_cardType_checked_disabled-border solid $color-checkbox_cardType_checked_disabled_border-default;
+
+            &:hover {
+                .#{$module}-inner-checked .#{$module}-inner-display {
+                    box-shadow: none;
+                }
+            }
+        }
+    }
+
+    &-indeterminate,
+    &-checked {
+        .#{$module}-inner {
+
+            &-display {
+                background: $color-checkbox_checked-bg-default;
+                color: $color-checkbox_checked-icon-default;
+
+                box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_checked-border-default;
+                border-radius: $radius-checkbox_inner;
+
+                &:hover {
+                    background: $color-checkbox_checked-bg-hover;
+                    border-color: $color-checkbox_checked-border-hover;
+                    color: $color-checkbox_checked-icon-hover;
+                }
+
+                &:active {
+                    background: $color-checkbox_checked-bg-active;
+                    border-color: $color-checkbox_checked-border-active;
+                    color: $color-checkbox_checked-icon-active;
+                }
+            }
+
+            &-addon {
+                color: $color-checkbox_label-text-default;
+            }
+        }
+    }
+
+    &-disabled {
+        cursor: not-allowed;
+
+        .#{$module}-inner {
+            cursor: not-allowed;
+
+            &-display {
+                color: $color-checkbox_checked-icon-disabled;
+                background: $color-checkbox_disabled-bg-default;
+                box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_disabled-border-default;
+
+                &:hover {
+                    color: $color-checkbox_checked-icon-disabled;
+                    background: transparent;
+                }
+            }
+
+            &-checked {
+                color: $color-checkbox_checked-icon-disabled;
+
+                .#{$module}-inner-display {
+                    opacity: 0.75;
+                    background: $color-checkbox_checked-bg-disabled;
+                    box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_checked-bg-disabled;
+
+                    &:hover {
+                        color: $color-checkbox_checked-icon-disabled;
+                        background: $color-checkbox_checked-bg-disabled;
+                    }
+                }
+            }
+        }
+
+        .#{$module}-addon {
+            color: $color-checkbox_label-text-disabled;
+        }
+
+        .#{$module}-extra {
+            color: $color-checkbox_label-text-disabled;
+        }
+    }
+
+    &.#{$module}-disabled.#{$module}-indeterminate .#{$module}-inner-display {
+        opacity: 0.75;
+        background: $color-checkbox_checked-bg-disabled;
+        box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_checked-bg-disabled;
+        color: $color-checkbox_checked-icon-disabled;
+    }
+
+    &-extra {
+        flex-shrink: 0;
+        flex-grow: 1;
+        flex-basis: 100%;
+        box-sizing: border-box;
+        color: $color-checkbox_extra-text-default;
+    }
+
+    &-focus {
+        outline: $width-checkbox-outline solid $color-checkbox_primary-outline-focus;
+
+        &-border {
+            box-shadow: inset 0 0 0 $size-checkbox_inner-shadow $color-checkbox_default-border-hover;
+        }
+    }
+}
+
+.#{$module}Group {
+    @include font-size-regular;
+    // make sure group height 32px
+    line-height: $font-size-regular;
+
+    .#{$module} {
+        &.#{$module}-vertical {
+            margin-bottom: $spacing-checkbox_group_vertical-marginBottom;
+        }
+    }
+
+    &-horizontal {
+        display: flex;
+        flex-wrap: wrap;
+        gap: $spacing-checkbox_group_horizontal-marginRight;
+
+        .#{$module} {
+            display: inline-flex;
+        }
+    }
+
+    &-vertical {
+        display: flex;
+        flex-direction: column;
+        row-gap: $spacing-checkbox_group_vertical_item-marginBottom;
+
+        &-cardType {
+            row-gap: $spacing-checkbox_card_group_vertical-marginBottom;
+        }
+
+
+        &-pureCardType {
+            .#{$module} {
+                column-gap: 0;
+            }
+        }
+    }
+}
+
+@import "./rtl.scss";

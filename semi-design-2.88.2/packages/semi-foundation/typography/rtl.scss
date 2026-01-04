@@ -1,0 +1,34 @@
+$module: #{$prefix}-typography;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-link a,
+        a {
+            display: inline-block;
+        }
+
+        &-icon {
+            margin-right: auto;
+            margin-left: $spacing-typography_iconPrefix-marginRight;
+        }
+
+        &-ellipsis-expand {
+            margin-left: auto;
+            // 这里先注释掉
+            // margin-right: 8px; 
+        }
+
+        &-action-copy {
+            margin-left: auto;
+            margin-right: $spacing-typography_copyIcon-marginLeft;
+        }
+
+        &-action-copied {
+            margin-left: auto;
+            margin-right: $spacing-typography_copyIcon-marginLeft;
+        }
+    }
+}

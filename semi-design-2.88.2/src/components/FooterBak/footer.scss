@@ -1,0 +1,159 @@
+body[theme-mode='dark'] {
+    .footer {
+        background: #1c1f23;
+    }
+}
+.footerMini8 {
+    padding: 41px 165px 24px 165px;
+    background-color: #1c1f23ff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    .group6 {
+        margin: 0px 0px 32px 0px;
+    }
+
+    .links {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin: 0px 0px 41px 0px;
+        a:hover {
+            color: white;
+        }
+    }
+
+    .text {
+        min-width: 48px;
+        margin: 0px 80px 0px 0px;
+        font-size: 16px;
+        font-family: 'Inter', 'PingFang SC';
+        color: #ffffffff;
+        line-height: 26px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .figmaUIKit {
+        min-width: 88px;
+        margin: 0px 80px 0px 0px;
+        font-size: 16px;
+        font-family: Inter;
+        color: #ffffffff;
+        line-height: 26px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .text_d3ba282e {
+        min-width: 90px;
+        margin: 0px 80px 0px 0px;
+        font-size: 16px;
+        color: #ffffffff;
+        line-height: 26px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .text_8b88424e {
+        font-size: 16px;
+        font-family: 'Inter', 'PingFang SC';
+        color: #ffffffff;
+        line-height: 26px;
+        font-weight: 400;
+    }
+
+    .text_ff5464b3 {
+        font-size: 16px;
+        font-family: Inter;
+        color: #ffffffff;
+        line-height: 26px;
+        font-weight: 400;
+    }
+
+    .github {
+        min-width: 51px;
+        font-size: 16px;
+        font-family: Inter;
+        color: #ffffffff;
+        line-height: 26px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .divider {
+        margin: 0px 0px 25px 0px;
+    }
+
+    .autoWrapper {
+        width: 1110px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .icpWrapper {
+        display: flex;
+    }
+    .a2021SemiDesignAllRi {
+        margin: 0px 8px 0px 0px;
+        font-size: 14px;
+        font-family: Inter;
+        color: #d9dbe1ff;
+        line-height: 24px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .image45 {
+        width: 20px;
+        height: 20px;
+        margin: 0px 4px 0px 0px;
+    }
+
+    .beianText {
+        margin-right: 8px;
+        font-size: 14px;
+        font-family: Inter;
+        color: #d9dbe1ff;
+        line-height: 24px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+    .designedDevelopedWit {
+        min-width: 352px;
+        font-size: 14px;
+        font-family: Inter;
+        color: #000000;
+        line-height: 24px;
+        font-weight: 400;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .designedDevelopedWit_c0c5d39b {
+        font-size: 14px;
+        font-family: Inter;
+        color: #d9dbe1ff;
+        line-height: 24px;
+        font-weight: 400;
+    }
+
+    .designedDevelopedWit_6eaa79ba {
+        font-size: 14px;
+        font-family: Inter;
+        color: #01ffc3ff;
+        line-height: 24px;
+        font-weight: 400;
+        &:hover {
+            color: #01ffc3ff;
+        }
+    }
+}

@@ -1,0 +1,20 @@
+$color-skeleton_default-bg-default: var(--semi-color-fill-0); // 骨架屏背景色 - 默认
+$color-skeleton_loading-gradient-bg-active: var(--semi-color-fill-1); // 骨架屏背景色 - 动画开启后
+
+$width-skeleton_avatar_extra_extra_small: 20px; // 头像骨架屏尺寸 - 极小
+$width-skeleton_avatar_extra_small: 24px; // 头像骨架屏尺寸 - 超小
+$width-skeleton_avatar_small: 32px; // 头像骨架屏尺寸 - 小
+$width-skeleton_avatar_medium: 48px; // 头像骨架屏尺寸 - 中
+$width-skeleton_avatar_large: 72px; // 头像骨架屏尺寸 - 大
+$width-skeleton_avatar_extra_large: 128px; // 头像骨架屏尺寸 - 超大
+$width-skeleton_button: 115px; // 按钮骨架屏宽度
+
+$height-skeleton_li: 16px; // 段落骨架屏高度
+$height-skeleton_title: $height-control-small; // 标题骨架屏高度
+$height-skeleton_button: $height-control-default; // 按钮骨架屏高度
+
+$spacing-skeleton_li-marginBottom: 10px; // 按钮骨架屏高度
+
+$radius-skeleton_item: var(--semi-border-radius-small); // 骨架屏圆角
+$radius-skeleton_li: var(--semi-border-radius-small); // 骨架屏圆角
+

@@ -1,0 +1,9 @@
+$module: #{$prefix};
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module}-row,
+    .#{$module}-row-flex {
+        direction: rtl;
+    }
+}

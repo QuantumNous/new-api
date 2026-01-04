@@ -1,0 +1,179 @@
+@import './variables.scss';
+
+$module: #{$prefix}-timeline;
+
+.#{$module} {
+    margin: $spacing-timeline-margin;
+    padding: $spacing-timeline-padding;
+    width: $width-timeline;
+    list-style: none;
+
+    &-item {
+        position: relative;
+        margin: $spacing-timeline_item-margin;
+        padding: $spacing-none $spacing-none $spacing-timeline_item-paddingBottom $spacing-none;
+        list-style: none;
+
+        &-tail {
+            position: absolute;
+            top: $spacing-timeline_tail-top;
+            left: $spacing-timeline_tail-left;
+            height: $height-timline_tail;
+            border-left: $width-timeline_tail-border solid $color-timeline_tail-border;
+        }
+
+        &-head {
+            position: absolute;
+            top: $spacing-timeline_head-top;
+            width: $width-timeline_dot;
+            height: $width-timeline_dot;
+            border-radius: $radius-timeline_head;
+
+            &-ongoing {
+                background-color: $color-timeline_dot_default-bg-default;
+            }
+
+            &-default {
+                background-color: $color-timeline_dot_info-bg-default;
+            }
+
+            &-success {
+                background-color: $color-timeline_dot_success-bg-default;
+            }
+
+            &-warning {
+                background-color: $color-timeline_dot_warning-bg-default;
+            }
+
+            &-error {
+                background-color: $color-timeline_dot_error-bg-default;
+            }
+        }
+
+        &-head-custom {
+            position: absolute;
+            display: flex;
+            align-self: center;
+            top: $spacing-timeline_head_custom-top;
+            left: $spacing-timeline_head_custom-left;
+            width: $width-timeline_head_custom;
+            height: $height-timeline_head_custom;
+            // text-align: center;
+            border: $width-timeline_head_custom-border;
+            border-radius: $radius-timeline_head_custom;
+            transform: $motion-timeline_head_custom-transform;
+        }
+
+        .#{$module}-item-head-custom.#{$module}-item-head-ongoing {
+            background-color: $color-timeline_item_head-bg;
+            color: $color-timeline_dot_default-bg-default;
+        }
+
+        .#{$module}-item-head-custom.#{$module}-item-head-success {
+            background-color: $color-timeline_item_head-bg;
+            color: $color-timeline_dot_success-bg-default;
+        }
+
+        .#{$module}-item-head-custom.#{$module}-item-head-warning {
+            background-color: $color-timeline_item_head-bg;
+            color: $color-timeline_dot_warning-bg-default;
+        }
+
+        .#{$module}-item-head-custom.#{$module}-item-head-error {
+            background-color: $color-timeline_item_head-bg;
+            color: $color-timeline_dot_error-bg-default;
+        }
+
+        .#{$module}-item-head-custom.#{$module}-item-head-default {
+            background-color: $color-timeline_item_head-bg;
+            color: $color-timeline_dot_info-bg-default;
+        }
+
+        &-content {
+            @include font-size-regular;
+            position: relative;
+            margin: $spacing-none $spacing-none $spacing-none $spacing-timeline_content-marginLeft;
+            word-break: break-word;
+            color: $color-timeline_item_content-text-default;
+
+            &-extra,
+            &-time {
+                @include font-size-small;
+                color: $color-timeline_time_default-text-default;
+                margin-top: $spacing-timeline_time-marginTop;
+            }
+        }
+
+        &:last-child {
+            & > .#{$module}-item-tail {
+                border-left: none;
+            }
+        }
+    }
+
+    &-alternate,
+    &-right,
+    &-center {
+        .#{$module}-item {
+            &-tail,
+            &-head,
+            &-head-custom {
+                left: $spacing-timeline_item_head_custom-left;
+            }
+            &-head{
+                &.#{$module}-item-head-custom{
+                    margin-left: 0;
+                }
+            }
+            &-head {
+                margin-left: $spacing-timeline_item_head-marginLeft;
+            }
+
+            &-left {
+                .#{$module}-item-content {
+                    left: $spacing-timeline_item_left_item_content-left;
+                    width: $width-timeline_item_left_item_content;
+                    text-align: left;
+                }
+            }
+
+            &-right {
+                .#{$module}-item-content {
+                    width: $width-timeline_item_right_item_content;
+                    margin: $spacing-timeline_item_right_item_content;
+                    text-align: right;
+                }
+            }
+        }
+    }
+
+    &-center {
+        .#{$module}-item {
+            &-content-time {
+                position: absolute;
+                top: $spacing-timeline_time-top;
+                margin-left: $spacing-timeline_item_content_time-marginLeft;
+                width: $width-timeline_item_content_time;
+                text-align: right;
+            }
+        }
+    }
+
+    &-right {
+        .#{$module}-item-right {
+            .#{$module}-item {
+                &-tail,
+                &-head,
+                &-head-custom {
+                    left: $spacing-timeline_item_right_item-left;
+                }
+
+                &-content {
+                    width: $width-timeline_item_right_content;
+                }
+            }
+        }
+    }
+}
+
+@import './rtl.scss';

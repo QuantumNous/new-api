@@ -1,0 +1,36 @@
+$transition_duration-tabs_tab_line-border: var(--semi-transition_duration-none); //线条式标签页标示线-边框-动画持续时间
+$transition_function-tabs_tab_line-border: var(--semi-transition_function-easeIn); //线条式标签页标示线-边框-过渡曲线
+$transition_delay-tabs_tab_line-border: var(--semi-transition_delay-none); //线条式标签页标示线-边框-延迟时间
+
+$transition_duration-tabs_tab_line-text: var(--semi-transition_duration-none); //线条式标签页-文字-动画持续时间
+$transition_function-tabs_tab_line-text: var(--semi-transition_function-easeIn); //线条式标签页-文字-过渡曲线
+$transition_delay-tabs_tab_line-text: var(--semi-transition_delay-none); //线条式标签页-文字-延迟时间
+
+
+$transition_duration-tabs_tab_button-bg: var(--semi-transition_duration-none); //按钮式标签页-背景色-动画持续时间
+$transition_function-tabs_tab_button-bg: var(--semi-transition_function-easeIn); //按钮式标签页-背景色-过渡曲线
+$transition_delay-tabs_tab_button-bg: var(--semi-transition_delay-none); //按钮式标签页-背景色-延迟时间
+
+
+$transition_duration-tabs_tab_card-bg: var(--semi-transition_duration-none); //卡片式标签页文字-背景色-动画持续时间
+$transition_function-tabs_tab_card-bg: var(--semi-transition_function-easeIn); //卡片式标签页文字-背景色-过渡曲线
+$transition_delay-tabs_tab_card-bg: var(--semi-transition_delay-none); //卡片式标签页文字-背景色-延迟时间
+
+//transform token
+
+$transform_scale-tabs_tab_line-item: var(--semi-transform_scale-none); //线条式标签页item 放大
+$transform_scale-tabs_tab_button-item: var(--semi-transform_scale-none); //按钮式标签页item 放大
+$transform_scale-tabs_tab_card-item: var(--semi-transform_scale-none); //线条式标签页item 放大
+
+
+$animation_transform_translateX-tabs_tabPanel-leftShow: 60px; //左侧展示时，tabPanel的水平偏移值
+$animation_transform_translateX-tabs_tabPanel-rightShow: -60px; //右侧展示时，tabPanel的水平偏移值
+
+$animation_transform_translateX-tabs_tabPanel-topShow: 60px; //上侧展示时，tabPanel的垂直偏移值
+$animation_transform_translateX-tabs_tabPanel-bottomShow: -60px; //下侧展示时，tabPanel的垂直偏移值
+
+$animation_opacity-tabs_tabPanel_show: 0; //tabPanel的动画开始时透明度
+
+$animation_duration-tabs_tabPanel-show: 200ms; //tabPanel的展示动画持续时间
+$animation_function-tabs_tabPanel-show: ease-in-out; //tabPanel的展示动画曲线
+$animation_delay-tabs_tabPanel-show: 0s; //tabPanel的展示动画延迟时间

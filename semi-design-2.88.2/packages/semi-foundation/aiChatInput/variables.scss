@@ -1,0 +1,158 @@
+// Colors
+$color-aiChatInput-border: var(--semi-color-border); // AIChatInput的边框颜色
+$color-aiChatInput_skill_item-bg-hover: var(--semi-color-fill-0); // AIChatInput技能项悬停时的背景颜色
+$color-aiChatInput_skill_item-bg-active: var(--semi-color-fill-0); // AIChatInput技能项悬停时的背景颜色
+$color-aiChatInput_suggestion_item-text: var(--semi-color-text-0); // AIChatInput建议项的文本颜色
+$color-aiChatInput_suggestion_item-bg-hover: var(--semi-color-fill-0); // AIChatInput建议项悬停时的背景颜色
+$color-aiChatInput_suggestion_item-bg-active: var(--semi-color-fill-0); // AIChatInput建议项悬停时的背景颜色
+$color-aiChatInput_references-text: var(--semi-color-text-2); // AIChatInput引用项的文本颜色
+$color-aiChatInput_reference-bg: var(--semi-color-fill-0); // AIChatInput引用项的背景色
+$color-aiChatInput_footer_send-text: rgba(var(--semi-white), 1); // AIChatInput底部发送按钮的内容颜色
+$color-aiChatInput_footer_send-bg-default: var(--semi-color-primary); // AIChatInput底部发送按钮的背景颜色 - 默认
+$color-aiChatInput_footer_send-bg-hover: var(--semi-color-primary-hover); // AIChatInput底部发送按钮的背景颜色-悬停态
+$color-aiChatInput_footer_send-bg-active: var(--semi-color-primary-active); // AIChatInput底部发送按钮的背景颜色-激活态
+$color-aiChatInput_footer_send-bg-disabled: var(--semi-color-fill-2); // AIChatInput底部发送按钮的背景颜色-禁用态
+$color-aiChatInput_footer_upload-text: var(--semi-color-text-1); // AIChatInput底部上传按钮的内容颜色
+$color-aiChatInput_footer_upload-bg-default: transparent; // AIChatInput底部上传按钮的背景颜色 - 默认
+$color-aiChatInput_footer_upload-bg-hover: var(--semi-color-fill-0); // AIChatInput底部上传按钮的背景颜色-悬停态
+$color-aiChatInput_footer_upload-bg-active: var(--semi-color-fill-1); // AIChatInput底部上传按钮的背景颜色-悬停态
+$color-aiChatInput_footer_configure_button-border: var(--semi-color-primary); // AIChatInput底部配置区域按钮的按钮边框颜色
+$color-aiChatInput_footer_configure_button-border-active: var(--semi-color-primary); // AIChatInput底部配置区域按钮的按钮边框颜色 - 激活态
+$color-aiChatInput_footer_configure_button-text: var(--semi-color-primary); // AIChatInput底部配置区域按钮的按钮文字颜色 - 激活态
+$color-aiChatInput_footer_configure_button-bg: var(--semi-color-primary-light-default);; // AIChatInput底部配置区域按钮的按钮背景颜色 - 激活态
+$color-aiChatInput_footer_configure_select-border: var(--semi-color-border); // AIChatInput底部配置区域下拉选择的按钮边框颜色
+$color-aiChatInput_footer_configure_select-bg: var(--semi-color-bg-0); // AIChatInput底部配置区域下拉选择的按钮背景颜色
+$color-aiChatInput_footer_configure_radio_button_checked: var(--semi-color-text-1); // AIChatInput底部配置区域下拉选择的单选按钮选中时的背景颜色
+$color-aiChatInput_footer_configure_radio_button_checked-bg: var(--semi-color-bg-2); // AIChatInput底部配置区域下拉选择的单选按钮选中时的背景颜色
+$color-aiChatInput_footer-configure_mcp_header_title-text: var(--semi-color-text-2); // AIChatInput底部配置区域mcp配置下拉的顶部内容的标题颜色
+$color-aiChatInput_attachment-bg: var(--semi-color-fill-0); // AIChatInput附件项的背景颜色
+$color-aiChatInput_attachment-icon: var(--semi-color-white); // AIChatInput附件项的图标颜色
+$color-aiChatInput_attachment_name-text: var(--semi-color-text-0); // AIChatInput附件项内容名称的文本颜色
+$color-aiChatInput_attachment_delete-bg: rgba(var(--semi-grey-7), 1); // AIChatInput附件项内容的删除按钮的背景颜色
+$color-aiChatInput_attachment_delete-icon: var(--semi-color-white); // AIChatInput附件项内容的删除按钮的图标颜色
+$color-aiChatInput_attachment_scroll_button-bg: var(--semi-color-white); // AIChatInput附件项滚动按钮的背景颜色
+$color-aiChatInput_attachment_scroll_button-text: var(--semi-color-white); // AIChatInput附件项滚动按钮的背景颜色
+$color-aiChatInput_attachment_scroll_button: var(--semi-color-text-2); // AIChatInput附件项滚动按钮的背景颜色
+$color-aiChatInput_rich_text-input_slot-bg: var(--semi-color-primary-light-default); // AIChatInput富文本编辑器输入插槽的背景颜色
+$color-aiChatInput_rich_text-input_slot-text: var(--semi-color-primary); // AIChatInput富文本编辑器输入插槽的文本颜色
+$color-aiChatInput_rich_text-input_slot_placeholder: var(--semi-color-primary-disabled); // AIChatInput富文本编辑器输入插槽占位符的文本颜色
+$color-aiChatInput_rich_text-select_slot-bg: var(--semi-color-primary-light-default); // AIChatInput富文本编辑器选择器插槽的背景颜色
+$color-aiChatInput_rich_text-select_selection-text: var(--semi-color-primary); // AIChatInput富文本编辑器选择器插槽的选择器文本颜色
+$color-aiChatInput_rich_text-select_slot_arrow: var(--semi-color-text-2); // AIChatInput富文本编辑器选择器插槽的下拉箭头颜色
+$color-aiChatInput_rich_text-skill_slot-text: var(--semi-color-primary); // AIChatInput富文本编辑器技能插槽的文本颜色
+$color-aiChatInput_rich_text-skill_slot-bg-hover: var(--semi-color-primary-light-default); // AIChatInput富文本编辑器技能插槽的背景色 - 悬停态
+$color-aiChatInput_rich_text-skill_slot_delete-bg: rgba(var(--semi-grey-7), 1); // AIChatInput富文本编辑器技能插槽的删除按钮的背景颜色
+$color-aiChatInput_rich_text-skill_slot_delete-text: var(--semi-color-white); // AIChatInput富文本编辑器技能插槽的删除按钮的背景颜色
+$color-aiChatInput_ref_icon_word-bg: rgba(var(--semi-blue-4), 1); // AIChatInput 引用/上传内容为文本文件时的图标背景色
+$color-aiChatInput_ref_icon_word-pdf: rgba(var(--semi-red-4), 1); // AIChatInput 引用/上传内容为 pdf 时的图标背景色
+$color-aiChatInput_ref_icon_word-code: rgba(var(--semi-teal-5), 1); // AIChatInput 引用/上传内容为代码的图标背景色
+$color-aiChatInput_ref_icon_word-excel: rgba(var(--semi-green-5), 1); // AIChatInput 引用/上传内容为表格类型的图标背景色
+$color-aiChatInput_ref_icon_word-video: rgba(var(--semi-purple-4), 1); // AIChatInput 引用/上传内容为视频类型的图标背景色
+$color-aiChatInput_ref_icon_word-audio: rgba(var(--semi-purple-4), 1); // AIChatInput 引用/上传内容为音频类型的图标背景色
+$color-aiChatInput_ref_icon_word-unknown: rgba(var(--semi-grey-5), 1); // AIChatInput 引用/上传内容为未知类型的图标背景色
+$color-aiChatInput_reference_delete-bg: var(--semi-color-fill-1); // AIChatInput引用项删除图标的背景色 - 悬停态
+$color-aiChatInput_footer_configure_select-text: var(--semi-color-text-1); // AIChatInput底部配置区域下拉选择的按钮文字颜色
+$color-aiChatInput_footer_configure_select-text: var(--semi-color-text-1); // AIChatInput底部配置区域下拉选择的按钮文字颜色
+
+
+//Spacing
+$spacing-aiChatInput-padding: 20px; // AIChatInput的外边距
+$spacing-aiChatInput_skill-paddingY: 4px; // AIChatInput技能面板的垂直内边距
+$spacing-aiChatInput_skill-paddingX: 0px; // AIChatInput技面板的水平内边距
+$spacing-aiChatInput_skill_item-columnGap: 8px; // AIChatInput技能项内容的水平间距
+$spacing-aiChatInput_skill_item-paddingY: 8px; // AIChatInput技能项的垂直内边距
+$spacing-aiChatInput_skill_item-paddingX: 20px; // AIChatInput技能项的水平内边距
+$spacing-aiChatInput_suggestion_item-paddingY: 8px; // AIChatInput建议项的垂直内边距
+$spacing-aiChatInput_suggestion_item-paddingX: 20px; // AIChatInput建议项的水平内边距
+$spacing-aiChatInput_references-marginBottom: 8px; // AIChatInput引用项的底部外边距
+$spacing-aiChatInput_references-columnGap: 4px; // AIChatInput技能块内容的水平间距
+$spacing-aiChatInput_references-rowGap: 4px; // AIChatInput技能块内容的垂直间距
+$spacing-aiChatInput_reference-paddingY: 8px; // AIChatInput引用项的垂直内边距
+$spacing-aiChatInput_reference-paddingX: 12px; // AIChatInput引用项的水平内边距
+$spacing-aiChatInput_reference-columnGap: 8px; // AIChatInput引用项内容的水平间距
+$spacing-aiChatInput_footer-marginTop: 20px; // AIChatInput引用项的顶部外边距
+$spacing-aiChatInput_footer_action-columnGap: 8px; // AIChatInput底部右侧操作区域项目的水平间距
+$spacing-aiChatInput_footer_configure-columnGap: 8px; // AIChatInput底部配置区域项目的水平间距
+$spacing-aiChatInput_footer_configure_radio_button-padding: 4px; // AIChatInput底部配置区域下拉选择的单选按钮的内边距
+$spacing-aiChatInput_footer_configure_mcp_header-paddingTop: 8px; // AIChatInput底部配置区域mcp配置下拉的顶部内容的上外边距
+$spacing-aiChatInput_footer_configure_mcp_header-paddingBottom: 0px; // AIChatInput底部配置区域mcp配置下拉的顶部内容的下外边距
+$spacing-aiChatInput_footer_configure_mcp_header-paddingX: 16px; // AIChatInput底部配置区域mcp配置下拉的顶部内容的水平外边距
+$spacing-aiChatInput_footer_configure_mcp_columnGap: 4px; // AIChatInput底部配置区域mcp配置下拉的顶部内容的水平间距
+$spacing-aiChatInput_attachment-columnGap: 8px; // AIChatInput附件项的水平间距
+$spacing-aiChatInput_attachment-padding: 8px; // AIChatInput附件项的内间距
+$spacing-aiChatInput_attachment_content_size-columnGap: 4px; // AIChatInput附件项类型和大小的间距
+$spacing-aiChatInput_attachment_scroll_wrapper-marginBottom: 8px; // AIChatInput附件项滚动区域的底部外边距
+$spacing-aiChatInput_attachment_scroll_container: 8px; // AIChatInput附件项滚动区域的内间距
+$spacing-aiChatInput_attachment_scroll_button_offsetX: 10px; // AIChatInput附件项滚动按钮的和滚动区域的水平距离
+$spacing-aiChatInput_rich_text-input_slot-paddingY: 2px; // AIChatInput富文本编辑器输入插槽的垂直内边距
+$spacing-aiChatInput_rich_text-input_slot-paddingX: 4px; // AIChatInput富文本编辑器输入插槽的水平内边距
+$spacing-aiChatInput_rich_text-input_slot-marginY: 2px; // AIChatInput富文本编辑器输入插槽的垂直内边距
+$spacing-aiChatInput_rich_text-input_slot-marginX: 2px; // AIChatInput富文本编辑器输入插槽的水平内边距
+$spacing-aiChatInput_rich_text-select_slot-paddingX: 4px; // AIChatInput富文本编辑器选择器插槽的水平内边距
+$spacing-aiChatInput_rich_text-select_slot-paddingY: 2px; // AIChatInput富文本编辑器选择器插槽的垂直内边距
+$spacing-aiChatInput_rich_text-select_slot-marginX: 4px; // AIChatInput富文本编辑器选择器插槽的垂直外边距
+$spacing-aiChatInput_rich_text-select_slot-marginY: 2px; // AIChatInput富文本编辑器选择器插槽的水平外边距
+$spacing-aiChatInput_rich_text-select_selection-marginLeft: 0px; // AIChatInput富文本编辑器选择器插槽的选择器文本的左侧外边距
+$spacing-aiChatInput_rich_text-skill_slot-paddingX: 4px; // AIChatInput富文本编辑器技能插槽的水平内边距
+$spacing-aiChatInput_rich_text-skill_slot-paddingY: 0px; // AIChatInput富文本编辑器技能插槽的垂直内边距
+$spacing-aiChatInput_rich_text-skill_slot-marginX: 2px; // AIChatInput富文本编辑器技能插槽的水平外边距
+$spacing-aiChatInput_rich_text-skill_slot-marginY: 2px; // AIChatInput富文本编辑器技能插槽的垂直外边距
+$spacing-aiChatInput_rich_text-skill_slot-top: 0px; // AIChatInput富文本编辑器技能插槽删除按钮距离顶部距离
+$spacing-aiChatInput_rich_text-skill_slot-right: 0px; // AIChatInput富文本编辑器技能插槽删除按钮距离右侧距离
+$spacing-aiChatInput_reference_icon-marginRight: 4px; // AIChatInput 引用项的图标距离右侧距离
+$spacing-aiChatInput_references_delete-padding: 2px; // AIChatInput引用项删除图标的内间距
+
+// Width/Height
+$width-aiChatInput-border: 1px; // AIChatInput的边框宽度
+$width-aiChatInput_footer_action_button: 32px; // AIChatInput底部右侧操作按钮的宽度
+$height-aiChatInput_footer_action_button: 32px; // AIChatInput底部右侧操作按钮的高度
+$width-aiChatInput_footer_configure_button-border: 1px; // AIChatInput底部配置区域按钮的边框宽度
+$width-aiChatInput_footer_configure_select-border: 1px; // AIChatInput底部配置区域下拉选择的边框宽度
+$height-aiChatInput_footer_configure_radio_button: 16px; // AIChatInput底部配置区域下拉选择的单选按钮的高度
+$height-aiChatInput_footer_configure_mcp_header: 16px; // AIChatInput底部配置区域mcp配置下拉的顶部内容的高度
+$width-aiChatInput_attachment: 224px; // AIChatInput附件项的宽度
+$height-aiChatInput_attachment: 36px; // AIChatInput附件项的高度
+$height-aiChatInput_attachment_left: 36px; // AIChatInput附件项左侧图标/图片的宽高
+$width-aiChatInput_attachment-content: 180px; // AIChatInput附件项内容的宽度
+$height-aiChatInput_attachment-content: 20px; // AIChatInput附件项内容的高度
+$width-aiChatInput_attachment_delete: 16px; // AIChatInput附件项内容的删除按钮的宽度
+$width-aiChatInput_attachment_scroll_button: 16px; // AIChatInput附件项滚动按钮的宽度
+$width-aiChatInput_attachment_scroll_button_icon: 12px; // AIChatInput附件项滚动按钮的图标大小
+$height-aiChatInput_rich_text-select-slot: 24px; // AIChatInput富文本编辑器选择器插槽的高度
+$width-aiChatInput_rich_text-select_slot_arrow: 16px; // AIChatInput富文本编辑器选择器插槽的下拉箭头宽度
+$width-aiChatInput_rich_text-select_slot_delete: 12px; // AIChatInput富文本编辑器选择器插槽的删除按钮的宽高
+$width-aiChatInput_rich_text-select_slot_delete_icon: 8px; // AIChatInput富文本编辑器选择器插槽的删除按钮icon的宽高
+$width-aiChatInput_rich_text-input_slot: 2px; // AIChatInput富文本编辑器输入插槽的最小宽度
+$width-aiChatInput_reference_icon: 16px; // AIChatInput 引用项的图标宽度
+
+// Radius
+$radius-aiChatInput: 12px; // AIChatInput输入框的圆角
+$radius-aiChatInput_skill: 8px; // AIChatInput技能块的圆角
+$radius-aiChatInput_reference: 6px; // AIChatInput引用项的圆角
+$radius-aiChatInput_footer_round: 9999px; // AIChatInput底部操作项目全圆角模式的圆角
+$radius-aiChatInput_footer_action_button: 8px; // AIChatInput底部右侧操作按钮的圆角
+$radius-aiChatInput_attachment: 6px; // AIChatInput附件项的圆角
+$radius-aiChatInput_rich_text-input_slot: 4px; // AIChatInput富文本编辑器输入插槽的圆角
+$radius-aiChatInput_rich_text-select_slot: 4px; // AIChatInput富文本编辑器选择器插槽的圆角
+$radius-aiChatInput_rich_text-skill_slot: 4px; // AIChatInput富文本编辑器技能插槽的圆角
+$radius-aiChatInput_reference_icon: 2px; // AIChatInput 引用项的图标圆角
+$radius-aiChatInput_suggestion_item: 6px; // AIChatInput 建议项的圆角
+
+// Font
+$font-aiChatInput_footer_configure_select-fontWeight: 600; // AIChatInput底部配置区域下拉选择的字体粗细
+$font-aiChatInput_attachment_content_name-fontWeight: 600; // AIChatInput附件项内容的名称字体粗细
+$font-aiChatInput_attachment_content_delete-fontSize: 12px; // AIChatInput附件项内容的删除按钮的图标大小
+$font-aiChatInput_rich_text-fontSize: $font-size-regular; // AIChatInput富文本编辑器文字大小
+$font-aiChatInput_rich_text-lineHeight: 24px; // AIChatInput富文本编辑器文本行高
+$font-aiChatInput_rich_text-input_slot-fontSize: $font-size-regular; // AIChatInput富文本编辑器输入插槽文字大小
+$font-aiChatInput_rich_text-input_slot-lineHeight: 20px; // AIChatInput富文本编辑器输入框插槽文本行高
+$font-aiChatInput_rich_text-input_slot-fontWeight: 600; // AIChatInput富文本编辑器输入插槽文本字重
+$font-aiChatInput_rich_text-skill_slot-fontWeight: 600; // AIChatInput富文本编辑器技能插槽文本字重
+$font-aiChatInput_footer_configure_radio_button-fontSize: 14px; // AIChatInput底部配置区域下拉选择的单选按钮的文字大小
+
+//Z-index
+$z-aiChatInput_attachment_scroll_button: 10; // AIChatInput附件项滚动按钮的z-index
+$z-aiChatInput_rich_text-input_slot_placeholder: 1; // AIChatInput富文本编辑器输入插槽占位符的z-index
+
+//Shadow
+$shadow-aiChatInput_attachment_scroll_button: var(--semi-shadow-elevated); // AIChatInput附件项滚动按钮的阴影

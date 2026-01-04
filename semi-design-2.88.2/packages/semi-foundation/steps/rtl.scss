@@ -1,0 +1,46 @@
+$module: #{$prefix}-steps;
+$basicModule: #{$prefix}-steps-basic;
+$navModule: #{$prefix}-steps-nav;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-item {
+            margin-right: auto;
+            margin-left: $spacing-steps_item-marginRight;
+
+            &-content {
+                margin-left: auto;
+                margin-right: $spacing-steps_item_content-marginLeft;
+            }
+        }
+    }
+
+    .#{$basicModule} {
+        direction: rtl;
+
+        &.#{$module}-horizontal {
+            .#{$item} {
+                .#{$item}-title {
+                    padding-left: $spacing-steps_basic_item_title-paddingRight;
+
+                    &::after {
+                        right: 100%;
+                    }
+                }
+            }
+        }
+
+        &.#{$module}-vertical {
+            .#{$item} {
+                margin: 0;
+            }
+        }
+    }
+
+    .#{$navModule} {
+        direction: rtl;
+    }
+}

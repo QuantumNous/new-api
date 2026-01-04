@@ -1,0 +1,11 @@
+//@import '../theme/variables.scss';
+@import "./variables.scss";
+
+$highlight: #{$prefix}-highlight;
+$tag: #{$prefix}-highlight-tag;
+
+.#{$tag} {
+    color: $color-highlight-text-default;
+    background-color: $color-highlight-text-bg-default;
+    font-weight: $font-highlight-text-fontWeight;
+}

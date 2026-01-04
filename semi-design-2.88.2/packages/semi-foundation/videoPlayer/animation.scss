@@ -1,0 +1,7 @@
+$animation_duration-videoPlayer_controls-show: 500ms; // videoPlayer菜单栏-弹出动画-动画持续时间
+$animation_duration-videoPlayer_slider-in: 300ms; // videoPlayer进度条-弹出动画-动画持续时间
+$animation_duration-videoPlayer_slider-out: 300ms; // videoPlayer进度条-收起动画-动画持续时间
+
+
+$animation_function-videoPlayer_slider-in: cubic-bezier(0.62, 0.05, 0.36, 0.95); // videoPlayer进度条-弹出动画-动画插值函数
+$animation_function-videoPlayer_slider-out: cubic-bezier(0.62, 0.05, 0.36, 0.95); // videoPlayer进度条-收起动画-动画插值函数

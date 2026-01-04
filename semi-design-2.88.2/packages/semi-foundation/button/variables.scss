@@ -1,0 +1,209 @@
+// primary
+$color-button_primary-bg-default: var(--semi-color-primary); // 主要按钮背景颜色
+$color-button_primary-border-default: transparent; // 主要按钮描边颜色
+$color-button_primary-text-default: rgba(var(--semi-white), 1); // 主要按钮文字颜色
+
+$color-button_primary-bg-hover: var(--semi-color-primary-hover); // 主要按钮背景颜色 - 悬浮
+$color-button_primary-border-hover: var(--semi-color-primary-hover); // 主要按钮描边颜色 - 悬浮
+$color-button_primary-text-hover: rgba(var(--semi-white), 1); // 主要按钮文字颜色 - 悬浮
+
+$color-button_primary-bg-active: var(--semi-color-primary-active); // 主要按钮背景颜色 - 按下
+$color-button_primary-border-active: var(--semi-color-primary-active); // 主要按钮描边颜色 - 按下
+$color-button_primary-text-active: rgba(var(--semi-white), 1); // 主要按钮文字颜色 - 按下
+$color-button_primary-outline-focus: var(--semi-color-primary-light-active); // 主要按钮轮廓 - 聚焦
+$color-button_primary_outline-border-default: var(--semi-color-border); // 边框模式下 primary 边框颜色
+
+$color-button_primary_borderless-text-default: var(--semi-color-primary); // 主要按钮无边框文字颜色
+
+$color-button_primary_solid_colorful-bg-default: var(--semi-color-ai-general); // colorful 主要按钮背景颜色 - 深色主题
+$color-button_primary_solid_colorful-bg-hover: var(--semi-color-ai-general-hover); // colorful 主要按钮背景颜色 - 深色主题 - 悬浮
+$color-button_primary_solid_colorful-bg-active: var(--semi-color-ai-general-active); // colorful 主要按钮背景颜色 - 深色主题 - 按下
+
+$color-button_primary_light_colorful-text-default: var(--semi-color-ai-general); // colorful 主要按钮文字颜色 - 浅色色主题
+
+$color-button_primary_light_outline-text-default: var(--semi-color-ai-purple); // colorful 主要按钮文字颜色 - 边框模式
+$color-button_primary_light_outline-border: var(--semi-color-ai-purple); // colorful 主要按钮文字颜色 - 边框模式
+
+$color-button_primary_light_borderless-text-default: var(--semi-color-ai-general); // colorful 主要按钮文字颜色 - 无背景
+
+// secondary
+$color-button_secondary-bg-default: var(--semi-color-secondary); // 次要按钮背景颜色
+$color-button_secondary-border-default: var(--semi-color-secondary); // 次要按钮描边颜色
+$color-button_secondary-text-default: rgba(var(--semi-white), 1); // 次要按钮文字颜色
+
+$color-button_secondary-bg-hover: var(--semi-color-secondary-hover); // 次要按钮背景颜色 - 悬浮
+$color-button_secondary-border-hover: var(--semi-color-secondary-hover); // 次要按钮描边颜色 - 悬浮
+$color-button_secondary-text-hover: rgba(var(--semi-white), 1); // 次要按钮文字颜色 - 悬浮
+
+$color-button_secondary-bg-active: var(--semi-color-secondary-active); // 次要按钮背景颜色 - 按下
+$color-button_secondary-border-active: var(--semi-color-secondary-active); // 次要按钮描边颜色 - 按下
+$color-button_secondary-text-active: rgba(var(--semi-white), 1); // 次要按钮文字颜色 - 按下
+$color-button_secondary_outline-border-default: var(--semi-color-border); // 边框模式下 secondary 边框颜色
+
+$color-button_secondary_borderless-text-default: var(--semi-color-secondary); // 次要按钮无边框文字颜色
+
+// danger
+$color-button_danger-bg-default: var(--semi-color-danger); // 危险按钮背景颜色
+$color-button_danger-border-default: var(--semi-color-danger); // 危险按钮描边颜色
+$color-button_danger-text-default: rgba(var(--semi-white), 1); // 危险按钮文字颜色
+
+$color-button_danger-bg-hover: var(--semi-color-danger-hover); // 危险按钮背景颜色 - 悬浮
+$color-button_danger-border-hover: var(--semi-color-danger); // 危险按钮描边颜色 - 悬浮
+$color-button_danger-text-hover: rgba(var(--semi-white), 1); // 危险按钮文字颜色 - 悬浮
+
+$color-button_danger-bg-active: var(--semi-color-danger-active); // 危险按钮背景颜色 - 按下
+$color-button_danger-border-active: var(--semi-color-danger-active); // 危险按钮描边颜色 - 按下
+$color-button_danger-text-active: rgba(var(--semi-white), 1); // 危险按钮文字颜色 - 按下
+$color-button_danger-outline-focus: var(--semi-color-danger-light-active); // 危险按钮轮廓 - 聚焦
+$color-button_danger_outline-border-default: var(--semi-color-danger); // 边框模式下 danger 边框颜色
+
+$color-button_danger_borderless-text-default: var(--semi-color-danger); // 危险按钮无边框文字颜色
+
+// warning
+$color-button_warning-bg-default: var(--semi-color-warning); // 警告按钮背景颜色
+$color-button_warning-border-default: var(--semi-color-warning); // 警告按钮描边颜色
+$color-button_warning-text-default: rgba(var(--semi-white), 1); // 警告按钮文字颜色
+
+$color-button_warning-bg-hover: var(--semi-color-warning-hover); // 警告按钮背景颜色 - 悬浮
+$color-button_warning-border-hover: var(--semi-color-warning-hover); // 警告按钮描边颜色 - 悬浮
+$color-button_warning-text-hover: rgba(var(--semi-white), 1); // 警告按钮文字颜色 - 悬浮
+
+$color-button_warning-bg-active: var(--semi-color-warning-active); // 警告按钮背景颜色 - 按下
+$color-button_warning-border-active: var(--semi-color-warning-active); // 警告按钮描边颜色 - 按下
+$color-button_warning-text-active: rgba(var(--semi-white), 1); // 警告按钮文字颜色 - 按下
+$color-button_warning-outline-focus: var(--semi-color-warning-light-active); // 警告按钮轮廓 - 聚焦
+$color-button_warning_outline-border-default: var(--semi-color-warning); // 边框模式下 warning 边框颜色
+$color-button_warning_borderless-text-default: var(--semi-color-warning); // 警告按钮无边框文字颜色
+
+// tertiary
+$color-button_tertiary-bg-default: var(--semi-color-tertiary); // 第三按钮背景颜色
+$color-button_tertiary-border-default: var(--semi-color-tertiary); // 第三按钮描边颜色
+$color-button_tertiary-text-default: rgba(var(--semi-white), 1); // 第三按钮文字颜色
+
+$color-button_tertiary_solid_colorful-bg-default: var(--semi-ai-general-0); // colorful 第三按钮背景颜色
+$color-button_tertiary_solid_colorful-bg-hover: var(--semi-ai-general-1); // colorful 第三按钮背景颜色 - 悬浮
+$color-button_tertiary_solid_colorful-bg-active: var(--semi-ai-general-2); // colorful 第三按钮背景颜色 - 按下
+$color-button_tertiary_solid_colorful-text-default: var(--semi-color-ai-general); // colorful 第三按钮文字颜色
+
+$color-button_tertiary-bg-hover: var(--semi-color-tertiary-hover); // 第三按钮背景颜色 - 悬浮
+$color-button_tertiary-border-hover: var(--semi-color-tertiary-hover); // 第三按钮描边颜色 - 悬浮
+$color-button_tertiary-text-hover: rgba(var(--semi-white), 1); // 第三按钮文字颜色 - 悬浮
+
+$color-button_tertiary-bg-active: var(--semi-color-tertiary-active); // 第三按钮背景颜色 - 按下
+$color-button_tertiary-border-active: var(--semi-color-tertiary-active); // 第三按钮描边颜色 - 按下
+$color-button_tertiary-text-active: rgba(var(--semi-white), 1); // 第三按钮文字颜色 - 按下
+$color-button_tertiary_outline-border-default: var(--semi-color-border); // 边框模式下 tertiary 边框颜色
+$color-button_tertiary_solid-text-default: var(--semi-color-text-1); // 浅色第三按钮文字颜色
+
+// disabled
+$color-button_disabled_solid-text-default: var(--semi-color-disabled-text); // 禁用按钮文字颜色 - 深色主题
+$color-button_disabled-text-default: var(--semi-color-disabled-text); // 禁用按钮文字颜色 - 浅色主题或无背景
+$color-button_disabled_outline_text-default: var(--semi-color-disabled-text); // 禁用按钮文字颜色 - 边框模式
+$color-button_disabled-bg-default: var(--semi-color-disabled-bg); // 禁用按钮背景颜色
+$color-button_disabled-text-hover: $color-button_disabled-text-default; // 禁用按钮文字颜色 - 深色主题 - 悬浮
+$color-button_disabled-bg-hover: var(--semi-color-disabled-bg); // 禁用按钮背景颜色 - 悬浮
+$color-button_disabled_primary-bg-default: $color-button_disabled-bg-default; // 禁用 primary 按钮背景颜色
+$color-button_disabled_secondary-bg-default: $color-button_disabled-bg-default; // 禁用 secondary 按钮背景颜色
+$color-button_disabled_danger-bg-default: $color-button_disabled-bg-default; // 禁用 danger 按钮背景颜色
+$color-button_disabled_warning-bg-default: $color-button_disabled-bg-default; // 禁用 warning 按钮背景颜色
+$color-button_disabled_tertiary-bg-default: $color-button_disabled-bg-default; // 禁用 tertiary 按钮背景颜色
+$color-button_disabled_outline-border-default: var(--semi-color-border); // 边框模式下 disable 边框颜色
+
+
+// light
+$color-button_light-bg-default: var(--semi-color-fill-0); // 浅色按钮背景颜色
+$color-button_light-bg-hover: var(--semi-color-fill-1); // 浅色按钮背景颜色 - 悬浮
+$color-button_light-bg-active: var(--semi-color-fill-2); // 浅色按钮背景颜色 - 按下
+$color-button_light-border-default: transparent; // 浅色按钮描边颜色
+$color-button_light-border-hover: $color-button_light-border-default; // 浅色按钮描边颜色 - 悬浮
+$color-button_light-border-active: $color-button_light-border-hover; // 浅色按钮描边颜色 - 按下
+$width-button_light-border: 0; // 浅色按钮描边宽度
+
+$color-button_disabled_light_primary-bg-default: $color-button_light-bg-default; // 禁用 light primary 按钮背景颜色
+$color-button_disabled_light_secondary-bg-default: $color-button_light-bg-default; // 禁用 light secondary 按钮背景颜色
+$color-button_disabled_light_danger-bg-default: $color-button_light-bg-default; // 禁用 light danger 按钮背景颜色
+$color-button_disabled_light_warning-bg-default: $color-button_light-bg-default; // 禁用 light warning 按钮背景颜色
+$color-button_disabled_light_tertiary-bg-default: $color-button_light-bg-default; // 禁用 light tertiary 按钮背景颜色
+
+// borderless
+$color-button_borderless-text-default: var(--semi-color-primary); // 无背景按钮背景颜色
+$color-button_borderless-bg-hover: var(--semi-color-fill-0); // 无背景按钮背景颜色 - 悬浮
+$color-button_borderless-bg-active: var(--semi-color-fill-1); // 无背景按钮背景颜色 - 按下
+$color-button_borderless-border-default: transparent; // 无背景按钮描边颜色
+$color-button_borderless-border-hover: $color-button_borderless-border-default; // 无背景按钮描边颜色 - 悬浮
+$color-button_borderless-border-active: $color-button_borderless-border-hover; // 无背景按钮描边颜色 - 按下
+$width-button_borderless-border: 0; // 无背景按钮描边宽度
+
+
+// outline
+$width-button_outline-border: 1px; // 边框模式按钮边框宽度
+$color-button_outline-bg-hover: var(--semi-color-fill-0); // 边框模式按钮背景颜色 - 悬浮
+$color-button_outline-bg-active: var(--semi-color-fill-1); // 边框模式按钮背景颜色 - 按下
+
+// buttongroup
+
+$color-button_group-border-default: var(--semi-color-border); // 按钮组分割线颜色
+$width-button_group-border: $border-thickness-control; // 按钮组分割线宽度
+
+// padding
+$spacing-button_default-paddingTop: 6px; // 按钮顶部内边距 - 默认
+$spacing-button_default-paddingBottom: 6px; // 按钮底部内边距 - 默认
+$spacing-button_default-paddingLeft: $spacing-base-tight; // 按钮左侧内边距 - 默认
+$spacing-button_default-paddingRight: $spacing-base-tight; // 按钮右侧内边距 - 默认
+$spacing-button_large-paddingTop: 10px; // 按钮顶部内边距 - 大尺寸
+$spacing-button_large-paddingBottom: 10px; // 按钮底部内边距 - 大尺寸
+$spacing-button_large-paddingLeft: $spacing-base; // 按钮左侧内边距 - 大尺寸
+$spacing-button_large-paddingRight: $spacing-base; // 按钮右侧内边距 - 大尺寸
+$spacing-button_small-paddingTop: $spacing-super-tight; // 按钮顶部内边距 - 小尺寸
+$spacing-button_small-paddingBottom: $spacing-super-tight; // 按钮底部内边距 - 小尺寸
+$spacing-button_small-paddingLeft: $spacing-base-tight; // 按钮左侧内边距 - 小尺寸
+$spacing-button_small-paddingRight: $spacing-base-tight; // 按钮右侧内边距 - 小尺寸
+
+$spacing-button_iconOnly_default-paddingLeft: $spacing-tight; // 图标按钮左侧内边距 - 默认
+$spacing-button_iconOnly_default-paddingRight: $spacing-tight; // 图标按钮右侧内边距 - 默认
+$spacing-button_iconOnly_default-paddingTop: $spacing-tight; // 图标按钮顶部内边距 - 默认
+$spacing-button_iconOnly_default-paddingBottom: $spacing-tight; // 图标按钮底部内边距 - 默认
+$spacing-button_iconOnly_large-paddingLeft: $spacing-base-tight; // 图标按钮左侧内边距 - 大尺寸
+$spacing-button_iconOnly_large-paddingRight: $spacing-base-tight; // 图标按钮右侧内边距 - 大尺寸
+$spacing-button_iconOnly_large-paddingTop: $spacing-base-tight; // 图标按钮顶部内边距 - 大尺寸
+$spacing-button_iconOnly_large-paddingBottom: $spacing-base-tight; // 图标按钮底部内边距 - 大尺寸
+$spacing-button_iconOnly_small-paddingLeft: $spacing-extra-tight; // 图标按钮左侧内边距 - 小尺寸
+$spacing-button_iconOnly_small-paddingRight: $spacing-extra-tight; // 图标按钮右侧内边距 - 小尺寸
+$spacing-button_iconOnly_small-paddingTop: $spacing-extra-tight; // 图标按钮顶部内边距 - 小尺寸
+$spacing-button_iconOnly_small-paddingBottom: $spacing-extra-tight; // 图标按钮底部内边距 - 小尺寸
+$height-button_iconOnly_small: $height-control-small; // 图标按钮 height - 小尺寸
+$width-button_iconOnly_small: $height-control-small; // 图标按钮 width - 小尺寸
+$height-button_iconOnly_default:$height-control-default;  // 图标按钮 height - 默认
+$width-button_iconOnly_default: $height-control-default; // 图标按钮 width - 默认
+$height-button_iconOnly_large: $height-control-large; // 图标按钮 height - 大尺寸
+$width-button_iconOnly_large: $height-control-large; // 图标按钮 width - 大尺寸
+
+// margin
+$spacing-button_iconOnly_content-marginLeft: $spacing-tight; // 按钮左侧图标距离文字间距
+$spacing-button_iconOnly_content-marginRight: $spacing-tight; // 按钮右侧图标距离文字间距
+
+$font-button-fontWeight: $font-weight-bold; // 按钮文字字重 - 默认
+$font-button-fontSize: $font-size-regular; // 按钮文字字号- 默认
+$font-button-lineHeight: 20px; // 按钮文字行高 - 默认
+$font-button_small-fontWeight: $font-weight-bold; // 按钮文字字重 - 小尺寸
+$font-button_small-fontSize: $font-size-regular; // 按钮文字字号- 小尺寸
+$font-button_small-lineHeight: 20px; // 按钮文字行高 - 小尺寸
+$font-button_large-fontWeight: $font-weight-bold; // 默认按钮文字字重 - 大尺寸
+$font-button_large-fontSize: $font-size-regular; // 默认按钮文字字号 - 大尺寸
+$font-button_large-lineHeight: 20px; // 默认按钮文字行高 - 大尺寸
+
+$height-button_large: $height-control-large; // 按钮高度 - 大尺寸
+$height-button_small: $height-control-small; // 按钮高度 - 小尺寸
+$height-button_default: $height-control-default; // 按钮高度 - 默认
+$height-button_group_line_default: 20px; // 分割线高度 - 默认
+
+$width-button-border: $border-thickness; // 按钮描边宽度
+$radius-button: var(--semi-border-radius-small); // 按钮圆角大小
+$radius-button_group: $radius-button; // 按钮组圆角大小
+$width-button-outline: 2px; // 按钮轮廓宽度
+
+
+$radius-button_splitButtonGroup_first_topLeft: var(--semi-border-radius-small); // split button 左上圆角
+$radius-button_splitButtonGroup_first_bottomLeft: var(--semi-border-radius-small); // split button 左下圆角
+$radius-button_splitButtonGroup_last_topRight: var(--semi-border-radius-small); // split button 右上圆角
+$radius-button_splitButtonGroup_last_bottomRight: var(--semi-border-radius-small); // split button 右下圆角

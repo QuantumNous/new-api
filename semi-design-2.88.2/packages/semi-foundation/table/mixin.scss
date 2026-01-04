@@ -1,0 +1,10 @@
+@mixin genResizing() {
+    border-right: $width-table_resizer_border solid $color-table_resizer-bg-default;
+
+    .react-resizable-handle {
+
+        &:hover {
+            background-color: unset;
+        }
+    }
+}

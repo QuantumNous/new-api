@@ -1,0 +1,47 @@
+$spacing-floatButton-bottom: 24px; // 悬浮按钮距离底部距离
+$spacing-floatButton-right: 24px; // 悬浮按钮距离右侧距离
+
+$spacing-floatButton_group-bottom: 24px; // 悬浮按钮组距离底部距离
+$spacing-floatButton_group-right: 24px; // 悬浮按钮组距离右侧距离
+$spacing-floatButton_group-padding: 6px; // 悬浮按钮组内间距
+$spacing-floatButton_group-columnGap: 4px; // 悬浮按钮组中子项目水平间距
+$spacing-floatButton_group_item-paddingX: 12px; // 悬浮按钮组中子项目水平内间距
+$spacing-floatButton_group_item-paddingY: 6px; // 悬浮按钮组中子项目垂直内间距
+$spacing-floatButton_group_item-columnGap: 8px; // 悬浮按钮组子项目内容水平间距
+
+$width-floatButton_small: 24px; // 悬浮按钮小尺寸宽度
+$width-floatButton: 32px; // 悬浮按钮默认尺寸宽度
+$width-floatButton_large: 40px; // 悬浮按钮大尺寸宽度
+
+$color-floatButton-bg:  var(--semi-color-fill-0); // 悬浮按钮背景色
+$color-floatButton-text:  var(--semi-color-primary); // 悬浮按钮文字颜色
+$color-floatButton-bg-hover:  var(--semi-color-fill-1); // 悬浮按钮背景色-悬浮态
+$color-floatButton-bg-active:  var(--semi-color-fill-2); // 悬浮按钮背景色-按下
+$color-floatButton-disabled-bg:  var(--semi-color-disabled-bg); // 悬浮按钮背景色-禁用态
+$color-floatButton-disabled-text:  var(--semi-color-disabled-text); // 悬浮按钮文字颜色-禁用态
+$color-floatButton-colorful-bg:  var(--semi-color-ai-general); // 悬浮按钮colorful背景色
+$color-floatButton-colorful-text:  var(--semi-color-white); // 悬浮按钮colorful文字颜色
+$color-floatButton-colorful-bg-hover:  var(--semi-color-ai-general-hover); // 悬浮按钮colorful背景色-悬浮态
+$color-floatButton-colorful-bg-active:  var(--semi-color-ai-general-active); // 悬浮按钮colorful背景色-按下
+
+$color-floatButton_group-bg:  var(--semi-color-bg-0); // 悬浮按钮组背景色
+$color-floatButton_group_item-text:  var(--semi-color-text-0); // 悬浮按钮组文字颜色
+$color-floatButton_group_item-bg-hover:  var(--semi-color-fill-1); // 悬浮按钮组hover背景色-悬浮态
+$color-floatButton_group_item-bg-active:  var(--semi-color-fill-2); // 悬浮按钮组hover背景色-按下
+$color-floatButton_group-disabled-bg:  var(--semi-color-disabled-bg); // 悬浮按钮组背景色-禁用态
+$color-floatButton_group-disabled-text:  var(--semi-color-disabled-text); // 悬浮按钮组文字颜色-禁用态
+
+$z-floatButton: 1000; // 悬浮按钮z-index
+$z-floatButton_group: 1000; // 悬浮按钮组z-index
+
+$radius-floatButton_square: 8px; // 悬浮按钮方形圆角
+$radius-floatButton_round: var(--semi-border-radius-full); // 悬浮按钮圆形圆角
+$radius-floatButton_group-border-radius: 8px; // 悬浮按钮组圆角
+$radius-floatButton_group_item-border-radius: 4px; // 悬浮按钮组子项目圆角
+
+$font-floatButton_group_item-fontWeight: 400; // 悬浮按钮组子项目文字粗细
+$font-floatButton_group_item-lineHeight: 20px; // 悬浮按钮组子项目文字行高
+$font-floatButton_group_item-fontSize: 14px; // 悬浮按钮组子项目文字大小
+
+$shadow-floatButton_group: var(--semi-shadow-elevated); // 悬浮按钮组阴影
+$shadow-floatButton: var(--semi-shadow-elevated); // 悬浮按钮阴影

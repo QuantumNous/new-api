@@ -1,0 +1,106 @@
+$module: #{$prefix}-cascader;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+
+        &.#{$module}-with-prefix {
+            .#{$module}-selection {
+                padding-left: auto;
+                padding-right: 0;
+            }
+        }
+
+        &.#{$module}-with-suffix {
+            .#{$module}-selection {
+                padding-right: auto;
+                padding-left: 0;
+            }
+        }
+
+        &-selection{
+            &-multiple {
+                padding-right: $spacing-cascader_selection_multiple-paddingLeft;
+                padding-left: $spacing-cascader_selection_multiple-paddingRight;
+            }
+
+            &-tag {
+                &:first-child {
+                    margin-right: 0;
+                }
+            }
+
+            &-n {
+                margin-right: 0;
+                margin-left: $spacing-cascader_selection_n-marginRight;
+            }
+
+            .#{$module}-tagInput-wrapper {
+                margin-left: 0;
+                margin-right: $spacing-cascader_selection_tagInput-marginLeft;
+            }
+
+            .#{$prefix}-tagInput {
+                .#{$prefix}-input-wrapper {
+                    margin-left: 0;
+                    margin-right: $spacing-cascader_selection_input-marginLeft;
+                    .#{$prefix}-input {
+                        padding-right: 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+.#{$module}-option {
+    &-label {
+        &-checkbox {
+            margin-right: 0;
+            margin-left: $spacing-cascader_label_checkbox-marginRight;
+        }
+    }
+}
+
+.#{$module}-option-lists {
+    &-rtl {
+        direction: rtl;
+    }
+
+    &.#{$module}-option-lists-rtl ul > li {
+        padding-right: $spacing-cascader_option-paddingLeft;
+        padding-left: auto;
+    }
+
+    &.#{$module}-option-lists-rtl .#{$module}-option-list {
+        border-left: 0;
+        border-right: $width-cascader_option_list-border solid $color-cascader_option_list-border-default;
+
+        &:first-child {
+            border-right: none;
+        }
+    }
+
+    &.#{$module}-option-lists-rtl .#{$module}-option {
+        &-icon {
+            &-active,
+            &-empty {
+                margin-right: 0;
+                margin-left: $spacing-cascader_empty_icon-marginRight;
+            }
+        }
+
+        &-flatten {
+            padding-right: 0;
+            padding-left: $spacing-cascader_flatten_list-paddingRight;
+        }
+
+        .#{$prefix}-icon-chevron_right {
+            margin-left: 0;
+            margin-right: $spacing-cascader_option_icon-marginLeft;
+            transform: scaleX(-1);
+        }
+    }
+}

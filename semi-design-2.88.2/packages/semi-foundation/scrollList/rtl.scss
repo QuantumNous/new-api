@@ -1,0 +1,47 @@
+$module: #{$prefix}-scrolllist;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-body {
+            .#{$module}-item {
+
+                &:not(:last-child) {
+                    border-right: 0;
+                    border-left: $width-scrollList_item-border solid $color-scrollList-border;
+                }
+            }
+            .#{$module}-item,
+            .#{$module}-item-wheel .#{$module}-list-outer {
+
+                & > ul {
+
+                    & > li {
+                        &.#{$module}-item-sel {
+
+                            > svg {
+                                margin-right: 0;
+                                margin-left: $spacing-scrollList_item_sel_svg-marginRight;
+                            }
+                        }
+                    }
+                }
+            }
+
+            .#{$module}-item-wheel {
+
+                &:not(:last-child) {
+                    border-right: 0;
+                    border-left: $width-scrollList_item_wheel-border solid $color-scrollList-border;
+                }
+
+                .#{$module}-list-outer {
+                    padding-right: 0;
+                    padding-left: $spacing-scrollList_item_wheel_list_outer-paddingRight;
+                }
+            }
+        }
+    }
+}

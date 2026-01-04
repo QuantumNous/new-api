@@ -1,0 +1,126 @@
+
+@mixin checkerboard($size,$base,$accent:rgba(0,0,0,0.25)){
+    background:$base;
+    background-image: linear-gradient(45deg,$accent 25%,transparent 0,transparent 75%,$accent 0),linear-gradient(45deg,$accent 25%,transparent 0,transparent 75%,$accent 0);
+    background-size: 2*$size 2*$size;
+    background-position: 0 0 ,$size $size;
+}
+
+.color-block {
+    cursor: pointer;
+    line-height: 1.15;
+    position: relative;
+    width: 160px;
+    height: 64px;
+    font-size: 12px;
+    box-sizing: border-box;
+    padding: 12px;
+    display: flex;
+    @include checkerboard(10px, rgba(var(--semi-grey-3), 1), rgba(var(--semi-grey-4), 1));
+    flex-direction: column;
+    justify-content: space-between;
+    transform: scale(1);
+    transition: transform .1s;
+
+    .color-rect {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    &:hover {
+        z-index: 99;
+        transform: scale(1.05);
+        box-shadow: 0 0 0 3px rgba(255,255,255,1);
+    }
+
+    &:active {
+        opacity: .8;
+    }
+
+    span {
+        display: block;
+    }
+
+    .color-name {
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .ratios,
+    .color-cap {
+        z-index: 40;
+    }
+
+    .color-value {
+        display: none;
+        opacity: .5;
+        font-family: Inconsolata, monospace;
+    }
+
+    .color-value-gradient {
+        height: 36px;
+        overflow: hidden;
+    }
+
+    .color-cap.white {
+        color: #fff;
+    }
+
+    .color-cap.black {
+        color: #000;
+    }
+
+    &:hover {
+
+        .color-value {
+            display: block;
+        }
+    }
+}
+
+[theme-mode="dark"] {
+
+    .color-block {
+
+        &:hover {
+            box-shadow: 0 0 0 3px rgba(10,10,10,1);
+        }
+    }
+}
+
+.color-converter .color-block {
+    box-shadow: 0 0 0 1px var(--semi-color-border);
+}
+
+.color-grid {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+
+.ratios {
+    width: 100%;
+    text-align: right;
+    span {
+        display: inline;
+        margin-left: 8px;
+    }
+    .white {
+        color: #fff;
+    }
+    .black {
+        color: #000;
+    }
+}
+
+.color-column {
+    margin: 16px 16px 16px 0;
+}
+
+.full-palette, .image-large, .icons-list {
+    grid-column: large;
+}

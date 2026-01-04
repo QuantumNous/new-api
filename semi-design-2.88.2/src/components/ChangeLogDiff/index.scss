@@ -1,0 +1,20 @@
+.changelog-diff-content {
+    overflow: auto;
+    height: calc(100% - 92px);
+
+    .changelog-content-section {
+        margin-bottom: 40px;
+    }
+
+    .changelog-content-type {
+        margin-bottom: 24px;
+        padding-left: 16px;
+    }
+
+    .changelog-content-ul {
+        padding-left: 100px;
+        font-size: 16px;
+        line-height: 32px;
+        color: var(--semi-color-text-1);
+    }
+}

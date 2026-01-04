@@ -1,0 +1,315 @@
+@import "./animation.scss";
+@import "./variables.scss";
+
+
+$module: #{$prefix}-tagInput;
+
+.#{$module} {
+    background-color: $color-tagInput_default-bg-default;
+    border: $width-tagInput-border-default $color-tagInput-border-default solid;
+    border-radius: $radius-tagInput;
+    display: inline-flex;
+    font-weight: $font-weight-regular;
+    width: 100%;
+    min-height: $height-tagInput-default;
+    box-sizing: border-box;
+    transition: background-color $transition_duration-tagInput-bg $transition_function-tagInput-bg $transition_delay-tagInput-bg,
+        border $transition_duration-tagInput-border $transition_function-tagInput-border $transition_delay-tagInput-border;
+
+    &-small {
+        min-height: $height-tagInput-small;
+    }
+
+    &-large {
+        min-height: $height-tagInput-large;
+    }
+
+    &-drag {
+
+        &-item {
+            display: flex;
+            align-items: center;
+
+            &-move {
+                z-index: $z-tagInput_drag_item_move;
+            }
+        }
+
+        &-handler {
+            color: $color-tagInput_handler-icon-default;
+            margin-right: $spacing-tagInput_drag_handler-marginRight;
+            cursor: move;
+        }
+    }
+
+    &-sortable-item {
+        position: relative;
+        max-width: 100%;
+        &-over {
+            overflow: visible;
+            &::before {
+                content: "";
+                display: block;
+                height: 100%;
+                width: $width-tagInput_sortable_item_over;
+                background-color: $color-tagInput_sortable_item_over-bg;
+                position: absolute;
+                left: -$width-tagInput_sortable_item_over;
+                top: 0;
+            }
+        }
+
+        &-active {
+            opacity: 0.5;
+        }
+    }
+
+    &-hover {
+        background-color: $color-tagInput_default-bg-hover;
+        border: $width-tagInput-border-hover $color-tagInput-border-hover solid;
+    }
+
+    &-focus {
+        background-color: $color-tagInput_default-bg-focus;
+        border: $width-tagInput-border-focus $color-tagInput-border-focus solid;
+    }
+
+    &-warning {
+        background-color: $color-tagInput_warning-bg-default;
+        border-color: $color-tagInput_warning-border-default;
+
+        &:hover {
+            background-color: $color-tagInput_warning-bg-hover;
+            border-color: $color-tagInput_warning-border-hover;
+        }
+
+        &.#{$module}-focus {
+            background-color: $color-tagInput_warning-bg-focus;
+            border-color: $color-tagInput_warning-border-focus;
+        }
+    }
+
+    &-error {
+        background-color: $color-tagInput_danger-bg-default;
+        border-color: $color-tagInput_danger-border-default;
+
+        &:hover {
+            background-color: $color-tagInput_danger-bg-hover;
+            border-color: $color-tagInput_danger-border-hover;
+        }
+
+        &.#{$module}-focus {
+            background-color: $color-tagInput_danger-bg-focus;
+            border-color: $color-tagInput_danger-border-focus;
+        }
+    }
+
+    &-disabled {
+        background-color: $color-tagInput_disabled-bg;
+        cursor: not-allowed;
+
+        .#{$module}-clearBtn,
+        .#{$module}-prefix,
+        .#{$module}-suffix {
+            color: $color-tagInput_disabled-text-default;
+        }
+        .#{$module}-wrapper {
+            cursor: not-allowed;
+        }
+        .#{$module}-wrapper-tag {
+            color: $color-tagInput_disabled-text-default;
+            background-color: transparent;
+        }
+        .#{$module}-wrapper-input {
+            cursor: not-allowed;
+            &::placeholder {
+                color: $color-tagInput_disabled-text-default;
+            }
+        }
+
+    }
+
+    &-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        flex-grow: 1;
+        align-items: center;
+        padding-left: $spacing-extra-tight;
+        padding-right: $spacing-extra-tight;
+        overflow: hidden;
+
+        &-tag {
+            margin-right: $spacing-extra-tight;
+            white-space: pre;
+            max-width: 100%;
+
+            &-size {
+                &-small {
+                    margin-top: $spacing-tagInput_small-Y;
+                    margin-bottom: $spacing-tagInput_small-Y;
+                }
+
+                &-default {
+                    margin-top: $spacing-tagInput_default-Y;
+                    margin-bottom: $spacing-tagInput_default-Y;
+                }
+
+                &-large {
+                    margin-top: $spacing-tagInput_large-Y;
+                    margin-bottom: $spacing-tagInput_large-Y;
+                }
+            }
+
+            &-icon {
+                padding-left: $spacing-tagInput_tag_icon_paddingLeft;
+            }
+        }
+
+        &-typo {
+            font-size: $font-size-small;
+
+            &-disabled {
+                color: $color-tagInput_disabled-text-default;
+            }
+        }
+
+        &-n {
+            cursor: pointer;
+            font-size: $font-size-small;
+            margin-right: $spacing-extra-tight;
+            color: var(--semi-color-text-0);
+            padding-left: $spacing-tagInput_wrapper_n_paddingX;
+            padding-right: $spacing-tagInput_wrapper_n_paddingX;
+
+            &-disabled {
+                cursor: not-allowed;
+                color: $color-tagInput_disabled-text-default;
+            }
+        }
+
+        & &-input {
+            flex-grow: 1;
+            width: min-content;
+            // min-width: 38px;
+            border: none;
+            outline: none;
+            background-color: transparent;
+            font-size: $font-size-regular;
+
+            &:hover {
+                background-color: transparent;
+            }
+
+            &:not(:first-child) > input {
+                padding-left: 0;
+            }
+
+            &-small {
+                height: $height-tagInput_input_small;
+                margin-top: $spacing-tagInput_small-Y;
+                margin-bottom: $spacing-tagInput_small-Y;
+                line-height: $height-tagInput_input_small;
+
+                & .#{$prefix}-input-small {
+                    height: $height-tagInput_input_small;
+                    line-height: $height-tagInput_input_small;
+                }
+            }
+
+            &-default {
+                height: $height-tagInput_input_default;
+                margin-top: $spacing-tagInput_default-Y;
+                margin-bottom: $spacing-tagInput_default-Y;
+                line-height: $height-tagInput_input_default;
+
+                & .#{$prefix}-input-default {
+                    height: $height-tagInput_input_default;
+                    line-height: $height-tagInput_input_default;
+                }
+            }
+
+            &-large {
+                height: $height-tagInput_input_large;
+                margin-top: $spacing-tagInput_large-Y;
+                margin-bottom: $spacing-tagInput_large-Y;
+                line-height: $height-tagInput_input_large;
+
+                & .#{$prefix}-input-large {
+                    height: $height-tagInput_input_large;
+                    line-height: $height-tagInput_input_large;
+                }
+            }
+        }
+    }
+
+    &-clearBtn {
+        @include all-center;
+        width: $width-tagInput-clear-medium;
+        flex-shrink: 0;
+        color: $color-tagInput-icon-default;
+
+        &:hover {
+            cursor: pointer;
+            color: $color-tagInput-icon-hover;
+        }
+
+        &-invisible {
+            visibility: hidden;
+        }
+    }
+
+    &-inset-label {
+        margin: 0 $spacing-tagInput_prefix_suffix-marginX;
+        font-weight: $font-tagInput_prefix_suffix-fontWeight;
+        @include font-size-regular;
+        color: $color-tagInput_prefix-default;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    &-prefix,
+    &-suffix {
+        @include all-center;
+        &-text {
+            margin: 0 $spacing-tagInput_prefix_suffix-marginX;
+            font-weight: $font-tagInput_prefix_suffix-fontWeight;
+            white-space: nowrap;
+            @include font-size-regular;
+        }
+        &-icon {
+            color: $color-tagInput-icon-default;
+            margin: 0 $spacing-tight;
+        }
+    }
+
+    &-prefix {
+        &-text {
+            color: $color-tagInput_prefix-default;
+        }
+    }
+
+    &-suffix {
+        &-text {
+            color: $color-tagInput_suffix-default;
+        }
+    }
+
+    &-with-prefix {
+        .#{$prefix}-input {
+            padding-left: 0;
+        }
+    }
+
+    &-tag-content-wrapper {
+        display: flex;
+        align-items: center;
+    }
+
+    &-sortable-list {
+        display: flex;
+        flex-flow: row wrap;
+        width: 100%;
+    }
+}
+
+@import "./rtl.scss";

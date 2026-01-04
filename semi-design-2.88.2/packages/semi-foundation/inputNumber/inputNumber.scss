@@ -1,0 +1,122 @@
+@import "./animation.scss";
+@import './variables.scss';
+
+$module: #{$prefix}-input-number;
+
+.#{$module} {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    transition: background-color $transition_duration-inputNumber-bg $transition_function-inputNumber-bg $transition_delay-inputNumber-bg,
+    border $transition_duration-inputNumber-border $transition_function-inputNumber-border $transition_delay-inputNumber-border;
+    transform: scale($transform_scale-inputNumber);
+
+    &-suffix-btns {
+        display: inline-flex;
+        flex-direction: column;
+        margin-left: $spacing-inputNumber_button-marginLeft;
+        border: $width-inputNumber_button-border solid $color-inputNumber_button-border-default;
+        border-radius: $radius-inputNumber;
+        background-color: $color-inputNumber_button-bg-default;
+        box-sizing: border-box;
+
+        & > .#{$module}-button {
+            height: 50%;
+            width: $width-inputNumber_button;
+            padding: 0;
+            margin: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            border-radius: 0;
+            color: $color-inputNumber_button-text-default;
+        }
+
+        & > .#{$module}-button-up:not(.#{$module}-button-up-not-allowed),
+        & > .#{$module}-button-down:not(.#{$module}-button-down-not-allowed) {
+
+            &:hover {
+                cursor: pointer;
+                background-color: $color-inputNumber_button-bg-hover;
+            }
+
+            &:active {
+                cursor: pointer;
+                background-color: $color-inputNumber_button-bg-active;
+            }
+        }
+
+        & > .#{$module}-button-up.#{$module}-button-up-disabled,
+        & > .#{$module}-button-down.#{$module}-button-down-disabled {
+            background-color: $color-inputNumber_button-bg-disabled;
+            color: $color-inputNumber_button-text-disabled;
+        }
+
+        & > .#{$module}-button-up.#{$module}-button-up-not-allowed,
+        & > .#{$module}-button-down.#{$module}-button-down-not-allowed {
+            cursor: not-allowed;
+        }
+
+        &-inner-hover {
+            border-color: $color-inputNumber_button-border-hover;
+        }
+    }
+
+    &-suffix-btns-inner {
+        margin-left: $spacing-inputNumber_button_inner-marginLeft;
+        border-radius: $radius-inputNumber_inner;
+        overflow: hidden
+    }
+
+    .#{$prefix}-input-clearbtn {
+        & + .#{$prefix}-input-suffix {
+            margin-left: $spacing-inputNumber_clearbtn_suffix-marginLeft;
+
+            .#{$module}-suffix-btns-inner {
+                margin-left: 0;
+            }
+        }
+    }
+
+    &-size {
+
+        &-default {
+            .#{$module}-suffix-btns {
+                height: $height-inputNumber_button_default;
+            }
+            .#{$module}-suffix-btns-inner {
+                height: $height-inputNumber_button_inner_default;
+            }
+        }
+
+        &-large {
+            .#{$module}-suffix-btns {
+                height: $height-inputNumber_button_large;
+            }
+            .#{$module}-suffix-btns-inner {
+                height: $height-inputNumber_button_inner_large;
+            }
+        }
+
+        &-small {
+            .#{$module}-suffix-btns {
+                height: $height-inputNumber_button_small;
+            }
+            .#{$module}-suffix-btns-inner {
+                height: $height-inputNumber_button_inner_small;
+            }
+        }
+    }
+}
+
+
+.#{$module}:not(:focus-within):not(:hover){
+    .#{$prefix}-input-borderless{
+        & + .#{$module}-suffix-btns{
+            opacity: 0;
+        }
+    }
+}
+
+@import "./rtl.scss";

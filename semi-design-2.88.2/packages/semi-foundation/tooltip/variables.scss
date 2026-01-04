@@ -1,0 +1,34 @@
+$horizontal-rate: 0.24; // 水平方向矫正因子 ignore-semi-css-trans
+$vertical-rate: 0; // 垂直方向矫正因子 ignore-semi-css-trans
+
+$motion-zoom_scale-from: 0.8; // 初始缩放 - 动画用
+$motion-zoom_opacity-from: 0; // 初始透明度 - 动画用
+$motion-zoom_opacity-to: 1; // 最终透明度 - 动画用
+
+$color-tooltip-bg-default: rgba(var(--semi-grey-7), 1); // 工具提示默认背景色
+$color-tooltip-text-default: var(--semi-color-bg-0); // 工具提示默认文字颜色
+$color-tooltip-icon-default: rgba(var(--semi-grey-7), 1); // 工具提示默认图标颜色
+$color-tooltip_arrow-icon-default: $color-tooltip-icon-default; // 工具提示默认小三角箭头颜色
+
+
+$radius-tooltip: var(--semi-border-radius-medium); // 工具提示默认圆角
+$spacing-tooltip_content-paddingLeft: $spacing-base-tight; // 工具提示内容左侧内边距
+$spacing-tooltip_content-paddingRight: $spacing-base-tight; // 工具提示内容右侧内边距
+$spacing-tooltip_content-paddingTop: $spacing-tight; // 工具提示内容顶部内边距
+$spacing-tooltip_content-paddingBottom: $spacing-tight; // 工具提示内容底部内边距
+
+$font-tooltip-fontSize: $font-size-regular; // 工具提示文本字号
+$width-tooltip: 240px; // 工具提示宽度 - 默认
+$width-tooltip_arrow: 24px; // 工具提示小三角箭头宽度 - 水平 ignore-semi-css-trans
+$height-tooltip_arrow: 7px; // 工具提示小三角箭头高度 - 水平
+
+$height-tooltip_arrow_vertical: 24px; // 工具提示小三角箭头高度 - 垂直
+$width-tooltip_arrow_vertical: 7px; // 工具提示小三角箭头宽度度 - 垂直
+$spacing-tooltip_arrow_offset-x: 1px; // 水平方向渲染会有缝隙，所以加个偏移量
+$spacing-tooltip_arrow_offset-y: 1px; // 垂直方向渲染会有缝隙，所以加个偏移量
+
+$spacing-tooltip_arrow_adjusted_offset-y: 5px; // 垂直方向上的校正偏移量，主要修正三角形有棱角的问题
+
+$spacing-tooltip_arrow_adjusted_offset-x: round($horizontal-rate * $width-tooltip_arrow); // 水平方向上的校正偏移量，主要修正三角形有棱角的问题 ignore-semi-css-trans
+
+$filter-tooltip-bg: none;

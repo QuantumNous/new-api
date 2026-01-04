@@ -1,0 +1,128 @@
+$module: #{$prefix}-button;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        padding-left: $spacing-button_default-paddingRight;
+        padding-right: $spacing-button_default-paddingLeft;
+
+        &-size-small {
+            padding-left: $spacing-button_small-paddingRight;
+            padding-right: $spacing-button_small-paddingLeft;
+        }
+
+        &-size-large {
+            padding-left: $spacing-button_large-paddingRight;
+            padding-right: $spacing-button_large-paddingLeft;
+        }
+
+        &-group {
+            direction: rtl;
+
+            & > .#{$module} {
+                padding-left: 0;
+                padding-right: 0;
+
+                .#{$module}-content {
+                    padding-left: $spacing-button_default-paddingRight;
+                    padding-right: $spacing-button_default-paddingLeft;
+                }
+
+                &-size-large {
+                    .#{$module}-content {
+                        padding-left: $spacing-button_large-paddingRight;
+                        padding-right: $spacing-button_large-paddingLeft;
+                    }
+                }
+
+                &-size-small {
+                    .#{$module}-content {
+                        padding-left: $spacing-button_small-paddingRight;
+                        padding-right: $spacing-button_small-paddingLeft;
+                    }
+                }
+
+                &.#{$module}-with-icon-only {
+                    padding-left: 0;
+                    padding-right: 0;
+
+                    .#{$module}-content {
+                        padding-left: $spacing-button_iconOnly_default-paddingRight;
+                        padding-right: $spacing-button_iconOnly_default-paddingLeft;
+                    }
+
+                    &.#{$module}-size {
+
+                        &-small {
+                            .#{$module}-content {
+                                padding-left: $spacing-button_iconOnly_small-paddingRight;
+                                padding-right: $spacing-button_iconOnly_small-paddingLeft;
+                            }
+                        }
+
+                        &-large {
+                            .#{$module}-content {
+                                padding-left: $spacing-button_iconOnly_large-paddingRight;
+                                padding-right: $spacing-button_iconOnly_large-paddingLeft;
+                            }
+                        }
+                    }
+                }
+
+                &:first-child {
+                    border-top-left-radius: 0;
+                    border-bottom-left-radius: 0;
+                    border-top-right-radius: $radius-button_group;
+                    border-bottom-right-radius: $radius-button_group;
+                }
+
+                &:not(:last-child) {
+                    .#{$prefix}-button-content {
+                        border-left: $width-button_group-border $color-button_group-border-default solid;
+                        border-right: 0;
+                    }
+                }
+
+                &:last-child {
+                    border-top-right-radius: 0;
+                    border-bottom-right-radius: 0;
+                    border-top-left-radius: $radius-button_group;
+                    border-bottom-left-radius: $radius-button_group;
+                }
+            }
+        }
+
+        &.#{$module}-with-icon-only {
+            padding-left: $spacing-button_iconOnly_default-paddingRight;
+            padding-right: $spacing-button_iconOnly_default-paddingLeft;
+
+            &.#{$module}-size {
+
+                &-small {
+                    padding-left: $spacing-button_iconOnly_small-paddingRight;
+                    padding-right: $spacing-button_iconOnly_small-paddingLeft;
+                }
+
+                &-large {
+                    padding-left: $spacing-button_iconOnly_large-paddingRight;
+                    padding-right: $spacing-button_iconOnly_large-paddingLeft;
+                }
+            }
+        }
+
+        &-content {
+
+            &-left {
+                margin-left: $spacing-button_iconOnly_content-marginRight;
+                margin-right: 0;
+            }
+
+            &-right {
+                margin-right: $spacing-button_iconOnly_content-marginLeft;
+                margin-left: 0;
+            }
+        }
+    }
+}

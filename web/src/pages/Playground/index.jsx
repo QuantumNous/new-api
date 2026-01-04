@@ -17,10 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, { useContext, useEffect, useCallback, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
+import { Layout, Toast, Typography, SideSheet } from '@douyinfe/semi-ui';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -48,6 +48,8 @@ import {
   getTextContent,
   buildApiPayload,
   encodeToBase64,
+  API,
+  showError,
 } from '../../helpers';
 
 // Components
@@ -59,6 +61,7 @@ import {
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
+import HistorySidebar from '../../components/playground/layout/HistorySidebar';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -83,6 +86,39 @@ const Playground = () => {
   const isMobile = useIsMobile();
   const styleState = { isMobile };
   const [searchParams] = useSearchParams();
+  
+  // Chat History State
+  const [chatId, setChatId] = useState(null);
+  const [chatHistory, setChatHistory] = useState([]);
+
+  const loadHistory = useCallback(async () => {
+    if (!userState.user) return;
+    try {
+      const res = await API.get('/api/playground/chats');
+      if (res.data.success) {
+        setChatHistory(res.data.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load history", err);
+    }
+  }, [userState.user]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  const [showHistory, setShowHistory] = useState(!isMobile);
+  // Mobile history drawer state
+  const [mobileHistoryVisible, setMobileHistoryVisible] = useState(false);
+
+  useEffect(() => {
+      // Update showHistory based on mobile state if needed, or just keep independent
+      if (!isMobile) {
+          setShowHistory(true);
+      } else {
+          setShowHistory(false);
+      }
+  }, [isMobile]);
 
   const state = usePlaygroundState();
   const {
@@ -120,13 +156,89 @@ const Playground = () => {
     setCustomRequestBody,
   } = state;
 
+  const saveChat = useCallback(async (currentMessages) => {
+    if (!userState.user) return;
+    if (!currentMessages || currentMessages.length === 0) return;
+    
+    // Check if only system message
+    if (currentMessages.length === 1 && currentMessages[0].role === 'system') return;
+
+    const firstUserMsg = currentMessages.find(m => m.role === 'user');
+    if (!firstUserMsg && !chatId) return;
+
+    let title = 'New Chat';
+    if (firstUserMsg && typeof firstUserMsg.content === 'string') {
+        title = firstUserMsg.content.slice(0, 20);
+    } else if (chatHistory.find(c => c.ID === chatId)) {
+        title = chatHistory.find(c => c.ID === chatId).title;
+    }
+
+    const payload = {
+        title: title,
+        messages: JSON.stringify(currentMessages),
+        model: inputs.model,
+        group: inputs.group
+    };
+
+    try {
+        if (chatId) {
+            await API.put(`/api/playground/chats/${chatId}`, payload);
+        } else {
+            const res = await API.post('/api/playground/chats', payload);
+            if (res.data.success) {
+                setChatId(res.data.data.ID);
+            }
+        }
+        loadHistory();
+    } catch (err) {
+        console.error("Failed to save chat", err);
+    }
+  }, [chatId, inputs.model, inputs.group, userState.user, loadHistory, chatHistory]);
+
+  const handleSaveMessages = useCallback((messagesToSave) => {
+      saveMessagesImmediately(messagesToSave);
+      saveChat(messagesToSave);
+  }, [saveMessagesImmediately, saveChat]);
+
+  const handleHistorySelect = (item) => {
+      if (!item) {
+          setChatId(null);
+          state.handleConfigReset({ resetMessages: true });
+      } else {
+          setChatId(item.ID);
+          try {
+              const msgs = JSON.parse(item.messages);
+              setMessage(msgs);
+          } catch (e) {
+              console.error(e);
+          }
+      }
+      // Close mobile drawer if open
+      if (isMobile) {
+          setMobileHistoryVisible(false);
+      }
+  };
+
+  const handleHistoryDelete = async (id) => {
+      try {
+          await API.delete(`/api/playground/chats/${id}`);
+          if (chatId === id) {
+              setChatId(null);
+              state.handleConfigReset({ resetMessages: true });
+          }
+          loadHistory();
+      } catch (e) {
+          showError(e);
+      }
+  };
+
   // API 请求相关
   const { sendRequest, onStopGenerator } = useApiRequest(
     setMessage,
     setDebugData,
     setActiveDebugTab,
     sseSourceRef,
-    saveMessagesImmediately,
+    handleSaveMessages,
   );
 
   // 数据加载
@@ -145,7 +257,7 @@ const Playground = () => {
     inputs,
     parameterEnabled,
     sendRequest,
-    saveMessagesImmediately,
+    handleSaveMessages,
   );
 
   // 消息和自定义请求体同步
@@ -181,7 +293,7 @@ const Playground = () => {
     message,
     setMessage,
     onMessageSend,
-    saveMessagesImmediately,
+    handleSaveMessages,
   );
 
   // 构建预览请求体
@@ -255,7 +367,7 @@ const Playground = () => {
           sendRequest(customPayload, customPayload.stream !== false);
 
           // 发送消息后保存，传入新消息列表
-          setTimeout(() => saveMessagesImmediately(newMessages), 0);
+          setTimeout(() => handleSaveMessages(newMessages), 0);
 
           return newMessages;
         });
@@ -299,7 +411,7 @@ const Playground = () => {
 
       // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
       const messagesWithLoading = [...newMessages, loadingMessage];
-      setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
+      setTimeout(() => handleSaveMessages(messagesWithLoading), 0);
 
       return messagesWithLoading;
     });
@@ -433,9 +545,10 @@ const Playground = () => {
   // 清空对话的处理函数
   const handleClearMessages = useCallback(() => {
     setMessage([]);
+    setChatId(null);
     // 清空对话后保存，传入空数组
-    setTimeout(() => saveMessagesImmediately([]), 0);
-  }, [setMessage, saveMessagesImmediately]);
+    setTimeout(() => handleSaveMessages([]), 0);
+  }, [setMessage, handleSaveMessages]);
 
   // 处理粘贴图片
   const handlePasteImage = useCallback((base64Data) => {
@@ -456,46 +569,28 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='h-full'>
-      <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
-        {(showSettings || !isMobile) && (
-          <Layout.Sider
-            className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${
-                isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
-              }
-            `}
-            width={isMobile ? '100%' : 320}
-          >
-            <OptimizedSettingsPanel
-              inputs={inputs}
-              parameterEnabled={parameterEnabled}
-              models={models}
-              groups={groups}
-              styleState={styleState}
-              showSettings={showSettings}
-              showDebugPanel={showDebugPanel}
-              customRequestMode={customRequestMode}
-              customRequestBody={customRequestBody}
-              onInputChange={handleInputChange}
-              onParameterToggle={handleParameterToggle}
-              onCloseSettings={() => setShowSettings(false)}
-              onConfigImport={handleConfigImport}
-              onConfigReset={handleConfigReset}
-              onCustomRequestModeChange={setCustomRequestMode}
-              onCustomRequestBodyChange={setCustomRequestBody}
-              previewPayload={previewPayload}
-              messages={message}
-            />
-          </Layout.Sider>
-        )}
+      <div className='h-full bg-white dark:bg-[#0b0b0b]'>
+        <Layout className='h-full bg-transparent flex flex-row'>
+          
+          {/* Left Sidebar: History */}
+          {!isMobile && showHistory && (
+             <Layout.Sider
+                width={260}
+                className="flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#111] h-full"
+             >
+                <HistorySidebar 
+                    history={chatHistory} 
+                    onSelect={handleHistorySelect}
+                    selectedId={chatId}
+                    onDelete={handleHistoryDelete}
+                />
+             </Layout.Sider>
+          )}
 
-        <Layout.Content className='relative flex-1 overflow-hidden'>
-          <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-            <div className='flex-1 flex flex-col'>
+          {/* Main Content: Chat */}
+          <Layout.Content className='relative flex-1 overflow-hidden flex flex-col'>
+            {/* Mobile Header or similar could go here */}
+            <div className='flex-1 flex flex-col h-full'>
               <ChatArea
                 chatRef={chatRef}
                 message={message}
@@ -512,49 +607,97 @@ const Playground = () => {
                 onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
                 renderCustomChatContent={renderCustomChatContent}
                 renderChatBoxAction={renderChatBoxAction}
+                onOpenHistory={() => setMobileHistoryVisible(true)}
               />
             </div>
+          </Layout.Content>
 
-            {/* 调试面板 - 桌面端 */}
-            {showDebugPanel && !isMobile && (
-              <div className='w-96 flex-shrink-0 h-full'>
-                <OptimizedDebugPanel
-                  debugData={debugData}
-                  activeDebugTab={activeDebugTab}
-                  onActiveDebugTabChange={setActiveDebugTab}
-                  styleState={styleState}
-                  customRequestMode={customRequestMode}
-                />
-              </div>
-            )}
-          </div>
+          {/* Right Sidebar: Settings */}
+          {(showSettings || !isMobile) && (
+            <Layout.Sider
+              className={`
+                bg-white dark:bg-[#111] border-l border-gray-200 dark:border-gray-800 flex-shrink-0 overflow-auto
+                ${
+                  isMobile
+                    ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto shadow-lg'
+                    : 'w-80 h-full'
+                }
+              `}
+              width={isMobile ? '100%' : 320}
+            >
+              <OptimizedSettingsPanel
+                inputs={inputs}
+                parameterEnabled={parameterEnabled}
+                models={models}
+                groups={groups}
+                styleState={styleState}
+                showSettings={showSettings}
+                showDebugPanel={showDebugPanel}
+                customRequestMode={customRequestMode}
+                customRequestBody={customRequestBody}
+                onInputChange={handleInputChange}
+                onParameterToggle={handleParameterToggle}
+                onCloseSettings={() => setShowSettings(false)}
+                onConfigImport={handleConfigImport}
+                onConfigReset={handleConfigReset}
+                onCustomRequestModeChange={setCustomRequestMode}
+                onCustomRequestBodyChange={setCustomRequestBody}
+                previewPayload={previewPayload}
+                messages={message}
+              />
+            </Layout.Sider>
+          )}
 
-          {/* 调试面板 - 移动端覆盖层 */}
-          {showDebugPanel && isMobile && (
-            <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
+          {/* Debug Panel (Overlay or integrated?) */}
+          {/* Existing logic put it inside Content, but OpenRouter has it separate. 
+              I'll leave it as is for now or integrate into Settings/Bottom */}
+          
+          {/* Mobile History SideSheet */}
+          {isMobile && (
+             <SideSheet
+                 title={<Typography.Text strong>Chats</Typography.Text>}
+                 visible={mobileHistoryVisible}
+                 onCancel={() => setMobileHistoryVisible(false)}
+                 placement="left"
+                 width="80%"
+                 bodyStyle={{ padding: 0 }}
+             >
+                 <HistorySidebar 
+                    isMobile={true}
+                    history={chatHistory} 
+                    onSelect={handleHistorySelect}
+                    selectedId={chatId}
+                    onDelete={handleHistoryDelete}
+                    onClose={() => setMobileHistoryVisible(false)}
+                 />
+             </SideSheet>
+          )}
+
+          {/* 调试面板 - 桌面端 (If separate from Settings) */}
+          {showDebugPanel && !isMobile && (
+            <div className='w-96 flex-shrink-0 h-full border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-[#111]'>
               <OptimizedDebugPanel
                 debugData={debugData}
                 activeDebugTab={activeDebugTab}
                 onActiveDebugTabChange={setActiveDebugTab}
                 styleState={styleState}
-                showDebugPanel={showDebugPanel}
-                onCloseDebugPanel={() => setShowDebugPanel(false)}
                 customRequestMode={customRequestMode}
               />
             </div>
           )}
-
-          {/* 浮动按钮 */}
-          <FloatingButtons
-            styleState={styleState}
-            showSettings={showSettings}
-            showDebugPanel={showDebugPanel}
-            onToggleSettings={() => setShowSettings(!showSettings)}
-            onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-          />
-        </Layout.Content>
-      </Layout>
-    </div>
+        </Layout>
+        
+        {/* Mobile Floating Buttons */}
+        {isMobile && (
+             <FloatingButtons
+                styleState={styleState}
+                showSettings={showSettings}
+                showDebugPanel={showDebugPanel}
+                onToggleSettings={() => setShowSettings(!showSettings)}
+                onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+              />
+        )}
+      </div>
     </PlaygroundProvider>
   );
 };

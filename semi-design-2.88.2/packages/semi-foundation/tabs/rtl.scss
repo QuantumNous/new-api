@@ -1,0 +1,123 @@
+$module: #{$prefix}-tabs;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-bar {
+            .#{$module}-tab {
+                float: right;
+
+                .#{$prefix}-icon {
+                    margin-right: 0;
+                    margin-left: $spacing-tabs_tab_icon-marginRight;
+                }
+            }
+        }
+
+        &-bar-collapse {
+            .#{$module}-bar-arrow-start {
+                margin-right: 0;
+                margin-left: $spacing-tabs_overflow_icon-marginRight;
+            }
+
+            .#{$module}-bar-arrow-end {
+                margin-left: 0;
+                margin-right: $spacing-tabs_overflow_icon-marginLeft;
+            }
+
+            .#{$prefix}-icon-chevron_right,
+            .#{$prefix}-icon-chevron_left {
+                transform: scaleX(-1);
+            }
+        }
+
+        &-bar-line {
+            &.#{$module}-bar-top {
+                .#{$module}-tab {
+
+                    &:not(:last-of-type) {
+                        margin-right: 0;
+                        margin-left: $spacing-tabs_bar_line_tab-marginRight;
+                    }
+                }
+            }
+
+            &.#{$module}-bar-left {
+                border-right: 0;
+                border-left: $width-tabs_bar_line-border solid $color-tabs_tab_line_default-border-default;
+
+                .#{$module}-tab {
+                    border-left: 0;
+                    border-right: $width-tabs_bar_line_tab-border solid transparent;
+
+                    &:hover {
+                        border-left: 0;
+                        border-right: $width-tabs_bar_line_tab-border solid $color-tabs_tab_line_default-border-hover;
+                    }
+
+                    &:active {
+                        border-left: 0;
+                        border-right: $width-tabs_bar_line_tab-border solid $color-tabs_tab_line_default-border-active;
+                    }
+                }
+
+                .#{$module}-tab-active {
+
+                    &,
+                    &:hover {
+                        border-left: 0;
+                        border-right: $width-tabs_bar_line_tab-border solid $color-tabs_tab_line_indicator_selected-icon-default;
+                    }
+                }
+            }
+        }
+
+        &-bar-card {
+            &.#{$module}-bar-top {
+                .#{$module}-tab {
+
+                    &:not(:last-of-type) {
+                        margin-left: 0;
+                        margin-right: $spacing-tabs_bar_card_tab-marginRight;
+                    }
+                }
+            }
+
+            &.#{$module}-bar-left {
+                border-right: 0;
+                border-left: $width-tabs_bar_card-border solid $color-tabs_tab_line_default-border-default;
+
+                .#{$module}-tab {
+                    border: $width-tabs_bar_card-border solid transparent;
+                    border-left: none;
+
+                    &:hover {
+                        border-left: none;
+                    }
+                }
+
+                .#{$module}-tab-active {
+
+                    &:after {
+                        right: auto;
+                        left: -1px;
+                    }
+                }
+            }
+        }
+
+        &-bar-button {
+            &.#{$module}-bar-top {
+                .#{$module}-tab {
+
+                    &:not(:last-of-type) {
+                        margin-right: auto;
+                        margin-left: $spacing-tabs_bar_button_tab-marginRight;
+                    }
+                }
+            }
+        }
+    }
+}

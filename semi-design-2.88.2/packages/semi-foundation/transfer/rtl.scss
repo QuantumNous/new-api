@@ -1,0 +1,31 @@
+$module: #{$prefix}-transfer;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-header {
+
+            &-all {
+                margin-left: 0;
+                margin-right: $spacing-transfer_header_all-marginLeft;
+            }
+        }
+
+        &-item {
+            padding-left: $spacing-transfer_item-paddingRight;
+            padding-right: $spacing-transfer_item-paddingLeft;
+        }
+
+        &-left {
+            border-right: 0;
+            border-left: $width-transfer_left-border solid $color-transfer-border;
+        }
+
+        &-group-title {
+            padding-left: 0;
+            padding-right: $spacing-transfer_group_title-paddingLeft;
+        }
+    }
+}

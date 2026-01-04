@@ -1,0 +1,279 @@
+/*
+ * AI-First Component Overrides
+ * This file contains component-specific style overrides to align with our AI design system
+ * These styles work in conjunction with theme.css variables
+ */
+
+/* =====================================
+ * Button Component Overrides
+ * ===================================== */
+
+/* Primary Button - AI Enhanced */
+.semi-button-primary {
+  border-radius: var(--semi-border-radius-medium) !important;
+  font-weight: var(--semi-font-weight-medium) !important;
+  box-shadow: var(--semi-shadow-elevated) !important;
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing) !important;
+}
+
+.semi-button-primary:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: var(--semi-shadow-medium) !important;
+}
+
+.semi-button-primary:active {
+  transform: translateY(0) !important;
+}
+
+/* Secondary Button */
+.semi-button-secondary {
+  border-radius: var(--semi-border-radius-medium) !important;
+  font-weight: var(--semi-font-weight-medium) !important;
+  border-width: 1px !important;
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing) !important;
+}
+
+.semi-button-secondary:hover {
+  transform: translateY(-1px) !important;
+}
+
+/* AI Gradient Button */
+.semi-button.ai-gradient {
+  background: var(--semi-color-ai-general) !important;
+  border: none !important;
+  color: white !important;
+  border-radius: var(--semi-border-radius-medium) !important;
+  font-weight: var(--semi-font-weight-semibold) !important;
+  box-shadow: var(--semi-shadow-elevated) !important;
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing) !important;
+}
+
+.semi-button.ai-gradient:hover {
+  background: var(--semi-color-ai-general-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--semi-shadow-medium) !important;
+}
+
+.semi-button.ai-gradient:active {
+  background: var(--semi-color-ai-general-active) !important;
+  transform: translateY(0) !important;
+}
+
+/* Button Sizes */
+.semi-button-size-small {
+  border-radius: var(--semi-border-radius-small) !important;
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+}
+
+.semi-button-size-large {
+  border-radius: var(--semi-border-radius-large) !important;
+  font-size: 16px !important;
+  padding: 12px 20px !important;
+}
+
+/* =====================================
+ * Card Component Overrides
+ * ===================================== */
+
+.semi-card {
+  border-radius: var(--semi-border-radius-large) !important;
+  box-shadow: var(--semi-shadow-elevated) !important;
+  border: 1px solid var(--semi-color-border) !important;
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing) !important;
+  overflow: hidden !important;
+}
+
+.semi-card:hover {
+  box-shadow: var(--semi-shadow-medium) !important;
+  transform: translateY(-2px) !important;
+}
+
+.semi-card-head {
+  border-bottom: 1px solid var(--semi-color-border) !important;
+  padding: var(--semi-spacing-4) var(--semi-spacing-6) !important;
+}
+
+.semi-card-body {
+  padding: var(--semi-spacing-6) !important;
+}
+
+/* AI Card - Special Style */
+.semi-card.ai-card {
+  background: linear-gradient(135deg, var(--semi-color-ai-surface) 0%, var(--semi-color-bg-1) 100%) !important;
+  border: 1px solid var(--semi-color-ai-border) !important;
+}
+
+.semi-card.ai-card .semi-card-head {
+  background: var(--semi-color-ai-surface) !important;
+  border-bottom-color: var(--semi-color-ai-border) !important;
+}
+
+/* =====================================
+ * Input & Textarea Overrides
+ * ===================================== */
+
+.semi-input,
+.semi-textarea {
+  border-radius: var(--semi-border-radius-medium) !important;
+  border: 1px solid var(--semi-color-border) !important;
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing) !important;
+  font-family: var(--semi-font-family-system) !important;
+}
+
+.semi-input:focus,
+.semi-textarea:focus {
+  border-color: var(--semi-color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+  outline: none !important;
+}
+
+.semi-input:hover,
+.semi-textarea:hover {
+  border-color: var(--semi-color-border-hover) !important;
+}
+
+/* AI Input - Special Style */
+.semi-input.ai-input,
+.semi-textarea.ai-textarea {
+  background: var(--semi-color-ai-surface) !important;
+  border-color: var(--semi-color-ai-border) !important;
+  font-family: var(--semi-font-family-code) !important;
+}
+
+.semi-input.ai-input:focus,
+.semi-textarea.ai-textarea:focus {
+  border-color: var(--semi-color-ai-purple) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
+}
+
+/* Input Sizes */
+.semi-input-size-small {
+  border-radius: var(--semi-border-radius-small) !important;
+  font-size: 12px !important;
+}
+
+.semi-input-size-large {
+  border-radius: var(--semi-border-radius-large) !important;
+  font-size: 16px !important;
+}
+
+/* =====================================
+ * Typography Enhancements
+ * ===================================== */
+
+/* Enhanced font rendering */
+.semi-typography {
+  font-family: var(--semi-font-family-system) !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Code Typography */
+.semi-typography code,
+.semi-typography pre {
+  font-family: var(--semi-font-family-code) !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+/* AI Gradient Text */
+.semi-typography.ai-gradient-text {
+  background: var(--semi-color-ai-general) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  font-weight: var(--semi-font-weight-bold) !important;
+}
+
+/* =====================================
+ * Animation Enhancements
+ * ===================================== */
+
+/* Smooth transitions for all interactive elements */
+.semi-button,
+.semi-card,
+.semi-input,
+.semi-textarea {
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing) !important;
+}
+
+/* AI Pulse Animation */
+@keyframes ai-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.semi-icon.ai-pulse {
+  animation: ai-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+/* =====================================
+ * Dark Mode Adaptations
+ * ===================================== */
+
+body[theme-mode='dark'] {
+  /* Button overrides for dark mode */
+  .semi-button-primary {
+    box-shadow: var(--semi-shadow-elevated) !important;
+  }
+  
+  .semi-button-primary:hover {
+    box-shadow: var(--semi-shadow-medium) !important;
+  }
+  
+  /* Card overrides for dark mode */
+  .semi-card {
+    border-color: var(--semi-color-border) !important;
+  }
+  
+  .semi-card.ai-card {
+    background: linear-gradient(135deg, var(--semi-color-ai-surface) 0%, var(--semi-color-bg-1) 100%) !important;
+  }
+  
+  /* Input overrides for dark mode */
+  .semi-input:focus,
+  .semi-textarea:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+  }
+  
+  .semi-input.ai-input:focus,
+  .semi-textarea.ai-textarea:focus {
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+  }
+}
+
+/* =====================================
+ * Responsive Design Overrides
+ * ===================================== */
+
+@media (max-width: 768px) {
+  .semi-card {
+    border-radius: var(--semi-border-radius-medium) !important;
+    margin: var(--semi-spacing-2) !important;
+  }
+  
+  .semi-button {
+    font-size: 14px !important;
+    padding: 8px 16px !important;
+  }
+  
+  .semi-input,
+  .semi-textarea {
+    font-size: 14px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .semi-card-body {
+    padding: var(--semi-spacing-4) !important;
+  }
+  
+  .semi-card-head {
+    padding: var(--semi-spacing-3) var(--semi-spacing-4) !important;
+  }
+}

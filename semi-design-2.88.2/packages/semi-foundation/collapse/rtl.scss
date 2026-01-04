@@ -1,0 +1,26 @@
+$module: #{$prefix}-collapse;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+
+    .#{$module} {
+        direction: rtl;
+
+        &-header {
+
+            &-right {
+
+                span {
+                    display: flex;
+                    padding-right: 0;
+                    padding-left: $spacing-collapse_right-paddingRight;
+
+                    &:last-child {
+                        padding-right: 0;
+                        padding-left: 0;
+                    }
+                }
+            }
+        }
+    }
+}

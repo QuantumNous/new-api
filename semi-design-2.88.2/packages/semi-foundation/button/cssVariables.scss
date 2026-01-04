@@ -1,0 +1,11 @@
+$module: #{$prefix}-button;
+
+.#{$module} {
+    --semi-button-colorful-multiple-fill-0: rgba(var(--semi-ai-general-5-3));
+    --semi-button-colorful-multiple-fill-1: rgba(var(--semi-ai-general-5-2));
+    --semi-button-colorful-multiple-fill-2: rgba(var(--semi-ai-general-5-1));
+    --semi-button-colorful-multiple-fill-3: rgba(var(--semi-ai-general-5-0));
+    --semi-button-colorful-disabled-fill: var(--semi-color-disabled-text);
+    --semi-button-colorful-fill-primary: var(--semi-color-ai-purple);
+    --semi-button-colorful-fill-secondary: var(--semi-color-text-0);
+}

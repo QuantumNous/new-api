@@ -1,0 +1,204 @@
+// page中除header外的公用样式
+
+.main-content {
+    margin-top: 60px;
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    font-family: system, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei',
+        'wenquanyi micro hei', 'Hiragino Sans GB', 'Hiragino Sans GB W3', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
+        'Fira Sans', 'Droid Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+    .menu {
+        padding: 16px 4px 16px 12px;
+        font-size: 14px;
+        flex: 1 1 20%;
+        min-width: 240px;
+        max-width: 280px;
+        box-sizing: border-box;
+        // border-right: 1px solid #e5e5e5;
+        overflow: scroll;
+
+        .category {
+            margin-bottom: 20px;
+            min-width: 200px;
+
+            .semi-navigation-header-text {
+                font-size: 12px;
+                line-height: 3;
+                color: var(--semi-color-text-2);
+                padding-left: 12px;
+                font-weight: 600;
+            }
+
+            .semi-navigation-header {
+                padding: 0;
+                margin: 0;
+                height: auto;
+            }
+
+            .menu-item {
+                .menu-text {
+                    flex: 1 0 auto;
+                    font-size: 14px;
+                    line-height: 24px;
+                    color: var(--semi-color-text-0);
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    &-title {
+                        font-weight: 400;
+                    }
+                    &-subtitle {
+                        margin-left: 4px;
+                        font-weight: 400;
+                    }
+                }
+                &.active {
+                    .menu-text {
+                        &-title {
+                            font-weight: 600;
+                        }
+                        &-subtitle {
+                            font-weight: 600;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+.scroll-wrapper {
+    flex: 1 1 80%;
+    padding-top: 32px;
+    overflow: scroll;
+    position: relative;
+
+    .content-wrapper {
+        // min-width: 1160px;
+        // min-width: 600px;
+        width: 100%;
+        align-items: center;
+    }
+
+    .content {
+        width: 80%;
+        max-width: 1160px;
+        // margin: 0 100px;
+        box-sizing: border-box;
+        position: relative;
+        left: -50px;
+
+        .breadcrumb {
+            font-size: 18px;
+            line-height: 1.33;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: var(--semi-color-text-0);
+        }
+
+        & > .markdown + div {
+            .markdown:first-child {
+                h2 {
+                    margin-top: 0;
+                }
+                .anchor-outer {
+                    margin-bottom: 12px;
+                }
+            }
+        }
+    }
+}
+
+.light-scrollbar {
+
+    // light scrollbar
+    &::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0);
+    }
+
+    &::-webkit-scrollbar-corner {
+        background-color: rgba(0, 0, 0, 0);
+    }
+
+    &::-webkit-scrollbar-thumb {
+        border-radius: 6px;
+        background: transparent;
+        transition: all 1s;
+    }
+
+    &:hover::-webkit-scrollbar-thumb {
+        background: var(--semi-color-fill-2);
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+        background: var(--semi-color-fill-1);
+    }
+}
+
+.nav-selector-colorpicker.pcr-app[data-theme='classic'] {
+    font-size: 14px;
+    background-color: var(--semi-color-bg-3);
+    border-radius: 6px;
+}
+
+.nav-selector-colorpicker .pcr-swatches button[type='button'] {
+    width: 1.4em;
+    height: 1.4em;
+}
+
+.nav-selector-colorpicker .pcr-selection > div.pcr-color-palette {
+    height: 10em;
+}
+
+/* browser compatibility table */
+.main-content[semi-page-title='introduction'] {
+    td {
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+        width: auto;
+    }
+    td:nth-of-type(1),
+    td:nth-of-type(2),
+    td:nth-of-type(3),
+    td:nth-of-type(4) {
+        width: auto;
+        font-weight: 400;
+        color: inherit;
+    }
+}
+
+
+/* ++++ overview start ++++ */
+.semi-overview-list {
+    display: flex;
+    flex-wrap: wrap;
+    .semi-overview-card {
+        width: 195px;
+        margin-right: 16px;
+        margin-bottom: 24px;
+        cursor: pointer;
+        .semi-overview-card-image {
+            width: 100%;
+            height: 129px;
+        }
+        .semi-overview-card-text {
+            font-size: 14px;
+            line-height: 20px;
+            margin-top: 4px;
+            color: var(--semi-color-text-0);
+        }
+    }
+}
+/* ---- overview end ---- */
+#custom-toast-container{
+    height: 180px;
+    background: #cccccc;
+    .semi-toast-wrapper{
+        position: relative;
+    }
+}

@@ -1,0 +1,23 @@
+$color-collapse_item-border-default: var(--semi-color-border); // 分割线颜色
+$color-collapse_header-text-default: var(--semi-color-text-0); // 标题文字颜色
+$color-collapse_header-text-disabled: var( --semi-color-disabled-text); // 标题文字颜色 禁用
+$color-collapse_header-icon-default: var(--semi-color-text-2); // 展开箭头图标颜色
+$color-collapse_header-bg-hover: var(--semi-color-fill-0); // 菜单项背景颜色 - 悬浮
+$color-collapse_header-bg-active: var(--semi-color-fill-1); // 菜单项背景颜色 - 按下
+$color-collapse_content-text-default: var(--semi-color-text-1); // 内容文字颜色
+
+$font-collapse_header-fontWeight: $font-weight-bold; // 标题字重
+$spacing-collapse_header-marginX: $spacing-tight; // 标题水平外边距
+$spacing-collapse_header-marginY: $spacing-extra-tight; // 标题垂直外边距
+$spacing-collapse_header-padding: $spacing-tight; // 标题内边距
+$spacing-collapse_right-paddingRight: $spacing-tight; // 图标右侧内边距
+$spacing-collapse_header_iconLeft-marginRight: 8px;
+$spacing-collapse_content-paddingTop: $spacing-extra-tight; // 内容顶部内边距
+$spacing-collapse_content-paddingRight: $spacing-base; // 内容右侧内边距
+$spacing-collapse_content-paddingBottom: $spacing-tight; // 内容底部内边距
+$spacing-collapse_content-paddingLeft: $spacing-base; // 内容左侧内边距
+
+$radius-collapse_header: var(--semi-border-radius-small); // 内容圆角大小
+
+$width-collapse_item-border: 1px; // 分割线宽度
+$size-collapse_icon-default: $width-icon-medium; // 图标尺寸

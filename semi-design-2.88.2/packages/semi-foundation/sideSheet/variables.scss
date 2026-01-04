@@ -1,0 +1,26 @@
+// Color
+$color-sideSheet_mask-bg: var(--semi-color-overlay-bg); // 侧边栏打开后蒙层颜色
+$color-sideSheet-bg: var(--semi-color-bg-2); // 侧边栏背景颜色
+$color-sideSheet_main-text: var(--semi-color-text-0); // 侧边栏默认文本颜色
+$color-sideSheet_header-borderBottom: var(--semi-color-border); // 侧边栏 header 底部边框颜色
+
+// Spacing
+$spacing-sideSheet-margin: 0; // 侧边栏整体外边距
+$spacing-sideSheet_title-margin: 0; // 侧边栏标题外边距
+$spacing-sideSheet_header-padding: $spacing-loose; // 侧边栏 header 内边距
+$spacing-sideSheet_header-paddingBottom: $spacing-base-loose; // 侧边栏 header 底部内边距
+$spacing-sideSheet_body-paddingY: 0; // 侧边栏 body 垂直内边距
+$spacing-sideSheet_body-paddingX: $spacing-loose; // 侧边栏 body 水平内边距
+$spacing-sideSheet_footer-padding: $spacing-loose; // 侧边栏 footer 内边距
+
+$width-sideSheet_header-borderBottom: 0px; // 侧边栏 header 底部边框宽度
+$width-sideSheet_size-small: 448px; // 小尺寸侧边栏宽度
+$width-sideSheet_size-medium: 684px; // 中尺寸侧边栏宽度
+$width-sideSheet_size-large: 920px; // 大尺寸侧边栏宽度
+
+// Font
+$font-sideSheet_title-fontWeight: $font-weight-bold; // 侧边栏标题文本字重
+$font-sideSheet_title-fontSize: $font-size-header-5; // 侧边栏标题文本字号
+
+$filter-sideSheet_mask-bg: none;
+$filter-sideSheet-bg: none;

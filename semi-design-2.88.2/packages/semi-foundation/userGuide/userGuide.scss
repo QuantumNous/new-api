@@ -1,0 +1,147 @@
+@import './variables.scss';
+@import './animation.scss';
+
+$module: #{$prefix}-userGuide;
+
+
+.#{$module} {
+
+    &-spotlight {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+
+        &-transparent-rect {
+            pointer-events: auto;
+        }
+
+        &-rect {
+            transition: all $transition_duration-userGuide_spotLight $transition_function-userGuide_spotLight;
+        }
+    }
+
+    &-popover {
+        max-width: fit-content;
+        width: $width-userGuide_popover-default;
+    }
+
+    &-popup-content {
+        color: $color-userGuide_popup-text-default;
+
+        &-primary {
+            color: $color-userGuide_popup-text-primary;
+        }
+
+        &-cover {
+            img {
+                display: block;
+                height: $height-userGuide_popup_content_cover-default;
+                width: 100%;
+                border-radius: $radius-userGuide_popup_content_cover;
+            }
+        }
+
+        &-body {
+            padding: $spacing-userGuide_popup_content_body-padding;
+        }
+    
+        &-title {
+            font-size: $font-userGuide_popup_content_title-fontSize;
+            font-weight: $font-userGuide_popup_content_title-fontWeight;
+            line-height: $font-userGuide_popup_content_title-lineHeight;
+            margin-bottom: $spacing-userGuide_popup_content_title-marginBottom;
+        }
+
+        &-description {
+            font-size: $font-userGuide_popup_content_description-fontSize;
+            line-height: $font-userGuide_popup_content_description-lineHeight;
+            margin-bottom: $spacing-userGuide_popup_content_description-marginBottom;
+        }
+
+        &-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    
+        &-buttons {
+            display: flex;
+            gap: $spacing-userGuide_popup_content_button-gap;
+            margin-left: $spacing-userGuide_popup_content_button-marginLeft;
+        }
+
+        &-indicator {
+            font-size: $font-size-regular; 
+            line-height: $font-userGuide_popup_content_indicator-lineHeight;
+        }
+    }
+
+    &-modal {
+
+        .#{$prefix}-modal-small {
+            width: fit-content;
+        }
+
+        // Override the modal's original padding
+        .#{$prefix}-modal-content {
+            padding: 0;
+            width: $width-userGuide_modal_content_cover-default;
+            max-width: fit-content;
+        }
+
+        &-cover {
+            height: $height-userGuide_modal_content_cover-default;
+        }
+
+        &-indicator {
+            height: $height-userGuide_modal_content_indicator-default;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            column-gap: $spacing-userGuide_popup_content_indicator-gap;
+
+            &-item {
+                width: $width-userGuide_modal_content_indicator_item-default;
+                height: $height-userGuide_modal_content_indicator_item-default;
+                border-radius: $radius-userGuide_modal_content_indicator;
+                background-color: $color-userGuide_modal_content_indicator-bg;
+
+                &-active {
+                    background: $color-userGuide_modal_content_indicator-bg-active
+                }
+            }
+        }
+
+        &-body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: $spacing-userGuide_modal_content_body-padding;
+
+            &-title {
+                font-size: $font-userGuide_modal_content_title-fontSize;
+                font-weight: $font-userGuide_modal_content_title-fontWeight;
+                line-height:$font-userGuide_modal_content_title-lineHeight;
+                margin-bottom: $spacing-userGuide_modal_content_title-marginBottom;
+            }
+
+            &-description {
+                font-size: $font-userGuide_modal_content_description-fontSize;
+                line-height: $font-userGuide_modal_content_description-lineHeight;
+            }
+        }
+
+        &-footer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: $spacing-userGuide_modal_content_footer-padding;
+            column-gap: $spacing-userGuide_modal_content_button-gap
+        }
+    }
+} 
+

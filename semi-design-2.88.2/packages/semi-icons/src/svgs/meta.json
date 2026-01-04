@@ -1,0 +1,2054 @@
+[
+    {
+        "name": "a_i_bell_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_bell_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_bell_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_edit_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_edit_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_edit_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_file_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_file_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_file_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_filled_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_filled_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_filled_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_image_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_image_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_image_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_search_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_search_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_search_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_stroked_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_stroked_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_stroked_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_wand_level_1",
+        "category": "One Color"
+    },
+    {
+        "name": "a_i_wand_level_2",
+        "category": "Two Color"
+    },
+    {
+        "name": "a_i_wand_level_3",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "a_i_loading",
+        "category": "Multiple Color"
+    },
+    {
+        "name": "book",
+        "category": "Basic"
+    },
+    {
+        "name": "coin_money",
+        "category": "Basic"
+    },
+    {
+        "name": "down_circle",
+        "category": "Basic"
+    },
+    {
+        "name": "edit_2",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "left_circle",
+        "category": "Basic"
+    },
+    {
+        "name": "note_money",
+        "category": "Basic"
+    },
+    {
+        "name": "prize",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "real_size",
+        "category": "Basic"
+    },
+    {
+        "name": "share",
+        "category": "Basic"
+    },
+    {
+        "name": "test_score",
+        "category": "Basic"
+    },
+    {
+        "name": "ticket_code",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "user_list",
+        "category": "Basic"
+    },
+    {
+        "name": "user_circle",
+        "category": "User"
+    },
+    {
+        "name": "sort",
+        "category": "Arrow"
+    },
+    {
+        "name": "phone_stroke",
+        "category": "Device"
+    },
+    {
+        "name": "send",
+        "category": "Communication"
+    },
+    {
+        "name": "grid_view1",
+        "category": "Layout"
+    },
+    {
+        "name": "app_center",
+        "category": "Layout"
+    },
+    {
+        "name": "unlock",
+        "category": "Objects"
+    },
+    {
+        "name": "scissors",
+        "category": "Objects"
+    },
+    {
+        "name": "connection_point_1",
+        "category": "Objects"
+    },
+    {
+        "name": "connection_point_2",
+        "category": "Objects"
+    },
+    {
+        "name": "xigua_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "toutiao_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "history",
+        "category": "Interface"
+    },
+    {
+        "name": "horn",
+        "category": "Objects"
+    },
+    {
+        "name": "clock",
+        "category": "Time"
+    },
+    {
+        "name": "triangle_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "language",
+        "category": "Accessibility"
+    },
+    {
+        "name": "bell",
+        "category": "Alert"
+    },
+    {
+        "name": "delete",
+        "category": "Interface"
+    },
+    {
+        "name": "grid_view",
+        "category": "Layout"
+    },
+    {
+        "name": "article",
+        "category": "Writing"
+    },
+    {
+        "name": "arrow_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "minus_circle",
+        "category": "Interface"
+    },
+    {
+        "name": "crown",
+        "category": "Objects"
+    },
+    {
+        "name": "caretdown",
+        "category": "Arrow"
+    },
+    {
+        "name": "chevron_left",
+        "category": "Arrow"
+    },
+    {
+        "name": "double_chevron_left",
+        "category": "Arrow"
+    },
+    {
+        "name": "paperclip",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "tree_triangle_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "setting",
+        "category": "Interface"
+    },
+    {
+        "name": "top",
+        "category": "Interface"
+    },
+    {
+        "name": "close",
+        "category": "Interface"
+    },
+    {
+        "name": "camera",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "user_card_phone",
+        "category": "Communication"
+    },
+    {
+        "name": "arrow_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "small_triangle_left",
+        "category": "Arrow"
+    },
+    {
+        "name": "branch",
+        "category": "Code"
+    },
+    {
+        "name": "github_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "mail",
+        "category": "Communication"
+    },
+    {
+        "name": "file",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "text_rectangle",
+        "category": "Writing"
+    },
+    {
+        "name": "h1",
+        "category": "Writing"
+    },
+    {
+        "name": "video",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "weibo",
+        "category": "Brands"
+    },
+    {
+        "name": "chevron_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "double_chevron_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "external_open",
+        "category": "Writing"
+    },
+    {
+        "name": "user",
+        "category": "User"
+    },
+    {
+        "name": "image",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "ascend",
+        "category": "Interface"
+    },
+    {
+        "name": "gallery",
+        "category": "Objects"
+    },
+    {
+        "name": "upload",
+        "category": "Arrow"
+    },
+    {
+        "name": "activity",
+        "category": "Interface"
+    },
+    {
+        "name": "layers",
+        "category": "Objects"
+    },
+    {
+        "name": "music",
+        "category": "Music"
+    },
+    {
+        "name": "list",
+        "category": "Writing"
+    },
+    {
+        "name": "apartment",
+        "category": "Building"
+    },
+    {
+        "name": "code",
+        "category": "Code"
+    },
+    {
+        "name": "kanban",
+        "category": "Layout"
+    },
+    {
+        "name": "descend2",
+        "category": "Interface"
+    },
+    {
+        "name": "handle",
+        "category": "Interface"
+    },
+    {
+        "name": "align_left",
+        "category": "Writing"
+    },
+    {
+        "name": "align_justify",
+        "category": "Writing"
+    },
+    {
+        "name": "play_circle",
+        "category": "Music"
+    },
+    {
+        "name": "feishu_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "indent_left",
+        "category": "Writing"
+    },
+    {
+        "name": "indent_right",
+        "category": "Writing"
+    },
+    {
+        "name": "bold",
+        "category": "Writing"
+    },
+    {
+        "name": "helm",
+        "category": "Objects"
+    },
+    {
+        "name": "align_center",
+        "category": "Writing"
+    },
+    {
+        "name": "underline",
+        "category": "Writing"
+    },
+    {
+        "name": "refresh",
+        "category": "Interface"
+    },
+    {
+        "name": "tiktok_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "italic",
+        "category": "Writing"
+    },
+    {
+        "name": "template",
+        "category": "Layout"
+    },
+    {
+        "name": "align_right",
+        "category": "Writing"
+    },
+    {
+        "name": "terminal",
+        "category": "Code"
+    },
+    {
+        "name": "eye_closed",
+        "category": "Objects"
+    },
+    {
+        "name": "arrow_left",
+        "category": "Arrow"
+    },
+    {
+        "name": "server",
+        "category": "Objects"
+    },
+    {
+        "name": "align_top",
+        "category": "Writing"
+    },
+    {
+        "name": "align_bottom",
+        "category": "Writing"
+    },
+    {
+        "name": "filled_arrow_up",
+        "category": "Arrow"
+    },
+    {
+        "name": "back_top",
+        "category": "Arrow"
+    },
+    {
+        "name": "redo",
+        "category": "Interface"
+    },
+    {
+        "name": "undo",
+        "category": "Interface"
+    },
+    {
+        "name": "stop",
+        "category": "Music"
+    },
+    {
+        "name": "sidebar",
+        "category": "Layout"
+    },
+    {
+        "name": "credit_card",
+        "category": "Business"
+    },
+    {
+        "name": "histogram",
+        "category": "Business"
+    },
+    {
+        "name": "font",
+        "category": "Writing"
+    },
+    {
+        "name": "command",
+        "category": "Writing"
+    },
+    {
+        "name": "customize",
+        "category": "Layout"
+    },
+    {
+        "name": "mark",
+        "category": "Writing"
+    },
+    {
+        "name": "dislike_thumb",
+        "category": "Interface"
+    },
+    {
+        "name": "spin",
+        "category": "Interface"
+    },
+    {
+        "name": "alert_circle",
+        "category": "Alert"
+    },
+    {
+        "name": "shopping_bag",
+        "category": "Business"
+    },
+    {
+        "name": "wrench",
+        "category": "Objects"
+    },
+    {
+        "name": "maximize",
+        "category": "Interface"
+    },
+    {
+        "name": "minimize",
+        "category": "Interface"
+    },
+    {
+        "name": "hourglass",
+        "category": "Objects"
+    },
+    {
+        "name": "minus",
+        "category": "Interface"
+    },
+    {
+        "name": "list_view",
+        "category": "Layout"
+    },
+    {
+        "name": "play",
+        "category": "Music"
+    },
+    {
+        "name": "jianying",
+        "category": "Brands"
+    },
+    {
+        "name": "verify",
+        "category": "Interface"
+    },
+    {
+        "name": "upload_error",
+        "category": "Interface"
+    },
+    {
+        "name": "quit",
+        "category": "Interface"
+    },
+    {
+        "name": "map_pin",
+        "category": "Interface"
+    },
+    {
+        "name": "arrow_down_left",
+        "category": "Arrow"
+    },
+    {
+        "name": "loading",
+        "category": "Interface"
+    },
+    {
+        "name": "checkbox_indeterminate",
+        "category": "Interface"
+    },
+    {
+        "name": "search",
+        "category": "Interface"
+    },
+    {
+        "name": "eye_closed_solid",
+        "category": "Objects"
+    },
+    {
+        "name": "chevron_up",
+        "category": "Arrow"
+    },
+    {
+        "name": "whole_word",
+        "category": "Writing"
+    },
+    {
+        "name": "wifi",
+        "category": "Device"
+    },
+    {
+        "name": "expand",
+        "category": "Interface"
+    },
+    {
+        "name": "box",
+        "category": "Objects"
+    },
+    {
+        "name": "triangle_up",
+        "category": "Arrow"
+    },
+    {
+        "name": "home",
+        "category": "Building"
+    },
+    {
+        "name": "beaker",
+        "category": "Objects"
+    },
+    {
+        "name": "id_card",
+        "category": "Business"
+    },
+    {
+        "name": "shrink",
+        "category": "Interface"
+    },
+    {
+        "name": "shield",
+        "category": "Objects"
+    },
+    {
+        "name": "vigo_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "reply",
+        "category": "Communication"
+    },
+    {
+        "name": "similarity",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "topbuzz_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "like_thumb",
+        "category": "Interface"
+    },
+    {
+        "name": "tick",
+        "category": "Interface"
+    },
+    {
+        "name": "download",
+        "category": "Arrow"
+    },
+    {
+        "name": "copy_add",
+        "category": "Interface"
+    },
+    {
+        "name": "pulse",
+        "category": "Music"
+    },
+    {
+        "name": "check_list",
+        "category": "Writing"
+    },
+    {
+        "name": "color_palette",
+        "category": "Objects"
+    },
+    {
+        "name": "puzzle",
+        "category": "Objects"
+    },
+    {
+        "name": "route",
+        "category": "Arrow"
+    },
+    {
+        "name": "small_triangle_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "tree_triangle_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "eye_opened",
+        "category": "Objects"
+    },
+    {
+        "name": "sync",
+        "category": "Interface"
+    },
+    {
+        "name": "star",
+        "category": "Interface"
+    },
+    {
+        "name": "tick_circle",
+        "category": "Interface"
+    },
+    {
+        "name": "disc",
+        "category": "Music"
+    },
+    {
+        "name": "save",
+        "category": "Objects"
+    },
+    {
+        "name": "chevron_up_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "safe",
+        "category": "Objects"
+    },
+    {
+        "name": "inherit",
+        "category": "Interface"
+    },
+    {
+        "name": "forward",
+        "category": "Communication"
+    },
+    {
+        "name": "cart",
+        "category": "Business"
+    },
+    {
+        "name": "link",
+        "category": "Writing"
+    },
+    {
+        "name": "lock",
+        "category": "Objects"
+    },
+    {
+        "name": "clear",
+        "category": "Interface"
+    },
+    {
+        "name": "briefcase",
+        "category": "Business"
+    },
+    {
+        "name": "bulb",
+        "category": "Objects"
+    },
+    {
+        "name": "bookmark",
+        "category": "Objects"
+    },
+    {
+        "name": "caretup",
+        "category": "Arrow"
+    },
+    {
+        "name": "volume_2",
+        "category": "Music"
+    },
+    {
+        "name": "microphone_off",
+        "category": "Communication"
+    },
+    {
+        "name": "microphone",
+        "category": "Communication"
+    },
+    {
+        "name": "rotate",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "crop",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "git",
+        "category": "Brands"
+    },
+    {
+        "name": "small_triangle_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "small_triangle_top",
+        "category": "Arrow"
+    },
+    {
+        "name": "edit",
+        "category": "Writing"
+    },
+    {
+        "name": "copy",
+        "category": "Interface"
+    },
+    {
+        "name": "descend",
+        "category": "Interface"
+    },
+    {
+        "name": "comment",
+        "category": "Communication"
+    },
+    {
+        "name": "menu",
+        "category": "Interface"
+    },
+    {
+        "name": "globe",
+        "category": "Objects"
+    },
+    {
+        "name": "more",
+        "category": "Interface"
+    },
+    {
+        "name": "plus_circle",
+        "category": "Interface"
+    },
+    {
+        "name": "help_circle",
+        "category": "Accessibility"
+    },
+    {
+        "name": "bolt",
+        "category": "Communication"
+    },
+    {
+        "name": "contrast",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "duration",
+        "category": "Interface"
+    },
+    {
+        "name": "folder_open",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "calendar",
+        "category": "Time"
+    },
+    {
+        "name": "info_circle",
+        "category": "Accessibility"
+    },
+    {
+        "name": "plus",
+        "category": "Interface"
+    },
+    {
+        "name": "h6",
+        "category": "Writing"
+    },
+    {
+        "name": "brackets",
+        "category": "Interface"
+    },
+    {
+        "name": "grid-square",
+        "category": "Writing"
+    },
+    {
+        "name": "user_card_video",
+        "category": "Communication"
+    },
+    {
+        "name": "triangle_arrow",
+        "category": "Arrow"
+    },
+    {
+        "name": "favorite_list",
+        "category": "Interface"
+    },
+    {
+        "name": "radio",
+        "category": "Music"
+    },
+    {
+        "name": "triangle_arrow_vertical",
+        "category": "Arrow"
+    },
+    {
+        "name": "qingyan",
+        "category": "Brands"
+    },
+    {
+        "name": "filled_arrow_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "backward",
+        "category": "Music"
+    },
+    {
+        "name": "inbox",
+        "category": "Objects"
+    },
+    {
+        "name": "line_height",
+        "category": "Writing"
+    },
+    {
+        "name": "pipixia_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "text",
+        "category": "Writing"
+    },
+    {
+        "name": "strike_through",
+        "category": "Writing"
+    },
+    {
+        "name": "exit",
+        "category": "Interface"
+    },
+    {
+        "name": "figma",
+        "category": "Brands"
+    },
+    {
+        "name": "hn",
+        "category": "Writing"
+    },
+    {
+        "name": "arrow_down_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "gitlab_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "volumn_silent",
+        "category": "Music"
+    },
+    {
+        "name": "alarm",
+        "category": "Time"
+    },
+    {
+        "name": "h7",
+        "category": "Writing"
+    },
+    {
+        "name": "emoji",
+        "category": "Writing"
+    },
+    {
+        "name": "filp_vertical",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "moon",
+        "category": "Objects"
+    },
+    {
+        "name": "import",
+        "category": "Arrow"
+    },
+    {
+        "name": "export",
+        "category": "Arrow"
+    },
+    {
+        "name": "customer_support",
+        "category": "Accessibility"
+    },
+    {
+        "name": "calendar_clock",
+        "category": "Time"
+    },
+    {
+        "name": "price_tag",
+        "category": "Business"
+    },
+    {
+        "name": "sun",
+        "category": "Objects"
+    },
+    {
+        "name": "pause",
+        "category": "Music"
+    },
+    {
+        "name": "filter",
+        "category": "Interface"
+    },
+    {
+        "name": "arrow_up_right",
+        "category": "Arrow"
+    },
+    {
+        "name": "alert_triangle",
+        "category": "Alert"
+    },
+    {
+        "name": "checkbox_tick",
+        "category": "Interface"
+    },
+    {
+        "name": "chevron_down",
+        "category": "Arrow"
+    },
+    {
+        "name": "globe_stroke",
+        "category": "Objects"
+    },
+    {
+        "name": "apps",
+        "category": "Layout"
+    },
+    {
+        "name": "key",
+        "category": "Objects"
+    },
+    {
+        "name": "reg_exp",
+        "category": "Writing"
+    },
+    {
+        "name": "h5",
+        "category": "Writing"
+    },
+    {
+        "name": "mute",
+        "category": "Music"
+    },
+    {
+        "name": "grid-rectangle",
+        "category": "Writing"
+    },
+    {
+        "name": "member",
+        "category": "User"
+    },
+    {
+        "name": "female",
+        "category": "User"
+    },
+    {
+        "name": "male",
+        "category": "User"
+    },
+    {
+        "name": "option",
+        "category": "Writing"
+    },
+    {
+        "name": "live",
+        "category": "Device"
+    },
+    {
+        "name": "font_color",
+        "category": "Writing"
+    },
+    {
+        "name": "facebook",
+        "category": "Brands"
+    },
+    {
+        "name": "h2",
+        "category": "Writing"
+    },
+    {
+        "name": "bytedance_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "arrow_up",
+        "category": "Arrow"
+    },
+    {
+        "name": "archive",
+        "category": "Objects"
+    },
+    {
+        "name": "h4",
+        "category": "Writing"
+    },
+    {
+        "name": "faceu_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "folder",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "like_heart",
+        "category": "Interface"
+    },
+    {
+        "name": "ordered_list",
+        "category": "Writing"
+    },
+    {
+        "name": "identity",
+        "category": "Objects"
+    },
+    {
+        "name": "quote",
+        "category": "Writing"
+    },
+    {
+        "name": "restart",
+        "category": "Music"
+    },
+    {
+        "name": "dongchedi_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "h9",
+        "category": "Writing"
+    },
+    {
+        "name": "twitter",
+        "category": "Brands"
+    },
+    {
+        "name": "arrow_up_left",
+        "category": "Arrow"
+    },
+    {
+        "name": "qr_code",
+        "category": "Objects"
+    },
+    {
+        "name": "desktop",
+        "category": "Device"
+    },
+    {
+        "name": "phone",
+        "category": "Device"
+    },
+    {
+        "name": "hash",
+        "category": "Communication"
+    },
+    {
+        "name": "at",
+        "category": "Communication"
+    },
+    {
+        "name": "signal",
+        "category": "Device"
+    },
+    {
+        "name": "user_group",
+        "category": "User"
+    },
+    {
+        "name": "song",
+        "category": "Music"
+    },
+    {
+        "name": "flag",
+        "category": "Objects"
+    },
+    {
+        "name": "refresh2",
+        "category": "Interface"
+    },
+    {
+        "name": "divide",
+        "category": "Interface"
+    },
+    {
+        "name": "volume_1",
+        "category": "Music"
+    },
+    {
+        "name": "cloud",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "shift",
+        "category": "Writing"
+    },
+    {
+        "name": "youtube",
+        "category": "Brands"
+    },
+    {
+        "name": "h8",
+        "category": "Writing"
+    },
+    {
+        "name": "percentage",
+        "category": "Interface"
+    },
+    {
+        "name": "flip_horizontal",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "h3",
+        "category": "Writing"
+    },
+    {
+        "name": "case_sensitive",
+        "category": "Writing"
+    },
+    {
+        "name": "fast_forward",
+        "category": "Music"
+    },
+    {
+        "name": "instagram",
+        "category": "Brands"
+    },
+    {
+        "name": "user_add",
+        "category": "User"
+    },
+    {
+        "name": "user_setting",
+        "category": "User"
+    },
+    {
+        "name": "align_center_vertical",
+        "category": "Writing"
+    },
+    {
+        "name": "gift",
+        "category": "Business"
+    },
+    {
+        "name": "print",
+        "category": "Device"
+    },
+    {
+        "name": "unlink",
+        "category": "Writing"
+    },
+    {
+        "name": "scan",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "source_control",
+        "category": "Code"
+    },
+    {
+        "name": "component",
+        "category": "Objects"
+    },
+    {
+        "name": "typograph",
+        "category": "Objects"
+    },
+    {
+        "name": "semi_logo",
+        "category": "Brands"
+    },
+    {
+        "name": "resso",
+        "category": "Brands"
+    },
+    {
+        "name": "edit_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "element_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "independent_corners_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "vote_video_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "rows_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "section_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "star_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "cloud_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "download_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "bookmark_add_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "tabs_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "cloud_upload_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "bottom_left_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "bell_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "grid_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "checklist_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "piechart_h5_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "top_center_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "nine_grid_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "center_right_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "music_note_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "mail_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "chevron_right_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "server_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "window_adaption_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "heart_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "rotation_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "ticket_code_exchange_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "ranking_card_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "video_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "more_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "cross_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "save_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "share_money_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "comment_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "component_placeholder_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "code_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "minus_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "real_size_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "ordered_list_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "component_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "monitor_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "top_right_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "thumb_up_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "minus_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "button_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "lock_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "bottom_right_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "issue_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "version_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "calendar_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "config_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "story_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "gift_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "chevron_down_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "plus_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "book_h5_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "center_left_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "key_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "help_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "shrink_screen_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "interactive_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "stopwatch_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "unlock_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "absolute_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "home_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "video_douyin_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "setting_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "brief_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "align_v_bot_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "modal_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "smartphone_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "finger_left_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "tab_arrow_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "search_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "bookmark_delete_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "lightning_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "tv_checked_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "reply_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "align_h_center_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "user_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "check_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "cross_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "un_chain_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "chain_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "customer_support_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "mail_stroked_1",
+        "category": "Basic"
+    },
+    {
+        "name": "send_msg_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "sort_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "coin_money_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "hourglass_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "folder_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "bottom_center_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "sonic_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "user_list_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "plus_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "check_choice_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "indenpent_corners_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "share_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "inherit_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "top_left_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "fixed_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "columns_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "send_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "user_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "map_pin_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "smartphone_check_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "carousel_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "full_screen_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "book_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "text_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "note_money_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "external_open_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "follow_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "image_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "ticket_code_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "invite_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "margin_left_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "template_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "video_list_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "inner_section_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "money_exchange_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "true_false_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "book_open_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "left_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "redo_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "forward_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "delete_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "test_score_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "down_circle_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "copy_stroked",
+        "category": "Basic"
+    },
+    {
+        "name": "flow_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "venn_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "stack_bar_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "task_money_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "bar_chart_v_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "bar_chart_h_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "ring_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "pie_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "pie_chart_2_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "line_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "candlestick_chart_stroked",
+        "category": "Chart & Diagram"
+    },
+    {
+        "name": "align_h_left_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "align_h_right_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "align_v_top_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "align_v_center_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "align_v_bottom_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "margin_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "corner_radius_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "transparent_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "fill_stroked",
+        "category": "Editor"
+    },
+    {
+        "name": "prize_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "edit_2_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "loop_text_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "video_url_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "vote_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "shield_stroked",
+        "category": "Magic Customized"
+    },
+    {
+        "name": "alarm_stroked",
+        "category": "Time"
+    },
+    {
+        "name": "briefcase_stroked",
+        "category": "Business"
+    },
+    {
+        "name": "calendar_clock_stroked",
+        "category": "Time"
+    },
+    {
+        "name": "camera_stroked",
+        "category": "Photo&Video"
+    },
+    {
+        "name": "cart_stroked",
+        "category": "Business"
+    },
+    {
+        "name": "clock_stroked",
+        "category": "Time"
+    },
+    {
+        "name": "credit_card_stroked",
+        "category": "Business"
+    },
+    {
+        "name": "crown_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "eye_closed_solid_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "eye_closed_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "eye_opened_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "filter_stroked",
+        "category": "Interface"
+    },
+    {
+        "name": "flag_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "folder_open_stroked",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "horn_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "id_card_stroked",
+        "category": "Business"
+    },
+    {
+        "name": "microphone_off_stroked",
+        "category": "Communication"
+    },
+    {
+        "name": "microphone_stroked",
+        "category": "Communication"
+    },
+    {
+        "name": "moon_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "mute_stroked",
+        "category": "Music"
+    },
+    {
+        "name": "paperclip_stroked",
+        "category": "Files&Folder"
+    },
+    {
+        "name": "phone_stroked",
+        "category": "Device"
+    },
+    {
+        "name": "safe_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "scissors_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "shopping_bag_stroked",
+        "category": "Business"
+    },
+    {
+        "name": "sun_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "user_card_video_stroked",
+        "category": "Communication"
+    },
+    {
+        "name": "volume_1_stroked",
+        "category": "Music"
+    },
+    {
+        "name": "volume_2_stroked",
+        "category": "Music"
+    },
+    {
+        "name": "volume_silent_stroked",
+        "category": "Music"
+    },
+    {
+        "name": "wrench_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "globe_stroked",
+        "category": "Objects"
+    },
+    {
+        "name": "globe_stroke_stroked",
+        "category": "Objects"
+    }
+]

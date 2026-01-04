@@ -1,0 +1,8 @@
+$module: #{$prefix}-overflow-list;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+    }
+}

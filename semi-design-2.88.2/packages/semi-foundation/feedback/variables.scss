@@ -1,0 +1,27 @@
+// color
+$color-feedback_thank_text: var(--semi-color-text-2); // 感谢文字的文本颜色
+
+// width
+$width-feedback: 400px; // 除去文本类型外其他类型的宽度
+$width-feedback_text: 600px; // 文本类型的宽度
+
+// spacing
+$spacing-feedback_emoji_container-columnGap: 24px; // emoji容器中emoji的间距
+$spacing-feedback_emoji_container-marginY: 24px; // emoji容器的上下间距
+$spacing-feedback_thank_text-marginTop: 24px; // 感谢文字的文本的顶部间距
+$spacing-feedback_thank_text-marginBottom: 0px; // 感谢文字的文本的底部间距
+$spacing-feedback_checkbox_group_vertical-rowGap: 16px; // 多选框组的行间距
+$spacing-feedback_footer-columnGap: 12px; // 底部按钮的间距
+$spacing-feedback_sidesheet_bottom-right: 20px; // 底部弹窗的右间距
+$spacing-feedback_sidesheet_bottom_inner_wrap-bottom: 50px; // 底部弹窗的底部间距
+
+// font
+$font-feedback_emoji-fontSize: 36px; // emoji的大小
+$font-feedback_thank_text-fontSize: $font-size-regular; // 感谢文字的文本大小
+$font-feedback_thank_text-lineHeight: 20px; // 感谢文字的文本行高
+$font-feedback_thank_text-fontWeight: $font-weight-regular; // 感谢文字的文本字体粗细
+
+// radius
+$radius-feedback_sidesheet_inner: 12px; // 底部弹窗的圆角
+
+

@@ -1,0 +1,164 @@
+$color-tabs_tab_line_default-border-default: var(--semi-color-border); // 线条式页签描边颜色默认
+
+$color-tabs_tab_line_default-bg-default: transparent; // 线条式页签背景颜色 - 默认
+$color-tabs_tab_line_default-text-default: var(--semi-color-text-2); // 线条式页签文本颜色 - 默认
+$color-tabs_tab_line_default-icon-default: var(--semi-color-text-2); // 线条式页签标示线颜色 - 默认
+
+$color-tabs_tab_line_default-bg-hover: transparent; // 线条式页签背景颜色 - 悬浮
+$color-tabs_tab_line_default-text-hover: var(--semi-color-text-0); // 线条式页签文本颜色 - 悬浮
+$color-tabs_tab_line_default-border-hover: var(--semi-color-fill-0); // 线条式页签标示线颜色 - 悬浮
+
+$color-tabs_tab_line_default-bg-active: transparent; // 线条式页签背景颜色 - 按下
+$color-tabs_tab_line_default-text-active: var(--semi-color-text-0); // 线条式页签文本颜色 - 按下
+$color-tabs_tab_line_default-border-active: var(--semi-color-fill-1); // 线条式页签标示线颜色 - 按下
+
+$color-tabs_tab_line_selected-bg-default: transparent; // 线条式页签背景颜色 - 选中
+$color-tabs_tab_line_selected-text-default: var(--semi-color-text-0); // 线条式页签文本颜色 - 选中
+$color-tabs_tab_line_indicator_selected-icon-default: var(--semi-color-primary); // 线条式页签标示线颜色 - 选中
+$color-tabs_tab_line_selected-icon-default: var(--semi-color-primary); // 线条式页签图标颜色 - 选中
+
+$color-tabs_tab_line_vertical_selected-bg-default: var(--semi-color-primary-light-default); // 垂直线条式页签背景颜色 - 选中
+$color-tabs_tab_line_vertical-bg-hover: var(--semi-color-fill-0); // 垂直线条式页签背景颜色 - 悬浮
+$color-tabs_tab_line_vertical-bg-active: var(--semi-color-fill-1); // 垂直线条式页签背景颜色 - 按下
+
+$color-tabs_tab_line_disabled-text-default: var(--semi-color-disabled-text); // 禁用线条式页签文本颜色 - 默认
+$color-tabs_tab_line_disabled-text-hover: var(--semi-color-disabled-text); // 禁用线条式页签文本颜色 - 悬浮
+
+$color-tabs_tab_card_default-border-default: var(--semi-color-border); // 卡片式页签描边颜色 - 默认
+
+$color-tabs_tab_button_selected-bg-default: var(--semi-color-primary-light-default); // 按钮式页签背景颜色 - 选中
+$color-tabs_tab_button_selected-text-default: var(--semi-color-primary); // 按钮式页签文本颜色 - 选中
+$color-tabs_tab_button-text-default: var(--semi-color-text-2); // 按钮式页签文本颜色 - 默认
+$color-tabs_tab_button-bg-hover: var(--semi-color-fill-0); // 按钮式页签背景颜色 - 悬浮
+$color-tabs_tab_button-bg-active: var(--semi-color-fill-1); // 按钮式页签背景颜色 - 按下
+
+$color-tabs_tab_card_indicator_selected-icon-default: var(--semi-color-border); // 卡片式页签描边
+$color-tabs_tab_card-bg-hover: var(--semi-color-fill-0); // 卡片式页签背景颜色 - 悬浮
+
+$color-tabs_tab_card_selected-bg-default: var(--semi-color-bg-1); // 卡片式页签背景颜色 - 选中
+$color-tabs_tab_card-bg-active: var(--semi-color-fill-1); // 卡片式页签背景颜色 -按下
+
+
+$color-tabs_tab-icon-default: var(--semi-color-text-2); // 页签图标颜色 - 默认
+$color-tabs_tab-icon-hover: var(--semi-color-text-0); // 页签图标颜色 - 悬浮
+$color-tabs_tab-icon-active: var(--semi-color-text-0); // 页签图标颜色 - 按下
+$color-tabs_tab_selected-icon-default: var(--semi-color-primary); // 页签图标颜色 - 选中
+
+$color-tabs_tab-outline-focus: var(--semi-color-primary-light-active); // 页签轮廓 - 聚焦
+
+$color-tabs_tab-pane-text-default: var(--semi-color-text-0); // 标签页内容文本颜色 - 默认
+
+$color-tabs_tab-pane_arrow-text-default: var(--semi-color-primary); // 滚动折叠箭头颜色 - 默认
+$color-tabs_tab-pane_arrow-border-default: transparent; // 滚动折叠箭头边框颜色 - 默认
+$color-tabs_tab-pane_arrow-bg-default:transparent; // 滚动折叠箭头背景色 - 默认
+
+$color-tabs_tab-pane_arrow-text-hover: var(--semi-color-primary); // 滚动折叠箭头颜色 - 悬浮
+$color-tabs_tab-pane_arrow-border-hover: transparent; // 滚动折叠箭头边框颜色 - 悬浮
+$color-tabs_tab-pane_arrow-bg-hover: var(--semi-color-fill-0); // 滚动折叠箭头背景色 - 悬浮
+
+$color-tabs_tab-pane_arrow-text-active: var(--semi-color-primary); // 滚动折叠箭头颜色 - 按下
+$color-tabs_tab-pane_arrow-border-active: transparent; // 滚动折叠箭头边框颜色 - 按下
+$color-tabs_tab-pane_arrow-bg-active: var(--semi-color-fill-1); // 滚动折叠箭头背景色 - 按下
+
+$color-tabs_tab-pane_arrow_disabled-bg-default: transparent;
+$color-tabs_tab-pane_arrow_disabled-bg-hover:  transparent;
+$color-tabs_tab-pane_arrow_disabled-text-default: var(--semi-color-disabled-text);
+$color-tabs_tab-pane_arrow_disabled-text-hover:  var(--semi-color-disabled-text);
+
+$color-tabs_tab_slash_line: var(--semi-color-text-2); //斜线式页签分割线颜色
+
+$font-tabs_tab-fontWeight: $font-weight-regular; // 页签文本字重 - 默认
+$font-tabs_tab_active-fontWeight: $font-weight-bold; // 页签文本字重 - 选中
+
+$height-tabs_overflow_list: 300px;  // 页签折叠收起菜单高度
+
+$width-tabs_bar_line-border: $border-thickness-control; // 线条式页签底部分割线宽度
+$width-tabs_bar_line_tab-border: 2px; // 页签标示线宽度
+
+$width-tabs_bar_card-border: $border-thickness-control; // 卡片式页签底部分割线宽度
+$width-tabs-outline: 2px; // 聚焦轮廓宽度
+$width-tabs-outline-offset: -2px; // 聚焦轮廓偏移宽度
+$width-tabs_bar_line-outline-offset: -1px; // 线条式页签聚焦轮廓偏移宽度
+$width-tabs_tab-pane_arrow-border:0px; // 滚动折叠箭头边框宽度
+
+$width-tabs_tab_slash_line: 8px; // 斜线式页签分割线宽度
+$height-tabs_tab_slash_line: 14px; // 斜线式页签分割线高度
+
+$height-tabs_bar_extra_large: 50px; // 大尺寸页签高度
+$font-tabs_bar_extra_large-lineHeight: $height-tabs_bar_extra_large; // 大尺寸页签文字行高
+
+$height-tabs_bar_extra_small: 36px; // 小尺寸页签高度
+$font-tabs_bar_extra_small-lineHeight: $height-tabs_bar_extra_small; // 小尺寸页签文字行高
+
+$spacing-tabs_tab-more_trigger_icon-marginLeft: 8px;
+$spacing-tabs_tab-more_trigger_icon-marginRight: 8px;
+$spacing-tabs_tab-more_trigger_icon-marginTop: 0px;
+$spacing-tabs_tab-more_trigger_icon-marginBottom: 0px;
+
+$spacing-tabs_tab-pane_arrow: 8px; //滚动折叠箭头内边距
+$spacing-tabs_bar_extra-paddingY: 0px; // 附加操作垂直内边距
+$spacing-tabs_bar_extra-paddingX: 5px; // 附加操作水平内边距
+$spacing-tabs_tab_icon-marginRight: $spacing-tight; // 附加操作垂直内边距
+$spacing-tabs_tab_icon-top: 3px; // 页签图标顶部位置
+$spacing-tabs_overflow_icon-marginRight: 4px; // 页签折叠切换按钮右侧外边距
+$spacing-tabs_overflow_icon-marginLeft: 4px; // 页签折叠切换按钮左侧外边距
+
+$spacing-tabs_bar_line_tab-paddingTop: $spacing-base; // 线条式页签
+$spacing-tabs_bar_line_tab-paddingRight: $spacing-extra-tight; // 线条式页签右侧内边距
+$spacing-tabs_bar_line_tab-paddingBottom: $spacing-base - $width-tabs_bar_line_tab-border; // 线条式页签底部内边距
+$spacing-tabs_bar_line_tab-paddingLeft: $spacing-extra-tight; // 线条式页签左侧内边距
+$spacing-tabs_bar_line_tab-marginRight: $spacing-loose; // 线条式页签右侧外边距
+
+$spacing-tabs_bar_line_tab_small-paddingTop: $spacing-tight; // 小尺寸线条式页签顶部内边距
+$spacing-tabs_bar_line_tab_small-paddingRight: $spacing-extra-tight; // 小尺寸线条式页签右侧内边距
+$spacing-tabs_bar_line_tab_small-paddingBottom: $spacing-tight - $width-tabs_bar_line_tab-border; // 小尺寸线条式页签底部内边距
+$spacing-tabs_bar_line_tab_small-paddingLeft: $spacing-extra-tight; // 小尺寸线条式页签左侧内边距
+
+$spacing-tabs_bar_line_tab_medium-paddingTop: $spacing-base-tight; // 中等尺寸线条式页签顶部内边距
+$spacing-tabs_bar_line_tab_medium-paddingRight: $spacing-extra-tight; // 中等尺寸线条式页签右侧内边距
+$spacing-tabs_bar_line_tab_medium-paddingBottom: $spacing-base-tight - $width-tabs_bar_line_tab-border; // 中等尺寸线条式页签底部内边距
+$spacing-tabs_bar_line_tab_medium-paddingLeft: $spacing-extra-tight; // 中等尺寸线条式页签左侧内边距
+
+$spacing-tabs_bar_line_tab_left-padding: 12px; // 垂直线条式页签左侧内边距
+$spacing-tabs_bar_line_tab_left_small-padding: $spacing-tight - 2px;  // 小尺寸垂直线条式页签左侧内边距
+$spacing-tabs_bar_line_tab_left_medium-padding: $spacing-base-tight - 2px; // 中等尺寸垂直线条式页签左侧内边距
+
+$spacing-tabs_bar_slash_tab-paddingY: 12px; // 斜线式页签上下内边距
+$spacing-tabs_bar_slash_tab-paddingX: 0px; // 斜线式页签水平内边距
+$spacing-tabs_bar_slash-marginRight: 16px; // 斜线式页签右侧外边距
+$spacing-tabs_bar_slash_line_marginLeft: 16px; // 斜线式页签斜线左侧外边距
+$spacing-tabs_bar_slash_line_marginTop: 3px; // 斜线式页签斜线顶部外边距
+$spacing-tabs_bar_slash_line_marginBottom: 3px; // 斜线式页签斜线底部外边距
+
+$spacing-tabs_content-paddingY: 5px; // 页签内容区垂直方向内边距
+$spacing-tabs_content-paddingX: 0; // 页签内容区水平方向内边距
+
+$spacing-tabs_content_left-paddingX: 5px; // 垂直页签内容区垂直方向内边距
+$spacing-tabs_content_left-paddingY: 0; // 垂直页签内容区水平方向内边距
+
+$spacing-tabs_bar_card_tab-marginRight: $spacing-tight; // 卡片式页签右侧外边距
+$spacing-tabs_bar_card_tab_active-paddingTop: $spacing-tight; // 卡片式选中页签顶部内边距
+$spacing-tabs_bar_card_tab_active-paddingBottom: $spacing-tight - 1px; // 卡片式选中页签底部内边距
+$spacing-tabs_bar_card_tab_active-paddingLeft: $spacing-base-tight; // 卡片式选中页签左侧内边距
+$spacing-tabs_bar_card_tab_active-paddingRight: $spacing-base-tight; // 卡片式选中页签右侧内边距
+$spacing-tabs_bar_card_tab_left-marginBottom: $spacing-tight; // 垂直卡片式页签底部外边距
+$spacing-tabs_bar_card_tab_left_active-paddingY: $spacing-tight; // 垂直卡片式选中页签垂直内边距
+$spacing-tabs_bar_card_tab_left_active-paddingX: $spacing-base-tight; // 垂直卡片式选中页签水平内边距
+$spacing-tabs_bar_card_tab-paddingY: $spacing-tight; // 卡片式选中页签垂直内边距
+$spacing-tabs_bar_card_tab-paddingX: $spacing-base-tight; // 卡片式选中页签水平内边距
+
+$spacing-tabs_bar_button_tab_left-marginBottom: $spacing-tight; // 垂直按钮式页签底部外边距
+$spacing-tabs_bar_button_tab-marginRight: $spacing-tight; // 按钮式页签右侧外边距
+$spacing-tabs_bar_button_tab-paddingY: $spacing-tight; // 按钮式页签垂直内边距
+$spacing-tabs_bar_button_tab-paddingX: $spacing-base-tight; // 按钮式页签水平内边距
+
+$radius-tabs_tab_card: var(--semi-border-radius-small) var(--semi-border-radius-small) 0 0; // 卡片式页签四向圆角
+$radius-tabs_tab_card_left: var(--semi-border-radius-small) 0 0 var(--semi-border-radius-small); // 垂直卡片式页签四向圆角
+$radius-tabs_tab_button: var(--semi-border-radius-small); // 按钮式页签圆角
+
+
+$font-tabs_bar_large-fontSize: $font-size-regular; // 大号模式 字体大小
+$font-tabs_bar_small-fontSize: $font-size-regular; // 小号模式 字体大小
+$font-tabs_bar_medium-fontSize: $font-size-regular; // 中等模式 字体大小
+
+

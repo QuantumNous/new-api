@@ -1,0 +1,23 @@
+$spacing-breadcrumb_item_wrap-marginY: $spacing-extra-tight; // 面包屑 Item 垂直内边距 
+$spacing-breadcrumb_item_wrap-marginRight: $spacing-extra-tight; // 面包屑 Item 右侧内边距 
+$spacing-breadcrumb_item-marginRight: $spacing-extra-tight; // 面包屑 Item 内容与分割线距离
+$spacing-breadcrumb_item_text-marginLeft: $spacing-extra-tight; // 面包屑文字左侧外边距
+$spacing-breadcrumb_restItem-marginRight: $spacing-tight; // 面包屑 restItem 的右侧外边距
+
+$color-breadcrumb_default-text-default: var(--semi-color-text-2); // 面包屑文字颜色 - 未选中
+$color-breadcrumb_default-text-hover: var(--semi-color-link); // 面包屑文字颜色 - 悬浮
+$color-breadcrumb_default-text-active: var(--semi-color-link-hover); // 面包屑文字颜色 - 按下
+
+$color-breadcrumb_active-text-default: var(--semi-color-text-0); // 面包屑文字颜色 - 选中
+$color-breadcrumb_active-text-active: var(--semi-color-text-0); // 面包屑文字颜色 - 选中激活
+$color-breadcrumb_sepearator_default-icon-default: var(--semi-color-text-2); // 面包屑分割线颜色
+
+$color-breadcrumb-restItem-text-default: var(--semi-color-text-2); // 面包屑 restItem 的分割线颜色
+
+
+$font-breadcrumb_default-fontWeight: $font-weight-regular; // 面包屑文字字重 - 未选中
+$font-breadcrumb_active-fontWeight: $font-weight-bold; // 面包屑文字字重 - 选中
+
+
+$font-breadcrumb_compact-fontSize:$font-size-small; // 面包屑文字大小 - 紧凑
+$font-breadcrumb_loose-fontSize:$font-size-regular; // 面包屑文字大小 - 宽松

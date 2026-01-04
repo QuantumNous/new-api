@@ -1,0 +1,141 @@
+@mixin minWidth() {
+    &.#{$module}-with-arrow,
+    .#{$module}-with-arrow {
+        min-width: $spacing-tooltip_arrow_adjusted_offset-x * 2 + $width-tooltip_arrow;
+    }
+}
+
+@mixin minHeight() {
+    &.#{$module}-with-arrow,
+    .#{$module}-with-arrow {
+        min-height: $height-tooltip_arrow_vertical + $spacing-tooltip_arrow_adjusted_offset-y * 2;
+    }
+}
+
+.#{$module} {
+    &-wrapper {
+        .#{$module-icon} {
+            height: $height-tooltip_arrow;
+            width: $width-tooltip_arrow;
+            position: absolute;
+            color:$color-tooltip_arrow-icon-default;
+        }
+
+        &[x-placement='top'] {
+            .#{$module-icon} {
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: (-$height-tooltip_arrow + $spacing-tooltip_arrow_offset-y);
+            }
+
+            @include minWidth();
+        }
+        &[x-placement='topLeft'] {
+            .#{$module-icon} {
+                bottom: (-$height-tooltip_arrow + $spacing-tooltip_arrow_offset-y);
+                left: $spacing-tooltip_arrow_adjusted_offset-x;
+            }
+
+            @include minWidth();
+        }
+        &[x-placement='topRight'] {
+            .#{$module-icon} {
+                bottom: (-$height-tooltip_arrow + $spacing-tooltip_arrow_offset-y);
+                right: $spacing-tooltip_arrow_adjusted_offset-x;
+            }
+
+            @include minWidth();
+        }
+        &[x-placement='leftTop'] {
+            .#{$module-icon} {
+                width: $width-tooltip_arrow_vertical;
+                height: $height-tooltip_arrow_vertical;
+                right: (-$width-tooltip_arrow_vertical + $spacing-tooltip_arrow_offset-x);
+                top: $vertical-rate * $height-tooltip_arrow_vertical + $spacing-tooltip_arrow_adjusted_offset-y;
+            }
+
+            @include minHeight();
+        }
+        &[x-placement='left'] {
+            .#{$module-icon} {
+                width: $width-tooltip_arrow_vertical;
+                height: $height-tooltip_arrow_vertical;
+                right: (-$width-tooltip_arrow_vertical + $spacing-tooltip_arrow_offset-x);
+                top: 50%;
+                transform: translateY(-50%);
+            }
+
+            @include minHeight();
+        }
+        &[x-placement='leftBottom'] {
+            .#{$module-icon} {
+                width: $width-tooltip_arrow_vertical;
+                height: $height-tooltip_arrow_vertical;
+                right: (-$width-tooltip_arrow_vertical + $spacing-tooltip_arrow_offset-x);
+                bottom: $vertical-rate * $height-tooltip_arrow_vertical + $spacing-tooltip_arrow_adjusted_offset-y;
+            }
+
+            @include minHeight();
+        }
+        &[x-placement='rightTop'] {
+            .#{$module-icon} {
+                width: $width-tooltip_arrow_vertical;
+                height: $height-tooltip_arrow_vertical;
+                left: -$width-tooltip_arrow_vertical + $spacing-tooltip_arrow_offset-x;
+                top: $vertical-rate * $height-tooltip_arrow_vertical + $spacing-tooltip_arrow_adjusted_offset-y;
+                transform: rotate(180deg);
+            }
+
+            @include minHeight();
+        }
+        &[x-placement='right'] {
+            .#{$module-icon} {
+                width: $width-tooltip_arrow_vertical;
+                height: $height-tooltip_arrow_vertical;
+                left: -$width-tooltip_arrow_vertical + $spacing-tooltip_arrow_offset-x;
+                top: 50%;
+                transform: translateY(-50%) rotate(180deg);
+            }
+
+            @include minHeight();
+        }
+        &[x-placement='rightBottom'] {
+            .#{$module-icon} {
+                width: $width-tooltip_arrow_vertical;
+                height: $height-tooltip_arrow_vertical;
+                left: -$width-tooltip_arrow_vertical + $spacing-tooltip_arrow_offset-x;
+                bottom: $vertical-rate * $height-tooltip_arrow_vertical + $spacing-tooltip_arrow_adjusted_offset-y;
+                transform: rotate(180deg);
+            }
+
+            @include minHeight();
+        }
+        &[x-placement='bottomLeft'] {
+            .#{$module-icon} {
+                top: (-$height-tooltip_arrow + $spacing-tooltip_arrow_offset-y);
+                left: $spacing-tooltip_arrow_adjusted_offset-x;
+                transform: rotate(180deg);
+            }
+
+            @include minWidth();
+        }
+        &[x-placement='bottom'] {
+            .#{$module-icon} {
+                top: (-$height-tooltip_arrow + $spacing-tooltip_arrow_offset-y);
+                left: 50%;
+                transform: translateX(-50%) rotate(180deg);
+            }
+
+            @include minWidth();
+        }
+        &[x-placement='bottomRight'] {
+            .#{$module-icon} {
+                right: $spacing-tooltip_arrow_adjusted_offset-x;
+                top: (-$height-tooltip_arrow + $spacing-tooltip_arrow_offset-y);
+                transform: rotate(180deg);
+            }
+
+            @include minWidth();
+        }
+    }
+}

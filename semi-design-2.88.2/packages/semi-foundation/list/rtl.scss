@@ -1,0 +1,39 @@
+$module: #{$prefix}-list;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+    
+        &-item {  
+            // 滚动加载无限长列表
+            direction: rtl;  
+
+            &-body {
+
+                &-header {
+                    margin-right: auto;
+                    margin-left: $spacing-list_header-marginLeft;
+                }
+            }
+    
+            &-extra {
+                flex: 0 0 auto;
+                margin-left: $spacing-none;
+                margin-right: $spacing-list_extra-marginRight;
+            }
+        }
+    
+        &.#{$module}-flex {
+            &.#{$module}-split .#{$module}-item {
+                border-bottom: none;
+                border-right: $border-thickness;
+                border-left: $border-thickness-control solid $color-list_default-border-default;
+
+                &:last-child {
+                    border-left: none;
+                }
+            }
+        }
+    }
+}

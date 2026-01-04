@@ -1,0 +1,30 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-hotKeys;
+
+.#{$module} {
+    box-sizing: border-box;
+    position: relative;
+    user-select: none;
+    white-space: nowrap;
+    vertical-align: bottom;
+    @include all-center;
+    display: inline-flex;
+
+    &-content {
+        @include font-size-small;
+        border-radius: $radius-hotKeys;
+        height: $height-hotKeys;
+        padding: $spacing-hotKeys-paddingY $spacing-hotKeys-paddingX;
+        border: $width-hotKeys-border;
+        background-color: $color-hotKeys-bg;
+        color: $color-hotKeys-text;
+    }
+
+    &-split {
+        @include font-size-small;
+        margin: 0 3px;
+        color: $color-hotKeys-split;
+    }
+
+}

@@ -1,0 +1,170 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-descriptions;
+
+.#{$module} {
+    line-height: $font-descriptions-lineHeight;
+    table,
+    tr,
+    th,
+    td {
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
+
+    th {
+        padding-right: $spacing-descriptions_th-paddingRight;
+    }
+
+    & &-item {
+        margin: 0;
+        padding-bottom: $spacing-descriptions_item-paddingBottom;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    &-key {
+        font-weight: normal;
+        @include font-size-regular;
+        min-height: $font-size-regular;
+        white-space: nowrap;
+        color: $color-descriptions_key-text-default;
+    }
+
+    &-value {
+        font-weight: normal;
+        @include font-size-regular;
+        color: $color-descriptions_value-text-default;
+    }
+
+    &-center {
+        .#{$module}-item-th {
+            text-align: right;
+        }
+
+        .#{$module}-item-td {
+            text-align: left;
+        }
+    }
+
+    &-left {
+        .#{$module}-item-th,
+        .#{$module}-item-td {
+            text-align: left;
+        }
+    }
+
+    &-justify {
+        .#{$module}-item-th {
+            text-align: left;
+        }
+
+        .#{$module}-item-td {
+            text-align: right;
+        }
+    }
+
+    &-plain {
+        // tag 垂直居中
+        .#{$module}-key,
+        .#{$module}-value {
+            display: inline-block;
+        }
+
+        .#{$module}-value {
+            padding-left: $spacing-descriptions_value_plain-paddingLeft;
+
+            & .#{$prefix}-tag {
+                vertical-align: middle;
+            }
+        }
+    }
+
+    &-double {
+
+        tbody {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        tr {
+            display: inline-flex;
+            flex-direction: column;
+        }
+
+        & .#{$module}-item {
+            padding: $spacing-descriptions_item_double-padding;
+            flex: 1;
+        }
+
+        .#{$module}-value {
+            font-weight: $font-descriptions_value-fontWeight;
+        }
+
+        &-small {
+            .#{$module}-item {
+                padding-right: $spacing-descriptions_item_small-paddingRight;
+            }
+
+            .#{$module}-key {
+                @include font-size-small;
+                padding-bottom: 0;
+                font-size: $font-descriptions_key_small-fontSize;
+            }
+
+            .#{$module}-value {
+                @include font-size-header-6;
+                font-size: $font-descriptions_value_small-fontSize;
+            }
+        }
+
+        &-medium {
+            .#{$module}-item {
+                padding-right: $spacing-descriptions_item_medium-paddingRight;
+            }
+
+            & .#{$module}-key {
+                padding-bottom: $spacing-descriptions_key_medium-paddingBottom;
+                font-size: $font-descriptions_key_medium-fontSize;
+            }
+
+            & .#{$module}-value {
+                @include font-size-header-4;
+                font-size: $font-descriptions_value_medium-fontSize;
+            }
+        }
+
+        &-large {
+            .#{$module}-item {
+                padding-right: $spacing-descriptions_item_large-paddingRight;
+            }
+
+            & .#{$module}-key {
+                padding-bottom: $spacing-descriptions_key_large-paddingBottom;
+                font-size: $font-descriptions_key_large-fontSize;
+            }
+
+            & .#{$module}-value {
+                @include font-size-header-2;
+                font-size: $font-descriptions_value_large-fontSize;
+            }
+        }
+    }
+
+    &-horizontal {
+        table {
+            table-layout: fixed;
+        }
+        table, tbody {
+            width: 100%;
+        }
+    }
+
+    &-horizontal &-item {
+        flex: 0;
+    }
+
+}
+
+@import "./rtl.scss";

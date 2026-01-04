@@ -1,0 +1,46 @@
+$color-carousel_indicator_theme_dark-bg-default: rgba(var(--semi-black), .5); // 深色主题指示器背景颜色 - 默认
+$color-carousel_indicator_theme_dark-bg-hover: rgba(var(--semi-black), .7); // 深色主题指示器背景颜色 - 悬浮
+$color-carousel_indicator_theme_dark-bg-active: rgba(var(--semi-black), 1); // 深色主题指示器背景颜色 - 选中
+
+$color-carousel_indicator_theme_primary-bg-default: rgba(var(--semi-blue-6), .4); // 主要主题指示器背景颜色 - 默认
+$color-carousel_indicator_theme_primary-bg-hover: rgba(var(--semi-blue-6), .7); // 主要主题指示器背景颜色 - 悬浮
+$color-carousel_indicator_theme_primary-bg-active: rgba(var(--semi-blue-6), 1); // 主要主题指示器背景颜色 - 选中
+
+$color-carousel_indicator_theme_light-bg-default: rgba(var(--semi-white), .4); // 浅色主题指示器背景颜色 - 默认
+$color-carousel_indicator_theme_light-bg-hover: rgba(var(--semi-white), .7); // 浅色主题指示器背景颜色 - 悬浮
+$color-carousel_indicator_theme_light-bg-active: rgba(var(--semi-white), 1); // 浅色主题指示器背景颜色 - 选中
+
+$color-carousel_arrow_theme_dark-bg-default: rgba(var(--semi-black), .5); // 深色主题箭头背景颜色 - 默认
+$color-carousel_arrow_theme_dark-bg-hover: rgba(var(--semi-black), 1); // 深色主题箭头背景颜色 - 悬浮
+
+$color-carousel_arrow_theme_primary-bg-default:  rgba(var(--semi-blue-6), .4); // 主要主题箭头背景颜色 - 默认
+$color-carousel_arrow_theme_primary-bg-hover:  rgba(var(--semi-blue-6), 1); // 主要主题箭头背景颜色 - 悬浮
+
+$color-carousel_arrow_theme_light-bg-default: rgba(var(--semi-white), .4); // 浅色主题箭头背景颜色 - 默认
+$color-carousel_arrow_theme_light-bg-hover: rgba(var(--semi-white), 1); // 浅色主题箭头背景颜色 - 悬浮
+
+$width-carousel_indicator_line: 240px; // 条状指示器最大宽度
+$width-carousel_indicator_columnar_small: 4px; // 小尺寸柱状指示器宽度
+$width-carousel_indicator_columnar_medium: 6px; // 中等尺寸柱状指示器宽度
+$width-carousel_indicator_dot_small:8px; // 小尺寸点状指示器宽度
+$width-carousel_indicator_dot_medium: 12px; // 中等尺寸点状指示器宽度
+$width-carousel_arrow: 32px; // 箭头宽度
+
+$height-carousel_indicator_columnar_small_default: 12px; // 小尺寸柱状指示器高度 - 默认
+$height-carousel_indicator_columnar_small_active: 20px; // 小尺寸柱状指示器高度 - 选中
+$height-carousel_indicator_columnar_medium_default: 20px; // 中等尺寸柱状指示器高度 - 默认
+$height-carousel_indicator_columnar_medium_active: 28px; // 中等尺寸柱状指示器高度 - 选中
+
+$height-carousel_indicator_line_small: 4px; // 小尺寸条状指示器高度
+$height-carousel_indicator_line_medium: 6px; // 中等尺寸条状指示器高度
+
+$radius-carousel_indicator_dot: 50%; // 点状指示器圆角
+
+$spacing-carousel_indicator-padding: 32px; // 指示器内边距
+
+$spacing-carousel_indicator_columnar-marginX: 4px; // 柱状指示器水平外边距
+$spacing-carousel_indicator_line-marginX: 4px; // 条状指示器水平外边距
+$spacing-carousel_indicator_dot-marginX: 8px; // 点状指示器水平外边距
+
+$spacing-carousel_arrow-left: 20px; // 左侧箭头绝对定位 - left
+$spacing-carousel_arrow-right: 20px; // 右侧箭头绝对定位 - right

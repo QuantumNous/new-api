@@ -1,0 +1,46 @@
+{
+    "name": "@douyinfe/semi-animation",
+    "version": "2.88.2",
+    "description": "animation base library for semi-ui",
+    "keywords": [
+        "animation",
+        "semi"
+    ],
+    "homepage": "",
+    "license": "MIT",
+    "main": "lib/cjs/index.js",
+    "module": "lib/es/index.js",
+    "typings": "lib/es/index.d.ts",
+    "directories": {
+        "lib": "lib",
+        "test": "__tests__"
+    },
+    "files": [
+        "lib",
+        "docs",
+        "README.md"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DouyinFE/semi-design"
+    },
+    "scripts": {
+        "test": "echo \"Error: run tests from root\" && exit 1",
+        "build:lib": "node scripts/compileLib",
+        "prepublishOnly": "npm run build:lib"
+    },
+    "dependencies": {
+        "bezier-easing": "^2.1.0"
+    },
+    "devDependencies": {
+        "@babel/plugin-transform-runtime": "^7.15.8",
+        "@babel/preset-env": "^7.15.8",
+        "del": "^6.0.0",
+        "gulp": "^4.0.2",
+        "gulp-babel": "^8.0.0",
+        "gulp-typescript": "^6.0.0-alpha.1",
+        "merge2": "^1.4.1",
+        "react-storybook-addon-props-combinations": "^1.1.0"
+    },
+    "gitHead": "eb34a4f25f002bb4cbcfa51f3df93bed868c831a"
+}

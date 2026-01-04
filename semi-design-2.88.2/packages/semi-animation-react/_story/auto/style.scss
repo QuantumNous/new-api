@@ -1,0 +1,38 @@
+.semi-animation-react-demo-auto {
+    button {
+        height: 50px;
+        border: 0;
+        cursor: pointer !important;
+        background: #777;
+        color: white;
+        outline: none;
+        -webkit-appearance: none;
+    }
+
+    button:hover {
+        background: #878787;
+    }
+
+    .auto-main {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: auto 1fr;
+        background: #575757;
+    }
+
+    .content {
+        grid-column: span 3;
+    }
+
+    .item {
+        background: indianred;
+        width: 100%;
+        overflow: hidden;
+        color: white;
+    }
+
+    .item p {
+        margin: 0;
+        padding: 10px;
+    }
+}

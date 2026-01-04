@@ -1,0 +1,156 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-badge;
+
+.#{$module} {
+    position: relative;
+    display: inline-block;
+
+    &-dot {
+        box-sizing: border-box;
+        width: $width-badge_dot;
+        height: $height-badge_dot;
+        border-radius: $radius-badge_dot;
+        background-color: $color-badge_default-bg-default;
+        border: $width-badge-border $color-badge_default-border-default solid;
+        z-index: $z-badge;
+    }
+
+    &-count {
+        box-sizing: border-box;
+        height: $height-badge_count;
+        min-width: $height-badge_count;
+        border-radius: $height-badge_count * 0.5;
+        padding: $spacing-badge_count-paddingY $spacing-badge_count-paddingX;
+        background-color: $color-badge_default-bg-default;
+        border: $width-badge-border $color-badge_default-border-default solid;
+        z-index: $z-badge;
+        text-align: center;
+        @include font-size-small;
+        font-weight: $font-weight-regular;
+        color: $color-badge_default-text-default;
+    }
+
+    &-rightTop {
+        position: absolute;
+        top: 0;
+        right: 0;
+        transform: translate(50%, -50%);
+        transform-origin: 100% 0%;
+    }
+
+    &-rightBottom {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        transform: translate(50%, 50%);
+        transform-origin: 100% 0%;
+    }
+
+    &-leftTop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translate(-50%, -50%);
+        transform-origin: 100% 0%;
+    }
+
+    &-leftBottom {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        transform: translate(-50%, 50%);
+        transform-origin: 100% 0%;
+    }
+
+    &-custom {
+        display: flex;
+    }
+
+    &-block {
+        position: static;
+        display: inline-block;
+    }
+
+
+    &-primary {
+        &.#{$module}-solid {
+            background-color: $color-badge_primary_solid-bg-default;
+        }
+        &.#{$module}-light {
+            background-color: $color-badge_primary_light-bg-default;
+            color: $color-badge_primary_light-text-default;
+        }
+        &.#{$module}-inverted {
+            color: $color-badge_primary_inverted-text-default;
+        }
+    }
+
+    &-secondary {
+        &.#{$module}-solid {
+            background-color: $color-badge_secondary_solid-bg-default;
+        }
+        &.#{$module}-light {
+            background-color: $color-badge_secondary_light-bg-default;
+            color: $color-badge_secondary_light-text-default;
+        }
+        &.#{$module}-inverted {
+            color: $color-badge_secondary_inverted-text-default;
+        }
+    }
+
+    &-tertiary {
+        &.#{$module}-solid {
+            background-color: $color-badge_tertiary_solid-bg-default;
+        }
+        &.#{$module}-light {
+            background-color: $color-badge_tertiary_light-bg-default;
+            color: $color-badge_tertiary_light-text-default;
+        }
+        &.#{$module}-inverted {
+            color: $color-badge_tertiary_inverted-text-default;
+        }
+    }
+
+    &-danger {
+        &.#{$module}-solid {
+            background-color: $color-badge_danger_solid-bg-default;
+        }
+        &.#{$module}-light {
+            background-color: $color-badge_danger_light-bg-default;
+            color: $color-badge_danger_light-text-default;
+        }
+        &.#{$module}-inverted {
+            color: $color-badge_danger_inverted-text-default;
+        }
+    }
+
+    &-warning {
+        &.#{$module}-solid {
+            background-color: $color-badge_warning_solid-bg-default;
+        }
+        &.#{$module}-light {
+            background-color: $color-badge_warning_light-bg-default;
+            color: $color-badge_warning_light-text-default;
+        }
+        &.#{$module}-inverted {
+            color: $color-badge_warning_inverted-text-default;
+        }
+    }
+
+    &-success {
+        &.#{$module}-solid {
+            background-color: $color-badge_success_solid-bg-default;
+        }
+        &.#{$module}-light {
+            background-color: $color-badge_success_light-bg-default;
+            color: $color-badge_success_light-text-default;
+        }
+        &.#{$module}-inverted {
+            color: $color-badge_success_inverted-text-default;
+        }
+    }
+
+}
+
+@import "./rtl.scss";

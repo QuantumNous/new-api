@@ -1,0 +1,205 @@
+// Color
+$color-aiChatDialogue_wrapper-selected-bg: var(--semi-color-fill-0); // 外层选中背景色
+$color-aiChatDialogue_loading_circle_first-bg:  rgba(83, 56, 255, 1); // 第一个加载圆点背景色
+$color-aiChatDialogue_loading_circle_second-bg: rgba(176, 48, 240, 1); // 第二个加载圆点背景色
+$color-aiChatDialogue_loading_circle_third-bg: rgba(231, 45, 255, 1); // 第三个加载圆点背景色
+$color-aiChatDialogue_loading_text: var(--semi-color-text-3); // 加载中文本颜色
+$color-aiChatDialogue_bubble-bg: var(--semi-color-fill-0); // 对话气泡背景色
+$color-aiChatDialogue_file-bg: var(--semi-color-fill-0); // 文件组件背景色
+$color-aiChatDialogue_file_title-text: var(--semi-color-text-0); // 文件标题文本颜色
+$color-aiChatDialogue_file_metadata-text: var(--semi-color-text-2); // 文件元数据文本颜色
+$color-aiChatDialogue_tool_call-bg: var(--semi-color-fill-0); // 工具调用组件背景色
+$color-aiChatDialogue_tool_call-text: var(--semi-color-text-2); // 工具调用组件文本颜色
+$color-aiChatDialogue_action_dropdown-text: var(--semi-color-danger); // 操作区下拉菜单文本颜色
+$color-aiChatDialogue_reasoning-border: var(--semi-color-border); // 推理组件边框色
+$color-aiChatDialogue_step-border: var(--semi-color-border); // 步骤组件边框色
+$color-aiChatDialogue_step_action-bg: var(--semi-color-fill-0); // 步骤组件 action 背景色
+$color-aiChatDialogue_step_completed-text: var(--semi-color-success); // 步骤组件完成文本颜色
+$color-aiChatDialogue_step_suffix-text: var(--semi-color-text-1); // 步骤组件后缀文本颜色
+$color-aiChatDialogue_step_action-text: var(--semi-color-text-2); // 步骤组件 action 文本颜色
+$color-aiChatDialogue_annotation-border: var(--semi-color-border); // 参考来源组件边框色
+$color-aiChatDialogue_annotation-bg-hover: var(--semi-color-fill-0); // 参考来源组件悬停背景色
+$color-aiChatDialogue_annotation-text: var(--semi-color-text-2); // 参考来源组件文本颜色
+$color-aiChatDialogue_reference-bg: var(--semi-color-fill-0); // 引用组件背景色
+$color-aiChatDialogue_reference-text: var(--semi-color-text-2); // 引用组件文本颜色
+$color-aiChatDialogue_icon_reference-text: var(--semi-color-text-0); // 用户消息引用图标颜色
+$color-aiChatDialogue_code-border: var(--semi-color-border); // 代码块边框色
+$color-aiChatDialogue_code_topSlot-bg: var(--semi-color-fill-0); // 代码块顶部槽背景色
+$color-aiChatDialogue_code_topSlot-text: var(--semi-color-text-0); // 代码块顶部槽文本颜色
+$color-aiChatDialogue_hint-bg: var(--semi-color-bg-0); // 提示项背景色
+$color-aiChatDialogue_hint-border: var(--semi-color-border); // 提示项边框色
+$color-aiChatDialogue_hint-bg-hover: var(--semi-color-fill-0); // 提示项悬停背景色
+$color-aiChatDialogue_hint-text: var(--semi-color-text-0); // 提示项文本颜色
+$color-aiChatDialogue_code_icon-bg: rgba(var(--semi-teal-4), 1); // code icon 背景色
+$color-aiChatDialogue_word_icon-bg: rgba(var(--semi-blue-4), 1); // word icon 背景色
+$color-aiChatDialogue_excel_icon-bg: rgba(var(--semi-green-4), 1); // excel icon 背景色
+$color-aiChatDialogue_image_icon-bg: rgba(var(--semi-purple-4), 1); // image icon 背景色
+$color-aiChatDialogue_pdf_icon-bg: rgba(var(--semi-red-4), 1); // pdf icon 背景色
+$color-aiChatDialogue_video_icon-bg: rgba(var(--semi-purple-4), 1); // video icon 背景色
+$color-aiChatDialogue_default_icon-bg: rgba(var(--semi-grey-4), 1); // default icon 背景色
+$color-aiChatDialogue_icon-text: var(--semi-color-white); // icon 文本颜色
+$color-aiChatDialogue_failed: var(--semi-color-danger); // 失败提示颜色
+$color-aiChatDialogue_code_content-bg: var(--semi-color-bg-0); // code content 背景色
+
+// Width/Height
+$width-aiChatDialogue_wrapper: 100%; // 外层宽度
+$width-aiChatDialogue_inner: 100%; // 气泡右侧展示内层宽度
+$width-aiChatDialogue_backBottom_button: 42px; // 返回按钮宽度
+$height-aiChatDialogue_backBottom_button: 42px; // 返回按钮高度
+$width-aiChatDialogue_avatar: 24px; // 头像宽度
+$height-aiChatDialogue_avatar: 24px; // 头像高度
+$width-aiChatDialogue_content_editing: 100%; // 内容宽度 - 编辑状态
+$width-aiChatDialogue_content_inner: 100%; // 内容内层宽度
+$width-aiChatDialogue_content_max: 100%; // 内容最大宽度
+$width-aiChatDialogue_bubble_max: 100%; // 气泡最大宽度
+$width-aiChatDialogue_loading_circle: 3px; // 加载圆点宽度
+$height-aiChatDialogue_loading_circle: 3px; // 加载圆点高度
+$width-aiChatDialogue_img: 256px; // 图片宽度
+$height-aiChatDialogue_img: 256px; // 图片高度
+$width-aiChatDialogue_img_list: 128px; // 图片列表项宽度
+$height-aiChatDialogue_img_list: 128px; // 图片列表项高度
+$width-aiChatDialogue_file: 224px; // 文件组件宽度
+$height-aiChatDialogue_file: 36px; // 文件组件高度
+$width-aiChatDialogue_file_icon_wrapper: 36px; // 文件图标外层宽度
+$height-aiChatDialogue_file_icon_wrapper: 36px; // 文件图标外层高度
+$width-aiChatDialogue_action_btn: 24px; // 操作按钮宽度
+$height-aiChatDialogue_action_btn: 24px; // 操作按钮高度
+$width-aiChatDialogue_reasoning: 100%; // 推理组件宽度
+$width-aiChatDialogue_reasoning_wrapper: 100%; // 推理组件外层宽度
+$width-aiChatDialogue_reasoning-border: 1px; // 推理组件 border 宽度
+$width-aiChatDialogue_reasoning_prefix: 20px; // 推理前缀图标宽度
+$height-aiChatDialogue_reasoning_prefix: 20px; // 推理前缀图标高度
+$width-aiChatDialogue_step-border: 1px; // 步骤组件 border 宽度
+$width-aiChatDialogue_step_prefix: 20px; // 步骤前缀图标宽度
+$height-aiChatDialogue_step_prefix: 20px; // 步骤前缀图标高度
+$width-aiChatDialogue_step_suffix: 20px; // 步骤后缀图标宽度
+$height-aiChatDialogue_step_suffix: 20px; // 步骤后缀图标高度
+$width-aiChatDialogue_step_line: 1px; // 步骤左侧线宽度
+$width-aiChatDialogue_annotation: 100%; // 参考来源宽度
+$width-aiChatDialogue_annotation-border: 1px; // 参考来源组件 border 宽度
+$width-aiChatDialogue_annotation_logo: 16px; // 参考来源logo宽度
+$height-aiChatDialogue_annotation_logo: 16px; // 参考来源logo高度
+$width-aiChatDialogue_reference_icon: 16px; // 引用图标宽度
+$height-aiChatDialogue_reference_icon: 16px; // 引用图标高度
+$width-aiChatDialogue_reference_max: 200px; // 引用组件最大宽度
+$width-aiChatDialogue_reference_name_max: 130px; // 引用名称最大宽度
+$width-aiChatDialogue_code-border: 1px; // 代码块组件 border 宽度
+$width-aiChatDialogue_hint-border: 1px; // 提示项组件 border 宽度
+$width-aiChatDialogue_file_title_max: 180px; // 文件标题最大宽度
+$width-aiChatDialogue_file_title_max-hover: 140px; // 用户消息悬停时文件标题最大宽度(显示引用图标时)
+$width-aiChatDialogue_action_copy: 24px; // 复制按钮宽度
+
+// Spacing
+$spacing-aiChatDialogue_wrapper-paddingY: 8px; // 最外层垂直内边距
+$spacing-aiChatDialogue_wrapper-paddingX: 16px; // 最外层水平内边距
+$spacing-aiChatDialogue_wrapper-marginTop: 2px; // 最外层顶部外边距
+$spacing-aiChatDialogue_wrapper-columnGap: 16px; // 最外层列间距
+$spacing-aiChatDialogue_container-columnGap: 12px; // container 容器列间距
+$spacing-aiChatDialogue_content-marginTop: 8px; // 内容顶部外边距
+$spacing-aiChatDialogue_content_failed-marginRight: 8px; // 内容失败提示右外边距
+$spacing-aiChatDialogue_content_bubble-marginTop: 8px; // 内容气泡顶部外边距
+$spacing-aiChatDialogue_content_noBubble-marginTop: 8px; // 内容无气泡顶部外边距
+$spacing-aiChatDialogue_bubble-paddingY: 12px; // 气泡垂直内边距
+$spacing-aiChatDialogue_bubble-paddingX: 16px; // 气泡水平内边距
+$spacing-aiChatDialogue_content_loading-marginTop: 8px; // 内容加载顶部外边距
+$spacing-aiChatDialogue_loading_item-marginY: 1px; // 加载项垂直外边距
+$spacing-aiChatDialogue_loading_item-marginX: 1px; // 加载项水平外边距
+$spacing-aiChatDialogue_loading_text-marginLeft: 8px; // 加载文本左外边距
+$spacing-aiChatDialogue_loading_item_before-left: -15px; // 加载项 before 左外边距
+$spacing-aiChatDialogue_loading_item_after-left: 15px; // 加载项 after 左外边距
+$spacing-aiChatDialogue_img-marginTop: 8px; // 图片顶部外边距
+$spacing-aiChatDialogue_img_list-marginRight: 4px; // 图片列表右外边距
+$spacing-aiChatDialogue_file-paddingY: 8px; // 文件组件垂直内边距
+$spacing-aiChatDialogue_file-paddingX: 8px; // 文件组件水平内边距
+$spacing-aiChatDialogue_file-columnGap: 8px; // 文件组件列间距
+$spacing-aiChatDialogue_file-marginTop: 8px; // 文件组件顶部外边距
+$spacing-aiChatDialogue_file-marginRight: 8px; // 文件组件右外边距
+$spacing-aiChatDialogue_tool_call-paddingY: 6px; // 工具调用垂直内边距
+$spacing-aiChatDialogue_tool_call-paddingX: 8px; // 工具调用水平内边距
+$spacing-aiChatDialogue_tool_call-columnGap: 4px; // 工具调用列间距
+$spacing-aiChatDialogue_tool_call-marginTop: 8px; // 工具调用顶部外边距
+$spacing-aiChatDialogue_custom_renderer-marginTop: 8px; // 自定义渲染器顶部外边距
+$spacing-aiChatDialogue_action-marginTop: 8px; // 操作顶部外边距
+$spacing-aiChatDialogue_reasoning_wrapper-marginTop: 8px; // 推理组件外层顶部外边距
+$spacing-aiChatDialogue_reasoning_header-padding: 16px; // 推理头部内边距
+$spacing-aiChatDialogue_reasoning_content-paddingY: 12px; // 推理内容垂直内边距
+$spacing-aiChatDialogue_reasoning_content-paddingX: 16px; // 推理内容水平内边距
+$spacing-aiChatDialogue_step_wrapper-marginTop: 4px; // 步骤外层顶部外边距
+$spacing-aiChatDialogue_step-paddingY: 6px; // 步骤垂直内边距
+$spacing-aiChatDialogue_step-paddingX: 12px; // 步骤水平内边距
+$spacing-aiChatDialogue_step-marginTop: 12px; // 步骤顶部外边距
+$spacing-aiChatDialogue_step_prefix-marginRight: 6px; // 步骤前缀右外边距
+$spacing-aiChatDialogue_step_suffix-marginLeft: 8px; // 步骤后缀左外边距
+$spacing-aiChatDialogue_step_panel-gap: 12px; // 步骤面板间距
+$spacing-aiChatDialogue_step_line-marginLeft: 20px; // 步骤连接线左外边距
+$spacing-aiChatDialogue_step_action-marginTop: 12px; // 步骤 action 顶部外边距
+$spacing-aiChatDialogue_step_action_summary-marginBottom: 4px; // 步骤 action 摘要底部外边距
+$spacing-aiChatDialogue_step_action_desc-paddingY: 6px; // 步骤 action 描述垂直内边距
+$spacing-aiChatDialogue_step_action_desc-paddingX: 8px; // 步骤 action 描述水平内边距
+$spacing-aiChatDialogue_step_action_desc-columnGap: 4px; // 步骤 action 描述列间距
+$spacing-aiChatDialogue_annotation_wrapper-marginTop: 8px; // 参考来源外层顶部外边距
+$spacing-aiChatDialogue_annotation_wrapper-paddingY: 8px; // 参考来源外层垂直内边距
+$spacing-aiChatDialogue_annotation_wrapper-paddingX: 12px; // 参考来源外层水平内边距
+$spacing-aiChatDialogue_annotation_content-columnGap: 8px; // 参考来源内容列间距
+$spacing-aiChatDialogue_references-marginTop: 8px; // 引用顶部外边距
+$spacing-aiChatDialogue_references-columnGap: 4px; // 引用列间距
+$spacing-aiChatDialogue_references-rowGap: 4px; // 引用行间距
+$spacing-aiChatDialogue_reference-paddingY: 8px; // 引用垂直内边距
+$spacing-aiChatDialogue_reference-paddingX: 12px; // 引用水平内边距
+$spacing-aiChatDialogue_reference-columnGap: 8px; // 引用列间距
+$spacing-aiChatDialogue_reference_icon-marginRight: 4px; // 引用图标右外边距
+$spacing-aiChatDialogue_reference_img-marginRight: 4px; // 引用图片右外边距
+$spacing-aiChatDialogue_icon_reference-paddingY: 0px; // 用户消息引用图标垂直内边距
+$spacing-aiChatDialogue_icon_reference-paddingX: 8px; // 用户消息引用图标水平内边距
+$spacing-aiChatDialogue_code_topSlot-paddingY: 8px; // 代码块顶部槽垂直内边距
+$spacing-aiChatDialogue_code_topSlot-paddingX: 16px; // 代码块顶部槽水平内边距
+$spacing-aiChatDialogue_hints-rowGap: 8px; // 提示行间距
+$spacing-aiChatDialogue_hints-marginTop: 4px; // 提示顶部外边距
+$spacing-aiChatDialogue_hints-marginBottom: 12px; // 提示底部外边距
+$spacing-aiChatDialogue_hints-marginLeft: 52px; // 提示左外边距
+$spacing-aiChatDialogue_hint_item-paddingY: 8px; // 提示项垂直内边距
+$spacing-aiChatDialogue_hint_item-paddingX: 16px; // 提示项水平内边距
+$spacing-aiChatDialogue_hints_selecting-marginLeft: 68px; // 提示项选择状态下左外边距
+
+// Radius
+$radius-aiChatDialogue_backBottom_button: 50%; // 返回按钮圆角
+$radius-aiChatDialogue_wrapper_selected: 16px; // 外层选中圆角
+$radius-aiChatDialogue_loading_circle: var(--semi-border-radius-circle); // 加载圆点圆角
+$radius-aiChatDialogue_bubble: var(--semi-border-radius-large); // 对话气泡圆角
+$radius-aiChatDialogue_img: var(--semi-border-radius-medium); // 图片圆角
+$radius-aiChatDialogue_file: var(--semi-border-radius-medium); // 文件组件圆角
+$radius-aiChatDialogue_icon_wrapper: var(--semi-border-radius-extra-small); // 图标外层圆角
+$radius-aiChatDialogue_tool_call: var(--semi-border-radius-medium); // 工具调用组件圆角
+$radius-aiChatDialogue_reasoning_wrapper: var(--semi-border-radius-large); // 推理组件外层圆角
+$radius-aiChatDialogue_step: var(--semi-border-radius-medium); // 步骤组件圆角
+$radius-aiChatDialogue_action_desc: var(--semi-border-radius-medium); // 操作描述圆角
+$radius-aiChatDialogue_annotation_wrapper: var(--semi-border-radius-medium); // 参考来源外层圆角
+$radius-aiChatDialogue_reference: var(--semi-border-radius-medium); // 引用组件圆角
+$radius-aiChatDialogue_reference_icon: 2px; // 引用图标圆角
+$radius-aiChatDialogue_code: var(--semi-border-radius-large); // 代码块圆角
+$radius-aiChatDialogue_hint_item: var(--semi-border-radius-medium); // 提示项圆角
+
+// Font
+$font-aiChatDialogue_title-fontSize: $font-size-header-6; // 标题字体大小
+$font-aiChatDialogue_title-fontWeight: $font-weight-regular; // 标题字体粗细
+$font-aiChatDialogue_title-lineHeight: 20px; // 标题行高
+$font-aiChatDialogue_content-fontSize: $font-size-regular; // 内容字体大小
+$font-aiChatDialogue_loading_text-fontSize: $font-size-regular; // 加载文本字体大小
+$font-aiChatDialogue_file_title-fontSize: $font-size-header-6; // 文件标题字体大小
+$font-aiChatDialogue_file_metadata-fontSize: $font-size-regular; // 文件元数据字体大小
+$font-aiChatDialogue_reasoning_header_title-fontWeight: $font-weight-bold; // 推理头部标题字体粗细
+$font-aiChatDialogue_reasoning_header_title-lineHeight: 22px; // 推理头部标题行高
+$font-aiChatDialogue_dropdown_icon-fontSize: $font-size-header-6; // 下拉菜单图标字体大小
+$font-aiChatDialogue_step-fontSize: $font-size-regular; // 步骤字体大小
+$font-aiChatDialogue_step-lineHeight: 20px; // 步骤行高
+$font-aiChatDialogue_step_action-fontSize: $font-size-regular; // 步骤 action 字体大小
+$font-aiChatDialogue_step_action-lineHeight: 20px; // 步骤 action 行高
+$font-aiChatDialogue_annotation_content-fontSize: $font-size-regular; // 参考来源内容字体大小
+$font-aiChatDialogue_references-fontSize: 12px; // 引用字体大小
+$font-aiChatDialogue_references-lineHeight: $font-size-header-6; // 引用行高
+$font-aiChatDialogue_code_topSlot-fontSize: $font-size-regular; // 代码块顶部槽字体大小
+$font-aiChatDialogue_code-lineHeight: 32px; // 代码块行高
+$font-aiChatDialogue_hint_content-fontSize: $font-size-regular; // 提示内容字体大小
+
+//z-index
+$z-aiChatDialogue_backBottom: 1; // 返回按钮z-index

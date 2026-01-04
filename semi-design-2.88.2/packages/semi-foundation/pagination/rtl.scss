@@ -1,0 +1,18 @@
+$module: #{$prefix}-page;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-item {
+            margin-right: $spacing-pagination_item-marginLeft;
+            margin-left: $spacing-pagination_item-marginRight;
+        }
+
+        &-prev,
+        &-next {
+            transform: scaleX(-1);
+        }
+    }
+}

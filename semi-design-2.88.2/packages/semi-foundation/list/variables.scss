@@ -1,0 +1,18 @@
+$color-list_default-border-default: var(--semi-color-border); // 列表描边颜色
+$color-list_empty-text-default: var(--semi-color-text-2); // 空状态下列表文字颜色
+
+$spacing-list_empty-paddingX: 0px; // 空状态列表水平内边距
+$spacing-list_empty-paddingY: $spacing-base-tight; // 空状态列表垂直内边距
+$spacing-list_footer-paddingX: $spacing-base-tight; // 列表 footer 水平内边距
+$spacing-list_footer-paddingY: $spacing-loose; // 列表 footer 垂直内边距
+$spacing-list_item-paddingX: $spacing-base-tight; // 列表 item 水平内边距 - 默认尺寸
+$spacing-list_item-paddingY: $spacing-loose; // 列表 item 垂直内边距 - 默认尺寸
+$spacing-list_small-paddingX: $spacing-tight; // 列表 item 水平内边距 - 小尺寸
+$spacing-list_small-paddingY: $spacing-base; // 列表 item 垂直内边距 - 小尺寸
+$spacing-list_large-paddingX: $spacing-base; // 列表 item 水平内边距 - 大尺寸
+$spacing-list_large-paddingY: $spacing-loose; // 列表 item 垂直内边距 - 大尺寸
+
+$spacing-list_header-marginRight: $spacing-base-loose; // 列表 header 右侧外边距
+$spacing-list_header-marginLeft: $spacing-base-loose; // 列表 header 左侧外边距
+$spacing-list_extra-marginLeft: $spacing-super-loose; // 列表 extra 额外内容左侧外边距
+$spacing-list_extra-marginRight: $spacing-super-loose; // 列表 extra 额外内容右侧外边距

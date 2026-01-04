@@ -1,0 +1,84 @@
+body, :host {
+
+
+  --semi-transition_duration-slowest:0ms;
+  --semi-transition_duration-slower:0ms;
+  --semi-transition_duration-slow:0ms;
+  --semi-transition_duration-normal:0ms;
+  --semi-transition_duration-fast:0ms;
+  --semi-transition_duration-faster:0ms;
+  --semi-transition_duration-fastest:0ms;
+  --semi-transition_duration-none:0ms;
+
+  --semi-transition_function-linear:linear;
+  --semi-transition_function-ease:ease;
+  --semi-transition_function-easeIn:ease-in;
+  --semi-transition_function-easeOut:ease-out;
+  --semi-transition_function-easeInIOut:ease-in-out;
+
+  --semi-transition_delay-none: 0ms;
+  --semi-transition_delay-slowest:0ms;
+  --semi-transition_delay-slower:0ms;
+  --semi-transition_delay-slow:0ms;
+  --semi-transition_delay-normal:0ms;
+  --semi-transition_delay-fast:0ms;
+  --semi-transition_delay-faster:0ms;
+  --semi-transition_delay-fastest:0ms;
+
+  --semi-transform_scale-none:scale(1,1);
+  --semi-transform_scale-small:scale(1,1);
+  --semi-transform_scale-medium:scale(1,1);
+  --semi-transform_scale-large:scale(1,1);
+
+  --semi-transform-rotate-none:rotate(0deg);
+  --semi-transform_rotate-clockwise90deg:rotate(90deg);
+  --semi-transform_rotate-clockwise180deg:rotate(180deg);
+  --semi-transform_rotate-clockwise270deg:rotate(270deg);
+  --semi-transform_rotate-clockwise360deg:rotate(360deg);
+  --semi-transform_rotate-anticlockwise90deg:rotate(-90deg);
+  --semi-transform_rotate-anticlockwise180deg:rotate(-180deg);
+  --semi-transform_rotate-anticlockwise270deg:rotate(-270deg);
+  --semi-transform_rotate-anticlockwise360deg:rotate(-360deg);
+
+
+  // has animation
+
+  // --semi-transition_duration-slowest:500ms;
+  // --semi-transition_duration-slower:500ms;
+  // --semi-transition_duration-slow:500ms;
+  // --semi-transition_duration-normal:500ms;
+  // --semi-transition_duration-fast:200ms;
+  // --semi-transition_duration-faster:100ms;
+  // --semi-transition_duration-fastest:50ms;
+
+  // --semi-transition_function-linear:linear;
+  // --semi-transition_function-ease:ease;
+  // --semi-transition_function-easeIn:ease-in;
+  // --semi-transition_function-easeOut:ease-out;
+  // --semi-transition_function-easeInIOut:ease-in-out;
+
+  // --semi-transition_delay-slowest:0ms;
+  // --semi-transition_delay-slower:0ms;
+  // --semi-transition_delay-slow:0ms;
+  // --semi-transition_delay-normal:0ms;
+  // --semi-transition_delay-fast:0ms;
+  // --semi-transition_delay-faster:0ms;
+  // --semi-transition_delay-fastest:0ms;
+
+  // --semi-transform_scale-none:scale(1,1);
+  // --semi-transform_scale-small:scale(1.04,1.04);
+  // --semi-transform_scale-medium:scale(1.08,1.08);
+  // --semi-transform_scale-large:scale(1.12,1.12);
+
+  // --semi-transform-rotate-none:rotate(0deg);
+  // --semi-transform_rotate-clockwise90deg:rotate(90deg);
+  // --semi-transform_rotate-clockwise180deg:rotate(180deg);
+  // --semi-transform_rotate-clockwise270deg:rotate(270deg);
+  // --semi-transform_rotate-clockwise360deg:rotate(360deg);
+  // --semi-transform_rotate-anticlockwise90deg:rotate(-90deg);
+  // --semi-transform_rotate-anticlockwise180deg:rotate(-180deg);
+  // --semi-transform_rotate-anticlockwise270deg:rotate(-270deg);
+  // --semi-transform_rotate-anticlockwise360deg:rotate(-360deg);
+
+
+}

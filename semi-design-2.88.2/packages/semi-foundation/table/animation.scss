@@ -1,0 +1,5 @@
+$transition_duration-table_body-bg: var(--semi-transition_duration-none); // 表格-背景颜色-动画持续时间
+$transition_function-table_body-bg: var(--semi-transition_function-easeOut); // 表格-背景颜色-过渡曲线
+$transition_delay-table_body-bg: 0ms; // 表格-背景颜色-延迟时间
+$transition_duration-table_row-head-bg: var(--semi-transition_duration-none); // 表格-行头-背景颜色-动画持续时间
+$transition_function-table_row-head-bg: linear; // 表格-行头-背景颜色-过渡曲线

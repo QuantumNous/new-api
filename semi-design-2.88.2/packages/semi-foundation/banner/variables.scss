@@ -1,0 +1,27 @@
+$color-banner_info-bg-default: var(--semi-color-info-light-default); // 背景色 - info
+$color-banner_info-text-default: var(--semi-color-info); // 文本颜色 - info
+$color-banner_info-border-default: var(--semi-color-info); // 描边颜色 - info
+
+$color-banner_warning-bg-default: var(--semi-color-warning-light-default); // 背景色 - 警告
+$color-banner_warning-text-default: var(--semi-color-warning); // 文本颜色 - 警告
+$color-banner_warning-border-default: var(--semi-color-warning); // 描边颜色 - 警告
+
+$color-banner_success-bg-default: var(--semi-color-success-light-default); // 背景色 - 成功
+$color-banner_success-text-default: var(--semi-color-success); // 文本颜色 - 成功
+$color-banner_success-border-default: var(--semi-color-success); // 描边颜色 - 成功
+
+$color-banner_danger-bg-default: var(--semi-color-danger-light-default); // 背景色 - 危险
+$color-banner_danger-text-default: var(--semi-color-danger); // 文本颜色 - 危险
+$color-banner_danger-border-default: var(--semi-color-danger); // 描边颜色 - 危险
+
+$radius-banner: var(--semi-border-radius-small); // 圆角
+$spacing-banner_closeBtn-marginLeft: $spacing-base-tight; // 关闭按钮左边距
+$spacing-banner_extra-marginTop: $spacing-tight; // 关闭按钮顶边距
+$spacing-banner_icon-marginRight: $spacing-base-tight; // 关闭按钮顶边距
+$spacing-banner-paddingX: $spacing-base-tight; // 整体水平内边距
+$spacing-banner-paddingY: $spacing-base-tight; // 整体垂直内边距
+$spacing-banner_title_description-marginTop: 2px; // 标题与描述信息的间距
+
+$height-banner_closeBtn: 24px; // 关闭按钮高度
+$width-banner_closeBtn: 24px; // 关闭按钮宽度
+$width-banner-border: 1px; // 描边宽度

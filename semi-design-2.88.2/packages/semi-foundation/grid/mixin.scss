@@ -1,0 +1,115 @@
+@use "sass:math";
+// mixins for clearfix
+// ------------------------
+//TODO 提出到公共mixin
+@mixin clearfix() {
+    zoom: 1;
+
+    &::before,
+    &::after {
+        display: table;
+        content: '';
+    }
+
+    &::after {
+        clear: both;
+    }
+}
+
+// mixins for grid system
+// ------------------------
+@mixin make-row($gutter: $width-grid_gutter) {
+    position: relative;
+    height: auto;
+    margin-right: ($gutter * -0.5);
+    margin-left: ($gutter * -0.5);
+    @include clearfix();
+}
+
+@mixin make-grid-columns() {
+    $index: 1;
+
+    @for $i from $index through $width-grid_columns {
+        $item: '.#{$module}-col-#{$i}, .#{$module}-col-xs-#{$i}, .#{$module}-col-sm-#{$i}, .#{$module}-col-md-#{$i}, .#{$module}-col-lg-#{$i}';
+
+        #{$item} {
+            position: relative;
+            min-height: 1px;
+            padding-right: ($width-grid_gutter * 0.5);
+            padding-left: ($width-grid_gutter * 0.5);
+        }
+    }
+}
+
+@mixin float-grid-columns($class) {
+    $index: 1;
+
+    @for $i from $index through $width-grid_columns {
+        $item: '.#{$module}-col#{$class}-#{$i}';
+
+        #{$item} {
+            flex: 0 0 auto;
+            float: left;
+        }
+    }
+}
+
+@mixin loop-grid-columns($index, $class) {
+    @for $i from 1 through ($index) {
+        .#{$module}-col#{$class}-#{$i} {
+            display: block;
+            box-sizing: border-box;
+            width: percentage(math.div($i , $width-grid_columns));
+        }
+
+        .#{$module}-col#{$class}-push-#{$i} {
+            left: percentage(math.div($i , $width-grid_columns));
+        }
+
+        .#{$module}-col#{$class}-pull-#{$i} {
+            right: percentage(math.div($i , $width-grid_columns));
+        }
+
+        .#{$module}-col#{$class}-offset-#{$i} {
+            margin-left: percentage(math.div($i , $width-grid_columns));
+        }
+
+        .#{$module}-col#{$class}-order-#{$i} {
+            order: $i;
+        }
+    }
+}
+
+// grid rtl mixin
+@mixin float-grid-columns-rtl($class) {
+    $index: 1;
+
+    @for $i from $index through $width-grid_columns {
+        $item: '.#{$module}-col#{$class}-#{$i}';
+
+        #{$item} {
+            .#{$prefix}-rtl & {
+                // float 应该改为镜像的
+                float: right;
+            }
+        }
+    }
+}
+
+@mixin loop-grid-columns-rtl($index, $class) {
+    @for $i from 1 through ($index) {
+        .#{$module}-col#{$class}-offset-#{$i} {
+            .#{$prefix}-rtl & {
+                margin-left: auto;
+                margin-right: percentage(math.div($i , $width-grid_columns));
+            }
+        }
+    }
+}
+
+@mixin make-grid($class: '') {
+    @include float-grid-columns($class);
+    @include loop-grid-columns($width-grid_columns, $class);
+    @include float-grid-columns-rtl($class);
+    @include loop-grid-columns-rtl($width-grid_columns, $class);
+}

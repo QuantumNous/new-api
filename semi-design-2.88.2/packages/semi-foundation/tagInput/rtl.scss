@@ -1,0 +1,23 @@
+$module: #{$prefix}-tagInput;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-wrapper {
+
+            &-tag {
+                margin-left: $spacing-extra-tight;
+                margin-right: 0;
+            }
+
+            &-input {
+
+                &:not(:first-child) > input {
+                    padding-right: 0;
+                }
+            }
+        }
+    }
+}

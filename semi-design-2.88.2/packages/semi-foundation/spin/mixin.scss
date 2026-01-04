@@ -1,0 +1,5 @@
+// Mixin
+@mixin size($num) {
+    width: $num;
+    height: $num;
+}

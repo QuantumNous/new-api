@@ -1,0 +1,17 @@
+$module: #{$prefix}-sidesheet;
+
+// sideSheet 挂载在 body 下，无法直接使用 .semi-rtl
+.#{$module} {
+
+    &-inner {
+        .#{$module}-rtl & {
+            direction: rtl;
+        }
+    }
+
+    &-title {
+        .#{$module}-rtl & {
+            text-align: right;
+        }
+    }
+}

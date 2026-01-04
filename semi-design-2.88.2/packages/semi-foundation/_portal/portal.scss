@@ -1,0 +1,17 @@
+//@import '../theme/variables.scss';
+
+$module: #{$prefix}-portal;
+
+.#{$module} {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: $z-portal;
+
+    &-inner {
+        position: absolute;
+        background-color: transparent;
+        min-width: max-content;
+    }
+}

@@ -1,0 +1,184 @@
+//@import '../theme/variables.scss';
+// @import '../theme/_font.scss';
+@import './animation.scss';
+@import './variables.scss';
+
+
+$module: #{$prefix}-scrolllist;
+
+.#{$module} {
+    width: 100%;
+    height: 100%;
+    background: $color-scrollList-bg;
+    box-shadow: $shadow-scrollList;
+    border-radius: $radius-scrollList;
+    overflow: hidden;
+    @include font-size-regular;
+    user-select: none;
+
+    display: flex;
+    flex-direction: column;
+
+    &-header {
+        text-align: center;
+        padding: $spacing-scrollList_header-paddingY $spacing-scrollList_header-paddingX;
+        background: $color-scrollList_header-bg;
+
+        &-title {
+            padding: $spacing-scrollList_header_title-paddingY $spacing-scrollList_header_title-paddingX;
+            font-weight: $font-scrollList_header_title-fontWeight;
+            color: $color-scrollList_header-title;
+
+            @include font-size-regular;
+        }
+    }
+
+    &-body {
+        display: flex;
+        height: $height-scrollList;
+        padding: $spacing-scrollList_body-paddingY $spacing-scrollList_body-paddingX;
+        overflow: hidden;
+
+        .#{$module}-item-wheel .#{$module}-list-outer-nocycle,
+        .#{$module}-item {
+            & > ul {
+                &:before {
+                    content: '';
+                    display: block;
+                    width: 100%;
+                    height: ($height-scrollList - $height-scrollList_item) * 0.5;
+                }
+            }
+        }
+
+        .#{$module}-item {
+            position: relative;
+            flex: 1;
+            overflow-x: hidden;
+            overflow-y: auto;
+
+            &:not(:last-child) {
+                border-right: $width-scrollList_item-border solid $color-scrollList-border;
+            }
+        }
+
+        .#{$module}-item,
+        .#{$module}-item-wheel .#{$module}-list-outer {
+            & > ul {
+                box-sizing: border-box;
+                width: 100%;
+                margin: $spacing-scrollList_item_ul-margin;
+                padding: $spacing-scrollList_item_ul-padding;
+                padding-bottom: $spacing-scrollList_item_ul-paddingBottom;
+                list-style: none;
+
+                & > li {
+                    list-style: none;
+                    height: $height-scrollList_item;
+                    box-sizing: border-box;
+                    color: $color-scrollList_item-text;
+                    text-align: center;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    // padding: 8px 18px;
+                    cursor: pointer;
+                    background-color: $color-scrollList_item-bg;
+                    transition: background-color $transition_duration-scrollList_selected_item-bg $transition_function-scrollList_selected_item-bg $transition_delay-scrollList_selected_item-bg;
+                    &.#{$module}-item-sel {
+                        background: $color-scrollList_selected_item-bg;
+                        color: $color-scrollList_selected_item-text;
+
+                        > svg {
+                            color: $color-scrollList_selected_item-icon;
+                            width: $width-scrollList_item_sel_svg;
+                            height: $width-scrollList_item_sel_svg;
+                            margin-right: $spacing-scrollList_item_sel_svg-marginRight;
+                        }
+                    }
+
+                    &:not(.disabled):not(.#{$module}-item-disabled):not(.#{$module}-item-sel):not(.#{$module}-item-selected) {
+                        cursor: pointer;
+
+                        &:hover {
+                            background-color: $color-scrollList_item-text-hover;
+                        }
+
+                        &:active {
+                            background-color: $color-scrollList_item-bg-active;
+                        }
+                    }
+                    &.#{$module}-item-disabled {
+                        color: $color-scrollList_disabled_item-text;
+                        cursor: not-allowed;
+                    }
+                }
+            }
+        }
+
+        .#{$module}-item-wheel {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+
+            &:not(:last-child) {
+                border-right: $border-thickness-control solid $color-scrollList-border;
+            }
+
+            .#{$module}-item-selected {
+                font-weight: $font-scrollList_item_wheel_item_selected-fontWeight;
+                color: var(--semi-color-primary) !important;
+            }
+
+            .#{$module}-list-outer {
+                overflow-x: hidden;
+                overflow-y: auto;
+                height: 100%;
+                width: 100%;
+                padding-right: $spacing-scrollList_item_wheel_list_outer-paddingRight;
+            }
+
+            .#{$module}-shade {
+                width: 100%;
+                height: 50%;
+                pointer-events: none;
+                position: absolute;
+
+                &-pre {
+                    top: 0;
+                    margin-top: $spacing-scrollList_item_wheel_list_shade_pre-marginTop;
+                    background: $color-scrollList-bg;
+                    opacity: 0.5;
+                }
+
+                &-post {
+                    top: 50%;
+                    margin-top: $spacing-scrollList_item_wheel_list_shade_post-marginTop;
+                    background: $color-scrollList-bg;
+                    opacity: 0.5;
+                }
+            }
+
+            .#{$module}-selector {
+                pointer-events: none;
+                position: absolute;
+                top: 50%;
+                border-top: $width-scrollList_item_wheel_selector-border solid $color-scrollList-border;
+                border-bottom: $width-scrollList_item_wheel_selector-border solid $color-scrollList-border;
+                height: $height-scrollList_item;
+                width: 100%;
+                transform: translateY(-50%);
+            }
+        }
+    }
+    .#{$module}-footer {
+        border-top: $width-scrollList_footer-border solid $color-scrollList_footer-border;
+        padding: $spacing-scrollList_footer-padding;
+    }
+    .#{$module}-line {
+        background: $color-scrollList-border;
+        height: $height-scrollList_line;
+    }
+}
+
+@import './rtl.scss';

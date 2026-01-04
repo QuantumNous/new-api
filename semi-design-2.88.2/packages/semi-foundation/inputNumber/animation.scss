@@ -1,0 +1,10 @@
+$transition_duration-inputNumber-bg: var(--semi-transition_duration-none);//数字输入框-背景色-动画持续时间
+$transition_function-inputNumber-bg: var(--semi-transition_function-easeIn);//数字输入框-背景色-过渡曲线
+$transition_delay-inputNumber-bg: var(--semi-transition_delay-none);//数字输入框-背景色-延迟时间
+
+$transition_duration-inputNumber-border: var(--semi-transition_duration-none);//数字输入框-边框-动画持续时间
+$transition_function-inputNumber-border: var(--semi-transition_function-easeIn);//数字输入框-边框-过渡曲线
+$transition_delay-inputNumber-border: var(--semi-transition_delay-none);//数字输入框-边框-延迟时间
+
+// transform token
+$transform_scale-inputNumber: var(--semi-transform_scale-none);//数字输入框-变大

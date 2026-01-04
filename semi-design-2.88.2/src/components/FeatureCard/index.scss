@@ -1,0 +1,26 @@
+.feature-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-sizing: border-box;
+    
+    &:hover {
+        border-radius: 4px;
+        background-color: #646a730d;
+        box-shadow: 0 0 0 4px #646a730d;
+        transition: background-color .25s ease,box-shadow .25s ease;
+    }
+
+    &-title {
+        font-size: 18px;
+        line-height: 24px;
+        font-weight: 600;
+        color: var(--semi-color-text-0);
+    }
+
+    &-content {
+        font-size: 16px;
+        line-height: 22px;
+        color: var(--semi-color-text-2);
+    }
+}

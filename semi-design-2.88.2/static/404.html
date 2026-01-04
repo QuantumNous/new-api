@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script>
+            if (window.location.pathname.indexOf('/docs/react/') !== -1) {
+                console.log('redirect2');
+                window.location.href =
+                    window.location.pathname.replace('/docs/react/', '/start/') + window.location.hash;
+            } else {
+                const classMap = {
+                    grid: 'basic',
+                    icons: 'basic',
+                    layout: 'basic',
+                    typography: 'basic',
+                    autoComplete: 'input',
+                    button: 'input',
+                    cascader: 'input',
+                    checkbox: 'input',
+                    datePicker: 'input',
+                    form: 'input',
+                    input: 'input',
+                    inputNumber: 'input',
+                    radio: 'input',
+                    rating: 'input',
+                    select: 'input',
+                    slider: 'input',
+                    switch: 'input',
+                    timePicker: 'input',
+                    transfer: 'input',
+                    treeSelect: 'input',
+                    upload: 'input',
+                    anchor: 'navigation',
+                    backtop: 'navigation',
+                    breadcrumb: 'navigation',
+                    navigation: 'navigation',
+                    pagination: 'navigation',
+                    steps: 'navigation',
+                    tabs: 'navigation',
+                    tree: 'navigation',
+                    avatar: 'show',
+                    badge: 'show',
+                    calendar: 'show',
+                    collapse: 'show',
+                    collapsible: 'show',
+                    descriptions: 'show',
+                    dropdown: 'show',
+                    empty: 'show',
+                    list: 'show',
+                    modal: 'show',
+                    overflowList: 'show',
+                    popover: 'show',
+                    scrollList: 'show',
+                    sideSheet: 'show',
+                    table: 'show',
+                    tag: 'show',
+                    timeline: 'show',
+                    tooltip: 'show',
+                    banner: 'feedback',
+                    notification: 'feedback',
+                    popconfirm: 'feedback',
+                    progress: 'feedback',
+                    skeleton: 'feedback',
+                    spin: 'feedback',
+                    toast: 'feedback',
+                    configProvider: 'other',
+                    locale: 'other',
+                };
+                if (window.location.pathname.indexOf('/components/') !== -1) {
+                    let component = window.location.pathname.match(/\/components\/(\w+)\/?/)[1];
+                    let newComponent = component;
+                    //兼容之前bisheng文档站 markdown 路由和组件名大小写不一致的写法
+                    if (component === 'timePicker') {
+                        newComponent = 'timepicker';
+                    }
+                    if (component === 'treeSelect') {
+                        newComponent = 'treeselect';
+                    }
+                    if (component === 'backtop') {
+                        newComponent = 'backTop';
+                    }
+                    if (component === 'overflowList') {
+                        newComponent = 'overflowlist';
+                    }
+                    if (component === 'treeSelect') {
+                        newComponent = 'treeselect';
+                    }
+                    console.log(
+                        window.location.pathname.replace(
+                            `/components/${component}`,
+                            `/${classMap[newComponent]}/${newComponent}/`
+                        ) + window.location.hash
+                    );
+                    window.location.href =
+                        window.location.pathname.replace(
+                            `/components/${component}`,
+                            `/${classMap[newComponent]}/${newComponent}/`
+                        ) + window.location.hash;
+                } else {
+                    console.log('back to / ', window.location.href);
+                    window.location.href = '/';
+                }
+            }
+        </script>
+        <title>404</title>
+    </head>
+    <body>
+        404 not found
+    </body>
+</html>

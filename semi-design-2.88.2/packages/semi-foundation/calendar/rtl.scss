@@ -1,0 +1,134 @@
+$module: #{$prefix}-calendar;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module}-day,
+    .#{$module}-week,
+    .#{$module}-month {
+        direction: rtl;
+    }
+
+    .#{$module}-day,
+    .#{$module}-week {
+
+        &-sticky-left {
+            left: auto;
+            right: $spacing-calendar_sticky_left-left;
+        }
+
+        .#{$module}-all-day {
+            .#{$module}-tag {
+                text-align: left;
+                padding-right: 0;
+                padding-left: $spacing-calendar_allDay_tag-paddingRight;
+            }
+        }
+
+        .#{$module}-time {
+            padding-right: 0;
+            padding-left: $spacing-calendar_time-paddingRight;
+
+            &-item {
+                text-align: left;
+            }
+        }
+
+        .#{$module}-time .#{$module}-time-items {
+            margin-left: 0;
+            margin-right: auto;
+        }
+    }
+
+    .#{$module}-week {
+        .#{$module}-grid-skeleton-row-line::after {
+            left: 0;
+            right: 0;
+        }
+
+        .#{$module}-grid-skeleton li {
+            border-right: 0;
+            border-left: $width-calendar-border-default solid $color-calendar_day-border;
+        }
+
+        .#{$module}-grid:last-child {
+            .#{$module}-grid-content li {
+                border-left: 0;
+            }
+        }
+
+        .#{$module}-all-day {
+
+            &-content {
+                padding-left: auto;
+                padding-right: $spacing-calendar_allDay_content-paddingLeft;
+                .#{$module}-all-day-skeleton {
+
+                    li {
+                        border-right: 0;
+                        border-left: $width-calendar-border-default solid $color-calendar_day-border;
+
+                        &:last-child {
+                            border-left: $width-calendar-border-default solid transparent;
+                        }
+                    }
+                }
+            }
+        }
+
+        & &-tag {
+            text-align: left;
+
+            &:first-child {
+                padding-right: auto;
+                padding-left: $spacing-calendar_tag_child-paddingRight;
+            }
+        }
+    }
+
+    .#{$module}-month {
+
+        &-grid-row,
+        &-skeleton {
+
+            li {
+                text-align: left;
+                padding-right: auto;
+                padding-left: $spacing-calendar_skeletion_grid_row_li-paddingRight;
+
+                span {
+                    text-align: left;
+                }
+            }
+        }
+
+        &-skeleton {
+
+            li {
+                border-right: 0;
+                border-left: $width-calendar-border-default solid $color-calendar_day-border;
+            }
+
+            li:last-child {
+                border-left: none;
+            }
+
+            .#{$module}-month-event-card-wrapper {
+                right: auto;
+                left: $spacing-calendar_month_event_card_wrapper-right;
+            }
+        }
+
+        &-date {
+            right: auto;
+            left: $spacing-calendar_month_date-right;
+        }
+    }
+
+    .#{$module}-month-event-card {
+
+        &-close {
+            margin-right: 0;
+            margin-left: $spacing-calendar_month_event_card_close-marginRight;
+        }
+    }
+}

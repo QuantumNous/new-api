@@ -1,0 +1,25 @@
+$font-descriptions-lineHeight: 20px; // 文字行高
+$font-descriptions_value-fontWeight: $font-weight-bold; // 双行显示 value 文字字重
+$spacing-descriptions_th-paddingRight: $spacing-loose; // 普通显示 key 右侧内边距
+$spacing-descriptions_item-paddingBottom: $spacing-base-tight; // 普通显示 item 底部内边距
+$spacing-descriptions_item_small-paddingRight: 48px; // 双行显示 item 右侧内边距 - 小尺寸
+$spacing-descriptions_item_medium-paddingRight: 60px; // 双行显示 item 右侧内边距 - 中尺寸
+$spacing-descriptions_item_large-paddingRight: 80px; // 双行显示 item 右侧内边距 - 大尺寸
+$spacing-descriptions_key_medium-paddingBottom: $spacing-extra-tight; // 双行显示 key 底部内边距 - 中尺寸
+$spacing-descriptions_key_large-paddingBottom: $spacing-extra-tight; // 双行显示 key 底部内边距 - 大尺寸
+
+$color-descriptions_key-text-default: var(--semi-color-text-2); // key 文字颜色
+$color-descriptions_value-text-default: var(--semi-color-text-0); // value 文字颜色
+
+$spacing-descriptions_value_plain-paddingLeft: 8px; // 普通显示 plain 模式下 value 左侧内边距
+$spacing-descriptions_item_double-padding: 0; // 双行显示右侧 item 内边距
+
+
+$font-descriptions_key_small-fontSize:$font-size-small; // 双行显示 key 文字大小 - 小尺寸
+$font-descriptions_value_small-fontSize:$font-size-header-6; // 双行显示 value 文字大小 - 小尺寸
+
+$font-descriptions_key_medium-fontSize:$font-size-regular; // 双行显示 key 文字大小 - 小尺寸
+$font-descriptions_value_medium-fontSize:$font-size-header-4; // 双行显示 value 文字大小 - 小尺寸
+
+$font-descriptions_key_large-fontSize:$font-size-regular; // 双行显示 key 文字大小 - 小尺寸
+$font-descriptions_value_large-fontSize:$font-size-header-2; // 双行显示 value 文字大小 - 小尺寸

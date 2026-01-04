@@ -1,0 +1,14 @@
+
+
+
+.semi-case-diff-footer-good {
+    background-color: var(--semi-color-success-light-default);
+    border-top: 4px solid var(--semi-color-success);
+    color: var(--semi-color-success);
+}
+
+.semi-case-diff-footer-bad {
+    background-color: var(--semi-color-danger-light-default);
+    color: var(--semi-color-danger);
+    border-top: 4px solid var(--semi-color-danger);
+}

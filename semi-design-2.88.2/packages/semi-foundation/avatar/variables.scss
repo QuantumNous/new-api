@@ -1,0 +1,116 @@
+$z-avatar-default: 100; // 头像 z-index
+// color
+$color-avatar_default-border-default: var(--semi-color-bg-1); // 头像描边颜色
+$color-avatar_more_default-bg-default: rgba(var(--semi-grey-5), 1); // 「更多」描边颜色
+$color-avatar-outline-focus: var(--semi-color-primary-light-active); // 头像聚焦轮廓颜色
+
+
+$width-avatar_extra_extra_small: 20px; // 头像尺寸 - 极小
+$font-avatar_extra_extra_small-size: 10px; // 文本字号 - 极小
+$font-avatar_extra_extra_small-lineHeight: 15px; // 文本行高 - 极小
+
+$width-avatar_extra_small: 24px; // 头像尺寸 - 超小
+$font-avatar_extra_small-size: 10px; // 文本字号 - 超小
+$font-avatar_extra_small-lineHeight: 15px; // 文本行高 - 超小
+
+$width-avatar_small: 32px; // 头像尺寸 - 小
+$width-avatar_default: 40px; // 头像尺寸 - 默认
+$width-avatar_medium: 48px; // 头像尺寸 - 中
+$width-avatar_large: 72px; // 头像尺寸 - 大
+
+$width-avatar_extra_large: 128px; // 头像尺寸 - 超大
+$font-avatar_extra_large-size: 64px; // 文本字号 - 超大
+$font-avatar_extra_large-lineHeight: 77px; // 文本行高 - 超大
+
+$radius-avatar: var(--semi-border-radius-circle); // 头像圆角
+
+$width-avatar_extra_large-border: 3px; // 头像组头像描边尺寸 - 超大
+$spacing-avatar_extra_large-marginLeft: -32px; // 头像组头像左侧外边距 - 超大
+
+$width-avatar_large-border: 3px; // 头像组头像描边尺寸 - 大
+$spacing-avatar_large-marginLeft: -18px; // 头像左侧外边距 - 大
+
+$width-avatar_medium-border: 2px; // 头像组头像描边尺寸 - 中
+$spacing-avatar_medium-marginLeft: -12px; // 头像左侧外边距 - 中
+
+$width-avatar_default-border: 2px; // 头像组头像描边尺寸 - 默认
+$spacing-avatar_default-marginLeft: -12px; // 头像左侧外边距 - 默认
+
+$width-avatar_small-border: 2px; // 头像组头像描边尺寸 - 小
+$spacing-avatar_small-marginLeft: -12px; // 头像左侧外边距 - 小
+
+$width-avatar_extra_small-border: 1px; // 头像组头像描边尺寸 - 超小
+$spacing-avatar_extra_small-marginLeft: -10px; // 头像左侧外边距 - 超小
+
+$width-avatar_extra_extra_small-border: 1px; // 头像组头像描边尺寸 - 极小
+$spacing-avatar_extra_extra_small-marginLeft: -4px; // 头像左侧外边距 - 极小
+$width-avatar-outline: 2px; //头像聚焦轮廓宽度
+
+$width-avatar_additional-border: 1.5px; // 额外描边尺寸
+$color-avatar_additional-border: var(--semi-color-primary); // 额外描边颜色
+$spacing-avatar_additional-borderGap: 2px; // 额外描边与内侧间距
+
+$width-avatar-bottom_slot_circle_extra_small: 12px; // extra small 头像底部 slot 圆形半径
+$width-avatar-bottom_slot_circle_small: 12px; // small 头像底部 slot 圆形半径
+$width-avatar-bottom_slot_circle_default: 16px; // default 头像底部 slot 圆形半径
+$width-avatar-bottom_slot_circle_medium: 18px; // medium 头像底部 slot 圆形半径
+$width-avatar-bottom_slot_circle_large: 28px; // large 头像底部 slot 圆形半径
+$width-avatar-bottom_slot_circle_extra_large: 28px; // extra large 头像底部 slot 圆形半径
+$color-avatar-bottom_slot_bg:var(--semi-color-primary); // 头像底部 slot 背景色
+
+$radius-avatar-bottom_slot_square:4px;  // 底部 slot square 圆角
+$font-avatar_bottom_slot-extra_small-fontSize: 5px; // extra small 底部 slot 文字大小
+$font-avatar_bottom_slot-small-fontSize: 5px; // small 底部 slot 文字大小
+$font-avatar_bottom_slot-default-fontSize: 12px; // default 底部 slot 文字大小
+$font-avatar_bottom_slot-medium-fontSize: 12px; // medium 底部 slot 文字大小
+$font-avatar_bottom_slot-large-fontSize: 12px; // large 底部 slot 文字大小
+$font-avatar_bottom_slot-extra_large-fontSize: 14px; // extra large 底部 slot 文字大小
+$spacing-avatar-bottom_slot_square-paddingX:4px; // 底部 slot square 形状左边距
+$spacing-avatar-bottom_slot_square-paddingY:1px; //底部 slot square 形状右边距
+
+$font-avatar_top_slot-small-fontSize: 5px; // small 顶部 slot 文字大小
+$font-avatar_top_slot-default-fontSize: 6px; // default 顶部 slot 文字大小
+$font-avatar_top_slot-medium-fontSize: 8px; // medium 顶部 slot 文字大小
+$font-avatar_top_slot-large-fontSize: 14px; // large 顶部 slot 文字大小
+$font-avatar_top_slot-extra_large-fontSize: 16px; // extra large 顶部 slot 文字大小
+
+$spacing-avatar-top_slot_small-content-marginTop: 0px; // small 顶部文字 marginTop
+$spacing-avatar-top_slot_default-content-marginTop: -2px; // default 顶部文字 marginTop
+$spacing-avatar-top_slot_medium-content-marginTop: 0px; // medium 顶部文字 marginTop
+$spacing-avatar-top_slot_large-content-marginTop: 0px; // large 顶部文字 marginTop
+$spacing-avatar-top_slot_extra_large-content-marginTop: 0px; // extra large 顶部文字 marginTop 
+
+$color-avatar-bottom_slot_square-border:var(--semi-color-bg-0); // 底部 square 边框颜色
+$width-avatar-bottom_slot_square_extra_small-border:2px; // small 头像底部 square 边框宽度
+$width-avatar-bottom_slot_square_small-border:2px; // small 头像底部 square 边框宽度
+$width-avatar-bottom_slot_square_default-border:2px; // default 头像底部 square 边框宽度
+$width-avatar-bottom_slot_square_medium-border:2px; // medium 头像底部 square 边框宽度 
+$width-avatar-bottom_slot_square_large-border:2px; // large 头像底部 square 边框宽度
+$width-avatar-bottom_slot_square_extra_large-border:2px; // extra large 头像底部 square 边框宽度
+
+$color-avatar-top_slot_text:var(--semi-color-bg-0); //顶部 Slot 文字颜色
+$color-avatar-top_slot_gradient_start: var(--semi-color-primary); // 顶部 slot 渐变起始色
+$color-avatar-top_slot_gradient_end: var(--semi-color-primary); //  顶部 slot 渐变结束色
+
+
+$spacing-avatar-top_slot_small-shift: -28px; // small 顶部 slot 偏移量, 和 scale 一起控制 slot 的位置
+$spacing-avatar-top_slot_default-shift: -32px; // default 顶部 slot 偏移量, 和 scale 一起控制 slot 的位置
+$spacing-avatar-top_slot_medium-shift: -30px; // medium 顶部 slot 偏移量, 和 scale 一起控制 slot 的位置
+$spacing-avatar-top_slot_large-shift: -30px; // large 顶部 slot 偏移量, 和 scale 一起控制 slot 的位置
+$spacing-avatar-top_slot_extra_large-shift: -32px; // extra large 顶部 slot 偏移量, 和 scale 一起控制 slot 的位置
+
+$spacing-avatar-top_slot_small-scale: 0.4; // small 顶部 slot 缩放比例
+$spacing-avatar-top_slot_default-scale: 0.7; // default 顶部 slot 缩放比例
+$spacing-avatar-top_slot_medium-scale: 0.8; // medium 顶部 slot 缩放比例
+$spacing-avatar-top_slot_large-scale: 1.1; // large 顶部 slot 缩放比例
+$spacing-avatar-top_slot_extra_large-scale: 1.4; // large 顶部 slot 缩放比例 
+
+
+// radius
+$radius-avatar_extra_extra_small: 3px; // 极小尺寸头像的圆角
+$radius-avatar_extra_small: 3px; // 超小尺寸头像的圆角
+$radius-avatar_small: 3px; // 小尺寸头像的圆角
+$radius-avatar_default: 3px; // 默认尺寸头像的圆角
+$radius-avatar_medium: 3px; // 中尺寸头像的圆角
+$radius-avatar_large: 6px; // 大尺寸头像的圆角
+$radius-avatar_extra_large: 12px; // 超大尺寸头像的圆角

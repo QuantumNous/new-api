@@ -1,0 +1,191 @@
+//@import '../theme/variables.scss';
+@import "./animation.scss";
+@import "./variables.scss";
+
+$module: #{$prefix}-page;
+
+.#{$module} {
+    display: flex;
+    list-style: none;
+    padding: $spacing-pagination-padding;
+    align-items: center;
+    font-family: $font-family-regular;
+    margin-block-start: 0;
+    margin-block-end: 0;
+
+    &-small {
+        @include font-size-regular;
+        font-weight: $font-pagination_small-fontWeight;
+        color: $color-pagination-text-default;
+        padding: $spacing-pagination_small-paddingY $spacing-pagination_small-paddingX;
+    }
+
+    &-disabled {
+        cursor: not-allowed;
+
+        .#{$module}-total {
+            color: $color-pagination_item-text-disabled;
+        }
+    }
+
+    &-item {
+        @include font-size-regular;
+        min-width: $width-pagination_item-minWidth;
+        border: $width-pagination_item_border solid $color-pagination_item-border-default;
+        cursor: pointer;
+        user-select: none;
+        height: $height-pagination_item;
+        margin-left: $spacing-pagination_item-marginLeft;
+        margin-right: $spacing-pagination_item-marginRight;
+        font-weight: $font-pagination_item-fontWeight;
+        color: $color-pagination_item-text-default;
+        border-radius: $radius-pagination_item;
+        text-align: center;
+        line-height: $height-pagination_item;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color $transition_duration-pagination_item-bg $transition_function-pagination_item-bg $transition_delay-pagination_item-bg,
+        color $transition_duration-pagination_item-text $transition_function-pagination_item-text $transition_delay-pagination_item-text;
+        transform:scale($transform_scale-pagination_item);
+
+        &:hover {
+            border-color: $color-pagination_item-border-hover;
+            background-color: $color-pagination_item-bg-hover;
+            color: $color-pagination_item-text-hover;
+        }
+
+        &-rest-opening {
+            background-color: $color-pagination_item-bg-hover;
+            color: $color-pagination_item-text-hover;
+        }
+
+        &:active {
+            border-color: $color-pagination_item-border-active;
+            background-color: $color-pagination_item-bg-active;
+            color: $color-pagination_item-text-active;
+        }
+
+        &-active {
+            border-color: $color-pagination_item-border-selected;
+            color: $color-pagination_item-text-selected;
+            font-weight: $font-pagination_item_active-fontWeight;
+            background-color: $color-pagination_item-bg-selected;
+
+            &:hover {
+                border-color: $color-pagination_item-border-selected;
+                color: $color-pagination_item-text-selected;
+                background-color: $color-pagination_item-bg-selected;
+            }
+        }
+
+        &-disabled {
+            border-color: $color-pagination_item-border-disabled;
+            color: $color-pagination_item-text-disabled;
+            background-color: $color-pagination_item-bg-disabled;
+            cursor: not-allowed;
+
+            &:hover {
+                background-color: transparent;
+            }
+        }
+
+        &-small {
+            min-width: $width-pagination_item_small-minWidth;
+            margin: $spacing-pagination_item_small-margin;
+        }
+
+        &-all-disabled {
+            border-color: $color-pagination_item-border-disabled;
+            color: $color-pagination_item-text-disabled;
+            background-color: $color-pagination_item-bg-disabled;
+            cursor: not-allowed;
+    
+            &:hover {
+                background-color: transparent;
+                color: $color-pagination_item-text-disabled;
+            }
+
+            &-active {
+                background-color: $color-pagination_item-bg-selected-disabled;
+                font-weight: $font-pagination_item_active-fontWeight;
+
+                &:hover {
+                    background-color: $color-pagination_item-bg-selected-disabled;
+                }
+            }
+        }
+    }
+
+    &-total {
+        @include font-size-regular;
+        color: $color-pagination-text-default;
+    }
+
+    &-prev,
+    &-next {
+        color: $color-pagination_item-icon-default;
+        cursor: pointer;
+
+        &.#{$module}-item-disabled {
+            color: $color-pagination_item-icon-disabled;
+            cursor: not-allowed;
+        }
+    }
+
+    &-quickjump {
+        margin-left: $spacing-pagination_quickjump_marginLeft;
+        @include font-size-regular;
+        @include all-center;
+        flex-shrink: 0;
+        color: $color-pagination_item-text-default;
+        &-input-number {
+            max-width: $width-pagination_quickjump_input_width;
+            margin-left: $spacing-pagination_quickjump_input_marginLeft;
+            margin-right: $spacing-pagination_quickjump_input_marginRight;
+        }
+        &-disabled {
+            color: $color-pagination_quickjump_text-disabled;
+        }
+    }
+
+    .#{$prefix}-select {
+        user-select: none;
+    }
+}
+
+.#{$prefix}-select-dropdown {
+    user-select: none;
+}
+
+.#{$module}-rest {
+
+    &-list {
+        padding-top: $spacing-pagination_reset_list-paddingTop;
+        padding-bottom: $spacing-pagination_reset_list-paddingBottom;
+
+        & > div {
+            position: relative;
+        }
+    }
+
+    &-item {
+        height: $height-pagination_item;
+        line-height: $height-pagination_item;
+        // padding-left: $spacing-base;
+        display: flex;
+        justify-content: center;
+        box-sizing: border-box;
+        cursor: pointer;
+
+        &:hover {
+            background-color: $color-pagination_item-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-pagination_item-bg-active;
+        }
+    }
+}
+
+@import "./rtl.scss";

@@ -1,0 +1,23 @@
+$module: #{$prefix}-notification;
+
+.#{$module} {
+
+    &-notice {
+        &.#{$module}-notice-rtl {
+            padding-right: $spacing-notification_notice-paddingLeft;
+            padding-left: $spacing-notification_notice-paddingRight;
+        }
+
+        &-rtl {
+            direction: rtl;
+        }
+
+        .#{$module}-notice-rtl &-icon {
+            margin-right: $spacing-notification_notice_icon-marginRight;
+        }
+
+        .#{$module}-notice-rtl &-content-wrapper {
+            margin-right: $spacing-notification_notice_content_wrapper-marginRight;
+        }
+    }
+}

@@ -1,0 +1,96 @@
+//@import '../theme/variables.scss';
+@import "./variables.scss";
+
+$module: #{$prefix}-input;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module}-wrapper {
+        direction: rtl;
+
+        &__with-prefix {
+            .#{$module} {
+                padding-left: auto;
+                padding-right: 0;
+            }
+        }
+
+        &__with-suffix {
+            .#{$module} {
+                padding-right: auto;
+                padding-left: 0;
+            }
+        }
+    }
+
+    .#{$module} {
+        padding-left: $spacing-input-paddingRight;
+        padding-right: $spacing-input-paddingLeft;
+
+
+        &-clearbtn + &-suffix {
+            & + .#{$module}-suffix-text {
+                margin-left: auto;
+                margin-right: 0;
+            }
+
+            & + .#{$module}-suffix-icon {
+                margin-left: auto;
+                margin-right: 0;
+            }
+        }
+
+        &-append {
+            border-left: 0;
+            border-right: $width-input_append-border $color-input_default-border-default solid;
+        }
+
+        &-prepend {
+            border-right: 0;
+            border-left: $width-input_prepend-border $color-input_default-border-default solid;
+        }
+
+        &-group {
+            .#{$prefix}-select,
+            .#{$prefix}-cascader,
+            .#{$prefix}-tree-select,
+            & > .#{$module}-wrapper {
+
+                &:not(:last-child) {
+
+                    &::after {
+                        right: auto;
+                        left: -1px;
+                    }
+                }
+            }
+
+            .#{$prefix}-input-number {
+
+                &:not(:last-child) {
+
+                    &::after {
+                        right: auto;
+                        left: -1px;
+                    }
+                }
+            }
+        }
+    }
+
+    .#{$module}-textarea-wrapper {
+        direction: rtl;
+    }
+
+    .#{$module}-textarea {
+
+        &-counter {
+            text-align: left;
+        }
+
+        &-showClear {
+            padding-right: 0;
+            padding-left: $spacing-textarea_withShowClear-paddingRight;
+        }
+    }
+}

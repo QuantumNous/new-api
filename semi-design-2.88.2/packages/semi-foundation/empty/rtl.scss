@@ -1,0 +1,15 @@
+$module: #{$prefix}-empty;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-horizontal {
+            .#{$module}-content {
+                margin-left: auto;
+                margin-right: $spacing-empty_content_horizontal-marginLeft;
+            }
+        }
+    }
+}

@@ -1,0 +1,21 @@
+{
+    "installCommand": "install:codesandbox",
+    "buildCommand": "build:lib",
+    "packages": [
+        "packages/semi-animation",
+        "packages/semi-animation-react",
+        "packages/semi-animation-styled",
+        "packages/semi-foundation",
+        "packages/semi-icons",
+        "packages/semi-illustrations",
+        "packages/semi-scss-compile",
+        "packages/semi-theme-default",
+        "packages/semi-ui",
+        "packages/semi-webpack"
+    ],
+    "node": "20",
+    "sandboxes": [
+        "/.codesandbox/examples/pr-story",
+        "oubej"
+    ]
+}

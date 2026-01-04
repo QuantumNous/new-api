@@ -1,0 +1,105 @@
+[
+    {
+        "id": "26018381",
+        "username": "V.C",
+        "shortId": "591037876",
+        "level": "2",
+        "labels": [{ "id": "2", "name": "爆款特效师" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "2"
+    },
+    {
+        "id": "2194655572",
+        "username": "熊猫",
+        "shortId": "575539858",
+        "level": "0",
+        "labels": [{ "id": "2", "name": "爆款特效师" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "2"
+    },
+    {
+        "id": "2959266542",
+        "username": "袁晨晰",
+        "shortId": "866623944",
+        "level": null,
+        "labels": [{ "id": "18", "name": "抖音" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "18"
+    },
+    {
+        "id": "3034208647",
+        "username": "痞事",
+        "shortId": "live75",
+        "level": null,
+        "labels": [
+            { "id": "18", "name": "抖音" },
+            { "id": "1", "name": "a哈哈哈哈" }
+        ],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "18,1"
+    },
+    {
+        "id": "3063038119",
+        "username": "我要做吴百万",
+        "shortId": "1655373263",
+        "level": null,
+        "labels": [{ "id": "18", "name": "抖音" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "18"
+    },
+    {
+        "id": "3177783849",
+        "username": "青鱼",
+        "shortId": "360885697",
+        "level": null,
+        "labels": [{ "id": "18", "name": "抖音" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "18"
+    },
+    {
+        "id": "3227371062",
+        "username": "寒冰",
+        "shortId": "279699606",
+        "level": null,
+        "labels": [{ "id": "18", "name": "抖音" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "18"
+    },
+    {
+        "id": "3405344205",
+        "username": "渔舟",
+        "shortId": "210866670",
+        "level": null,
+        "labels": [{ "id": "5", "name": "明星特效师签约a" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "5"
+    },
+    {
+        "id": "3430423922",
+        "username": "上帝鸭鸽",
+        "shortId": "71373330",
+        "level": null,
+        "labels": [{ "id": "6", "name": "华星MCN签约" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "6"
+    },
+    {
+        "id": "3574670839",
+        "username": "lhq",
+        "shortId": "1117952436",
+        "level": "1",
+        "labels": [{ "id": "4", "name": "商业化接单候选人" }],
+        "total": 6313,
+        "checked": false,
+        "labelIds": "4"
+    }
+]

@@ -1,0 +1,93 @@
+$module: #{$prefix}-select;
+$single: #{$module}-single;
+$filterable: #{$module}-filterable;
+$multiple: #{$module}-multiple;
+
+.#{$module}-option {
+    @include font-size-regular;
+    word-break: break-all;
+    padding-left: $spacing-select_option-paddingLeft;
+    padding-right: $spacing-select_option-paddingRight;
+    padding-top: $spacing-select_option-paddingTop;
+    padding-bottom: $spacing-select_option-paddingBottom;
+    color: $color-select_option_main-text;
+    border-radius: $radius-select_option;
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color $transition_duration-select_option-bg $transition_function-select_option-bg $transition_delay-select_option-bg;
+
+    &-icon {
+        width: $width-select_option_tick;
+        color: $color-select_option-icon-default;
+        margin-right: $spacing-select_option_tick-marginRight;
+        display: flex;
+        justify-content: center;
+        align-content: center;
+    }
+
+    &-text {
+        display: flex;
+        flex-wrap: wrap;
+        white-space: pre;
+    }
+
+    &-keyword {
+        color: $color-select_option_keyword-text;
+        background-color: inherit;
+        font-weight: $font-select_keyword-fontWeight;
+    }
+    // &:hover {
+    //     background-color: $color-select_option-bg-hover;
+    // }
+
+    &:active {
+        background-color: $color-select_option-bg-active;
+    }
+
+    &-empty {
+        cursor: not-allowed;
+        color: $color-select_option_disabled-text;
+        justify-content: center;
+
+        &:hover {
+            background-color: inherit;
+        }
+
+        &:active {
+            background-color: inherit;
+        }
+    }
+
+    &-disabled {
+        color: $color-select_option_disabled-text;
+        cursor: not-allowed;
+
+        &:hover {
+            background-color: $color-select_option-bg-hover;
+        }
+    }
+
+    &-selected {
+        font-weight: $font-weight-bold;
+        background: $color-select-option-bg-selected;
+        .#{$module}-option-icon {
+            color: $color-select_option-icon-active;
+        }
+    }
+
+    &-focused {
+        background-color: $color-select_option-bg-hover;
+    }
+
+    // &:first-of-type {
+    // margin-top: $spacing-select_option_first-marginTop;
+    // }
+
+    // &:last-of-type {
+    // margin-bottom: $spacing-select_option_last-marginBottom;
+    // }
+}

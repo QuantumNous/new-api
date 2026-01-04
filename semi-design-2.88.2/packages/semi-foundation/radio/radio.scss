@@ -1,0 +1,437 @@
+@import "./animation.scss";
+@import "./variables.scss";
+
+
+$module: #{$prefix}-radio;
+$inner-width: $width-icon-medium;
+
+.#{$module} {
+    @include box-sizing;
+    @include font-size-regular;
+    position: relative;
+    display: inline-flex;
+    column-gap: $spacing-radio_addon-paddingLeft;
+    transition: background-color $transition_duration-radio-bg $transition_function-radio-bg $transition_delay-radio-bg,
+    border $transition_duration-radio-border $transition_function-radio-border $transition_delay-radio-border;
+    min-height: $height-radio_inner_min;
+    min-width: $width-radio_inner;
+    cursor: pointer;
+    vertical-align: bottom;
+    text-align: left;
+
+    &.#{$module}-vertical {
+        display: block;
+    }
+
+    input[type="checkbox"],
+    input[type="radio"] {
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        cursor: pointer;
+    }
+
+    &:hover {
+        .#{$module}-inner-display {
+            background: $color-radio_default-bg-hover;
+            border: solid $width-radio_hover-border $color-radio_default-border-hover;
+        }
+
+        &.#{$module}-cardRadioGroup {
+            .#{$module}-inner-display {
+                background: $color-radio_card-bg-hover;
+            }
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                background: $color-radio_primary-bg-hover;
+                border-color: $color-radio_checked-border-hover;
+            }
+        }
+    }
+
+    &:active {
+        .#{$module}-inner-display {
+            background: $color-radio_default-bg-active;
+        }
+
+        &.#{$module}-cardRadioGroup {
+            .#{$module}-inner-display {
+                background: $color-radio_card-bg-active;
+            }
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                background: $color-radio_primary-bg-active;
+                border-color: $color-radio_checked-border-active;
+            }
+        }
+    }
+
+    &-buttonRadioComponent {
+        padding: $spacing-radio_buttonRadio-padding;
+        background: $color-radio_buttonRadio-bg-default;
+        border-radius: $radius-radio_buttonRadio;
+    }
+
+    &-buttonRadioGroup {
+        // Button needs to be positioned relative to parent
+        position: relative;
+        padding: $spacing-radio_buttonRadioGroup_middle-padding;
+        border-radius: $radius-radio_buttonRadio;
+        line-height: $font-radio_buttonRadioGroup_middle-lineHeight;
+
+        &:not(:last-child) {
+            padding-right: $spacing-radio_buttonRadioGroup-paddingRight;
+        }
+
+        &-small {
+            padding: $spacing-radio_buttonRadioGroup_small-paddingX $spacing-radio_buttonRadioGroup_small-paddingY;
+            line-height: $font-radio_buttonRadioGroup_small-lineHeight;
+        }
+
+
+        &-large {
+            padding: $spacing-radio_buttonRadioGroup_large-padding;
+            line-height: $font-radio_buttonRadioGroup_large-lineHeight;
+        }
+    }
+
+    &-cardRadioGroup {
+        flex-wrap: nowrap;
+        border-radius: $radius-radio_cardRadioGroup;
+        padding: $spacing-radio_cardRadioGroup-paddingY $spacing-radio_cardRadioGroup-paddingX;
+        background: $color-radio_cardRadioGroup-bg-default;
+        border: $width-radio_cardRadioGroup_checked-border solid $color-radio_cardRadioGroup_border-default;
+        transition: background-color $transition_duration_radio-bg $transition_function-radio-bg $transition_delay-radio-bg,
+        border $transition_duration-radio-border $transition_function-radio-border $transition_delay-radio-border;
+
+        .#{$module}-inner {
+            flex-shrink: 0;
+
+            &-display {
+                background: $color-radio_card-bg-default;
+            }
+        }
+
+        .#{$module}-addon {
+            font-weight: $font-radio_cardRadioGroup_addon-fontWeight;
+            font-size: $font-radio_cardRadioGroup_addon-size;
+            line-height: $font-radio_cardRadioGroup_addon-lineHeight;
+            color: $color-radio_cardRadioGroup_addon-text-default;
+        }
+
+        .#{$module}-extra {
+            font-weight: $font-radio_cardRadioGroup_extra-fontWeight;
+            font-size: $font-radio_cardRadioGroup_extra-size;
+            line-height: $font-radio_cardRadioGroup_extra-lineHeight;
+            color: $color-radio_cardRadioGroup_extra-text-default;
+            padding-left: 0;
+        }
+
+        &:active {
+            background: $color-radio_cardRadioGroup-bg-active;
+        }
+
+        &_checked {
+            background: $color-radio_cardRadioGroup-bg-checked;
+            border: $width-radio_cardRadioGroup_checked-border solid $color-radio_cardRadioGroup_border-active;
+
+            &:hover {
+                border: $width-radio_cardRadioGroup_checked-border solid $color-radio_cardRadioGroup_checked_border-hover;
+
+                .#{$module}-inner-checked .#{$module}-inner-display {
+                    border-color: $color-radio_cardRadioGroup_checked_border-hover;
+                }
+            }
+
+            &:active {
+                background: $color-radio_cardRadioGroup-bg-checked;
+                border: $width-radio_cardRadioGroup_checked-border solid $color-radio_cardRadioGroup_checked_border-active;
+
+                .#{$module}-inner-checked {
+                    .#{$module}-inner-display {
+                        border-color: $color-radio_cardRadioGroup_checked_border-active;
+                    }
+
+                    &:hover .#{$module}-inner-display {
+                        background: $color-radio_primary-bg-active;
+                    }
+                }
+            }
+        }
+
+        &_hover {
+            background: $color-radio_cardRadioGroup-bg-hover;
+        }
+
+        &_disabled {
+            &:active {
+                background: $color-radio_cardRadioGroup_disabled-bg-active;
+            }
+        }
+
+        &_checked_disabled.#{$module}-cardRadioGroup  {
+            background: $color-radio_cardRadioGroup_disabled-bg-checked;
+            border: $width-radio_cardRadioGroup_checked_disabled-border solid $color-radio_cardRadioGroup_border_disabled-active;
+
+            .#{$module}-inner-checked .#{$module}-inner-display {
+                border-color: $color-radio_cardRadioGroup_checked_disabled-border-default;
+            }
+
+            &:hover {
+                .#{$module}-inner-checked .#{$module}-inner-display {
+                    border-color: $color-radio_cardRadioGroup_checked_disabled-border-hover;
+                }
+            }
+        }
+    }
+
+    &.#{$module}-disabled:hover,
+    &.#{$module}-disabled:active {
+        .#{$module}-inner-display {
+            background: $color-radio_disabled-bg-default;
+            border: solid $width-radio_disabled-border $color-radio_disabled-border-default;
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                color: $color-radio_checked-icon-disabled;
+                background: $color-radio_checked-bg-disabled;
+                border-color: $color-radio_checked-border-disabled;
+            }
+        }
+    }
+
+    &-inner {
+        display: inline-flex;
+        margin-top: 2px;
+        // WARN: The absolute positioning used by the input does not occupy space, and relative cannot be removed here.
+        position: relative;
+        width: $width-radio_inner;
+        height: $width-radio_inner;
+        vertical-align: sub;
+        user-select: none; // prevent text under it will be selected when double click
+
+        &-display {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            @include box-sizing;
+            width: $width-radio_inner;
+            height: $width-radio_inner;
+            border: solid $width-radio_innder-border $color-radio_default-border-default;
+            border-radius: $width-radio_inner;
+            background: $color-radio_default-bg-default;
+            transition: background-color $transition_duration-radio-bg $transition_function-radio-bg $transition_delay-radio-bg,
+            border $transition_duration-radio-border $transition_function-radio-border $transition_delay-radio-border;
+
+            .#{$prefix}-icon {
+                width: 100%;
+                height: 100%;
+                font-size: 14px;
+            }
+        }
+    }
+
+    &-content {
+        display: flex;
+        flex-direction: column;
+        row-gap: $spacing-radio_content-rowGap;
+    }
+
+    &:hover {
+        .#{$module}-inner-display {
+            background: $color-radio_default-bg-hover;
+        }
+    }
+
+    &:active {
+        .#{$module}-inner-display {
+            background: $color-radio_default-bg-active;
+        }
+    }
+
+    &-addon {
+        user-select: none;
+        color: $color-radio_default-text-default;
+        display: inline-flex;
+        align-items: center;
+
+        &-buttonRadio {
+            text-align: center;
+            border-radius: $radius-radio_addon_buttonRadio;
+            font-weight: $font-radio_buttonRadio-default-fontWeight;
+            color: $color-radio_buttonRadio-text-default;
+            font-size: $font-radio_buttonRadio_middle-default-size;
+            padding: $spacing-radio_addon_buttonRadio_middle-paddingY $spacing-radio_addon_buttonRadio_middle-paddingX;
+            transition: background-color $transition_duration-radio-bg $transition_function-radio-bg $transition_delay-radio-bg,
+            border $transition_duration-radio-border $transition_function-radio-border $transition_delay-radio-border;
+
+            &-hover {
+                font-weight: $font-radio_buttonRadio-hover-fontWeight;
+                background: $color-radio_addon_buttonRadio-bg-hover;
+            }
+
+            &-checked {
+                font-weight: $font-radio_buttonRadio-checked-fontWeight;
+                background: $color-radio_addon_buttonRadio-bg-checked;
+                color: $color-radio_addon_buttonRadio-text-checked;
+            }
+
+            &-disabled {
+                cursor: not-allowed;
+                color: $color-radio_buttonRadio-text-disabled;
+            }
+
+            &-small {
+                font-size: $font-radio_buttonRadio_small-default-size;
+                padding: $spacing-radio_addon_buttonRadio_small-paddingY $spacing-radio_addon_buttonRadio_small-paddingX;
+            }
+
+            &-large {
+                font-size: $font-radio_buttonRadio_large-default-size;
+                padding: $spacing-radio_addon_buttonRadio_large-paddingY $spacing-radio_addon_buttonRadio_large-paddingX;
+            }
+        }
+    }
+
+    .#{$module}-inner-checked {
+
+        &:hover {
+            .#{$module}-inner-display {
+                background: $color-radio_primary-bg-hover;
+            }
+        }
+
+        &:active {
+            .#{$module}-inner-display {
+                background: $color-radio_primary-bg-active;
+            }
+        }
+
+        .#{$module}-inner-display {
+            border: solid $width-radio_innder-border $color-radio_primary-border-default;
+            background: $color-radio_primary-bg-default;
+            color: $color-radio_primary-text-default;
+            border-radius: $width-radio_inner;
+        }
+
+        >.#{$module}-addon {
+            color: $color-radio_default-text-default;
+        }
+    }
+
+    // A11y: arrow keyboard control
+    .#{$module}-inner-buttonRadio,
+    .#{$module}-inner-pureCardRadio  {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        margin-top: 0; // when type= button/card/pureCard, reset margin
+        z-index: -1;
+        opacity: 0;
+    }
+
+    &-disabled {
+
+        &,
+        &:hover {
+            cursor: not-allowed;
+        }
+
+        .#{$module}-inner {
+            cursor: not-allowed;
+
+            &-display {
+                opacity: 0.75;
+                background: $color-radio_disabled-bg-default;
+                border-color: $color-radio_default-border-disabled;
+
+                &:hover {
+                    background: $color-radio_disabled-bg-hover;
+                }
+            }
+        }
+
+        .#{$module}-inner-checked {
+            .#{$module}-inner-display {
+                color: $color-radio_checked-icon-disabled;
+                background: $color-radio_checked-bg-disabled;
+                border-color: $color-radio_checked-border-disabled;
+
+                &:hover {
+                    color: $color-radio_checked-icon-disabled;
+                    background: $color-radio_checked-bg-disabled;
+                    border-color: $color-radio_checked-border-disabled;
+                }
+            }
+        }
+
+        .#{$module}-addon {
+            color: $color-radio_disabled-text-default;
+        }
+
+        .#{$module}-extra {
+            color: $color-radio_disabled-text-default;
+        }
+    }
+
+    &-extra {
+        color: $color-radio_extra-text-default;
+        box-sizing: border-box;
+    }
+
+    &-focus {
+        outline: $width-radio-outline solid $color-radio_primary-outline-focus;
+
+        &-border {
+            border: solid $width-radio_hover-border $color-radio_default-border-hover;
+        }
+    }
+}
+
+.#{$module}Group {
+    @include font-size-regular;
+
+    &-vertical {
+        display: flex;
+        flex-direction: column;
+        row-gap: $spacing-radio_group_vertical-marginBottom;
+
+        &-default {
+            .#{$module} {
+                display: flex;
+            }
+        }
+        &-card {
+            .#{$module} {
+                display: flex;
+            }
+        }
+    }
+
+    &-horizontal {
+        display: inline-flex;
+        flex-wrap: wrap;
+        vertical-align: bottom; // Fix 1573
+        gap: $spacing-radio_group_horizontal-marginRight;
+    }
+
+    &-buttonRadio {
+        display: inline-block;
+        background: $color-radio_buttonRadio-bg-default;
+        border-radius: $radius-radio_buttonRadio;
+        vertical-align: middle;
+    }
+}
+
+@import "./rtl.scss";

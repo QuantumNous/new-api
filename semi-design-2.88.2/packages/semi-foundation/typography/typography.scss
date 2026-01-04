@@ -1,0 +1,361 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-typography;
+
+.#{$module} {
+    color: $color-typography_default-text-default;
+    @include font-size-regular;
+
+    &.#{$module}-secondary {
+        color: $color-typography_secondary-text-default;
+    }
+
+    &.#{$module}-tertiary {
+        color: $color-typography_tertiary-text-default;
+    }
+
+    &.#{$module}-quaternary {
+        color: $color-typography_quaternary-text-default;
+    }
+
+    &.#{$module}-warning {
+        color: $color-typography_warning-text-default;
+    }
+
+    &.#{$module}-success {
+        color: $color-typography_success-text-default;
+    }
+
+    &.#{$module}-danger {
+        color: $color-typography_danger-text-default;
+    }
+
+    &.#{$module}-link {
+        color: $color-typography_link-text-default;
+        font-weight: $font-typography_link-fontWeight;
+    }
+
+    &.#{$module}-disabled {
+        color: $color-typography_disabled-text-default;
+        cursor: not-allowed;
+        user-select: none;
+        &.#{$module}-link {
+            color: $color-typography_link-text-disabled;
+        }
+    }
+
+    &-icon {
+        // display: inline-flex;
+        margin-right: $spacing-typography_iconPrefix-marginRight;
+        vertical-align: middle;
+        color: inherit;
+    }
+
+    &-small {
+        @include font-size-small;
+        font-weight: $font-typography_smallText-regular-fontWeight;
+        &.#{$module}-paragraph{
+            font-weight: $font-typography_smallParagraph-regular-fontWeight;
+        }
+    }
+
+    code {
+        border: $width-typography_code-border solid $color-typography_code-border-default;
+        border-radius: $radius-typography_code;
+        color: $color-typography_code-text-default;
+        background-color: $color-typography_code-bg-default;
+        padding: $spacing-super-tight $spacing-extra-tight;
+    }
+
+    mark {
+        background-color: $color-typography_mark-bg-default;
+    }
+
+    u {
+        text-decoration: underline;
+        text-decoration-skip-ink: auto;
+    }
+
+    del {
+        text-decoration: line-through;
+    }
+
+    strong {
+        font-weight: $font-typography_strong-fontWeight;
+    }
+
+    a {
+        display: inline;
+        color: $color-typography_link-text-default;
+        cursor: pointer;
+        text-decoration: none;
+
+        &:visited {
+            color: $color-typography_link-text-visited;
+        }
+
+        &:hover {
+            color: $color-typography_link-text-hover;
+        }
+
+        &:active {
+            color: $color-typography_link-text-active;
+        }
+
+        .#{$module}-link-underline:hover {
+            border-bottom: $width-typography_link-border solid $color-typography_link-text-hover;
+            margin-bottom: -$width-typography_link-border;
+        }
+
+        .#{$module}-link-underline:active {
+            border-bottom: $width-typography_link-border solid $color-typography_link-text-active;
+            margin-bottom: -$width-typography_link-border;
+        }
+    }
+
+    // ============ Ellipsis ============
+    // &-ellipsis {
+    //   display: block;
+    // }
+
+    &-ellipsis-single-line {
+        // display: block;
+        overflow: hidden;
+    }
+
+    &-ellipsis-multiple-line {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+
+        &.#{$module}-ellipsis-multiple-line-text {
+            // inline-block only works in the Text component, keeping the original external inline performance
+            display: -webkit-inline-box;
+        }
+    }
+
+    &-ellipsis-overflow-ellipsis {
+        display: block;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+
+        &.#{$module}-ellipsis-overflow-ellipsis-text {
+            // inline-block only works in the Text component, keeping the original external inline performance
+            display: inline-block;
+            // Ensure that Text component can be limited by the parent's width when no specific width is set
+            max-width: 100%;
+            vertical-align: top;
+        }
+    }
+
+    &-ellipsis-expand {
+        display: inline;
+        margin-left: $spacing-typography_expandText-marginLeft;
+    }
+
+    // ============ Copyable ============
+
+    &-action-copy {
+        display: inline-flex;
+        vertical-align: middle;
+        padding: $spacing-typography_copyIcon-padding;
+        margin-left: $spacing-typography_copyIcon-marginLeft;
+    }
+
+    a.#{$module}-action-copy-icon {
+        display: inline-flex;
+    }
+
+    &-action-copied {
+        display: inline-flex;
+        padding: $spacing-typography_copyIcon-padding;
+        margin-left: $spacing-typography_copyIcon-marginLeft;
+        color: $color-typography_copied-text-success;
+
+        .#{$prefix}-icon {
+            vertical-align: middle;
+            color: $color-typography_copied-icon-success;
+        }
+    }
+
+    &-paragraph {
+        margin: $spacing-typography_title_paragraph-margin;
+    }
+
+}
+
+// ============ Title ============
+h1.#{$module},
+.#{$module}-h1.#{$module} {
+    @include font-size-header-1;
+    font-weight: $font-typography_title1-fontWeight;
+    margin: $spacing-typography_title_h1-margin;
+
+    &.#{$module}-h1-weight-light {
+        font-weight: $font-typography_title1-light-fontWeight;
+    }
+
+    &.#{$module}-h1-weight-regular {
+        font-weight: $font-typography_title1-regular-fontWeight;
+    }
+
+    &.#{$module}-h1-weight-medium {
+        font-weight: $font-typography_title1-medium-fontWeight;
+    }
+
+    &.#{$module}-h1-weight-semibold {
+        font-weight: $font-typography_title1-semibold-fontWeight;
+    }
+
+    &.#{$module}-h1-weight-bold {
+        font-weight: $font-typography_title1-bold-fontWeight;
+    }
+
+}
+
+h2.#{$module},
+.#{$module}-h2.#{$module} {
+    @include font-size-header-2;
+    font-weight: $font-typography_title2-fontWeight;
+    margin: $spacing-typography_title_h2-margin;
+
+    &.#{$module}-h2-weight-light {
+        font-weight: $font-typography_title2-light-fontWeight;
+    }
+
+    &.#{$module}-h2-weight-regular {
+        font-weight: $font-typography_title2-regular-fontWeight;
+    }
+
+    &.#{$module}-h2-weight-medium {
+        font-weight: $font-typography_title2-medium-fontWeight;
+    }
+
+    &.#{$module}-h2-weight-semibold {
+        font-weight: $font-typography_title2-semibold-fontWeight;
+    }
+
+    &.#{$module}-h2-weight-bold {
+        font-weight: $font-typography_title2-bold-fontWeight;
+    }
+
+}
+
+h3.#{$module},
+.#{$module}-h3.#{$module} {
+    @include font-size-header-3;
+    font-weight: $font-typography_title3-fontWeight;
+    margin: $spacing-typography_title_h3-margin;
+
+    &.#{$module}-h3-weight-light {
+        font-weight: $font-typography_title3-light-fontWeight;
+    }
+
+    &.#{$module}-h3-weight-regular {
+        font-weight: $font-typography_title3-regular-fontWeight;
+    }
+
+    &.#{$module}-h3-weight-medium {
+        font-weight: $font-typography_title3-medium-fontWeight;
+    }
+
+    &.#{$module}-h3-weight-semibold {
+        font-weight: $font-typography_title3-semibold-fontWeight;
+    }
+
+    &.#{$module}-h3-weight-bold {
+        font-weight: $font-typography_title3-bold-fontWeight;
+    }
+
+}
+
+h4.#{$module},
+.#{$module}-h4.#{$module} {
+    @include font-size-header-4;
+    font-weight: $font-typography_title4-fontWeight;
+    margin: $spacing-typography_title_h4-margin;
+
+    &.#{$module}-h4-weight-light {
+        font-weight: $font-typography_title4-light-fontWeight;
+    }
+
+    &.#{$module}-h4-weight-regular {
+        font-weight: $font-typography_title4-regular-fontWeight;
+    }
+
+    &.#{$module}-h4-weight-medium {
+        font-weight: $font-typography_title4-medium-fontWeight;
+    }
+
+    &.#{$module}-h4-weight-semibold {
+        font-weight: $font-typography_title4-semibold-fontWeight;
+    }
+
+    &.#{$module}-h4-weight-bold {
+        font-weight: $font-typography_title4-bold-fontWeight;
+    }
+}
+
+h5.#{$module},
+.#{$module}-h5.#{$module} {
+    @include font-size-header-5;
+    font-weight: $font-typography_title5-fontWeight;
+    margin: $spacing-typography_title_h5-margin;
+
+    &.#{$module}-h5-weight-light {
+        font-weight: $font-typography_title5-light-fontWeight;
+    }
+
+    &.#{$module}-h5-weight-regular {
+        font-weight: $font-typography_title5-regular-fontWeight;
+    }
+
+    &.#{$module}-h5-weight-medium {
+        font-weight: $font-typography_title5-medium-fontWeight;
+    }
+
+    &.#{$module}-h5-weight-semibold {
+        font-weight: $font-typography_title5-semibold-fontWeight;
+    }
+
+    &.#{$module}-h5-weight-bold {
+        font-weight: $font-typography_title5-bold-fontWeight;
+    }
+}
+
+h6.#{$module},
+.#{$module}-h6.#{$module} {
+    @include font-size-header-6;
+    font-weight: $font-typography_title6-fontWeight;
+    margin: $spacing-typography_title_h6-margin;
+
+    &.#{$module}-h6-weight-light {
+        font-weight: $font-typography_title6-light-fontWeight;
+    }
+
+    &.#{$module}-h6-weight-regular {
+        font-weight: $font-typography_title6-regular-fontWeight;
+    }
+
+    &.#{$module}-h6-weight-medium {
+        font-weight: $font-typography_title6-medium-fontWeight;
+    }
+
+    &.#{$module}-h6-weight-semibold {
+        font-weight: $font-typography_title6-semibold-fontWeight;
+    }
+
+    &.#{$module}-h6-weight-bold {
+        font-weight: $font-typography_title6-bold-fontWeight;
+    }
+
+}
+
+// ============ Paragraph ============
+p.#{$module}-extended,
+.#{$module}-paragraph.#{$module}-extended {
+    line-height: $font-typography_paragraph_extended-lineHeight;
+    font-weight: $font-typography_normalParagraph-regular-fontWeight;
+}
+
+@import "./rtl.scss";

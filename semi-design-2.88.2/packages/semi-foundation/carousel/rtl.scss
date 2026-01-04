@@ -1,0 +1,47 @@
+$module: #{$prefix}-carousel;
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+        
+        &-indicator {
+            display: flex;
+
+            &-dot {
+                .#{$module}-indicator-item {
+                    &:not(:last-child) {
+                        margin-right: 0;
+                        margin-left: $spacing-carousel_indicator_dot-marginX;
+                    }
+                }
+            }
+
+            &-columnar {
+                .#{$module}-indicator-item {
+                    &:not(:last-child) {
+                        margin-right: 0;
+                        margin-left: $spacing-carousel_indicator_columnar-marginX;
+                    }
+                }
+            }
+        }
+
+        &-arrow {
+            flex-direction: row-reverse;
+
+            &-prev {
+                left: auto;
+                right: $spacing-carousel_arrow-right;
+                transform: scaleX(-1) translateY(-50%);
+                z-index: 2;
+            }
+            
+            &-next {
+                left: $spacing-carousel_arrow-left;
+                transform: scaleX(-1) translateY(-50%);
+                right: auto;
+                z-index: 2;
+            }
+        }
+    }
+}

@@ -1,0 +1,46 @@
+{
+    "name": "@douyinfe/semi-animation-react",
+    "version": "2.88.2",
+    "description": "motion library for semi-ui-react",
+    "keywords": [
+        "motion",
+        "react",
+        "semi-ui"
+    ],
+    "files": [
+        "lib",
+        "README.md"
+    ],
+    "license": "MIT",
+    "main": "lib/cjs/index.js",
+    "module": "lib/es/index.js",
+    "typings": "lib/es/index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DouyinFE/semi-design"
+    },
+    "scripts": {
+        "test": "echo \"Error: run tests from root\" && exit 1",
+        "build:lib": "node scripts/compileLib",
+        "prepublishOnly": "npm run build:lib"
+    },
+    "dependencies": {
+        "@douyinfe/semi-animation": "2.88.2",
+        "@douyinfe/semi-animation-styled": "2.88.2",
+        "classnames": "^2.2.6"
+    },
+    "devDependencies": {
+        "@babel/preset-env": "^7.15.8",
+        "@babel/preset-react": "^7.14.5",
+        "@vx/gradient": "0.0.199",
+        "del": "^6.0.0",
+        "flubber": "^0.4.2",
+        "gulp": "^4.0.2",
+        "gulp-babel": "^8.0.0",
+        "gulp-typescript": "^6.0.0-alpha.1",
+        "merge2": "^1.4.1",
+        "prop-types": "^15.7.2",
+        "react-storybook-addon-props-combinations": "^1.1.0"
+    },
+    "gitHead": "eb34a4f25f002bb4cbcfa51f3df93bed868c831a"
+}

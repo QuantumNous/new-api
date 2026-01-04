@@ -1,0 +1,84 @@
+//@import '../theme/variables.scss';
+@import './variables.scss';
+
+$module: #{$prefix}-popconfirm;
+
+.#{$module} {
+    box-sizing: border-box;
+    max-width: $width-popconfirm-maxWidth;
+
+    &-inner {
+        display: flex;
+        flex-direction: column;
+        padding: $spacing-popconfirm-top $spacing-popconfirm-top $spacing-popconfirm-top $spacing-popconfirm-bottom;
+        position: relative;
+    }
+
+    &-header {
+        display: flex;
+        justify-content: flex-start;
+
+        &-title {
+            @include font-size-header-6;
+            font-weight: $font-popconfirm_header_title-fontWeight;
+            margin-bottom: $spacing-popconfirm_header_title-marginBottom;
+            color: $color-popconfirm_header-text;
+        }
+
+        &-icon {
+            width: $width-popconfirm-icon;
+            height: $width-popconfirm-icon;
+            margin-right: $spacing-popconfirm_header_icon-marginRight;
+        }
+
+        .#{$prefix}-icon {
+
+            &-alert_triangle {
+                color: $color-popconfirm_header_alert-icon;
+            }
+        }
+
+        &-body {
+            display: inline-flex;
+            flex-grow: 1;
+            flex-direction: column;
+        }
+    }
+
+    &-body {
+        color: $color-popconfirm_body-text;
+
+        &-withIcon {
+            margin-left: $width-popconfirm-icon + $spacing-popconfirm_header_icon-marginRight;
+        }
+
+        & > p {
+            margin: $spacing-popconfirm_body_p-margin;
+            padding: $spacing-popconfirm_body_p-padding;
+        }
+    }
+
+    &-footer {
+        margin-top: $spacing-popconfirm_footer-marginTop;
+        display: flex;
+        justify-content: flex-end;
+
+        & > .#{$prefix}-button:first-child:not(:last-child) {
+            margin-right: $spacing-popconfirm_footer_btn-marginRight;
+        }
+    }
+
+    // The border-radius is defined separately in the component, the default value is the same as popover
+
+    &-popover {
+        border-radius: $radius-popconfirm-popover;
+    }
+}
+
+.#{$prefix}-popover-with-arrow {
+    .#{$module}-inner {
+        padding: $spacing-popconfirm_popover_with_arrow_inner-padding;
+    }
+}
+
+@import './rtl.scss';

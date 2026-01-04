@@ -1,0 +1,72 @@
+/* ++++ changelog start ++++ */
+
+.milestone-title {
+    margin-left: 160px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    position: relative;
+
+    h2 {
+        margin-right: 32px;
+    }
+
+    .semi-tag {
+        margin: 0;
+        position: absolute;
+        left: -160px;
+    }
+}
+
+.changelog-block-list {
+    margin-left: 160px;
+    margin-bottom: 80px;
+
+    h4 {
+        margin-top: 40px;
+        margin-bottom: 24px;
+    }
+
+    .markdown > p {
+        font-size: 16px;
+        line-height: 32px;
+        display: inline;
+    }
+
+    .markdown {
+        display: inline;
+    }
+
+    .markdown > ul > li li {
+        list-style-type: "-";
+    }
+
+    strong {
+        background-color: var(--semi-color-danger-light-hover);
+    }
+}
+
+.gatsby-h4 {
+    display: flex;
+    align-items: center;
+    margin-top: 80px;
+    margin-bottom: 16px;
+    // margin-left: 160px;
+    line-height: 40px;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--semi-color-text-0);
+
+    .changelog-diff {
+        display: none;
+    }
+
+    &:hover {
+
+        .changelog-diff {
+            display: block;
+        }
+    }
+}
+
+/* ---- changelog end ---- */

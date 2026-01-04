@@ -1,0 +1,173 @@
+.frame14373 {
+    height: 1004px;
+    width: 100%;
+    border-bottom: 1px solid var(--semi-color-border);
+    padding: 100px 0;
+}
+
+.titleWrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-Bottom: 64px;
+}
+
+.title {
+    font-style: normal;
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 44px;
+    letter-spacing: 0em;
+}
+
+.title_en {
+    font-weight: 700;
+}
+
+.subTitle {
+    margin-top: 16px;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 32px;
+}
+
+.application {
+    width: 100%;
+    display: flex !important; 
+    align-items: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.imgWrapper {
+    width: 1200px;
+    height: 680px;
+    border-radius: 24px;
+}
+
+// meego
+.imgBg0 {
+    background-color: rgba(var(--semi-violet-0));
+}
+
+// douyin-creator
+.imgBg1 {
+    background-color: rgba(var(--semi-pink-0));
+}
+
+// coze
+.imgBg2 {
+    background-color: rgba(var(--semi-light-green-0));
+}
+
+// anyweb
+.imgBg3 {
+    background-color: rgba(var(--semi-grey-1));
+}
+
+.imgBg4 {
+    background-color: rgba(237, 239, 248, 1);
+}
+
+// capcut
+.imgBg5 {
+    background-color: rgba(var(--semi-amber-1));
+}
+
+.img {
+    width: 1120px;
+    margin: 40px 40px -40px 40px;
+    border-radius: 12px;
+}
+
+.arrow {
+    z-index: 100;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--semi-color-text-0);;
+    color: var(--semi-color-bg-0);
+    cursor: pointer;
+
+    &:hover {
+        color: var(--semi-color-primary);
+    }
+}
+
+.leftArrow {
+    position: absolute;
+    left: -56px;
+    top: 35%;
+}
+
+.rightArrow {
+    position: absolute;
+    right: -56px;
+    top: 35%;
+}
+
+.imgInfo {
+    margin-top: 104px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo {
+    margin-right: 64px;
+}
+
+.group720 {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    color: var(--semi-color-text-0);
+    background-color: var(--semi-color-bg-0);
+}
+
+.larkProject {
+    font-style: normal;
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 44px;
+}
+
+.imgInfoText {
+    width: 640px;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 32px;
+}
+
+.hideInLight {
+    display: none;
+}
+
+body[theme-mode="dark"] {
+
+    .showInDark {
+        display: block;
+    }
+
+    .hideInDark {
+        display: none;
+    }
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.carouselWrapper {
+    position: relative;
+}

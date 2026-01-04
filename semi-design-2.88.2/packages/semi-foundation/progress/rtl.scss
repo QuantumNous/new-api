@@ -1,0 +1,29 @@
+$module: #{$prefix}-progress;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-horizontal {
+            .#{$module}-line-text {
+                margin-left: 0;
+                margin-right: $spacing-progress_line_text-marginRight;
+            }
+        }
+
+        &-circle {
+
+            &-ring-inner {
+                transform: rotate(-90deg);
+                transform-origin: 50% 50%;
+            }
+
+            &-text {
+                left: auto;
+                right: 50%;
+                transform: translate(50%, -50%);
+            }
+        }
+    }
+}

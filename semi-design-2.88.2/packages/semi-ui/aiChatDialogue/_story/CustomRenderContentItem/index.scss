@@ -1,0 +1,22 @@
+.user-text {
+    background-color: var(--semi-color-fill-1);
+    color: var(--semi-color-text-0);
+    border-radius: 25px;
+    padding: 6px 16px;
+    font-size: 14px;
+}
+
+.assistant-text {
+    color: var(--semi-color-text-0);
+    border-radius: 16px;
+    padding: 6px 16px;
+    font-size: 14px;
+}
+
+.reasoning-content {
+    margin-top: 8px;
+}
+
+.custom-step {
+    font-size: 14px;
+}

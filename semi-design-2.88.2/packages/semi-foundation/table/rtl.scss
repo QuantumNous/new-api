@@ -1,0 +1,201 @@
+$module: #{$prefix}-table;
+
+.#{$module}-wrapper-rtl {
+    .#{$module} {
+        direction: rtl;
+        text-align: right;
+
+        &-align-left {
+            .#{$module}-operate-wrapper {
+                justify-content: flex-end;
+            }
+        }
+
+        &-align-right {
+            .#{$module}-operate-wrapper {
+                justify-content: flex-start;
+            }
+        }
+
+        &-thead {
+            & > .#{$module}-row {
+                & > .#{$module}-row-head {
+                    text-align: right;
+
+                    &.#{$module}-cell-fixed {
+
+                        &-left-last {
+                            border-right: 0;
+                            border-left: 1px solid $color-table_shadow-border-default;
+
+                            &.resizing {
+                                // rtl override mixin
+                                border-left: $width-table_resizer_border solid $color-table_resizer-bg-default;
+                            }
+                        }
+
+                        &-right-first {
+                            border-left: 0;
+                            border-right: 1px solid $color-table_shadow-border-default;
+
+                            &.resizing {
+                                border-left: $width-table_resizer_border solid $color-table_resizer-bg-default;
+                            }
+
+                            &[x-type="column-scrollbar"] {
+                                box-shadow: none;
+                                border-right: transparent;
+                            }
+                        }
+                    }
+                }
+
+                .resizing {
+                    border-left: $width-table_resizer_border solid $color-table_resizer-bg-default;
+                }
+
+                .react-resizable-handle {
+                    right: auto;
+                    left: $spacing-table_react_resizable_handle-right;
+                }
+            }
+        }
+
+        &-tbody {
+            display: table-row-group;
+            & > .#{$module}-row {
+                & > .#{$module}-row-cell {
+
+                    &.resizing {
+                        border-right: 0;
+                        border-left: $width-table_resizer_border solid $color-table_resizer-bg-default;
+                    }
+                }
+
+                & > .#{$module}-cell-fixed {
+
+                    &-left-last {
+                        border-right: 0;
+                        border-left: $width-table_cell_fixed_left_last solid $color-table_shadow-border-default;
+                    }
+
+                    &-right-first {
+                        border-left: 0;
+                        border-right: $width-table_cell_fixed_right_first solid $color-table_shadow-border-default;
+                    }
+                }
+            }
+        }
+
+        .#{$module}-column {
+
+            &-selection {
+                .#{$prefix}-checkbox-inner-display {
+                    .#{$prefix}-icon {
+                        left: auto;
+                        right: 0;
+                    }
+                }
+            }
+
+            &-expand {
+                .#{$module}-expand-icon {
+                    transform: scaleX(-1) translateY(2px);
+
+                    &:last-child {
+                        margin-right: auto;
+                        margin-left: 0;
+                    }
+                }
+            }
+
+            &-sorter {
+                margin-left: 0;
+                margin-right: $spacing-table_column_sorter-marginLeft;
+            }
+
+            &-filter {
+                margin-left: 0;
+                margin-right: $spacing-table_column_filter-marginLeft;
+            }
+        }
+
+        &-bordered {
+            .#{$module}-container {
+                border-left: 0;
+                border-right: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            }
+
+            .#{$module}-thead > .#{$module}-row > .#{$module}-row-head,
+            .#{$module}-tbody > .#{$module}-row > .#{$module}-row-cell {
+                border-right: 0;
+                border-left: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            }
+
+            .#{$module}-placeholder {
+                border-left: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+                border-right: 0;
+            }
+
+            .#{$module}-header {
+
+                &::-webkit-scrollbar {
+                    border-right: 0;
+                    border-left: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+                }
+            }
+        }
+
+        &-fixed {
+            & > .#{$module}-tbody {
+                & > .#{$module}-row-expand > .#{$module}-row-cell > .#{$module}-expand-inner,
+                & > .#{$module}-row-section > .#{$module}-row-cell > .#{$module}-section-inner {
+                    left: auto;
+                    right: 0;
+                    margin-right: -$spacing-table_expand_row-paddingLeft;
+                    margin-left: -$spacing-table_expand_row-paddingRight;
+                    padding-right: $spacing-table_expand_row-paddingLeft;
+                    padding-left: $spacing-table_expand_row-paddingRight;
+                }
+            }
+        }
+
+        &-scroll {
+            &-position {
+                &-left {
+                    .#{$module}-tbody,
+                    .#{$module}-thead {
+                        & > .#{$module}-row > .#{$module}-cell-fixed-left-last {
+                            box-shadow: $shadow-table_right;
+                        }
+                        & > .#{$module}-row > .#{$module}-cell-fixed-right-first {
+                            box-shadow: none;
+                        }
+                    }
+                }
+    
+                &-right {
+                    .#{$module}-tbody,
+                    .#{$module}-thead {
+                        & > .#{$module}-row > .#{$module}-cell-fixed-left-last {
+                            box-shadow: none;
+                        }
+                        & > .#{$module}-row > .#{$module}-cell-fixed-right-first {
+                            box-shadow: $shadow-table_left;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .#{$module}-expand-icon {
+        margin-right: auto;
+        margin-left: $spacing-table_expand_icon-marginRight;
+        transform: scaleX(-1) translateY(2px);
+    }
+
+    .#{$prefix}-spin {
+        direction: rtl;
+    }
+}

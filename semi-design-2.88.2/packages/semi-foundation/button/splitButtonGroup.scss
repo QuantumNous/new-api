@@ -1,0 +1,33 @@
+$dropdown: #{$prefix}-dropdown;
+$module: #{$prefix}-button;
+$component: #{$module}-split;
+$content: #{$module};
+$icon: #{$module}-with-icon;
+
+.#{$component} {
+    display: inline-block;
+
+    .#{$module} {
+        border-radius: 0;
+        margin-right: 1px;
+
+        &-first {
+            border-top-left-radius: $radius-button_splitButtonGroup_first_topLeft;
+            border-bottom-left-radius: $radius-button_splitButtonGroup_first_bottomLeft;
+        }
+
+        &-last {
+            border-top-right-radius: $radius-button_splitButtonGroup_last_topRight;
+            border-bottom-right-radius: $radius-button_splitButtonGroup_last_bottomRight;
+            margin-right: unset;
+        }
+    }
+
+
+    &:hover {
+        // 因为上面那条规则，导致原来的active被覆盖
+        .#{$module}-borderless:active {
+            background-color: $color-button_borderless-bg-active;
+        }
+    }
+}

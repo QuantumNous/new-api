@@ -1,0 +1,48 @@
+// Color
+$color-userGuide_popup-text-default: var(--semi-color-text-0); // 气泡卡片文字颜色 - 默认
+$color-userGuide_popup-text-primary: var(--semi-color-tertiary-light-default); // 气泡卡片文字颜色 - primary
+$color-userGuide_modal_content_indicator-bg: var(--semi-color-primary-light-active); // 弹窗指示器背景颜色
+$color-userGuide_modal_content_indicator-bg-active: var(--semi-color-primary);  // 弹窗指示器背景颜色 - 选中态
+
+// Width/Height
+$width-userGuide_popover-default: 400px; // 默认气泡卡片宽度
+$height-userGuide_popup_content_cover-default: 200px; // 默认气泡卡片封面高度
+$width-userGuide_modal_content_cover-default: 600px; // 默认弹窗式卡片封面宽度
+$height-userGuide_modal_content_cover-default: 300px; // 默认弹窗式卡片封面高度
+$height-userGuide_modal_content_indicator-default: 30px; // 默认弹窗式卡片指示器整体高度
+$width-userGuide_modal_content_indicator_item-default: 6px; // 默认弹窗式卡片单个指示器宽度
+$height-userGuide_modal_content_indicator_item-default: 6px; // 默认弹窗式卡片单个指示器高度
+$font-userGuide_popup_content_title-lineHeight: 24px; // 气泡卡片标题行高
+$font-userGuide_popup_content_description-lineHeight: 20px; // 气泡卡片详情行高
+$font-userGuide_popup_content_indicator-lineHeight: 20px; // 气泡卡片指示器行高
+$font-userGuide_modal_content_title-lineHeight: 24px; // 弹窗式卡片标题行高
+$font-userGuide_modal_content_description-lineHeight: 20px; // 弹窗式卡片详情行高
+
+// Spacing
+$spacing-userGuide_popup_content_body-padding: 24px; // 气泡卡片内边距
+$spacing-userGuide_popup_content_title-marginBottom: 8px; // 气泡卡片标题底部外边距
+$spacing-userGuide_popup_content_description-marginBottom: 48px; // 气泡卡片详情底部外边距
+$spacing-userGuide_popup_content_button-gap: 12px; // 气泡卡片底部按钮间距
+$spacing-userGuide_popup_content_button-marginLeft: 120px; // 气泡卡片按钮组左边距
+$spacing-userGuide_modal_content_title-marginBottom: 8px; // 弹窗式卡片标题底部外边距
+$spacing-userGuide_modal_content_body-padding: 24px 48px; // 弹窗式卡片body内边距
+$spacing-userGuide_modal_content_footer-padding: 24px; // 弹窗式卡片footer内边距
+$spacing-userGuide_popup_content_indicator-gap: 8px; // 弹窗式片指示器间距
+$spacing-userGuide_modal_content_button-gap: 12px; // 弹窗式卡片底部按钮间距
+
+
+// Radius
+$radius-userGuide_popup_content_cover: var(--semi-border-radius-medium) var(--semi-border-radius-medium) 0 0; // 气泡卡片封面圆角
+$radius-userGuide_modal_content_indicator: var(--semi-border-radius-large); // 气泡卡片指示器圆角
+
+
+// font
+$font-userGuide_popup_content_title-fontSize: $font-size-header-5; // 气泡卡片标题字体大小
+$font-userGuide_popup_content_description-fontSize: $font-size-regular; // 气泡卡片详情字体大小
+$font-userGuide_popup_content_indicator-fontSize: $font-size-regular; // 气泡卡片指示器字体大小
+$font-userGuide_popup_content_title-fontWeight: $font-weight-bold; // 气泡卡片标题字重
+$font-userGuide_modal_content_title-fontSize: $font-size-header-5; // 弹窗式卡片标题字体大小
+$font-userGuide_modal_content_description-fontSize: $font-size-regular; // 弹窗式卡详情字体大小
+$font-userGuide_modal_content_title-fontWeight: $font-weight-bold; // 弹窗式卡片标题字重
+
+

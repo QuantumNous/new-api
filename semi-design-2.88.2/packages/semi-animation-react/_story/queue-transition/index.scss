@@ -1,0 +1,110 @@
+$prefixCls: semi;
+$module: #{$prefixCls}-queue;
+
+@mixin keyframes-position($position: left) {
+    $type: translateX;
+    $ratio: -200%;
+
+    @if $position == left {
+    }
+
+    @else if $position == top {
+        $type: translateY;
+    }
+
+    @else if $position == right {
+        $ratio: 200%;
+    }
+
+    @else if $position == bottom {
+        $type: translateY;
+        $ratio: 200%;
+    }
+
+    @keyframes #{$module}-#{$position}-enter {
+        from {
+            transform: #{$type}#{'(' $ratio ')'};
+        }
+
+        to {
+            transform: 0;
+        }
+    }
+
+    @keyframes #{$module}-#{$position}-leave {
+        from {
+            transform: 0;
+        }
+
+        to {
+            transform: #{$type}#{'(' $ratio ')'};
+        }
+    }
+}
+
+@keyframes #{$module}-opacity-enter {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes #{$module}-opacity-leave {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@mixin class-position($position: left) {
+    $type: translateX;
+
+    @if $position == top {
+        $type: translateY;
+    }
+
+    @else if $position == bottom {
+        $type: translateY;
+    }
+
+    .#{$module}-#{$position}-leave {
+        animation-name: #{$module}-#{$position}-leave, #{$module}-opacity-leave;
+        animation-duration: 0.2s, 0.2s;
+    }
+
+    .#{$module}-#{$position}-enter {
+        animation-name: #{$module}-#{$position}-enter, #{$module}-opacity-enter;
+        animation-duration: 0.3s, 0.3s;
+    }
+}
+
+// @keyframes #{$module}-left-enter {
+//     from {
+//         transform: translateX(-200%);
+//     }
+//     to {
+//         transform: translateX(0);
+//     }
+// }
+// .#{$module}-left-leave {
+//     animation-name: #{$module}-left-leave, #{$module}-opacity-leave;
+//     animation-duration: 0.2s, 0.2s;
+// }
+
+// .#{$module}-left-enter {
+//     animation-name: #{$module}-left-enter, #{$module}-opacity-enter;
+//     animation-duration: 0.3s, 0.3s;
+// }
+
+@include keyframes-position(left);
+@include keyframes-position(top);
+@include keyframes-position(right);
+@include keyframes-position(bottom);
+@include class-position(left);
+@include class-position(top);
+@include class-position(right);
+@include class-position(bottom);

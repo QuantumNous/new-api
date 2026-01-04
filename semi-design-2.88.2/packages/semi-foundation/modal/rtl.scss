@@ -1,0 +1,48 @@
+$module: #{$prefix}-modal;
+
+.#{$module} {
+
+    &-rtl {
+        direction: rtl;
+    }
+
+    &-icon-wrapper {
+        .#{$module}-rtl &,
+        .#{$module}-confirm-rtl & {
+            margin-right: 0;
+            margin-left: $spacing-modal_confirm_icon_wrapper-marginRight;
+        }
+
+    }
+
+    &-withIcon {
+        .#{$module}-rtl &,
+        .#{$module}-confirm-rtl & {
+            margin-left: 0;
+            margin-right: $spacing-modal_content_withicon-marginLeft;
+        }
+    }
+
+    &-footer {
+        .#{$module}-rtl &,
+        .#{$module}-confirm-rtl & {
+            text-align: left;
+            .#{$prefix}-button {
+                margin-left: $spacing-modal_footer_button-marginRight;
+                margin-right: $spacing-modal_footer_button-marginLeft;
+            }
+        }
+    }
+
+    &-confirm {
+
+        &-rtl {
+            direction: rtl;
+        }
+
+        .#{$module}-confirm-rtl .#{$prefix}-button {
+            margin-left: $spacing-modal_footer_button-marginRight;
+            margin-right: $spacing-modal_footer_button-marginLeft;
+        }
+    }
+}

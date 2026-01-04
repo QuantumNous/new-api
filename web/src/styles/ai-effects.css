@@ -1,0 +1,395 @@
+/*
+ * AI-First Animations & Effects
+ * Advanced animations and visual effects for AI interactions
+ */
+
+/* =====================================
+ * AI Chat Bubble Styles
+ * ===================================== */
+
+.ai-chat-bubble {
+  position: relative;
+  background: linear-gradient(135deg, var(--semi-color-ai-surface) 0%, var(--semi-color-bg-1) 100%);
+  border: 1px solid var(--semi-color-ai-border);
+  border-radius: var(--semi-border-radius-large);
+  box-shadow: var(--semi-shadow-elevated);
+  overflow: hidden;
+  transition: all var(--semi-transition-duration-default) var(--semi-transition-easing);
+}
+
+.ai-chat-bubble:hover {
+  background: linear-gradient(135deg, var(--semi-color-ai-surface-hover) 0%, var(--semi-color-bg-2) 100%);
+  box-shadow: var(--semi-shadow-medium);
+  transform: translateY(-1px);
+}
+
+/* AI Assistant Bubble */
+.ai-chat-bubble.assistant {
+  background: linear-gradient(135deg, var(--semi-color-ai-general) 0%, var(--semi-color-ai-purple) 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+}
+
+.ai-chat-bubble.assistant::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+  animation: ai-shimmer 2s infinite;
+}
+
+@keyframes ai-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* User Bubble */
+.ai-chat-bubble.user {
+  background: var(--semi-color-primary-light-default);
+  border-color: var(--semi-color-primary-light-active);
+  color: var(--semi-color-text-0);
+}
+
+/* =====================================
+ * Breathing Loading Effect
+ * ===================================== */
+
+.ai-breathing-loader {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-breathing-loader .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--semi-color-ai-purple);
+  animation: ai-breathing 1.4s infinite ease-in-out both;
+}
+
+.ai-breathing-loader .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.ai-breathing-loader .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.ai-breathing-loader .dot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+@keyframes ai-breathing {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Alternative pulsing loader */
+.ai-pulse-loader {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--semi-color-ai-general);
+  animation: ai-pulse-scale 2s infinite;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+@keyframes ai-pulse-scale {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+  
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+  
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+/* =====================================
+ * Streaming Cursor & Trail Effects
+ * ===================================== */
+
+.ai-streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--semi-color-ai-purple);
+  animation: ai-cursor-blink 1s infinite;
+  margin-left: 2px;
+}
+
+@keyframes ai-cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Streaming text with trail effect */
+.ai-streaming-text {
+  position: relative;
+  display: inline-block;
+}
+
+.ai-streaming-text::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(to bottom, var(--semi-color-ai-purple), transparent);
+  animation: ai-streaming-trail 0.8s infinite;
+}
+
+@keyframes ai-streaming-trail {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+/* =====================================
+ * Code Block Enhancement
+ * ===================================== */
+
+.ai-code-block {
+  position: relative;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid var(--semi-color-ai-border);
+  border-radius: var(--semi-border-radius-large);
+  overflow: hidden;
+  font-family: var(--semi-font-family-code);
+  box-shadow: var(--semi-shadow-medium);
+}
+
+.ai-code-block::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--semi-color-ai-general);
+  opacity: 0.8;
+}
+
+.ai-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--semi-spacing-3) var(--semi-spacing-4);
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-code-language {
+  color: var(--semi-color-ai-purple);
+  font-size: 12px;
+  font-weight: var(--semi-font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ai-code-content {
+  padding: var(--semi-spacing-4);
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+/* Syntax highlighting for AI code blocks */
+.ai-code-content .keyword {
+  color: #c084fc;
+  font-weight: var(--semi-font-weight-medium);
+}
+
+.ai-code-content .string {
+  color: #34d399;
+}
+
+.ai-code-content .number {
+  color: #fbbf24;
+}
+
+.ai-code-content .comment {
+  color: #64748b;
+  font-style: italic;
+}
+
+.ai-code-content .function {
+  color: #60a5fa;
+}
+
+/* =====================================
+ * AI Thinking Indicator
+ * ===================================== */
+
+.ai-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--semi-spacing-2);
+  padding: var(--semi-spacing-2) var(--semi-spacing-3);
+  background: var(--semi-color-ai-surface);
+  border: 1px solid var(--semi-color-ai-border);
+  border-radius: var(--semi-border-radius-large);
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.ai-thinking::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--semi-color-ai-purple);
+  animation: ai-thinking-pulse 1.5s infinite;
+}
+
+@keyframes ai-thinking-pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* =====================================
+ * AI Response Animation
+ * ===================================== */
+
+.ai-response-enter {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: ai-response-fade-in 0.5s ease-out forwards;
+}
+
+@keyframes ai-response-fade-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =====================================
+ * Dark Mode Adaptations
+ * ===================================== */
+
+body[theme-mode='dark'] {
+  .ai-chat-bubble {
+    background: linear-gradient(135deg, var(--semi-color-ai-surface) 0%, var(--semi-color-bg-1) 100%);
+  }
+  
+  .ai-chat-bubble.user {
+    background: var(--semi-color-bg-2);
+    border-color: var(--semi-color-border);
+  }
+  
+  .ai-code-block {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  }
+  
+  .ai-thinking {
+    background: var(--semi-color-bg-1);
+    border-color: var(--semi-color-border);
+    color: var(--semi-color-text-1);
+  }
+  
+  .ai-code-content {
+    color: #cbd5e1;
+  }
+  
+  .ai-code-content .comment {
+    color: #475569;
+  }
+}
+
+/* =====================================
+ * Utility Classes for AI Features
+ * ===================================== */
+
+.ai-glow-effect {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  animation: ai-glow-pulse 3s infinite;
+}
+
+@keyframes ai-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
+  }
+}
+
+.ai-typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ai-typing-indicator span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--semi-color-ai-purple);
+  animation: ai-typing-dot 1.4s infinite ease-in-out both;
+}
+
+.ai-typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.ai-typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.ai-typing-indicator span:nth-child(3) {
+  animation-delay: 0s;
+}
+
+@keyframes ai-typing-dot {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

@@ -1,0 +1,52 @@
+// Color
+$color-pagination-text-default: var(--semi-color-text-2); // 翻页器总页数文本颜色
+$color-pagination_item-text-default: var(--semi-color-text-0); // 翻页器 页码 文本颜色
+$color-pagination_item-bg-default: transparent; // 翻页器 页码 背景颜色
+$color-pagination_item-icon-default: var(--semi-color-tertiary); // 翻页器 页码 图标颜色
+$color-pagination_item-text-hover: var(--semi-color-text-0); // 翻页器 页码 悬浮态文本颜色
+$color-pagination_item-bg-hover: var(--semi-color-fill-0); // 翻页器 页码 悬浮态背景颜色
+$color-pagination_item-text-active: var(--semi-color-text-0); // 翻页器 页码 按下态文字颜色
+$color-pagination_item-bg-active: var(--semi-color-fill-1); // 翻页器 页码 按下态背景颜色
+$color-pagination_item-text-disabled: var(--semi-color-disabled-text); // 翻页器 页码 禁用态文字颜色
+$color-pagination_item-icon-disabled: var(--semi-color-disabled-text); // 翻页器 页码 禁用态图标颜色
+$color-pagination_item-bg-disabled: transparent; // 翻页器 页码 禁用态背景颜色
+$color-pagination_item-bg-selected-disabled: var(--semi-color-disabled-fill); // 翻页器 页码 选中禁用态背景颜色
+$color-pagination_item-text-selected: var(--semi-color-primary); // 翻页器 页码 选中态文字颜色
+$color-pagination_item-bg-selected: var(--semi-color-primary-light-default); // 翻页器 页码 选中态背景颜色
+$color-pagination_quickjump_text-disabled: var(--semi-color-disabled-text); // 翻页器 快速跳转禁用态文字颜色
+$color-pagination_item-border-default: transparent; // 翻页器 页码 默认边框颜色
+$color-pagination_item-border-hover: transparent; // 翻页器 页码 悬浮边框颜色
+$color-pagination_item-border-active: transparent; // 翻页器 页码 激活边框颜色
+$color-pagination_item-border-selected: transparent; // 翻页器 页码 选中边框颜色
+$color-pagination_item-border-disabled: transparent; // 翻页器 页码 禁用边框颜色
+
+
+
+// Width/Height
+$height-pagination_item: 32px; // 翻页器 页码高度
+$width-pagination_item-minWidth: 32px; // 翻页器 页码最小宽度
+$width-pagination_item_small-minWidth: 44px; // 迷你翻页器 页码最小宽度
+$width-pagination_quickjump_input_width: 50px; // 快速跳转输入框宽度
+$width-pagination_item_border: 0px; // 翻页器 页码 默认边框宽度
+
+// Spacing
+$spacing-pagination-padding: 0; // 翻页器内边距
+$spacing-pagination_small-paddingY: 0; // 迷你翻页器垂直内边距
+$spacing-pagination_small-paddingX: 0; // 迷你翻页器水平内边距
+$spacing-pagination_item-marginLeft: $spacing-extra-tight; // 翻页器页码左侧外边距
+$spacing-pagination_item-marginRight: $spacing-extra-tight; // 翻页器页码右侧外边距
+$spacing-pagination_item_small-margin: 0; // 迷你翻页器页码外边距
+$spacing-pagination_reset_list-paddingTop: $spacing-extra-tight;
+$spacing-pagination_reset_list-paddingBottom: $spacing-extra-tight;
+$spacing-pagination_quickjump_marginLeft: 24px; // 快速跳转左侧外边距
+$spacing-pagination_quickjump_input_marginLeft: 4px; // 快速跳转输入框左侧外边距
+$spacing-pagination_quickjump_input_marginRight: 4px; // 快速跳转输入框右侧外边距
+
+// Radius
+$radius-pagination_item: var(--semi-border-radius-small); // 翻页器页码圆角大小
+
+// Font
+$font-pagination_small-fontWeight: $font-weight-regular; // 迷你翻页器字重
+$font-pagination_item-fontWeight: $font-weight-regular; // 翻页器页码字重
+$font-pagination_item_active-fontWeight: $font-weight-bold; // 翻页器页码选中态字重
+$font-pagination_quickjump_fontWeight: $font-weight-regular; // 快速跳转输入框字重

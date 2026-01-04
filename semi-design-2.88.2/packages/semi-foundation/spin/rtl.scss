@@ -1,0 +1,12 @@
+$module: #{$prefix}-spin;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+    }
+
+    .#{$module}-container {
+        direction: rtl;
+    }
+}

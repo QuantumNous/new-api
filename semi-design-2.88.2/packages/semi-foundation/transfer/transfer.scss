@@ -1,0 +1,217 @@
+@import "./animation.scss";
+@import "./variables.scss";
+
+
+$module: #{$prefix}-transfer;
+
+.#{$module} {
+    // max-height: 412px;
+    // min-height: 400px;
+    background-color: $color-transfer-bg;
+    border: $width-transfer-border solid $color-transfer-border;
+    border-radius: $radius-transfer;
+    min-width: $width-transfer-minWidth;
+    height: $height-transfer;
+    box-sizing: border-box;
+    display: flex;
+
+    &-disabled {
+        // background-color: $color-transfer_disabled-bg;
+        .#{$module}-header {
+            color: $color-transfer_disabled-text;
+            cursor: not-allowed;
+        }
+        .#{$module}-item {
+            color: $color-transfer_disabled-text;
+            cursor: not-allowed;
+
+            &:hover {
+                background-color: inherit;
+                .#{$module}-item-close-icon {
+                    visibility: hidden;
+                }
+            }
+
+            &:active {
+                background-color: inherit;
+            }
+        }
+    }
+
+    &-custom-panel {
+        border: none;
+        min-width: inherit;
+        height: inherit;
+    }
+
+    &-header {
+        @include font-size-small;
+        @include ver-center;
+        height: $height-transfer_header;
+        margin-top: $spacing-transfer_header-marginTop;
+        margin-right: $spacing-transfer_header-marginRight;
+        margin-bottom: $spacing-transfer_header-marginBottom;
+        margin-left: $spacing-transfer_header-marginLeft;
+        color: $color-transfer_header-text;
+        flex-shrink: 0;
+
+        &-all {
+            font-weight: $font-transfer_header_all-fontWeight;
+            margin-left: $spacing-transfer_header_all-marginLeft;
+        }
+        .#{$prefix}-button {
+            @include font-size-small;
+        }
+    }
+
+    &-item {
+        min-height: $height-transfer_item-minHeight;
+        box-sizing: border-box;
+        padding-top: $spacing-transfer_item-paddingTop;
+        padding-right: $spacing-transfer_item-paddingRight;
+        padding-bottom: $spacing-transfer_item-paddingBottom;
+        padding-left: $spacing-transfer_item-paddingLeft;
+        user-select: none;
+        @include font-size-regular;
+        @include ver-center;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+        color: $color-transfer_item-text;
+        cursor: pointer;
+        transition: background-color $transition_duration_transfer_item-bg $transition_function-transfer_item-bg $transition_delay-transfer_item-bg;
+
+
+
+        &:hover {
+            background-color: $color-transfer_item-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-transfer_item-bg-active;
+        }
+
+        &-disabled {
+            cursor: not-allowed;
+
+            &:hover {
+                background-color: inherit;
+            }
+        }
+
+        .#{$module}-item-close-icon {
+            font-size: $width-transfer_item_close-icon;
+            cursor: pointer;
+            visibility: hidden;
+            color: $color-transfer_close_icon-icon;
+        }
+    }
+
+    &-left {
+        width: $width-transfer_left;
+        border-right: $width-transfer_left-border solid $color-transfer-border;
+        display: flex;
+        flex-direction: column;
+        // padding: $spacing-base-tight;
+
+        &-list {
+            overflow: auto;
+            flex-grow: 1;
+        }
+
+        &-empty {
+            height: $height-transfer_left_empty;
+        }
+        >.#{$prefix}-spin {
+            width: 100%;
+            flex-grow: 1;
+        }
+    }
+
+    &-right {
+        width: $width-transfer_right;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        // padding: $spacing-base-tight;
+
+        &-header {
+            margin-top: $spacing-transfer_right_header-marginTop;
+            margin-bottom: $spacing-transfer_right_header-marginBottom;
+            height: $height-transfer_right_header;
+            flex-shrink: 0;
+        }
+
+        &-list {
+            overflow: auto;
+            // max-height: 360px;
+            flex-grow: 1;
+        }
+
+        &-item {
+            color: $color-transfer_selected_item-text;
+            cursor: auto;
+
+            &:hover {
+                .#{$module}-item-close-icon {
+                    flex-shrink: 0;
+                    visibility: visible;
+                    cursor: pointer;
+                }
+                .#{$module}-item-close-icon.#{$module}-item-close-icon-disabled {
+                    visibility: hidden;
+                }
+            }
+            &-text {
+                flex: 1;
+                word-break: break-all;
+            }
+
+            &-drag {
+                &-handler {
+                    margin-right: $spacing-transfer_right_item_drag_handler-marginRight;
+                    flex-shrink: 0;
+                    cursor: move;
+                }
+
+                &-item-move {
+                    z-index: $z-transfer_right_item_drag_item_move;
+                }            
+            }
+
+            &-sortable-item {
+                &-active {
+                    opacity: 0;
+                }
+            }
+        }
+
+        &-empty {
+            position: absolute;
+            height: $height-transfer_right_empty;
+        }
+    }
+
+    &-empty {
+        width: $width-transfer_empty;
+        @include all-center;
+        @include font-size-small;
+        color: $color-transfer_empty-text;
+    }
+
+    &-filter {
+        margin-top: $spacing-transfer_filter-marginTop;
+        margin-right: $spacing-transfer_filter-marginRight;
+        margin-bottom: $spacing-transfer_filter-marginBottom;
+        margin-left: $spacing-transfer_filter-marginLeft;
+    }
+
+    &-group-title {
+        color: $color-transfer_group_title-text;
+        padding-left: $spacing-transfer_group_title-paddingLeft;
+        @include font-size-small;
+        height: $height-transfer_group_title;
+        @include ver-center;
+    }
+}
+
+@import "./rtl.scss";

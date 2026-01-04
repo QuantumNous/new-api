@@ -1,0 +1,389 @@
+/*
+ * Markdown Rendering Enhancements
+ * Optimized styles for AI-generated markdown content
+ */
+
+/* =====================================
+ * Base Markdown Styles
+ * ===================================== */
+
+.ai-markdown-content {
+  font-family: var(--semi-font-family-system);
+  line-height: 1.7;
+  color: var(--semi-color-text-0);
+  font-size: 14px;
+}
+
+.ai-markdown-content h1,
+.ai-markdown-content h2,
+.ai-markdown-content h3,
+.ai-markdown-content h4,
+.ai-markdown-content h5,
+.ai-markdown-content h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: var(--semi-font-weight-semibold);
+  color: var(--semi-color-text-0);
+}
+
+.ai-markdown-content h1 {
+  font-size: 24px;
+  border-bottom: 2px solid var(--semi-color-ai-border);
+  padding-bottom: 8px;
+}
+
+.ai-markdown-content h2 {
+  font-size: 20px;
+  color: var(--semi-color-primary);
+}
+
+.ai-markdown-content h3 {
+  font-size: 18px;
+  color: var(--semi-color-ai-purple);
+}
+
+.ai-markdown-content h4 {
+  font-size: 16px;
+}
+
+.ai-markdown-content h5 {
+  font-size: 14px;
+}
+
+.ai-markdown-content h6 {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+/* =====================================
+ * Code Blocks Enhancement
+ * ===================================== */
+
+.ai-markdown-content pre {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid var(--semi-color-ai-border);
+  border-radius: var(--semi-border-radius-large);
+  padding: 16px;
+  overflow-x: auto;
+  font-family: var(--semi-font-family-code);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 16px 0;
+  box-shadow: var(--semi-shadow-medium);
+  position: relative;
+}
+
+.ai-markdown-content pre::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--semi-color-ai-general);
+  border-radius: var(--semi-border-radius-large) var(--semi-border-radius-large) 0 0;
+}
+
+.ai-markdown-content code {
+  background: var(--semi-color-bg-2);
+  color: var(--semi-color-ai-purple);
+  padding: 2px 6px;
+  border-radius: var(--semi-border-radius-small);
+  font-family: var(--semi-font-family-code);
+  font-size: 13px;
+  font-weight: var(--semi-font-weight-medium);
+}
+
+.ai-markdown-content pre code {
+  background: transparent;
+  color: #e2e8f0;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Language indicator */
+.ai-markdown-content pre[data-language]::after {
+  content: attr(data-language);
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  color: var(--semi-color-ai-purple);
+  font-size: 11px;
+  font-weight: var(--semi-font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* =====================================
+ * Syntax Highlighting
+ * ===================================== */
+
+.ai-markdown-content .token.comment {
+  color: #64748b;
+  font-style: italic;
+}
+
+.ai-markdown-content .token.keyword {
+  color: #c084fc;
+  font-weight: var(--semi-font-weight-medium);
+}
+
+.ai-markdown-content .token.string {
+  color: #34d399;
+}
+
+.ai-markdown-content .token.number {
+  color: #fbbf24;
+}
+
+.ai-markdown-content .token.function {
+  color: #60a5fa;
+}
+
+.ai-markdown-content .token.class-name {
+  color: #f472b6;
+}
+
+.ai-markdown-content .token.operator {
+  color: #94a3b8;
+}
+
+.ai-markdown-content .token.punctuation {
+  color: #94a3b8;
+}
+
+/* =====================================
+ * Lists Enhancement
+ * ===================================== */
+
+.ai-markdown-content ul,
+.ai-markdown-content ol {
+  margin: 16px 0;
+  padding-left: 24px;
+}
+
+.ai-markdown-content li {
+  margin: 8px 0;
+  position: relative;
+}
+
+.ai-markdown-content ul li::before {
+  content: '•';
+  color: var(--semi-color-ai-purple);
+  font-weight: var(--semi-font-weight-bold);
+  position: absolute;
+  left: -16px;
+  top: 0;
+}
+
+.ai-markdown-content ol li {
+  counter-increment: list-counter;
+}
+
+.ai-markdown-content ol li::before {
+  content: counter(list-counter) '.';
+  color: var(--semi-color-ai-purple);
+  font-weight: var(--semi-font-weight-medium);
+  position: absolute;
+  left: -24px;
+  top: 0;
+  min-width: 20px;
+  text-align: right;
+}
+
+/* =====================================
+ * Links Enhancement
+ * ===================================== */
+
+.ai-markdown-content a {
+  color: var(--semi-color-primary);
+  text-decoration: none;
+  font-weight: var(--semi-font-weight-medium);
+  transition: all var(--semi-transition-duration-fast) var(--semi-transition-easing);
+  border-bottom: 1px solid transparent;
+}
+
+.ai-markdown-content a:hover {
+  color: var(--semi-color-primary-hover);
+  border-bottom-color: var(--semi-color-primary-hover);
+}
+
+/* =====================================
+ * Blockquotes Enhancement
+ * ===================================== */
+
+.ai-markdown-content blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--semi-color-ai-surface) 0%, var(--semi-color-bg-1) 100%);
+  border-left: 4px solid var(--semi-color-ai-purple);
+  border-radius: 0 var(--semi-border-radius-medium) var(--semi-border-radius-medium) 0;
+  font-style: italic;
+  color: var(--semi-color-text-1);
+}
+
+.ai-markdown-content blockquote p {
+  margin: 8px 0;
+}
+
+/* =====================================
+ * Tables Enhancement
+ * ===================================== */
+
+.ai-markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  background: var(--semi-color-bg-1);
+  border-radius: var(--semi-border-radius-medium);
+  overflow: hidden;
+  box-shadow: var(--semi-shadow-elevated);
+}
+
+.ai-markdown-content th {
+  background: var(--semi-color-ai-surface);
+  color: var(--semi-color-text-0);
+  font-weight: var(--semi-font-weight-semibold);
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 2px solid var(--semi-color-ai-border);
+}
+
+.ai-markdown-content td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.ai-markdown-content tr:last-child td {
+  border-bottom: none;
+}
+
+.ai-markdown-content tr:hover {
+  background: var(--semi-color-bg-2);
+}
+
+/* =====================================
+ * Horizontal Rule Enhancement
+ * ===================================== */
+
+.ai-markdown-content hr {
+  border: none;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--semi-color-ai-purple) 50%, transparent 100%);
+  margin: 24px 0;
+  border-radius: 1px;
+}
+
+/* =====================================
+ * Images Enhancement
+ * ===================================== */
+
+.ai-markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--semi-border-radius-medium);
+  box-shadow: var(--semi-shadow-elevated);
+  margin: 16px 0;
+  border: 1px solid var(--semi-color-border);
+}
+
+/* =====================================
+ * Dark Mode Adaptations
+ * ===================================== */
+
+body[theme-mode='dark'] .ai-markdown-content {
+  color: var(--semi-color-text-0);
+}
+
+body[theme-mode='dark'] .ai-markdown-content h1,
+body[theme-mode='dark'] .ai-markdown-content h2,
+body[theme-mode='dark'] .ai-markdown-content h3,
+body[theme-mode='dark'] .ai-markdown-content h4,
+body[theme-mode='dark'] .ai-markdown-content h5,
+body[theme-mode='dark'] .ai-markdown-content h6 {
+  color: var(--semi-color-text-0);
+}
+
+body[theme-mode='dark'] .ai-markdown-content pre {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-color: var(--semi-color-border);
+}
+
+body[theme-mode='dark'] .ai-markdown-content code {
+  background: var(--semi-color-bg-2);
+  color: var(--semi-color-ai-purple-hover);
+}
+
+body[theme-mode='dark'] .ai-markdown-content blockquote {
+  background: linear-gradient(135deg, var(--semi-color-bg-1) 0%, var(--semi-color-bg-2) 100%);
+  border-left-color: var(--semi-color-ai-purple-hover);
+  color: var(--semi-color-text-1);
+}
+
+body[theme-mode='dark'] .ai-markdown-content table {
+  background: var(--semi-color-bg-1);
+}
+
+body[theme-mode='dark'] .ai-markdown-content th {
+  background: var(--semi-color-bg-2);
+  color: var(--semi-color-text-0);
+  border-bottom-color: var(--semi-color-border);
+}
+
+body[theme-mode='dark'] .ai-markdown-content td {
+  border-bottom-color: var(--semi-color-border);
+}
+
+body[theme-mode='dark'] .ai-markdown-content tr:hover {
+  background: var(--semi-color-bg-2);
+}
+
+body[theme-mode='dark'] .ai-markdown-content img {
+  border-color: var(--semi-color-border);
+}
+
+/* =====================================
+ * Utility Classes
+ * ===================================== */
+
+.ai-markdown-compact {
+  line-height: 1.5;
+}
+
+.ai-markdown-compact h1,
+.ai-markdown-compact h2,
+.ai-markdown-compact h3,
+.ai-markdown-compact h4,
+.ai-markdown-compact h5,
+.ai-markdown-compact h6 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.ai-markdown-compact p,
+.ai-markdown-compact ul,
+.ai-markdown-compact ol {
+  margin: 8px 0;
+}
+
+.ai-markdown-compact pre {
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.ai-markdown-large {
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.ai-markdown-large h1 {
+  font-size: 28px;
+}
+
+.ai-markdown-large h2 {
+  font-size: 24px;
+}
+
+.ai-markdown-large h3 {
+  font-size: 20px;
+}

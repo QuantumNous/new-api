@@ -1,0 +1,108 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-banner;
+
+.#{$module} {
+    padding: $spacing-banner-paddingY $spacing-banner-paddingX;
+    // align-items: center;
+    // @include font-size-regular;
+
+    &-content-wrapper {
+        display: flex;
+        flex-direction: row;
+    }
+
+    &-description {
+        margin: 0;
+    }
+
+    .#{$module}-content-wrapper {
+        .#{$module}-content {
+            display: flex;
+            flex: 1;
+        }
+    }
+
+    &-in-container {
+        border-radius: $radius-banner;
+
+        .#{$module}-content-wrapper {
+            .#{$module}-content {
+
+                &-body {
+                    flex: 1;
+
+                    .#{$module}-title + .#{$module}-description {
+                        margin-top: $spacing-banner_title_description-marginTop;
+                    }
+                }
+            }
+        }
+    }
+
+    &-full {
+        .#{$module}-content-wrapper {
+            .#{$module}-content {
+                justify-content: center;
+            }
+            .#{$module}-icon,
+            .#{$module}-content-body {
+                display: flex;
+                align-items: center;
+            }
+        }
+    }
+
+    &-close {
+        margin-left: $spacing-banner_closeBtn-marginLeft;
+        height: $height-banner_closeBtn;
+        width: $width-banner_closeBtn;
+    }
+
+    &-extra {
+        margin-top: $spacing-banner_extra-marginTop;
+    }
+
+    &-icon {
+        display: flex;
+        margin-right: $spacing-banner_icon-marginRight;
+    }
+
+    &-info {
+        background-color: $color-banner_info-bg-default;
+        color: $color-banner_info-text-default;
+
+        &.#{$module}-bordered {
+            border: $width-banner-border solid $color-banner_info-border-default;
+        }
+    }
+
+    &-warning {
+        background-color: $color-banner_warning-bg-default;
+        color: $color-banner_warning-text-default;
+
+        &.#{$module}-bordered {
+            border: $width-banner-border solid $color-banner_warning-border-default;
+        }
+    }
+
+    &-success {
+        background-color: $color-banner_success-bg-default;
+        color: $color-banner_success-text-default;
+
+        &.#{$module}-bordered {
+            border: $width-banner-border solid $color-banner_success-border-default;
+        }
+    }
+
+    &-danger {
+        background-color: $color-banner_danger-bg-default;
+        color: $color-banner_danger-text-default;
+
+        &.#{$module}-bordered {
+            border: $width-banner-border solid $color-banner_danger-border-default;
+        }
+    }
+}
+
+@import "./rtl.scss";

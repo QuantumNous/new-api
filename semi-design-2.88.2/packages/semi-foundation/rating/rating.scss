@@ -1,0 +1,114 @@
+@import "./animation.scss";
+@import './variables.scss';
+
+
+$module: #{$prefix}-rating;
+
+.#{$module} {
+    display: inline-block;
+    margin: $spacing-rating-margin;
+    padding: $spacing-rating-padding;
+    color: $color-rating-icon-default;
+    // font-size: $font-rating-fontSize;
+    // line-height: unset;
+    list-style: none;
+    outline: none;
+    border-radius: 3px;
+
+    &-focus {
+        outline: $width-rating-outline-focus solid $color-rating-outline-focus;
+    }
+
+    &-no-focus {
+        outline: none;
+    }
+
+    &-disabled &-star {
+        cursor: default;
+
+        &:hover {
+            transform: scale(1);
+        }
+    }
+
+    &-star {
+        position: relative;
+        display: inline-block;
+        margin: 0;
+        padding: 0;
+        color: inherit;
+        cursor: pointer;
+        transition: all 0.5s;
+        transform:scale($transform-scale-rating);
+
+        &:not(:last-child) {
+            margin-right: $spacing-rating_item-marginRight;
+        }
+
+        & > div {
+            &:hover,
+            &:focus {
+                transform: scale(1.1);
+            }
+
+            &.#{$module}-star-disabled {
+                transform: none;
+            }
+        }
+
+        &-small {
+            width: $width-rating_item_small;
+            height: $width-rating_item_small;
+            font-size: $font-rating_item_small-fontSize;
+        }
+
+        &-default {
+            width: $width-rating_item_default;
+            height: $width-rating_item_default;
+            font-size: $font-rating_item_default-fontSize;
+        }
+
+        &-outer {
+            display: inline-flex;
+            width: fit-content;
+            height: fit-content;
+        }
+
+        &-wrapper {
+            position: relative;
+            overflow: hidden;
+            border-radius: 3px;
+            width: 100%;
+            height: 100%;
+        }
+
+        &-first,
+        &-second {
+            transition: color $transition_duration-rating-color $transition_function-rating-color $transition_delay-rating-color;
+            color: $color-rating-bg-default;
+            user-select: none;
+        }
+
+        &-first {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        &-half &-first,
+        &-half &-second {
+            opacity: 1;
+        }
+
+        &-half &-first,
+        &-full &-second {
+            color: inherit;
+        }
+    }
+}
+
+@import './rtl.scss';

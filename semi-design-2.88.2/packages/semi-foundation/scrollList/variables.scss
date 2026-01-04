@@ -1,0 +1,50 @@
+// Color
+$color-scrollList-bg: var(--semi-color-bg-3); // 滚动列表背景色
+$color-scrollList-border: var(--semi-color-border); // 滚动列表描边颜色
+$color-scrollList_header-bg: transparent; // 滚动列表 header 背景色
+$color-scrollList_header-title: var(--semi-color-text-0); // 滚动列表标题颜色
+$color-scrollList_item-bg: transparent; // 滚动列表选项背景色
+$color-scrollList_item-text: var(--semi-color-text-0); // 滚动列表选项文字颜色
+$color-scrollList_disabled_item-text: var(--semi-color-disabled-text); // 滚动列表选项背景色 - 禁用
+$color-scrollList_item-text-hover: var(--semi-color-fill-1); // 滚动列表选项文字颜色 - 悬浮
+$color-scrollList_item-bg-active: var(--semi-color-fill-2); // 滚动列表选项文字颜色 - 选中
+$color-scrollList_selected_item-bg: var(--semi-color-primary-light-default); // 滚动列表选中选项背景颜色
+$color-scrollList_selected_item-text: var(--semi-color-text-0); // 滚动列表选中选项文字颜色
+$color-scrollList_selected_item-icon: var(--semi-color-text-2); // 滚动列表选中选项图标颜色
+$color-scrollList_footer-border: var(--semi-color-border); // 滚动列表底部描边颜色
+
+// Width/Height
+$height-scrollList: 300px;
+$height-scrollList_item: 36px;
+$width-scrollList_item-border: $border-thickness-control;
+$width-scrollList_item_sel_svg: 16px;
+$width-scrollList_item_wheel-border: $border-thickness-control;
+$width-scrollList_item_wheel_selector-border: $border-thickness-control;
+$height-scrollList_line: 1px;
+$width-scrollList_footer-border: $border-thickness-control;
+
+// Spacing
+$spacing-scrollList_header-paddingY: 0;
+$spacing-scrollList_header-paddingX: 16px;
+$spacing-scrollList_header_title-paddingY: $spacing-base;
+$spacing-scrollList_header_title-paddingX: 0;
+$spacing-scrollList_body-paddingY: 0;
+$spacing-scrollList_body-paddingX: 16px;
+$spacing-scrollList_item_ul-padding: 0;
+$spacing-scrollList_item_ul-margin: 0;
+$spacing-scrollList_item_ul-paddingBottom: ($height-scrollList - $height-scrollList_item) * 0.5;
+$spacing-scrollList_item_sel_svg-marginRight: 12px;
+$spacing-scrollList_item_wheel_list_outer-paddingRight: $height-scrollList_item * 0.5;
+$spacing-scrollList_item_wheel_list_shade_pre-marginTop: -1 * ($height-scrollList_item * 0.5 + $border-thickness-control);
+$spacing-scrollList_item_wheel_list_shade_post-marginTop: $height-scrollList_item * 0.5 + $border-thickness-control;
+$spacing-scrollList_footer-padding: 10px;
+
+// Radius
+$radius-scrollList: var(--semi-border-radius-medium);
+
+// Font
+$font-scrollList_header_title-fontWeight: $font-weight-bold;
+$font-scrollList_item_wheel_item_selected-fontWeight: $font-weight-bold;
+
+// Other
+$shadow-scrollList: 0 0 1px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .1);

@@ -1,0 +1,15 @@
+$color-json-viewer-background: var(--semi-color-default); // JSON背景颜色
+$color-json-viewer-key: rgba(var(--semi-red-5), 1); // JSON key 颜色
+$color-json-viewer-value: rgba(var(--semi-blue-5), 1); 
+$color-json-viewer-number: rgba(var(--semi-green-5), 1); // JSON number 颜色
+$color-json-viewer-keyword: rgba(var(--semi-blue-5), 1); // JSON keyword 颜色
+$color-json-viewer-delimiter-comma: rgba(var(--semi-blue-6), 1); // JSON delimiter comma 颜色
+
+
+$color-json-viewer-search-result-background: rgba(var(--semi-green-2), 1); // JSON search result background 颜色
+$color-json-viewer-current-search-result-background: rgba(var(--semi-yellow-4), 1); // JSON current search result background 颜色
+
+$color-json-viewer-folding-icon: rgba(var(--semi-blue-7), 1); // JSON folding icon 颜色
+
+
+$color-json-viewer-line-number: rgba(var(--semi-grey-5), 1); // JSON line number 颜色

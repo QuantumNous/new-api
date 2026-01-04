@@ -1,0 +1,459 @@
+@import './animation.scss';
+@import './variables.scss';
+
+$module: #{$prefix}-tree;
+
+.#{$module} {
+    &-search-wrapper {
+        padding: $spacing-tree_search_wrapper-paddingY $spacing-tree_search_wrapper-paddingX;
+    }
+}
+
+.#{$module}-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+.#{$module}-option-list {
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    flex: 1;
+    padding: $spacing-tree_optionList-paddingY $spacing-tree_optionList-paddingX;
+
+    ul,
+    li {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    li.#{$module}-option {
+        box-sizing: border-box;
+        padding-top: $spacing-tree_option-paddingTop;
+        padding-bottom: $spacing-tree_option-paddingBottom;
+        padding-left: $spacing-tree_option_level1-paddingLeft;
+    }
+
+    li > .#{$module}-option-label {
+        list-style-type: none;
+        padding: 0;
+    }
+
+    .#{$module}-option-expand-icon,
+    .#{$module}-option-empty-icon {
+        box-sizing: border-box;
+        width: $width-tree_emptyIcon;
+        color: $color-tree_option-icon-default;
+        margin-right: $spacing-tree_icon-marginRight;
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    .#{$module}-option {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color $transition_duration-tree_option-bg $transition_function-tree_option-bg
+            $transition_delay-tree_option-bg;
+        transform: scale($transform_scale-tree-option);
+
+        @include font-size-regular;
+        word-break: break-word;
+        color: $color-tree_option-text-default;
+        position: relative;
+
+        &-label {
+            display: flex;
+            align-items: center;
+
+            & > .#{$prefix}-icon {
+                margin-right: $spacing-tree_label_withIcon-marginRight;
+            }
+
+            .#{$prefix}-checkbox {
+                margin-right: $spacing-tree_label_withIcon-marginRight;
+            }
+        }
+
+        &-label-text {
+            display: block;
+            flex: 1;
+        }
+
+        &-ellipsis {
+            .#{$module}-option-label-text {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
+
+        &-label-text,
+        .#{$prefix}-checkbox-addon {
+            border-radius: $radius-tree_checkbox_addon;
+
+            &:hover {
+                background-color: $color-tree_option-bg-hover;
+            }
+
+            &:active {
+                background-color: $color-tree_option_selected-bg-default;
+            }
+        }
+
+        &-item-icon {
+            color: $color-tree_option-icon-default;
+        }
+
+        &-active {
+            .#{$module}-option-label-text {
+                background-color: $color-tree_option-bg-active;
+            }
+
+            &:hover,
+            &:active {
+                background-color: transparent;
+            }
+        }
+
+        &-selected {
+            .#{$module}-option-label {
+                background-color: $color-tree_option-bg-active;
+
+                &:hover,
+                &:active {
+                    background-color: $color-tree_option-bg-active;
+                }
+            }
+        }
+
+        &-collapsed {
+            .#{$module}-option-expand-icon {
+                transform: rotate(270deg);
+            }
+        }
+
+        &-highlight {
+            font-weight: $font-tree_option_hightlight-fontWeight;
+            color: $color-tree_option_hightlight-text;
+            // set inherit to override highlight component default bgc
+            background-color: inherit;
+        }
+
+        &-hidden {
+            display: none;
+        }
+
+        &-disabled {
+            .#{$module}-option-label {
+                color: $color-tree_option_disabled-text-default;
+            }
+        }
+
+        &-fullLabel-draggable,
+        &-draggable {
+            -moz-user-select: none;
+            -khtml-user-select: none;
+            -webkit-user-select: none;
+            user-select: none;
+            /* Required to make elements draggable in old WebKit */
+            -khtml-user-drag: element;
+            -webkit-user-drag: element;
+        }
+
+        &-draggable {
+            box-sizing: border-box;
+            border-left: $width-tree_option_draggable-border solid transparent;
+            // margin-top: -$width-tree_option_draggable-border;
+
+            .#{$module}-option-label {
+                border-top: $width-tree_option_draggable-border transparent solid;
+                border-bottom: $width-tree_option_draggable-border transparent solid;
+            }
+
+            .#{$module}-option-drag-over-gap-top {
+                border-top: $width-tree_option_draggable-border $color-tree_option_draggable_insert-border-default solid;
+            }
+
+            .#{$module}-option-drag-over-gap-bottom {
+                border-bottom: $width-tree_option_draggable-border $color-tree_option_draggable_insert-border-default
+                    solid;
+            }
+
+            .#{$module}-option-indent {
+                .#{$module}-option-indent-unit:before {
+                    top: 0px;
+                    bottom: 0px;
+                }  
+            }
+
+            .#{$module}-option-switcher-leaf-line::before {
+                top: 0px;
+                bottom: 0px;
+            }
+
+            &.#{$module}-option-tree-node-last-leaf {
+                .#{$module}-option-switcher-leaf-line::before {
+                    height: 50%;
+                }
+            }
+        }
+
+        &-fullLabel-draggable {
+            &.#{$module}-option-fullLabel-drag-over-gap-top {
+                border-top: $width-tree_option_draggable-border $color-tree_option_draggable_insert-border-default solid;
+            }
+
+            &.#{$module}-option-fullLabel-drag-over-gap-bottom {
+                border-bottom: $width-tree_option_draggable-border $color-tree_option_draggable_insert-border-default
+                    solid;
+            }
+        }
+
+        &-drag-over.#{$module}-option-draggable,
+        &-drag-over.#{$module}-option-fullLabel-draggable {
+            border: $width-tree_option_draggable-border solid $color-tree_option_draggable_insert-border-default;
+
+            .#{$module}-option-label {
+                border-top: 0;
+                border-bottom: 0;
+            }
+
+            // selected solid background will overlap with drag over border-bottom
+            // add an extra border to complement
+            & + .#{$module}-option-selected {
+                &::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -$width-tree_option_draggable-border;
+                    bottom: 0;
+                    right: -1px;
+                    border-top: $width-tree_option_draggable-border solid
+                        $color-tree_option_draggable_insert-border-default;
+                }
+            }
+        }
+        &-indent {
+            align-self: stretch;
+            white-space: nowrap;
+            user-select: none;
+            &-unit {
+                display: inline-block;
+                width: $spacing-tree_option_level-paddingLeft;
+            }
+        }
+
+        &-indent-show-line {
+            .#{$module}-option-indent-unit {
+                position: relative;
+                height: 100%;
+
+                &::before {
+                    position: absolute;
+                    top: -$spacing-tree_option-paddingTop;
+                    inset-inline-start: calc($width-tree_emptyIcon / 2);
+                    bottom: -$spacing-tree_option-paddingBottom;
+                    border-inline-end: $width-tree_option_line solid var(--semi-color-text-3);
+                    content: '';
+                }
+
+                &-end {
+                    &::before {
+                        display: none;
+                    }
+                }
+            }
+        }
+
+        &-switcher {
+            position: relative;
+            flex: none;
+            align-self: stretch;
+            width: $width-tree_emptyIcon;
+            margin: 0;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            margin-right: $spacing-tree_icon-marginRight;
+            &-leaf-line {
+                z-index: 1;
+                position: relative;
+                display: inline-block;
+                width: 100%;
+                height: 100%;
+
+                &::before {
+                    position: absolute;
+                    top: -$spacing-tree_option-paddingTop;
+                    inset-inline-start: calc($width-tree_emptyIcon / 2);
+                    bottom: -$spacing-tree_option-paddingBottom;
+                    border-inline-end: $width-tree_option_line solid var(--semi-color-text-3);
+                    content: '';
+                }
+
+                &::after {
+                    box-sizing: border-box;
+                    position: absolute;
+                    width: calc(($spacing-tree_option_level-paddingLeft / 2) * 0.8);
+                    height: 50%;
+                    border-bottom: $width-tree_option_line solid var(--semi-color-text-3);
+                    content: '';
+                    margin-inline-start: $width-tree_option_line;
+                }
+            }
+        }
+
+        &-tree-node-last-leaf {
+            .#{$module}-option-switcher-leaf-line {
+                &::before {
+                    height: calc(50% + $spacing-tree_option-paddingTop);
+                }
+            }
+        }
+    }
+
+    //overwrite draggable option structure
+    li.#{$module}-option-draggable.#{$module}-option {
+        padding-top: 0px;
+        padding-bottom: 0px;
+        .#{$module}-option-label {
+            padding: $spacing-tree_option_draggable-paddingY $spacing-tree_option_draggable-paddingX;
+        }
+
+        .#{$module}-option-selected {
+            background-color: transparent;
+
+            &:hover,
+            &:active {
+                background-color: transparent;
+            }
+        }
+    }
+
+    @for $i from 1 through 20 {
+        .#{$module}-option.#{$module}-option-fullLabel-level-#{$i} {
+            padding-left: $spacing-tree_option_level-paddingLeft * ($i - 1) + $spacing-tree_option_level1-paddingLeft;
+        }
+    }
+
+    .#{$module}-option-empty {
+        &:hover,
+        &:active {
+            background-color: transparent;
+        }
+    }
+
+    .#{$module}-option-label-empty {
+        padding-left: 0;
+        justify-content: center;
+        color: $color-tree_option_disabled-text-default;
+        user-select: none;
+        cursor: not-allowed;
+    }
+
+    .#{$prefix}-checkboxGroup-vertical {
+        row-gap: 0;
+    }
+}
+
+.#{$module}-option-list-block {
+    .#{$module}-option {
+        &:hover {
+            background-color: $color-tree_option-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-tree_option_selected-bg-default;
+        }
+
+        &-label {
+            flex: 1;
+        }
+
+        &-active {
+            background-color: $color-tree_option-bg-active;
+
+            &:hover,
+            &:active {
+                background-color: $color-tree_option-bg-active;
+            }
+
+            .#{$module}-option-label-text {
+                background-color: transparent;
+            }
+        }
+
+        &-expand-icon {
+            flex-shrink: 0;
+            box-sizing: content-box;
+            &:hover {
+                color: $color-tree_option-icon-hover;
+            }
+
+            &:active {
+                color: $color-tree_option-icon-active;
+            }
+        }
+
+        &-spin-icon {
+            display: flex;
+            line-height: 0; // make the spin icon in the center
+            color: $color-tree_option_loading-icon-default;
+
+            & svg {
+                width: $width-tree_spinIcon;
+                height: $width-tree_spinIcon;
+            }
+        }
+
+        &-selected {
+            background-color: $color-tree_option-bg-active;
+
+            .#{$module}-option-label {
+                background-color: transparent;
+                &:hover,
+                &:active {
+                    background-color: transparent;
+                }
+            }
+
+            .#{$prefix}-checkbox-addon {
+                background-color: transparent;
+            }
+
+            &:hover,
+            &:active {
+                background-color: $color-tree_option-bg-active;
+            }
+        }
+
+        &-label-text,
+        .#{$prefix}-checkbox-addon {
+            padding: 0;
+            border-radius: $radius-tree_checkbox_addon;
+
+            &:hover {
+                background-color: transparent;
+            }
+
+            &:active {
+                background-color: transparent;
+            }
+        }
+
+        &-label-text {
+            width: 0;
+        }
+    }
+
+    .#{$module}-option-empty {
+        &:hover,
+        &:active {
+            background-color: transparent;
+        }
+    }
+}
+
+@import './rtl.scss';

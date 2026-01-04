@@ -1,0 +1,249 @@
+@import "./animation.scss";
+@import "./variables.scss";
+
+$module: #{$prefix}-image;
+
+.#{$module} {
+
+    border-radius: $radius-image;
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+
+    img {
+        /**
+            * In tailwind, the max-width of img/video is set to 100%, 
+            * which will affect the amplification effect of the picture.
+            * So we need to set max-width to none.
+        */ 
+        max-width: none;
+    }
+
+    &-tooltip-children-wrapper {
+        display: inline-flex;
+        width: fit-content;
+        height: fit-content;
+        vertical-align: middle;
+    }
+
+    &-img {
+        vertical-align: top;
+        border-radius: inherit;
+        user-select: none;
+
+        &-preview {
+            cursor: zoom-in;
+        }
+
+        &-error {
+            opacity: 0;
+        }
+    }
+
+    &-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+.#{$module}-status {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: $radius-image;
+    background-color: $color-image_status-bg;
+    color: $color-image_status;
+}
+
+.#{$module}-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: $z-image_preview;
+    background-color: var(--semi-color-overlay-bg);
+    transition: opacity $transition_duration-image_preview;
+    overflow: hidden;
+
+    &-popup {
+        position: absolute;
+    }
+
+    .#{$module}-preview-hide {
+        opacity: 0;
+    }
+
+    &-icon {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: $width-image_preview_icon;
+        height: $height-image_preview_icon;
+        border-radius: 50%;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: $color-image_preview_icon-bg;
+        cursor: pointer;
+        color: $color-image_preview_icon;
+    }
+
+    &-prev {
+        left: $spacing-image_preview_icon-x;
+    }
+
+    &-next {
+        right: $spacing-image_preview_icon-x;
+    }
+
+    &-header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        font-weight: normal;
+        @include font-size-regular;
+        color: $color-image_preview_header;
+        height: $height-image_preview_header;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: $spacing-image_preview_header-paddingY $spacing-image_preview_header-paddingX;
+        z-index: $z-image_preview_header;
+        pointer-events: none;
+
+        &-title {
+            flex: 1;
+        }
+
+        &-close {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            width: $width-image_preview_header_close;
+            height: $height-image_preview_header_close;
+            border-radius: 50%;
+            pointer-events: auto;
+
+            &:hover {
+                background-color: $color-image_header_close-bg;
+            }
+        }
+    }
+
+    &-footer {
+        display: flex;
+        align-items: center;
+
+        &-content {
+            padding: $spacing-image_preview_footer-paddingY $spacing-image_preview_footer-paddingX;
+            background: $color-image_preview_footer-bg;
+            border-radius: $radius-image_preview_footer;
+            height: $height-image_preview_footer;
+        }
+        
+
+        &-wrapper {
+            position: absolute;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%);
+        }
+
+        &-page {
+            user-select: none;
+            color: $color-image_preview_footer_icon;
+            @include font-size-header-6;
+            margin: $spacing-image_preview_footer_page-marginY $spacing-image_preview_footer_page-marginX;
+        }
+
+        .#{$prefix}-icon {
+            color: $color-image_preview_footer_icon;
+            cursor: pointer;
+        }
+
+        &-gap {
+            margin-left: $spacing-image_preview_footer_gap-marginLeft;
+        }
+    
+        .#{$prefix}-slider {
+            width: $width-image_preview_footer_slider;
+            padding: $spacing-image_preview_footer_slider-paddingY $spacing-image_preview_footer_slider-paddingX;
+    
+            .#{$prefix}-slider-rail {
+                color: $color-image_preview_footer_slider_rail;
+                height: $height-image_preview_footer_slider;
+            }
+    
+            .#{$prefix}-slider-track {
+                height: $height-image_preview_footer_slider;
+            }
+    
+            .#{$prefix}-slider-handle {
+                width: $width-image_preview_footer_slider_handle;
+                height: $height-image_preview_footer_slider_handle;
+                margin-top: $spacing-image_preview_footer_slider_handle-marginTop;
+                box-sizing: border-box;
+            }
+        }
+
+        .#{$prefix}-divider {
+            background: $color-image-preview_divider-bg;
+            margin: $spacing-image_preview_footer_divider-marginY $spacing-image_preview_footer_divider-marginX;
+        }
+        
+        .#{$module}-preview-footer-disabled {
+            color: $color-image_preview_disabled;
+            cursor: default;
+            pointer-events: none;
+        }
+
+    }
+
+    &-image {
+        position: relative;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        &-img {
+            position: absolute;
+            transform: scale3d($transform_scale3d-image_preview_image_img) $transform_rotate-image_preview_image_img;
+            // transition: transform $transition_duration-image_preview_image_img  $transition_delay-image_preview_image_img;
+            z-index: 0;
+            user-select: none;
+        }
+
+        &-spin {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+
+            .#{$prefix}-spin-wrapper {
+                color: $color-image_preview_image_spin;
+            }
+        }
+    }
+    
+    @keyframes spinner {
+        to {
+            transform: $transform_rotate-image_preview_spinner;
+        }
+    }
+}
+
+// Remove the default border of img when src is empty or src is invalid
+img[src=""], img:not([src]) {
+    opacity: 0;
+}
+
+@import "./rtl.scss";

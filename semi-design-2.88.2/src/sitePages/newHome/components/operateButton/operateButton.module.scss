@@ -1,0 +1,41 @@
+.group2835 {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 48px;
+    margin-top: 80px;
+
+    a:focus-visible {
+        border-radius: 6px;
+        outline-offset: -1px;
+    }
+}
+
+.extraLarge {
+    height: 48px;
+    padding: 12px 24px;
+    border-radius: 6px;
+
+    :global(.semi-button-content) {
+        font-size: 16px;
+        line-height: 22px;
+    }
+}
+
+.badge {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--semi-color-text-0);
+    border-radius: 16px;
+    padding: 2px 6px;
+    border: 1px solid var(--semi-color-bg-1);
+    margin-left: 8px;
+    font-size: 12px;
+    line-height: 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--semi-color-bg-0);
+}

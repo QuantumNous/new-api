@@ -1,0 +1,16 @@
+$module: #{$prefix}-toast;
+
+.#{$module} {
+
+    &-rtl {
+        direction: rtl;
+    }
+
+    .#{$module}-rtl &-content {
+        .#{$module}-content-text {
+            text-align: right;
+            margin-left: $spacing-toast_content_text-marginRight;
+            margin-right: $spacing-toast_content_text-marginLeft;
+        }
+    }
+}

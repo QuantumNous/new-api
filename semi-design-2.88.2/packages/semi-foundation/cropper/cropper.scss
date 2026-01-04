@@ -1,0 +1,121 @@
+@import "./variables.scss";
+$module: #{$prefix}-cropper;
+
+$half_corner_width: calc($width-cropper_box_corner / 2);
+
+.#{$module} {
+    position: relative;
+
+    & img {
+      // To avoid the `max-Width` setting of `img` to 100% in `tailwindCSS` affecting the style of img in Cropper.
+      max-width: none;
+    }
+
+    &-img {
+      position: absolute;
+      user-select: none;
+    }
+
+    &-img-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+    }
+
+    &-mask {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: $color-cropper_mask-bg;
+      cursor: move;;
+    }
+
+    &-box {
+      position: absolute;
+      outline: $width-cropper_box-outline solid $color-cropper_box-outline;
+
+      &-corner {
+        position: absolute;
+        background: $color-cropper_box_corner-bg;
+        width: $width-cropper_box_corner;
+        height: $width-cropper_box_corner;
+        z-index: 1;
+
+        &-tl {
+          top: -$half_corner_width;
+          left: -$half_corner_width;
+          cursor: nwse-resize;
+        }
+
+        &-tr {
+          top: -$half_corner_width;
+          right: -$half_corner_width;
+          cursor: nesw-resize;
+        }
+
+        &-tm {
+          top: -$half_corner_width;
+          left: 50%;
+          margin-left: -$half_corner_width;
+          cursor: ns-resize;
+        }
+
+        &-ml {
+          top: 50%;
+          left: -$half_corner_width;
+          margin-top: -$half_corner_width;
+          cursor: ew-resize;
+        }
+
+        &-mr {
+          top: 50%;
+          right: -$half_corner_width;
+          margin-top: -$half_corner_width;
+          cursor: ew-resize;
+        }
+
+        &-bl {
+          bottom: -$half_corner_width;
+          left: -$half_corner_width;
+          cursor: nesw-resize;
+        }
+
+        &-bm {
+          bottom: -$half_corner_width;
+          left: 50%;
+          margin-left: -$half_corner_width; 
+          cursor: ns-resize;
+        }
+
+        &-br {
+          bottom: -$half_corner_width;
+          right: -$half_corner_width;
+          cursor: nwse-resize
+        }
+      }
+    }
+
+    &-view-box {
+      position: absolute;
+      overflow: hidden;
+      cursor: move;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+
+      &-round {
+        border-radius: 50%;
+      }
+    }
+
+    &-view-img {
+      // position: absolute;
+      user-select: none;
+    }
+}

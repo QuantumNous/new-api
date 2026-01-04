@@ -1,0 +1,22 @@
+.iframeContainer {
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+
+    scrollbar-width: none;
+    height: 100vh;
+    width: 100%;
+    margin: auto;
+    position: relative;
+    left: -4%;
+    max-width: 1160px;
+
+    iframe {
+        display: block;
+        height:100%;
+        width: 100%;
+        border:none;
+        overflow: hidden;
+    }
+}

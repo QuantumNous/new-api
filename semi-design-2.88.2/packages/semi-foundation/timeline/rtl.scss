@@ -1,0 +1,92 @@
+$module: #{$prefix}-timeline;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-item {
+
+            &-tail {
+                left: auto;
+                right: $spacing-timeline_tail-left;
+                border-left: 0;
+                border-right: $width-timeline_tail-border solid $color-timeline_tail-border;
+            }
+
+            &-head-custom {
+                left: auto;
+                right: $spacing-timeline_head_custom-left;
+                transform: $motion-timeline_head_custom-transform-rtl;
+            }
+
+            &-content {
+                margin: $spacing-none $spacing-timeline_content-marginLeft $spacing-none $spacing-none;
+            }
+
+            &:last-child {
+                .#{$module}-item-tail {
+                    border-right: none;
+                }
+            }
+        }
+
+        &-alternate,
+        &-right,
+        &-center {
+            .#{$module}-item {
+
+                &-tail,
+                &-head,
+                &-head-custom {
+                    left: auto;
+                    right: $spacing-timeline_item_head_custom-left;
+                }
+
+                &-head {
+                    margin-left: 0;
+                    margin-right: $spacing-timeline_item_head-marginLeft;
+                }
+
+                &-left {
+                    .#{$module}-item-content {
+                        left: auto;
+                        right: $spacing-timeline_item_left_item_content-left;
+                        text-align: right;
+                    }
+                }
+
+                &-right {
+                    .#{$module}-item-content {
+                        text-align: left;
+                    }
+                }
+            }
+        }
+
+        &-center {
+            .#{$module}-item {
+
+                &-content-time {
+                    margin-left: 0;
+                    margin-right: $spacing-timeline_item_content_time-marginLeft;
+                    text-align: left;
+                }
+            }
+        }
+
+        &-right {
+            .#{$module}-item-right {
+                .#{$module}-item {
+
+                    &-tail,
+                    &-head,
+                    &-head-custom {
+                        left: 0;
+                        right: $spacing-timeline_item_right_item-left;
+                    }
+                }
+            }
+        }
+    }
+}

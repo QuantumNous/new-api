@@ -1,0 +1,307 @@
+@import "./animation.scss";
+@import './variables.scss';
+
+
+$module: #{$prefix}-switch;
+
+.#{$module} {
+    box-sizing: border-box;
+    display: inline-block;
+    border-radius: $radius-switch;
+    border: $border-thickness-control $color-switch_default-border-default solid;
+    position: relative;
+    cursor: pointer;
+    background-color: $color-switch_default-bg-default;
+    // box-shadow: inset 0 0 0 0 $color-switch_default-bg-success;
+    //transition: background-color $motion-switch-transitionDuration ease-in-out;
+    transition: background-color $transition_duration-switch-bg $transition_function-switch-bg $transition_delay_switch-bg;
+
+    width: $width-switch;
+    height: $height-switch;
+
+    &:hover {
+        background-color: $color-switch_default-bg-hover;
+    }
+
+    &:active {
+        border: $border-thickness-control $color-switch_default-bg-active solid;
+        .#{$module}-knob {
+            width: $width-switch_knob_active;
+        }
+    }
+
+    &-focus {
+        outline: $width-switch-outline solid $color-switch_primary-outline-focus;
+    }
+
+    &-checked {
+        background-color: $color-switch_checked-bg-default;
+
+        &:hover {
+            background-color: $color-switch_checked-bg-hover;
+        }
+
+        .#{$module}-knob {
+            transform: translateX($spacing-switch_checked-translateX);
+        }
+
+        &:active {
+            .#{$module}-knob {
+                transform: translateX($spacing-switch_checked-translateX - $width-switch_knob_expand);
+            }
+        }
+    }
+
+    &-active {
+        background-color: $color-switch_checked-bg-active;
+    }
+
+    &-disabled {
+        cursor: not-allowed;
+        background-color: $color-switch_disabled-bg-default;
+        border: $border-thickness-control $color-switch_disabled-border-default solid;
+
+        &:hover {
+            background-color: $color-switch_disabled-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-switch_disabled-bg-active;
+            .#{$module}-knob {
+                width: $width-switch_knob_default;
+            }
+        }
+
+        .#{$module}-knob {
+            cursor: not-allowed;
+            @include shadow-0;
+            border: $width-switch_knob_disabled-border $color-switch_knob-border-default solid;
+        }
+        
+        .#{$module}-native-control {
+            pointer-events: none;
+            cursor: not-allowed;
+        }
+
+        &.#{$module}-checked {
+            border-color: $color-switch_checked_disabled-border-default;
+            background-color: $color-switch_checked_disabled-bg-default;
+            &:active {
+                .#{$module}-knob {
+                    transform: translateX($spacing-switch_checked-translateX);
+                }
+            }
+            .#{$module}-knob {
+                @include shadow-0;
+                border: none;
+            }
+        }
+    }
+
+    &-disabled.#{$module}-loading:not(.#{$module}-checked) {
+        &:hover {
+            background-color: $color-switch_spin_unchecked-bg-default;
+        }
+    }
+
+    &-knob {
+        @include shadow-knob;
+        cursor: pointer;
+        border-radius: $width-switch_knob_default * 0.5;
+        background-color: $color-switch_knob-bg-default;
+        box-sizing: border-box;
+        position: absolute;
+        left: $spacing-switch_knob-left;
+        right: auto;
+        transition: transform $motion-switch-transitionDuration ease-in-out, width $motion-switch-transitionDuration ease-in-out;
+
+        width: $width-switch_knob_default;
+        height: $width-switch_knob_default;
+        top: $spacing-switch_knob-padding;
+        transform: translateX($spacing-switch_unchecked-translateX);
+    }
+
+    &-native-control {
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: inherit;
+        pointer-events: auto;
+        margin: 0; // 消除ua样式影响
+        position: absolute;
+        top: 0;
+        left: 0;
+
+        &[type="checkbox"] {
+            width: inherit;
+            height: inherit;
+        }
+    }
+
+    &-checked-text,
+    &-unchecked-text {
+        position: absolute;
+        font-size: $font-size-small;
+        height: 100%;
+        width: 20px;
+        @include all-center;
+    }
+
+    &-checked-text {
+        color: $color-switch_checked-text-default;
+    }
+
+    &-unchecked-text {
+        color: $color-switch_unchecked-text-default;
+        right: 0;
+    }
+
+    &-loading {
+        display: inline-flex;
+        align-items: center;
+        background-color: $color-switch_spin_unchecked-bg-default;
+
+        &-spin {
+            .#{$prefix}-spin-wrapper{
+                display: inline-flex;
+                align-items: center;
+                color: $color-switch_loading_spin-default;
+            }
+        }
+    }
+}
+
+.#{$module}-loading {
+
+    .#{$module}-loading-spin {
+        transform: translateX($spacing-switch_spin_unchecked-translateX);
+
+        &>.#{$prefix}-spin-wrapper>svg{
+            width: $width-switch_spin-default;
+            height: $width-switch_spin-default;
+        }
+    }
+
+    &.#{$module}-checked {
+        background-color: $color-switch_spin_checked-bg-default;
+
+        .#{$module}-loading-spin {
+            transform: translateX($spacing-switch_spin_checked-translateX);
+        }
+    }
+}
+
+.#{$module}-loading.#{$module}-small {
+
+    .#{$module}-loading-spin {
+        transform: translateX($spacing-switch_spin_unchecked_small-translateX);
+
+        &>.#{$prefix}-spin-wrapper>svg{
+            width: $width-switch_spin-small;
+            height: $width-switch_spin-small;
+        }
+    }
+    &.#{$module}-checked{
+
+        .#{$module}-loading-spin {
+            transform: translateX($spacing-switch_spin_checked_small-translateX);
+        }
+    }
+}
+
+.#{$module}-loading.#{$module}-large {
+
+    .#{$module}-loading-spin {
+        transform: translateX($spacing-switch_spin_unchecked_large-translateX);
+
+        &>.#{$prefix}-spin-wrapper>svg{
+            width: $width-switch_spin-large;
+            height: $width-switch_spin-large;
+        }
+    }
+
+    &.#{$module}-checked {
+
+        .#{$module}-loading-spin {
+            transform: translateX($spacing-switch_spin_checked_large-translateX);
+        }
+    }
+}
+
+.#{$module}-disabled.#{$module}-checked {
+    background-color: $color-switch_checked_disabled-bg-default;
+}
+
+.#{$module}-large {
+    width: $width-switch_large;
+    height: $height-switch_large;
+    border-radius: $radius-switch_large;
+    .#{$module}-knob {
+        width: $width-switch_knob_large;
+        height: $width-switch_knob_large;
+        top: $spacing-switch_knob_large-padding;
+        border-radius: $width-switch_knob_large * 0.5;
+        transform: translateX($spacing-switch_unchecked_large-translateX);
+    }
+    &.#{$module}-checked {
+        .#{$module}-knob {
+            transform: translateX($spacing-switch_checked_large-translateX);
+        }
+
+        &:active {
+            .#{$module}-knob {
+                transform: translateX($spacing-switch_checked_large-translateX - $spacing-switch_expand_large-translateX);
+            }
+        }
+    }
+
+    &:active {
+        .#{$module}-knob {
+            width: $width-switch_knob_large_active;
+        }
+    }
+    .#{$module}-checked-text,
+    .#{$module}-unchecked-text {
+        width: $width-switch_checked_unchecked_text;
+        font-size: $font-size-regular;
+    }
+}
+
+.#{$module}-small {
+    width: $width-switch_small;
+    height: $height-switch_small;
+    border-radius: $radius-switch_small;
+    .#{$module}-knob {
+        width: $width-switch_knob_large_small;
+        height: $width-switch_knob_large_small;
+        top: $spacing-switch_knob_small-padding;
+        border-radius: $width-switch_knob_large_small * 0.5;
+        transform: translateX($spacing-switch_unchecked_small-translateX);
+    }
+    &.#{$module}-checked {
+        .#{$module}-knob {
+            transform: translateX($spacing-switch_checked_small-translateX);
+        }
+
+        &:active {
+            .#{$module}-knob {
+                transform: translateX($spacing-switch_checked_small-translateX - $spacing-switch_expand_small-translateX);
+            }
+        }
+    }
+
+    &:active {
+        .#{$module}-knob {
+            width: $width-switch_knob_small_active;
+        }
+    }
+}
+
+.#{$prefix}-form {
+    .#{$prefix}-switch-native-control {
+        width: 100%;
+        height: 100%;
+    }
+}
+
+@import './rtl.scss';

@@ -1,0 +1,15 @@
+$transition_duration-select-bg: var(--semi-transition_duration-none);//选择器-背景色-动画持续时间
+$transition_function-select-bg: var(--semi-transition_function-easeIn);//选择器-背景色-过渡曲线
+$transition_delay-select-bg: var(--semi-transition_delay-none);//选择器-背景色-延迟时间
+
+$transition_duration-select-border: var(--semi-transition_duration-none);//选择器-边框-动画持续时间
+$transition_function-select-border: var(--semi-transition_function-easeIn);//选择器-边框-过渡曲线
+$transition_delay-select-border: var(--semi-transition_delay-none);//选择器-边框-延迟时间
+
+$transition_duration-select_option-bg: var(--semi-transition_duration-none);//选择器-选项-动画持续时间
+$transition_function-select_option-bg: var(--semi-transition_function-easeIn);//选择器-选项-过渡曲线
+$transition_delay-select_option-bg: var(--semi-transition_delay-none);//选择器-选项-延迟时间
+
+// transform token
+$transform_scale-select: var(--semi-transform_scale-none);//选择框-变大
+$transform_rotate-select-arrow: var(--semi-transform-rotate-none);//选择框-箭头-旋转

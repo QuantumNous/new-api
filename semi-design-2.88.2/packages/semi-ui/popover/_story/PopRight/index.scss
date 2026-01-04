@@ -1,0 +1,25 @@
+.popText {
+    padding: 8px 12px;
+
+    .item {
+        display: flex;
+        word-break: keep-all;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: bold;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+
+        .label {
+            color: #9b9ea0;
+            flex-shrink: 0;
+        }
+
+        .value {
+            color: #272829;
+            flex-shrink: 0;
+        }
+    }
+}

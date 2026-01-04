@@ -132,6 +132,16 @@ export default {
       'semi-color-data-17': 'var(--semi-color-data-17)',
       'semi-color-data-18': 'var(--semi-color-data-18)',
       'semi-color-data-19': 'var(--semi-color-data-19)',
+      /* AI-Specific Colors */
+      'semi-color-ai-general': 'var(--semi-color-ai-general)',
+      'semi-color-ai-general-hover': 'var(--semi-color-ai-general-hover)',
+      'semi-color-ai-general-active': 'var(--semi-color-ai-general-active)',
+      'semi-color-ai-purple': 'var(--semi-color-ai-purple)',
+      'semi-color-ai-purple-hover': 'var(--semi-color-ai-purple-hover)',
+      'semi-color-ai-purple-active': 'var(--semi-color-ai-purple-active)',
+      'semi-color-ai-surface': 'var(--semi-color-ai-surface)',
+      'semi-color-ai-surface-hover': 'var(--semi-color-ai-surface-hover)',
+      'semi-color-ai-border': 'var(--semi-color-ai-border)',
     },
     extend: {
       borderRadius: {
@@ -140,8 +150,27 @@ export default {
         'semi-border-radius-small': 'var(--semi-border-radius-small)',
         'semi-border-radius-medium': 'var(--semi-border-radius-medium)',
         'semi-border-radius-large': 'var(--semi-border-radius-large)',
+        'semi-border-radius-extra-large': 'var(--semi-border-radius-extra-large)',
         'semi-border-radius-circle': 'var(--semi-border-radius-circle)',
         'semi-border-radius-full': 'var(--semi-border-radius-full)',
+      },
+      boxShadow: {
+        'semi-elevated': 'var(--semi-shadow-elevated)',
+        'semi-medium': 'var(--semi-shadow-medium)',
+        'semi-large': 'var(--semi-shadow-large)',
+      },
+      fontFamily: {
+        'semi-code': 'var(--semi-font-family-code)',
+        'semi-system': 'var(--semi-font-family-system)',
+      },
+      animation: {
+        'ai-pulse': 'ai-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      keyframes: {
+        'ai-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '.5' },
+        },
       },
     },
   },

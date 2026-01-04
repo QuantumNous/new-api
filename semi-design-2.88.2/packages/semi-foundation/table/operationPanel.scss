@@ -1,0 +1,46 @@
+// table 操作区域样式
+// 包括按钮插槽，翻页组件等
+
+// @import '../theme/variables.scss';
+// @import './variables.scss';
+
+$module: #{$prefix}-table;
+
+.#{$module}-panel {
+
+    &-operation {
+        background-color: $color-table_panel-bg-default;
+        padding-left: $spacing-table_panel_operation-paddingX;
+        padding-right: $spacing-table_panel_operation-paddingX;
+        padding-top: $spacing-table_panel_operation-paddingY;
+        padding-bottom: $spacing-table_panel_operation-paddingY;
+        display: flex;
+        justify-content: space-between;
+        color: $color-table_page-text-default;
+
+        &-right,
+        &-left {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        &-selected {
+            color: $color-table_panel-text-default;
+        }
+    }
+}
+
+.#{$module}-pagination {
+
+    &-info {
+        @include font-size-regular;
+        // color: $color-text-secondary;
+        font-weight: $font-weight-regular;
+    }
+
+    &-outer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+}

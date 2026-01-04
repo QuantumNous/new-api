@@ -1,0 +1,15 @@
+$animation_duration-sideSheet_mask-show: 180ms; // 侧边栏打开时-蒙层颜色-动画持续时间
+$animation_function-sideSheet_mask-show: cubic-bezier(0.25, 0.46, 0.45, 0.94); // 侧边栏打开时-蒙层颜色-过渡曲线
+$animation_delay-sideSheet_mask-show: 0ms; // 侧边栏打开时-蒙层颜色-延迟时间
+
+$animation_duration-sideSheet_mask-hide: 180ms; // 侧边栏关闭时-蒙层颜色-动画持续时间
+$animation_function-sideSheet_mask-hide: cubic-bezier(0.25, 0.46, 0.45, 0.94); // 侧边栏关闭时-蒙层颜色-过渡曲线
+$animation_delay-sideSheet_mask-hide: 0ms; // 侧边栏关闭时-蒙层颜色-延迟时间
+
+$animation_duration-sideSheet_inner-show: 180ms; // 侧边栏打开-动画持续时间
+$animation_function-sideSheet_inner-show: cubic-bezier(0.25, 0.46, 0.45, 0.94); // 侧边栏打开-过渡曲线
+$animation_delay-sideSheet_inner-show: 0ms; // 侧边栏打开-延迟时间
+
+$animation_duration-sideSheet_inner-hide: 180ms; // 侧边栏关闭-动画持续时间
+$animation_function-sideSheet_inner-hide: cubic-bezier(0.25, 0.46, 0.45, 0.94); // 侧边栏关闭-过渡曲线
+$animation_delay-sideSheet_inner-hide: 0ms; // 侧边栏关闭-延迟时间

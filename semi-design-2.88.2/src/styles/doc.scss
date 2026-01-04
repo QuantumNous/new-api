@@ -1,0 +1,363 @@
+// ??? 这里的主要是啥样式，得整理一下。
+a:focus-visible {
+    outline: 2px solid var(--semi-color-primary-light-active);
+    border-radius: 3px;
+}
+
+ul {
+    a:focus-visible {
+        outline: 2px auto var(--semi-color-primary-light-active);
+        border-radius: 3px;
+        outline-offset: -1px;
+    }
+}
+
+.header-tinyTitle {
+    font-size: 18px;
+    line-height: 1.33;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--semi-color-text-0);
+}
+.header-title {
+    font-size: 40px;
+    line-height: 1.2;
+    font-weight: 600;
+    margin: 16px 0 24px 0;
+}
+
+a {
+    &:hover {
+        text-decoration: none;
+    }
+}
+
+.side-nav {
+    .semi-navigation-sub-wrap .semi-navigation-sub-title,
+    .semi-navigation-item {
+        line-height: 24px;
+    }
+    .semi-navigation-sub .semi-navigation-item {
+        color: var(--semi-color-text-0);
+    }
+}
+.article-wrapper .article-brief {
+    max-width: 100%;
+}
+
+// .gatsby-live-code {
+//     font-family: 'Inter';
+//     line-height: 20px;
+// }
+.gatsby-h3 {
+    display: flex;
+    align-items: center;
+
+    .anchor-link-button-icon {
+        display: inline;
+        opacity: 0;
+        &:focus-visible {
+            opacity: 1;
+            border-radius: 3px;
+            outline: 2px solid var(--semi-color-primary-light-active);
+        }
+    }
+
+    &:hover {
+        .anchor-link-button-icon {
+            display: inline;
+            opacity: 1;
+        }
+    }
+}
+.gatsby-h2 {
+    display: flex;
+    align-items: center;
+
+    .anchor-link-button-icon {
+        display: inline;
+        opacity: 0;
+        &:focus-visible {
+            opacity: 1;
+            border-radius: 3px;
+            outline: 2px solid var(--semi-color-primary-light-active);
+        }
+    }
+
+    &:hover {
+        .anchor-link-button-icon {
+            display: inline;
+            opacity: 1;
+        }
+    }
+}
+.anchor-link-button-icon {
+    color: var(--semi-color-link);
+    transform: translateX(10px);
+    cursor: pointer;
+}
+.semi-icons-displayList .semi-icons-item-copied::before {
+    content: 'copied';
+    position: absolute;
+    top: 28px;
+    left: 40px;
+    opacity: 1;
+    color: var(--semi-color-success);
+    width: 80px;
+    height: 80px;
+}
+
+.gatsby-pre-icon {
+    border: none;
+    background-color: inherit;
+    ul {
+        display: flex;
+        flex-wrap: wrap;
+        position: relative;
+    }
+}
+
+.pre-chartcontact {
+    border: none;
+    background-color: transparent;
+} 
+
+
+.changelog {
+    strong {
+        background-color: var(--semi-color-danger-light-hover);
+    }
+    .changeLog-date {
+        position: absolute;
+        background-color: rgba(var(--semi-grey-5), 0.15);
+        color: rgba(var(--semi-grey-8), 1);
+        font-size: 12px;
+        line-height: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+            'Helvetica Neue', Helvetica, Arial, sans-serif;
+        height: 20px;
+        padding: 2px 8px;
+        font-weight: 400;
+        line-height: 20px;
+        border-radius: var(--semi-border-radius-small);
+        display: inline-block;
+        left: 0;
+        // transform: translateY(7px);
+    }
+    $title-left: 160px;
+    ul:not(:first-of-type) {
+        margin-left: $title-left;
+    }
+
+    li {
+        li {
+            list-style-type: disc !important;
+            li {
+                list-style-type: circle !important;
+            }
+        }
+    }
+    .main-article {
+        & > ul {
+            & > li {
+                list-style-type: none !important;
+            }
+        }
+        & > h4 {
+            margin-left: $title-left;
+        }
+    }
+    .changelog-title {
+        margin-top: 40px;
+        margin-bottom: 24px;
+        font-size: 20px;
+        line-height: 28px;
+        font-weight: 700;
+    }
+    .main-article {
+        h4.md.markdown {
+            font-size: 28px;
+            line-height: 40px;
+            margin-top: 80px;
+        }
+    }
+}
+
+.faq {
+    h4 {
+        font-size: 16px !important;
+    }
+    ul {
+        margin-left: 35px;
+    }
+    h4 {
+        margin-top: 40px !important;
+    }
+}
+
+.update-to-v1,
+.update-to-v2 {
+    li {
+        list-style-type: disc !important;
+    }
+
+    .semi-table {
+        .semi-table-tbody {
+            .semi-table-row-cell:first-of-type {
+                font-weight: normal;
+            }
+        }
+    }
+}
+
+.introduction {
+    .markdown {
+        margin-bottom: 1.46em;
+    }
+    ul {
+        margin: 0 0 24px 6px;
+        li {
+            .markdown {
+                margin-bottom: 0;
+            }
+            list-style-type: disc !important;
+            margin-left: 20px;
+            padding-left: 4px;
+        }
+    }
+    td:nth-of-type(1),
+    td:nth-of-type(3),
+    td:nth-of-type(4) {
+        color: var(--semi-color-text-1);
+        font-weight: 400;
+    }
+}
+
+.content-guidelines {
+    hr {
+        margin-top: 0px;
+        margin-bottom: 28px;
+    }
+}
+
+.same-every-column {
+    table-layout: fixed;
+
+    a {
+        font-size: 14px;
+        line-height: 20px;
+    }
+
+    th {
+        text-transform: none;
+    }
+
+    td:nth-of-type(1),
+    td:nth-of-type(2),
+    td:nth-of-type(3),
+    td:nth-of-type(4) {
+        color: var(--semi-color-text-1);
+        font-weight: 400;
+        line-height: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+            'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+        ul,
+        ol {
+            margin: 6px 6px;
+            li {
+                color: var(--semi-color-text-1);
+                font-size: 14px;
+                font-weight: 400;
+                line-height: 20px;
+                padding-top: 8px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+                    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            }
+        }
+    }
+}
+
+i#sdk-fb-icon {
+    width: 40px;
+    height: 40px;
+}
+
+.pre-material {
+    border: none;
+    background-color: inherit;
+    margin: 0;
+    padding: 0;
+    h5 {
+        margin: 0;
+    }
+}
+
+.pre-overview {
+    border: none;
+    background-color: inherit;
+    margin: 0;
+    padding: 0;
+    white-space: inherit;
+    a {
+        text-decoration: none;
+    }
+}
+
+// 文档 API 参考部分，使用 semi Table，覆盖一些自带的样式
+
+@mixin table-word-break {
+    word-wrap: normal;
+    word-break: normal;
+}
+
+$font-table_bold-fontWeight: 600;
+$font-table_normal-fontSize: 14px;
+
+.gatsby-table-container {
+    .semi-table-container {
+        margin-top: 0;
+    }
+
+    .semi-table-tbody {
+        color: var(--semi-color-text-1);
+
+        .semi-table-row {
+            &-cell {
+                @include table-word-break();
+                border-width: 0;
+                padding-top: 12px;
+                padding-right: 12px;
+
+                strong {
+                    font-weight: $font-table_bold-fontWeight;
+                }
+
+                a {
+                    font-size: $font-table_normal-fontSize;
+                }
+            }
+
+            &-cell:first-of-type {
+                font-weight: $font-table_bold-fontWeight;
+            }
+
+            &-cell:nth-of-type(3),
+            &-cell:nth-of-type(4) {
+                color: var(--semi-color-warning);
+            }
+        }
+    }
+
+    .semi-table-thead {
+        background-color: var(--semi-color-fill-0);
+        color: var(--semi-color-text-1);
+
+        .semi-table-row {
+            &-head {
+                @include table-word-break();
+                white-space: nowrap;
+            }
+        }
+    }
+}

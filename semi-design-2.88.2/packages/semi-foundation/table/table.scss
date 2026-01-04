@@ -1,0 +1,655 @@
+@import './animation.scss';
+@import './variables.scss';
+@import './mixin.scss';
+@import './operationPanel.scss';
+
+
+$module: #{$prefix}-table;
+
+.#{$module} {
+    width: 100%;
+    text-align: left;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: inherit;
+    display: table;
+
+    &-wrapper {
+        zoom: 1;
+        position: relative;
+        clear: both;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        @include font-size-regular;
+        color: $color-table-text-default;
+        width: 100%;
+
+        &[data-column-fixed='true'] {
+            z-index: 1;
+        }
+
+        &-ltr {
+            direction: ltr;
+
+            .#{$prefix}-spin {
+                direction: ltr;
+            }
+        }
+    }
+
+    &-middle {
+        .#{$module}-tbody > .#{$module}-row > .#{$module}-row-cell {
+            padding-top: $spacing-table_middle-paddingY;
+            padding-bottom: $spacing-table_middle-paddingY;
+        }
+    }
+
+    &-small {
+        .#{$module}-tbody > .#{$module}-row > .#{$module}-row-cell {
+            padding-top: $spacing-table_small-paddingY;
+            padding-bottom: $spacing-table_small-paddingY;
+        }
+    }
+
+    &-title {
+        position: relative;
+        padding-top: $spacing-table_title-paddingY;
+        padding-bottom: $spacing-table_title-paddingY;
+        padding-left: $spacing-table_title-paddingX;
+        padding-right: $spacing-table_title-paddingX;
+    }
+
+    &-container {
+        position: relative;
+    }
+
+    &-header {
+        overflow: hidden;
+        scrollbar-base-color: transparent;
+
+        &::-webkit-scrollbar {
+            background-color: transparent;
+            border-bottom: $width-table_header_border $border-table_base-borderStyle $color-table_th-border-default;
+        }
+
+        &-sticky {
+            position: sticky;
+            z-index: $z-table_fixed_column + 1;
+
+            .semi-table-thead > .semi-table-row > .semi-table-row-head {
+                background-color: $color-table-bg-default;
+            }
+        }
+
+        &-hidden {
+            height: 0;
+        }
+    }
+
+    &-align-center {
+        .#{$module}-operate-wrapper {
+            justify-content: center;
+        }
+    }
+
+    &-align-right {
+        .#{$module}-operate-wrapper {
+            justify-content: flex-end;
+        }
+    }
+
+    &-operate-wrapper {
+        display: flex;
+        justify-content: flex-start;
+    }
+
+    &-body {
+        overflow: auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    &-colgroup {
+        display: table-column-group;
+        .#{$module}-col {
+            display: table-column;
+        }
+        .#{$module}-column {
+            &-expand,
+            &-selection {
+                width: $width-table_column_selection;
+            }
+        }
+    }
+
+    &-thead {
+        & > .#{$module}-row {
+            & > .#{$module}-row-head {
+                background-color: $color-table_th-bg-default;
+                color: $color-table_th-text-default;
+                font-weight: $font-weight-bold;
+                text-align: left;
+                border-bottom: $width-table_header_border $border-table_base-borderStyle $color-table_th-border-default;
+                padding-left: $spacing-table_row_head-paddingX;
+                padding-right: $spacing-table_row_head-paddingX;
+                padding-top: $spacing-table_row_head-paddingY;
+                padding-bottom: $spacing-table_row_head-paddingY;
+                vertical-align: middle;
+                overflow-wrap: break-word;
+                // word-break: break-all;
+                // word-wrap: break-word;
+                position: relative;
+                transition: background-color $transition_duration-table_row-head-bg $transition_function-table_row-head-bg;
+
+                &.#{$module}-row-head-clickSort {
+                    cursor: pointer;
+                    &:hover {
+                        background-image: linear-gradient(0deg, $color-table_th-clickSort-bg-hover, $color-table_th-clickSort-bg-hover);
+                        background-color: $color-table_cell-bg-hover;
+                        
+                        // &.#{$module}-cell-fixed {
+                        //     &-left,
+                        //     &-right {
+                        //         &::before {
+                        //             background-color: transparent;
+                        //         }
+                        //     }
+                        // }
+                    }
+                }
+
+                &.#{$module}-cell-fixed {
+                    &-left,
+                    &-right {
+                        z-index: $z-table_fixed_column;
+                        position: sticky;
+                        background-color: $color-table_th-bg-default;
+
+                        // &::before {
+                        //     background-color: $color-table_th-bg-default;
+                        //     content: '';
+                        //     position: absolute;
+                        //     left: 0;
+                        //     top: 0;
+                        //     right: 0;
+                        //     bottom: 0;
+                        //     display: block;
+                        //     z-index: -1;
+                        // }
+                    }
+
+                    &-left-last {
+                        border-right: $width-table_cell_fixed_left_last solid $color-table_shadow-border-default;
+                        box-shadow: #{$shadow-table_right};
+
+                        &.resizing {
+                            @include genResizing();
+                        }
+                    }
+
+                    &-right-first {
+                        border-left: $width-table_cell_fixed_right_first solid $color-table_shadow-border-default;
+                        box-shadow: #{$shadow-table_left};
+
+                        &.resizing {
+                            @include genResizing();
+                        }
+
+                        // scroll-bar 列无需有box-shadow
+
+                        &[x-type='column-scrollbar'] {
+                            box-shadow: none;
+                            border-left: transparent;
+                        }
+                    }
+                }
+
+                &.#{$module}-column-selection {
+                    text-align: center;
+                }
+
+                &[colspan]:not([colspan='1']) {
+                    text-align: center;
+                }
+
+                .#{$module}-header-column {
+                    display: inline-flex;
+                    align-items: center;
+                }
+
+                &-ellipsis {
+                    @include text-overflow-hidden;
+
+                    .#{$module}-row-head-title {
+                        @include text-overflow-hidden;
+                    }
+                }
+            }
+
+            .react-resizable {
+                position: relative;
+                background-clip: padding-box;
+            }
+
+            .resizing {
+                @include genResizing();
+            }
+
+            .react-resizable-handle {
+                position: absolute;
+                width: $width-table_react_resizable_handle;
+                height: calc(100% - #{$spacing-table_resizable-offset-y} * 2);
+                background-color: $color-table-border-default;
+                bottom: $spacing-table_resizable-bottom;
+                right: $spacing-table_react_resizable_handle-right;
+                cursor: col-resize;
+                z-index: 0;
+
+                &:hover {
+                    background-color: $color-table_resizer-bg-default;
+                }
+            }
+        }
+    }
+
+    &-tbody {
+        display: table-row-group;
+        & > .#{$module}-row {
+            display: table-row;
+            background-color: $color-table_body-bg-default;
+
+            &:hover {
+                & > .#{$module}-row-cell {
+                    // $color-table_body-bg-hover has transparency，will reveal the background color $color-table_body-bg-default\
+                    // combine background-image and background-color to make the non-fixed column color does not show through the bottom color
+                    background-image: linear-gradient(0deg, $color-table_body-bg-hover, $color-table_body-bg-hover);
+                    background-color: $color-table_cell-bg-hover;
+
+                    &.#{$module}-cell-fixed {
+                        &-left,
+                        &-right {
+                            background-image: linear-gradient(0deg, $color-table_body-bg-hover, $color-table_body-bg-hover);
+                            background-color: $color-table_body-bg-default;
+
+                            // &::before {
+                            //     background-color: $color-table_body-bg-hover;
+                            //     content: '';
+                            //     position: absolute;
+                            //     left: 0;
+                            //     top: 0;
+                            //     right: 0;
+                            //     bottom: 0;
+                            //     display: block;
+                            //     z-index: -1;
+                            // }
+                        }
+                    }
+                }
+            }
+
+            & > .#{$module}-row-cell {
+                display: table-cell;
+                overflow-wrap: break-word;
+                // word-wrap: break-word;
+                // word-break: break-all;
+                border-left: none;
+                border-right: none;
+                border-bottom: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+                padding: $spacing-table_tbody_rowCell-padding;
+                box-sizing: border-box;
+                position: relative;
+                vertical-align: middle;
+
+                &.resizing {
+                    border-right: $width-table_resizer_border solid $color-table_resizer-bg-default;
+                }
+
+                &-ellipsis {
+                    @include text-overflow-hidden;
+                }
+            }
+            &.#{$module}-row {
+                &-expand {
+                    & > .#{$module}-row-cell {
+                        background-color: $color-table_row_expanded-bg-default;
+                    }
+                }
+                &-hidden {
+                    display: none;
+                }
+            }
+
+            & > .#{$module}-cell-fixed {
+                &-left,
+                &-right {
+                    z-index: $z-table_fixed_column;
+                    position: sticky;
+                    background-color: $color-table-bg-default;
+                }
+
+                &-left-last {
+                    border-right: $width-table_cell_fixed_left_last solid $color-table_shadow-border-default;
+                    box-shadow: #{$shadow-table_right};
+                }
+
+                &-right-first {
+                    border-left: $width-table_cell_fixed_right_first solid $color-table_shadow-border-default;
+                    box-shadow: #{$shadow-table_left};
+                }
+
+                & > * {
+                    transition: background-color $transition_duration-table_body-bg $transition_function-table_body-bg
+                        $transition_delay-table_body-bg;
+                }
+            }
+
+            & > * {
+                transition: background-color $transition_duration-table_body-bg $transition_function-table_body-bg
+                    $transition_delay-table_body-bg;
+            }
+        }
+
+        & > .#{$module}-row-section {
+            display: table-row;
+
+            & > .#{$module}-row-cell {
+                background-color: $color-table_selection-bg-default;
+                border-bottom: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            }
+
+            & > .#{$module}-row-cell:not(.#{$module}-column-selection) {
+                padding: $spacing-table_tbody_rowSelection_rowCell_notSelection-paddingY $spacing-table_tbody_rowSelection_rowCell_notSelection-paddingX;
+            }
+
+            .#{$module}-section-inner {
+                display: inline-flex;
+                align-items: center;
+            }
+        }
+    }
+
+    &-virtualized .#{$module}-tbody {
+        display: block;
+        & > .#{$module}-row {
+            display: flex;
+            & > .#{$module}-row-cell {
+                word-wrap: unset;
+                word-break: unset;
+                white-space: nowrap;
+                display: inline-flex;
+                align-items: center;
+                overflow: hidden;
+            }
+
+            &-section {
+                & > .#{$module}-row-cell {
+                    padding-top: $spacing-table-paddingY;
+                    padding-bottom: $spacing-table-paddingY;
+                    display: flex;
+                }
+            }
+
+            &-expand {
+                & > .#{$module}-row-cell {
+                    padding: 0;
+                    overflow: unset;
+                }
+            }
+        }
+    }
+
+    &-footer {
+        background-color: $color-table_footer-bg-default;
+        padding: $spacing-table_footer-padding;
+        margin: 0;
+        position: relative;
+    }
+
+    .#{$module}-selection {
+        &-wrap {
+            // inline-flex vertical-align baseline 会导致父元素高度异常
+            display: inline-flex;
+            vertical-align: bottom;
+        }
+
+        &-disabled {
+            cursor: not-allowed;
+
+            & > .#{$prefix}-checkbox {
+                pointer-events: none;
+            }
+        }
+    }
+
+    .#{$module}-column {
+        &-hidden {
+            display: none;
+        }
+
+        &-selection {
+            text-align: center;
+            // width: $width-table_column_selection;
+
+            .#{$prefix}-checkbox-inner-display {
+                .#{$prefix}-icon {
+                    left: 0;
+                    top: 0;
+                }
+            }
+        }
+
+        &-expand {
+            .#{$module}-expand-icon {
+                transform: translateY(2px);
+
+                &:last-child {
+                    margin-right: 0;
+                }
+            }
+        }
+
+        &-sorter {
+            display: inline-block;
+            width: $width-table_column_sorter-icon;
+            height: $height-table_column_sorter-icon;
+            vertical-align: middle;
+            text-align: center;
+
+            &-wrapper {
+                display: flex;
+                gap: $spacing-table_column_sorter-marginLeft;
+                align-items: center;
+                cursor: pointer;
+                overflow: hidden;
+            }
+
+            &-up,
+            &-down {
+                height: 0;
+                display: block;
+                color: $color-table_sorter-text-default;
+
+                &:hover .anticon {
+                    color: $color-table_sorter-text-hover;
+                }
+
+                svg {
+                    width: $width-table_column_sorter-icon;
+                    height: $height-table_column_sorter-icon;
+                }
+
+                &.on {
+                    .#{$prefix}-icon-caretup,
+                    .#{$prefix}-icon-caretdown {
+                        color: $color-table_sorter_on-text-default;
+                    }
+                }
+            }
+        }
+
+        &-filter {
+            margin-left: $spacing-table_column_filter-marginLeft;
+            display: inline-flex;
+            cursor: pointer;
+            color: $color-table_filter-text-default;
+            // vertical-align: middle;
+            align-items: center;
+
+            svg {
+                width: $width-table_column_filter-icon;
+                height: $height-table_column_filter-icon;
+            }
+
+            &.on {
+                color: $color-table_filter_on-text-default;
+            }
+        }
+    }
+
+    &-bordered {
+        .#{$module}-title {
+            padding-left: $spacing-table_bordered_titler-paddingLeft;
+            padding-right: $spacing-table_bordered_titler-paddingRight;
+            border-top: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            border-right: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            border-left: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+        }
+
+        .#{$module}-container {
+            border: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            border-right: 0;
+            border-bottom: 0;
+        }
+
+        .#{$module}-header {
+            &::-webkit-scrollbar {
+                border-right: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            }
+        }
+
+        .#{$module}-footer {
+            border-left: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            border-right: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+            border-bottom: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+        }
+
+        .#{$module}-thead > .#{$module}-row > .#{$module}-row-head {
+            .react-resizable-handle {
+                background-color: transparent;
+            }
+        }
+
+        .#{$module}-thead > .#{$module}-row > .#{$module}-row-head,
+        .#{$module}-tbody > .#{$module}-row > .#{$module}-row-cell {
+            border-right: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+        }
+
+        .#{$module}-placeholder {
+            border-right: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+        }
+    }
+
+    &-placeholder {
+        position: sticky;
+        left: 0px;
+        z-index: 1;
+        padding: #{$spacing-table-paddingY} #{$spacing-table-paddingX};
+        color: $color-table_placeholder-text-default;
+        font-size: #{$font-table_base-fontSize};
+        text-align: center;
+        background: $color-table_pl-bg-default;
+        border-bottom: $width-table_base_border $border-table_base-borderStyle $color-table-border-default;
+    }
+
+    &-fixed {
+        table-layout: fixed;
+        min-width: 100%;
+
+        & > .#{$module}-tbody {
+            & > .#{$module}-row-expand > .#{$module}-row-cell > .#{$module}-expand-inner,
+            & > .#{$module}-row-section > .#{$module}-row-cell > .#{$module}-section-inner {
+                position: sticky;
+                overflow: auto;
+                left: 0;
+                margin-left: -$spacing-table_expand_row-paddingLeft;
+                margin-right: -$spacing-table_expand_row-paddingRight;
+                padding-left: $spacing-table_expand_row-paddingLeft;
+                padding-right: $spacing-table_expand_row-paddingRight;
+                height: 100%;
+                display: flex;
+                align-items: center;
+            }
+        }
+
+        // when header is fixed, table should use `table-layout: fixed` to avoid align bug
+        &-header {
+            table {
+                table-layout: fixed;
+            }
+        }
+    }
+
+    &-scroll {
+        &-position {
+            &-left {
+                .#{$module}-tbody,
+                .#{$module}-thead {
+                    & > .#{$module}-row > .#{$module}-cell-fixed-left-last {
+                        box-shadow: none;
+                    }
+                }
+            }
+
+            &-right {
+                .#{$module}-tbody,
+                .#{$module}-thead {
+                    & > .#{$module}-row > .#{$module}-cell-fixed-right-first {
+                        box-shadow: none;
+                    }
+                }
+            }
+        }
+    }
+
+    &-pagination-outer {
+        color: $color-table_page-text-default;
+        min-height: $height-table_pagination_outer_min;
+    }
+}
+
+.#{$module}-expand-icon {
+    color: $color-table_expanded_icon-default;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    user-select: none;
+    background: $color-table_expanded-bg-default;
+    position: relative;
+    margin-right: $spacing-table_expand_icon-marginRight;
+
+    &-cell {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .#{$module}-expandedIcon-show{
+        transition: transform 150ms cubic-bezier(0.62, 0.05, 0.36, 0.95);
+        transform: rotate(90deg);
+    }
+
+    .#{$module}-expandedIcon-hide{
+        transition: transform 150ms cubic-bezier(0.62, 0.05, 0.36, 0.95);
+        transform: rotate(0deg);
+    }
+}
+
+.#{$module}-column-filter-dropdown {
+    .#{$prefix}-dropdown-menu {
+        max-height: $height-table_column_filter_dropdown;
+        overflow-y: auto;
+    }
+}
+
+@import './rtl.scss';

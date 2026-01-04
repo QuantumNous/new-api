@@ -1,0 +1,12 @@
+$module: #{$prefix}-tooltip;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module}-wrapper {
+        direction: rtl;
+        padding-right: $spacing-tooltip_content-paddingLeft;
+        padding-left: $spacing-tooltip_content-paddingRight;
+        left: auto;
+        right: 0;
+    }
+}

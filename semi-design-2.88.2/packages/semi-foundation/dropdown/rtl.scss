@@ -1,0 +1,27 @@
+$module: #{$prefix}-dropdown;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        &-wrapper {
+            direction: rtl;
+        }
+
+        &-title {
+            &-withTick {
+                padding-left: 0;
+                padding-right: $spacing-dropdown_title_withTick-paddingLeft;
+            }
+        }
+        &-item {
+            &-withTick {
+                padding-left: auto;
+                padding-right: $spacing-dropdown_item_withTick-paddingLeft;
+            }
+            & > .#{$prefix}-icon {
+                margin-right: 0;
+                margin-left: $spacing-dropdown_icon-marginRight;
+            }
+        }
+    }
+}

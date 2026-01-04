@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "target": "ES2015",
+        "baseUrl": "./",
+        "outDir": "lib",
+        "sourceMap": true,
+        "allowJs": true,
+        "module": "es6",
+        "lib": ["es7", "dom"],
+        "moduleResolution": "node",
+        "noImplicitAny": false,
+        "jsx": "react",
+        "suppressImplicitAnyIndexErrors": true,
+        "forceConsistentCasingInFileNames": true,
+        "allowSyntheticDefaultImports": true,
+        "experimentalDecorators": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": false,
+        "strictNullChecks": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "declaration": true
+    },
+    "include": ["**/*.tsx", "**/*.ts"],
+    "exclude": ["node_modules"]
+}

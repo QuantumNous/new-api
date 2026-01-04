@@ -1,0 +1,14 @@
+
+$module: #{$prefix}-ai-chat-dialogue;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module}-wrapper {
+        direction: rtl;
+
+        &-action-icon-redo {
+            transform: scaleX(-1);
+        } 
+    }
+   
+}

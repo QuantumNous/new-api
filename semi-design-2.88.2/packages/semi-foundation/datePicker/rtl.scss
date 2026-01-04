@@ -1,0 +1,193 @@
+$module: #{$prefix}-datepicker;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-footer {
+            padding-right: 0;
+            padding-left: $spacing-datepicker_footer-paddingRight;
+            text-align: left;
+
+            .#{$prefix}-button {
+                &:first-of-type {
+                    margin-left: 0;
+                    margin-right: 0;
+                }
+                // confirm button
+                &:nth-of-type(2) {
+                    margin-right: $spacing-datepicker_footer_cancel_button-marginRight;
+                    margin-left: 0;
+                }
+            }
+        }
+
+        &-day {
+
+            &-offsetrange-start {
+                .#{$module}-day-main {
+                    border-radius: 0 $width-datepicker_day_main-borderRadius $width-datepicker_day_main-borderRadius 0;
+                }
+            }
+
+            &-offsetrange-end {
+                .#{$module}-day-main {
+                    border-radius: $width-datepicker_day_main-borderRadius 0 0 $width-datepicker_day_main-borderRadius;
+                }
+            }
+
+            &-selected-start,
+            &-hoverday-before-selectedrange,
+            &-offsetrange-start {
+                .#{$module}-day-main {
+                    margin-right: $spacing-datepicker_day-marginX;
+                    margin-left: auto;
+                    border-radius: 0 $width-datepicker_day_main-borderRadius $width-datepicker_day_main-borderRadius 0;
+                }
+            }
+
+            &-selected-end,
+            &-hoverday-after-selectedrange,
+            &-offsetrange-end {
+                .#{$module}-day-main {
+                    margin-left: $spacing-datepicker_day-marginX;
+                    margin-right: auto;
+                    border-radius: $width-datepicker_day_main-borderRadius 0 0 $width-datepicker_day_main-borderRadius;
+                }
+            }
+        }
+
+        &-switch {
+
+            &-text {
+                padding-left: 0;
+                padding-right: $spacing-datepicker_switch_text-paddingLeft;
+            }
+        }
+
+        // &-quick-control {
+
+        //     &-item {
+        //         margin-left: 0;
+        //         margin-right: $spacing-datepicker_quick_control_item-marginRight;
+        //     }
+        // }
+
+        &-navigation,
+        &-yam {
+            // rtl 对箭头进行翻转
+            .#{$prefix}-icon-chevron_left,
+            .#{$prefix}-icon-chevron_right,
+            .#{$prefix}-icon-double_chevron_left,
+            .#{$prefix}-icon-double_chevron_right {
+                transform: scaleX(-1);
+            }
+        }
+
+        &-range {
+
+            &-input {
+
+                &-prefix {
+                    padding-left: $spacing-datepicker_range_input_prefix-paddingRight;
+                    padding-right: $spacing-datepicker_range_input_prefix-paddingLeft;
+                }
+    
+                &-suffix {
+                    padding-left: $spacing-datepicker_range_input_suffix-paddingRight;
+                    padding-right: $spacing-datepicker_range_input_suffix-paddingLeft;
+                    
+                    &-hidden {
+                        display: none;
+                    }
+                }
+    
+                &-clearbtn {
+                    padding-left: $spacing-datepicker_range_input_clearbtn-paddingRight;
+                    padding-right: $spacing-datepicker_range_input_clearbtn-paddingLeft;
+                }
+            }
+        }
+    }
+
+    /*
+    * 小尺寸 DatePicker
+    */
+    .#{$module}-compact {
+        .#{$module}-month-grid {
+
+            &[x-type="dateRange"],
+            &[x-type="dateTimeRange"] {
+                .#{$module}-month-grid-left {
+                    border-left: $width-datepicker-border solid $color-datepicker_border-bg-default;
+                    border-right: 0;
+                }
+            }
+
+            .#{$prefix}-scrolllist {
+                &-item-wheel {
+                    // 去除中间分割线
+                    border-left: 0;
+                    border-right: 0;
+                }
+            }
+        }
+
+        .#{$module}-day {
+            &-offsetrange-start {
+                .#{$module}-day-main {
+                    border-radius: 0 $width-datepicker_day_compact-borderRadius $width-datepicker_day_compact-borderRadius 0;
+                }
+            }
+
+            &-offsetrange-end {
+                .#{$module}-day-main {
+                    border-radius: $width-datepicker_day_compact-borderRadius 0 0 $width-datepicker_day_compact-borderRadius;
+                }
+            }
+
+            &-selected-start {
+                .#{$module}-day-main {
+                    margin-left: 0;
+                    margin-right: $spacing-datepicker_day_compact-margin;
+                    border-radius: 0 $width-datepicker_day_compact-borderRadius $width-datepicker_day_compact-borderRadius 0;
+                }
+            }
+
+            &-selected-end {
+                .#{$module}-day-main {
+                    margin-right: 0;
+                    margin-left: $spacing-datepicker_day_compact-margin;
+                    border-radius: $width-datepicker_day_compact-borderRadius 0 0 $width-datepicker_day_compact-borderRadius;
+                }
+            }
+        }
+
+        .#{$module}-switch {
+            &-date {
+                border-left: $width-datepicker-border solid $color-datepicker_border-bg-default;
+                border-right: 0;
+            }
+
+            &-text {
+                // 去掉icon后不需要pl
+                padding-left: auto;
+                padding-right: 0;
+            }
+        }
+
+        .#{$module}-footer {
+            padding-left: $spacing-datepicker_footer_compact-paddintRight;
+            padding-right: auto;
+        }
+
+        .#{$module}-inset-input {
+            &-separator {
+                border-right: $width-datepicker-border solid $color-datepicker_border-bg-default;
+                border-left: 0;
+                transform: translateX(-50%);
+            }
+        }
+    }
+}

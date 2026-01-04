@@ -1,0 +1,80 @@
+@import './variables.scss';
+
+$module: #{$prefix}-divider;
+
+.#{$module} {
+    margin: $spacing-divider_horizontal-marginTop $spacing-divider_horizontal-marginRight $spacing-divider_horizontal-marginBottom $spacing-divider_horizontal-marginLeft;
+    border-bottom: $width-divider-border solid  $color-divider_border-color;
+    color: $color-divider_text-default;
+    box-sizing: border-box;
+
+    &-dashed {
+        border-bottom-style: dashed;
+    }
+
+    &-horizontal {
+        width: 100%;
+        display: flex;
+    }
+
+    &-vertical {
+        border-bottom: 0;
+        display: inline-block;
+        margin: $spacing-divider_vertical-marginTop $spacing-divider_vertical-marginRight $spacing-divider_vertical-marginBottom $spacing-divider_vertical-marginLeft;
+        border-left: $width-divider-border solid  $color-divider_border-color;
+        height: $height-divider_vertical;
+        vertical-align: middle;
+    }
+
+    &-with-text {
+        display: flex;
+        border-bottom: 0;
+        white-space: nowrap;
+        align-items: center;
+
+        .#{$module}_inner-text {
+            font-weight: $font-divider_text-weight;
+            padding: $spacing-divider_inner-text-paddingTop $spacing-divider_inner-text-paddingRight $spacing-divider_inner-text-paddingBottom $spacing-divider_inner-text-paddingLeft;
+            display: inline-block;
+        }
+
+
+        &::before,
+        &::after {
+            content: "";
+            width: 50%;
+            border-bottom: $width-divider-border solid  $color-divider_border-color;
+        }
+
+        &-left {
+            &::before {
+                width: $width-divider_inner_text_left_line;
+            }
+
+            &::after {
+                flex: 1;
+            }
+        }
+
+        &-right {
+            &::before {
+                flex: 1;
+            }
+
+            &::after {
+                width: $width-divider_inner_text_right_line;
+            }
+        }
+    }
+}
+
+.#{$module}-dashed {
+    &::before,
+    &::after {
+        border-bottom: $width-divider-border dashed  $color-divider_border-color;
+    }
+}
+
+.#{$module}-vertical.#{$module}-dashed {
+    border-left: $width-divider-border dashed  $color-divider_border-color;
+}

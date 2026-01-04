@@ -1,0 +1,90 @@
+@import "./variables.scss";
+@import "../keyframes/rotate.scss";
+@import "./animation.scss";
+
+$module: #{$prefix}-button;
+
+.#{$module} {
+    @keyframes #{$prefix}-animation-rotate {
+        from {
+            transform: rotate(0);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    &.#{$module}-with-icon {
+        display: inline-flex;
+        align-items: center;
+
+        .#{$module}-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    }
+
+    &.#{$module}-loading {
+        pointer-events: none;
+        cursor: not-allowed;
+
+        .#{$module}-content {
+
+            &>svg, &-loading-icon {
+                width: 16px;
+                height: 16px;
+                animation: $animation_duration-button_icon_loading linear infinite #{$prefix}-animation-rotate;
+                animation-fill-mode: forwards;
+            }
+        }
+    }
+
+    &.#{$module}-with-icon-only {
+        padding-left: $spacing-button_iconOnly_default-paddingLeft;
+        padding-right: $spacing-button_iconOnly_default-paddingRight;
+        padding-top: $spacing-button_iconOnly_default-paddingTop;
+        padding-bottom: $spacing-button_iconOnly_default-paddingRight;
+        height: $height-button_iconOnly_default;
+        width: $width-button_iconOnly_default;
+        justify-content: center;
+        align-items: center;
+
+        &.#{$module}-size {
+
+            &-small {
+                padding-left: $spacing-button_iconOnly_small-paddingLeft;
+                padding-right: $spacing-button_iconOnly_small-paddingRight;
+                padding-top: $spacing-button_iconOnly_small-paddingTop;
+                padding-bottom: $spacing-button_iconOnly_small-paddingBottom;
+                height: $height-button_iconOnly_small;
+                width: $width-button_iconOnly_small;
+            }
+
+            &-large {
+                padding-left: $spacing-button_iconOnly_large-paddingLeft;
+                padding-right: $spacing-button_iconOnly_large-paddingRight;
+                padding-top: $spacing-button_iconOnly_large-paddingTop;
+                padding-bottom: $spacing-button_iconOnly_large-paddingBottom;
+                height: $height-button_iconOnly_large;
+                width: $width-button_iconOnly_large;
+            }
+        }
+    }
+
+    &-content {
+
+        &-left {
+            margin-right: $spacing-button_iconOnly_content-marginRight;
+            display: flex;
+            align-items: center;
+        }
+
+        &-right {
+            margin-left: $spacing-button_iconOnly_content-marginLeft;
+            display: flex;
+            align-items: center;
+        }
+    }
+}
+
+@import "./rtl.scss";

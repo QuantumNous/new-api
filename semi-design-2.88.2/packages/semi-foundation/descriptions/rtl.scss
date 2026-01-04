@@ -1,0 +1,91 @@
+$module: #{$prefix}-descriptions;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        th {
+            direction: rtl;
+
+            padding-right: 0;
+            padding-left: $spacing-descriptions_th-paddingRight;
+        }
+
+        & .#{$module}-item {
+            text-align: right;
+        }
+
+        &-center {
+            .#{$module}-item-th {
+                text-align: left;
+            }
+
+            .#{$module}-item-td {
+                text-align: right;
+            }
+        }
+
+        &-left {
+            .#{$module}-item-th,
+            .#{$module}-item-td {
+                text-align: left;
+            }
+        }
+
+        &-justify {
+            .#{$module}-item-th {
+                text-align: right;
+            }
+
+            .#{$module}-item-td {
+                text-align: left;
+            }
+        }
+
+        &-plain {
+            .#{$module}-key,
+            .#{$module}-value {
+                display: inline-block;
+            } 
+
+            .#{$module}-value {
+                padding-left: 0;
+                padding-right: $spacing-descriptions_value_plain-paddingLeft;
+
+                & .#{$prefix}-tag {
+                    vertical-align: middle;
+                }
+            }
+        }
+
+        &-double {
+            direction: rtl;
+
+            & .#{$module}-item {
+                text-align: right;
+            }
+
+            &-small {
+                .#{$module}-item {
+                    padding-right: 0;
+                    padding-left: $spacing-descriptions_item_small-paddingRight;
+                }
+            }
+
+            &-medium {
+                .#{$module}-item {
+                    padding-right: 0;
+                    padding-left: $spacing-descriptions_item_medium-paddingRight;
+                }
+            }
+
+            &-large {
+                .#{$module}-item {
+                    padding-right: 0;
+                    padding-left: $spacing-descriptions_item_large-paddingRight;
+                }
+            }
+        }
+    }
+}

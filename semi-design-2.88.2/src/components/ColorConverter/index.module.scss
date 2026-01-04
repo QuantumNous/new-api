@@ -1,0 +1,16 @@
+.color-converter .color-block {
+    box-shadow: 0 0 0 1px var(--semi-color-border);
+}
+
+
+
+
+
+.color-results {
+    display: flex;
+    flex-wrap: wrap;
+    .color-block {
+        margin-right: 16px;
+        margin-bottom: 16px;
+    }
+}

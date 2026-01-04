@@ -1,0 +1,160 @@
+@import './variables.scss';
+
+$module: #{$prefix}-floatButton;
+
+$moduleGroup: #{$prefix}-floatButtonGroup;
+
+.#{$module} {
+    position: fixed;
+    bottom: $spacing-floatButton-bottom;
+    right: $spacing-floatButton-right;
+    z-index: $z-floatButton;
+    cursor: pointer;
+
+    &-body {
+        background-color: $color-floatButton-bg;
+        box-shadow: $shadow-floatButton;
+        color: $color-floatButton-text;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+            background-color: $color-floatButton-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-floatButton-bg-active;
+        }
+    }
+
+    &-disabled {
+        background: $color-floatButton-disabled-bg;
+        color: $color-floatButton-disabled-text;
+        cursor: not-allowed;
+
+        &:hover {
+            background-color: $color-floatButton-disabled-bg;
+        }
+    }
+
+    &-colorful {
+        background: $color-floatButton-colorful-bg;
+        color: $color-floatButton-colorful-text;
+
+        &:hover {
+            background: $color-floatButton-colorful-bg-hover;
+        }
+
+         &:active {
+            background: $color-floatButton-colorful-bg-active;
+        }
+
+    }
+
+    &.#{$module}-square {
+            
+        .#{$prefix}-badge-dot, .#{$prefix}-badge-count {
+            /* Calculation logic:
+            The center of the badge is the intersection of two lines. 
+            - The first line is the connecting line between the center of the floatButton and the upper right corner of the enclosing rectangle. 
+            - The second line is the border of the floatButton.
+            Can be calculated through radius， (√2 - 1）/√2 * R = 0.29 * R
+            */
+            top: calc(0.29 * $radius-floatButton_square);
+            inset-inline-end: calc(0.29 * $radius-floatButton_square);
+        }
+    }
+
+    &-default {
+        width: $width-floatButton;
+        height: $width-floatButton;
+
+        &.#{$module}-round {
+            
+            .#{$prefix}-badge-dot, .#{$prefix}-badge-count {
+                /* Calculation logic:
+                The center of the badge is the intersection of two lines. 
+                - The first line is the connecting line between the center of the floatButton and the upper right corner of the enclosing rectangle. 
+                - The second line is the border of the floatButton.
+                Can be calculated through radius (√2 - 1）/√2 * R = 0.29 * R，and R = 0.5 * width
+                */
+                top: calc(0.29 * 0.5 * $width-floatButton);
+                inset-inline-end: calc(0.29 * 0.5 * $width-floatButton);
+            }
+        }
+
+    }
+
+    &-small {
+        width: $width-floatButton_small;
+        height: $width-floatButton_small;
+
+        &.#{$module}-round {
+            
+            .#{$prefix}-badge-dot, .#{$prefix}-badge-count {
+                top: calc(0.29 * 0.5 * $width-floatButton_small);
+                inset-inline-end: calc(0.29 * 0.5 *$width-floatButton_small);
+            }
+        }
+    }
+
+    &-large {
+        width: $width-floatButton_large;
+        height: $width-floatButton_large;
+
+        &.#{$module}-round {
+            
+            .#{$prefix}-badge-dot, .#{$prefix}-badge-count {
+                top: calc(0.29 * 0.5 * $width-floatButton_large);
+                inset-inline-end: calc(0.29 * 0.5 * $width-floatButton_large);
+            }
+        }
+    }
+
+    &-square {
+        border-radius: $radius-floatButton_square;
+    }
+
+    &-round {
+        border-radius: $radius-floatButton_round;
+    }
+}
+
+.#{$moduleGroup} {
+    position: fixed;
+    border-radius: $radius-floatButton_group-border-radius;
+    bottom: $spacing-floatButton_group-bottom;
+    right: $spacing-floatButton_group-right;
+    z-index: $z-floatButton_group;
+    background: $color-floatButton_group-bg;
+    box-shadow: $shadow-floatButton_group;
+    display: inline-flex;
+    padding: $spacing-floatButton_group-padding;
+    gap: $spacing-floatButton_group-columnGap;
+
+    &-item {
+        cursor: pointer;
+        display: flex;
+        padding: $spacing-floatButton_group_item-paddingY $spacing-floatButton_group_item-paddingX;
+        align-items: center;
+        column-gap: $spacing-floatButton_group_item-columnGap;
+        border-radius: $radius-floatButton_group_item-border-radius;
+        color: $color-floatButton_group_item-text;
+        font-size: $font-floatButton_group_item-fontSize;
+        font-style: normal;
+        font-weight: $font-floatButton_group_item-fontWeight;
+        line-height: $font-floatButton_group_item-lineHeight;
+
+        &:hover {
+            background: $color-floatButton_group_item-bg-hover;
+        }
+
+        &:active {
+            background: $color-floatButton_group_item-bg-active;
+        }
+    }
+
+}
+
+@import "./rtl.scss";

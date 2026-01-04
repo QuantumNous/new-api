@@ -1,0 +1,51 @@
+@import "./variables.scss";
+@import "./animation.scss";
+
+$module: #{$prefix}-image;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+
+    .#{$module}-preview {
+
+        direction: rtl;
+
+        &-group {
+            direction: rtl;
+        }
+        
+        &-prev {
+            right: $spacing-image_preview_icon-x;
+            left: auto;
+            transform: $transform_rotate-image_preview_icon-rtl;
+        }
+    
+        &-next {
+            left: $spacing-image_preview_icon-x;
+            right: auto;
+            transform: $transform_rotate-image_preview_icon-rtl;
+        }
+
+        &-footer {
+
+            &-page {
+                display: flex;
+                direction: rtl;
+            }
+
+            &-gap {
+                margin-right: $spacing-image_preview_footer_gap-marginLeft;
+                margin-left: $spacing-image_preview_footer_gap_rtl-marginLeft;
+            }
+
+            .#{$prefix}-icon-chevron_left {
+                transform: $transform_rotate-image_preview_icon_rtl;
+            }
+
+            .#{$prefix}-icon-chevron_right {
+                transform: $transform_rotate-image_preview_icon_rtl;
+            }
+        }
+
+    }
+}

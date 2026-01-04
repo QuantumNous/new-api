@@ -1,0 +1,20 @@
+$module: #{$prefix}-banner;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-close {
+            margin-left: 0;
+            margin-right: $spacing-banner_closeBtn-marginLeft;
+            height: $height-banner_closeBtn;
+            width: $width-banner_closeBtn;
+        }
+
+        &-icon {
+            margin-right: 0;
+            margin-left: $spacing-banner_icon-marginRight;
+        }
+    }
+}

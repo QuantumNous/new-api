@@ -1,0 +1,25 @@
+$color-progress_default-bg: var(--semi-color-fill-0); // 默认背景色
+$color-progress_track_inner-bg: var(--semi-color-success); // 默认进度色
+$color-progress_line_text-text: var(--semi-color-text-0); // 百分比文本文字颜色
+$color-progress_circle-text: var(--semi-color-mode-minor-text);
+
+$motion-progress-transition_duration: 0.3s; // 进度条动画时长
+$motion-progress-transition_timing_function: cubic-bezier(0.62, 0.05, 0.36, 0.95); // 进度条动画曲线
+
+$height-progress_horizontal: 4px; // 水平进度条高度
+$height-progress_horizontal_large: 6px; // 大尺寸水平进度条高度
+
+$spacing-progress_line_text-marginLeft: $spacing-base; // 水平进度条百分比文本左侧外边距
+$spacing-progress_line_text-marginRight: $spacing-base; // 水平进度条百分比文本右侧外边距
+$spacing-progress_vertical-marginX: $spacing-extra-tight; // 垂直进度条水平方向外边距
+$spacing-progress_horizontal-marginY: $spacing-extra-tight; // 水平进度条垂直方向外边距
+$spacing-progress_vertical_line_text-marginTop: $spacing-tight; // 垂直进度条百分比文本顶部外边距
+
+$font-progress_line_text-fontWeight: 600; // 百分比文本字重
+
+$width-progress_line_text: 45px; // 百分比文本最小宽度
+$width-progress_vertical: 4px; // 垂直进度条宽度
+$width-progress_vertical_large: 6px; // 大尺寸垂直进度条宽度
+
+$radius-progress_track: var(--semi-border-radius-small); // 背景圆角大小
+$radius-progress_track_inner: var(--semi-border-radius-small); // 进度条圆角大小

@@ -1,0 +1,25 @@
+$spacing-divider_horizontal-marginLeft: 0px; // 水平模式左间距
+$spacing-divider_horizontal-marginRight: 0px; // 水平模式右间距
+$spacing-divider_horizontal-marginTop: 1px;  // 水平模式上间距
+$spacing-divider_horizontal-marginBottom: 1px; // 水平模式下间距
+$spacing-divider_vertical-marginLeft: 1px; //垂直模式左间距
+$spacing-divider_vertical-marginRight: 1px; //垂直模式右间距
+$spacing-divider_vertical-marginTop: 0px; //垂直模式上间距
+$spacing-divider_vertical-marginBottom: 0px; //垂直模式下间距
+$spacing-divider_inner_text-paddingLeft: 8px; //内容为纯文字时内容左间距
+$spacing-divider_inner_text-paddingRight: 8px; //内容为纯文字时内容右间距
+$spacing-divider_inner_text-paddingTop: 0px; //内容为纯文字时内容上间距
+$spacing-divider_inner_text-paddingBottom: 0px; //内容为纯文字时内容下间距
+
+
+$width-divider_inner_text_left_line: 40px; //左对齐文字时左间距宽度
+$width-divider_inner_text_right_line: 40px; //右对齐文字时右间距宽度
+$width-divider-border: 1px; // 分割线宽度
+$height-divider_vertical: 20px;// 垂直分割线高度
+
+$color-divider_border-color: var(--semi-color-border); // 分割线颜色
+$color-divider_text-default: var(--semi-color-text-0); // 标题颜色
+
+
+
+$font-divider_text-weight: $font-weight-bold; // 分割线文字字重

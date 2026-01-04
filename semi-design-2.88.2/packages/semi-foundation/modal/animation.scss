@@ -1,0 +1,26 @@
+$animation_duration-modal-show: 120ms; // 弹窗打开-动画持续时间
+$animation_function-modal-show: cubic-bezier(0.215, 0.61, 0.355, 1); // 弹窗打开-过渡曲线
+$animation_delay-modal-show: 0ms; // 弹窗打开-延迟时间
+
+$animation_duration-modal-hide: 120ms; // 弹窗关闭-动画持续时间
+$animation_function-modal-hide: cubic-bezier(0.215, 0.61, 0.355, 1); // 弹窗关闭-过渡曲线
+$animation_delay-modal-hide: 0ms; // 弹窗关闭-延迟时间
+
+
+$animation_duration-modal_mask-show: 90ms; // 弹窗打开时-蒙层颜色-动画持续时间
+$animation_function-modal_mask-show: cubic-bezier(0.215, 0.61, 0.355, 1); // 弹窗打开时-蒙层颜色-过渡曲线
+$animation_delay-modal_mask-show: 0ms; // 弹窗打开时-蒙层颜色-延迟时间
+
+$animation_duration-modal_mask-hide: 90ms; // 弹窗关闭时-蒙层颜色-动画持续时间
+$animation_function-modal_mask-hide: cubic-bezier(0.215, 0.61, 0.355, 1); // 弹窗关闭时-蒙层颜色-过渡曲线
+$animation_delay-modal_mask-hide: 0ms; // 弹窗关闭时-蒙层颜色-延迟时间
+
+
+$animation_transform_scale-modal_content-open: 0.7; // 弹窗打开时-缩放比例
+$animation_opacity-modal_content-open : 0; // 弹窗打开时-起始透明度
+$animation_transform_scale-modal_content-close: 0.7; // 弹窗关闭时-缩放比例
+$animation_opacity-modal_content-close: 0; // 弹窗关闭时-起始透明度
+
+$animation_opacity-modal_mask-open: 0; // 弹窗打开时-蒙层起始透明度
+$animation_opacity-modal_mask-close: 0; // 弹窗关闭时-蒙层起始透明度
+

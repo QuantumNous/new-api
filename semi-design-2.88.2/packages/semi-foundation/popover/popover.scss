@@ -1,0 +1,103 @@
+@import '../tooltip/variables.scss';
+@import "./animation.scss";
+@import './variables.scss';
+
+$module: #{$prefix}-popover;
+$module-icon: #{$module}-icon-arrow;
+
+
+@keyframes #{$module}-zoomIn {
+    from {
+        opacity: $motion-zoom_opacity-from;
+        transform: scale($motion-zoom_scale-from, $motion-zoom_scale-from);
+    }
+
+    50% {
+        opacity: $motion-zoom_opacity-to;
+    }
+}
+
+@keyframes #{$module}-zoomOut {
+    from {
+        opacity: $motion-zoom_opacity-to;
+    }
+
+    60% {
+        opacity: $motion-zoom_opacity-from;
+        transform: scale($motion-zoom_scale-from, $motion-zoom_scale-from);
+    }
+
+    to {
+        opacity: $motion-zoom_opacity-from;
+    }
+}
+
+
+.#{$module} {
+
+    &-wrapper {
+        position: relative;
+        // position: absolute;
+        background-color: $color-popover-bg-default;
+        backdrop-filter: $filter-popover-bg;
+        // background-color: transparent;
+
+        @include shadow-elevated;
+        // box-shadow: 0 0 1px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.1);
+        z-index: $z-popover;
+        border-radius: $radius-popover;
+        // padding: $spacing-extra-tight $spacing-tight;
+        @include font-size-regular;
+        opacity: 0;
+
+        &-show {
+            opacity: 1;
+        }
+    }
+
+    &-trigger {
+        display: inline-block;
+        width: auto;
+        height: auto;
+    }
+
+    &-title {
+        padding: $spacing-popover_title-padding;
+        border-bottom: $width-popover_title-border solid $color-popover-border-default;
+    }
+
+    // &-content {
+    //     padding: 20px;
+    // }
+
+    &-confirm {
+        position: absolute;
+    }
+
+    &-with-arrow {
+        padding: $spacing-popover_withArrow-padding;
+        box-sizing: border-box;
+    }
+    &-animation-show{
+        animation: #{$module}-zoomIn $animation_duration-popover-in $animation_function-popover-in;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-hide{
+        animation: #{$module}-zoomOut $animation_duration-popover-out $animation_function-popover-out;
+        animation-fill-mode: forwards;
+    }
+}
+
+.#{$module}-icon-arrow {
+    path:nth-child(1) {
+        fill: $color-popover-arrow-border;
+    }
+  
+    path:nth-child(2) {
+        fill: $color-popover-arrow-bg;
+    }
+}
+
+@import '../tooltip/arrow.scss';
+@import "./rtl.scss";

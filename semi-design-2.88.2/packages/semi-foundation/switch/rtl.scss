@@ -1,0 +1,103 @@
+$module: #{$prefix}-switch;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-checked {
+            .#{$module}-knob {
+                transform: translateX(-$spacing-switch_checked-translateX);
+            }
+
+            &:active {
+                .#{$module}-knob {
+                    transform: translateX($width-switch_knob_expand - $spacing-switch_checked-translateX);
+                }
+            }
+        }
+
+        &-knob {
+            right: 0;
+            left: auto;
+            transform: translateX(-1 * $spacing-switch_unchecked-translateX);
+        }
+
+        &-native-control {
+            right: 0;
+        }
+
+        &-unchecked-text {
+            left: 0;
+        }
+    }
+
+    .#{$module}-loading {
+        .#{$module}-loading-spin {
+            transform: translateX(-$spacing-switch_spin_unchecked-translateX);
+        }
+    
+        &.#{$module}-checked {
+            .#{$module}-loading-spin {
+                transform: translateX(-$spacing-switch_spin_checked-translateX);
+            }
+        }
+    }
+    
+    .#{$module}-loading.#{$module}-small {
+        .#{$module}-loading-spin {
+            transform: translateX(-$spacing-switch_spin_unchecked_small-translateX);
+        }
+        &.#{$module}-checked{
+            .#{$module}-loading-spin {
+                transform: translateX(-$spacing-switch_spin_checked_small-translateX);
+            }
+        }
+    }
+    
+    .#{$module}-loading.#{$module}-large {
+        .#{$module}-loading-spin {
+            transform: translateX(-$spacing-switch_spin_unchecked_large-translateX);
+        }
+    
+        &.#{$module}-checked {
+            .#{$module}-loading-spin {
+                transform: translateX(-$spacing-switch_spin_checked_large-translateX);
+            }
+        }
+    }
+
+    .#{$module}-large {
+        .#{$module}-knob {
+            transform: translateX(-$spacing-switch_unchecked_large-translateX);
+        }
+        &.#{$module}-checked {
+            .#{$module}-knob {
+                transform: translateX(-$spacing-switch_checked_large-translateX);
+            }
+
+            &:active {
+                .#{$module}-knob {
+                    transform: translateX($spacing-switch_expand_large-translateX - $spacing-switch_checked_large-translateX);
+                }
+            }
+        }
+    }
+
+    .#{$module}-small {
+        .#{$module}-knob {
+            transform: translateX(-$spacing-switch_unchecked_small-translateX);
+        }
+        &.#{$module}-checked {
+            .#{$module}-knob {
+                transform: translateX(-$spacing-switch_checked_small-translateX);
+            }
+
+            &:active {
+                .#{$module}-knob {
+                    transform: translateX($spacing-switch_expand_small-translateX - $spacing-switch_checked_small-translateX);
+                }
+            }
+        }
+    }
+}

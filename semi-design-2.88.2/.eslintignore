@@ -1,0 +1,15 @@
+/build/*.js
+dist/
+/public/*.js
+/output/*.js
+**/adapter.js
+**/*.stories.js
+**/*.test.js
+**/*.d.ts
+**/_story/*.stories.tsx
+**/_story/*.stories.jsx
+packages/semi-theme-default/css/semi.css
+**/css/semi.css
+packages/**/lib/
+packages/**/dist/
+

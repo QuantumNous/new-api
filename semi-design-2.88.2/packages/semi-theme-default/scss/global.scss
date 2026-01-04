@@ -1,0 +1,274 @@
+@import "./_palette.scss";
+
+body, body[theme-mode="dark"] .semi-always-light, :host, :host .semi-always-light {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    --semi-color-white: rgba(var(--semi-white), 1); // 浅色模式下深色背景内容Inverse
+    --semi-color-black: rgba(var(--semi-black), 1); // 深色模式下浅色背景内容Inverse
+
+    --semi-color-primary: rgba(var(--semi-blue-5), 1); // 主要颜色。仅在需要非常强调的情况下使用。
+    --semi-color-primary-hover: rgba(var(--semi-blue-6), 1); // 主要颜色悬浮态
+    --semi-color-primary-active: rgba(var(--semi-blue-7), 1); // 主要颜色激活态
+    --semi-color-primary-disabled: rgba(var(--semi-blue-2), 1); // 主要颜色禁用态
+    --semi-color-primary-light-default: rgba(var(--semi-blue-0), 1); // 浅版主要颜色（多用于背景）。仅在需要非常强调的情况下使用。
+    --semi-color-primary-light-hover: rgba(var(--semi-blue-1), 1); // 浅版主要颜色悬浮态
+    --semi-color-primary-light-active: rgba(var(--semi-blue-2), 1); // 浅版主要颜色激活态
+
+    --semi-color-secondary: rgba(var(--semi-light-blue-5), 1); // 次要颜色。强调作用次于主要颜色，但仍然具有强调作用。
+    --semi-color-secondary-hover: rgba(var(--semi-light-blue-6), 1); // 次要颜色悬浮态
+    --semi-color-secondary-active: rgba(var(--semi-light-blue-7), 1); // 次要颜色激活态
+    --semi-color-secondary-disabled: rgba(var(--semi-light-blue-2), 1); // 次要颜色禁用态
+    --semi-color-secondary-light-default: rgba(var(--semi-light-blue-0), 1); // 浅版次要颜色（多用于背景）。强调作用次于主要颜色，但仍然具有强调作用。
+    --semi-color-secondary-light-hover: rgba(var(--semi-light-blue-1), 1); // 浅版次要颜色悬浮态
+    --semi-color-secondary-light-active: rgba(var(--semi-light-blue-2), 1); // 浅版次要颜色激活态
+
+    --semi-color-tertiary: rgba(var(--semi-grey-5), 1); // 第三颜色，可以在页面上多次使用
+    --semi-color-tertiary-hover: rgba(var(--semi-grey-6), 1); // 第三颜色悬浮态
+    --semi-color-tertiary-active: rgba(var(--semi-grey-7), 1); // 第三颜色激活态
+    --semi-color-tertiary-light-default: rgba(var(--semi-grey-0), 1); // 浅版第三颜色（多用于背景），可以在页面上多次使用
+    --semi-color-tertiary-light-hover: rgba(var(--semi-grey-1), 1); // 浅版第三颜色悬浮态
+    --semi-color-tertiary-light-active: rgba(var(--semi-grey-2), 1); // 浅版第三颜色激活态
+
+    --semi-color-default: rgba(var(--semi-grey-0), 1); // 不建议使用
+    --semi-color-default-hover: rgba(var(--semi-grey-1), 1); // 不建议使用
+    --semi-color-default-active: rgba(var(--semi-grey-2), 1); // 不建议使用
+
+    --semi-color-info: rgba(var(--semi-blue-5), 1); // 信息色, 通常用于表达客观、中立信息
+    --semi-color-info-hover: rgba(var(--semi-blue-6), 1); // 信息色悬浮态
+    --semi-color-info-active: rgba(var(--semi-blue-7), 1); // 信息色激活态
+    --semi-color-info-disabled: rgba(var(--semi-blue-2), 1); // 信息色禁用态
+    --semi-color-info-light-default: rgba(var(--semi-blue-0), 1); // 浅版信息色（多用于背景），通常用于表达客观、中立信息
+    --semi-color-info-light-hover: rgba(var(--semi-blue-1), 1); // 浅版信息色悬浮态
+    --semi-color-info-light-active: rgba(var(--semi-blue-2), 1); // 浅版信息色激活态
+
+    --semi-color-success: rgba(var(--semi-green-5), 1); // 成功色，表示安全、成功、开启的状态
+    --semi-color-success-hover: rgba(var(--semi-green-6), 1); // 成功色悬浮态
+    --semi-color-success-active: rgba(var(--semi-green-7), 1); // 成功色激活态
+    --semi-color-success-disabled: rgba(var(--semi-green-2), 1); // 成功色禁用态
+    --semi-color-success-light-default: rgba(var(--semi-green-0), 1); // 浅版成功色（多用于背景），表示安全、成功、开启的状态
+    --semi-color-success-light-hover: rgba(var(--semi-green-1), 1); // 浅版成功色悬浮态
+    --semi-color-success-light-active: rgba(var(--semi-green-2), 1); // 浅版成功色激活态
+
+    --semi-color-danger: rgba(var(--semi-red-5), 1); // 危险色，表示危险的操作、或需要特别注意的危险信息
+    --semi-color-danger-hover: rgba(var(--semi-red-6), 1); // 危险色悬浮态
+    --semi-color-danger-active: rgba(var(--semi-red-7), 1); // 危险色激活态
+    --semi-color-danger-light-default: rgba(var(--semi-red-0), 1); // 浅版危险色（多用于背景），表示危险的操作、或需要特别注意的危险信息
+    --semi-color-danger-light-hover: rgba(var(--semi-red-1), 1); // 浅版危险色悬浮态
+    --semi-color-danger-light-active: rgba(var(--semi-red-2), 1); // 浅版危险色激活态
+
+    --semi-color-warning: rgba(var(--semi-orange-5), 1); // 警示色，表示警告、不安全的状态
+    --semi-color-warning-hover: rgba(var(--semi-orange-6), 1); // 警示色悬浮态
+    --semi-color-warning-active: rgba(var(--semi-orange-7), 1); // 警示色激活态
+    --semi-color-warning-light-default: rgba(var(--semi-orange-0), 1); // 浅版警示色（多用于背景），表示警告、不安全的状态
+    --semi-color-warning-light-hover: rgba(var(--semi-orange-1), 1); // 浅版警示色悬浮态
+    --semi-color-warning-light-active: rgba(var(--semi-orange-2), 1); // 浅版警示色激活态
+
+    --semi-color-focus-border: rgba(var(--semi-blue-5), 1); // 多用于边框激活态颜色
+
+    --semi-color-disabled-text: rgba(var(--semi-grey-9), .35); // 禁用态 - 文字
+    --semi-color-disabled-border: rgba(var(--semi-grey-1), 1); // 禁用态 - 描边
+    --semi-color-disabled-bg: rgba(var(--semi-grey-1), 1); // 禁用态 - 背景
+    --semi-color-disabled-fill: rgba(var(--semi-grey-8), .04); // 禁用态 - 填充
+
+    --semi-color-shadow: rgba(var(--semi-black), .04); // 用于模拟描边的阴影颜色
+
+    --semi-color-link: rgba(var(--semi-blue-5), 1); // 链接颜色
+    --semi-color-link-hover: rgba(var(--semi-blue-6), 1); // 链接颜色 - 悬浮态
+    --semi-color-link-active: rgba(var(--semi-blue-7), 1); // 链接颜色 - 激活态
+    --semi-color-link-visited: rgba(var(--semi-blue-5), 1); // 链接颜色 - 已访问
+
+    --semi-color-border: rgba(var(--semi-grey-9), .08); // 默认描边颜色
+    --semi-color-nav-bg: rgba(var(--semi-white), 1); // 导航背景色
+    --semi-color-overlay-bg: rgba(22, 22, 26, .6); // 蒙层背景色
+
+    --semi-color-fill-0: rgba(var(--semi-grey-8), .05); // 填充色 - 默认态
+    --semi-color-fill-1: rgba(var(--semi-grey-8), .09); // 填充色 - 悬浮态
+    --semi-color-fill-2: rgba(var(--semi-grey-8), .13); // 填充色 - 激活态
+    --semi-color-bg-0: rgba(var(--semi-white), 1); // 背景色 - 最下层（底部页面）
+    --semi-color-bg-1: rgba(var(--semi-white), 1); // 背景色 - 次下层（页面中需要提升的内容）
+    --semi-color-bg-2: rgba(var(--semi-white), 1); // 背景色 - 中间层（模态等容器）
+    --semi-color-bg-3: rgba(var(--semi-white), 1); // 背景色 - 次上层（通知，Toast等）
+    --semi-color-bg-4: rgba(var(--semi-white), 1); // 背景色 - 最上层（特殊）
+    --semi-color-text-0: rgba(var(--semi-grey-9), 1); // 文本/图标颜色 - 最主要
+    --semi-color-text-1: rgba(var(--semi-grey-9), .8); // 文本/图标颜色 - 稍次要
+    --semi-color-text-2: rgba(var(--semi-grey-9), .62); // 文本/图标颜色 - 次要
+    --semi-color-text-3: rgba(var(--semi-grey-9), .35); // 文本/图标颜色 - 最次要
+    --semi-shadow-elevated: 0 0 1px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .1); // 用于toast, modal, popover等需要提升层级的界面元素
+    --semi-border-radius-extra-small: 3px; // 超小圆角，用于 checkbox 内圆角
+    --semi-border-radius-small: 3px; // 小圆角, 用于 button、tag、tabs 等大多数组件, 比较常用
+    --semi-border-radius-medium: 6px; // 中圆角, 用于 dropdown、scrollist、transfer 等菜单类组件
+    --semi-border-radius-large: 12px; // 大圆角, 用于 modal
+    --semi-border-radius-circle: 50%; // 全圆角, 用于 avatar, badge 等组件
+    --semi-border-radius-full: 9999px; // 用于创建全尺寸圆角，如胶囊标签等
+    --semi-color-highlight-bg: rgba(var(--semi-yellow-4), 1); // 高亮文本背景色
+    --semi-color-highlight: rgba(var(--semi-black), 1); // 高亮文本色
+    --semi-color-data-0: rgba(87, 105, 255, 1); //vchart 数据色板颜色 - 0
+    --semi-color-data-1: rgba(142, 212, 231, 1); //vchart 数据色板颜色 - 1
+    --semi-color-data-2: rgba(245, 135, 0, 1); //vchart 数据色板颜色 - 2
+    --semi-color-data-3: rgba(220, 183, 252, 1); //vchart 数据色板颜色 - 3
+    --semi-color-data-4: rgba(74, 156, 247, 1); //vchart 数据色板颜色 - 4
+    --semi-color-data-5: rgba(243, 204, 53, 1); //vchart 数据色板颜色 - 5
+    --semi-color-data-6: rgba(254, 128, 144, 1); //vchart 数据色板颜色 - 6
+    --semi-color-data-7: rgba(139, 215, 210, 1); //vchart 数据色板颜色 - 7
+    --semi-color-data-8: rgba(131, 176, 35, 1); //vchart 数据色板颜色 - 8
+    --semi-color-data-9: rgba(233, 165, 229, 1); //vchart 数据色板颜色 - 9
+    --semi-color-data-10: rgba(48, 167, 206, 1); //vchart 数据色板颜色 - 10
+    --semi-color-data-11: rgba(249, 192, 100, 1); //vchart 数据色板颜色 - 11
+    --semi-color-data-12: rgba(177, 113, 249, 1); //vchart 数据色板颜色 - 12
+    --semi-color-data-13: rgba(119, 182, 249, 1); //vchart 数据色板颜色 - 13
+    --semi-color-data-14: rgba(200, 143, 2, 1); //vchart 数据色板颜色 - 14
+    --semi-color-data-15: rgba(255, 170, 178, 1); //vchart 数据色板颜色 - 15
+    --semi-color-data-16: rgba(51, 176, 171, 1); //vchart 数据色板颜色 - 16
+    --semi-color-data-17: rgba(182, 215, 129, 1); //vchart 数据色板颜色 - 17
+    --semi-color-data-18: rgba(212, 88, 212, 1); //vchart 数据色板颜色 - 18
+    --semi-color-data-19: rgba(188, 198, 255, 1); //vchart 数据色板颜色 - 19
+
+    // ai-related
+    --semi-color-ai-general: var(--semi-ai-general-5); // AI 场景颜色
+    --semi-color-ai-general-hover: var(--semi-ai-general-6); // AI 场景颜色 - 悬浮态
+    --semi-color-ai-general-active: var(--semi-ai-general-7); // AI 场景颜色 - 激活态
+    --semi-color-ai-general-disabled: var(--semi-ai-general-2); // AI 场景颜色 - 禁用态
+
+    --semi-color-ai-purple: rgba(var(--semi-ai-purple-5)); // AI 次要场景颜色
+    --semi-color-ai-purple-hover: rgba(var(--semi-ai-purple-6)); // AI 次要场景颜色 - 悬浮态
+    --semi-color-ai-purple-active: rgba(var(--semi-ai-purple-7)); // AI 次要场景颜色 - 激活态
+    --semi-color-ai-purple-disabled: rgba(var(--semi-ai-purple-2)); // AI 次要场景颜色 - 禁用态
+    
+    --semi-color-ai-background-bottom: linear-gradient(201.15deg, rgba(255, 255, 255, 0.04) 6.58%, rgba(255, 226, 138, 0.04) 32.88%, rgba(231, 45, 255, 0.04) 67.93%, rgba(0, 115, 255, 0.04) 94.23%); // AI 场景背景色底部
+    --semi-color-ai-background-bottom-hover: linear-gradient(201.15deg, rgba(255, 255, 255, 0.08) 6.58%, rgba(255, 226, 138, 0.08) 32.88%, rgba(231, 45, 255, 0.08) 67.93%, rgba(0, 115, 255, 0.08) 94.23%); // AI 场景背景色底部 - 悬浮态
+    --semi-color-ai-background-bottom-active: linear-gradient(201.15deg, rgba(255, 255, 255, 0.12) 6.58%, rgba(255, 226, 138, 0.12) 32.88%, rgba(231, 45, 255, 0.12) 67.93%, rgba(0, 115, 255, 0.12) 94.23%); // AI 场景背景色底部 - 激活态
+
+    --semi-color-ai-background-top: linear-gradient(201.15deg, rgba(83, 56, 255, 0.16) 6.58%, rgba(176, 48, 240, 0.096) 32.88%, rgba(231, 45, 255, 0.048) 59.17%, rgba(255, 255, 255, 0) 94.23%); // AI 场景背景色顶部
+    --semi-color-ai-background-top-hover: linear-gradient(201.15deg, rgba(83, 56, 255, 0.24) 6.58%, rgba(176, 48, 240, 0.144) 32.88%, rgba(231, 45, 255, 0.072) 59.17%, rgba(255, 255, 255, 0) 94.23%); // AI 场景背景色顶部 - 悬浮态
+    --semi-color-ai-background-top-hover: linear-gradient(201.15deg, rgba(83, 56, 255, 0.32) 6.58%, rgba(176, 48, 240, 0.192) 32.88%, rgba(231, 45, 255, 0.096) 59.17%, rgba(255, 255, 255, 0) 94.23%);// AI 场景背景色顶部 - 激活态
+}
+
+body[theme-mode="dark"], body .semi-always-dark, :host([theme-mode="dark"]), :host .semi-always-dark {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    --semi-color-white: rgba(228, 231, 245, 1);
+    --semi-color-black: rgba(var(--semi-black), 1);
+    --semi-color-primary: rgba(var(--semi-blue-5), 1);
+    --semi-color-primary-hover: rgba(var(--semi-blue-6), 1);
+    --semi-color-primary-active: rgba(var(--semi-blue-7), 1);
+    --semi-color-primary-disabled: rgba(var(--semi-blue-2), 1);
+    --semi-color-primary-light-default: rgba(var(--semi-blue-5), .2);
+    --semi-color-primary-light-hover: rgba(var(--semi-blue-5), .3);
+    --semi-color-primary-light-active: rgba(var(--semi-blue-5), .4);
+    --semi-color-secondary: rgba(var(--semi-light-blue-5), 1);
+    --semi-color-secondary-hover: rgba(var(--semi-light-blue-6), 1);
+    --semi-color-secondary-active: rgba(var(--semi-light-blue-7), 1);
+    --semi-color-secondary-disabled: rgba(var(--semi-light-blue-2), 1);
+    --semi-color-secondary-light-default: rgba(var(--semi-light-blue-5), .2);
+    --semi-color-secondary-light-hover: rgba(var(--semi-light-blue-5), .3);
+    --semi-color-secondary-light-active: rgba(var(--semi-light-blue-5), .4);
+    --semi-color-tertiary: rgba(var(--semi-grey-5), 1);
+    --semi-color-tertiary-hover: rgba(var(--semi-grey-6), 1);
+    --semi-color-tertiary-active: rgba(var(--semi-grey-7), 1);
+    --semi-color-tertiary-light-default: rgba(var(--semi-grey-5), .2);
+    --semi-color-tertiary-light-hover: rgba(var(--semi-grey-5), .3);
+    --semi-color-tertiary-light-active: rgba(var(--semi-grey-5), .4);
+    --semi-color-default: rgba(var(--semi-grey-0), 1);
+    --semi-color-default-hover: rgba(var(--semi-grey-1), 1);
+    --semi-color-default-active: rgba(var(--semi-grey-2), 1);
+    --semi-color-info: rgba(var(--semi-blue-5), 1);
+    --semi-color-info-hover: rgba(var(--semi-blue-6), 1);
+    --semi-color-info-active: rgba(var(--semi-blue-7), 1);
+    --semi-color-info-disabled: rgba(var(--semi-blue-2), 1);
+    --semi-color-info-light-default: rgba(var(--semi-blue-5), .2);
+    --semi-color-info-light-hover: rgba(var(--semi-blue-5), .3);
+    --semi-color-info-light-active: rgba(var(--semi-blue-5), .4);
+    --semi-color-success: rgba(var(--semi-green-5), 1);
+    --semi-color-success-hover: rgba(var(--semi-green-6), 1);
+    --semi-color-success-active: rgba(var(--semi-green-7), 1);
+    --semi-color-success-disabled: rgba(var(--semi-green-2), 1);
+    --semi-color-success-light-default: rgba(var(--semi-green-5), .2);
+    --semi-color-success-light-hover: rgba(var(--semi-green-5), .3);
+    --semi-color-success-light-active: rgba(var(--semi-green-5), .4);
+    --semi-color-danger: rgba(var(--semi-red-5), 1);
+    --semi-color-danger-hover: rgba(var(--semi-red-6), 1);
+    --semi-color-danger-active: rgba(var(--semi-red-7), 1);
+    --semi-color-danger-light-default: rgba(var(--semi-red-5), .2);
+    --semi-color-danger-light-hover: rgba(var(--semi-red-5), .3);
+    --semi-color-danger-light-active: rgba(var(--semi-red-5), .4);
+    --semi-color-warning: rgba(var(--semi-orange-5), 1);
+    --semi-color-warning-hover: rgba(var(--semi-orange-6), 1);
+    --semi-color-warning-active: rgba(var(--semi-orange-7), 1);
+    --semi-color-warning-light-default: rgba(var(--semi-orange-5), .2);
+    --semi-color-warning-light-hover: rgba(var(--semi-orange-5), .3);
+    --semi-color-warning-light-active: rgba(var(--semi-orange-5), .4);
+    --semi-color-focus-border: rgba(var(--semi-blue-5), 1);
+    --semi-color-disabled-text: rgba(var(--semi-grey-9), .35);
+    --semi-color-disabled-border: rgba(var(--semi-grey-1), 1);
+    --semi-color-disabled-bg: rgba(var(--semi-grey-1), 1);
+    --semi-color-disabled-fill: rgba(var(--semi-grey-8), .04);
+    --semi-color-link: rgba(var(--semi-blue-5), 1);
+    --semi-color-link-hover: rgba(var(--semi-blue-6), 1);
+    --semi-color-link-active: rgba(var(--semi-blue-7), 1);
+    --semi-color-link-visited: rgba(var(--semi-blue-5), 1);
+    --semi-color-nav-bg: rgba(35, 36, 41, 1);
+    --semi-shadow-elevated: inset 0 0 0 1px rgba(255, 255, 255, .1), 0 4px 14px rgba(0, 0, 0, .25);
+    --semi-color-overlay-bg: rgba(22, 22, 26, .6);
+    --semi-color-fill-0: rgba(var(--semi-white), .12);
+    --semi-color-fill-1: rgba(var(--semi-white), .16);
+    --semi-color-fill-2: rgba(var(--semi-white), .20);
+    --semi-color-border: rgba(var(--semi-white), .08);
+    --semi-color-shadow: rgba(var(--semi-black), .04);
+    --semi-color-bg-0: rgba(22, 22, 26, 1);
+    --semi-color-bg-1: rgba(35, 36, 41, 1);
+    --semi-color-bg-2: rgba(53, 54, 60, 1);
+    --semi-color-bg-3: rgba(67, 68, 74, 1);
+    --semi-color-bg-4: rgba(79, 81, 89, 1);
+    --semi-color-text-0: rgba(var(--semi-grey-9), 1);
+    --semi-color-text-1: rgba(var(--semi-grey-9), .8);
+    --semi-color-text-2: rgba(var(--semi-grey-9), .6);
+    --semi-color-text-3: rgba(var(--semi-grey-9), .35);
+    --semi-border-radius-extra-small: 3px;
+    --semi-border-radius-small: 3px;
+    --semi-border-radius-medium: 6px;
+    --semi-border-radius-large: 12px;
+    --semi-border-radius-circle: 50%;
+    --semi-border-radius-full: 9999px;
+    --semi-color-highlight-bg: rgba(var(--semi-yellow-2), 1); // 高亮文本背景色
+    --semi-color-highlight: rgba(var(--semi-white), 1); // 高亮文本色
+    --semi-color-data-0: rgba(94, 109, 194, 1); //vchart 数据色板颜色 - 0
+    --semi-color-data-1: rgba(8, 104, 120, 1); //vchart 数据色板颜色 - 1
+    --semi-color-data-2: rgba(250, 173, 63, 1); //vchart 数据色板颜色 - 2
+    --semi-color-data-3: rgba(76, 43, 156, 1); //vchart 数据色板颜色 - 3
+    --semi-color-data-4: rgba(16, 125, 248, 1); //vchart 数据色板颜色 - 4
+    --semi-color-data-5: rgba(248, 202, 16, 1); //vchart 数据色板颜色 - 5
+    --semi-color-data-6: rgba(195, 30, 87, 1); //vchart 数据色板颜色 - 6
+    --semi-color-data-7: rgba(5, 119, 115, 1); //vchart 数据色板颜色 - 7
+    --semi-color-data-8: rgba(154, 207, 13, 1); //vchart 数据色板颜色 - 8
+    --semi-color-data-9: rgba(117, 29, 138, 1); //vchart 数据色板颜色 - 9
+    --semi-color-data-10: rgba(16, 162, 180, 1); //vchart 数据色板颜色 - 10
+    --semi-color-data-11: rgba(208, 110, 11, 1); //vchart 数据色板颜色 - 11
+    --semi-color-data-12: rgba(113, 66, 197, 1); //vchart 数据色板颜色 - 12
+    --semi-color-data-13: rgba(7, 100, 212, 1); //vchart 数据色板颜色 - 13
+    --semi-color-data-14: rgba(251, 232, 110, 1); //vchart 数据色板颜色 - 14
+    --semi-color-data-15: rgba(160, 19, 73, 1); //vchart 数据色板颜色 - 15
+    --semi-color-data-16: rgba(11, 179, 167, 1); //vchart 数据色板颜色 - 16
+    --semi-color-data-17: rgba(98, 138, 6, 1); //vchart 数据色板颜色 - 17
+    --semi-color-data-18: rgba(162, 48, 179, 1); //vchart 数据色板颜色 - 18
+    --semi-color-data-19: rgba(40, 51, 138, 1); //vchart 数据色板颜色 - 19
+   
+    // ai-related
+    --semi-color-ai-general: var(--semi-ai-general-5); // AI 场景颜色
+    --semi-color-ai-general-hover: var(--semi-ai-general-6); // AI 场景颜色 - 悬浮态
+    --semi-color-ai-general-active: var(--semi-ai-general-7); // AI 场景颜色 - 激活态
+    --semi-color-ai-general-disabled: var(--semi-ai-general-2); // AI 场景颜色 - 禁用态
+
+    --semi-color-ai-purple: rgba(var(--semi-ai-purple-5)); // AI 次要场景颜色
+    --semi-color-ai-purple-hover: rgba(var(--semi-ai-purple-6)); // AI 次要场景颜色 - 悬浮态
+    --semi-color-ai-purple-active: rgba(var(--semi-ai-purple-7)); // AI 次要场景颜色 - 激活态
+    --semi-color-ai-purple-disabled: rgba(var(--semi-ai-purple-2)); // AI 次要场景颜色 - 禁用态
+
+    --semi-color-ai-background-bottom: linear-gradient(201.15deg, rgba(255, 226, 138, 0.2) 6.58%, rgba(231, 45, 255, 0.2) 50.4%, rgba(0, 115, 255, 0.2) 94.23%); // AI 场景背景色底部
+    --semi-color-ai-background-bottom-hover: linear-gradient(201.15deg, rgba(255, 226, 138, 0.3) 6.58%, rgba(231, 45, 255, 0.3) 50.4%, rgba(0, 115, 255, 0.3) 94.23%); // AI 场景背景色底部 - 悬浮态
+    --semi-color-ai-background-bottom-active: linear-gradient(201.15deg, rgba(255, 226, 138, 0.4) 6.58%, rgba(231, 45, 255, 0.4) 50.4%, rgba(0, 115, 255, 0.4) 94.23%); // AI 场景背景色底部 - 激活态
+
+    --semi-color-ai-background-top: linear-gradient(201.15deg, rgba(83, 56, 255, 0.36) 6.58%, rgba(176, 48, 240, 0.216) 32.88%, rgba(154, 0, 174, 0.108) 59.17%, rgba(0, 0, 0, 0) 94.23%); // AI 场景背景色顶部
+    --semi-color-ai-background-top-hover: linear-gradient(201.15deg, rgba(83, 56, 255, 0.54) 6.58%, rgba(176, 48, 240, 0.324) 32.88%, rgba(154, 0, 174, 0.162) 59.17%, rgba(0, 0, 0, 0) 94.23%); // AI 场景背景色顶部 - 悬浮态
+    --semi-color-ai-background-top-hover: linear-gradient(201.15deg, rgba(83, 56, 255, 0.72) 6.58%, rgba(176, 48, 240, 0.432) 32.88%, rgba(154, 0, 174, 0.216) 59.17%, rgba(0, 0, 0, 0) 94.23%); // AI 场景背景色顶部 - 激活态
+
+}

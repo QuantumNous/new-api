@@ -1,0 +1,355 @@
+@import './animation.scss';
+@import './variables.scss';
+
+
+$module: #{$prefix}-sidesheet;
+
+.#{$module} {
+    @include font-size-regular;
+    position: fixed;
+    margin: $spacing-sideSheet-margin;
+    top: 0;
+    left: 0;
+    height: 100%;
+
+    &-inner:focus,
+    &-content:focus {
+        outline: none;
+    }
+
+    &-inner-wrap {
+        position: absolute;
+    }
+
+    &-left,
+    &-right {
+        top: 0;
+        width: 0%;
+        height: 100%;
+
+        .#{$module}-inner-wrap {
+            height: 100%;
+        }
+
+        &.#{$module} {
+            width: 100%;
+        }
+    }
+
+    &-right {
+        right: 0;
+
+        .#{$module}-inner-wrap {
+            right: 0;
+        }
+    }
+
+    &-top,
+    &-bottom {
+        left: 0;
+        width: 100%;
+        height: 0%;
+
+        .#{$module}-inner-wrap {
+            width: 100%;
+        }
+
+        &.#{$module} {
+            height: 100%;
+        }
+    }
+
+    &-top {
+        top: 0;
+    }
+
+    &-bottom {
+        bottom: 0;
+
+        .#{$module}-inner-wrap {
+            bottom: 0;
+        }
+    }
+
+    &-title {
+        flex: 1 0 auto;
+        margin: $spacing-sideSheet_title-margin;
+        @include font-size-header-5;
+        font-weight: $font-sideSheet_title-fontWeight;
+        font-size: $font-sideSheet_title-fontSize;
+        color: $color-sideSheet_main-text;
+        text-align: left;
+    }
+
+    &-inner {
+        // position: relative;
+        z-index: 1;
+        overflow: auto;
+        background-color: $color-sideSheet-bg;
+        backdrop-filter: $filter-sideSheet-bg;
+        // background-clip: padding-box;
+        border: 0;
+    }
+
+    &-header {
+        display: flex;
+        align-items: flex-start;
+        padding: $spacing-sideSheet_header-padding;
+        padding-bottom: $spacing-sideSheet_header-paddingBottom;
+        border-bottom: $width-sideSheet_header-borderBottom solid $color-sideSheet_header-borderBottom;
+    }
+
+    &-body {
+        padding: $spacing-sideSheet_body-paddingY $spacing-sideSheet_body-paddingX;
+        flex: 1;
+        overflow: auto;
+    }
+
+    &-size-small {
+        width: $width-sideSheet_size-small;
+    }
+
+    &-size-medium {
+        width: $width-sideSheet_size-medium;
+    }
+
+    &-size-large {
+        width: $width-sideSheet_size-large;
+    }
+
+    &-size-small.#{$module} {
+        width: $width-sideSheet_size-small;
+    }
+
+    &-size-medium.#{$module} {
+        width: $width-sideSheet_size-medium;
+    }
+
+    &-size-large.#{$module} {
+        width: $width-sideSheet_size-large;
+    }
+
+
+
+    &-content {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        overflow: hidden;
+        // padding: 0 $spacing-loose;
+    }
+
+    &-mask {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: $color-sideSheet_mask-bg;
+        backdrop-filter: $filter-sideSheet_mask-bg;
+        opacity: 1;
+        &-hidden {
+            opacity: 0;
+            display: none;
+        }
+    }
+
+    &-footer {
+        padding: $spacing-sideSheet_footer-padding;
+    }
+
+    @keyframes #{$module}-slideShow_top {
+        from {
+            transform: translateY(-100%);
+        }
+        to {
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes #{$module}-slideHide_top {
+        from {
+            transform: translateY(0);
+        }
+        to {
+            transform: translateY(-100%);
+        }
+    }
+
+    @keyframes #{$module}-slideShow_bottom {
+        from {
+            transform: translateY(100%);
+        }
+        to {
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes #{$module}-slideHide_bottom {
+        from {
+            transform: translateY(0);
+        }
+        to {
+            transform: translateY(100%);
+        }
+    }
+
+    @keyframes #{$module}-slideShow_left {
+        from {
+            transform: translateX(-100%);
+        }
+        to {
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes #{$module}-slideHide_left {
+        from {
+            transform: translateX(0);
+        }
+        to {
+            transform: translateX(-100%);
+        }
+    }
+
+    @keyframes #{$module}-slideShow_right {
+        from {
+            transform: translateX(100%);
+        }
+        to {
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes #{$module}-slideHide_right {
+        from {
+            transform: translateX(0);
+        }
+        to {
+            transform: translateX(100%);
+        }
+    }
+
+    @keyframes #{$module}-opacityShow {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes #{$module}-opacityHide {
+        from {
+            opacity: 1;
+        }
+
+        to {
+            opacity: 0;
+        }
+    }
+
+
+    &-animation-content_show_top{
+        animation: #{$module}-slideShow_top $animation_duration-sideSheet_inner-show $animation_function-sideSheet_inner-show $animation_delay-sideSheet_inner-show;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_hide_top{
+        animation: #{$module}-slideHide_top $animation_duration-sideSheet_inner-hide $animation_function-sideSheet_inner-hide $animation_delay-sideSheet_inner-hide;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_show_bottom{
+        animation: #{$module}-slideShow_bottom $animation_duration-sideSheet_inner-show $animation_function-sideSheet_inner-show $animation_delay-sideSheet_inner-show;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_hide_bottom{
+        animation: #{$module}-slideHide_bottom $animation_duration-sideSheet_inner-hide $animation_function-sideSheet_inner-hide $animation_delay-sideSheet_inner-hide;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_show_left{
+        animation: #{$module}-slideShow_left $animation_duration-sideSheet_inner-show $animation_function-sideSheet_inner-show $animation_delay-sideSheet_inner-show;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_hide_left{
+        animation: #{$module}-slideHide_left $animation_duration-sideSheet_inner-hide $animation_function-sideSheet_inner-hide $animation_delay-sideSheet_inner-hide;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_show_right{
+        animation: #{$module}-slideShow_right $animation_duration-sideSheet_inner-show $animation_function-sideSheet_inner-show $animation_delay-sideSheet_inner-show;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-content_hide_right{
+        animation: #{$module}-slideHide_right $animation_duration-sideSheet_inner-hide $animation_function-sideSheet_inner-hide $animation_delay-sideSheet_inner-hide;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-mask_show{
+        animation: #{$module}-opacityShow $animation_duration-sideSheet_mask-show $animation_function-sideSheet_mask-show $animation_delay-sideSheet_mask-show;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-mask_hide{
+        animation: #{$module}-opacityHide $animation_duration-sideSheet_mask-hide $animation_function-sideSheet_mask-hide $animation_delay-sideSheet_mask-hide;
+        animation-fill-mode: forwards;
+    }
+
+}
+
+.#{$module}-fixed {
+    .#{$module}-inner {
+        box-shadow: var(--semi-shadow-elevated);
+    }
+
+    &.#{$module}-left {
+        left: 0;
+        // width will inject by js
+        .#{$module}-inner {
+            left: 0;
+        }
+    }
+
+    &.#{$module}-right {
+        left: auto;
+        // width will inject by js
+        .#{$module}-inner {
+            right: 0;
+        }
+    }
+
+    &.#{$module}-top,
+    &.#{$module}-bottom {
+        height: auto;
+    }
+
+    &.#{$module}-bottom {
+        top: auto;
+
+        .#{$module}-inner {
+            bottom: 0;
+        }
+    }
+
+}
+
+.#{$module}.#{$module}-popup {
+    position: absolute;
+}
+.#{$module}-hidden {
+    display: none;
+}
+
+
+
+
+
+
+@import './rtl.scss';

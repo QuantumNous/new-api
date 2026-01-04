@@ -1,0 +1,146 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-card;
+
+.#{$module} {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-radius: $radius-card;
+    overflow: hidden;
+    background-color: $color-card-bg-default;
+    font-size: $font-card_default-fontSize;
+    font-style: normal;
+    font-weight: $font-card_default-fontWeight;
+    line-height: $font-card_default-lineHeight;
+    letter-spacing: 0em;
+
+    &-shadows {
+        cursor: pointer;
+        transition: box-shadow $motion-card-transition_duration;
+        
+        &-hover {
+            &:hover {
+                box-shadow: $shadow-card;
+                z-index: $z-card_hover; // 避免网格型卡片组shadow覆盖
+            }
+        }
+        
+        &-always {
+            box-shadow: $shadow-card;
+        }
+    }
+
+    &-bordered {
+        border: $width-card-border solid $color-card-border;
+    }
+
+    &-header {
+        padding: $spacing-card-padding;
+
+        &-bordered {
+            border-bottom: $width-card-border solid $color-card-border;
+        }
+
+        &-wrapper {
+            display: flex;
+            align-items: flex-start;
+            flex-direction: row-reverse;
+            justify-content: space-between;
+
+            &-spacing {
+                margin-right: $spacing-card-margin;
+            }
+
+            &-title {
+                width: 100%;
+                overflow: hidden;
+            }
+
+            &-extra {
+                flex-shrink: 0;
+                font-size: $font-card_extra-fontSize;
+                font-style: normal;
+                font-weight: $font-card_extra-fontWeight;
+                letter-spacing: 0em;
+                color: $color-card_extra-text;
+            }
+        }
+    }
+
+    &-cover {
+        > * {
+            display: block;
+            width: 100%;
+        }
+    }
+
+    &-body {
+        padding: $spacing-card-padding;
+        font-size: $font-card_default-fontSize;
+        font-style: normal;
+        font-weight: $font-card_default-fontWeight;
+        line-height: $font-card_default-lineHeight;
+        letter-spacing: 0em;
+        color: $color-card_body-text;
+
+        &-actions {
+            margin-top: $spacing-card-margin;
+            padding-top: $spacing-card-padding;
+            border-top: $width-card-border solid $color-card-border;
+        }
+    }
+
+    &-footer {
+        padding: $spacing-card-padding;
+
+        &-bordered {
+            border-top: $width-card-border solid $color-card-border;
+        }
+    }
+
+    &-meta {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+
+        &-avatar {
+            margin-right: $spacing-card_avatar-marginRight;
+        }
+
+        &-wrapper {
+            &-title {
+                font-size: $font-card_title-fontSize;
+                font-style: normal;
+                font-weight: $font-card_title-fontWeight;
+                line-height: $font-card_title-lineHeight;
+                letter-spacing: 0em;
+                color: $color-card_title-text;
+            }
+
+            &-description {
+                font-size: $font-card_default-fontSize;
+                font-style: normal;
+                font-weight: $font-card_default-fontWeight;
+                line-height: $font-card_default-lineHeight;
+                letter-spacing: 0em;
+                color: $color-card_description-text;
+            }
+        }
+    }
+}
+
+.#{$module}-group {
+    &-grid {
+        & .#{$module} {
+            border-radius: 0;
+        }
+        
+        & .#{$prefix}-card {
+            margin-left: $spacing-cardGroup_card-margin;
+            margin-top: $spacing-cardGroup_card-margin;
+        }
+    }
+}
+
+@import "./rtl.scss";

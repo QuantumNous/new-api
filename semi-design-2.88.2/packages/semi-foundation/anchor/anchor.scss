@@ -1,0 +1,133 @@
+@import "./animation.scss";
+@import './variables.scss';
+
+$module: #{$prefix}-anchor;
+
+.#{$module} {
+    @include font-size-regular;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+
+    &-size-small {
+        @include font-size-small;
+    }
+
+    &-slide {
+        position: absolute;
+        left: $spacing-anchor_slide-left;
+        top: $spacing-anchor_slide-top;
+        height: 100%;
+
+        &-muted {
+            display: none;
+        }
+
+        &-bar {
+            display: none;
+            position: absolute;
+            top: 0;
+            width: $width-anchor_slide_default;
+            border-radius: $radius-anchor_slide;
+
+            &-active {
+                display: inline-block;
+            }
+
+            &-default {
+                height: $height-anchor_slide_default + 2 * $spacing-anchor_slide_default-Y;
+            }
+
+            &-small {
+                height: $height-anchor_slide_small + 2 * $spacing-anchor_slide_small-Y;
+            }
+
+            &-primary {
+                background-color: $color-anchor_slide_primary-bg-active;
+            }
+
+            &-tertiary {
+                background-color: $color-anchor_slide_tertiary-bg-active;
+            }
+        }
+
+        &::before {
+            position: absolute;
+            display: block;
+            width: $width-anchor_slide_default;
+            height: 100%;
+            background-color: $color-anchor_slide_default-bg-default;
+            border-radius: $radius-anchor_slide;
+            content: ' ';
+        }
+    }
+
+    &-link {
+
+        &-title {
+            cursor: pointer;
+            color: $color-anchor_title-text-default;
+            padding-top: $spacing-anchor_link_title-paddingTop;
+            padding-bottom: $spacing-anchor_link_title-paddingBottom;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            border-radius: $width-anchor-outline_border_radius;
+            transition: color $transition_duration-anchor_title-text $transition_function-anchor_title-text $transition_delay-anchor_title-text;//锚点选项文字的动效
+            transform: scale($transform_scale-anchor_title-text);
+            background: $color-anchor_title-bg-default;
+            &:hover {
+                color: $color-anchor_title-text-hover;
+            }
+
+            &-active {
+                color: $color-anchor_title-text-active;
+                background: $color-anchor_title-bg-active;
+                &:hover{
+                    color: $color-anchor_title_active-text-hover;
+                }
+
+            }
+
+            &:focus-visible {
+                outline: $width-anchor-outline solid $color-anchor_title-outline-focus;
+                outline-offset: $width-anchor-outlineOffset;
+            }
+
+            &-disabled {
+                color: $color-anchor_title-text-disabled;
+                cursor: not-allowed;
+                &:hover {
+                    color: $color-anchor_title-text-disabled;
+                }
+            }
+        }
+
+        &-tooltip {
+            cursor: pointer;
+            color: $color-anchor_title-text-default !important;
+
+            &-small {
+                @include font-size-small;
+            }
+
+            &:hover {
+                color: $color-anchor_title-text-hover !important;
+            }
+
+            &-active {
+                color: $color-anchor_title-text-active !important;
+            }
+
+            &-disabled {
+                color: $color-anchor_title-text-disabled !important;
+                cursor: not-allowed;
+                &:hover {
+                    color: $color-anchor_title-text-disabled !important;
+                }
+            }
+        }
+    }
+}
+
+@import "./rtl.scss";

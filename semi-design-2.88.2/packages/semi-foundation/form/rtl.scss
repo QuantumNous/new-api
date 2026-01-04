@@ -1,0 +1,89 @@
+$form: #{$prefix}-form;
+$field: #{$prefix}-form-field;
+$group: #{$prefix}-form-field-group;
+$col: #{$form}-col;
+
+$checkboxGroup: #{$prefix}-checkboxGroup;
+$radioGroup: #{$prefix}-radioGroup;
+$switch: #{$prefix}-switch;
+$rating: #{$prefix}-rating;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$form} {
+        direction: rtl;
+
+        &-horizontal {
+            .#{$field} {
+                margin-left: 0;
+                margin-right: 0;
+                padding-right: 0;
+                padding-left: $spacing-form_field_horizontal-paddingRight;
+    
+                &:last-child {
+                    margin-left: $spacing-form_field_horizontal-paddingRight;
+                }
+            }
+    
+            .#{$group} {
+                padding-right: 0;
+                padding-left: $spacing-form_field_group_horizontal-paddingRight;
+            }
+        }
+    
+        &-field-label {
+            padding-right: 0;
+            padding-left: $spacing-form_label-paddingRight;
+    
+            &-with-extra {
+                .#{$field}-label-extra {
+                    margin-left: 0;
+                    margin-right: $spacing-form_label_extra-marginLeft;
+                }
+            }
+    
+            &-required {
+                .#{$field}-label-text {
+
+                    &::after {
+                        content: "*";
+                        margin-left: 0;
+                        margin-right: $spacing-form_label_required-marginLeft;
+                    }
+                }
+            }
+    
+            &-left {
+                text-align: right;
+            }
+    
+            &-right {
+                text-align: left;
+            }
+        }
+    }
+    
+    .#{$field} {
+        direction: rtl;
+
+        &[x-label-pos="left"] {
+            .#{$field}-label {
+                margin-right: 0;
+                margin-left: $spacing-form_label_posLeft-marginRight;
+            }
+        }
+    }
+    
+    .#{$field} {
+
+        &-validate-status-icon {
+            margin-right: 0;
+            margin-left: $spacing-form_statusIcon-marginRight;
+        }
+    }
+    
+    // section
+    .#{$form}-section {
+        direction: rtl;
+    }
+}

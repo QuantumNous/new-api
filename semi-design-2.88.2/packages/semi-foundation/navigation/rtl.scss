@@ -1,0 +1,132 @@
+$module: #{$prefix}-navigation;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        border-right: 0;
+        border-left: $width-navigation_border solid $color-navigation_border-default;
+        transition: $motion-navigation_padding_rtl, $motion-navigation_width;
+
+        &-collapsed {
+            transition: $motion-navigation_padding_rtl, $motion-navigation_width;
+        }
+
+        &-item-icon:first-child {
+            margin-right: 0;
+            margin-left: $width-navigation_icon_text_between;
+        }
+
+        &-item-icon:last-child {
+            margin-left: 0;
+            margin-right: auto;
+        }
+
+        &-sub {
+            .#{$module}-item {
+
+                & > &-text:first-child {
+                    margin-left: auto;
+                    margin-right: $spacing-base-tight + $width-navigation_icon_left + $width-navigation_icon_text_between;
+                }
+
+                & > .#{$module}-item-icon:first-child {
+                    margin-right: $width-navigation_icon_text_between;
+                }
+            }
+        }
+    }
+
+    .#{$module} {
+
+        &-header {
+            display: inline-flex;
+            align-items: center;
+            box-sizing: border-box;
+
+            &-logo {
+                margin-left: $spacing-navigation_header_logo-marginRight;
+                margin-right: $spacing-navigation_header_logo-marginLeft;
+                display: inline-flex;
+            }
+        }
+    }
+
+    .#{$module}-collapsed {
+        direction: rtl;
+
+        .#{$module}-header {
+            .#{$module}-header {
+
+                &-logo {
+                    margin-right: auto;
+                    margin-left: 0;
+                }
+            }
+        }
+    }
+
+    // 垂直模式特有的样式
+    .#{$module}-vertical {
+        direction: rtl;
+
+        .#{$module}-header {
+            padding-right: $spacing-navigation_vertical_nav_header-paddingLeft;
+            padding-left: $spacing-navigation_vertical_nav_header-paddingRight;
+
+            &-collapsed {
+                padding-right: $spacing-navigation_vertical_nav_header_collapsed-paddingLeft;
+                padding-left: $spacing-navigation_vertical_nav_header_collapsed-paddingRight;
+                transition: $motion-navigation_padding_rtl, $motion-navigation_width;
+            }
+        }
+
+        .#{$module}-footer {
+            .#{$module}-collapse-btn {
+                .#{$prefix}-button-content-right {
+                    margin-left: auto;
+                    margin-right: $spacing-navigation_vertical_footer_semi_button_content_right-marginLeft;
+                    transition: $motion-navigation_collapsed_opacity;
+                }
+            }
+        }
+    }
+
+    // 水平模式特有的样式
+    .#{$module}-horizontal {
+        direction: rtl;
+
+        border-right: auto;
+        border-left: none;
+        padding-left: $spacing-navigation_horizontal-paddingRight;
+        padding-right: $spacing-navigation_horizontal-paddingLeft;
+
+        .#{$module}-header {
+            margin-right: auto;
+            margin-left: $spacing-navigation_horizontal_header_logo-marginRight;
+        }
+
+        .#{$module}-list {
+            .#{$module}-item:not(:last-of-type) {
+                margin-right: auto;
+                margin-left: $spacing-navigation_horizontal_nav_list_item_not_last-marginRight;
+            }
+        }
+
+        .#{$module}-item-icon:last-child {
+            margin-left: auto;
+            margin-right: $spacing-navigation_horizontal_icon_last-marginLeft;
+        }
+
+        .#{$module}-item-icon:first-child {
+            margin-right: auto;
+            margin-left: $spacing-navigation_horizontal_icon_first-marginRight;
+        }
+
+        .#{$module}-footer {
+            padding-right: auto;
+            padding-left: 0;
+        }
+    }
+}

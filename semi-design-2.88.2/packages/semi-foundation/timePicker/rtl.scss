@@ -1,0 +1,30 @@
+$module: #{$prefix}-timepicker;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-panel {
+            direction: rtl;
+        }
+
+        &-range {
+            direction: rtl;
+
+            &-panel {
+                .#{$module}-lists {
+                    & > .#{$prefix}-scrolllist:not(:last-child) {
+                        .#{$prefix}-scrolllist {
+
+                            &-body {
+                                border-right: 0;
+                                border-left: $width-timePicker_range_panel_scrolllist_body-border solid $color-timePicker_range_picker_panel_split-border;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

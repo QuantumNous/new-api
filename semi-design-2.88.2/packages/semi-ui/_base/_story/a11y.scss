@@ -1,0 +1,48 @@
+body[data-page="a11y"] {
+    overflow: hidden;
+
+    #storybook-root {
+        padding: 0 !important;
+
+        .semi-slider {
+            padding: 0;
+        }
+
+        .rows-container > .semi-row {
+            margin-bottom: 24px;
+        }
+
+        .mt12 {
+            margin-top: 12px;
+        }
+
+        .mb12 {
+            margin-bottom: 12px;
+        }
+    }
+    
+    .grid {
+        .semi-row,
+        .semi-row-flex {
+            text-align: center;
+    
+            .semi-col {
+                min-height: 30px;
+                line-height: 30px;
+                background: var(--semi-color-primary-light-default);
+                outline: 1px solid var(--semi-color-primary-light-active);
+            }
+        }
+    
+        &.grid-gutter {
+    
+            .semi-col {
+    
+                .gutter-box,
+                .col-content {
+                    background: var(--semi-color-primary-light-hover);
+                }
+            }
+        }
+    }
+}

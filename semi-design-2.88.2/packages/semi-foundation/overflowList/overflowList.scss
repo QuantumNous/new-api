@@ -1,0 +1,20 @@
+$module: #{$prefix}-overflow-list;
+
+.#{$module} {
+    display: flex;
+    flex-wrap: nowrap;
+    min-width: 0;
+    &-spacer {
+        flex-shrink: 1;
+        width: 1px;
+    }
+
+    &-scroll-wrapper {
+        display: flex;
+        flex: 1;
+        flex-wrap: nowrap;
+        overflow-x: scroll;
+    }
+}
+
+@import './rtl.scss';

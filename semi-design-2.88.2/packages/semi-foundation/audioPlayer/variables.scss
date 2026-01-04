@@ -1,0 +1,55 @@
+$color-audio-player-background: rgba(var(--semi-grey-9), .8);
+$color-audio-player-control-icon: var(--semi-color-bg-0);
+$color-audio-player-control-icon-play: var(--semi-color-text-0);
+$color-audio-player-font-color: var(--semi-color-bg-0);
+$color-audio-player-font-color-speed: rgba(var(--semi-grey-8), 1);
+
+
+$color-audio-player-background-light: var(--semi-color-bg-0);
+$color-audio-player-control-icon-light: rgba(var(--semi-grey-9), 1);
+$color-audio-player-control-icon-play-light: var(--semi-color-bg-0);
+$color-audio-player-font-color-light: rgba(var(--semi-grey-9), 1);
+
+$font-size-audio-player-text: 14px;
+
+$gap-audio-player-small: 4px;
+$gap-audio-player-medium: 16px;
+$gap-audio-player-large: 24px;
+
+// Size variables
+$width-audio-player-max: 1440px;
+$height-audio-player: 78px;
+$width-audio-player-slider: 323px;
+$width-audio-player-speed: 40px;
+$height-audio-player-speed: 24px;
+$width-audio-player-speed-menu: 65px;
+$width-audio-player-volume: 43px;
+$height-audio-player-volume: 164px;
+$height-audio-player-time: 22px;
+
+// Border radius
+$border-radius-audio-player-speed: 3px;
+$border-radius-audio-player-volume: 4px;
+$border-radius-audio-player-slider: 9999px;
+
+// Font sizes
+$font-size-audio-player-small: 12px;
+$line-height-audio-player-small: 16px;
+
+// Slider dimensions
+$width-audio-player-slider-bar: 4px;
+$size-audio-player-slider-dot: 16px;
+
+// Colors
+$color-audio-player-disabled-bg: rgba(var(--semi-grey-0), .35);
+$color-audio-player-slider-bg: rgba(var(--semi-grey-5), 1);
+$color-audio-player-slider-bg-light: rgba(var(--semi-grey-2), 1);
+$color-audio-player-slider-progress: rgba(var(--semi-blue-4), 1);
+$color-audio-player-slider-dot-bg: rgba(var(--semi-white), 1);
+
+$color-audio-player-disabled-text: var(--semi-color-grey-7);
+$color-audio-player-text-default: var(--semi-color-default);
+$color-audio-player-light-disabled-bg: var(--semi-color-disabled-text);
+$color-audio-player-light-disabled-text: rgba(var(--semi-white), 1);
+$color-audio-player-light-text: rgba(var(--semi-grey-9), 1);
+$color-audio-player-light-hover-bg: rgba(var(--semi-grey-1), 1);

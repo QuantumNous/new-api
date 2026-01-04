@@ -1,0 +1,373 @@
+@import "./animation.scss";
+@import './variables.scss';
+
+$module: #{$prefix}-notification;
+
+.#{$module}-wrapper {
+    position: fixed;
+}
+
+.#{$module}-list {
+    position: fixed;
+    box-sizing: border-box;
+    margin: $spacing-notification_list-margin;
+    padding: $spacing-notification_list-padding;
+    z-index: $z-notification;
+    pointer-events: none;
+
+    &[placement='topRight'] {
+        right: 0;
+        top: 0;
+    }
+
+    &[placement='top'] {
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    &[placement='topLeft'] {
+        left: 0;
+        top: 0;
+    }
+
+    &[placement='bottom'] {
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    &[placement='bottomRight'] {
+        bottom: 0;
+        right: 0;
+    }
+
+    &[placement='bottomLeft'] {
+        bottom: 0;
+        left: 0;
+    }
+
+}
+
+.#{$module} {
+    &-notice {
+        @include shadow-elevated;
+        border-radius: $radius-notification_notice;
+        padding-top: $spacing-notification_notice-paddingTop;
+        padding-right: $spacing-notification_notice-paddingRight;
+        padding-bottom: $spacing-notification_notice-paddingBottom;
+        padding-left: $spacing-notification_notice-paddingLeft;
+        margin: $spacing-notification_notice-margin;
+        width: $width-notification_notice;
+        min-width: $width-notification_notice_minWidth;
+        background-color: $color-notification-bg-default;
+        position: relative;
+        display: flex;
+        pointer-events: auto;
+
+        &-icon {
+            width: $width-notification_notice-icon;
+            @include font-size-header-6;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            height: 100%;
+            margin-right: $spacing-notification_notice_icon-marginRight;
+        }
+
+        &-info {
+            color: $color-notification_info-icon;
+        }
+
+        &-warning {
+            color: $color-notification_warning-icon;
+        }
+
+        &-error {
+            color: $color-notification_danger-icon;
+        }
+
+        &-success {
+            color: $color-notification_success-icon;
+        }
+
+        &-light {
+            &.#{$module}-notice-warning {
+                background-image: linear-gradient(0deg, $color-notification_warning_light-bg, $color-notification_warning_light-bg);
+                background-color: $color-notification_ambient-bg;
+                border: $width-notification_notice-border solid $color-notification_warning_light-border;
+            }
+
+            &.#{$module}-notice-success {
+                background-image: linear-gradient(0deg, $color-notification_success_light-bg, $color-notification_success_light-bg);
+                background-color: $color-notification_ambient-bg;
+                border: $width-notification_notice-border solid $color-notification_success_light-border;
+            }
+
+            &.#{$module}-notice-info,
+            &.#{$module}-notice-default {
+                background-image: linear-gradient(0deg, $color-notification_info_light-bg, $color-notification_info_light-bg);
+                background-color: $color-notification_ambient-bg;
+                border: $width-notification_notice-border solid $color-notification_info_light-border;
+            }
+
+            &.#{$module}-notice-error {
+                background-image: linear-gradient(0deg, $color-notification_danger_light-bg, $color-notification_danger_light-bg);
+                background-color: $color-notification_ambient-bg;
+                border: $width-notification_notice-border solid $color-notification_danger_light-border;
+            }
+        }
+
+        &-title {
+            @include font-size-header-6;
+            font-weight: $font-notification_notice_title-fontWeight;
+            color: $color-notification_title-text;
+            margin-bottom: $spacing-notification_notice_title-marginBottom;
+            // word-wrap is an alias of overflow-wrap, word-wrap can take effect on more browsers, in order to prevent future changes, use both  
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        &-inner {
+            display: flex;
+            width: 100%;
+            min-width: 0;
+        }
+
+        &-content-wrapper {
+            flex: 1 1 auto;
+            margin-right: $spacing-notification_notice_content_wrapper-marginRight;
+            min-width: 0;
+        }
+
+        &-content {
+            @include font-size-regular;
+            font-weight: $font-notification_notice_content-fontWeight;
+            color: $color-notification_content-text;
+            // padding-top: $spacing-extra-tight;
+            // word-wrap is an alias of overflow-wrap, word-wrap can take effect on more browsers, in order to prevent future changes, use both  
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        &-icon-close {
+            height: $width-icon-extra-large;
+
+            .#{$prefix}-icon-close {
+                color: $color-notification_closeBtn-icon;
+            }
+        }
+
+        &-controls {
+            display: flex;
+
+            @include font-size-regular;
+            cursor: pointer;
+        }
+
+        &-detail {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        &-later {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        @keyframes #{$module}-slideShow_top {
+            from {
+                opacity: $animation_opacity-notification-show;
+                transform: translateY(-100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes #{$module}-slideHide_top {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: $animation_opacity-notification-hide;
+                transform: translateY(-100%);
+            }
+        }
+
+        @keyframes #{$module}-slideShow_topLeft {
+            from {
+                opacity: $animation_opacity-notification-show;
+                transform: translateX(-100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes #{$module}-slideHide_topLeft {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: $animation_opacity-notification-hide;
+                transform: translateX(-100%);
+            }
+        }
+
+        @keyframes #{$module}-slideShow_topRight {
+            from {
+                opacity: $animation_opacity-notification-show;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes #{$module}-slideHide_topRight {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: $animation_opacity-notification-hide;
+                transform: translateX(100%);
+            }
+        }
+
+        @keyframes #{$module}-slideShow_bottom {
+            from {
+                opacity: $animation_opacity-notification-show;
+                transform: translateY(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes #{$module}-slideHide_bottom {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: $animation_opacity-notification-hide;
+                transform: translateY(100%);
+            }
+        }
+
+        @keyframes #{$module}-slideShow_bottomLeft {
+            from {
+                opacity: $animation_opacity-notification-show;
+                transform: translateX(-100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes #{$module}-slideHide_bottomLeft {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: $animation_opacity-notification-hide;
+                transform: translateX(-100%);
+            }
+        }
+
+        @keyframes #{$module}-slideShow_bottomRight {
+            from {
+                opacity: $animation_opacity-notification-show;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes #{$module}-slideHide_bottomRight {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: $animation_opacity-notification-hide;
+                transform: translateX(100%);
+            }
+        }
+
+
+
+        &-animation-show_top{
+            animation: #{$module}-slideShow_top $animation_duration-notification-show $animation_function-notification-show $animation_delay-notification-show;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-hide_top{
+            animation: #{$module}-slideHide_top $animation_duration-notification-hide $animation_function-notification-hide $animation_delay-notification-hide;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-show_topLeft{
+            animation: #{$module}-slideShow_topLeft $animation_duration-notification-show $animation_function-notification-show $animation_delay-notification-show;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-hide_topLeft{
+            animation: #{$module}-slideHide_topLeft $animation_duration-notification-hide $animation_function-notification-hide $animation_delay-notification-hide;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-show_topRight{
+            animation: #{$module}-slideShow_topRight $animation_duration-notification-show $animation_function-notification-show $animation_delay-notification-show;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-hide_topRight{
+            animation: #{$module}-slideHide_topRight $animation_duration-notification-hide $animation_function-notification-hide $animation_delay-notification-hide;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-show_bottom{
+            animation: #{$module}-slideShow_bottom $animation_duration-notification-show $animation_function-notification-show $animation_delay-notification-show;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-hide_bottom{
+            animation: #{$module}-slideHide_bottom $animation_duration-notification-hide $animation_function-notification-hide $animation_delay-notification-hide;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-show_bottomLeft{
+            animation: #{$module}-slideShow_bottomLeft $animation_duration-notification-show $animation_function-notification-show $animation_delay-notification-show;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-hide_bottomLeft{
+            animation: #{$module}-slideHide_bottomLeft $animation_duration-notification-hide $animation_function-notification-hide $animation_delay-notification-hide;
+            animation-fill-mode: forwards;
+        }
+        &-animation-show_bottomRight{
+            animation: #{$module}-slideShow_bottomRight $animation_duration-notification-show $animation_function-notification-show $animation_delay-notification-show;
+            animation-fill-mode: forwards;
+        }
+
+        &-animation-hide_bottomRight{
+            animation: #{$module}-slideHide_bottomRight $animation_duration-notification-hide $animation_function-notification-hide $animation_delay-notification-hide;
+            animation-fill-mode: forwards;
+        }
+    }
+}
+
+@import './rtl.scss';

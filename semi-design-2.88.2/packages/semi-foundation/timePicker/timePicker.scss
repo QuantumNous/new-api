@@ -1,0 +1,143 @@
+@import "./variables.scss";
+$module: #{$prefix}-timepicker;
+$module-list: #{$prefix}-scrolllist;
+
+.#{$module} {
+    display: inline-block;
+
+    &-panel {
+        .#{$module-list}-body {
+            height: $height-timePicker_panel_body;
+
+            .#{$module-list}-item-wheel .#{$module-list}-list-outer-nocycle,
+            .#{$module-list}-item {
+                & > ul {
+                    &:before {
+                        height: ($height-timePicker_panel_body - $height-scrollList_item) * 0.5;
+                    }
+                }
+            }
+
+            .#{$module-list}-item,
+            .#{$module-list}-item-wheel .#{$module-list}-list-outer {
+                -ms-overflow-style: none; /* Internet Explorer 10+ */
+                scrollbar-width: none; /* Firefox */
+
+                &::-webkit-scrollbar {
+                    display: none;
+                    width: 0;
+                    height: 0;
+                }
+
+                & > ul {
+                    padding-bottom: ($height-timePicker_panel_body - $height-scrollList_item) * 0.5;
+                }
+            }
+
+            .#{$module-list}-item {
+                -ms-overflow-style: none; /* Internet Explorer 10+ */
+                scrollbar-width: none; /* Firefox */
+
+                &::-webkit-scrollbar {
+                    display: none;
+                    width: 0;
+                    height: 0;
+                }
+            }
+
+        }
+
+        .#{$module-list}-item,
+        .#{$module-list}-item-wheel {
+            flex: none;
+        }
+        .#{$module-list}-item-wheel,
+        .#{$module-list}-item-wheel:not(:last-child) {
+            border: none;
+        }
+
+        &-list {
+
+            &-ampm {
+                width: $width-timePicker_panel_list_ampm;
+            }
+
+            &-hour {
+                width: $width-timePicker_panel_list_hour;
+            }
+
+            &-minute {
+                width: $width-timePicker_panel_list_minute;
+            }
+
+            &-second {
+                width: $width-timePicker_panel_list_second;
+            }
+        }
+    }
+
+    &-range {
+
+        &-panel {
+            .#{$module}-lists {
+                display: flex;
+                box-shadow: $shadow-timePicker_range_panel;
+                border: $width-timePicker_range_panel-border solid $color-timePicker_range_panel-border;
+                border-radius: $radius-timePicker_range_panel;
+
+                // left
+                .#{$prefix}-scrolllist:first-of-type {
+                    border-radius: $radius-timePicker_range_panel 0 0 $radius-timePicker_range_panel;
+                }
+                // right
+                .#{$prefix}-scrolllist:last-of-type {
+                    border-radius: 0 $radius-timePicker_range_panel $radius-timePicker_range_panel 0;
+                }
+
+                & > .#{$prefix}-scrolllist:not(:last-child) {
+                    .#{$prefix}-scrolllist {
+                        &-body {
+                            border-right: $width-timePicker_range_panel_scrolllist_body-border solid $color-timePicker_range_picker_panel_split-border;
+                        }
+                    }
+                }
+
+                & > .#{$prefix}-scrolllist {
+                    box-shadow: none;
+
+                    .#{$prefix}-scrolllist {
+
+                        &-body,
+                        &-header {
+                            padding: $spacing-timePicker_range_panel_scrolllist_header_body-padding;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .#{$module}-input {
+        @include font-size-regular;
+        border-radius: $radius-timePicker_input;
+        align-items: center;
+    }
+
+    .#{$prefix}-input-readonly {
+        cursor: pointer;
+    }
+}
+
+.#{$module} {
+    .#{$prefix}-input-borderless:not(:focus-within):not(:hover){
+        .#{$prefix}-input {
+            &-suffix {
+                opacity: 0;
+            }
+        }
+    }
+
+}
+
+
+@import "./rtl.scss";

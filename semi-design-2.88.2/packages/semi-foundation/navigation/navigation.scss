@@ -1,0 +1,756 @@
+//@import '../theme/variables.scss';
+@import "./animation.scss";
+@import "./variables.scss";
+@import "./mixin.scss";
+
+$module: #{$prefix}-navigation;
+
+.#{$module} {
+    box-sizing: border-box;
+    display: inline-flex;
+    width: $width-navigation_container_base;
+    outline: none;
+    overflow: hidden;
+    margin: 0;
+    padding-left: $spacing-navigation-paddingX;
+    padding-right: $spacing-navigation-paddingX;
+    user-select: none;
+    transition: $motion-navigation_padding, $motion-navigation_width;
+    border-right: $width-navigation_border solid $color-navigation_border-default;
+    background-color: $color-navigation-bg-default;
+
+    &-inner {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    &-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+
+        // 相同父级合并过来
+        & > .#{$module}-item-normal {
+            height: $height-navigation_item_base;
+        }
+
+        // list下item的font-weight应该是bold
+        & > .#{$module}-item {
+            font-weight: $font-navigation_item-fontWeight;
+
+            & > .#{$module}-sub-title {
+                font-weight: $font-navigation_sub_title-fontWeight;
+            }
+        }
+    }
+
+    &-collapsed {
+        width: $width-navigation_container_collapsed;
+
+        padding-left: $spacing-navigation_collapsed-paddingX;
+        padding-right: $spacing-navigation_collapsed-paddingX;
+
+        transition: $motion-navigation_padding, $motion-navigation_width;
+
+        .#{$module}-item-text {
+            // display: none;
+            transition: $motion-navigation_collapsed_opacity;
+            opacity: 0;
+        }
+
+        .#{$module}-item-icon:last-child {
+            // display: none;
+            transition: $motion-navigation_collapsed_opacity;
+            opacity: 0;
+        }
+
+        &-wrapper {
+            display: flex;
+            width: fit-content;
+            height: fit-content;
+        }
+    }
+
+    // 对于普通item和二级sub-title，都是font-weight normal
+    &-sub-wrap .#{$module}-sub-title,
+    &-item {
+        cursor: pointer;
+        display: flex;
+        border-radius: $width-navigation_item-borderRadius;
+        padding: $spacing-navigation_item-paddingY $spacing-navigation_item-paddingX;
+        box-sizing: border-box;
+        margin-top: 0;
+        margin-bottom: $spacing-navigation_item-marginBottom;
+
+        @include font-size-regular;
+        font-weight: $font-navigation_item_normal-fontWeight;
+        color: $color-navigation_itemL1-text-default;
+        width: 100%;
+
+        transition: background-color $transition_duration-navigation_itemL1-bg $transition_function-navigation_itemL1-bg $transition_delay-navigation_itemL1-bg;//nav item的bg transition
+
+        &-text {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            transition: $motion-navigation_collapsed_opacity;
+            opacity: 1;
+        }
+
+        &-indent {
+            width: $width-navigation_icon_text_between + $width-navigation_icon_left;
+        }
+
+        &:focus-visible {
+            outline: $width-navigation-outline solid $color-navigation_outline-focus;
+            outline-offset: $width-navigation-outlineOffset;
+        }
+    }
+
+    &-header-link,
+    &-item-link {
+        display: flex;
+        width: 100%;
+        color: inherit;
+        text-decoration: none;
+        align-items: center;
+        justify-content: flex-start;
+    }
+
+    // when item has link, add the padding to link instead of item
+    &-item-has-link {
+        padding: 0;
+
+        .#{$module}-item-link {
+            padding: $spacing-navigation_item-paddingY $spacing-navigation_item-paddingX;
+        }
+    }
+
+    &-item-sub {
+        padding: $spacing-navigation_item_sub-padding;
+    }
+
+    &-sub-wrap > &-item-inner {
+        width: 100%;
+    }
+
+    &-sub-wrap &-sub-title {
+        & > .#{$module}-item-inner {
+            display: flex;
+        }
+    }
+
+    &-item-inner {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        flex: 0 0 auto;
+    }
+
+    &-item-title {
+        opacity: 1;
+        transition: $motion-navigation_item_title;
+    }
+
+    .#{$module}-sub-title {
+        margin-bottom: $spacing-navigation_sub_title-marginBottom;
+    }
+
+    &-item-icon {
+        //display: inline-flex;
+        //color: $color-navigation_itemL1_icon-default;
+    }
+
+    &-item-icon-info {
+        display: inline-flex;
+        color: $color-navigation_itemL1_icon-default;
+        margin-right: $width-navigation_icon_text_between;
+        min-width: $width-navigation_icon_left-minWidth;
+        margin-left: 0;
+    }
+
+    &-item-icon-toggle-left {
+        display: inline-flex;
+        color: $color-navigation_itemL1_icon-default;
+        margin-right: $width-navigation_icon_text_between;
+        min-width: $width-navigation_icon_left-minWidth;
+    }
+
+    &-item-icon-toggle-right {
+        display: inline-flex;
+        color: $color-navigation_itemL1_icon-default;
+        margin-left: auto;
+        transition: $motion-navigation_collapsed_opacity;
+        opacity: 1;
+    }
+
+    &-item-selected {
+        @include item-selected;
+
+        &.#{$module}-item-disabled {
+            @include item-disabled-selected;
+        }
+    }
+
+    &-item-disabled {
+        @include item-disabled;
+    }
+
+    &-inner > &-item {
+        color: $color-navigation_itemL1-text-default;
+    }
+
+    &-item-normal:hover {
+        &:not(.#{$module}-item-selected) {
+            @include item-hover;
+        }
+
+        &.#{$module}-item-selected {
+            @include item-hover-selected;
+        }
+
+        &.#{$module}-item-disabled {
+            @include item-disabled;
+        }
+
+        &.#{$module}-item-selected.#{$module}-item-disabled {
+            @include item-disabled-selected;
+        }
+    }
+
+    &-item-normal:active:not(.#{$module}-item-selected),
+    &-inner > &-item-normal:active:not(.#{$module}-item-selected) {
+        @include item-active;
+    }
+
+    &-item-normal:active.#{$module}-item-selected,
+    &-inner > &-item-normal:active.#{$module}-item-selected {
+        @include item-active-selected;
+    }
+
+    &-item-normal:active.#{$module}-item-disabled,
+    &-inner > &-item-normal:active.#{$module}-item-disabled {
+        @include item-disabled;
+    }
+
+    &-sub-wrap &-item-inner {
+        display: block;
+    }
+
+    &-sub-wrap {
+        display: block;
+        padding: $spacing-navigation_sub_wrap-padding;
+        margin-top: $spacing-navigation_sub_wrap-marginTop;
+        // margin-bottom: $spacing-tight;
+        height: inherit;
+
+        .#{$module}-sub-title {
+            display: flex;
+            justify-content: flex-start;
+            height: $height-navigation_item_base;
+            align-items: center;
+        }
+    }
+
+    &-sub {
+        font-weight: $font-navigation_sub-fontWeight;
+        font-size: $font-navigation_sub-fontSize;
+        list-style: none;
+        outline: none;
+        padding: $spacing-navigation_sub-padding;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+
+        .#{$module}-item {
+            color: $color-navigation_itemLn-text-default;
+            background-color: $color-navigation_itemLn-bg-default;
+            //padding-left: 0;
+            //padding-right: 0;
+            // margin: 0;
+            height: $height-navigation_item_base;
+            font-weight: $font-navigation_sub_item-fontWeight;
+            width: 100%;
+
+            &:first-child {
+                margin-top: $spacing-navigation_sub_item_first_child-marginTop;
+            }
+
+            & > &-text:first-child {
+                margin-left: $spacing-base-tight + $width-navigation_icon_left + $width-navigation_icon_text_between;
+            }
+
+            //& > .#{$module}-item-icon:first-child {
+            //    margin-left: $width-navigation_icon_text_between;
+            //}
+
+            &:hover {
+                &:not(.#{$module}-sub-wrap) {
+                    &:not(.#{$module}-item-selected):not(.#{$module}-item-disabled) {
+                        @include item-hover;
+                    }
+                }
+
+                &.#{$module}-item-disabled {
+                    @include item-disabled;
+                }
+
+                &.#{$module}-item-selected {
+                    @include item-selected;
+                }
+            }
+
+            &:active {
+                &:not(.#{$module}-sub-wrap) {
+                    &:not(.#{$module}-item-selected):not(.#{$module}-item-disabled) {
+                        @include item-active;
+                    }
+                }
+
+                &.#{$module}-item-disabled {
+                    @include item-disabled;
+                }
+
+                &.#{$module}-item-selected {
+                    @include item-selected;
+                }
+            }
+
+            &-selected {
+                @include item-selected;
+
+                &.#{$module}-item-disabled {
+                    cursor: not-allowed;
+                    background-color: $color-navigation_itemL1_selected-bg-default;
+                    color: $color-navigation_itemL1_disabled-text-default;
+                }
+            }
+
+            &-disabled {
+                @include item-disabled;
+            }
+        }
+
+
+        .#{$module}-sub-wrap {
+            height: inherit;
+        }
+    }
+
+
+    &-icon-rotate-0{
+        transition: transform 200ms ease-in-out;
+        transform: rotate(0);
+    }
+    &-icon-rotate-180{
+        transition: transform 200ms ease-in-out;
+        transform: rotate(-180deg);
+    }
+
+}
+
+/* Header、Footer-Common */
+.#{$module} {
+
+    &-header {
+        display: inline-flex;
+        align-items: center;
+        box-sizing: border-box;
+
+        &-logo {
+            margin-left: $spacing-navigation_header_logo-marginLeft;
+            margin-right: $spacing-navigation_header_logo-marginRight;
+            display: inline-flex;
+
+            // overflow: hidden;
+
+            & > .#{$prefix}-icon,
+            & > img {
+                width: $width-navigation_header_logo;
+                height: $height-navigation_header_logo;
+                object-fit: scale-down;
+            }
+        }
+
+        &-text {
+            @include font-size-header-5;
+            font-weight: $font-navigation_header_item-fontWeight;
+            display: inline-flex;
+            color: $color-navigation_header-text-default;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            transition: $motion-navigation_collapsed_opacity;
+            opacity: 1;
+        }
+    }
+
+    &-footer {
+        box-sizing: border-box;
+        padding: $spacing-navigation_footer-paddingY $spacing-navigation_footer-paddingX;
+        display: inline-flex;
+        align-items: center;
+
+        .#{$module}-collapse-btn {
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+}
+
+.#{$module}-collapsed {
+    .#{$module}-header {
+        justify-content: center;
+
+        .#{$module}-header {
+
+            &-logo {
+                margin-right: 0;
+                width: 100%;
+
+                & > .#{$prefix}-icon,
+                & > img {
+                    width: $height-navigation_header_logo_collapsed;
+                    max-width: 100%;
+                    max-height: 100%;
+                }
+            }
+
+            &-text {
+                transition: $motion-navigation_collapsed_opacity;
+                opacity: 0;
+            }
+        }
+    }
+}
+
+// 垂直模式特有的样式
+.#{$module}-vertical {
+    .#{$module} {
+        &-list > .#{$module}-item-selected:not(.#{$module}-item-disabled) {
+            &.#{$module}-item-normal:hover {
+                .#{$module}-item-icon:first-child {
+                    color: $color-navigation_itemL1_selected_icon-default;
+                }
+            }
+        }
+
+        &-list > .#{$module}-sub-wrap {
+            & > .#{$module}-sub-title {
+                color: $color-navigation_itemL1-text-default;
+                background-color: $color-navigation_itemL1-bg-default;
+
+                &-selected {
+                    font-weight: $font-navigation_sub_selected-fontWeight;
+                    @include item-selected;
+                    & {
+                        background-color: $color-navigation_itemL1-bg-default;
+                    }
+
+                    &.#{$module}-sub-title-disabled {
+                        @include item-disabled-selected;
+                    }
+                }
+
+                &-disabled {
+                    font-weight: $font-navigation_sub_disabled-fontWeight;
+                    @include item-disabled;
+                }
+
+                &:hover {
+                    &:not(.#{$module}-sub-title-selected) {
+                        @include item-hover;
+                    }
+                    &.#{$module}-sub-title-selected {
+                        @include item-hover-selected;
+                    }
+                }
+
+                &:active {
+                    &:not(.#{$module}-sub-title-selected) {
+                        @include item-active;
+                    }
+                    &.#{$module}-sub-title-selected {
+                        @include item-active-selected;
+                    }
+                }
+
+                &:hover,
+                &:active {
+                    &.#{$module}-sub-title-disabled {
+                        &:not(.#{$module}-sub-title-selected) {
+                            @include item-disabled;
+                        }
+                        &.#{$module}-sub-title-selected {
+                            @include item-disabled-selected;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 兼容 renderWrapper 的场景，详见 issue: https://github.com/DouyinFE/semi-design/issues/2690
+        &-list  .#{$module}-sub-wrap {
+            & > .#{$module}-sub-title {
+
+                &-disabled {
+                    @include item-disabled;
+                }
+
+                &:hover {
+                    &:not(.#{$module}-sub-title-selected) {
+                        @include item-hover;
+                    }
+
+                    &.#{$module}-sub-title-selected {
+                        @include item-hover-selected;
+                    }
+                }
+
+                &:hover {
+                    &.#{$module}-sub-title-disabled {
+                        &:not(.#{$module}-sub-title-selected) {
+                            @include item-disabled;
+                        }
+                        &.#{$module}-sub-title-selected {
+                            @include item-disabled-selected;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .#{$module}-item:last-of-type {
+        margin-bottom: $spacing-navigation_vertical_nav_item_last-marginBottom;
+    }
+
+    .#{$module}-inner {
+        flex-direction: column;
+    }
+
+    .#{$module}-header-list-outer {
+        height: 100%;
+    }
+
+    .#{$module}-list-wrapper {
+        padding-top: $spacing-navigation_list_wrapper-paddingTop;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .#{$module}-header {
+        padding-top: $spacing-navigation_header-paddingTop;
+        padding-bottom: $spacing-navigation_header-paddingBottom;
+        padding-left: $spacing-navigation_vertical_nav_header-paddingLeft;
+        padding-right: $spacing-navigation_vertical_nav_header-paddingRight;
+        width: 100%;
+
+        &-collapsed {
+            padding-left: $spacing-navigation_vertical_nav_header_collapsed-paddingLeft;
+            padding-right: $spacing-navigation_vertical_nav_header_collapsed-paddingRight;
+            transition: $motion-navigation_padding, $motion-navigation_width;
+        }
+    }
+
+    .#{$module}-footer {
+        color: $color-navigation_footer_icon-default;
+        padding-left: $spacing-navigation_vertical_footer-paddingLeft;
+        padding-right: $spacing-navigation_vertical_footer-paddingRight;
+
+        .#{$module}-collapse-btn {
+            .#{$prefix}-button-content-right {
+                margin-left: $spacing-navigation_vertical_footer_semi_button_content_right-marginLeft;
+                opacity: 1;
+                transition: $motion-navigation_collapsed_opacity;
+            }
+
+            & > .#{$prefix}-button {
+                padding-left: $spacing-navigation_footer_collapse_btn_inner-paddingX;
+                padding-right: $spacing-navigation_footer_collapse_btn_inner-paddingX;
+            }
+        }
+
+        &-collapsed {
+            justify-content: center;
+
+            .#{$module}-collapse-btn {
+                width: 100%;
+
+                .#{$prefix}-button-content-right {
+                    opacity: 0;
+                    transition: $motion-navigation_collapsed_opacity;
+                }
+            }
+        }
+    }
+}
+
+// 水平模式特有的样式
+.#{$module}-horizontal {
+    width: 100%;
+    height: $height-navigation_horizontal_header;
+    border-right: none;
+    border-bottom: $width-navigation_border solid $color-navigation_border-default;
+    padding-left: $spacing-navigation_horizontal-paddingLeft;
+    padding-right: $spacing-navigation_horizontal-paddingRight;
+
+    .#{$module}-inner {
+        flex-direction: row;
+    }
+
+    .#{$module}-header-list-outer {
+        display: inline-flex;
+        align-items: center;
+
+        &-collapsed {
+            align-items: baseline;
+        }
+    }
+
+    .#{$module}-header {
+        width: inherit;
+        margin-right: $spacing-navigation_horizontal_header_logo-marginRight;
+    }
+
+    .#{$module}-list {
+        display: inline-flex;
+        align-items: center;
+
+        .#{$module}-item {
+            margin-bottom: $spacing-navigation_horizontal_nav_list_item-marginBottom;
+            @include item-horizontal-default;
+
+            &-selected {
+                @include item-horizontal-selected;
+            }
+
+            &-disabled {
+                @include item-horizontal-disabled;
+            }
+        }
+
+        .#{$module}-item-normal {
+
+            &:hover:not(.#{$module}-item-selected) {
+                @include item-horizontal-hover;
+
+                .#{$module}-item-text {
+                    color: $color-navigation_horizontal_itemL1-text-hover;
+                    background-color: $color-navigation_horizontal_itemL1-bg-hover;
+                }
+            }
+
+            &:active:not(.#{$module}-item-selected) {
+                @include item-horizontal-active;
+            }
+
+            &:hover,
+            &:active {
+                &.#{$module}-item-disabled {
+                    @include item-horizontal-disabled;
+
+                    .#{$module}-item-text {
+                        color: $color-navigation_horizontal_itemL1_disabled-text-default;
+                        background-color: $color-navigation_horizontal_itemL1_disabled-bg-default;
+                    }
+                }
+            }
+        }
+
+        .#{$module}-item:not(:last-of-type) {
+            margin-right: $spacing-navigation_horizontal_nav_list_item_not_last-marginRight;
+        }
+
+        .#{$module}-sub-title {
+            .#{$module}-item-text {
+                color: $color-navigation_horizontal_itemL1-text-default;
+                background-color: $color-navigation_horizontal_itemL1-bg-default;
+            }
+
+            &-selected {
+                .#{$module}-item-icon:first-child,
+                .#{$module}-item-text {
+                    color: $color-navigation_horizontal_itemL1_selected-text-default;
+                    background-color: $color-navigation_horizontal_itemL1_selected-bg-default;
+                }
+            }
+
+            &-disabled {
+                cursor: not-allowed;
+
+                .#{$module}-item-icon:first-child,
+                .#{$module}-item-text {
+                    color: $color-navigation_horizontal_itemL1_disabled-text-default;
+                    background-color: $color-navigation_horizontal_itemL1_disabled-bg-default;
+                }
+            }
+        }
+    }
+
+
+    .#{$module}-item-inner {
+        width: auto;
+    }
+
+    .#{$module}-item-icon:last-child {
+        margin-left: $spacing-navigation_horizontal_icon_last-marginLeft;
+    }
+
+    .#{$module}-item-icon:first-child {
+        margin-right: $spacing-navigation_horizontal_icon_first-marginRight;
+    }
+
+    .#{$module}-item {
+        width: auto;
+
+        &-collapsed {
+            word-wrap: none;
+            text-overflow: ellipsis;
+        }
+    }
+
+    .#{$module}-footer {
+        border-top: none;
+        padding-right: 0;
+
+        &-collapsed {
+            justify-content: center;
+            flex-direction: row;
+            align-items: center;
+        }
+    }
+}
+
+.#{$module}-popover {
+    .#{$module}-sub-title {
+        width: 100%;
+    }
+
+    .#{$module}-item-selected {
+        font-weight: $font-navigation_popover_nav_item_selected-fontWeight;
+    }
+}
+
+.#{$prefix}-dropdown-item {
+    .#{$module}-sub-title {
+        box-sizing: border-box;
+        padding: $spacing-navigation_dropdown_item_nav_sub_title-paddingY $spacing-navigation_dropdown_item_nav_sub_title-paddingX;
+        width: 100%;
+    }
+
+    &.#{$module}-item {
+        margin-top: $spacing-navigation_dropdown_item_nav_item-marginTop;
+        margin-bottom: $spacing-navigation_dropdown_item_nav_item-marginBottom;
+        min-width: $width-navigation_dropdown_item_nav_item-minWidth;
+    }
+}
+
+.#{$prefix}-dropdown-menu {
+    .#{$module}-item-sub {
+        padding: $spacing-navigation_item_sub-padding;
+    }
+}
+
+@import "./rtl.scss";

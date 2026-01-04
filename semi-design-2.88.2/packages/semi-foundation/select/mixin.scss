@@ -1,0 +1,6 @@
+// Mixin
+@mixin select-tag-margin {
+    margin-top: $spacing-select_tag-marginTop;
+    margin-right: $spacing-select_tag-marginRight;
+    margin-bottom: $spacing-select_tag-marginBottom;
+}

@@ -1,0 +1,89 @@
+$module: #{$prefix}-select;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-selection {
+            margin-left: 0;
+            margin-right: $spacing-select_selection-marginLeft;
+
+            .#{$prefix}-tag {
+
+                &:nth-of-type(1) {
+                    margin-right: 0;
+                }
+            }
+
+            .#{$prefix}-tag-group {
+                .#{$prefix}-tag {
+                    // rtl override mixin
+                    margin-left: $spacing-select_tag-marginRight;
+                    margin-right: 0;
+                }
+            }
+        }
+
+        &-multiple {
+            .#{$module}-selection {
+                margin-left: 0;
+                margin-right: $spacing-select_multiple_selection-marginLeft;
+            }
+
+            .#{$module}-content-wrapper {
+
+                &-empty {
+                    margin-left: 0;
+                    margin-right: $spacing-select_multiple_content_wrapper_empty-marginLeft;
+                }
+            }
+        }
+
+        &-create-tips {
+            margin-right: 0;
+            margin-left: $spacing-select_create_tips-marginRight;
+        }
+    }
+
+    .#{$module}-with-prefix {
+        .#{$module}-selection {
+            margin-left: auto;
+            margin-right: 0;
+        }
+    }
+
+    // 单选且可输入
+    .#{$single}.#{$filterable} {
+        .#{$prefix}-input-wrapper {
+            left: auto;
+            right: 0;
+        }
+    }
+
+    // 多选且可输入
+    .#{$multiple}.#{$filterable} {
+        .#{$module}-content-wrapper {
+
+            &-empty {
+                .#{$prefix}-input-wrapper {
+                    left: auto;
+                    right: 0;
+                }
+            }
+        }
+    }
+
+    .#{$module}-group {
+        padding-left: $spacing-select_group-paddingLeft;
+        padding-right: $spacing-select_group-paddingRight;
+    }
+
+    .#{$module}-option {
+
+        &-icon {
+            margin-right: 0;
+            margin-left: $spacing-select_option_tick-marginRight;
+        }
+    }
+}

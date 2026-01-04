@@ -1,0 +1,30 @@
+$module: #{$prefix}-input-number;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+        
+        &-suffix-btns {
+            margin-left: auto;
+            margin-right: $spacing-inputNumber_button-marginLeft;
+        }
+
+        &-suffix-btns-inner {
+            margin-left: auto;
+            margin-right: $spacing-inputNumber_button_inner-marginLeft;
+        }
+
+        .#{$prefix}-input-clearbtn {
+            & + .#{$prefix}-input-suffix {
+                margin-left: auto;
+                margin-right: $spacing-inputNumber_clearbtn_suffix-marginLeft;
+
+                .#{$module}-suffix-btns-inner {
+                    margin-left: auto;
+                    margin-right: 0;
+                }
+            }
+        }
+    }
+}

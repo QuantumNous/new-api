@@ -1,0 +1,57 @@
+// Color
+$color-transfer-bg: var(--semi-color-bg-1); // 穿梭框背景颜色 - 默认
+$color-transfer_disabled-bg: var(--semi-color-disabled-fill); // 穿梭框背景颜色 - 禁用
+$color-transfer-border: var(--semi-color-border); // 穿梭框描边颜色 - 默认
+$color-transfer_header-text: var(--semi-color-text-2); // 穿梭框 header 文字颜色
+$color-transfer_empty-text: var(--semi-color-text-2); // 穿梭框空状态文字颜色
+$color-transfer_group_title-text: var(--semi-color-text-2); // 穿梭框分组标题文字颜色
+$color-transfer_disabled-text: var(--semi-color-disabled-text); // 穿梭框禁用文本文字颜色
+$color-transfer_close_icon-icon: var(--semi-color-text-2); // 穿梭框关闭按钮颜色
+$color-transfer_item-text: var(--semi-color-text-1); // 穿梭框常规文字颜色
+$color-transfer_selected_item-text: var(--semi-color-text-0); // 穿梭框选中条目文字颜色
+$color-transfer_item-bg-default: var(--semi-color-white); // 穿梭框条目背景色 - 默认
+$color-transfer_item-bg-hover: var(--semi-color-fill-0); // 穿梭框条目背景色 - 悬浮
+$color-transfer_item-bg-active: var(--semi-color-fill-1); // 穿梭框条目背景色 - 按下
+
+// Width/Height
+$width-transfer-border: 1px; // 穿梭框描边宽度
+$width-transfer-minWidth: 402px; // 穿梭框整体最小宽度
+$height-transfer: 400px; // 穿梭框高度
+$height-transfer_header: 24px; // 穿梭框 header 高度
+$height-transfer_item-minHeight: 36px; // 穿梭框条目最小高度
+$width-transfer_item_close-icon: $width-icon-small; // 穿梭框选中条目删除按钮宽度
+$width-transfer_left: 50%; // 穿梭框左侧面板宽度
+$width-transfer_right: 50%; // 穿梭框左侧面板宽度
+$height-transfer_left_empty: 36px; // 穿梭框空状态高度
+$width-transfer_left-border: $border-thickness-control; // 穿梭框双侧面板分割线宽度
+$height-transfer_right_header: 32px; // 穿梭框 header 高度
+$height-transfer_right_empty: 100%; // 穿梭框右侧空状态宽度
+$width-transfer_empty: 100%; // 穿梭框整体空状态宽度
+$height-transfer_group_title: 28px; // 穿梭框分组标题高度
+
+// Spacing
+$spacing-transfer_header-marginTop: 12px; // 穿梭框 header 顶部外边距
+$spacing-transfer_header-marginRight: 12px; // 穿梭框 header 右侧外边距
+$spacing-transfer_header-marginBottom: 8px; // 穿梭框 header 底部外边距
+$spacing-transfer_header-marginLeft: 12px; // 穿梭框 header 左侧外边距
+$spacing-transfer_header_all-marginLeft: $spacing-base; // 穿梭框全选按钮左侧外边距
+$spacing-transfer_item-paddingTop: $spacing-tight; // 穿梭框条目顶部内边距
+$spacing-transfer_item-paddingRight: 9px; // 穿梭框条目右侧内边距
+$spacing-transfer_item-paddingBottom: $spacing-tight; // 穿梭框条目底部内边距
+$spacing-transfer_item-paddingLeft: $spacing-base-tight; // 穿梭框条目左侧内边距
+$spacing-transfer_right_header-marginTop: $spacing-base-tight; // 穿梭框右侧面板 header 顶部外边距
+$spacing-transfer_right_header-marginBottom: 0; // 穿梭框右侧面板 header 底部外边距
+$spacing-transfer_right_item_drag_handler-marginRight: 4px; // 穿梭框拖动图标右侧外边距
+$spacing-transfer_filter-marginTop: 12px; // 穿梭框搜索顶部外边距
+$spacing-transfer_filter-marginRight: 12px; // 穿梭框搜索右侧外边距
+$spacing-transfer_filter-marginBottom: 0; // 穿梭框搜索底部外边距
+$spacing-transfer_filter-marginLeft: 12px; // 穿梭框搜索左侧外边距
+$spacing-transfer_group_title-paddingLeft: $spacing-base-tight; // 穿梭框分组标题左侧内边距
+
+// Radius
+$radius-transfer: var(--semi-border-radius-medium); // 穿梭框圆角
+
+// Font
+$font-transfer_header_all-fontWeight: 600; // 穿梭框字重
+
+$z-transfer_right_item_drag_item_move: 2000 !default; // 穿梭框右侧面板中正在拖拽元素的z-index

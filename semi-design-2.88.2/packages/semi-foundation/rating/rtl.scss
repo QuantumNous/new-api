@@ -1,0 +1,21 @@
+$module: #{$prefix}-rating;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-star {
+
+            &:not(:last-child) {
+                margin-right: 0;
+                margin-left: $spacing-rating_item-marginRight;
+            }
+
+            &-first {
+                left: auto;
+                right: 0;
+            }
+        }
+    }
+}

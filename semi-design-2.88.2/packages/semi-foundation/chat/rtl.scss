@@ -1,0 +1,22 @@
+
+$module: #{$prefix}-chat;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-hint-icon {
+            transform: scaleX(-1);
+        }
+
+        &-inputBox-sendButton-icon {
+            transform: rotate(225deg);
+        }
+
+        &-chatBox-action-icon-redo {
+            transform: scaleX(-1);
+        } 
+    }
+   
+}

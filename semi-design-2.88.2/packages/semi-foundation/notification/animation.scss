@@ -1,0 +1,12 @@
+$animation_duration-notification-show: 300ms; // 出现时-动画持续时间
+$animation_function-notification-show: cubic-bezier(0.62, 0.63, 0, 1.13); // 出现时-过渡曲线
+$animation_delay-notification-show: 0ms; // 出现时-延迟时间
+
+$animation_duration-notification-hide: 300ms; // 消失时-动画持续时间
+$animation_function-notification-hide: cubic-bezier(0.62, 0.63, 0, 1.13); //消失时-过渡曲线
+$animation_delay-notification-hide: 0ms; // 消失时-延迟时间
+
+
+$animation_opacity-notification-show: 0; // 出现时-初始透明度
+$animation_opacity-notification-hide: 0; // 消失时-结束透明度
+

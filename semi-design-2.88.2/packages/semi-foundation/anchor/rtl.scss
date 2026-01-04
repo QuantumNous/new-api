@@ -1,0 +1,17 @@
+$module: #{$prefix}-anchor;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        &-slide {
+            right: $spacing-anchor_slide-left;
+            left: auto;
+        }
+
+        &-link {
+            padding-left: auto;
+        }
+    }
+}

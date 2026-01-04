@@ -1,0 +1,41 @@
+@import "./animation.scss";
+@import "./variables.scss";
+@import "./option.scss";
+
+$module: #{$prefix}-autocomplete;
+
+.#{$module} {
+    cursor: text;
+    display: inline-flex;
+    vertical-align: middle;
+    box-sizing: border-box;
+
+    &-option-list {
+        overflow-x: hidden;
+        overflow-y: auto;
+
+        &-chosen {
+            .#{$module}-option-icon {
+                display: flex;
+            }
+        }
+    }
+
+    &-loading-wrapper {
+        // padding-left: $spacing-base;
+        // padding-right: $spacing-base;
+        padding-top: $spacing-autoComplete_loading_wrapper-paddingTop;
+        padding-bottom: $spacing-autoComplete_loading_wrapper-paddingBottom;
+        cursor: not-allowed;
+        // make sure that spin align vertical, no need to make 20px as a spacing token here
+        height: 20px;
+        // height: $spacing-extra-loose;
+        // @include all-center;
+        .#{$prefix}-spin {
+            width: 100%;
+        }
+    }
+
+}
+
+@import './rtl.scss';

@@ -1,0 +1,10 @@
+$module: #{$prefix}-backtop;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+        right: auto;
+        left: $spacing-backtop-right;
+    }
+}

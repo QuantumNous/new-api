@@ -1,0 +1,30 @@
+// Color
+$color-tooltip_arrow-icon-default: unset; // 箭头图标
+$color-popover-bg-default: var(--semi-color-bg-3); // 默认背景色
+$color-popover-border-default: var(--semi-color-border); // 默认描边颜色
+$color-popover-arrow-border: var(--semi-color-border); // 箭头描边颜色
+$color-popover-arrow-bg: var(--semi-color-bg-3); // 箭头默认背景色
+
+// Width/Height
+$width-popover_arrow: 24px; // 水平箭头宽度 ignore-semi-css-trans
+$height-popover_arrow: 8px; // 水平箭头高度
+$height-popover_arrow_vertical: 24px; // 垂直箭头高度
+$width-popover_arrow_vertical: 8px; // 垂直箭头宽度
+$height-tooltip_arrow: $height-popover_arrow;
+$width-tooltip_arrow: $width-popover_arrow; //ignore-semi-css-trans
+$width-tooltip_arrow_vertical: $width-popover_arrow_vertical;
+$height-tooltip_arrow_vertical: $height-popover_arrow_vertical;
+$width-popover_title-border: 1px;
+
+
+// Spacing
+$spacing-popover_title-padding: 8px; // 气泡卡片标题内边距
+$spacing-popover_withArrow-padding: 12px; // 带箭头的气泡卡片标题内边距
+$spacing-popover_arrow_adjusted_offset-y: 6px; // 垂直方向上的校正偏移量，主要修正三角形有棱角的问题
+$spacing-tooltip_arrow_adjusted_offset-y: $spacing-popover_arrow_adjusted_offset-y; // 垂直方向上的校正偏移量，主要修正三角形有棱角的问题
+$spacing-tooltip_arrow_adjusted_offset-x: round($horizontal-rate * $width-tooltip_arrow); // 水平方向上的校正偏移量，主要修正三角形有棱角的问题 ignore-semi-css-trans
+
+// Radius
+$radius-popover: var(--semi-border-radius-medium); // 气泡卡片的圆角大小
+
+$filter-popover-bg: none;

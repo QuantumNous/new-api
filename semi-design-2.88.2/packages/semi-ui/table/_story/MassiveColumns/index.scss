@@ -1,0 +1,9 @@
+.massive-columns-table-auto-width {
+    .semi-table {
+        width: auto;
+
+        .semi-table-row-cell {
+            white-space: nowrap;
+        }
+    }
+}

@@ -1,0 +1,104 @@
+// Color
+$color-steps-bg-active: var(--semi-color-fill-1); // 步骤条背景 - 按下态
+$color-steps-bg-default: var(--semi-color-text-2); // 未到达步骤条图标背景
+$color-steps-bg-hover: var(--semi-color-fill-0); // 步骤条背景 - 悬浮态
+$color-steps-border-default: transparent; // 步骤条描边 - 默认
+$color-steps-icon-default: var(--semi-color-text-2); // 未到达步骤条图标背景
+$color-steps-text-default: rgba(var(--semi-white), 1); // 步骤条图标默认文本颜色
+$color-steps_danger-text-active: var(--semi-color-danger-active); // 错误步骤条文本颜色 - 按下态
+$color-steps_danger-text-default: var(--semi-color-danger); // 错误步骤条文本颜色 - 默认态
+$color-steps_danger-text-hover: var(--semi-color-danger-hover); // 错误步骤条文本颜色 - 悬浮态
+$color-steps_icon_after-bg: var(--semi-color-fill-2);
+$color-steps_item_description-text-hover: var(--semi-color-focus-border); // 步骤条辅助描述文本颜色 - 悬浮态
+$color-steps_item_done_after-bg: var(--semi-color-primary); // 完成步骤条尾部连接线颜色
+$color-steps_item_done_icon_after-bg: var(--semi-color-primary);
+$color-steps_item_error_left-icon: var(--semi-color-danger); // 错误步骤条图标颜色
+$color-steps_item_error_left_number-icon: var(--semi-color-primary); // 错误步骤条数字序号文本颜色
+$color-steps_item_finish-icon: var(--semi-color-primary); // 已完成步骤条图标颜色
+$color-steps_item_finish_number-icon: var(--semi-color-white); // 已完成步骤条对勾图标颜色
+$color-steps_item_left_number_icon-bg: var(--semi-color-primary); // 步骤条图标背景颜色
+$color-steps_item_left_number_icon-icon: var(--semi-color-white); // 步骤条图标文字颜色
+$color-steps_item_process_left-icon: var(--semi-color-primary); // 进行中步骤条对勾图标颜色
+$color-steps_item_process_left_number-icon: var(--semi-color-white); // 进行中步骤条内部图标颜色
+$color-steps_item_title-text-hover: var(--semi-color-focus-border); // 步骤条标题文字悬停颜色
+$color-steps_item_wait_left_icon-icon: var(--semi-color-text-2); // 未到达步骤条图标颜色
+$color-steps_item_wait_left_number_icon-bg-hover: var(--semi-color-secondary-light-default); // 未到达步骤条图标背景颜色 - 悬浮态
+$color-steps_item_wait_left_number_icon-bg: var(--semi-color-fill-0); // 未到达步骤条图标背景颜色
+$color-steps_item_wait_left_number_icon-icon-hover: var(--semi-color-focus-border); // 未到达步骤条图标颜色 - 悬浮态
+$color-steps_item_wait_left_number_icon-icon: var(--semi-color-text-2); // 未到达步骤条内部图标颜色
+$color-steps_item_wait_title-text: var(--semi-color-text-2); // 未到达步骤条标题文字颜色
+$color-steps_item_warning_left-icon: var(--semi-color-warning); // 警告步骤条图标颜色
+$color-steps_item_warning_left_number-icon: var(--semi-color-white); // 警告步骤条数字序号文本颜色
+$color-steps_main-text-default: var(--semi-color-text-0); // 步骤条标题文本颜色
+$color-steps_minor-text-default: var(--semi-color-text-2); // 步骤条辅助描述文本颜色
+$color-steps_nav_item_container-text: var(--semi-color-text-2); // 步骤条容器内文本颜色
+$color-steps_nav_item-icon: var(--semi-grey-3);
+$color-steps_nav_item_title-text-active: var(--semi-color-text-0); // 步骤条标题颜色 - 按下态
+$color-steps_primary-bg-default: var(--semi-color-primary); // 旧版进行中步骤条背景色 - 默认
+$color-steps_primary-icon-default: var(--semi-color-primary); // 旧版进行中步骤条图标色 - 默认
+$color-steps_process-bg-default: var(--semi-color-primary-light-default); // 旧版进行中步骤条背景色 - 默认
+$color-steps_success-text-active: var(--semi-color-success-active); // 旧版已完成步骤条文字颜色 - 按下态
+$color-steps_success-text-default: var(--semi-color-success); // 旧版已完成步骤条文字颜色 - 默认态
+$color-steps_success-text-hover: var(--semi-color-success-hover); // 旧版已完成步骤条文字颜色 - 悬浮态
+$color-steps_title_after-bg: var(--semi-color-fill-2); // 旧版步骤条连线颜色
+$color-steps_warning-text-active: var(--semi-color-warning-active); // 旧版警告步骤条文字颜色 - 按下态
+$color-steps_warning-text-default: var(--semi-color-warning); // 旧版警告步骤条文字颜色 - 默认态
+$color-steps_warning-text-hover: var(--semi-color-warning-hover); // 旧版警告步骤条文字颜色 - 悬浮态
+
+// Width/Height
+$width-steps_basic_item_description: 100%; // 步骤条辅助描述文本宽度
+$width-steps_basic_item_description-maxWidth: 268px; // 步骤条辅助描述文本最大宽度
+$width-steps_basic_item_title-maxWidth: 80%; // 步骤条标题宽度
+$height-steps_basic_vertical_icon_content-minHeight: 42px; // 垂直步骤条图标+内容最小高度
+$width-steps_basic_vertical_item_title-maxWidth: 100%; // 垂直步骤条标题最大宽度
+$width-steps_basic_vertical_item_description: 100%; // 垂直步骤条辅助描述文本最大宽度
+$height-steps_basic_vertical_small_item_content-minHeight: 40px; // 小尺寸垂直步骤条内容最小高度
+$height-steps_basic_item_left-icon: 24px; // 步骤条左侧图标高度
+$width-steps_basic_item_left_number-icon: 24px; // 步骤条左侧图标宽度
+$height-steps_basic_item_left_number-icon: 24px; // 步骤条左侧图标高度
+$height-steps_basic_small_item_left-icon: 20px; // 小尺寸步骤条左侧图标高度
+$width-steps_basic_small_item_left_number-icon: 20px; // 小尺寸步骤条左侧数字图标高度
+$height-steps_basic_item: 72px; // 简易版步骤条高度
+$height-steps_item: 72px; // 旧版步骤条高度
+$width-steps_item-border: 1px; // 旧版步骤条高度
+$width-steps_item_title: 100%; // 步骤条标题宽度
+$width-steps_item_description: 100%; // 步骤条辅助描述文本宽度
+$width-steps_item_left_icon: 24px; // 步骤条左侧图标宽度
+$width-steps_item_left: 24px; // 步骤条左侧图标容器宽度
+$height-steps_item_left: 24px; // 步骤条左侧图标容器高度
+$width-steps_title_after: 9999px; // 步骤条连接线长度
+$height-steps_title_after: 1px; // 步骤条连接线高度
+$width-steps_vertical_icon_after: 1px;
+$height-steps_vertical_icon_after: 9999px; // 垂直步骤条连接线长度
+$width-steps_nav_item_icon-minWidth: 60px; // 导航型步骤条图标最小宽度
+$width-steps_nav_item_title-maxWidth: 17em; // 导航型步骤条标题最大宽度
+
+// Spacing
+$spacing-steps_basic_item-paddingLeft: 16px; // 简版步骤条左侧内边距
+$spacing-steps_basic_vertical_item-paddingTop: 9px; // 简版垂直步骤条顶部内边距
+$spacing-steps_basic_vertical_item_content-paddingBottom: 22px; // 简版垂直步骤条内容区底部内边距
+$spacing-steps_basic_vertical_item_icon-paddingBottom: 9px; // 简版垂直步骤条图标底部内边距
+$spacing-steps_basic_item_left-marginRight: 8px; // 简版步骤条图标右侧外边距
+$spacing-steps_basic_item_title-paddingRight: 16px; // 简版步骤条标题右侧内边距
+$spacing-steps_basic_item_title-paddingBottom: 4px; // 简版步骤条标题底部内边距
+$spacing-steps_basic_item-marginRight: 16px; // 简版步骤条标题右侧外边距
+$spacing-steps_item-marginRight: 16px; // 旧版步骤条右侧外边距
+$spacing-steps_item-paddingY: $spacing-base-tight; // 旧版步骤条垂直方向内边距
+$spacing-steps_item-paddingX: $spacing-base; // 旧版步骤条水平方向内边距
+$spacing-steps_item_content-marginLeft: $spacing-base; // 旧版步骤条水平内容区左侧外边距
+
+// Radius
+$radius-steps_basic_item_left_number_icon: var(--semi-border-radius-circle); // 步骤条左侧图标圆角
+$radius-steps_item: var(--semi-border-radius-medium); // 步骤条整体圆角
+$radius-steps_item_left: 32px; // 步骤条左侧距离
+
+
+// Font
+$font-steps_basic_item_left_number_icon-fontWeight: 600; // 步骤条数字图标文本字重
+$font-steps_basic_item_title-fontWeight: 600; // 步骤条标题文本字重
+$font-steps_basic_item_title-lineHeight: 24px; // 步骤条标题文本行高
+$font-steps_item_title-fontWeight: $font-weight-bold; // 步骤条标题文本字重
+$font-steps_item_left-fontWeight: $font-weight-bold; // 步骤条标题左侧图标内部文本字重
+$font-steps_item_left-lineHeight: 32px; // 步骤条标题左侧图标内部文本行高
+$font-steps_nav_item_title-fontWeight: $font-weight-regular; // 导航型步骤条标题文本字重 - 默认态
+$font-steps_nav_item_title_active-fontWeight: 600; // 导航型步骤条标题文本字重 - 激活态

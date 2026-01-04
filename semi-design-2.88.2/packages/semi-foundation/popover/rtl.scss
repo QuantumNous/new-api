@@ -1,0 +1,7 @@
+$module: #{$prefix}-popover;
+
+.#{$module} {
+    &.#{$module}-rtl {
+        direction: rtl;
+    }
+}

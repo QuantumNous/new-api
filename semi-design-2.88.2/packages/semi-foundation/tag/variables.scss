@@ -1,0 +1,84 @@
+$color-tag_avatar-bg-default: var(--semi-color-bg-4); // 头像标签背景颜色 - 默认
+$color-tag_avatar-border-default: var(--semi-color-border); // 头像标签描边颜色 - 默认
+$color-tag_avatar-text-default: var(--semi-color-text-0); // 头像标签文字颜色 - 默认
+
+$color-tag_white-bg-default: var(--semi-color-bg-4); // 白色标签背景颜色 - 默认
+$color-tag_white-border-default: rgba(var(--semi-grey-2), 0.7); // 白色标签描边颜色 - 默认
+$color-tag_white-text-default: var(--semi-color-text-0); // 白色标签文字颜色 - 默认
+$color-tag_white-icon-default: var(--semi-color-text-2); // 白色标签图标颜色 - 默认
+
+$color-tag-outline-focus: var(--semi-color-primary-light-active); // 标签轮廓 - 聚焦
+
+$color-tag_colorful_solid-bg: var(--semi-color-ai-purple); // AI Tag深色底色类型背景色
+$color-tag_colorful_solid-text: var(--semi-color-white); // AI Tag 深色底色类型字体颜色
+$color-tag_colorful_solid_gradient-bg: var(--semi-color-ai-general); // AI Tag深色底色类型渐变背景色
+
+$color-tag_colorful_light-bg: rgba(var(--semi-ai-purple-0), 1); // AI Tag 浅色底色类型背景色
+$color-tag_colorful_light-text: var(--semi-color-ai-purple); // AI Tag 浅色底色类型字体颜色
+$color-tag_colorful_light_gradient-bg: var(--semi-ai-general-0); // AI Tag浅色底色类型背景色-渐变
+$color-tag_colorful_light_gradient-text: var(--semi-color-ai-general); // AI Tag浅色底色类型字体色-渐变
+$color-tag_colorful_light_gradient-1: rgba(var(--semi-ai-general-5-0) ,1); // AI Tag 浅色底色icon渐变色1
+$color-tag_colorful_light_gradient-2: rgba(var(--semi-ai-general-5-1) ,1); // AI Tag 浅色底色icon渐变色2
+$color-tag_colorful_light_gradient-3: rgba(var(--semi-ai-general-5-2) ,1); // AI Tag 浅色底色icon渐变色3
+$color-tag_colorful_light_gradient-4: rgba(var(--semi-ai-general-5-3) ,1); // AI Tag 浅色底色icon渐变色4
+
+$color-tag_colorful_ghost-bg: var(--semi-color-white); // AI Tag 白色底色类型背景色
+$color-tag_colorful_ghost-text: var(--semi-color-ai-purple); // AI Tag 白色底色类型字体颜色
+$color-tag_colorful_ghost-border: var(--semi-color-ai-general); // AI Tag 白色底色类型描边颜色
+$color-tag_colorful_ghost_gradient-text: var(--semi-color-ai-general); // AI Tag 白色底色类型字体色-渐变
+$color-tag_colorful_ghost_gradient-1: rgba(var(--semi-ai-general-5-0) ,1); // AI Tag 白色底色icon渐变色1
+$color-tag_colorful_ghost_gradient-2: rgba(var(--semi-ai-general-5-1) ,1); // AI Tag 白色底色icon渐变色2
+$color-tag_colorful_ghost_gradient-3: rgba(var(--semi-ai-general-5-2) ,1); // AI Tag 白色底色icon渐变色3
+$color-tag_colorful_ghost_gradient-4: rgba(var(--semi-ai-general-5-3) ,1); // // AI Tag 白色底色icon渐变色4
+
+$width-tag_avatar_circle_small: 16px; // 头像标签圆角 - 小尺寸
+$width-tag_avatar_circle_large: 20px; // 头像标签圆角 - 大尺寸
+
+$width-tag-border: 1px; // 标签描边宽度
+$width-tag_avatar-border: $width-tag-border; // 头像标签描边宽度
+
+$width-tag-outline: 2px; // 标签轮廓宽度
+
+$height-tag_small: 20px; // 小尺寸标签高度
+$height-tag_large: 24px; // 大尺寸标签高度
+$radius-tag: var(--semi-border-radius-small); // 标签圆角大小
+$radius-tag_circle: var(--semi-border-radius-full); // 胶囊标签圆角大小
+
+$spacing-tag_small-paddingY: 2px; // 小尺寸标签垂直方向内边距
+$spacing-tag_small-paddingX: $spacing-tight; // 小尺寸标签水平方向内边距
+
+$spacing-tag_prefix_icon_paddingRight: $spacing-extra-tight; // 后缀图标右侧边距 
+$spacing-tag_suffix_icon_paddingLeft: $spacing-extra-tight; // 后缀图标左侧边距
+
+$spacing-tag_large-paddingY: 4px; // 大尺寸标签垂直方向内边距
+$spacing-tag_large-paddingX: $spacing-tight; // 大尺寸标签水平方向内边距
+
+$color-tag_close-icon-default: var(--semi-color-text-2); // 可删除的标签删除按钮颜色
+$color-tag_close-icon-hover: var(--semi-color-text-1); // 可删除的标签删除按钮颜色 - 悬浮
+$color-tag_close-icon-active: var(--semi-color-text-0); // 可删除的标签删除按钮颜色 - 按下
+$color-tag_close-icon_deep-default: var(--semi-color-white); // 深色模式下可删除的标签删除按钮颜色
+$spacing-tag_close-paddingLeft: $spacing-extra-tight; // 可删除的标签删除按钮左侧内边距
+$spacing-tag_closable-paddingTop: $spacing-extra-tight; // 可删除的标签删除按钮顶部内边距
+$spacing-tag_closable-paddingRight: $spacing-extra-tight; // 可删除的标签删除按钮右侧内边距
+$spacing-tag_closable-paddingBottom: $spacing-extra-tight; // 可删除的标签删除按钮底部内边距
+$spacing-tag_closable-paddingLeft: $spacing-tight; // 可删除的标签删除按钮左侧内边距
+
+$spacing-tag_avatar-marginRight: $spacing-extra-tight; // 头像标签头像右侧外边距
+
+$spacing-tag_avatar_square-paddingTop: 0; // 方形头像标签头像顶部内边距
+$spacing-tag_avatar_square-paddingRight: $spacing-extra-tight; // 方形头像标签头像右侧内边距
+$spacing-tag_avatar_square-paddingBottom: 0; // 方形头像标签头像底部内边距
+$spacing-tag_avatar_square-paddingLeft: 0; // 方形头像标签头像左侧内边距
+
+$spacing-tag_avatar_circle-paddingTop: $spacing-super-tight; // 圆型头像标签头像顶部内边距
+$spacing-tag_avatar_circle-paddingRight: $spacing-extra-tight; // 圆型头像标签头像右侧内边距
+$spacing-tag_avatar_circle-paddingBottom: $spacing-super-tight; // 圆型头像标签头像底部内边距
+$spacing-tag_avatar_circle-paddingLeft: $spacing-super-tight; // 圆型头像标签头像左侧内边距
+
+$color-tag_avatar_square_img-bg-default: var(--semi-color-default); // 方形头像标签头像背景色 - 默认
+
+$spacing-tag_group-marginBottom: 0; // 标签组底部外边距
+$spacing-tag_group-marginRight: $spacing-tight; // 标签组右侧外边距
+
+$font-tag_colorful-fontWeight: $font-weight-bold; // AI tag的字重
+

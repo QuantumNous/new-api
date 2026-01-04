@@ -1,0 +1,517 @@
+@import './animation.scss';
+@import './variables.scss';
+@import './splitButtonGroup.scss';
+@import './cssVariables.scss';
+
+$module: #{$prefix}-button;
+
+.#{$module} {
+    @include shadow-0;
+    height: $height-button_default;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    border: $width-button-border $color-button_primary-border-default solid;
+    border-radius: $radius-button;
+    padding-left: $spacing-button_default-paddingLeft;
+    padding-right: $spacing-button_default-paddingRight;
+    padding-top: $spacing-button_default-paddingTop;
+    padding-bottom: $spacing-button_default-paddingTop;
+    font-size: $font-button-fontSize;
+    line-height: $font-button-lineHeight;
+    font-weight: $font-button-fontWeight;
+    outline: none;
+    vertical-align: middle;
+    white-space: nowrap;
+
+    // the specificity of `.#{$module}:focus-visible`  may lower than `reset.css` default `focus-visible` style
+    // so we add a class at the same level
+    &.#{$module}-primary,
+    &.#{$module}-secondary,
+    &.#{$module}-tertiary,
+    &.#{$module}-warning,
+    &.#{$module}-danger {
+        &:focus-visible {
+            outline: $width-button-outline solid $color-button_primary-outline-focus;
+        }
+    }
+
+    &-content{
+        display: flex;
+        align-items: center;
+    }
+
+    &-danger {
+        background-color: $color-button_danger-bg-default;
+        color: $color-button_danger-text-default;
+        transition: background-color $transition_duration-button_danger-bg $transition_function-button_danger-bg $transition_delay-button_danger-bg,
+        border $transition_duration-button_danger-border $transition_function-button_danger-border $transition_delay-button_danger-border;
+        transform: scale($transform-scale-button_danger);
+
+        &-disabled {
+            background-color: $color-button_disabled_danger-bg-default;
+            &.#{$module}-outline {
+                background-color: transparent;
+                border: $width-button_outline-border solid $color-button_disabled_outline-border-default;
+            }
+            &.#{$module}-light {
+                background-color: $color-button_disabled_light_danger-bg-default;
+            }
+        }
+
+        &:hover {
+            background-color: $color-button_danger-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-button_danger-bg-active;
+        }
+
+        &.#{$module}-outline{
+            background-color: transparent;
+            border: $width-button_outline-border solid $color-button_danger_outline-border-default;
+        }
+
+
+        &.#{$module}-light,
+        &.#{$module}-outline,
+        &.#{$module}-borderless {
+            color: $color-button_danger_borderless-text-default;
+        }
+
+        &:not(.#{$module}-borderless):not(.#{$module}-light):focus-visible {
+            outline: $width-button-outline solid $color-button_danger-outline-focus;
+        }
+    }
+
+    &-warning {
+        background-color: $color-button_warning-bg-default;
+        color: $color-button_warning-text-default;
+        transition: background-color $transition_duration-button_warning-bg $transition_function-button_warning-bg $transition_delay-button_warning-bg,
+        border $transition_duration-button_warning-border $transition_function-button_warning-border $transition_delay-button_warning-border;
+        transform: scale($transform_scale-button_warning);
+
+        &-disabled {
+            background-color: $color-button_disabled_warning-bg-default;
+            &.#{$module}-outline {
+                background-color: transparent;
+                border: $width-button_outline-border solid $color-button_disabled_outline-border-default;
+            }
+            &.#{$module}-light {
+                background-color: $color-button_disabled_light_warning-bg-default;
+            }
+        }
+
+        &:hover {
+            background-color: $color-button_warning-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-button_warning-bg-active;
+        }
+
+        &.#{$module}-outline{
+            background-color: transparent;
+            border: $width-button_outline-border solid $color-button_warning_outline-border-default;
+        }
+
+        &.#{$module}-light,
+        &.#{$module}-outline,
+        &.#{$module}-borderless {
+            color: $color-button_warning_borderless-text-default;
+        }
+
+        &:not(.#{$module}-borderless):not(.#{$module}-light):focus-visible {
+            outline: $width-button-outline solid $color-button_warning-outline-focus;
+        }
+    }
+
+    &-tertiary {
+        background-color: $color-button_tertiary-bg-default;
+        color: $color-button_tertiary-text-default;
+        transition: background-color $transition_duration-button_tertiary-bg $transition_function-button_tertiary-bg $transition_delay-button_tertiary-bg,
+        border $transition_duration-button_tertiary-border $transition_function-button_tertiary-border $transition_delay-button_tertiary-border;
+        transform: scale($transform_scale_button_tertiary);
+
+        &.#{$module}-colorful {
+            &.#{$module}-solid {
+                background: $color-button_tertiary_solid_colorful-bg-default;
+                
+                &:hover {
+                    background: $color-button_tertiary_solid_colorful-bg-hover; 
+                }
+
+                &:active {
+                    background: $color-button_tertiary_solid_colorful-bg-active;
+                }
+
+                .#{$module}-content-right, .#{$module}-content:not(:has(>.#{$module}-content-right)) {
+                    background: $color-button_tertiary_solid_colorful-text-default;
+                    background-clip: text;
+                    color: transparent;
+                }
+            }
+           
+        }
+
+        &-disabled {
+            background-color: $color-button_disabled_tertiary-bg-default;
+            &.#{$module}-outline {
+                background-color: transparent;
+                border: $width-button_outline-border solid $color-button_disabled_outline-border-default;
+            }
+            &.#{$module}-light {
+                background-color: $color-button_disabled_light_tertiary-bg-default;
+            }
+        }
+
+        &:hover {
+            background-color: $color-button_tertiary-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-button_tertiary-bg-active;
+        }
+
+        &.#{$module}-outline{
+            background-color: transparent;
+            border: $width-button_outline-border solid $color-button_tertiary_outline-border-default;
+        }
+
+        &.#{$module}-light,
+        &.#{$module}-outline,
+        &.#{$module}-borderless {
+            color: $color-button_tertiary_solid-text-default;
+        }
+    }
+
+    &-primary {
+        background-color: $color-button_primary-bg-default;
+        color: $color-button_primary-text-default;
+        transition: background-color $transition_duration-button_primary-bg $transition_function-button_primary-bg $transition_delay-button_primary-bg,
+        border $transition_duration-button_primary-border $transition_function-button_primary-border $transition_delay-button_primary-border;;
+        transform: scale($transform_scale-button_primary);
+
+        &.#{$module}-colorful {
+            &.#{$module}-solid {
+                background: $color-button_primary_solid_colorful-bg-default;
+
+                &:not(.#{$module}-borderless):not(.#{$module}-light):not(.#{$module}-outline):hover {
+                    background: $color-button_primary_solid_colorful-bg-hover;
+                }
+
+                &:not(.#{$module}-borderless):not(.#{$module}-light):not(.#{$module}-outline):active {
+                    background: $color-button_primary_solid_colorful-bg-active;
+                }
+            }
+
+            &.#{$module}-light {
+                .#{$module}-content-right, .#{$module}-content:not(:has(>.#{$module}-content-right)) {
+                    background: $color-button_primary_light_colorful-text-default;
+                    background-clip: text;
+                    color: transparent;
+                }
+            }
+
+            &.#{$module}-outline {
+                color: $color-button_primary_light_outline-text-default;
+                border-color: $color-button_primary_light_outline-border;
+            }
+
+            &.#{$module}-borderless {
+                .#{$module}-content-right, .#{$module}-content:not(:has(>.#{$module}-content-right)) {
+                    background: $color-button_primary_light_borderless-text-default;
+                    background-clip: text;
+                    color: transparent;
+                }  
+            }
+        }
+
+        &-disabled {
+            background-color: $color-button_disabled_primary-bg-default;
+
+            &.#{$module}-light {
+                background: $color-button_disabled_light_primary-bg-default;
+            }
+
+            &.#{$module}-outline {
+                background-color: transparent;
+                border: $width-button_outline-border solid $color-button_disabled_outline-border-default;
+            }
+        }
+
+        &:not(.#{$module}-borderless):not(.#{$module}-light):not(.#{$module}-outline):hover {
+            background-color: $color-button_primary-bg-hover;
+        }
+
+        &.#{$module}-outline{
+            background-color: transparent;
+            border: $width-button_outline-border solid $color-button_primary_outline-border-default;
+        }
+
+
+        &:not(.#{$module}-borderless):not(.#{$module}-light):not(.#{$module}-outline):active {
+            background-color: $color-button_primary-bg-active;
+        }
+
+        &.#{$module}-light,
+        &.#{$module}-outline,
+        &.#{$module}-borderless {
+            color: $color-button_primary_borderless-text-default;
+        }
+    }
+
+    &-secondary {
+        background-color: $color-button_secondary-bg-default;
+        outline-color: $color-button_secondary-border-default;
+        color: $color-button_secondary-text-default;
+        transition: background-color $transition_duration-button_secondary-bg $transition_function-button_secondary-bg $transition_delay-button_secondary-bg,
+        border $transition_duration-button_secondary-border $transition_function-button_secondary-border $transition_delay-button_secondary-border;
+        transform: scale($transform_scale-button_secondary);
+
+        &-disabled {
+            background-color: $color-button_disabled_secondary-bg-default;
+
+            &.#{$module}-outline {
+                background-color: transparent;
+                border: $width-button_outline-border solid $color-button_disabled_outline-border-default;
+            }
+
+            &.#{$module}-light {
+                background-color: $color-button_disabled_light_secondary-bg-default;
+            }
+        }
+
+        &.#{$module}-outline{
+            background-color: transparent;
+            border: $width-button_outline-border solid $color-button_secondary_outline-border-default;
+        }
+
+        &:hover {
+            background-color: $color-button_secondary-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-button_secondary-bg-active;
+        }
+
+        &.#{$module}-light,
+        &.#{$module}-outline,
+        &.#{$module}-borderless {
+            color: $color-button_secondary_borderless-text-default;
+        }
+    }
+
+    &-disabled {
+        color: $color-button_disabled_solid-text-default;
+        cursor: not-allowed;
+
+        &:not(.#{$module}-borderless):not(.#{$module}-light):not(.#{$module}-outline):hover {
+            color: $color-button_disabled-text-hover;
+        }
+
+        &.#{$module}-light,
+        &.#{$module}-borderless {
+            color: $color-button_disabled-text-default;
+        }
+
+        &.#{$module}-outline {
+            color: $color-button_disabled_outline_text-default;
+        }
+    }
+
+    &-borderless {
+        background-color: transparent;
+        border: $width-button_borderless-border $color-button_borderless-border-default solid;
+        transition: background-color $transition_duration-button_borderless-bg $transition_function-button_borderless-bg $transition_delay-button_borderless-bg;
+        transform: scale($transform_scale-button_borderless);
+
+        &:not(.#{$module}-disabled):hover {
+            background-color: $color-button_borderless-bg-hover;
+            border: $width-button_borderless-border $color-button_borderless-border-hover solid;
+        }
+
+        &:not(.#{$module}-disabled):active {
+            background-color: $color-button_borderless-bg-active;
+            border: $width-button_borderless-border $color-button_borderless-border-active solid;
+        }
+    }
+
+    &-outline {
+        background-color: transparent;
+
+        &:not(.#{$module}-disabled):hover {
+            background-color: $color-button_outline-bg-hover;
+        }
+
+        &:not(.#{$module}-disabled):active {
+            background-color: $color-button_outline-bg-active;
+        }
+    }
+
+    &-light {
+        background-color: $color-button_light-bg-default;
+        border: $width-button_light-border $color-button_light-border-default solid;
+        transition: background-color $transition_duration-button_light-bg $transition_function-button_light-bg $transition_delay-button_light-bg,
+        border $transition_duration-button_light-border $transition_function-button_light-border $transition_delay-button_light-border;
+        transform: scale($transform_scale-button_light);
+
+        &:not(.#{$module}-disabled):hover {
+            background-color: $color-button_light-bg-hover;
+            border: $width-button_light-border $color-button_light-border-hover solid;
+        }
+
+        &:not(.#{$module}-disabled):active {
+            background-color: $color-button_light-bg-active;
+            border: $width-button_light-border $color-button_light-border-active solid;
+        }
+    }
+
+    &-size-small {
+        height: $height-button_small;
+        padding-top: $spacing-button_small-paddingTop;
+        padding-bottom: $spacing-button_small-paddingBottom;
+        padding-left: $spacing-button_small-paddingLeft;
+        padding-right: $spacing-button_small-paddingRight;
+        font-size: $font-button_small-fontSize;
+        line-height: $font-button_small-lineHeight;
+        font-weight: $font-button_small-fontWeight;
+    }
+
+    &-size-large {
+        height: $height-button_large;
+        padding-top: $spacing-button_large-paddingTop;
+        padding-bottom: $spacing-button_large-paddingBottom;
+        padding-left: $spacing-button_large-paddingLeft;
+        padding-right: $spacing-button_large-paddingRight;
+        font-size: $font-button_large-fontSize;
+        line-height: $font-button_large-lineHeight;
+        font-weight: $font-button_large-fontWeight;
+    }
+
+    &-block {
+        width: 100%;
+    }
+
+    &-group {
+        display: flex;
+        flex-wrap: wrap;
+
+        & > .#{$module} {
+            margin: 0;
+            padding-left: 0;
+            padding-right: 0;
+            border-radius: 0;
+
+            .#{$module}-content {
+                padding-left: $spacing-button_default-paddingLeft;
+                padding-right: $spacing-button_default-paddingRight;
+            }
+
+            &-size-large {
+                .#{$module}-content {
+                    padding-left: $spacing-button_large-paddingLeft;
+                    padding-right: $spacing-button_large-paddingRight;
+                }
+            }
+
+            &-size-small {
+                .#{$module}-content {
+                    padding-left: $spacing-button_small-paddingLeft;
+                    padding-right: $spacing-button_small-paddingRight;
+                }
+            }
+
+            &.#{$module}-with-icon-only {
+                padding-left: 0;
+                padding-right: 0;
+
+                .#{$module}-content {
+                    padding-left: $spacing-button_iconOnly_default-paddingLeft;
+                    padding-right: $spacing-button_iconOnly_default-paddingRight;
+                }
+
+                &.#{$module}-size {
+                    &-small {
+                        .#{$module}-content {
+                            padding-left: $spacing-button_iconOnly_small-paddingLeft;
+                            padding-right: $spacing-button_iconOnly_small-paddingRight;
+                        }
+                    }
+
+                    &-large {
+                        .#{$module}-content {
+                            padding-left: $spacing-button_iconOnly_large-paddingLeft;
+                            padding-right: $spacing-button_iconOnly_large-paddingRight;
+                        }
+                    }
+                }
+            }
+
+            &:first-child {
+                border-top-left-radius: $radius-button_group;
+                border-bottom-left-radius: $radius-button_group;
+            }
+
+            &:last-child {
+                border-top-right-radius: $radius-button_group;
+                border-bottom-right-radius: $radius-button_group;
+            }
+
+            &-outline:not(:last-child) {
+               border-right-color: transparent;
+               margin-right: -1 * $width-button_outline-border;
+            }
+        }
+
+        &-line {
+            display: inline-flex;
+            align-items: center;
+            background-color: $color-button_group-border-default;
+
+            &-primary {
+                background-color: $color-button_primary-bg-default;
+            }
+
+            &-secondary {
+                background-color: $color-button_secondary-bg-default;
+            }
+
+            &-tertiary {
+                background-color: $color-button_tertiary-bg-default;
+            }
+
+            &-warning {
+                background-color: $color-button_warning-bg-default;
+            }
+
+            &-danger {
+                background-color: $color-button_danger-bg-default;
+            }
+
+            &-disabled {
+                background-color: $color-button_disabled-bg-default;
+            }
+
+            &-light {
+                background-color: $color-button_light-bg-default;
+            }
+
+            &-borderless {
+                background-color: transparent;
+            }
+
+            &::before {
+                display: block;
+                content: '';
+                width: $width-button_group-border;
+                height: $height-button_group_line_default;
+                background-color: $color-button_group-border-default;
+            }
+        }
+    }
+}
+
+@import './rtl.scss';

@@ -1,0 +1,77 @@
+// Color
+$color-modal-bg: var(--semi-color-bg-2); // 模态框背景颜色
+$color-modal_mask-bg: var(--semi-color-overlay-bg); // 模态框蒙层颜色
+$color-modal_main-text: var(--semi-color-text-0); // 模态框文字颜色
+$color-modal_info-icon: var(--semi-color-info); // 模态框信息图标颜色
+$color-modal_primary-icon: var(--semi-color-primary); // 模态框主要图标颜色
+$color-modal_success-icon: var(--semi-color-success); // 模态框成功图标颜色
+$color-modal_danger-icon: var(--semi-color-danger); // 模态框危险图标颜色
+$color-modal_warning-icon: var(--semi-color-warning); // 模态框警告图标颜色
+$color-modal_content-border: var(--semi-color-border); // 模态框描边颜色
+$color-modal_header-bg: transparent;  // 模态框 header 背景填充色
+$color-modal_footer-bg: transparent;  // 模态框 footer 背景填充色
+
+// Spacing
+$spacing-modal-marginY: 80px; // 模态框距容器顶部外边距
+$spacing-modal-marginX: auto; // 模态框水平外边距（默认居中）
+$spacing-modal_mask-top: 0;  // 模态框蒙层顶部位置
+$spacing-modal_mask-right: 0; // 模态框蒙层右侧位置
+$spacing-modal_mask-bottom: 0; // 模态框蒙层底部位置
+$spacing-modal_mask-left: 0; // 模态框蒙层左侧位置
+$spacing-modal_content_withicon-marginLeft: 36px; // 模态框蒙层左侧位置
+$spacing-modal_icon_wrapper-marginRight: $spacing-base-tight; // 模态框图标右侧外边距
+$spacing-modal_wrap-top: 0;
+$spacing-modal_wrap-right: 0;
+$spacing-modal_wrap-bottom: 0;
+$spacing-modal_wrap-left: 0;
+$spacing-modal_title-margin: 0; // 模态框标题外边距
+$spacing-modal_content-paddingY: 0; // 模态框内容垂直内边距
+$spacing-modal_content-paddingX: 24px; // 模态框内容水平内边距
+$spacing-modal_header-marginY: 24px; // 模态框标题垂直外边距
+$spacing-modal_header-marginX: 0; // 模态框标题水平外边距
+$spacing-modal_header-paddingY: 0;
+$spacing-modal_header-paddingX: 0;
+$spacing-modal_body_wrapper-marginY: 24px;
+$spacing-modal_body_wrapper-marginX: 0;
+$spacing-modal_body-margin: 0; // 模态框 body 外边距
+$spacing-modal_body-padding: 0; // 模态框 内容外Padding
+$spacing-modal_footer-marginY: 24px; // 模态框 footer 垂直外边距
+$spacing-modal_footer-marginX: 0; // 模态框 footer 水平外边距
+$spacing-modal_footer-paddingY:0;
+$spacing-modal_footer-paddingX: 0;
+$spacing-modal_footer_button-marginLeft: $spacing-base-tight; // 模态框 footer 按钮左侧外边距
+$spacing-modal_footer_button-marginRight: 0; // 模态框 footer 按钮右侧外边距
+$spacing-modal_confirm_header-marginBottom: 8px; // 命令式调用模态框 header 底部外边距
+$spacing-modal_confirm_icon_wrapper-marginRight: $spacing-base-tight; // 命令式调用模态框图标右侧外边距
+$spacing-modal_content_fullscreen-top: 0px; // 模态框内容全屏顶部位置
+
+// Width/Height
+$width-modal_title: 100%; // 模态框标题宽度
+$width-modal_content: 100%; // 模态框内容宽度
+$height-modal_content: max-content; // 模态框内容高度
+$width-modal_content-border: 1px; // 模态框内容描边宽度
+$width-modal_small: 448px; // 模态框宽度 - 小
+$width-modal_medium: 684px; // 模态框宽度 - 中
+$width-modal_large: 920px; // 模态框宽度 - 大
+$width-modal_full_width: calc(100vw - 64px); // 模态框宽度 - 全屏
+
+// Radius
+$radius-modal_content: var(--semi-border-radius-large); // 模态框圆角大小
+$radius-modal_content_fullscreen: 0; // 模态框圆角大小 - 全屏
+$radius-modal_footer: 0 0 5px 5px;; // 模态框 footer 圆角大小
+
+// Font
+$font-modal_header-fontSize: $font-size-regular; // 模态框 title 字号
+$font-modal_header-fontWeight: $font-weight-bold; // 模态框 title 字重
+
+//border
+$color-modal_header-border:transparent;  // 模态框 header 底部描边颜色
+$width-modal_header-border:0; // 模态框 header 底部描边宽度
+$color-modal_footer-border:transparent; // 模态框 footer 顶部描边颜色
+$width-modal_footer-border:0; // 模态框 footer 顶部描边宽度
+
+
+//shadow
+$shadow-modal_content: var(--semi-shadow-elevated);
+$filter-modal_mask-bg: none;
+$filter-modal_content-bg: none;

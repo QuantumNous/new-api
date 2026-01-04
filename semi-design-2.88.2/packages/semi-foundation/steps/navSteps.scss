@@ -1,0 +1,63 @@
+$module: #{$prefix}-steps;
+$item: #{$module}-item;
+$basicType: #{$module}-nav;
+
+.#{$basicType} {
+    display: inline-flex;
+    flex-flow: row nowrap;
+
+    .#{$item} {
+        @include box-sizing;
+        
+        &:last-child {
+            flex: none;
+
+            .#{$item}-content {
+                width: auto;
+            }
+        }
+
+        .#{$item}-container {
+            display: flex;
+            align-items: center;
+            color: $color-steps_nav_item_container-text;
+
+            .#{$item}-icon {
+                display: inline-flex;
+                flex: 1;
+                justify-content: center;
+                color: $color-steps_nav_item-icon;
+                min-width: $width-steps_nav_item_icon-minWidth;
+            }
+        }
+
+        .#{$item}-content {
+            flex: 1;
+            display: inline-block;
+        }
+
+        .#{$item}-title {
+            @include font-size-header-6;
+            max-width: $width-steps_nav_item_title-maxWidth;
+            @include text-overflow-hidden;
+            font-weight: $font-steps_nav_item_title-fontWeight;
+        }
+
+
+        &-active {
+            .#{$item}-title {
+                color: $color-steps_nav_item_title-text-active;
+                font-weight: $font-steps_nav_item_title_active-fontWeight;
+            }
+        }
+    }
+
+    &.#{$module}-small {
+        .#{$item} {
+            .#{$item}-title {
+                @include font-size-regular;
+            }
+
+        }
+    }
+}

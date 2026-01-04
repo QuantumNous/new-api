@@ -1,0 +1,162 @@
+@import "./animation.scss";
+@import "./variables.scss";
+
+$module: #{$prefix}-toast;
+$icon: #{$prefix}-toast-icon;
+
+.#{$module} {
+    pointer-events: none;
+
+    &-wrapper {
+        position: fixed;
+        height: 0;
+        top: $spacing-toast_wrapper-top;
+        width: $width-toast_wrapper;
+        display: flex;
+        justify-content: center;
+        z-index: $z-toast;
+        .#{$module}-innerWrapper{
+            width: fit-content;
+            height: fit-content;
+            text-align: center;
+            &-hover{
+                .#{$module}-zero-height-wrapper{
+                    perspective: unset;
+                    perspective-origin: center center;
+                }
+            }
+        }
+
+
+    }
+
+
+    &-zero-height-wrapper{
+        transition: all $animation_duration-toast-stack $animation_function-toast-stack;
+        perspective-origin: center $spacing-toast-perspective-originY; ;
+        perspective: $spacing-toast-perspective;
+        height: 0;
+        overflow: visible;
+    }
+
+
+    &-content {
+        pointer-events: all;
+        @include shadow-elevated;
+        @include font-size-regular;
+        background-color: $color-toast-bg-default;
+        border-radius: $radius-toast_content;
+        padding: $spacing-toast_content-paddingTop $spacing-toast_content-paddingRight $spacing-toast_content-paddingBottom $spacing-toast_content-paddingLeft;
+        display: inline-flex;
+        align-items: flex-start;
+        justify-content: center;
+        margin: $spacing-toast_content-margin;
+        font-weight: $font-toast_content-fontWeight;
+        color: $color-toast-text-default;
+
+        .#{$module}-close-button {
+            margin-top: $spacing-toast_content_close_btn-marginTop;
+            height: $width-icon-large;
+        }
+
+        .#{$module}-content-text {
+            margin-left: $spacing-toast_content_text-marginLeft;
+            margin-right: $spacing-toast_content_text-marginRight;
+            text-align: left;
+            // word-wrap is an alias of overflow-wrap, word-wrap can take effect on more browsers, in order to prevent future changes, use both  
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+    }
+
+    &-light {
+        &.#{$module}-warning {
+            .#{$module}-content {
+                background-color: $color-toast_warning_light-bg;
+                border: $width-toast_light-border solid $color-toast_warning_light-border;
+            }
+            .#{$icon}-warning {
+                color: $color-toast_warning_light-icon;
+            }
+        }
+
+        &.#{$module}-success {
+            .#{$module}-content {
+                background-color: $color-toast_success_light-bg;
+                border: $width-toast_light-border solid $color-toast_success_light-border;
+            }
+            .#{$icon}-success {
+                color: $color-toast_success_light-icon;
+            }
+        }
+
+        &.#{$module}-info {
+            .#{$module}-content {
+                background-color: $color-toast_info_light-bg;
+                border: $width-toast_light-border solid $color-toast_info_light-border;
+            }
+            .#{$icon}-info {
+                color: $color-toast_info_light-icon;
+            }
+        }
+
+        &.#{$module}-error {
+            .#{$module}-content {
+                background-color: $color-toast_danger_light-bg;
+                border: $width-toast_light-border solid $color-toast_danger_light-border;
+            }
+            .#{$icon}-error {
+                color: $color-toast_danger_light-icon;
+            }
+        }
+    }
+
+    .#{$icon}-warning {
+        color: $color-toast_warning-icon;
+    }
+
+    .#{$icon}-success {
+        color: $color-toast_success-icon;
+    }
+
+    .#{$icon}-info {
+        color: $color-toast_info-icon;
+    }
+
+    .#{$icon}-error {
+        color: $color-toast_danger-icon;
+    }
+
+    &-animation-show{
+        animation: $animation_duration-toast-show #{$module}-keyframe-toast-show $animation_function-toast-show $animation_delay-toast-show ;
+        animation-fill-mode: forwards;
+    }
+
+    &-animation-hide{
+        animation: $animation_duration-toast-hide #{$module}-keyframe-toast-hide $animation_function-toast-hide $animation_delay-toast-hide ;
+        animation-fill-mode: forwards;
+    }
+
+    @keyframes #{$module}-keyframe-toast-show{
+        0%{
+            opacity: $animation_opacity-toast-show;
+            transform: translateY($animation_transform_translateY-toast-show);
+        }
+        100%{
+            opacity: 1;
+        }
+    }
+
+    @keyframes #{$module}-keyframe-toast-hide{
+        0%{
+            opacity: 1;
+        }
+        100%{
+            opacity: $animation_opacity-toast-hide;
+            transform: translateY($animation_transform_translateY-toast-hide);
+        }
+    }
+
+}
+
+@import "./rtl.scss";

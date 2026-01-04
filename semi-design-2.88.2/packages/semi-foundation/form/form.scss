@@ -1,0 +1,319 @@
+//@import '../theme/variables.scss';
+@import "./variables.scss";
+
+$form: #{$prefix}-form;
+$field: #{$prefix}-form-field;
+$group: #{$prefix}-form-field-group;
+$col: #{$form}-col;
+
+$checkboxGroup: #{$prefix}-checkboxGroup;
+$radioGroup: #{$prefix}-radioGroup;
+$buttonRadioGroup: #{$prefix}-radioGroup-buttonRadio;
+$horizontalCardRadioGroup: #{$prefix}-radioGroup-horizontal-card;
+$verticalCardRadioGroup: #{$prefix}-radioGroup-vertical-card;
+
+$switch: #{$prefix}-switch;
+$rating: #{$prefix}-rating;
+
+.#{$form} {
+    .#{$field} {
+        box-sizing: border-box;
+    }
+
+    &-horizontal {
+        display: flex;
+        flex-wrap: wrap;
+
+        .#{$field} {
+            margin-left: 0;
+            padding-right: $spacing-form_field_horizontal-paddingRight;
+
+            &:last-child {
+                margin-right: $spacing-form_field_horizontal-paddingRight;
+            }
+        }
+
+        .#{$group} {
+            padding-right: $spacing-form_field_group_horizontal-paddingRight;
+        }
+
+        .#{$prefix}-row {
+            display: block;
+        }
+    }
+
+    &-vertical {
+        .#{$field} {
+            margin: 0;
+            padding-top: $spacing-form_field_vertical-paddingTop;
+            padding-bottom: $spacing-form_field_vertical-paddingBottom;
+            overflow: hidden;
+
+            &[x-label-pos="top"] {
+                // .#{$col}-right,
+                // .#{$col}-left {
+                //     width: 100%;
+                // }
+            }
+            .#{$col} {
+
+                &-right {
+                    display: flex;
+                    justify-content: flex-end;
+                }
+
+                &-left {
+                    display: flex;
+                    justify-content: flex-start;
+                }
+            }
+        }
+
+        .#{$field}-group {
+            .#{$col} {
+                &-right {
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                &-left {
+                    display: flex;
+                    justify-content: flex-start;
+                }
+            }
+        }
+
+        .#{$field}-pure {
+            // padding-top: 0;
+            // padding-bottom: 0;
+            // overflow: inherit;
+        }
+    }
+
+    &-field-label {
+        box-sizing: border-box;
+        font-weight: $font-form_label-fontWeight;
+        color: $color-form_label-text-default;
+        margin-bottom: $spacing-form_label-marginBottom;
+        margin-top: $spacing-form_label-marginTop;
+        padding-right: $spacing-form_label-paddingRight;
+        display: inline-block;
+        vertical-align: middle;
+        @include font-size-regular;
+        flex-shrink: 0;
+
+        &-disabled {
+            color: $color-form_label_disabled-text-default;
+        }
+
+        &-with-extra {
+            .#{$field}-label-text {
+                display: inline-block;
+            }
+            .#{$field}-label-extra {
+                display: flex;
+                align-items: center;
+                margin-left: $spacing-form_label_extra-marginLeft;
+            }
+        }
+
+        &-required {
+            .#{$field}-label-text {
+                &::after {
+                    content: "*";
+                    margin-left: $spacing-form_label_required-marginLeft;
+                    color: $color-form_requiredMark-text-default;
+                    font-weight: $font-form_requiredMark-fontWeight;
+                }
+            }
+            &-disabled {
+                color: $color-form_requiredMark_disabled-text-default;
+            }
+        }
+
+        &-optional-text {
+            color: $color-form_label_optional-text-default;
+        }
+
+        &-left {
+            text-align: left;
+        }
+
+        &-right {
+            text-align: right;
+        }
+    }
+
+    &-field-error-message,
+    &-field-help-text {
+        @include font-size-regular;
+        display: flex;
+        align-items: center;
+        // TODO help text margin token?
+        margin-top: $spacing-form_message-marginTop;
+        .#{$prefix}-icon-alert_triangle {
+            color: $color-form_alertIcon-icon-default;
+        }
+    }
+
+    &-field-error-message {
+        color: $color-form_message_error-text-default;
+    }
+}
+
+.#{$field} {
+
+    &[x-label-pos="top"] {
+        // display:
+        .#{$field}-label {
+            // make sure label height is correct
+            display: block;
+        }
+        .#{$checkboxGroup},
+        .#{$radioGroup} {
+            padding-top: $spacing-form_label_posTop-paddingTop;
+            padding-bottom: $spacing-form_label_posTop-paddingBottom;
+        }
+        // no need to adjust height for button radio & card radio
+        .#{$buttonRadioGroup},
+        .#{$horizontalCardRadioGroup},
+        .#{$verticalCardRadioGroup} {
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .#{$field}-label-with-extra {
+            display: flex;
+            align-items: center;
+        }
+    }
+
+    &[x-label-pos="left"] {
+        display: flex;
+
+        .#{$field}-label {
+            margin-bottom: $spacing-form_label_posLeft-marginBottom;
+            margin-right: $spacing-form_label_posLeft-marginRight;
+            // 增加padding-top：6px以达到与组件的第一行文本水平对齐
+            padding-top: $spacing-form_label-paddingTop;
+            padding-bottom: $spacing-form_label-paddingTop;
+        }
+        .#{$field}-label-with-extra {
+            display: flex;
+            align-items: center;
+        }
+        // labelAlign = right
+        .#{$field}-label-with-extra.#{$field}-label-right{
+            justify-content: flex-end;
+        }
+        .#{$checkboxGroup},
+        .#{$radioGroup} {
+            padding-top: $spacing-form_label-paddingTop;
+            padding-bottom: $spacing-form_label-paddingTop;
+        }
+        // no need to adjust height for button radio, already 32px, no need to consider height of card radio
+        .#{$buttonRadioGroup},
+        .#{$horizontalCardRadioGroup},
+        .#{$verticalCardRadioGroup} {
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .#{$switch},
+        .#{$rating} {
+            vertical-align: middle;
+            margin-top: $spacing-form_switch_rating_marginY;
+            margin-bottom: $spacing-form_switch_rating_marginY;
+        }
+    }
+
+    &[x-extra-pos="middle"] {
+        .#{$field}-extra {
+            margin-top: $spacing-form_extra_posMid-marginTop;
+            margin-bottom: $spacing-form_extra_posMid-marginBottom;
+        }
+    }
+
+    &[x-extra-pos="bottom"] {
+        .#{$field}-extra {
+            margin-top: $spacing-form_extra_posBottom-marginTop;
+        }
+    }
+
+    &-main {
+        width: 100%;
+    }
+
+    &-validate-status-icon {
+        margin-right: $spacing-form_statusIcon-marginRight;
+        flex-shrink: 0;
+        align-self: flex-start;
+        position: relative;
+        top: 2px;
+    }
+
+    &-extra {
+        color: $color-form_label_extra-text-default;
+    }
+
+    &-extra-string {
+        color: $color-form_label_extra-text-default;
+        @include font-size-regular;
+    }
+}
+
+// group
+
+.#{$form}-vertical {
+    .#{$form}-field-group {
+        margin-top: 0;
+        margin-bottom: 0;
+        padding-top: $spacing-form_field_group_vertical-paddingTop;
+        padding-bottom: $spacing-form_field_group_vertical-paddingBottom;
+        overflow: hidden;
+        
+        .#{$field} {
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+    }
+}
+
+.#{$form}-field-group {
+    &[x-label-pos="top"] {
+    }
+
+    &[x-label-pos="left"] {
+        display: flex;
+        .#{$field}-label {
+            margin-bottom: $spacing-form_label_posLeft-marginBottom;
+            margin-right: $spacing-form_label_posLeft-marginRight;
+            // add padding-top to align first line text in component
+            padding-top: $spacing-form_label-paddingTop;
+            padding-bottom: $spacing-form_label-paddingTop;
+        }
+    }
+}
+
+// section
+.#{$form}-section {
+    width: 100%;
+    margin-top: $spacing-form_section-marginTop;
+
+    &-text {
+        margin-block-start: 0;
+        margin-block-end: 0;
+        @include font-size-header-5;
+        font-weight: $font-weight-bold;
+        width: 100%;
+        padding-bottom: $spacing-form_section_text-paddingBottom;
+        padding-top: $spacing-form_section_text-paddingTop;
+        border-bottom: $width-form_section-border solid $color-form_section-border-default;
+        margin-bottom: $spacing-form_section_text-marginBottom;
+        margin-top: $spacing-form_section_text-marginTop;
+        color: $color-form_section-text-default;
+    }
+
+    &:nth-of-type(1) {
+        margin-top: 0;
+    }
+}
+
+@import "./rtl.scss";

@@ -1,0 +1,58 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-space;
+
+.#{$module} {
+    display: inline-flex;
+    
+    &-vertical {
+        flex-direction: column;
+    }
+    &-horizontal {
+        flex-direction: row;
+    }
+    &-align {
+        &-center {
+            align-items: center;
+        }
+        &-end {
+            align-items: flex-end;
+        }
+        &-start {
+            align-items: flex-start;
+        }
+        &-baseline {
+            align-items: baseline;
+        }
+    }
+    &-wrap {
+        flex-wrap: wrap;
+    }
+    
+    &-tight-horizontal {
+        column-gap: $spacing-space-tight
+    }
+
+    &-tight-vertical {
+        row-gap: $spacing-space-tight;
+    }
+    
+    &-medium-horizontal {
+        column-gap: $spacing-space-medium
+    }
+
+    &-medium-vertical {
+        row-gap: $spacing-space-medium;
+    }
+    
+    &-loose-horizontal {
+        column-gap: $spacing-space-loose
+    }
+
+    &-loose-vertical {
+        row-gap: $spacing-space-loose;
+    }
+}
+
+@import './rtl.scss';
+

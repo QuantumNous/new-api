@@ -1,0 +1,18 @@
+$module: #{$prefix}-checkbox;
+$inner-width: $width-icon-medium;
+
+.#{$prefix}-rtl, 
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        input[type="checkbox"] {
+            left: auto;
+            right: 0;
+        }
+    }
+
+    .#{$module}Group {
+        direction: rtl;
+    }
+}

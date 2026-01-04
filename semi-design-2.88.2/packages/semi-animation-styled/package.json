@@ -1,0 +1,43 @@
+{
+    "name": "@douyinfe/semi-animation-styled",
+    "version": "2.88.2",
+    "description": "semi styled animation",
+    "keywords": [
+        "semi",
+        "styled",
+        "animation"
+    ],
+    "homepage": "",
+    "license": "MIT",
+    "main": "lib/cjs/index.js",
+    "module": "lib/es/index.js",
+    "typings": "lib/es/index.d.ts",
+    "directories": {
+        "lib": "lib",
+        "test": "__tests__"
+    },
+    "files": [
+        "lib",
+        "README.md"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DouyinFE/semi-design"
+    },
+    "scripts": {
+        "test": "echo \"Error: run tests from root\" && exit 1",
+        "build:lib": "node scripts/compileLib -tag node",
+        "prepublishOnly": "npm run build:lib"
+    },
+    "devDependencies": {
+        "@babel/plugin-proposal-decorators": "^7.15.8",
+        "@babel/plugin-transform-runtime": "^7.15.8",
+        "@babel/preset-env": "^7.15.8",
+        "del": "^6.0.0",
+        "gulp": "^4.0.2",
+        "gulp-babel": "^8.0.0",
+        "gulp-typescript": "^6.0.0-alpha.1",
+        "merge2": "^1.4.1"
+    },
+    "gitHead": "eb34a4f25f002bb4cbcfa51f3df93bed868c831a"
+}

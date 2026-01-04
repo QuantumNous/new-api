@@ -1,0 +1,50 @@
+{
+    "name": "@douyinfe/semi-foundation",
+    "version": "2.88.2",
+    "description": "",
+    "scripts": {
+        "build:lib": "node ./scripts/compileLib.js",
+        "prepublishOnly": "npm run build:lib"
+    },
+    "dependencies": {
+        "@douyinfe/semi-animation": "2.88.2",
+        "@douyinfe/semi-json-viewer-core": "2.88.2",
+        "@mdx-js/mdx": "^3.0.1",
+        "async-validator": "^3.5.0",
+        "classnames": "^2.2.6",
+        "date-fns": "^2.29.3",
+        "date-fns-tz": "^1.3.8",
+        "fast-copy": "^3.0.1 ",
+        "lodash": "^4.17.21",
+        "lottie-web": "^5.12.2",
+        "memoize-one": "^5.2.1",
+        "prismjs": "^1.29.0",
+        "remark-gfm": "^4.0.0",
+        "scroll-into-view-if-needed": "^2.2.24"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "MIT",
+    "sideEffects": [
+        "*.scss",
+        "*.css"
+    ],
+    "gitHead": "eb34a4f25f002bb4cbcfa51f3df93bed868c831a",
+    "devDependencies": {
+        "@babel/plugin-transform-runtime": "^7.15.8",
+        "@babel/preset-env": "^7.15.8",
+        "@types/lodash": "^4.14.176",
+        "@types/mdx": "^2.0.13",
+        "@types/prismjs": "^1.26.3",
+        "babel-plugin-lodash": "^3.3.4",
+        "del": "^6.0.0",
+        "esbuild": "0.24.0",
+        "gulp": "^4.0.2",
+        "gulp-babel": "^8.0.0",
+        "gulp-replace": "^1.1.3",
+        "gulp-sass": "^5.0.0",
+        "gulp-typescript": "^6.0.0-alpha.1",
+        "merge2": "^1.4.1",
+        "through2": "^4.0.2"
+    }
+}

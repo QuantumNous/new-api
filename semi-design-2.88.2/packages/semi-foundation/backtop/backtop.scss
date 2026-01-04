@@ -1,0 +1,17 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-backtop;
+
+.#{$module} {
+    position: fixed;
+    box-sizing: border-box;
+    right: $spacing-backtop-right;
+    bottom: $spacing-backtop-bottom;
+    z-index: $z-backtop;
+    cursor: pointer;
+
+    text-align: center;
+    overflow: hidden;
+}
+
+@import "./rtl.scss";

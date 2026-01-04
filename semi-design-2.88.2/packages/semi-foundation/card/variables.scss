@@ -1,0 +1,30 @@
+$color-card-bg-default: var(--semi-color-bg-0); // 卡片背景颜色
+$color-card-border: var(--semi-color-border); // 卡片描边颜色
+$color-card_title-text: var(--semi-color-text-0); // 卡片标题文字颜色
+$color-card_description-text: var(--semi-color-text-2); // 卡片描述文字颜色
+$color-card_extra-text: var(--semi-color-text-0); // 卡片附加文字颜色
+$color-card_body-text: var(--semi-color-text-1); // 卡片正文文字颜色
+
+$font-card_default-fontWeight: $font-weight-regular; // 卡片文字字重 - 默认
+$font-card_extra-fontWeight: 700; // 卡片文字字重 - 附加文字
+$font-card_title-fontWeight: 700; // 卡片文字字重 - 标题
+$font-card_default-lineHeight: 20px; // 卡片文字行高 - 默认
+$font-card_title-lineHeight: 22px; // 卡片文字行高 - 标题
+$font-card_default-fontSize: $font-size-regular;  // 卡片文字大小 - 默认
+$font-card_extra-fontSize: $font-size-header-6; // 卡片文字大小 - 附加文字
+$font-card_title-fontSize: $font-size-header-6; // 卡片文字大小 - 标题
+
+$radius-card: var(--semi-border-radius-medium); // 卡片圆角
+
+$motion-card-transition_duration: 300ms; // 卡片悬浮动画时长
+
+$width-card-border: $border-thickness-control; // 卡片描边宽度
+
+$shadow-card: var(--semi-shadow-elevated); // 卡片阴影
+
+$spacing-card-padding: $spacing-base-loose; // 卡片内边距
+$spacing-card-margin: $spacing-base-loose; // 卡片外边距
+$spacing-card_avatar-marginRight: $spacing-base-tight; // 卡片头像右侧外边距
+$spacing-cardGroup_card-margin: -1px; // 卡片组外边距
+
+$z-card_hover: 1; // 悬浮后卡片 zindex

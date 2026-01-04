@@ -1,0 +1,138 @@
+@import "./variables.scss";
+$module: #{$prefix}-resizable;
+
+.#{$module} {
+    &-resizable {
+        position: relative;
+        box-sizing: border-box;
+        flex-shrink: 0;
+    }
+
+    &-resizableHandler {
+        position: absolute;
+        user-select: none;
+        z-index: $z-resizable_handler;
+
+        // 基础样式
+        @mixin row-resize-base {
+            width: 100%;
+            height: $height-row-handler;
+            top: 0;
+            left: 0;
+            cursor: row-resize;
+        }
+
+        @mixin col-resize-base {
+            width: $width-col-handler;
+            height: 100%;
+            top: 0;
+            left: 0;
+            cursor: col-resize;
+        }
+
+        @mixin edge-resize-base {
+            width: $width-edge-handler;
+            height: $height-edge-handler;
+            position: absolute;
+        }
+
+        // 方向样式
+        &-top {
+            @include row-resize-base;
+            top: calc(-1 * $height-row-handler / 2);
+        }
+
+        &-right {
+            @include col-resize-base;
+            left: auto;
+            right: calc(-1 * $width-col-handler / 2);
+        }
+
+        &-bottom {
+            @include row-resize-base;
+            top: auto;
+            bottom: calc(-1 * $height-row-handler / 2);
+        }
+
+        &-left {
+            @include col-resize-base;
+            left: calc(-1 * $width-col-handler / 2);
+        }
+
+        // 边角样式
+        &-topRight {
+            @include edge-resize-base;
+            right: calc(-1 * $width-edge-handler / 2);
+            top: calc(-1 * $height-edge-handler / 2);
+            cursor: ne-resize;
+        }
+
+        &-bottomRight {
+            @include edge-resize-base;
+            right: calc(-1 * $width-edge-handler / 2);
+            bottom: calc(-1 * $height-edge-handler / 2);
+            cursor: se-resize;
+        }
+
+        &-bottomLeft {
+            @include edge-resize-base;
+            left: calc(-1 * $width-edge-handler / 2);
+            bottom: calc(-1 * $height-edge-handler / 2);
+            cursor: sw-resize;
+        }
+
+        &-topLeft {
+            @include edge-resize-base;
+            left: calc(-1 * $width-edge-handler / 2);
+            top: calc(-1 * $height-edge-handler / 2);
+            cursor: nw-resize;
+        }
+    }
+
+    &-group {
+        display: flex;
+        position: relative;
+        box-sizing: border-box;
+        height: 100%;
+        width: 100%;
+    }
+
+    &-item {
+        position: relative;
+        box-sizing: border-box;
+        flex-shrink: 0;
+    }
+
+    &-handler {
+        user-select: none;
+        z-index: $z-resizable_handler;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--semi-color-fill-0);
+        opacity: 1;
+
+        &-vertical {
+            width: 100%;
+            height: $height-vertical-handler;
+            flex-shrink: 0;
+            cursor: row-resize;
+        }
+
+        &-horizontal {
+            height: 100%;
+            width: $width-horizontal-handler;
+            flex-shrink: 0;
+            cursor: col-resize;
+        }
+    }
+
+    &-background {
+        height: 100%;
+        width: 100%;
+        inset: 0;
+        z-index: $z-resizable_background;
+        opacity: 0;
+        position: fixed;
+    }
+}

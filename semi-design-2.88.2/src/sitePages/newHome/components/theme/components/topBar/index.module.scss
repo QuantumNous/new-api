@@ -1,0 +1,28 @@
+.tabBar {
+    border-radius: 8px 8px 0 0;
+    padding: 0 0 1px;
+    background-color: var(--semi-color-bg-2);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.autoWrapper {
+    position: relative;
+}
+
+.container {
+    border-radius: 8px 8px 0 0;
+    background-color: var(--semi-color-bg-2);
+    box-shadow: 0 1px 0 0 var(--semi-color-tertiary-light-hover);
+    position: relative;
+    align-self: flex-start;
+    width: 1200px;
+    height: 25px;
+}
+
+.windowControls {
+    position: absolute;
+    left: 1px;
+    top: 7px;
+}

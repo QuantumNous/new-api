@@ -1,0 +1,75 @@
+// Color
+$color-videoPlayer_theme_dark-text: var(--semi-color-bg-0); // dark theme 字体色
+$color-videoPlayer_theme_dark-bg: rgba(var(--semi-grey-8), 1); // dark theme 背景色
+$color-videoPlayer_theme_light-text: rgba(var(--semi-grey-8), 1); // light theme 字体色
+$color-videoPlayer_theme_light-bg: var(--semi-color-disabled-bg); // light theme 背景色
+$color-videoPlayer_pause-bg: var(--semi-color-text-1); // 暂停按钮颜色
+$color-videoPlayer_notification-bg: var(--semi-color-overlay-bg); // notification 背景色
+$color-videoPlayer_notification-text: var(--semi-color-default); // notification 字体色
+$color-videoPlayer_controls-bg: rgba(28, 31, 35, 0.8); // 控制栏背景色
+$color-videoPlayer_controls_item-bg: var(--semi-color-overlay-bg); // 控制栏 item 背景色
+$color-videoPlayer_controls-text: #fff; // 控制栏文字色
+$color-videoPlayer_controls_item_popup-bg-default: var(--semi-color-overlay-bg); // 控制栏弹层背景色
+$color-videoPlayer_controls_item_popup-bg-hover: rgba(67, 68, 74, 1); // 控制栏弹层背景色 - hover
+$color-videoPlayer_controls_popup_item-text-default: rgba(#fff, 0.7); // 控制栏文字色
+$color-videoPlayer_controls_popup_item-text-active: var(--semi-color-primary); // 控制栏弹层文字色 - 选中
+$color-videoPlayer_progress_bar-bg-played: var(--semi-color-primary); // 进度条已播放部分背景色
+$color-videoPlayer_progress_bar-bg-loaded: rgba(var(--semi-grey-3), 1); // 进度条已加载部分背景色
+$color-videoPlayer_progress_bar-bg-unplayed: rgba(var(--semi-grey-5), 1); // 进度条未播放部分背景色
+$color-videoPlayer_progress_bar_handle-bg: #fff; // handle 背景色
+$color-videoPlayer_progress_bar_handle-border: var(--semi-color-primary); // handle 边框色
+$color-videoPlayer_progress_bar_handle-shadow: var(--semi-color-shadow); // handle 阴影色
+
+// Width/Height
+$height-videoPlayer_progress_bar_hotSpot-default: 20px; // 进度条热区 default 高度
+$height-videoPlayer_progress_bar-default: 4px; // 进度条 default 高度
+$height-videoPlayer_progress_bar-hover: 10px; // 进度条 hover 高度
+$height-videoPlayer_progress_bar_handle: 16px; // 进度条 handle 高度
+$height-videoPlayer_controls_menu-default: 56px; // 控制栏 default 高度
+$height-videoPlayer_controls_volume-default: 160px; // 控制栏音量 default 高度
+$height-videoPlayer_controls_popup-default: 24px; // 控制栏弹层类元素 default 高度
+$height-videoPlayer_controls_popup_item-default: 32px; // 控制栏弹层类元素 item default 高度
+$width-videoPlayer_controls_volume-default: 40px; // 控制栏音量 default 宽度
+$width-videoPlayer_controls_popup_item-default: 50px; // 控制栏弹层类元素 default 宽度
+$width-videoPlayer_controls_popup-default: 48px; // 控制栏弹层 default 宽度
+
+// Spacing
+$spacing-videoPlayer-progress_bar_chapter-marginRight: 2px; // 进度条分节间距
+$spacing-videoPlayer_notification-bottom: 22px; // notification 距离菜单栏距离
+$spacing-videoPlayer_notification-left: 8px; // notification 距离菜单栏左侧距离
+$spacing-videoPlayer_notification_text-paddingY: 8px; // notification 文字垂直方向 padding
+$spacing-videoPlayer_notification_text-paddingX: 12px; // notification 文字水平方向 padding
+$spacing-videoPlayer-controls-padding: $spacing-base-tight $spacing-base; // 控制栏 padding
+$spacing-videoPlayer-controls_item-gap: $spacing-tight; // 控制栏 item 间距
+$spacing-videoPlayer-controls_time-paddingX: 8px; // 控制栏时间 paddingX
+$spacing-videoPlayer-controls_volume_title-paddingX: 10px; // 控制栏音量标题文字 paddingX
+$spacing-videoPlayer-controls_volume_title-paddingY: 0px; // 控制栏音量标题文字 paddingX
+$spacing-videoPlayer-controls_volume_popup-paddingY: 0px; // 控制栏音量弹层 paddingX
+$spacing-videoPlayer-controls_volume_popup-paddingX: $spacing-extra-tight; // 控制栏音量弹层 paddingX
+$spacing-videoPlayer-controls_popup-paddingX: $spacing-tight; // 控制栏弹层元素 paddingX
+$spacing-videoPlayer-controls_popup-paddingY: 0px; // 控制栏弹层元素 paddingY
+$spacing-videoPlayer-progress_bar_wrapper-marginX: $spacing-tight; // 进度条 wrapper marginX
+$spacing-videoPlayer-progress_bar_wrapper-marginY: 0px; // 进度条 wrapper marginY
+$spacing-videoPlayer-progress_bar_tooltip-top: 6px; // 进度条 Tooltip top 值
+$spacing-videoPlayer_progress_bar_handle-top: 15px; // 进度条 handle top 值
+$spacing-videoPlayer_error_svg-marginBottom: 12px; // error svg marginBottom
+
+// Radius
+$radius-videoPlayer_notification: 3px; // notification 圆角
+$radius-videoPlayer_progress_bar_handle: 50%; // 进度条 handle 圆角
+$radius-videoPlayer_progress_bar: 999px; // 进度条圆角
+$radius-videoPlayer_controls_item: 3px; // 控制栏 item 圆角
+$radius-videoPlayer_controls_popup: 4px; // 控制栏弹层圆角
+
+// Font
+$font-videoPlayer_notification-fontSize: $font-size-regular; // notification 字体大小
+$font-videoPlayer_controls_item-fontSize: $font-size-small; // 控制栏 item 字体大小
+$font-videoPlayer_controls_time_text-fontSize: $font-size-regular; // 控制栏时间字体大小
+$font-videoPlayer_error-fontSize: $font-size-regular; // error 字体大小
+$font-videoPlayer_notification-lineHeight: 20px; // notification 行高
+$font-videoPlayer_controls_popup_item-lineHeight: 16px; // 控制栏 item 行高
+$font-videoPlayer_controls_popup_item-fontWeight: 600; // 控制栏 item 字体粗细
+$font-videoPlayer_error-fontWeight: 600; // error 字体粗细
+
+
+

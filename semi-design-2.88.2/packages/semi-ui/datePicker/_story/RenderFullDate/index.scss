@@ -1,0 +1,23 @@
+.components-datepicker-demo-day-today {
+    color: #0077fa;
+    background: rgba(46, 50, 56, 0.09);
+}
+
+.components-datepicker-demo-day-inrange {
+    background: #eaf5ff;
+}
+
+.components-datepicker-demo-day-hover {
+    background: rgba(46, 50, 56, 0.09);
+}
+
+.components-datepicker-demo-day-selected,
+.components-datepicker-demo-day-selected-start,
+.components-datepicker-demo-day-selected-end {
+    color: #fff;
+    background: #0077fa;
+}
+
+.components-datepicker-demo-day-disabled {
+    background: rgba(46, 50, 56, 0.04);
+}

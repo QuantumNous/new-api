@@ -1,0 +1,63 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-markdownRender;
+
+.#{$module} {
+
+    &-simple-code{
+        background: $color-markdownRender_simpleCode-bg;
+        color:$color-markdownRender_simpleCode-text;
+    }
+
+    ul, li {
+        color: $color-markdownRender_component_list
+    }
+
+    &-component-image {
+        margin: $spacing-markdownRender_component_image-marginTop $spacing-markdownRender_component_image-marginRight $spacing-markdownRender_component_image-marginBottom $spacing-markdownRender_component_image-marginLeft;
+        max-width: $width-markdownRender_component_image-maxWidth;
+        max-height: $width-markdownRender_component_image-maxHeight;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+
+        &-alt {
+            margin-top: $spacing-markdownRender_component_image_alt-marginTop;
+            text-align: center;
+            color: $color-markdownRender_component_image_alt;
+        }
+    }
+
+    &-component-header.#{$prefix}-typography{
+        &.#{$prefix}-typography-h1 {
+            margin-top: $spacing-markdownRender_component_header1-marginTop;
+            margin-bottom: $spacing-markdownRender_component_header1-marginBottom;
+        }
+        &.#{$prefix}-typography-h2 {
+            margin-top: $spacing-markdownRender_component_header2-marginTop;
+            margin-bottom: $spacing-markdownRender_component_header2-marginBottom;
+        }
+        &.#{$prefix}-typography-h3 {
+            margin-top: $spacing-markdownRender_component_header3-marginTop;
+            margin-bottom: $spacing-markdownRender_component_header3-marginBottom;
+        }
+        &.#{$prefix}-typography-h4 {
+            margin-top: $spacing-markdownRender_component_header4-marginTop;
+            margin-bottom: $spacing-markdownRender_component_header4-marginBottom;
+        }
+        &.#{$prefix}-typography-h5 {
+            margin-top: $spacing-markdownRender_component_header5-marginTop;
+            margin-bottom: $spacing-markdownRender_component_header5-marginBottom;
+        }
+    }
+
+    &-component-p {
+        strong {
+            font-weight: $font-weight-bold;
+        }
+    }
+
+
+
+
+}

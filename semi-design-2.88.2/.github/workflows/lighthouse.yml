@@ -1,0 +1,30 @@
+name: 'lighthouse test'
+
+on:
+    pull_request:
+        branches: [main, release, milestone**, feat/a11y-aria]
+    push:
+        branches: [main, release, milestone**]
+
+jobs:
+    lhci:
+        name: Lighthouse
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Use Node.js 20
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+            - name: npm install, build
+              run: |
+                  npm i -g lerna@^6 gulp
+                  lerna bootstrap
+                  lerna run build:lib
+                  npm run build-storybook
+            - name: run Lighthouse CI
+              env:
+                  LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+              run: |
+                  npm install -g @lhci/cli@0.8.x
+                  lhci autorun

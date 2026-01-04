@@ -1,0 +1,111 @@
+@import './variables.scss';
+
+$module: #{$prefix}-progress;
+
+.#{$module} {
+    display: flex;
+    align-items: center;
+
+    &-track {
+        background-color: $color-progress_default-bg;
+        border-radius: $radius-progress_track;
+    }
+
+    &-horizontal {
+        height: $height-progress_horizontal;
+        margin-top: $spacing-progress_horizontal-marginY;
+        margin-bottom: $spacing-progress_horizontal-marginY;
+
+        &.#{$module}-large {
+            height: $height-progress_horizontal_large;
+        }
+
+        .#{$module}-track {
+            height: 100%;
+            width: 100%;
+        }
+
+        .#{$module}-track-inner {
+            height: 100%;
+            background-color: $color-progress_track_inner-bg;
+            border-radius: $radius-progress_track_inner;
+            transition: width $motion-progress-transition_duration;
+            transition-timing-function: $motion-progress-transition_timing_function;
+        }
+
+        .#{$module}-line-text {
+            min-width: $width-progress_line_text;
+            font-weight: $font-progress_line_text-fontWeight;
+            // margin-left: $spacing-tight;
+            margin-left: $spacing-progress_line_text-marginLeft;
+            color: $color-progress_line_text-text;
+        }
+    }
+
+    &-vertical {
+        width: $width-progress_vertical;
+        display: inline-flex;
+        height: 100%;
+        margin-left: $spacing-progress_vertical-marginX;
+        margin-right: $spacing-progress_vertical-marginX;
+        flex-direction: column;
+
+        &.#{$module}-large {
+            width: $width-progress_vertical_large;
+        }
+
+        .#{$module}-track {
+            height: 100%;
+            width: 100%;
+        }
+
+        .#{$module}-track-inner {
+            background-color: $color-progress_track_inner-bg;
+            border-radius: $radius-progress_track_inner;
+            width: 100%;
+            transition: height $motion-progress-transition_duration;
+            transition-timing-function: $motion-progress-transition_timing_function;
+        }
+
+        .#{$module}-line-text {
+            font-weight: $font-progress_line_text-fontWeight;
+            margin-top: $spacing-progress_vertical_line_text-marginTop;
+        }
+    }
+
+    &-circle {
+        position: relative;
+        display: inline-block;
+
+        &-ring {
+            display: block;
+        }
+
+        &-ring-track {
+            stroke: $color-progress_default-bg;
+        }
+
+        &-ring-inner {
+            transition: stroke-dashoffset $motion-progress-transition_duration;
+            transition-timing-function: $motion-progress-transition_timing_function;
+
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+
+            stroke: $color-progress_track_inner-bg;
+        }
+
+        &-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            user-select: none;
+            color: $color-progress_circle-text;
+        }
+    }
+}
+
+@import './rtl.scss';

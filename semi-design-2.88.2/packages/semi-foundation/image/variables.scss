@@ -1,0 +1,50 @@
+$spacing-image_mask_info_text-marginTop: 8px; // 图像预览遮罩文字上外边距
+$spacing-image_preview_icon-x: 24px; // 图像预览中部左右调节icon与页面距离
+$spacing-image_preview_header-paddingY: 0; // 图像预览header部分上下内边距
+$spacing-image_preview_header-paddingX: 24px; // 图像预览header部分左右内边距
+$spacing-image_preview_footer-paddingY: 0; // 图像预览footer操作区部分上下内边距
+$spacing-image_preview_footer-paddingX: 16px; // 图像预览footer操作区部分左右内边距
+$spacing-image_preview_footer_page-marginY: 0; // 图像预览footer操作区图像页数据上下内边距
+$spacing-image_preview_footer_page-marginX: 12px; // 图像预览footer操作区图像页数据左右内边距
+$spacing-image_preview_footer_slider-paddingY: 0; // 图像预览footer操作区slider上下内边距
+$spacing-image_preview_footer_slider-paddingX: 16px; // 图像预览footer操作区slider左右内边距
+$spacing-image_preview_footer_slider_handle-marginTop: 8px; // 图像预览footer操作区slider的滑块上外边距
+$spacing-image_preview_footer_divider-marginY: 0;  // 图像预览footer操作区slider的分割线上下外边距
+$spacing-image_preview_footer_divider-marginX: 16px; // 图像预览footer操作区slider的分割线左右外边距
+$spacing-image_preview_footer_gap-marginLeft: 16px; // 图像预览footer操作区icon的左外边距
+$spacing-image_preview_footer_gap_rtl-marginLeft: 0; // 图像预览footer操作区在rtl模式下icon的左外边距
+
+$width-image_preview_footer_slider: 132px; // 图像预览footer操作区slider宽度
+$width-image_preview_footer_slider_handle: 16px; // 图像预览footer操作区滑块宽度
+$width-image_preview_icon: 40px; // 图像预览footer操作区icon宽度
+$width-image_preview_header_close: 30px; // 图像预览header部分的关闭热区宽度
+
+$height-image_preview_header: 60px; // 图像预览header部分高度
+$height-image_preview_footer: 48px; // 图像预览footer部分高度
+$height-image_preview_footer_slider: 2px; // 图像预览footer中slider高度
+$height-image_preview_footer_slider_handle: 16px; // 图像预览footer中slider的滑块高度
+$height-image_preview_icon: 40px; // 图像预览footer操作区icon高度
+$height-image_preview_header_close: 30px; // 图像预览header部分的关闭热区高度
+
+$radius-image: var(--semi-border-radius-small); // 图像圆角
+$radius-image_preview_footer: var(--semi-border-radius-medium); // 图像预览footer操作区圆角
+
+$color-image_mask-bg: var(--semi-color-overlay-bg); // 图像蒙层背景色
+$color-image_mask_info_text: var(--semi-color-white); // 图像蒙层文字颜色
+$color-image_status-bg: var(--semi-color-fill-0); // 图像加载失败背景颜色
+$color-image_status: var(--semi-color-disabled-text); // 图像状态加载失败 icon 颜色
+$color-image_preview-bg: var(--semi-color-overlay-bg); // 图像预览背景色
+$color-image_preview_icon: var(--semi-color-white); // 图像预览中部左右icon背景色
+$color-image_preview_header: var(--semi-color-white); // 图像预览header文字颜色
+$color-image_preview_footer_icon: var(--semi-color-white); // 图像预览footer中icon颜色
+$color-image_preview_footer_slider_rail: var(--semi-color-white); // 图像预览footer中slider滑轨颜色 
+// 以下几个颜色在明暗主题下一致，所以没有采用变量写法
+$color-image_preview_disabled: rgba(249, 249, 249, 0.35); // 图像预览禁用颜色
+$color-image_preview_icon-bg: rgba(0, 0, 0, 0.75); //图像预览中部icon背景色
+$color-image_header_close-bg: rgba(0, 0, 0, 0.75); //图像预览header的关闭icon的hover背景色
+$color-image_preview_footer-bg: rgba(0, 0, 0, 0.75); // 图像预览footer部分背景色
+$color-image-preview_divider-bg: rgba(255, 255, 255, .5); // 图像预览footer中的分割线背景色
+$color-image_preview_image_spin: #ccc; // 图像预览的加载状态颜色
+
+$z-image_preview: 1070 !default; // Image 组件预览层z-index
+$z-image_preview_header: 1 !default; // Image 组件预览层中 header 部分 z-index

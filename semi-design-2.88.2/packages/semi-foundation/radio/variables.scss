@@ -1,0 +1,110 @@
+$color-radio_default-border-default: var(--semi-color-text-3); // 默认态描边颜色
+$color-radio_default-bg-default: transparent; // 默认态背景颜色
+$color-radio_default-bg-hover: var(--semi-color-fill-0); // 悬浮态背景颜色
+$color-radio_default-bg-active: var(--semi-color-fill-1); // 按下态背景颜色
+$color-radio_default-border-hover: var(--semi-color-focus-border); // 悬浮态描边颜色
+$color-radio_checked-border-hover: var(--semi-color-primary-hover); // 选中时悬浮态描边颜色
+$color-radio_checked-border-active: var(--semi-color-primary-active); // 选中时按下态描边颜色
+
+$color-radio_default-text-default: var(--semi-color-text-0); // 选项文本颜色
+$color-radio_extra-text-default: var(--semi-color-text-2); // 辅助文本颜色
+
+$color-radio_primary-bg-hover: var(--semi-color-primary-hover); // 选中项悬浮态背景颜色
+$color-radio_primary-bg-active: var(--semi-color-primary-active); // 选中项按下态背景颜色
+$color-radio_primary-border-default: var(--semi-color-primary); // 选中项描边颜色
+$color-radio_primary-bg-default: var(--semi-color-primary); // 选中项背景颜色
+$color-radio_primary-text-default: rgba(var(--semi-white), 1); // 选中项圆点颜色
+
+$color-radio_checked-bg-disabled: var(--semi-color-primary-disabled); // 选中项禁用态背景颜色
+$color-radio_default-border-disabled: var(--semi-color-border); // 禁用态描边颜色
+$color-radio_checked-border-disabled: var(--semi-color-primary-disabled); // 选中项禁用态描边颜色
+
+$color-radio_disabled-bg-default: var(--semi-color-disabled-fill); // 禁用态背景颜色
+$color-radio_disabled-bg-hover: transparent;
+$color-radio_disabled-text-default: var(--semi-color-disabled-text); // 禁用态文本颜色
+$color-radio_disabled-border-default: var(--semi-color-border); // 禁用态描边颜色
+$color-radio_checked-icon-disabled: rgba(var(--semi-white), 1); // 禁用态圆点颜色
+
+$color-radio_buttonRadio-text-default: var(--semi-color-text-1); // 按钮样式单选文本颜色
+$color-radio_buttonRadio-bg-default: var(--semi-color-fill-0); // 按钮样式单选背景颜色
+$color-radio_buttonRadio-text-checked-hover: var(--semi-color-primary); // 按钮样式单选选中项文本颜色
+$color-radio_buttonRadio-text-disabled: var(--semi-color-disabled-text); // 按钮样式单选禁用态文本颜色
+
+$color-radio_addon_buttonRadio-bg-hover: var(--semi-color-fill-1); // 按钮样式单选悬浮态背景色
+$color-radio_addon_buttonRadio-text-checked: var(--semi-color-primary); // 按钮样式单选选中项文字颜色
+$color-radio_addon_buttonRadio-bg-checked: var(--semi-color-bg-3); // 按钮样式单选选中项背景颜色
+$color-radio_cardRadioGroup-bg-default: transparent; // 卡片样式单选默认背景色
+$color-radio_cardRadioGroup-bg-checked: var(--semi-color-primary-light-default); // 卡片样式单选选中态背景色
+$color-radio_cardRadioGroup_disabled-bg-checked: var(--semi-color-primary-light-default); // 卡片样式单选选中且禁用时的背景色
+$color-radio_cardRadioGroup_disabled-bg-active: transparent; // 卡片样式单选禁用时的背景色 - 按下态
+$color-radio_cardRadioGroup-bg-hover: var(--semi-color-fill-0); // 卡片样式单选悬浮态背景色
+$color-radio_cardRadioGroup-bg-active: var(--semi-color-fill-1); // 卡片样式单选按下态背景色
+$color-radio_cardRadioGroup_border-default: transparent; // 卡片样式单选默认描边颜色
+$color-radio_cardRadioGroup_border-active: var(--semi-color-primary); // 卡片样式单选选中态描边颜色
+$color-radio_cardRadioGroup_checked_border-active: var(--semi-color-primary-active); // 卡片样式单选选中态描边颜色 - 按下态
+$color-radio_cardRadioGroup_checked_border-hover: var(--semi-color-primary-hover); // 卡片样式单选选中态描边颜色 - 悬浮态
+$color-radio_cardRadioGroup_border_disabled-active: var(--semi-color-primary-disabled); // 卡片样式单选选中且禁用时的描边颜色
+$color-radio_cardRadioGroup_addon-text-default: var(--semi-color-text-0); // 卡片样式单选标题文字颜色
+$color-radio_cardRadioGroup_extra-text-default: var(--semi-color-text-2); // 卡片样式单选辅助文字颜色
+$color-radio_cardRadioGroup_checked_disabled-border-default: var(--semi-color-primary-disabled); // 卡片样式选中项禁用态描边颜色 - 默认态
+$color-radio_cardRadioGroup_checked_disabled-border-hover:  var(--semi-color-primary-disabled); // 卡片样式选中项禁用态描边颜色 - 悬浮态
+$color-radio_card-bg-hover: var(--semi-color-white); // 单选圆点颜色
+$color-radio_card-bg-active: var(--semi-color-white); // 单选圆点颜色 - 按下态
+$color-radio_card-bg-default: var(--semi-color-white); // 单选圆点颜色 - 悬浮态
+
+$color-radio_primary-outline-focus: var(--semi-color-primary-light-active); // 轮廓颜色 - 按键聚焦
+
+$radius-radio_cardRadioGroup: var(--semi-border-radius-small); // 卡片式单选圆角大小
+$radius-radio_addon_buttonRadio: var(--semi-border-radius-small); // 按钮式单选圆点圆角大小
+$radius-radio_buttonRadio: var(--semi-border-radius-small); // 按钮式单选圆角大小
+
+$width-radio_cardRadioGroup_checked-border: 1px; // 卡片式单选描边宽度
+$width-radio_cardRadioGroup_checked_disabled-border: 1px; // 卡片式单选选中且禁用时的描边宽度
+$width-radio_hover-border: $border-thickness-control; // 描边宽度 - 悬浮态
+$width-radio_disabled-border: $border-thickness-control; // 描边宽度 - 禁用态
+$width-radio_innder-border: $border-thickness-control; // 描边宽度 - 禁用态
+
+$width-radio-outline: 2px; // 单选框轮廓宽度
+
+$height-radio_inner_min: 20px; // 单选按钮高度
+$width-radio_inner: $width-icon-medium; // 单选按钮宽度
+$spacing-radio_addon-paddingLeft: $spacing-tight; //单选标题到单选按钮左侧边距
+$spacing-radio_addon-marginLeft: $width-radio_inner; //单选标题左侧整体外边距
+$spacing-radio_addon_buttonRadio_large-paddingX: $spacing-loose; // 大尺寸按钮式单选按钮水平内边距
+$spacing-radio_addon_buttonRadio_large-paddingY: $spacing-base-tight * 0.5; // 大尺寸按钮式单选按钮垂直内边距
+$spacing-radio_addon_buttonRadio_small-paddingX: $spacing-base; // 小尺寸按钮式单选按钮水平内边距
+$spacing-radio_addon_buttonRadio_small-paddingY: $spacing-super-tight; // 中尺寸按钮式单选按钮垂直内边距
+$spacing-radio_addon_buttonRadio_middle-paddingX: $spacing-base; // 中尺寸按钮式单选按钮水平内边距
+$spacing-radio_addon_buttonRadio_middle-paddingY: $spacing-extra-tight; // 中尺寸按钮式单选按钮垂直内边距
+$spacing-radio_addon_buttonRadio_marginLeft: $spacing-none; // 按钮式单选按钮左侧外边距
+$spacing-radio_extra-paddingLeft: $width-radio_inner + $spacing-tight; // 单选副标题左侧内边距
+$spacing-radio_content-rowGap: 4px; // 内容行间距
+
+$spacing-radio_group_vertical-marginBottom: $spacing-base-tight; // 垂直布局单选框组底部外边距
+$spacing-radio_card_group_vertical-marginBottom: $spacing-base; // 垂直布局卡片式单选框组底部外边距
+$spacing-radio_group_horizontal-marginRight: $spacing-base; // 水平单选框组右侧外边距
+$spacing-radio_buttonRadio-padding: $spacing-extra-tight; // 按钮式单选内边距
+$spacing-radio_buttonRadioGroup_small-paddingX: $spacing-super-tight; // 小尺寸按钮式单选组水平内边距
+$spacing-radio_buttonRadioGroup_small-paddingY: $spacing-extra-tight; // 小尺寸按钮式单选组垂直内边距
+$spacing-radio_buttonRadioGroup_middle-padding: $spacing-extra-tight; // 中尺寸按钮式单选组内边距
+$spacing-radio_buttonRadioGroup_large-padding: $spacing-extra-tight; // 大尺寸按钮式单选组内边距
+$spacing-radio_buttonRadioGroup-paddingRight: $spacing-none; // 中尺寸按钮式单选组右侧内边距
+$spacing-radio_cardRadioGroup-paddingX: $spacing-base; // 卡片式单选组水平内边距
+$spacing-radio_cardRadioGroup-paddingY: $spacing-base-tight; // 卡片式单选组垂直内边距
+$spacing-radio_cardRadioGroup_inner-marginRight: $spacing-tight; // 卡片式单选按钮右侧外边距
+
+$font-radio_buttonRadio_large-default-size: $font-size-regular; // 大尺寸按钮式单选标题字体大小
+$font-radio_buttonRadio_small-default-size: $font-size-small; // 中尺寸按钮式单选标题字体大小
+$font-radio_buttonRadio_middle-default-size: $font-size-small; // 小尺寸按钮式单选标题字体大小
+$font-radio_buttonRadio-default-fontWeight: $font-weight-bold; // 按钮式单选标题字重 - 默认态
+$font-radio_buttonRadio-hover-fontWeight: $font-weight-bold; // 按钮式单选标题字重 - 悬浮态
+$font-radio_buttonRadio-checked-fontWeight: $font-weight-bold; // 按钮式单选标题字重 - 选中态
+$font-radio_buttonRadioGroup_small-lineHeight: 16px; // 小尺寸按钮式单选标题行高
+$font-radio_buttonRadioGroup_middle-lineHeight: 16px; // 中尺寸按钮式单选标题行高
+$font-radio_buttonRadioGroup_large-lineHeight: 20px; // 大尺寸按钮式单选标题行高
+$font-radio_cardRadioGroup_addon-size: $font-size-regular; // 卡片式单选组标题字体大小
+$font-radio_cardRadioGroup_addon-fontWeight: $font-weight-bold; // 卡片式单选组标题字体大小
+$font-radio_cardRadioGroup_addon-lineHeight: 20px; // 卡片式单选组标题行高
+$font-radio_cardRadioGroup_extra-size: $font-size-regular; // 卡片式单选组副标题字体大小
+$font-radio_cardRadioGroup_extra-fontWeight: normal; // 卡片式单选组副标题字重
+$font-radio_cardRadioGroup_extra-lineHeight: 20px; // 卡片式单选组副标题行高

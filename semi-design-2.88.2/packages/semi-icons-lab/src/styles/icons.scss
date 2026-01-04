@@ -1,0 +1,45 @@
+@import './variables.scss';
+
+.#{$prefix}-icon {
+    display: inline-block;
+    font-style: normal;
+    line-height: 0;
+    text-align: center;
+    text-transform: none;
+    text-rendering: optimizeLegibility;
+    fill: currentColor;
+}
+
+.#{$prefix}-icon-extra-small {
+    font-size: $width-icon_extra_small;
+}
+
+.#{$prefix}-icon-small {
+    font-size: $width-icon_small;
+}
+
+.#{$prefix}-icon-default {
+    font-size: $width-icon_medium;
+}
+
+.#{$prefix}-icon-large {
+    font-size: $width-icon_large;
+}
+
+.#{$prefix}-icon-extra-large {
+    font-size: $width-icon_extra_large;
+}
+
+.#{$prefix}-icon-spinning {
+    animation: $motion-icon_spin-animationDuration linear infinite #{$prefix}-icon-animation-rotate;
+    animation-fill-mode: forwards;
+}
+
+@keyframes #{$prefix}-icon-animation-rotate {
+    from {
+        transform: rotate(0);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}

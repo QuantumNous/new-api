@@ -1,0 +1,11 @@
+@import "./animation.scss";
+@import "./variables.scss";
+
+
+$module: #{$prefix}-collapsible;
+
+
+.#{$module}-transition{
+    transition: height $transition_duration-collapsible-height $transition_function-collapsible-height $transition_delay-collapsible-height,
+    opacity $transition_duration-collapsible-opacity $transition_function-collapsible-opacity $transition_delay-collapsible-opacity,
+}

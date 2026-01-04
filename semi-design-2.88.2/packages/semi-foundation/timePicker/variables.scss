@@ -1,0 +1,23 @@
+// Color
+$color-timePicker_range_picker_panel_split-border: var(--semi-color-border); // 时间选择器菜单分割线颜色
+$color-timePicker_range_panel-border: rgba(0, 0, 0, .1); // 时间选择器描边颜色
+
+// Width/Height
+$width-timePicker_range_panel-border: 1px; // 时间选择器菜单分割线宽度
+$height-timePicker_panel_body: 252px; // 时间选择器菜单高度
+$height-scrollList_item: 36px; 
+$width-timePicker_panel_list_ampm: 72px; // 时间选择器菜单中列宽度 - 上午下午
+$width-timePicker_panel_list_hour: 64px; // 时间选择器菜单中列宽度 - 小时
+$width-timePicker_panel_list_minute: 64px; // 时间选择器菜单中列宽度 - 分钟
+$width-timePicker_panel_list_second: 64px; // 时间选择器菜单中列宽度 - 秒
+$width-timePicker_range_panel_scrolllist_body-border: 2px; // 时间范围选择器双排菜单中间分割线宽度
+
+// Spacing
+$spacing-timePicker_range_panel_scrolllist_header_body-padding: 0; // 时间范围选择器菜单header与内容内边距
+
+// Radius
+$radius-timePicker_range_panel: var(--semi-border-radius-medium); // 时间范围选择器菜单圆角
+$radius-timePicker_input: var(--semi-border-radius-small); // 时间范围选择器圆角
+
+// Other
+$shadow-timePicker_range_panel: 0 4px 14px rgba(0, 0, 0, .1); // 时间范围选择器菜单阴影

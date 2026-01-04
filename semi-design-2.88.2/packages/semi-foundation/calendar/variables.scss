@@ -1,0 +1,105 @@
+// Color
+$color-calendar-bg-active: var(--semi-color-primary); // 今日标识颜色
+$color-calendar-bg: var(--semi-color-bg-2); // 日历背景颜色
+$color-calendar-text-active: var(--semi-color-bg-1); // 日历文字颜色 - 今日
+$color-calendar_curr-bg: var(--semi-color-danger); // 当前时间标识线颜色
+$color-calendar_curr-border: var(--semi-color-danger); // 当前时间标识线颜色
+$color-calendar_currCircle-bg-default: var(--semi-color-danger); // 当前时间标识原点颜色
+$color-calendar_date-text-default: var(--semi-color-text-0); // 日历文字颜色 - 当月
+$color-calendar_day-border: var(--semi-color-border); // 日历描边颜色
+$color-calendar_day-text-default: var(--semi-color-text-2); // 日历文字颜色 - 非当月
+$color-calendar_sticky-bg: var(--semi-color-bg-2); // 日历背景颜色 - 吸顶部分
+$color-calendar_weekend-bg: var(--semi-color-fill-0);  // 日历背景颜色 - 非工作日
+
+// Width/Height
+$width-calendar_day: 70px;
+$width-calendar_day-minWidth: 70px;
+$height-calendar_day_grid: 60px;
+$width-calendar_day_grid: 130px;
+$width-calendar_day_grid-minWidth: 130px;
+$height-calendar_time_grid: $height-calendar_day_grid * 0.5;
+$height-calendar_allDay: 26px;
+$height-calendar_allDay-minHeight: 26px;
+$width-calendar_currCircle: 8px;
+$width-calendar_tag_col: 70px;
+$width-calendar_tag_col-minWidth: 70px;
+$height-calendar_day_allDay: 26px;
+$height-calendar_month: 100%;
+$height-calendar_month_day: 24px;
+$height-calendar_month_week_skeletion: 100%;
+$height-calendar_month_grid_wrapper: calc(100% - 27px);
+$width-calendar_card: 220px;
+$height-calendar_day_gridTime: $height-calendar_day_grid * 0.5;
+$width-calendar_today_date: 24px;
+$height-calendar_today_date: 24px;
+$height-calendar_body_li: 24px;
+$height-calendar_day_scroll_wrapper: calc(100% - 28px);
+$height-calendar_week_scroll_wrapper: calc(100% - 55px);
+$height-calendar_month_skeletion_li: 100%;
+$height-calendar_month_grid_col: 100%;
+$height-calendar_month_week_row_event_month: 1em;
+$width-calendar-border-default: 1px;
+$width-calendar-border-thick: 1px;
+
+// Spacing
+$spacing-calendar_ul_li-padding: 0;
+$spacing-calendar_ul_li-margin: 0;
+$spacing-calendar_sticky_top-top: 0;
+$spacing-calendar_sticky_top-right: 0;
+$spacing-calendar_sticky_top-left: 0;
+$spacing-calendar_sticky_left-left: 0;
+$spacing-calendar_event_day-left: 0;
+$spacing-calendar_event_day-right: 0;
+$spacing-calendar_custom_container-top: 0;
+$spacing-calendar_custom_container-right: 0;
+$spacing-calendar_custom_container-bottom: 0;
+$spacing-calendar_custom_container-left: 0;
+$spacing-calendar_currCircle-marginTop: -4px;
+$spacing-calendar_currLine-left: 0;
+$spacing-calendar_currLine-right: 0;
+$spacing-calendar_allDay_tag-paddingRight: 8px;
+$spacing-calendar_allDay_content-paddingLeft: 0;
+$spacing-calendar_month_event_card_wrapper-paddingTop: 2px;
+$spacing-calendar_grid_row_span_child-paddingY: 0;
+$spacing-calendar_grid_row_span_child-paddingX: 4px;
+$spacing-calendar_skeleton_li_child-paddingTop: 4px;
+$spacing-calendar_month_event_card_close-marginRight: -4px;
+$spacing-calendar_header_info_date-marginTop: 4px;
+$spacing-calendar_time-paddingRight: 8px;
+$spacing-calendar_time_item_span-top: -10px;
+$spacing-calendar_tag_child-paddingRight: 8px;
+$spacing-calendar_skeletion_grid_row_li-paddingRight: 8px;
+$spacing-calendar_month_event_card_wrapper-right: 8px;
+$spacing-calendar_month_event_card_content-paddingY: 12px;
+$spacing-calendar_month_event_card_content-paddingX: 0;
+$spacing-calendar_month_event_card_ul_li-margin: 0;
+$spacing-calendar_month_event_card_ul_li-padding: 0;
+$spacing-calendar_header-marginY: 12px;
+$spacing-calendar_header-marginX: 20px;
+$spacing-calendar_body-padingY: 0;
+$spacing-calendar_body-padingX: 16px;
+$spacing-calendar_event_items-top: 31px;
+$spacing-calendar_event_items-right: 0;
+$spacing-calendar_event_items-bottom: 20px;
+$spacing-calendar_event_items-left: 0;
+$spacing-calendar_month_skeletion-left: 0;
+$spacing-calendar_month_skeletion-right: 0;
+$spacing-calendar_month_date-right: 4px;
+
+// Radius
+$radius-calendar_currCircle: var(--semi-border-radius-circle); // 日历选中日期标识圆角
+$radius-calendar_today_date: var(--semi-border-radius-circle); // 日历选中日期标识圆角
+
+// Font
+$font-calendar_allDay_tag-lineHeight: $height-calendar_allDay; // 日历全天标识文字行高
+$font-calendar_today_date-lineHeight: 24px;
+$font-calendar_day_allDay-lineHeight: 26px;
+$font-calendar_day_allDay-fontSize: 26px;
+$font-calendar_month_day-fontSize: 24px;
+
+// Other
+$z-calendar_stickyTop: 20;
+$z-calendar_item: 5;
+$z-calendar_stickyLeft: 10;
+$z-calendar_curr: 8;
+$z-calendar_line: 3;

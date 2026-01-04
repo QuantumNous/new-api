@@ -1,0 +1,54 @@
+@import './variables.scss';
+
+$module: #{$prefix}-empty;
+
+.#{$module} {
+    display: flex;
+
+    &-image {
+        display: flex;
+        justify-content: center;
+        user-select: none;
+        -webkit-user-drag: none;
+        pointer-events: none;
+    }
+
+    &-vertical {
+        align-items: center;
+        flex-direction: column;
+
+        .#{$module}-content {
+            margin-top: $spacing-empty_content_vertical-marginTop;
+        }
+
+        .#{$module}-title,
+        .#{$module}-description {
+            text-align: center;
+        }
+    }
+
+    &-horizontal {
+        .#{$module}-content {
+            margin-left: $spacing-empty_content_horizontal-marginLeft;
+        }
+    }
+
+    &-title.#{$prefix}-typography {
+        display: block;
+        font-weight: $font-empty_title-fontWeight;
+    }
+
+    &-title+&-description {
+        margin-top: $spacing-empty_title-marginTop;
+    }
+
+    &-description {
+        color: $color-empty_description-text-default;
+    }
+
+    &-footer {
+        margin-top: $spacing-empty_footer-marginTop;
+    }
+}
+
+@import "./rtl.scss";

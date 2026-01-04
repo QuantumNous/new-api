@@ -1,0 +1,98 @@
+// Mixins
+@mixin item-selected {
+    background-color: $color-navigation_itemL1_selected-bg-default;
+    color: $color-navigation_itemL1_selected-text-default;
+
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_selected_icon-default;
+    }
+}
+@mixin item-disabled {
+    background-color: $color-navigation_itemL1_disabled-bg-default;
+    color: $color-navigation_itemL1_disabled-text-default;
+    cursor: not-allowed;
+
+    .#{$module}-item-icon,
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_disabled_icon-default;
+    }
+}
+@mixin item-hover-selected {
+    color: $color-navigation_itemL1_selected-text-hover;
+    background-color: $color-navigation_itemL1-bg-hover;
+
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_selected_icon-default;
+    }
+}
+@mixin item-active-selected {
+    color: $color-navigation_itemL1_selected-text-active;
+    background-color: $color-navigation_itemL1-bg-active;
+
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_selected_icon-default;
+    }
+}
+@mixin item-disabled-selected {
+    background-color: $color-navigation_itemL1_selected_disabled-bg-default;
+    color: $color-navigation_itemL1_selected_disabled-text-default;
+    cursor: not-allowed;
+
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_selected_disabled_icon-default;
+    }
+}
+@mixin item-hover {
+    background-color: $color-navigation_itemL1-bg-hover;
+    color: $color-navigation_itemL1-text-hover;
+
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_icon-hover;
+    }
+}
+@mixin item-active {
+    background-color: $color-navigation_itemL1-bg-active;
+    color: $color-navigation_itemL1-text-active;
+
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_itemL1_icon-active;
+    }
+}
+@mixin item-horizontal-selected {
+    color: $color-navigation_horizontal_itemL1_selected-text-default;
+    background-color: $color-navigation_horizontal_itemL1_selected-bg-default;
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_horizontal_itemL1_selected_icon-default;
+    }
+}
+@mixin item-horizontal-disabled {
+    color: $color-navigation_horizontal_itemL1_disabled-text-default;
+    background-color: $color-navigation_horizontal_itemL1_disabled-bg-default;
+    cursor: not-allowed;
+
+    .#{$module}-item-icon,
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_horizontal_itemL1_disabled_icon-default;
+    }
+}
+@mixin item-horizontal-default {
+    color: $color-navigation_horizontal_itemL1-text-default;
+    background-color: $color-navigation_horizontal_itemL1-bg-default;
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_horizontal_itemL1_icon-default;
+    }
+}
+@mixin item-horizontal-hover {
+    color: $color-navigation_horizontal_itemL1-text-hover;
+    background-color: $color-navigation_horizontal_itemL1-bg-hover;
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_horizontal_itemL1_icon-hover;
+    }
+}
+@mixin item-horizontal-active {
+    color: $color-navigation_horizontal_itemL1-text-active;
+    background-color: $color-navigation_horizontal_itemL1-bg-active;
+    .#{$module}-item-icon:first-child {
+        color: $color-navigation_horizontal_itemL1_icon-active;
+    }
+}

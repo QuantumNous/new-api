@@ -1,0 +1,85 @@
+@import './variables.scss';
+
+$module: #{$prefix}-collapse;
+
+
+
+.#{$module} {
+    &-item {
+        border-bottom: $width-collapse_item-border solid $color-collapse_item-border-default;
+    }
+
+    &-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: $spacing-collapse_header-marginY $spacing-collapse_header-marginX;
+        padding: $spacing-collapse_header-padding;
+        border-radius: $radius-collapse_header;
+        outline: none;
+        cursor: pointer;
+        color: $color-collapse_header-text-default;
+        font-weight: $font-collapse_header-fontWeight;
+        @include font-size-regular;
+
+        &-right {
+            display: flex;
+            align-items: center;
+
+            span {
+                display: flex;
+                padding-right: $spacing-collapse_right-paddingRight;
+
+                &:last-child {
+                    padding-right: 0;
+                }
+            }
+        }
+
+        &-icon {
+            width: $size-collapse_icon-default;
+            height: $size-collapse_icon-default;
+            color: $color-collapse_header-icon-default;
+        }
+
+        &-iconLeft {
+            justify-content: flex-start;
+            .#{$module}-header-icon {
+                margin-right: $spacing-collapse_header_iconLeft-marginRight;
+            }
+        }
+
+        &-iconDisabled {
+            color: var(--semi-color-disabled-text);
+        }
+
+        &:hover {
+            background-color: $color-collapse_header-bg-hover;
+        }
+
+        &:active {
+            background-color: $color-collapse_header-bg-active;
+        }
+
+        &-disabled {
+            color: $color-collapse_header-text-disabled;
+
+            &:hover {
+                background-color: transparent;
+            }
+        }
+
+    }
+
+    &-content {
+        padding: $spacing-collapse_content-paddingTop $spacing-collapse_content-paddingRight $spacing-collapse_content-paddingBottom $spacing-collapse_content-paddingLeft;
+        color: $color-collapse_content-text-default;
+        @include font-size-regular;
+
+        p {
+            margin: 0;
+        }
+    }
+}
+
+@import './rtl.scss';

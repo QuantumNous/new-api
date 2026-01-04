@@ -1,0 +1,37 @@
+{
+    "name": "@douyinfe/semi-rspack-plugin",
+    "version": "2.88.2",
+    "description": "",
+    "homepage": "",
+    "license": "MIT",
+    "main": "lib/index.js",
+    "directories": {
+        "lib": "lib"
+    },
+    "files": [
+        "lib",
+        "README.md"
+    ],
+    "scripts": {
+        "build:lib": "rimraf lib && tsc",
+        "dev": "tsc -w --sourceMap",
+        "prepublishOnly": "npm run build:lib"
+    },
+    "dependencies": {
+        "@babel/core": "^7.15.4",
+        "css-loader": "4.3.0",
+        "enhanced-resolve": "^5.8.3",
+        "raw-loader": "^4.0.2",
+        "sass-loader": "^10.1.1"
+    },
+    "peerDependencies": {
+        "webpack": "^5"
+    },
+    "devDependencies": {
+        "@types/loader-utils": "^2.0.3",
+        "rimraf": "^3.0.2",
+        "typescript": "^4",
+        "webpack": "^5.77.0"
+    },
+    "gitHead": "eb34a4f25f002bb4cbcfa51f3df93bed868c831a"
+}

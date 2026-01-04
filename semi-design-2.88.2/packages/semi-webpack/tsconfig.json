@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "baseUrl": "./",
+        "outDir": "lib",
+        "sourceMap": true,
+        "allowJs": true,
+        "module": "commonjs",
+        "lib": ["es2020", "dom"],
+        "moduleResolution": "node",
+        "declaration": true,
+        "noImplicitAny": true,
+        "suppressImplicitAnyIndexErrors": true,
+        "forceConsistentCasingInFileNames": true,
+        "allowSyntheticDefaultImports": true,
+        "experimentalDecorators": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": false,
+        "strictNullChecks": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+    },
+    "include": ["**/*.ts"],
+    "exclude": ["node_modules", "lib"]
+}

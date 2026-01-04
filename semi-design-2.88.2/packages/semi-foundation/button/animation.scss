@@ -1,0 +1,70 @@
+$transition_duration-button_primary-bg: var(--semi-transition_duration-none);//主要按钮-背景色-动画持续时间
+$transition_function-button_primary-bg: var(--semi-transition_function-easeIn);//主要按钮-背景色-过渡曲线
+$transition_delay-button_primary-bg: var(--semi-transition_delay-none);//主要按钮-背景色-延迟时间
+
+
+$transition_duration-button_secondary-bg: var(--semi-transition_duration-none);//次要按钮-背景色-动画持续时间
+$transition_function-button_secondary-bg: var(--semi-transition_function-easeIn);//次要按钮-背景色-过渡曲线
+$transition_delay-button_secondary-bg: var(--semi-transition_delay-none);//次要按钮-背景色-延迟时间
+
+
+$transition_duration-button_tertiary-bg: var(--semi-transition_duration-none);//三级按钮-背景色-动画持续时间
+$transition_function-button_tertiary-bg: var(--semi-transition_function-easeIn);//三级按钮-背景色-过渡曲线
+$transition_delay-button_tertiary-bg: var(--semi-transition_delay-none);//三级按钮-背景色-延迟时间
+
+
+$transition_duration-button_light-bg: var(--semi-transition_duration-none);//浅色按钮-背景色-动画持续时间
+$transition_function-button_light-bg: var(--semi-transition_function-easeIn);//浅色按钮-背景色-过渡曲线
+$transition_delay-button_light-bg: var(--semi-transition_delay-none);//浅色按钮-背景色-延迟时间
+
+
+$transition_duration-button_warning-bg: var(--semi-transition_duration-none);//警告按钮-背景色-动画持续时间
+$transition_function-button_warning-bg: var(--semi-transition_function-easeIn);//警告按钮-背景色-过渡曲线
+$transition_delay-button_warning-bg: var(--semi-transition_delay-none);//警告按钮-背景色-延迟时间
+
+
+$transition_duration-button_danger-bg: var(--semi-transition_duration-none);//危险按钮-背景色-动画持续时间
+$transition_function-button_danger-bg: var(--semi-transition_function-easeIn);//危险按钮-背景色-过渡曲线
+$transition_delay-button_danger-bg: var(--semi-transition_delay-none);//危险按钮-背景色-延迟时间
+
+
+$transition_duration-button_borderless-bg: var(--semi-transition_duration-none);//无边框按钮-背景色-动画持续时间
+$transition_function-button_borderless-bg: var(--semi-transition_function-easeIn);//无边框按钮-背景色-过渡曲线
+$transition_delay-button_borderless-bg: var(--semi-transition_delay-none);//无边框按钮-背景色-延迟时间
+
+$transition_duration-button_primary-border: var(--semi-transition_duration-none);//主要按钮-边框-动画持续时间
+$transition_function-button_primary-border: var(--semi-transition_function-easeIn);//主要按钮-边框-过渡曲线
+$transition_delay-button_primary-border: var(--semi-transition_delay-none);//主要按钮-边框-延迟时间
+
+$transition_duration-button_secondary-border: var(--semi-transition_duration-none);//次要按钮-边框-动画持续时间
+$transition_function-button_secondary-border: var(--semi-transition_function-easeIn);//次要按钮-边框-过渡曲线
+$transition_delay-button_secondary-border: var(--semi-transition_delay-none);//次要按钮-边框-延迟时间
+
+$transition_duration-button_tertiary-border: var(--semi-transition_duration-none);//三级按钮-边框-动画持续时间
+$transition_function-button_tertiary-border: var(--semi-transition_function-easeIn);//三级按钮-边框-过渡曲线
+$transition_delay-button_tertiary-border: var(--semi-transition_delay-none);//三级按钮-边框-延迟时间
+
+$transition_duration-button_light-border: var(--semi-transition_duration-none);//浅色按钮-边框-动画持续时间
+$transition_function-button_light-border: var(--semi-transition_function-easeIn);//浅色按钮-边框-过渡曲线
+$transition_delay-button_light-border: var(--semi-transition_delay-none);//浅色按钮-边框-延迟时间
+
+$transition_duration-button_warning-border: var(--semi-transition_duration-none);//警告按钮-边框-动画持续时间
+$transition_function-button_warning-border: var(--semi-transition_function-easeIn);//警告按钮-边框-过渡曲线
+$transition_delay-button_warning-border: var(--semi-transition_delay-none);//警告按钮-边框-延迟时间
+
+$transition_duration-button_danger-border: var(--semi-transition_duration-none);//危险按钮-边框-动画持续时间
+$transition_function-button_danger-border: var(--semi-transition_function-easeIn);//危险按钮-边框-过渡曲线
+$transition_delay-button_danger-border: var(--semi-transition_delay-none);//危险按钮-边框-延迟时间
+
+//transform token
+
+$transform_scale-button_primary: var(--semi-transform_scale-none);//主要按钮-放大
+$transform_scale-button_secondary: var(--semi-transform_scale-none);//次要按钮-放大
+$transform_scale-button_tertiary: var(--semi-transform_scale-none);//三级按钮-放大
+$transform_scale-button_light: var(--semi-transform_scale-none);//浅色按钮-放大
+$transform_scale-button_warning: var(--semi-transform_scale-none);//警告按钮-放大
+$transform_scale-button_danger: var(--semi-transform_scale-none);//危险按钮-放大
+$transform_scale-button_borderless: var(--semi-transform_scale-none);//无边框按钮-放大
+
+$animation_duration-button_icon_loading: 600ms; // 加载图标容器旋转一周时长
+$animation_duration-button_icon_customIcon_loading: 1600ms; // 自定义指示器时旋转一周时长

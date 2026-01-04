@@ -1,0 +1,49 @@
+# .github/workflows/chromatic.yml
+
+# Workflow name
+name: 'test:chromatic'
+
+# Event for the workflow
+on:
+    pull_request:
+        branches: [main, test-chromatic]
+        paths:
+            - 'packages/**/*.scss'
+            - '!packages/**/_story/**'
+            - '!packages/**/__test__/**'
+            - '!packages/**/*.stories.[tj]sx?'
+            - '!packages/**/*.story.[tj]sx?'
+            - '!packages/**/*.test.[tj]sx?'
+            - '!packages/**/*.md'
+    push:
+        branches: [main, test-chromatic]
+        paths:
+            - 'packages/**/*.scss'
+            - '!packages/**/*.md'
+
+# List of jobs
+jobs:
+    chromatic-deployment:
+        # Operating System
+        runs-on: ubuntu-latest
+        if: github.event_name == 'push' && github.repository_owner == 'DouyinFE' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'DouyinFE/semi-design'
+        # Job steps
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+            - name: Install dependencies
+              run: npx lerna@^6 bootstrap
+            - name: Pre-build libs
+              run: npx lerna@^6 run build:lib
+            - name: Publish to Chromatic
+              uses: chromaui/action@v1
+              # Chromatic GitHub Action options
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  # 👇 Chromatic projectToken, refer to the manage page to obtain it.
+                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+                  buildScriptName: 'build-storybook-static'

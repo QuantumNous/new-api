@@ -1,0 +1,47 @@
+@import './variables.scss';
+$module: #{$prefix}-popconfirm;
+
+.#{$module} {
+    &-rtl {
+        direction: rtl;
+    }
+
+    &-inner {
+        .#{$module}-rtl & {
+            padding: $spacing-popconfirm-top $spacing-popconfirm-bottom $spacing-popconfirm-top $spacing-popconfirm-top;
+        }
+    }
+
+    &-header {
+        .#{$module}-rtl & {
+            margin-right: 0;
+    
+            &-icon {
+                margin-right: 0;
+                margin-left: $spacing-popconfirm_header_icon-marginRight;
+            }
+        }
+    }
+
+    &-footer {
+        .#{$module}-rtl & {
+            justify-content: flex-end;
+    
+            & > .#{$prefix}-button:first-child:not(:last-child) {
+                margin-right: 0;
+                margin-left: $spacing-popconfirm_footer_btn-marginRight;
+            }
+        }
+    }
+}
+
+.#{$prefix}-popover-with-arrow {
+    &.#{$module}-rtl {
+        direction: rtl;
+        
+        .#{$module}-inner {
+            padding: $spacing-popconfirm_popover_with_arrow_inner_rtl-padding;
+        }
+    }
+
+}

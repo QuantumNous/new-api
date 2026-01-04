@@ -1,0 +1,37 @@
+$color-tree_option-text-default: var(--semi-color-text-0); // 树选项文字颜色
+$color-tree_option-icon-default: var(--semi-color-text-2); // 树选项图标颜色
+
+$color-tree_option-bg-hover: var(--semi-color-fill-0); // 树选项背景色 - 悬停
+$color-tree_option_selected-bg-default: var(--semi-color-fill-1); // 树选项背景色 - 按下
+$color-tree_option-bg-active: var(--semi-color-primary-light-default); // 树选项背景色 - 选中
+$color-tree_option_disabled-text-default: var(--semi-color-disabled-text); // 禁用树选项文字颜色
+
+$color-tree_option-icon-hover: var(--semi-color-text-0); // 树选项图标颜色 - 悬浮
+$color-tree_option-icon-active: var(--semi-color-black); // 树选项图标颜色 - 按下
+$color-tree_option_loading-icon-default: var(--semi-color-primary); // 树选项加载 spin 颜色
+
+$color-tree_option_draggable_insert-border-default: var(--semi-color-primary); // 树选项加载 spin 颜色
+
+$font-tree_option_hightlight-fontWeight: $font-weight-bold; // 树选项高亮文本字重
+$color-tree_option_hightlight-text: var(--semi-color-primary); // 树选项高亮文本颜色
+
+$radius-tree_checkbox_addon: var(--semi-border-radius-small); // 多选树 checkbox 圆角
+
+$spacing-tree_search_wrapper-paddingX: 12px; // 树搜索框水平内边距
+$spacing-tree_search_wrapper-paddingY: 8px; // 树搜索框垂直内边距
+$spacing-tree_option_level-paddingLeft: 20px; // 树选项缩进增量
+$spacing-tree_option_level1-paddingLeft: 8px; // 树选项最上层左侧内边距
+
+$spacing-tree_optionList-paddingX: 0; // 树选项列表水平内边距
+$spacing-tree_optionList-paddingY: 8px; // 树选项列表垂直内边距
+$spacing-tree_option-paddingTop: 4px; // 树选项顶部内边距
+$spacing-tree_option-paddingBottom: 4px; // 树选项底部内边距
+$spacing-tree_icon-marginRight: 8px; // 树选项图标右侧外边距
+$spacing-tree_label_withIcon-marginRight: 8px; // 树选项图标右侧外边距
+$spacing-tree_option_draggable-paddingY: 2px; // 可拖拽的树选项垂直内边距
+$spacing-tree_option_draggable-paddingX: 0; // 可拖拽的树选项水平内边距
+
+$width-tree_emptyIcon: $width-icon-small; // 树选项空图标宽度
+$width-tree_spinIcon: $width-icon-small; // 树选项加载 spin 宽度
+$width-tree_option_draggable-border: 2px; // 可拖拽的树标示线宽度
+$width-tree_option_line: 1px; // showline展示线宽度

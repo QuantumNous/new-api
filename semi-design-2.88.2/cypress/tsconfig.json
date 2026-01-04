@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+      "allowJs": true,
+        "types": ["cypress", "node", "cypress-real-events"],
+      "baseUrl": "./",
+      "outDir": "dist",
+    },
+    "include": ["**/*.spec.js"],
+    "exclude": ["node_modules"]
+}

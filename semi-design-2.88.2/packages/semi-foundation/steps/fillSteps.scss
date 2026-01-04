@@ -1,0 +1,198 @@
+$module: #{$prefix}-steps;
+
+.#{$module} {
+    .#{$prefix}-col {
+        flex: 1;
+    }
+
+    &-vertical {
+        .#{$prefix}-row-flex {
+            flex-direction: column;
+        }
+    }
+
+    // .#{$module}-horizontal {
+    //     .#{$module}-item-title {
+    //         &-text {
+    //             position: relative;
+    //             &::after {
+    //                 content: '';
+    //                 display: block;
+    //                 width: 9999px;
+    //                 height: 1px;
+    //                 position: absolute;
+    //                 top: 12px;
+    //                 left: 120%;
+    //                 background-color: var(--semi-color-border);
+    //             }
+    //         }
+    //     }
+    // }
+
+    .#{$module}-item {
+        @include box-sizing;
+        display: flex;
+        height: $height-steps_item;
+        position: relative;
+        overflow: hidden;
+        margin-right: $spacing-steps_item-marginRight;
+        border: $width-steps_item-border solid $color-steps-border-default;
+        border-radius: $radius-steps_item;
+        padding: $spacing-steps_item-paddingY $spacing-steps_item-paddingX;
+        transition: color $transition_duration-steps_item_title-text $transition_function-steps_item_title-text $transition_delay-steps_item_title-text; // item 字体颜色动效
+        transform:scale($transform_scale-step-item);
+        transition: background-color $transition_duration-steps_item-backgroundColor $transition_function-steps_item_backgroundColor $transition_delay-steps_item_backgroundColor; //step backgroundColor 的transition变化
+        
+        .#{$module}-item-title {
+            position: relative;
+            // display: inline-block;
+            @include font-size-header-5;
+            font-weight: $font-weight-bold;
+            width: $width-steps_item_title;
+            @include text-overflow-hidden;
+            color: $color-steps_main-text-default;
+            transition: color $transition_duration-steps_item_title-text $transition_function-steps_item_title-text $transition_delay-steps_item_title-text
+                     
+        }
+
+        .#{$module}-item-description {
+            @include font-size-regular;
+            color: $color-steps_minor-text-default;
+            width: $width-steps_item_description;
+            @include text-overflow-hidden;
+        }
+
+        &-process {
+            background-color: $color-steps_process-bg-default;
+
+            .#{$module}-item-left:not(.#{$module}-item-icon) {
+                background: $color-steps_primary-bg-default;
+            }
+
+            .#{$module}-item-title,
+            .#{$module}-item-icon {
+                color: $color-steps_primary-icon-default;
+            }
+        }
+
+        &-wait {
+            .#{$module}-item-left:not(.#{$module}-item-icon) {
+                background: $color-steps-bg-default;
+            }
+
+            .#{$module}-item-icon {
+                color: $color-steps-icon-default;
+            }
+        }
+
+        &-finish {
+
+            .#{$prefix}-icon,
+            .#{$module}-item-title {
+                color: $color-steps_success-text-default;
+            }
+
+            &-hover:hover {
+                background-color: $color-steps-bg-hover;
+
+                .#{$prefix}-icon,
+                .#{$module}-item-title {
+                    color: $color-steps_success-text-hover;
+                }
+            }
+
+            &-active:active {
+                background-color: $color-steps-bg-active;
+
+                .#{$prefix}-icon,
+                .#{$module}-item-title {
+                    color: $color-steps_success-text-active;
+                }
+            }
+        }
+
+        &-error {
+
+            .#{$prefix}-icon,
+            .#{$module}-item-title {
+                color: $color-steps_danger-text-default;
+            }
+
+            &-hover:hover {
+                background: $color-steps-bg-hover;
+
+                .#{$prefix}-icon,
+                .#{$module}-item-title {
+                    color: $color-steps_danger-text-hover;
+                }
+            }
+
+            &-active:active {
+                background-color: $color-steps-bg-active;
+
+                .#{$prefix}-icon,
+                .#{$module}-item-title {
+                    color: $color-steps_danger-text-active;
+                }
+            }
+        }
+
+        &-warning {
+
+            .#{$module}-item-title,
+            .#{$prefix}-icon {
+                color: $color-steps_warning-text-default;
+            }
+
+            &-hover:hover {
+                background: $color-steps-bg-hover;
+
+                .#{$module}-item-title,
+                .#{$prefix}-icon {
+                    color: $color-steps_warning-text-hover;
+                }
+            }
+
+            &-active:active {
+                background-color: $color-steps-bg-active;
+
+                .#{$module}-item-title,
+                .#{$prefix}-icon {
+                    color: $color-steps_warning-text-active;
+                }
+            }
+        }
+
+        &-clickable {
+            cursor: pointer;
+        }
+
+        &-left {
+            width: $width-steps_item_left;
+            height: $height-steps_item_left;
+            line-height: $font-steps_item_left-lineHeight;
+            text-align: center;
+            border-radius: $radius-steps_item_left;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            @include font-size-header-4;
+            font-weight: $font-weight-bold;
+            flex-grow: 0;
+
+            &.#{$module}-item-plain {
+                color: $color-steps-text-default;
+            }
+
+            &-process {
+                background: $color-steps_process-bg-default;
+            }
+        }
+
+        &-content {
+            margin-left: $spacing-steps_item_content-marginLeft;
+            flex: 1;
+            overflow: hidden;
+        }
+    }
+}

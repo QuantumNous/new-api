@@ -1,0 +1,132 @@
+// Color
+$color-select-bg-default: var(--semi-color-fill-0); // 选择器输入框背景色 - 默认态
+$color-select-bg-hover: var(--semi-color-fill-1); // 选择器输入框背景色 - 悬停态
+$color-select-bg-active: var(--semi-color-fill-2); // 选择器输入框背景色 - 按下态
+$color-select-bg-focus: var(--semi-color-fill-0); // 选择器输入框背景色 - 聚焦态
+$color-select-border-default: transparent; // 选择器输入框描边颜色
+$color-select-border-hover: $color-select-border-default;  // 选择器输入框描边颜色 - 悬浮
+$color-select-border-active: var(--semi-color-focus-border); // 选择器输入框描边颜色 - 按下态
+$color-select-border-focus: $color-select-border-active;// 选择器输入框描边颜色 - 选中态
+
+$color-select_dropdown_input-border: $color-select-border-default; // 下拉搜索框底部描边颜色
+
+$color-select_warning-bg-default: var(--semi-color-warning-light-default); // 警示选择器输入框背景色 - 默认态
+$color-select_warning-border-default: var(--semi-color-warning-light-default); // 警示选择器输入框描边颜色 - 默认态
+$color-select_warning-bg-hover: var(--semi-color-warning-light-hover); // 警示选择器输入框背景色 - 悬停态
+$color-select_warning-border-hover: var(--semi-color-warning-light-hover); // 警示选择器输入框描边颜色 - 悬停态
+$color-select_warning-bg-focus: var(--semi-color-warning-light-default); // 警示选择器输入框背景色 - 选中态
+$color-select_warning-border-focus: var(--semi-color-warning); // 警示选择器输入框描边颜色 - 选中态
+$color-select_warning-bg-active: var(--semi-color-warning-light-active); // 警示选择器输入框背景色 - 按下态
+$color-select_warning-border-active: var(--semi-color-warning-light-active); // 警示选择器输入框描边颜色 - 按下态
+
+$color-select_danger-bg-default: var(--semi-color-danger-light-default); // 报错选择器输入框背景色 - 默认态
+$color-select_danger-border-default: var(--semi-color-danger-light-default); // 报错选择器输入框描边颜色 - 默认态
+$color-select_danger-bg-hover: var(--semi-color-danger-light-hover); // 报错选择器输入框背景色 - 悬停态
+$color-select_danger-border-hover: var(--semi-color-danger-light-hover); // 报错选择器输入框描边颜色 - 悬停态
+$color-select_danger-bg-focus: var(--semi-color-danger-light-default); // 报错选择器输入框背景色 - 选中态
+$color-select_danger-border-focus: var(--semi-color-danger); // 报错选择器输入框描边颜色 - 选中态
+$color-select_danger-bg-active: var(--semi-color-danger-light-active); // 报错选择器输入框背景色 - 按下态
+$color-select_danger-border-active: var(--semi-color-danger-light-active); // 报错选择器输入框描边颜色 - 按下态
+
+$color-select_default-border-focus: var(--semi-color-focus-border); // 默认选择器输入框描边颜色 - 选中态
+
+$color-select_main-text-default: var(--semi-color-text-0); // 选择器输入框回填内容文本颜色
+$color-select-icon-default: var(--semi-color-text-2); // 选择器输入框图标颜色
+$color-select_clearBtn-text-default: var(--semi-color-text-2); // 选择器输入框清空按钮颜色 - 默认态
+$color-select_clearBtn-text-hover: var(--semi-color-primary); // 选择器输入框清空按钮颜色 - 悬停态
+$color-select_input-bg-default: transparent; // 选择器输入框清空按钮颜色 - 悬停态
+$color-select_input_disabled-bg: var(--semi-color-disabled-fill); // 禁用选择器输入框背景色
+$color-select_input_disabled-border: var(--semi-color-border); // 禁用选择器输入框描边颜色
+$color-select_input_disabled-border-focus: transparent; // 禁用选择器输入框描边颜色 - 聚焦态
+$color-select_input_disabled-text: var(--semi-color-disabled-text); // 禁用选择器输入框回填内容文字颜色
+$color-select_input_disabled-bg-hover: var(--semi-color-disabled-fill); // 选择器输入框回填内容文字颜色 - 悬停态
+$color-select_input_disabled-bg-focus: var(--semi-color-disabled-fill); // 选择器输入框回填内容文字颜色 - 聚焦态
+
+$color-select_input_placeholder-text: var(--semi-color-text-2); // 选择器输入框占位文本文字颜色
+
+$color-select_option_main-text: var(--semi-color-text-0); // 选择器菜单选项文本颜色
+$color-select_option_keyword-text: var(--semi-color-primary); // 选择器菜单选项匹配搜索结果文本颜色
+$color-select_option-bg-default: transparent; // 选择器菜单选项背景颜色 - 默认态
+$color-select_option-icon-default: transparent; // 选择器菜单选项图标颜色 - 默认态
+$color-select_option-bg-hover: var(--semi-color-fill-0); // 选择器菜单选项背景颜色 - 悬停态
+$color-select_option-bg-active: var(--semi-color-fill-1); // 选择器菜单选项背景颜色 - 按下态
+$color-select_option_disabled-text: var(--semi-color-disabled-text); // 禁用选择器菜单选项文字颜色
+$color-select_option_disabled-bg: transparent; // 禁用选择器菜单选项背景颜色
+$color-select_option-icon-active: var(--semi-color-text-2); // 禁用选择器菜单选项图标颜色 - 选中态
+$color-select_option-border-default: var(--semi-color-border); // 分组选择器菜单项描边颜色
+$color-select-option-bg-selected: transparent; // 选择器菜单选项背景颜色 - 选中态
+$color-select_create_tips-text: var(--semi-color-text-2); // 分组选择器菜单项提示文本颜色
+$color-select_group-text: var(--semi-color-text-2); // 分组选择器菜单项分组标题文本颜色
+
+$color-select_prefix_suffix_text-default: var(--semi-color-text-2); // 选择器输入框前后缀文本颜色
+
+// Width/Height
+$width-select_icon_right: ($width-icon-medium + $spacing-tight * 2); // 选择器右侧图标大小
+$height-select_large: $height-control-large; // 选择器输入框高度 - 大尺寸
+$height-select_small: $height-control-small; // 选择器输入框高度 - 小尺寸
+$height-select_default: $height-control-default; // 选择器输入框高度 - 默认尺寸
+$width-select_option_tick: $width-icon-small; // 选择器菜单项选中对勾图标大小
+$width-select-border: 1px; // 选择器输入框描边宽度
+$width-select_arrow: 32px; // 选择器输入框下拉箭头宽度
+$width-select_arrow_empty: 12px; // 选择器输入框下拉箭头为空时（有suffix icon）宽度
+$width-select_clear-icon: 32px; // 选择器输入框清空按钮宽度
+$width-select_group_top-border: $border-thickness-control; // 选择器菜单分组标题描边宽度
+
+$height-select_multiple_input_small: 20px; // 小尺寸多项选择器输入框Input框高度
+$height-select_multiple_input_default: 24px; // 默认多项选择器输入框Input框高度
+$height-select_multiple_input_large: 24px; // 大尺寸多项选择器输入框Input框高度
+
+$width-select-border-hover: $width-select-border;  // 选择器输入框描边宽度 - 悬浮
+$width-select-border-focus: $width-select-border-hover; // 选择器输入框描边宽度 - 按下
+$width-select-border-active: $width-select-border-focus; // 选择器输入框描边宽度 - 选中
+// Spacing
+$spacing-select_option_tick-marginRight: $spacing-tight; // 选择器菜单选中对勾右侧外边距
+$spacing-select_prefix_suffix_text-marginX: $spacing-base-tight; // 选择器输入框前后缀文本水平内边距
+$spacing-select_prefix_suffix_text-marginY: 0px; // 选择器输入框前后缀文本垂直内边距
+$spacing-select_prefix_suffix_icon-marginX: $spacing-tight; // 选择器输入框前后缀图标水平内边距
+$spacing-select_prefix_suffix_icon-marginY: 0px; // 选择器输入框前后缀图标垂直内边距
+$spacing-select_create_tips-marginRight: $spacing-extra-tight; // 创建新选项右侧外边距
+$spacing-select_group-marginTop: $spacing-extra-tight; // 选择器菜单分组标题顶部外边距
+$spacing-select_group-paddingTop: $spacing-base-tight; // 选择器菜单分组标题顶部内边距
+$spacing-select_group-paddingBottom: $spacing-extra-tight; // 选择器菜单分组标题底部内边距
+$spacing-select_group-paddingLeft: $spacing-base-tight + $width-select_option_tick + $spacing-select_option_tick-marginRight; // 选择器菜单分组标题左侧外边距
+$spacing-select_group-paddingRight: $spacing-base; // 选择器菜单分组标题右侧内边距
+$spacing-select_loading_wrapper-paddingLeft: $spacing-base; // 选择器加载左侧内边距
+$spacing-select_loading_wrapper-paddingRight: $spacing-base; // 选择器加载右侧内边距
+$spacing-select_loading_wrapper-paddingTop: $spacing-tight; // 选择器加载顶部内边距
+$spacing-select_loading_wrapper-paddingBottom: $spacing-tight; // 选择器加载底部内边距
+$spacing-select_multiple_content_wrapper_empty-marginLeft: $spacing-tight; // 多项选择器空回填内容为空时左侧内边距
+$spacing-select_multiple_selection-marginLeft: $spacing-extra-tight; // 多项选择器回填内容左侧内边距
+$spacing-select_option-paddingLeft: $spacing-base-tight; // 选择器菜单项左侧内边距
+$spacing-select_option-paddingRight: $spacing-base-tight; // 选择器菜单项右侧内边距
+$spacing-select_option-paddingTop: $spacing-tight; // 选择器菜单项顶部内边距
+$spacing-select_option-paddingBottom: $spacing-tight; // 选择器菜单项底部内边距
+
+
+$spacing-select_tag-marginTop: $spacing-super-tight - 1px; // 多项选择器标签顶部外边距
+$spacing-select_tag-marginRight: $spacing-extra-tight; // 多项选择器标签右侧外边距
+$spacing-select_tag-marginBottom: $spacing-super-tight - 1px; // 多项选择器标签底部外边距
+$spacing-select_selection-marginLeft: $spacing-base-tight; // 选择器内容区左侧外边距
+
+$spacing-select_option_list-paddingTop: $spacing-extra-tight; // 选择器内容区顶部内边距
+$spacing-select_option_list-paddingRight: 0px; // 选择器内容区右侧内边距
+$spacing-select_option_list-paddingBottom: $spacing-extra-tight; // 选择器内容区底部内边距
+$spacing-select_option_list-paddingLeft: 0px; // 选择器内容区左侧内边距
+
+$spacing-select_dropdown_input_paddingTop: 8px; // 下拉搜索框顶部内边距
+$spacing-select_dropdown_input_paddingBottom: 8px; // 下拉搜索框底部内边距
+$spacing-select_dropdown_input_paddingRight: 12px; // 下拉搜索框右侧内边距
+$spacing-select_dropdown_input_paddingLeft: 12px; // 下拉搜索框左侧内边距
+
+// Radius
+$radius-select: var(--semi-border-radius-small); // 选择器输入框圆角
+$radius-select_option: 0px; // 选择器待选项圆角
+
+// Font
+$font-select-fontWeight: $font-weight-regular; // 选择器文本字重
+$font-select_keyword-fontWeight: 600; // 选择器搜索结果命关键词中文本字重
+$font-select_prefix_suffix-fontWeight: $font-weight-bold; // 选择器输入框前后缀文本字重
+
+// Other
+$opacity-select_selection_text_inactive: 0.4;
+

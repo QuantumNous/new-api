@@ -1,0 +1,14 @@
+$transition_duration-input-bg: var(--semi-transition_duration-none);//输入框-背景色-动画持续时间
+$transition_function-input-bg: var(--semi-transition_function-easeIn);//输入框-背景色-过渡曲线
+$transition_delay-input-bg: var(--semi-transition_delay-none);//输入框-背景色-延迟时间
+
+$transition_duration-input-border: var(--semi-transition_duration-none);//输入框-边框-动画持续时间
+$transition_function-input-border: var(--semi-transition_function-easeIn);//输入框-边框-过渡曲线
+$transition_delay-input-border: var(--semi-transition_delay-none);//输入框-边框-延迟时间
+
+$transition_duration-input-text: var(--semi-transition_duration-none);//输入框-文字或图标-动画持续时间
+$transition_function-input-text: var(--semi-transition_function-easeIn);//输入框-文字或图标-过渡曲线
+$transition_delay-input-text: var(--semi-transition_delay-none);//输入框-文字或图标-延迟时间
+
+// transform token
+$transform_scale-input: var(--semi-transform_scale-none);//输入框-变大

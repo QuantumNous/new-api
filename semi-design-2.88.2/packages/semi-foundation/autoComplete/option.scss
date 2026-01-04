@@ -1,0 +1,93 @@
+$module: #{$prefix}-autocomplete;
+$filterable: #{$module}-filterable;
+
+.#{$module}-option {
+    @include font-size-regular;
+    word-break: break-all;
+    padding-left: $spacing-autoComplete_option-paddingLeft;
+    padding-right: $spacing-autoComplete_option-paddingRight;
+    padding-top: $spacing-autoComplete_option-paddingTop;
+    padding-bottom: $spacing-autoComplete_option-paddingBottom;
+    color: $color-autoComplete_option_main-text;
+    border-radius: $radius-autoComplete_option;
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color $transition_duration-autoComplete_option-bg $transition_function-autoComplete_option-bg $transition_delay-autoComplete_option-bg;
+
+    &-icon {
+        width: $width-autoComplete_option_tick;
+        color: $color-autoComplete_option-icon-default;
+        visibility: hidden;
+        margin-right: $spacing-autoComplete_option_tick-marginRight;
+        display: flex;
+        justify-content: center;
+        align-content: center;
+    }
+
+    &-text {
+        display: flex;
+        flex-wrap: wrap;
+        white-space: pre;
+    }
+
+    &-keyword {
+        color: $color-autoComplete_option_keyword-text;
+        background-color: inherit;
+        font-weight: $font-autoComplete_keyword-fontWeight;
+    }
+    // &:hover {
+    //     background-color: $color-autoComplete_option-bg-hover;
+    // }
+
+    &:active {
+        background-color: $color-autoComplete_option-bg-active;
+    }
+
+    &-empty {
+        cursor: not-allowed;
+        color: $color-autoComplete_option_disabled-text;
+        justify-content: center;
+
+        &:hover {
+            background-color: inherit;
+        }
+
+        &:active {
+            background-color: inherit;
+        }
+    }
+
+    &-disabled {
+        color: $color-autoComplete_option_disabled-text;
+        cursor: not-allowed;
+
+        &:hover {
+            background-color: $color-autoComplete_option-bg-hover;
+        }
+    }
+
+    &-selected {
+        font-weight: $font-weight-bold;
+
+        .#{$module}-option-icon {
+            visibility: visible;
+            color: $color-autoComplete_option-icon-active;
+        }
+    }
+
+    &-focused {
+        background-color: $color-autoComplete_option-bg-hover;
+    }
+
+    &:first-of-type {
+        margin-top: $spacing-autoComplete_option_first-marginTop;
+    }
+
+    &:last-of-type {
+        margin-bottom: $spacing-autoComplete_option_last-marginBottom;
+    }
+}

@@ -1,0 +1,70 @@
+$prefix: 'semi';
+
+/* sizing */
+$height-control-small: 24px; // 表单项高度 - 小尺寸
+$height-control-default: 32px; // 表单项高度 - 默认尺寸
+$height-control-large: 40px; // 表单项高度 - 大尺寸
+$border-thickness: 0; // 描边宽度 - 零
+$border-thickness-control: 1px; // 描边宽度 - 默认状态（checkbox 等）
+$border-thickness-control-focus: 1px; // 描边宽度 - focus 状态（checkbox 等）
+
+$width-icon-extra-small: 8px; // 图标尺寸 - 超小
+$width-icon-small: 12px; // 图标尺寸 - 小
+$width-icon-medium: 16px; // 图标尺寸 - 中
+$width-icon-large: 20px; // 图标尺寸 - 大
+$width-icon-extra-large: 24px; // 图标尺寸 - 超大
+
+/* spacing */
+$spacing-none: 0; // 间距 - 零
+$spacing-super-tight: 2px; // 间距 - 极紧凑尺寸内/外边距
+$spacing-extra-tight: 4px; // 间距 - 超紧凑尺寸内/外边距
+$spacing-tight: 8px; // 间距 - 紧凑尺寸内/外边距
+$spacing-base-tight: 12px; // 间距 - 默认（偏紧凑）尺寸内/外边距
+$spacing-base: 16px; // 间距 - 默认尺寸内/外边距
+$spacing-base-loose: 20px; // 间距 - 默认（偏宽松）尺寸内/外边距
+$spacing-loose: 24px; // 间距 - 宽松尺寸内/外边距
+$spacing-extra-loose: 32px; // 间距 - 超宽松尺寸内/外边距
+$spacing-super-loose: 40px; // 间距 - 极宽松尺寸内/外边距
+
+// z-index
+$z-portal: 1; // 抽象插槽，适用于未经特殊定制的所有组件
+$z-affix: 10; // 固定位置的页面元素 z-index
+$z-backtop: 10; // 返回顶部 z-index
+$z-badge: 10; // badge z-index
+// $z-avatar-default: 100;
+$z-table-fixed: 101; // table fixed column
+$z-modal: 1000; // modal z-index
+$z-modal-mask: 1000; // modal 遮罩 z-index
+
+$z-toast: 1010; // toast 组件 z-index
+$z-notification: 1010; // notification 组件 z-index
+$z-popover: 1030; // popover 组件 z-index
+$z-dropdown: 1050; // dropdown 组件 z-index
+$z-tooltip: 1060; // tooltip 组件 z-index
+// $z-avatar-default: 100;
+$z-image_preview: 1070; // Image 组件预览层z-index
+$z-image_preview_header: 1; // Image 组件预览层中 header 部分 z-index
+
+// 正在拖拽中的元素的 z-index，需要高于所有的弹出层组件 z-index
+$z-transfer_right_item_drag_item_move: 2000; // 穿梭框右侧面板中正在拖拽元素的z-index
+$z-tagInput_drag_item_move: 2000; // 标签输入框中正在拖拽元素的z-index
+$z-resizable_handler: 2000; // 伸缩框组件中handler的z-index 
+// $z-resizable_background: 2010; // 伸缩框组件中背景的z-index
+
+// font
+$font-family-regular: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue',
+    Helvetica, Arial, sans-serif; // semi 预置字体回退
+$font-size-small: 12px; // 小文本字号
+$font-size-regular: 14px; // 常规文本字号
+
+$font-size-header-6: 16px; // 六级标题字号
+$font-size-header-5: 18px; // 五级标题字号
+$font-size-header-4: 20px; // 四级标题字号
+$font-size-header-3: 24px; // 三级标题字号
+$font-size-header-2: 28px; // 二级标题字号
+$font-size-header-1: 32px; // 一级标题字号
+
+$font-weight-light: 200; // 字重 - 轻
+$font-weight-regular: 400; // 字重 - 常规
+$font-weight-bold: 600; // 字重 - 加粗

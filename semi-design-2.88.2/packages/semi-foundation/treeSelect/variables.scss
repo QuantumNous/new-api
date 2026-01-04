@@ -1,0 +1,94 @@
+$color-treeSelect_default-bg-default: var(--semi-color-fill-0); // 树选择器选择框背景颜色 - 默认
+$color-treeSelect_default-bg-hover: var(--semi-color-fill-1); // 树选择器选择框背景颜色 - 悬停
+$color-treeSelect_default-bg-active: var(--semi-color-fill-2); // 树选择器选择框背景颜色 - 按下
+$color-treeSelect_default-bg-focus: var(--semi-color-fill-0); // 树选择器选择框背景颜色 - 选中
+$color-treeSelect_default-border-default: transparent; // 树选择器选择框描边颜色 - 默认
+$color-treeSelect_selection-text-default: var(--semi-color-text-0); // 树选择器选择框回填内容文本颜色 - 默认
+$color-treeSelect_default-icon-default: var(--semi-color-text-2); // 树选择器选择框图标颜色 - 默认
+$color-treeSelect_default-icon-hover: var(--semi-color-primary-hover); // 树选择器选择框清空按钮颜色 - 悬停
+$color-treeSelect_default-icon-active: var(--semi-color-primary-active); // 树选择器选择框清空按钮颜色 - 按下
+
+$color-treeSelect_default-border-hover: transparent; // 树选择器选择框描边颜色 - 悬浮
+$color-treeSelect_default-border-focus: var(--semi-color-focus-border);// 树选择器选择框描边颜色 - 选中
+
+$color-treeSelect_search-border-default: var(--semi-color-fill-0); // 树选择器菜单搜索框描边颜色 - 默认
+$color-treeSelect_tag_disabled-bg-default: transparent; // 禁用树选择器菜单标签背景颜色
+$color-treeSelect_input_disabled-bg-default: var(--semi-color-disabled-fill); // 禁用树选择器选择框背景颜色
+$color-treeSelect_input_disabled-border-default: var(--semi-color-disabled-border); // 禁用树选择器选择框描边颜色
+$color-treeSelect_input_disabled-text-default: var(--semi-color-disabled-text); // 禁用树选择器选择框文本颜色
+$color-treeSelect_input_disabled-bg-hover: var(--semi-color-disabled-fill); // 禁用树选择器选择框背景颜色 - 悬浮
+$color-treeSelect_input_placeholder-text-default: var(--semi-color-text-2); // 树选择器选择框占位文本颜色
+
+// warning，same as Input
+$color-treeSelect_warning-bg-default: var(--semi-color-warning-light-default); // 警告树选择器选择框背景颜色 - 默认
+$color-treeSelect_warning-border-default: var(--semi-color-warning-light-default); // 警告树选择器选择框描边颜色 - 默认
+
+$color-treeSelect_warning-bg-hover: var(--semi-color-warning-light-hover); // 警告树选择器选择框背景颜色 - 悬浮
+$color-treeSelect_warning-border-hover: var(--semi-color-warning-light-hover); // 警告树选择器选择框描边颜色 - 悬浮
+
+$color-treeSelect_warning-bg-focus: var(--semi-color-warning-light-default); // 警告树选择器选择框背景颜色 - 选中
+$color-treeSelect_warning-border-focus: var(--semi-color-warning); // 警告树选择器选择框描边颜色 - 选中
+
+$color-treeSelect_warning-bg-active: var(--semi-color-warning-light-active); // 警告树选择器选择框背景颜色 - 激活
+$color-treeSelect_warning-border-active: var(--semi-color-warning-light-active); // 警告树选择器选择框描边颜色 - 激活
+
+// error，same as Input
+$color-treeSelect_danger-bg-default: var(--semi-color-danger-light-default); // 错误树选择器选择框背景颜色 - 默认
+$color-treeSelect_danger-border-default: var(--semi-color-danger-light-default); // 错误树选择器选择框描边颜色 - 默认
+
+$color-treeSelect_danger-bg-hover: var(--semi-color-danger-light-hover); // 错误树选择器选择框背景颜色 - 悬浮
+$color-treeSelect_danger-border-hover: var(--semi-color-danger-light-hover); // 错误树选择器选择框描边颜色 - 悬浮
+
+$color-treeSelect_danger-bg-focus: var(--semi-color-danger-light-default); // 错误树选择器选择框背景颜色 - 选中
+$color-treeSelect_danger-border-focus: var(--semi-color-danger); // 错误树选择器选择框描边颜色 - 选中
+
+$color-treeSelect_danger-bg-active: var(--semi-color-danger-light-active); // 错误树选择器选择框背景颜色 - 激活
+$color-treeSelect_danger-border-active: var(--semi-color-danger-light-active); // 错误树选择器选择框描边颜色 - 激活
+
+$radius-treeSelect: var(--semi-border-radius-small); // 树选择器圆角
+$width-treeSelect-border: 1px; // 树选择器描边宽度
+$width-treeSelect_search_wrapper-border: 1px; // 树选择器搜索框描边宽度
+
+$width-treeSelect_hover-border: $border-thickness-control-focus; // 树选择器选择框描边宽度 - 悬浮
+$width-treeSelect_focus-border: $width-treeSelect_hover-border; // 树选择器选择框描边宽度 - 选中
+
+$width-treeSelect_default: 80px; // 树选择器最小宽度
+$height-treeSelect_default: $height-control-default; // 树选择器选择器高度 - 默认
+$font-treeSelect_default-lineHeight: $height-treeSelect_default; // 树选择器选择器文本行高
+$font-treeSelect_default-fontWeight: $font-weight-regular; // 树选择器选择器文本字重
+$font-treeSelect_default-fontSize: 14px; // 树选择器选择器文本字号
+$height-treeSelect_small: $height-control-small; // 小尺寸树选择器选择器高度
+$font-treeSelect_small-lineHeight: $height-treeSelect_small; // 小尺寸树选择器选择器文本行高
+
+$height-treeSelect_large: $height-control-large; // 大尺寸树选择器选择器文本行高
+$font-treeSelect_large-lineHeight: $height-treeSelect_large; // 大尺寸树选择器选择器文本行高
+
+$font-treeSelect_prefix_suffix_fontWeight: $font-weight-bold; // 树选择器前缀后缀文本字重
+
+$spacing-treeSelect_selection_tagInput_wrapper-paddingX: $spacing-extra-tight; // 树选择器多选标签容器水平内边距
+$spacing-treeSelect_selection_tagInput_empty-marginLeft: $spacing-extra-tight; // 树选择器多选标签容器为空时左侧外边距
+$spacing-treeSelect_selection_tagInput_notEmpty-marginLeft: - $spacing-extra-tight; // 树选择器多选标签容器不为空时左侧外边距
+$spacing-treeSelect_selection-paddingLeft: $spacing-base-tight; // 树选择器单选左侧内边距
+$spacing-treeSelect_tag-marginX: $spacing-super-tight; // 树选择器多选标签水平外边距
+$spacing-treeSelect_tag-marginY: 1px; // 树选择器多选标签垂直外边距
+$spacing-treeSelect_selection_multiple-paddingLeft: 4px; // 树选择器多选标签左侧内边距
+$spacing-treeSelect_placeholder_multiple-paddingLeft: 8px; // 树选择器多选占位文本左侧外边距
+$spacing-treeSelect_prefix_text-marginY: 0px; // 树选择器前缀文本垂直外边距
+$spacing-treeSelect_prefix_text-marginX: $spacing-base-tight; // 树选择器前缀文本水平外边距
+$spacing-treeSelect_prefix_icon-marginY: 0px; // 树选择器前缀图标垂直外边距
+$spacing-treeSelect_prefix_icon-marginX: $spacing-tight; // 树选择器前缀图标水平外边距
+$spacing-treeSelect_selection_withSuffix-paddingRight: 0px; // 树选择器有后缀时内容右侧内边距
+$spacing-treeSelect_search_wrapper-paddingX: 12px; // 树选择器搜索框容器水平内边距
+$spacing-treeSelect_search_wrapper-paddingY: 8px; // 树选择器搜索框容器垂直内边距
+
+$color-treeSelect_selection_TriggerSearchItem_disabled-text-default: var(--semi-color-disabled-text); // 带搜索的树选择器触发器占位文本默认颜色
+$color-treeSelect_inputTrigger-border-default: none; // 带搜索的树选择器触发器描边颜色
+$color-treeSelect_inputTrigger-bg-default: transparent; // 带搜索的树选择器触发器背景颜色
+$color-treeSelect_prefix_suffix_text-default: var(--semi-color-text-2); // 带搜索的树选择器前后缀文本颜色
+
+$width-treeSelect_arrow: 32px; // 树选择器展开箭头宽度
+$width-treeSelect_option:  230px; // 树选择器菜单项宽度
+$height-treeSelect_popover: 300px; // 树选择器菜单高度
+$height-treeSelect_selection_tagInput_wrapper_small: 22px; // 树选择器多选搜索，搜索框在选择框时选择框最小高度 - 小尺寸
+$height-treeSelect_selection_tagInput_wrapper_default: 30px; // 树选择器多选搜索，搜索框在选择框时选择框最小高度 - 默认尺寸
+$height-treeSelect_selection_tagInput_wrapper_large: 38px; // 树选择器多选搜索，搜索框在选择框时选择框最小高度 - 大尺寸

@@ -1,0 +1,7 @@
+$transition_duration-slider_handle-bg: var(--semi-transition_duration-none);//滑动条圆形按钮-背景色-动画持续时间
+$transition_function-slider_handle-bg: var(--semi-transition_function-easeIn);//滑动条圆形按钮-背景色-过渡曲线
+$transition_delay-slider_handle-bg: var(--semi-transition_delay-none);//滑动条圆形按钮-背景色-延迟时间
+
+//transform token
+
+$transform_scale-slider_handle: var(--semi-transform_scale-small);//滑动条圆形按钮-放大

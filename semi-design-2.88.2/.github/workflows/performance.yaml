@@ -1,0 +1,57 @@
+name: "Check PR performance on PR Merge"
+
+on:
+  pull_request:
+    branches: [main, release]
+    types:
+      - closed
+
+jobs:
+  check_performance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+            fetch-depth: '2'
+
+      - name: Check PR performance
+        if: ${{ github.event.pull_request.merged == true }}
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git checkout $BASE_BRANCH 
+          echo "Current Commit: $(git rev-parse HEAD)"
+          echo "Before Commit: $(git rev-parse HEAD^)"
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PR_MERGE_BY_USER=${{github.event.pull_request.user.login}}
+          echo "PR_Number is $PR_NUMBER"
+          echo "User is $PR_MERGE_BY_USER"
+          id=$(curl --location "https://api.semi.design/analyze/createTask" --header "X-TT-ENV: canary" --header "Content-Type: application/json" --header "X-SEMI-Request: ${{ secrets.SEMI_REQUEST }}" --data "{\"prNumber\":\"$PR_NUMBER\",\"user\":\"$PR_MERGE_BY_USER\",\"v2\":\"$(git rev-parse HEAD)\",\"v1\":\"$(git rev-parse HEAD^)\",\"component\":\"\"}")
+          echo "Task id is $id"
+          
+          for i in {1..30}; do
+                      sleep 300
+                      json_data=$(curl --location 'https://api.semi.design/analyze/checkAllTask' --header 'X-TT-ENV: canary' --header "X-SEMI-Request: ${{ secrets.SEMI_REQUEST }}")
+                      parsed_data=$(python -c "
+          import json;
+          data = json.loads('''$json_data''',strict=False);
+          for item in data:
+              if item['id'] == $id :
+                  if item['status'] == 'done':
+                      print('Done: result is '+ ('empty' if item['result']=='' else item['result']))
+                  else:
+                      print('')
+                  exit(0)
+          print("")
+          ")
+
+                      if [ -n "$parsed_data" ]; then
+                        echo "$parsed_data"
+                        curl --location --request DELETE "https://api.semi.design/analyze/removeTask?id=$id" --header 'X-TT-ENV: canary' --header "X-SEMI-Request: ${{ secrets.SEMI_REQUEST }}"
+                        break
+                      else
+                        echo "task result is empty at tried number  #$i"
+                      fi
+          done

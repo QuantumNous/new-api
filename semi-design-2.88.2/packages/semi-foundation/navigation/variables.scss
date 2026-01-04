@@ -1,0 +1,133 @@
+$module: #{$prefix}-navigation;
+
+// Size
+$height-navigation_item_base: 36px; // 侧边导航栏菜单项高度
+$width-navigation_container_base: 240px; // 侧边导航栏展开后宽度
+$width-navigation_container_collapsed: 60px; // 侧边导航栏收起后宽度
+$width-navigation_header_logo: 36px; // 导航栏 logo 宽度
+$height-navigation_header_logo: 36px; // 导航栏 logo 高度
+$height-navigation_header_logo_collapsed: 36px; // 导航栏 logo 收起后宽度
+$height-navigation_footer: 48px;  // 侧边导航栏 footer 高度
+$height-navigation_horizontal_header: 60px; // 顶部导航栏高度
+$width-navigation_icon_text_between: 12px; // 导航栏菜单项图标与标题间距
+$width-navigation_icon_left: 20px; // 导航栏菜单项图标距左侧边距离
+$width-navigation_item-borderRadius: var(--semi-border-radius-small); // 导航栏菜单项圆角
+$width-navigation_dropdown_item_nav_item-minWidth: 150px; // 导航栏菜单项下拉菜单最小宽度
+$width-navigation_border: 1px; // 导航栏描边宽度
+$width-navigation_footer_border: 1px; // 导航栏 footer 描边宽度
+$width-navigation_icon_left-minWidth: 20px; // 导航栏菜单项展开收起按钮最小宽度
+$width-navigation-outline: 2px; // 导航栏聚焦outline宽度
+$width-navigation-outlineOffset: -2px; // 导航栏聚焦outline偏移
+
+// Spacing
+$spacing-navigation-paddingX: $spacing-tight; // 侧边导航栏水平方向内边距
+$spacing-navigation_collapsed-paddingX: $spacing-tight; // 侧边导航栏收起后水平方向内边距
+$spacing-navigation_item-paddingX: $spacing-base-tight; // 侧边导航栏菜单项水平方向内边距
+$spacing-navigation_item-paddingY: $spacing-tight; // 侧边导航栏菜单项垂直方向内边距
+$spacing-navigation_item-marginBottom: $spacing-tight; // 侧边导航栏菜单项底部外边距
+$spacing-navigation_sub_title-marginBottom: 0; // 侧边导航栏子级菜单项底部外边距
+$spacing-navigation_sub_wrap-marginTop: 0; // 侧边导航栏子级菜单组顶部外边距
+$spacing-navigation_sub_wrap-padding: 0; // 侧边导航栏子级菜单组内边距
+$spacing-navigation_sub-padding: 0; // 侧边导航栏子级菜单组内边距
+$spacing-navigation_item_sub-padding: 0; // 侧边导航栏子级菜单项内边距
+$spacing-navigation_header_logo-marginLeft: 0; // 导航栏 logo 左侧外边距
+$spacing-navigation_header_logo-marginRight: 8px; // 导航栏 logo 右侧外边距
+$spacing-navigation_header-paddingTop: 32px; // 导航栏 header 顶部内边距
+$spacing-navigation_header-paddingBottom: 36px; // 导航栏 header 底部内边距
+$spacing-navigation_list_wrapper-paddingTop: 12px; // 导航栏菜单项列表顶部内边距
+$spacing-navigation_footer-paddingX: 24px; // 导航栏 footer 水平方向内边距
+$spacing-navigation_footer-paddingY: 16px; // 导航栏 footer 垂直方向内边距
+$spacing-navigation_footer_collapse_btn_inner-paddingX: 8px; // 收起侧边栏按钮水平方向内边距
+$spacing-navigation_horizontal_header_logo-marginLeft: 24px; // 顶部导航兰 logo 左侧外边距
+$spacing-navigation_horizontal_header_logo-marginRight: 24px; // 顶部导航兰 logo 右侧外边距
+$spacing-navigation_horizontal-paddingLeft: 24px; // 顶部导航兰左侧内边距
+$spacing-navigation_horizontal-paddingRight: 24px; // 顶部导航兰右侧内边距
+$spacing-navigation_dropdown_item_nav_sub_title-paddingX: $spacing-base-tight; // 导航栏下拉菜单标题水平方向内边距
+$spacing-navigation_dropdown_item_nav_sub_title-paddingY: $spacing-tight; // 导航栏下拉菜单标题垂直方向内边距
+$spacing-navigation_dropdown_item_nav_item-marginTop: 0; // 导航栏下拉菜单项顶部外边距
+$spacing-navigation_dropdown_item_nav_item-marginBottom: 0; // 导航栏下拉菜单项底部外边距
+$spacing-navigation_vertical_nav_item_last-marginBottom: 0; // 侧边导航栏下拉最后一个菜单项底部外边距
+$spacing-navigation_vertical_nav_header-paddingLeft:  ($width-navigation_container_collapsed - $spacing-navigation_collapsed-paddingX * 2 - $width-navigation_border - $height-navigation_header_logo_collapsed) * 0.5; // 侧边导航栏 header 左侧内边距
+$spacing-navigation_vertical_nav_header-paddingRight: $spacing-tight; // 侧边导航栏 header 右侧内边距
+$spacing-navigation_vertical_nav_header_collapsed-paddingLeft: ($width-navigation_container_collapsed - $spacing-navigation_collapsed-paddingX * 2 - $width-navigation_border - $height-navigation_header_logo_collapsed) * 0.5; // 侧边导航栏收起后 header 左侧内边距
+$spacing-navigation_vertical_nav_header_collapsed-paddingRight: 0; // 侧边导航栏收起后 header 右侧内边距
+$spacing-navigation_vertical_footer-paddingLeft: $spacing-tight; // 侧边导航栏 footer 左侧内边距
+$spacing-navigation_vertical_footer-paddingRight: $spacing-tight; // 侧边导航栏 footer 右侧内边距
+$spacing-navigation_vertical_footer_semi_button_content_right-marginLeft: 12px; // 收起侧边栏 按钮标题左侧外边距
+$spacing-navigation_horizontal_nav_list_item-marginBottom: 0; // 顶部导航栏菜单项底部外边距
+$spacing-navigation_horizontal_nav_list_item_not_last-marginRight: $spacing-tight; // 顶部导航栏菜单项右侧外边距（非末位）
+$spacing-navigation_horizontal_icon_first-marginRight: $spacing-tight; // 顶部导航栏菜单项首位图标右侧外边距
+$spacing-navigation_horizontal_icon_last-marginLeft: $spacing-tight; // 顶部导航栏菜单项末位图标左侧外边距
+$spacing-navigation_sub_item_first_child-marginTop: $spacing-tight; // 顶部导航栏子级首位菜单项顶部外边距
+$spacing-navigation_sub_item_left_toggle_marginRight:$spacing-tight; // 顶部导航栏菜单项末位图标右侧外边距
+
+// Color
+$color-navigation-bg-default: var(--semi-color-nav-bg); // 导航栏背景色
+$color-navigation_border-default: var(--semi-color-border); // 导航栏分割线色
+$color-navigation_header-text-default: var(--semi-color-text-0); // 导航栏 header 文字颜色
+$color-navigation_footer_icon-default: var(--semi-color-text-2); // 导航栏 footer 图标颜色
+$color-navigation_itemL1-bg-default: transparent; // 导航栏一级菜单项背景色
+$color-navigation_itemL1-text-default: var(--semi-color-text-0); // 导航栏一级菜单项文字颜色
+$color-navigation_itemL1_icon-default: var(--semi-color-text-2); // 导航栏一级菜单项图标颜色
+$color-navigation_itemL1-bg-hover: var(--semi-color-fill-0); // 导航栏一级菜单项悬浮态背景色
+$color-navigation_itemL1-text-hover: var(--semi-color-text-0); // 导航栏一级菜单项悬浮态文字颜色
+$color-navigation_itemL1_icon-hover: var(--semi-color-text-2); // 导航栏一级菜单项悬浮态图标颜色
+$color-navigation_itemL1_selected-text-hover: var(--semi-color-text-0); // 导航栏一级已选中菜单项悬浮态文字颜色
+$color-navigation_itemL1-bg-active: var(--semi-color-fill-1); // 导航栏一级菜单项按下态背景色
+$color-navigation_itemL1-text-active: var(--semi-color-text-0); // 导航栏一级菜单项按下态文字颜色
+$color-navigation_itemL1_icon-active: var(--semi-color-text-2); // 导航栏一级菜单项按下态图标颜色
+$color-navigation_itemL1_selected-text-active: var(--semi-color-text-0); // 导航栏一级已选中菜单项按下态文字颜色
+$color-navigation_itemL1_selected-bg-default: var(--semi-color-primary-light-default); // 导航栏一级已选中菜单项背景色
+$color-navigation_itemL1_selected-text-default: var(--semi-color-text-0); // 导航栏一级已选中菜单项文字颜色
+$color-navigation_itemL1_selected_icon-default: var(--semi-color-primary); // 导航栏一级已选中菜单项图标颜色
+$color-navigation_itemL1_disabled-bg-default: transparent; // 导航栏一级菜单项禁用态背景色
+$color-navigation_itemL1_disabled-text-default: var(--semi-color-disabled-text); // 导航栏一级菜单项禁用态文字颜色
+$color-navigation_itemL1_disabled_icon-default: var(--semi-color-disabled-text); // 导航栏一级菜单项禁用态图标颜色
+$color-navigation_itemL1_selected_disabled-bg-default: transparent; // 导航栏一级已选中菜单项禁用态背景色
+$color-navigation_itemL1_selected_disabled-text-default: var(--semi-color-primary-disabled); // 导航栏一级已选中菜单项禁用态文字颜色
+$color-navigation_itemL1_selected_disabled_icon-default: var(--semi-color-primary-disabled); // 导航栏一级已选中菜单项禁用态图标颜色
+
+$color-navigation_horizontal_itemL1-text-default: var(--semi-color-text-2); // 水平导航栏一级菜单项文字颜色
+$color-navigation_horizontal_itemL1_icon-default: var(--semi-color-text-2); // 水平导航栏一级菜单项图标颜色
+$color-navigation_horizontal_itemL1-bg-default: transparent; // 水平导航栏一级菜单项背景颜色
+$color-navigation_horizontal_itemL1-text-hover: var(--semi-color-text-1); // 水平导航栏一级菜单项悬浮态文字颜色
+$color-navigation_horizontal_itemL1_icon-hover: var(--semi-color-text-1); // 水平导航栏一级菜单项悬浮态图标颜色
+$color-navigation_horizontal_itemL1-bg-hover: transparent; // 水平导航栏一级菜单项悬浮态背景颜色
+$color-navigation_horizontal_itemL1-text-active: var(--semi-color-text-0); // 水平导航栏一级菜单项按下态文字颜色
+$color-navigation_horizontal_itemL1_icon-active: var(--semi-color-text-0); // 水平导航栏一级菜单项按下态图标颜色
+$color-navigation_horizontal_itemL1-bg-active: transparent; // 水平导航栏一级菜单项按下态背景颜色
+$color-navigation_horizontal_itemL1_selected-text-default: var(--semi-color-text-0); // 水平导航栏一级菜单项选中态文字颜色
+$color-navigation_horizontal_itemL1_selected_icon-default: var(--semi-color-text-0); // 水平导航栏一级菜单项选中态图标颜色
+$color-navigation_horizontal_itemL1_selected-bg-default: transparent; // 水平导航栏一级菜单项选中态背景颜色
+$color-navigation_horizontal_itemL1_disabled-text-default: var(--semi-color-disabled-text); // 水平导航栏一级菜单项禁用态文字颜色
+$color-navigation_horizontal_itemL1_disabled_icon-default: var(--semi-color-disabled-text); // 水平导航栏一级菜单项禁用态图标颜色
+$color-navigation_horizontal_itemL1_disabled-bg-default: transparent; // 水平导航栏一级菜单项禁用态背景颜色
+
+$color-navigation_itemLn-bg-default: transparent; // 导航栏子级菜单项背景颜色
+$color-navigation_itemLn-text-default: var(--semi-color-text-0); // 导航栏子级菜单项文字颜色
+$color-navigation_itemLn-bg-hover: var(--semi-color-fill-0); // 导航栏子级菜单项悬浮态背景颜色
+$color-navigation_itemLn-text-hover: var(--semi-color-text-0); // 导航栏子级菜单项悬浮态文字颜色
+$color-navigation_itemLn-bg-active: var(--semi-color-fill-1); // 导航栏子级菜单项按下态背景颜色
+$color-navigation_itemLn-text-active: var(--semi-color-text-0); // 导航栏子级菜单项按下态文字颜色
+$color-navigation_itemLn_selected-bg-default: var(--semi-color-primary-light-default); // 导航栏子级菜单项选中态背景颜色
+$color-navigation_outline-focus: var(--semi-color-primary-light-active); // 导航栏子级菜单键盘聚焦颜色
+
+// Transition
+$motion-navigation_item_title: opacity 100ms 100s ease-out; // 导航栏菜单项标题收起时渐隐动画
+$motion-navigation_padding: padding-left 100ms ease-out; // 侧边导航栏收起左侧内边距动画
+$motion-navigation_padding_rtl: padding-right 100ms ease-out; // 侧边导航栏收起右侧内边距(rtl)动画
+$motion-navigation_width: width 200ms cubic-bezier(.62, .05, .36, .95); // 侧边导航栏收起宽度动画
+$motion-navigation_collapsed_opacity: opacity .2s cubic-bezier(.5, -.1, 1, .4); // 侧边导航栏收起渐隐动画
+
+
+// Font
+$font-navigation_item-fontWeight: $font-weight-bold; // 导航栏菜单项标题字重
+$font-navigation_sub_title-fontWeight: $font-weight-bold; // 导航栏菜单项副标题字重
+$font-navigation_item_normal-fontWeight: $font-weight-regular; // 导航栏子级菜单项标题字重
+$font-navigation_popover_nav_item_selected-fontWeight: normal; // 导航栏子级菜单项标题选中态字重
+$font-navigation_sub_selected-fontWeight: $font-weight-bold; // 导航栏菜单项标题选中态字重
+$font-navigation_sub_disabled-fontWeight: $font-weight-bold; // 导航栏菜单项标题禁用态字重
+$font-navigation_sub-fontWeight: $font-weight-regular; // 导航栏子级菜单项标题字重
+$font-navigation_sub-fontSize: $font-size-regular; // 导航栏子级菜单项标题字体大小
+$font-navigation_sub_item-fontWeight: $font-weight-regular; // 导航栏子级菜单项标题字重
+$font-navigation_header_item-fontWeight: $font-weight-bold; // 导航栏 header 标题字重

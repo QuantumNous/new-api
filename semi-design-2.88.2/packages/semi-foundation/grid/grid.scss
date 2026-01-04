@@ -1,0 +1,121 @@
+//@import '../theme/variables.scss';
+@import './variables.scss';
+@import './mixin.scss';
+$module: #{$prefix};
+
+.#{$module}-row {
+    display: block;
+    box-sizing: border-box;
+    @include make-row();
+}
+
+.#{$module}-row-flex {
+    display: flex;
+    flex-flow: row wrap;
+
+    &::before,
+    &::after {
+        display: flex;
+    }
+}
+
+.#{$module}-col-0, .#{$module}-col-xs-0, .#{$module}-col-sm-0, .#{$module}-col-md-0, .#{$module}-col-lg-0, .#{$module}-col-xl-0, .#{$module}-col-xxl-0 {
+    display: none;
+}
+
+// x轴原点
+.#{$module}-row-flex-start {
+    justify-content: flex-start;
+}
+
+// x轴居中
+.#{$module}-row-flex-center {
+    justify-content: center;
+}
+
+// x轴反方向
+.#{$module}-row-flex-end {
+    justify-content: flex-end;
+}
+
+// x轴平分
+.#{$module}-row-flex-space-between {
+    justify-content: space-between;
+}
+
+// x轴有间隔地平分
+.#{$module}-row-flex-space-around {
+    justify-content: space-around;
+}
+
+// 顶部对齐
+.#{$module}-row-flex-top {
+    align-items: flex-start;
+}
+
+// 居中对齐
+.#{$module}-row-flex-middle {
+    align-items: center;
+}
+
+// 底部对齐
+.#{$module}-row-flex-bottom {
+    align-items: flex-end;
+}
+
+.#{$module}-col {
+    position: relative;
+}
+
+@include make-grid-columns();
+@include make-grid();
+
+// Extra small grid
+//
+// Columns, offsets, pushes, and pulls for extra small devices like
+// smartphones.
+
+@include make-grid(-xs);
+
+// // Small grid
+// //
+// // Columns, offsets, pushes, and pulls for the small device range, from phones
+// // to tablets.
+
+@media (min-width: $width-grid_screen-sm-min) {
+    @include make-grid(-sm);
+}
+
+// // Medium grid
+// //
+// // Columns, offsets, pushes, and pulls for the desktop device range.
+
+@media (min-width: $width-grid_screen-md-min) {
+    @include make-grid(-md);
+}
+
+// // Large grid
+// //
+// // Columns, offsets, pushes, and pulls for the large desktop device range.
+
+@media (min-width: $width-grid_screen-lg-min) {
+    @include make-grid(-lg);
+}
+
+// // Extra Large grid
+// //
+// // Columns, offsets, pushes, and pulls for the full hd device range.
+
+@media (min-width: $width-grid_screen-xl-min) {
+    @include make-grid(-xl);
+}
+
+// // Extra Extra Large grid
+// //
+// // Columns, offsets, pushes, and pulls for the full hd device range.
+
+@media (min-width: $width-grid_screen-xxl-min) {
+    @include make-grid(-xxl);
+}
+
+@import "./rtl.scss";

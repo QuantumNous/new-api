@@ -1,0 +1,67 @@
+$module: #{$prefix}-tree;
+
+.#{$prefix}-rtl,
+.#{$prefix}-popover-rtl {
+    .#{$module} {
+        direction: rtl;
+    }
+
+    .#{$module}-wrapper {
+        direction: rtl;
+    }
+
+    .#{$module}-option-list {
+        direction: rtl;
+
+        .#{$module}-option-expand-icon,
+        .#{$module}-option-empty-icon {
+            margin-right: 0;
+            margin-left: $spacing-tree_icon-marginRight;
+        }
+
+        .#{$module}-option {
+            padding-left: 0;
+            padding-right: $spacing-tree_option_level1-paddingLeft;
+            &-label {
+                & > .#{$prefix}-icon {
+                    margin-right: 0;
+                    margin-left: $spacing-tree_icon-marginRight;
+                }
+
+                .#{$prefix}-checkbox {
+                    margin-right: 0;
+                    margin-left: $spacing-tree_icon-marginRight;
+                }
+            }
+
+            &-collapsed {
+                .#{$module}-option-expand-icon {
+                    transform: rotate(90deg);
+                }
+            }
+        }
+
+        @for $i from 1 through 20 {
+            li.#{$module}-option.#{$module}-option-fullLabel-level-#{$i} {
+                padding-left: 0;
+                padding-right: $spacing-tree_option_level-paddingLeft * ($i - 1) + $spacing-tree_option_level1-paddingLeft;
+            }
+        }
+
+        .#{$module}-option-label-empty {
+            padding-left: auto;
+            padding-right: 0;
+        }
+
+        .#{$module}-option {
+            &-switcher {
+                margin-right: 0;
+                margin-left: $spacing-tree_icon-marginRight;
+            }
+        }
+    }
+
+    .#{$module}-option-list-block {
+        direction: rtl;
+    }
+}

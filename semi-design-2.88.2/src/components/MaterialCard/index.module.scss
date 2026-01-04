@@ -1,0 +1,168 @@
+.block {
+    box-sizing: border-box;
+    position: relative;
+    cursor: pointer;
+
+    &:hover {
+        .action {
+            display: flex;
+            align-items: center;
+        }
+
+        .video-icon {
+            display: inline-flex;
+        }
+    }
+
+    --semi-color-action-btn: 22, 22, 26;
+
+    .action {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 0;
+        padding-right: 16px;
+        padding-top: 16px;
+        z-index: 1;
+
+        &-btn {
+            background-color: unquote('rgba(var(--semi-color-action-btn), 0.6)') !important;
+
+            &:hover {
+                background-color: unquote('rgba(var(--semi-color-action-btn), 0.75)') !important;
+            }
+
+            &:active {
+                background-color: unquote('rgba(var(--semi-color-action-btn), 0.9)') !important;
+            }
+        }
+    }
+    .content {
+        width: 100%;
+        // background: rgba(var(--semi-grey-0), 1);
+        border: 1px solid rgba(var(--semi-grey-9), 0.08);
+        box-shadow: 0px 5px 10px rgba(var(--semi-black), 0.05);
+        border-radius: 6px;
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    $screenshot-hw-ration: 0.6;
+    $screenshot-width: 300px;
+    $screenshot-height: $screenshot-hw-ration * $screenshot-width;
+    $template-screenshot-width: 438px;
+    $template-screenshot-height: $template-screenshot-width * $screenshot-hw-ration;
+    $border-width: 1px;
+
+    .screenshot-box {
+        border-bottom: $border-width solid var(--semi-color-border);
+        position: relative;
+    }
+
+    .video-icon {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        padding: 2px 4px;
+        background-color: var(--semi-color-nav-bg);
+        color: var(--semi-color-text-2);
+        box-shadow: 0px 0px 1px unquote('rgba(var(--semi-color-black), 0.15)'),
+            0px 1px 6px unquote('rgba(var(--semi-color-black), 0.1)');
+        border-radius: 3px;
+        display: none;
+        z-index: 1;
+    }
+
+    .screenshot {
+        width: $screenshot-width;
+        height: $screenshot-height;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background-size: 102% auto;
+        background-position: center top -1 * $border-width;
+        background-repeat: no-repeat;
+        //   border-radius: 3px;
+        // background-color: var(--semi-color-fill-0);
+    }
+
+    .template-screenshot {
+        width: $template-screenshot-width;
+        height: $template-screenshot-height;
+    }
+
+    .screenshot-img {
+        width: 100%; // for hiding image border
+        height: auto;
+    }
+
+    .info-box {
+        text-align: left;
+    }
+
+    .name {
+        margin: 14px 20px 14px 20px;
+        color: var(--semi-color-text-0);
+        font-size: 18px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: flex;
+        align-items: baseline;
+    }
+
+    .testing-status {
+        background-color: var(--semi-color-warning);
+        width: 12px;
+        height: 12px;
+        border-radius: 12px;
+        margin-right: 8px;
+    }
+
+    .version {
+        margin-left: 4px;
+        color: var(--semi-color-text-2);
+    }
+
+    $stats-padding-horizontal: 20px;
+    $stats-padding-bottom: 14px;
+
+    .stats-wrap {
+        display: flex;
+        justify-content: space-between;
+        padding-left: $stats-padding-horizontal;
+        padding-right: $stats-padding-horizontal;
+        padding-bottom: $stats-padding-bottom;
+    }
+
+    .downloads {
+        color: var(--semi-color-text-2);
+        display: flex;
+        align-items: center;
+
+        .icon {
+            margin-right: 5px;
+        }
+    }
+
+    .category,
+    .author {
+        color: var(--semi-color-text-2);
+        font-size: 14px;
+        text-overflow: ellipsis;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .author-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--semi-color-text-0);
+        margin-left: 4px;
+    }
+
+    .avatar {
+        font-size: 12px;
+    }
+}

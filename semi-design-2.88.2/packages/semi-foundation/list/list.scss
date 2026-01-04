@@ -1,0 +1,125 @@
+@import "./variables.scss";
+
+$module: #{$prefix}-list;
+
+.#{$module} {
+    @include font-size-regular;
+
+    &-items {
+        margin: $spacing-none;
+        padding: $spacing-none;
+        list-style: none;
+    }
+
+    &-header,
+    &-footer {
+        padding: $spacing-list_footer-paddingX $spacing-list_footer-paddingY;
+    }
+
+    &-empty {
+        padding: $spacing-list_empty-paddingY $spacing-list_empty-paddingX;
+        color: $color-list_empty-text-default;
+        width: 100%;
+        text-align: center;
+    }
+
+    &-item {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        box-sizing: border-box;
+        padding: $spacing-list_item-paddingX $spacing-list_item-paddingY;
+        margin: $spacing-none;
+        list-style: none;
+
+        &-body {
+            flex: 1;
+            display: flex;
+            // align-items: center;
+
+            &-header {
+                margin-right: $spacing-list_header-marginRight;
+            }
+        }
+
+        &-body-flex-start {
+            align-items: flex-start;
+        }
+
+        &-body-flex-end {
+            align-items: flex-end;
+        }
+
+        &-body-center {
+            align-items: center;
+        }
+
+        &-body-stretch {
+            align-items: stretch;
+        }
+
+        &-body-baseline {
+            align-items: baseline;
+        }
+
+        &-extra {
+            flex: 0 0 auto;
+            margin-left: $spacing-list_extra-marginLeft;
+        }
+    }
+
+    &-split &-item {
+        border-bottom: $border-thickness-control solid $color-list_default-border-default;
+
+        &:last-child {
+            border-bottom: none;
+        }
+    }
+
+    &-split &-header {
+        border-bottom: $border-thickness-control solid $color-list_default-border-default;
+    }
+
+    &-split &-footer {
+        border-top: $border-thickness-control solid $color-list_default-border-default;
+    }
+
+    &-small &-item,
+    &-small &-header,
+    &-small &-footer {
+        padding: $spacing-list_small-paddingX $spacing-list_small-paddingY;
+    }
+
+    &-large &-item,
+    &-large &-header,
+    &-large &-footer {
+        padding: $spacing-list_large-paddingX $spacing-list_large-paddingY;
+    }
+
+    &.#{$module}-grid {
+        .#{$module}-item {
+            padding: $spacing-none;
+        }
+    }
+
+    &.#{$module}-bordered {
+        border: $border-thickness-control solid $color-list_default-border-default;
+    }
+
+    &.#{$module}-flex {
+        .#{$module}-items {
+            display: flex;
+        }
+
+        &.#{$module}-split .#{$module}-item {
+            border-bottom: none;
+            border-right: $border-thickness-control solid $color-list_default-border-default;
+
+            &:last-child {
+                border-right: none;
+            }
+        }
+    }
+}
+
+@import "./rtl.scss";

@@ -1,0 +1,21 @@
+@mixin tag-style($color, $type) {
+    @if $type==solid {
+        background-color: unquote("rgba(var(--semi-#{$color}-5), 1)");
+        color: rgba(var(--semi-white), 1);
+    }
+
+    @else if $type==ghost {
+        background-color: transparent;
+        border: 1px solid unquote("rgba(var(--semi-#{$color}-4), 1)");
+        color: unquote("rgba(var(--semi-#{$color}-5), 1)");
+    }
+
+    @else if $type==light {
+        background-color: unquote("rgba(var(--semi-#{$color}-5), 0.15)");
+        color: unquote("rgba(var(--semi-#{$color}-8), 1)");
+    }
+
+    @else {
+        @error "Unknown type #{$type}.";
+    }
+}

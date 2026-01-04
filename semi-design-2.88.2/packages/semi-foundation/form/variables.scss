@@ -1,0 +1,53 @@
+// form field
+$spacing-form_field_horizontal-paddingRight: $spacing-base; // 水平布局表单项右侧内边距
+$spacing-form_field_group_horizontal-paddingRight: $spacing-base; // 水平布局表单组标题右侧内边距
+$spacing-form_field_vertical-paddingTop: $spacing-base-tight; // 表单项顶部内边距（垂直布局）
+$spacing-form_field_vertical-paddingBottom: $spacing-base-tight; // 表单项底部内边距（垂直布局）
+$spacing-form_field_group_vertical-paddingTop: $spacing-base-tight; // 垂直布局表单组顶部内边距
+$spacing-form_field_group_vertical-paddingBottom: $spacing-base-tight; // 垂直布局表单组底部内边距
+
+// form label
+$spacing-form_label-paddingRight: $spacing-base; // 表单项标签右侧边距（水平布局）
+$spacing-form_label-paddingTop: ($height-control-default - 20px) * 0.5; // 表单项标签顶部内边距（水平布局）
+$spacing-form_label-marginBottom: $spacing-extra-tight; // 表单项标签底部外边距
+$spacing-form_label-marginTop: 0px; // 表单项标签顶部外边距
+$spacing-form_label_extra-marginLeft: $spacing-extra-tight; // 表单项标签额外信息左侧边距
+$spacing-form_label_required-marginLeft: $spacing-extra-tight; // 表单项标签必填标志左侧边距
+$spacing-form_label_posLeft-marginRight: 0; // 表单项左侧标签右侧外边距
+$spacing-form_label_posLeft-marginBottom: 0; // 表单项左侧标签底部外边距
+$spacing-form_label_posTop-paddingTop: $spacing-extra-tight; // 表单项顶部标签顶部边距
+$spacing-form_label_posTop-paddingBottom: $spacing-extra-tight; // 表单项顶部标签底部边距
+
+$spacing-form_extra_posMid-marginTop: $spacing-extra-tight; // 表单项额外提示信息顶部外边距 - 额外信息处于中间时
+$spacing-form_extra_posMid-marginBottom: $spacing-extra-tight; // 表单项额外提示信息底部外边距 - 额外信息处于中间时
+$spacing-form_extra_posBottom-marginTop: $spacing-extra-tight; //表单项额外提示信息顶部外边距 - 额外信息处于底部时
+
+// form switch rating需要额外margin以对齐高度 32px
+$spacing-form_switch_rating_marginY: ($height-control-default - 24px) * 0.5; // Switch / Rating 表单项顶部内边距（水平布局）
+
+$color-form_requiredMark_disabled-text-default: var(--semi-color-danger);  // 禁用表单项必填标记颜色
+$color-form_label_disabled-text-default: var(--semi-color-disabled-text); // 禁用表单项标签文字颜色
+$font-form_label-fontWeight: $font-weight-bold; // 表单项标签字重
+
+$color-form_label-text-default: var(--semi-color-text-0); // 表单项标签文字颜色
+$color-form_label_optional-text-default: var(--semi-color-tertiary); // 表单项标签可选标记颜色
+$color-form_label_extra-text-default: var(--semi-color-tertiary); // 表单项标签图标颜色
+$color-form_requiredMark-text-default: var(--semi-color-danger); // 必填标记颜色
+$font-form_requiredMark-fontWeight: $font-weight-bold; // 表单必填标识字重
+
+// form errormessage
+$color-form_message_error-text-default: var(--semi-color-danger); // 错误提示颜色
+$color-form_alertIcon-icon-default: var(--semi-color-warning); // 警告图标颜色
+$spacing-form_statusIcon-marginRight: $spacing-extra-tight;  // 表单校验状态图标右侧外边距
+$spacing-form_message-marginTop: $spacing-extra-tight; // 表单错误信息、辅助文字顶部外边距
+
+// form section
+$color-form_section-text-default: var(--semi-color-text-0); // 表单分组标题文字颜色
+$color-form_section-border-default: var(--semi-color-border); // 表单分组标题底部描边颜色
+$width-form_section-border: $border-thickness-control; // 表单分组标题底部描边宽度
+$spacing-form_section-marginTop: $spacing-super-loose - $spacing-base-tight; // 表单分组顶部内边距
+$spacing-form_section_text-paddingBottom: $spacing-tight; // 表单分组标题底部内边距
+$spacing-form_section_text-marginBottom: $spacing-extra-tight; // 表单分组标题底部外边距
+$spacing-form_section_text-paddingTop: 0px; // 表单分组标题顶部内边距
+$spacing-form_section_text-marginTop: 0px; // 表单分组标题顶部外边距
+

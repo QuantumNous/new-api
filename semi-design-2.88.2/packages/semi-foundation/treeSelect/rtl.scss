@@ -1,0 +1,56 @@
+$module: #{$prefix}-tree-select;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        .#{$prefix}-tagInput {
+            .#{$prefix}-input {
+                padding-right: 0;
+            }
+        }
+
+        &-multiple-tagInput-notEmpty {
+            .#{$prefix}-tagInput {
+                margin-left: 0;
+                margin-right: $spacing-treeSelect_selection_tagInput_notEmpty-marginLeft;
+            }
+        }
+    
+        &-multiple-tagInput-empty {
+            .#{$prefix}-tagInput {
+                margin-left: 0;
+                margin-right: $spacing-treeSelect_selection_tagInput_empty-marginLeft;
+            }
+        }
+        &-selection{
+            padding-right: $spacing-treeSelect_selection-paddingLeft;
+            padding-left: 0;
+        }
+
+        &-multiple {
+            .#{$module}-selection {
+                padding-left: 0;
+                padding-right: $spacing-treeSelect_selection_multiple-paddingLeft;
+    
+                &-placeholder {
+                    padding-left: 0;
+                    padding-right: $spacing-treeSelect_placeholder_multiple-paddingLeft;
+                }
+            }
+        }
+        &-prefix,
+        &-suffix {
+            &.#{$module}-with-suffix {
+                .#{$module}-selection {
+                    padding-right: auto;
+                    padding-left: 0;
+                }
+            }
+        }
+    }
+    .#{$module}-popover {
+        direction: rtl;
+    }
+}

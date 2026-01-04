@@ -1,0 +1,47 @@
+{
+    "name": "@douyinfe/semi-illustrations",
+    "version": "2.88.2",
+    "description": "semi illustrations",
+    "keywords": [
+        "semi",
+        "illustrations"
+    ],
+    "author": "",
+    "homepage": "",
+    "license": "MIT",
+    "files": [
+        "lib",
+        "src",
+        "dist"
+    ],
+    "main": "lib/cjs/index.js",
+    "module": "lib/es/index.js",
+    "typings": "lib/es/index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DouyinFE/semi-design"
+    },
+    "peerDependencies": {
+        "react": ">=16.0.0"
+    },
+    "devDependencies": {
+        "case-sensitive-paths-webpack-plugin": "2.4.0",
+        "del": "^6.0.0",
+        "gulp": "^4.0.2",
+        "gulp-esbuild": "0.10.4",
+        "gulp-replace": "^1.1.3",
+        "gulp-typescript": "^6.0.0-alpha.1",
+        "merge2": "^1.4.1",
+        "rimraf": "^3.0.2",
+        "terser-webpack-plugin": "^4.2.3",
+        "ts-loader": "^5.4.5"
+    },
+    "scripts": {
+        "clean": "rimraf dist lib",
+        "build:icon": "node scripts/build-illustration",
+        "build:lib": "node ./scripts/compileLib.js",
+        "build:js": "npm run build:lib && node scripts/compileDist.js",
+        "prepublishOnly": "npm run clean && npm run build:js"
+    },
+    "gitHead": "eb34a4f25f002bb4cbcfa51f3df93bed868c831a"
+}

@@ -1,0 +1,16 @@
+.demo-in-hover-elements {
+    width: 200px;
+    height: 100px;
+    background-color: var(--semi-color-primary-light-default);
+    padding: 20px;
+
+    .action {
+        display: none;
+    }
+
+    &:hover {
+        .action {
+            display: block;
+        }
+    }
+}

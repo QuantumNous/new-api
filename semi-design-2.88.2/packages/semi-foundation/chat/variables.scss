@@ -1,0 +1,130 @@
+// radius
+$radius-chat_chatBox_content: var(--semi-border-radius-large);  // 聊天框内容圆角
+$radius-chat_inputBox_container: 16px; // 输入框容器圆角
+$radius-chat_attachment_img: var(--semi-border-radius-medium); // 附件图片圆角
+$radius-chat_attachment_file: var(--semi-border-radius-medium); // 附件文件圆角
+$radius-chat_hint_item: var(--semi-border-radius-large); // 提示条圆角
+$radius-chat_chatBox_content_code: var(--semi-border-radius-large); // 代码块圆角
+$radius-chat_chatBox_content_code_topSlot_copy: var(--semi-border-radius-large); // 代码块顶部复制按钮圆角
+$radius-chat_dropArea: 16px; // 拖拽上传区域圆角
+
+//color
+$color-chat_action_content-bg: var(--semi-color-bg-0); // 返回按钮/停止生成内容按钮背景颜色
+$color-chat_action_content-border: var(--semi-color-border); // 返回按钮/停止生成按钮描边颜色
+$color-chat_divider: var(--semi-color-text-2); // 分割线文字颜色
+$color-chat_chatBox_title: var(--semi-color-text-0); //聊天框标题颜色
+$color-chat_chatBox_action_icon: var(--semi-color-text-2); // 聊天框操作区域按钮图标颜色
+$color-chat_chatBox_action_icon-hover: var(--semi-color-text-0); // 聊天框操作区域按钮图标hover颜色
+$color-chat_chatBox_action-bg-hover: transparent; // 聊天框操作区域按钮hover背景颜色
+$color-chat_chatBox_content_text: var(--semi-color-text-0); // 聊天框内容文字颜色
+$color-chat_chatBox_content_bg: var(--semi-color-fill-0); // 聊天框内容背景颜色
+$color-chat_chatBox_content_user-bg: var(--semi-color-primary); // 聊天框内容用户背景颜色
+$color-chat_chatBox_content_user-text: var(--semi-color-white); // 聊天框内容用户文字颜色
+$color-chat_chatBox_content_error-bg: var(--semi-color-danger-hover); // 聊天框内容错误背景颜色
+$color-chat_chatBox_content_error-text: var(--semi-color-white); // 聊天框内容错误文字颜色
+$color-chat_inputBottom_clearButton_icon: var(--semi-color-text-2); //清空按钮图标颜色
+$color-chat_inputBottom_uploadButton_icon: var(--semi-color-text-0); // 上传按钮图标颜色
+$color-chat_inputBottom_sendButton_icon-disable: var(--semi-color-primary-disabled); // 发送按钮禁用态图标颜色
+$color-chat_inputBox_container-border: var(--semi-color-border);  // 输入框容器边框颜色
+$color-chat_attachment_clear_icon: var(--semi-color-text-2);  // 附件清除图标颜色
+$color-chat_attachment_file-bg: var(--semi-color-fill-0); // 附件文件背景颜色
+$color-chat_attachment_fail: var(--semi-color-danger); // 附件上传失败的提示图标颜色
+$color-chat_chatBox_user_attachment_file-bg: var(--semi-color-bg-0); // 用户聊天框附件文件背景颜色
+$color-chat_chatBox_other_attachment_file-bg: var(--semi-color-fill-2); // 聊天框附件文件背景颜色
+$color-chat_attachment_file_icon: var(--semi-color-text-2); // 附件文件图标颜色
+$color-chat_attachment_file_title: var(--semi-color-text-0); // 附件文件标题颜色
+$color-chat_attachment_file_metadata_text: var(--semi-color-text-2); // 附件文件元数据文字颜色
+$color-chat_hint_item-border: var(--semi-color-border); // 提示条边框颜色
+$color-chat_hint_item-bg: transparent; // 提示条背景颜色
+$color-chat_hint_item-bg-hover: var(--semi-color-fill-0); // 提示条hover背景颜色
+$color-chat_hint_content_text: var(--semi-color-text-1); // 提示条文字颜色
+$color-chat_hint_icon: var(--semi-color-text-2); // 提示条图标颜色
+$color-chat_chatBox_loading-bg: var(--semi-color-text-0); // 聊天内容加载图标圆圈颜色
+$color-chat_chatBox_code_topSlot: rgba(var(--semi-white), 1);  // 代码块顶部字体颜色
+$color-chat_chatBox_code_topSlot-bg: rgba(var(--semi-grey-4), 1); //代码块顶部背景色
+$color-chat_chatBox_code_topSlot_toCopy-bg-hover: rgba(var(--semi-grey-5), 1); // 代码块顶部复制按钮hover背景色
+$color-chat_chatBox_code_content: var(--semi-color-bg-0); // 代码块内容背景色
+$color-chat_action_content-bg-hover: var(--semi-color-tertiary-light-hover); // 返回按钮/停止生成按钮hover背景颜色
+$color-chat_dropArea-bg: rgba(var(--semi-grey-2), 0.9); // 拖拽区域文字颜色
+$color-chat_dropArea-border: var(--semi-color-border); // 拖拽区域边框颜色
+
+// spacing
+$spacing-chat_paddingY: 12px; // chat组件上下内边距
+$spacing-chat_container-paddingX: 16px;  // 消息框水平内边距
+$spacing-chat_action_content-bottom: 0; // 返回按钮/停止生成按钮底部边距
+$spacing-chat_chatBox-marginY: 8px; // 聊天框上下外边距
+$spacing-chat_chatBox-columnGap: 12px; // 聊天框内容列间距
+$spacing-chat_chatBox_action-columnGap: 10px; // 聊天框操作区域按钮列间距
+$spacing-chat_chatBox_action-marginX: 10px; // 聊天框操作区域左右外边距
+$spacing-chat_chatBox_action_btn-padding: 0;  // 聊天框操作区域按钮内边距
+$spacing-chat_chatBox_content-paddingY: 8px;  // 聊天框内容上下内边距
+$spacing-chat_chatBox_content-paddingX: 12px;  // 聊天框内容左右内边距
+$spacing-chat_inputBox-paddingTop: 8px; // 输入框顶部内边距
+$spacing-chat_inputBox-paddingBottom: 8px; // 输入框底部内边距
+$spacing-chat_inputBox-paddingX: 16px; // 输入框左右内边距
+$spacing-chat_inputBox_container-padding: 11px; // 输入框容器内边距
+$spacing-chat_inputBox_inner-columnGap: 4px; // 输入框容器列间距
+// $spacing-chat_inputBox_textarea-marginX: 5px; // 输入框textArea左右内边距
+$spacing-chat_inputBox-marginY: 4px;
+$spacing-chat_attachment-columnGap: 10px; // 附件列间距
+$spacing-chat_attachment-RowGap: 5px; // 附件行间距
+$spacing-chat_attachment-marginX: 12px; // 附件左右外边距
+$spacing-chat_attachment_clear-top: 8px;  // 附件清除图标顶部间距
+$spacing-chat_attachment_clear-right: 8px;  // 附件清除图标右内边距
+$spacing-chat_attachment_file-columnGap: 5px; // 文件附件列间距
+$spacing-chat_attachment_file-padding: 5px;  // 文件附件内边距
+$spacing-chat_chatBox_loading_item-gap: 15px; // 聊天内容加载图标间距 
+$spacing-chat_divider-marginY: 12px; // 分割线上下外边距
+$spacing-chat_chatBox_content_attachment-marginY: 4px; // 聊天框内容文件/图片上下外间距
+$spacing-chat_chatBox_content_attachment-marginRight: 4px; //聊天框内容文件/图片上下右间距
+$spacing-chat_chatBox_content_code_topSlot-paddingX: 5px; // 聊天框代码块顶部上下内边距
+$spacing-chat_chatBox_content_code_topSlot-paddingY: 8px; // 聊天框代码块顶部左右内边距
+$spacing-chat_chatBox_content_code_topSlot_copy-columnGap: 5px; // 聊天框代码块顶部复制按钮列间距: 
+$spacing-chat_chatBox_content_code_topSlot_copy-padding: 5px; // 聊天框代码块顶部复制按钮列间距: 
+$spacing-chat_chatBox_wrap: 8px; // 聊天框外层间距
+$spacing-chat_hint-rowGap: 10px; // 提示条行间距
+$spacing-chat_hint-marginY: 12px; // 提示条容器上下外边距
+$spacing-chat_hint-marginLeft: 34px; // 提示条容器左外边距    
+$spacing-chat_hint_item-marginY: 8px; // 提示条上下外边距
+$spacing-chat_hint_item-marginX: 12px; // 提示条左右外边距
+$spacing-chat_hint_item-columnGap: 20px; // 提示条内容列间距
+$spacing-chat_chatBox_loading-item-marginX: 18px; // 聊天内容加载图标中心圆圈左右外边距
+$spacing-chat_chatBox_loading-item-marginY: 6px; // 聊天内容加载图标中心圆圈上下外边距
+
+// width
+$width-chat_backBottom_wrapper: 42px; // 返回按钮宽度
+$width-chat_action_content-border: 1px; // 返回按钮/停止生成按钮描边宽度
+$width-chat_inputBottom_clearButton: 48px; // 清空按钮宽度
+$width-chat_inputBottom_uploadButton: 32px; // 上传按钮宽度
+$width-chat_inputBottom_sendButton: 32px; // 发送按钮宽度
+$width-chat_inputBox_container-border: 1px; // 输入框容器边框宽度
+$width-chat_attachment_file: 50px; // 附件文件宽度
+$width-chat_hint_item-border: 1px; // 提示条边框宽度
+$width-chat_chatBox_loading: 8px; // 加载中单个圆圈图标宽度
+$width-chat_attachment_file_title: 90px; // 附件文件标题最大宽度
+$width-chat_max: 800px; // chat组件最大宽度
+$width-chat_dropArea-border: 5px; // 拖拽上传边框宽度
+$width-chat_chatBox_content_code_topSlot_copy: 150px; // 聊天框代码块顶部复制按钮最小宽度 
+$width-chat_chatBox_avatar: 24px; // 聊天框头像宽度
+
+// height
+$height-chat_action_stop: 42px; //停止生成按钮高度
+
+//font
+$font-chat_divider-fontWeight: $font-weight-regular; // 分割线字重
+$font-chat_divider-fontSize: $font-size-small; // 分割线字体大小
+$font-chat_chatBox_title-lineHeight: 20px; //聊天框标题行高
+$font-chat_chatBox_title-fontSize: $font-size-header-6; // 聊天框标题字体大小
+$font-chat_chatBox_title-fontWeight: $font-weight-regular; // 聊天框标题字重
+$font-chat_inputBottom_clearButton_icon-fontSize: 30px; // 输入区清空上下文按钮图标大小
+$font-chat_attachment_file_title-fontSize: $font-size-header-6; // 附件文件标题字体大小
+$font-chat_attachment_file_metadata-fontSize: $font-size-regular; // 附件文件元数据字体大小
+$font-chat_hint_content-fontSize: $font-size-regular; // 提示条文字大小
+// $font-chat_hint_icon: 20px; // 提示条图标大小
+$font-chat_chatBox_code_topSlot: 12px; // 代码块顶部字体大小
+$font-chat_chatBox_code_topSlot-lineHeight: 16px; //代码块顶部区域字体行高
+$font-chat_dropArea_text: 48px; // 拖拽上传区域文字大小
+
+//z-index
+$z-chat_dropArea: 10; // 拖拽上传区域z-index
+$z-chat_action: 1; // 返回按钮/停止生成按钮z-index

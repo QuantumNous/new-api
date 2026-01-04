@@ -1,0 +1,46 @@
+$color-timeline_dot_default-bg-default: var(--semi-color-primary); // 时间轴节点圆点背景色 - 进行中
+$color-timeline_dot_success-bg-default: var(--semi-color-success); // 时间轴节点圆点背景色 - 成功
+$color-timeline_dot_warning-bg-default: var(--semi-color-warning); // 时间轴节点圆点背景色 - 警告
+$color-timeline_dot_error-bg-default: var(--semi-color-danger); // 时间轴节点圆点背景色 - 错误
+$color-timeline_dot_info-bg-default: var(--semi-color-tertiary-light-active); // 时间轴节点圆点背景色 - 默认
+$color-timeline_tail-border: var(--semi-color-text-3); // 时间轴连线颜色
+$color-timeline_time_default-text-default: var(--semi-color-text-2); // 时间轴文字颜色 - 默认
+$color-timeline_item_head-bg: transparent; // 时间轴头部背景颜色
+$color-timeline_item_content-text-default: var(--semi-color-text-0); // 时间轴标题文字颜色
+
+$spacing-timeline-margin: $spacing-none; // 时间轴整体外边距
+$spacing-timeline-padding: $spacing-tight; // 时间轴整体内边距
+$spacing-timeline_tail-top: $spacing-base-loose; // 时间轴连线顶部位置
+$spacing-timeline_tail-left: $spacing-extra-tight; // 时间轴连线左侧位置
+$spacing-timeline_head-top: 5px; // 时间轴节点圆点顶部位置
+$spacing-timeline_head_custom-top: 10px; // 时间轴自定义图标节点圆点顶部位置
+$spacing-timeline_head_custom-left: 5px; // 时间轴自定义图标节点圆点左侧位置
+$spacing-timeline_content-marginLeft: 25px; // 时间轴内容左侧外边距
+$spacing-timeline_time-marginTop: $spacing-extra-tight; // 时间轴时间文本顶部外边距
+$spacing-timeline_time-top: -2px; // 时间轴时间文本顶部位置
+$spacing-timeline_item-margin: $spacing-none; // 时间轴各节点外边距
+$spacing-timeline_item-paddingBottom: $spacing-loose; // 时间轴各节点底部外边距
+$spacing-timeline_item_content_time-marginLeft: calc(-40px - 100%); // 时间轴时间文本左侧外边距
+$spacing-timeline_item_right_item-left: calc(100% - 9px); // 时间轴在右侧时，各节点左侧位置
+$spacing-timeline_item_right_item_content: $spacing-none; // 时间轴在右侧时，各节点内容外边距
+$spacing-timeline_item_left_item_content-left: calc(50% - 4px); 
+$spacing-timeline_item_head_custom-left: 50%;
+$spacing-timeline_item_head-marginLeft: -4px;
+
+$width-timeline: 100%; // 时间轴整体宽度
+$width-timeline_dot: 9px; // 时间轴节点圆点宽度
+$width-timeline_head_custom: auto; // 时间轴节点自定义图标宽度
+$width-timeline_tail-border: $border-thickness-control; // 时间轴连线宽度
+$width-timeline_head_custom-border: $border-thickness; // 时间轴自定义连线宽度
+$width-timeline_item_content_time: 100%; // 时间轴时间文本宽度
+$width-timeline_item_right_content: calc(100% - 28px);
+$width-timeline_item_left_item_content: calc(50% - 14px);
+$width-timeline_item_right_item_content: calc(50% - 20px);
+$height-timline_tail: calc(100% - 20px); // 时间轴连线高度
+$height-timeline_head_custom: auto; // 时间轴自定义连线高度
+
+$radius-timeline_head: var(--semi-border-radius-circle); // 时间轴节点圆点圆角
+$radius-timeline_head_custom: 0; // 时间轴节点自定义图标圆角
+
+$motion-timeline_head_custom-transform: translate(-50%, -50%);
+$motion-timeline_head_custom-transform-rtl: translate(50%, -50%);

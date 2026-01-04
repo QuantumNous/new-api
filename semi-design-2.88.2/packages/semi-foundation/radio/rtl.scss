@@ -1,0 +1,25 @@
+$module: #{$prefix}-radio;
+$inner-width: $width-icon-medium;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+
+        input[type="checkbox"],
+        input[type="radio"] {
+            left: auto;
+            right: 0;
+        }
+
+        &-buttonRadioGroup {
+            &:not(:last-child) {
+                padding-left: $spacing-radio_buttonRadioGroup-paddingRight;
+            }
+        }
+    }
+
+    .#{$module}Group {
+        direction: rtl;
+    }
+}

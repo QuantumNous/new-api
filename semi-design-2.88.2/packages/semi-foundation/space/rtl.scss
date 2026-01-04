@@ -1,0 +1,8 @@
+$module: #{$prefix}-space;
+
+.#{$prefix}-rtl,
+.#{$prefix}-portal-rtl {
+    .#{$module} {
+        direction: rtl;
+    }
+}

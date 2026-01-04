@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "target": "ES2015",
+        "baseUrl": "./",
+        "outDir": "lib",
+        "sourceMap": true,
+        "allowJs": true,
+        "module": "es6",
+        "lib": ["esnext", "dom"],
+        "moduleResolution": "node",
+        "noImplicitAny": false,
+        "forceConsistentCasingInFileNames": true,
+        "allowSyntheticDefaultImports": true,
+        "experimentalDecorators": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": false,
+        "strictNullChecks": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "declaration": true,
+        "strict": true
+    },
+    "include": ["**/*.ts"],
+    "exclude": ["node_modules"]
+}
