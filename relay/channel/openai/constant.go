@@ -45,3 +45,28 @@ var ModelList = []string{
 }
 
 var ChannelName = "openai"
+
+// BridgeMode defines how a model should be proxied between Chat Completions and Responses APIs.
+type BridgeMode uint8
+
+const (
+	BridgeModeNone BridgeMode = 0
+	// BridgeModeChatToResponses converts incoming /v1/chat/completions traffic to /v1/responses upstream calls.
+	BridgeModeChatToResponses BridgeMode = 1 << iota
+	// BridgeModeResponsesToChat converts incoming /v1/responses traffic to /v1/chat/completions upstream calls.
+	BridgeModeResponsesToChat
+)
+
+// ModelBridgeRules defines which OpenAI models require bridging between the Chat Completions and Responses APIs.
+// Keys ending with '*' are treated as prefix matches. Examples:
+//
+//	"gpt-4.1*"     -> matches gpt-4.1 and gpt-4.1-*
+//	"gpt-4o-2024"  -> matches only the exact model id
+var ModelBridgeRules = map[string]BridgeMode{
+	// New Responses-only series.
+	"gpt-4.1*":    BridgeModeChatToResponses | BridgeModeResponsesToChat,
+	"gpt-4.5*":    BridgeModeChatToResponses | BridgeModeResponsesToChat,
+	"gpt-5*":      BridgeModeChatToResponses | BridgeModeResponsesToChat,
+	"gpt-4o*":     BridgeModeNone,
+	"gpt-4o-mini": BridgeModeNone,
+}

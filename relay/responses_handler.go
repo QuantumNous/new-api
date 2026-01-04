@@ -8,7 +8,10 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -36,13 +39,34 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	shouldBridgeToChat := info.ChannelType == constant.ChannelTypeOpenAI &&
+		openai.ShouldBridgeResponsesToChat(info.UpstreamModelName)
+	if shouldBridgeToChat {
+		if common.DebugEnabled || c.GetBool("channel_test_mode") {
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("bridge responses->chat | before: %s", common.GetJsonString(request)))
+		}
+
+		generalReq, err := openai.ResponsesRequestToGeneral(request)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+
+		if common.DebugEnabled || c.GetBool("channel_test_mode") {
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("bridge responses->chat | after: %s", common.GetJsonString(generalReq)))
+		}
+
+		return bridgeResponsesToChat(c, info, generalReq)
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	passThroughEnabled := (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) && !info.ForceDisablePassThrough
+
+	if passThroughEnabled {
 		body, err := common.GetRequestBody(c)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
