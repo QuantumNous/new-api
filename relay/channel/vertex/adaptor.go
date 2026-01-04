@@ -105,7 +105,11 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	return a.ConvertOpenAIRequest(c, info, oaiReq.(*dto.GeneralOpenAIRequest))
+	generalReq, ok := oaiReq.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		return nil, fmt.Errorf("unexpected type from openai.Adaptor.ConvertClaudeRequest: %T", oaiReq)
+	}
+	return a.ConvertOpenAIRequest(c, info, generalReq)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
