@@ -226,3 +226,73 @@ func OidcBind(c *gin.Context) {
 	})
 	return
 }
+
+func GetOIDCDiscovery(c *gin.Context) {
+	wellKnownURL := c.Query("well_known_url")
+	if wellKnownURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "well_known_url 参数不能为空",
+		})
+		return
+	}
+
+	// 验证URL格式
+	if !strings.HasPrefix(wellKnownURL, "http://") && !strings.HasPrefix(wellKnownURL, "https://") {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Well-Known URL 必须以 http:// 或 https:// 开头",
+		})
+		return
+	}
+	fetchSetting := system_setting.GetFetchSetting()
+	// SSRF防护 - 验证URL安全性
+	err := common.ValidateURLWithFetchSetting(
+		wellKnownURL,
+		fetchSetting.EnableSSRFProtection,
+		fetchSetting.AllowPrivateIp,
+		fetchSetting.DomainFilterMode,
+		fetchSetting.IpFilterMode,
+		fetchSetting.DomainList,
+		fetchSetting.IpList,
+		fetchSetting.AllowedPorts,
+		fetchSetting.ApplyIPFilterForDomain,
+	)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("URL SSRF安全验证失败: %s", err.Error()),
+		})
+		return
+	}
+
+	// 请求OIDC发现端点
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	res, err := client.Get(wellKnownURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取 OIDC 配置失败，请检查网络状况和 Well-Known URL 是否正确",
+		})
+		return
+	}
+	defer res.Body.Close()
+
+	var discoveryConfig map[string]interface{}
+	err = json.NewDecoder(res.Body).Decode(&discoveryConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "解析 OIDC 配置失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    discoveryConfig,
+	})
+}
