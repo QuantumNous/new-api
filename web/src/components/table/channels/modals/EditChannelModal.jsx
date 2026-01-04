@@ -79,6 +79,13 @@ const MODEL_MAPPING_EXAMPLE = {
   'gpt-3.5-turbo': 'gpt-3.5-turbo-0125',
 };
 
+// Advanced model mapping example with wildcard and array support
+const MODEL_MAPPING_ADVANCED_EXAMPLE = {
+  'gpt-3.5-turbo': 'gpt-3.5-turbo-0125',
+  'Pro/*': '*',
+  'DeepSeek-R1': ['Pro/deepseek-ai/DeepSeek-R1', 'deepseek-ai/DeepSeek-R1'],
+};
+
 const STATUS_CODE_MAPPING_EXAMPLE = {
   400: '500',
 };
@@ -206,11 +213,22 @@ const EditChannelModal = (props) => {
       ) {
         return [];
       }
-      const values = Object.values(parsed)
-        .map((value) =>
-          typeof value === 'string' ? value.trim() : undefined,
-        )
-        .filter((value) => value);
+      const values = [];
+      Object.values(parsed).forEach((value) => {
+        if (typeof value === 'string' && value.trim()) {
+          // Skip wildcard-only values as they don't represent concrete models
+          if (value.trim() !== '*') {
+            values.push(value.trim());
+          }
+        } else if (Array.isArray(value)) {
+          // Support array values for reverse mapping (multiple sources -> one target)
+          value.forEach((item) => {
+            if (typeof item === 'string' && item.trim() && item.trim() !== '*') {
+              values.push(item.trim());
+            }
+          });
+        }
+      });
       return Array.from(new Set(values));
     } catch (error) {
       return [];
@@ -1171,9 +1189,10 @@ const EditChannelModal = (props) => {
       !Array.isArray(parsedModelMapping)
     ) {
       const modelSet = new Set(normalizedModels);
+      // Filter out wildcard patterns (keys containing *) from missing models check
       const missingModels = Object.keys(parsedModelMapping)
         .map((key) => (key || '').trim())
-        .filter((key) => key && !modelSet.has(key));
+        .filter((key) => key && !key.includes('*') && !modelSet.has(key));
       const shouldPromptMissing =
         missingModels.length > 0 &&
         hasModelConfigChanged(normalizedModels, localInputs.model_mapping);
@@ -2638,20 +2657,21 @@ const EditChannelModal = (props) => {
                       label={t('模型重定向')}
                       placeholder={
                         t(
-                          '此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，例如：',
+                          '支持通配符(*)模糊匹配和多对一映射。示例：',
                         ) +
-                        `\n${JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2)}`
+                        `\n${JSON.stringify(MODEL_MAPPING_ADVANCED_EXAMPLE, null, 2)}\n` +
+                        t('通配符说明：prefix* 匹配前缀，*suffix 匹配后缀，*contains* 匹配包含')
                       }
                       value={inputs.model_mapping || ''}
                       onChange={(value) =>
                         handleInputChange('model_mapping', value)
                       }
-                      template={MODEL_MAPPING_EXAMPLE}
-                      templateLabel={t('填入模板')}
+                      template={MODEL_MAPPING_ADVANCED_EXAMPLE}
+                      templateLabel={t('填入高级模板')}
                       editorType='keyValue'
                       formApi={formApiRef.current}
                       extraText={t(
-                        '键为请求中的模型名称，值为要替换的模型名称',
+                        '支持通配符(*)匹配和数组值(多对一映射)',
                       )}
                     />
                   </Card>
