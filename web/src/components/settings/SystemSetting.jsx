@@ -76,6 +76,7 @@ const SystemSetting = () => {
     WeChatServerAddress: '',
     WeChatServerToken: '',
     WeChatAccountQRCodeImageURL: '',
+    WeChatDirectLoginEnabled: '',
     TurnstileCheckEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
@@ -175,6 +176,7 @@ const SystemSetting = () => {
           case 'EmailVerificationEnabled':
           case 'GitHubOAuthEnabled':
           case 'WeChatAuthEnabled':
+          case 'WeChatDirectLoginEnabled':
           case 'TelegramOAuthEnabled':
           case 'RegisterEnabled':
           case 'TurnstileCheckEnabled':
@@ -1028,6 +1030,15 @@ const SystemSetting = () => {
                       >
                         {t('允许 Turnstile 用户校验')}
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field='TelegramOAuthEnabled'
+                        noLabel
+                        onChange={(e) =>
+                            handleCheckboxChange('TelegramOAuthEnabled', e)
+                        }
+                      >
+                        {t('允许通过 Telegram 进行登录')}
+                      </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Checkbox
@@ -1067,13 +1078,13 @@ const SystemSetting = () => {
                         {t('允许通过微信登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
-                        field='TelegramOAuthEnabled'
+                        field='WeChatDirectLoginEnabled'
                         noLabel
                         onChange={(e) =>
-                          handleCheckboxChange('TelegramOAuthEnabled', e)
+                          handleCheckboxChange('WeChatDirectLoginEnabled', e)
                         }
                       >
-                        {t('允许通过 Telegram 进行登录')}
+                        {t('启用微信扫码直接登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field="['oidc.enabled']"
