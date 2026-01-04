@@ -90,13 +90,22 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
-		c.Set("request_model", v)
-	} else {
-		c.Set("request_model", request.Model)
+	if a.RequestMode == RequestModeClaude {
+		if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
+			c.Set("request_model", v)
+		} else {
+			c.Set("request_model", request.Model)
+		}
+		vertexClaudeReq := copyRequest(request, anthropicVersion)
+		return vertexClaudeReq, nil
 	}
-	vertexClaudeReq := copyRequest(request, anthropicVersion)
-	return vertexClaudeReq, nil
+
+	openaiAdaptor := openai.Adaptor{}
+	oaiReq, err := openaiAdaptor.ConvertClaudeRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
+	return a.ConvertOpenAIRequest(c, info, oaiReq.(*dto.GeneralOpenAIRequest))
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -270,6 +279,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	fmt.Printf("ConvertOpenAIRequest %v =====hekx=====", request)
 	if a.RequestMode == RequestModeGemini && strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		prompt := ""
 		for _, m := range request.Messages {
