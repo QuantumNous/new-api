@@ -54,6 +54,7 @@ const (
 	ChannelTypeDoubaoVideo    = 54
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
+	ChannelTypeStreamlake     = 57
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
