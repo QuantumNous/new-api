@@ -34,13 +34,14 @@ type AliVideoRequest struct {
 
 // AliVideoInput 视频输入参数
 type AliVideoInput struct {
-	Prompt         string `json:"prompt,omitempty"`          // 文本提示词
-	ImgURL         string `json:"img_url,omitempty"`         // 首帧图像URL或Base64（图生视频）
-	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
-	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
-	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL（wan2.5支持）
-	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
-	Template       string `json:"template,omitempty"`        // 视频特效模板
+	Prompt             string   `json:"prompt,omitempty"`               // 文本提示词
+	ImgURL             string   `json:"img_url,omitempty"`              // 首帧图像URL或Base64（图生视频）
+	FirstFrameURL      string   `json:"first_frame_url,omitempty"`      // 首帧图片URL（首尾帧生视频）
+	LastFrameURL       string   `json:"last_frame_url,omitempty"`       // 尾帧图片URL（首尾帧生视频）
+	AudioURL           string   `json:"audio_url,omitempty"`            // 音频URL（wan2.5支持）
+	NegativePrompt     string   `json:"negative_prompt,omitempty"`      // 反向提示词
+	Template           string   `json:"template,omitempty"`             // 视频特效模板
+	ReferenceVideoURLs []string `json:"reference_video_urls,omitempty"` // 参考视频URL数组（wan2.6-r2v）
 }
 
 // AliVideoParameters 视频参数
@@ -52,6 +53,7 @@ type AliVideoParameters struct {
 	Watermark    bool   `json:"watermark,omitempty"`     // 是否添加水印
 	Audio        *bool  `json:"audio,omitempty"`         // 是否添加音频（wan2.5）
 	Seed         int    `json:"seed,omitempty"`          // 随机数种子
+	ShotType     string `json:"shot_type,omitempty"`     // 镜头类型: single/multi（wan2.6-r2v）
 }
 
 // AliVideoResponse 阿里通义万相响应
@@ -79,19 +81,23 @@ type AliVideoOutput struct {
 
 // AliUsage 使用统计
 type AliUsage struct {
-	Duration   int `json:"duration,omitempty"`
-	VideoCount int `json:"video_count,omitempty"`
-	SR         int `json:"SR,omitempty"`
+	Duration            float64 `json:"duration,omitempty"`              // 总视频时长（秒），计费按此时长计算
+	Size                string  `json:"size,omitempty"`                  // 生成视频的分辨率，格式为"宽*高"
+	InputVideoDuration  int     `json:"input_video_duration,omitempty"`  // 输入的参考视频的时长（秒）
+	OutputVideoDuration int     `json:"output_video_duration,omitempty"` // 输出视频的时长（秒）
+	VideoCount          int     `json:"video_count,omitempty"`           // 生成视频的数量
+	SR                  int     `json:"SR,omitempty"`                    // 生成视频的分辨率档位
 }
 
 type AliMetadata struct {
 	// Input 相关
-	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL
-	ImgURL         string `json:"img_url,omitempty"`         // 图片URL（图生视频）
-	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
-	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
-	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
-	Template       string `json:"template,omitempty"`        // 视频特效模板
+	AudioURL           string   `json:"audio_url,omitempty"`            // 音频URL
+	ImgURL             string   `json:"img_url,omitempty"`              // 图片URL（图生视频）
+	FirstFrameURL      string   `json:"first_frame_url,omitempty"`      // 首帧图片URL（首尾帧生视频）
+	LastFrameURL       string   `json:"last_frame_url,omitempty"`       // 尾帧图片URL（首尾帧生视频）
+	NegativePrompt     string   `json:"negative_prompt,omitempty"`      // 反向提示词
+	Template           string   `json:"template,omitempty"`             // 视频特效模板
+	ReferenceVideoURLs []string `json:"reference_video_urls,omitempty"` // 参考视频URL数组（wan2.6-r2v）
 
 	// Parameters 相关
 	Resolution   *string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P
@@ -101,6 +107,7 @@ type AliMetadata struct {
 	Watermark    *bool   `json:"watermark,omitempty"`     // 是否添加水印
 	Audio        *bool   `json:"audio,omitempty"`         // 是否添加音频
 	Seed         *int    `json:"seed,omitempty"`          // 随机数种子
+	ShotType     *string `json:"shot_type,omitempty"`     // 镜头类型: single/multi（wan2.6-r2v）
 }
 
 // ============================
