@@ -1002,7 +1002,7 @@
     "开始时间": "start time",
     "张图片": " images",
     "弱变换": "High Variation",
-    "强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）": "Force format responses to OpenAI standard format (Only for OpenAI channel types)",
+    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Force format responses to OpenAI standard format, supporting reasoning content field conversion (for OpenAI and OpenRouter channels)",
     "强制格式化": "Force format",
     "强制要求": "Mandatory requirement",
     "强变换": "Low Variation",

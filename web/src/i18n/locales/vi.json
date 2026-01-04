@@ -998,7 +998,7 @@
     "开始时间": "thời gian bắt đầu",
     "张图片": "hình ảnh",
     "弱变换": "Biến thể cao",
-    "强制将响应格式化为 OpenAI 标准格式（只适用于OpenAI渠道类型）": "Buộc định dạng phản hồi theo định dạng chuẩn OpenAI (Chỉ dành cho các loại kênh OpenAI)",
+    "强制将响应格式化为 OpenAI 标准格式，支持推理内容字段转换（适用于OpenAI和OpenRouter渠道）": "Buộc định dạng phản hồi theo định dạng chuẩn OpenAI, hỗ trợ chuyển đổi trường nội dung suy luận (cho các kênh OpenAI và OpenRouter)",
     "强制格式化": "Buộc định dạng",
     "强制要求": "Yêu cầu bắt buộc",
     "强变换": "Biến thể thấp",

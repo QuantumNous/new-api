@@ -471,6 +471,26 @@ func (m *Message) SetMediaContent(content []MediaContent) {
 	m.parsedContent = content
 }
 
+// GetReasoning 返回Message中的reasoning内容
+func (m *Message) GetReasoning() string {
+	return m.Reasoning
+}
+
+// SetReasoning 设置Message中的reasoning内容
+func (m *Message) SetReasoning(reasoning string) {
+	m.Reasoning = reasoning
+}
+
+// GetReasoningContent 返回Message中的reasoning_content内容
+func (m *Message) GetReasoningContent() string {
+	return m.ReasoningContent
+}
+
+// SetReasoningContent 设置Message中的reasoning_content内容
+func (m *Message) SetReasoningContent(reasoningContent string) {
+	m.ReasoningContent = reasoningContent
+}
+
 func (m *Message) IsStringContent() bool {
 	_, ok := m.Content.(string)
 	if ok {

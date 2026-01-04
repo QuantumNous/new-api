@@ -2,9 +2,11 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -18,9 +20,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 辅助函数
+// HandleStreamFormat processes a streaming response payload according to the provided RelayInfo and forwards it to the appropriate format-specific handler.
+//
+// It increments info.SendResponseCount, optionally converts "reasoning" fields to "reasoning_content" when the channel is OpenRouter or OpenAI and forceFormat is enabled, and then dispatches the (possibly modified) JSON string to the handler for the configured RelayFormat (OpenAI, Claude, or Gemini). It returns any error produced by the selected handler or nil if no handler is invoked.
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
+
+	// 统一的推理字段转换：支持OpenAI和OpenRouter
+	if forceFormat && (info.ChannelType == constant.ChannelTypeOpenRouter || info.ChannelType == constant.ChannelTypeOpenAI) {
+		var streamResponse dto.ChatCompletionsStreamResponse
+		if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+			logger.LogError(c, fmt.Sprintf("failed to unmarshal stream data for reasoning conversion: channel_type=%s, data_size=%d, error=%v", info.ChannelType, len(data), err))
+		} else {
+			normalizeReasoningFieldsStream(&streamResponse)
+			newData, err := common.Marshal(streamResponse)
+			if err != nil {
+				logger.LogError(c, fmt.Sprintf("failed to marshal stream data after reasoning conversion: channel_type=%s, error=%v", info.ChannelType, err))
+			} else {
+				data = string(newData)
+			}
+		}
+	}
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -253,9 +273,26 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	}
 }
 
+// sendResponsesStreamData sends a non-empty data chunk for the given stream response to the client.
+// If data is empty, it returns without sending anything.
 func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamResponse, data string) {
 	if data == "" {
 		return
 	}
 	helper.ResponseChunkData(c, streamResponse, data)
+}
+
+// normalizeReasoningFieldsStream normalizes each choice's `Delta` in a streaming ChatCompletions response
+// by converting any `reasoning` fields into `reasoning_content`.
+// It applies ConvertReasoningField to every choice's Delta and is a no-op if `response` is nil or has no choices.
+func normalizeReasoningFieldsStream(response *dto.ChatCompletionsStreamResponse) {
+	if response == nil || len(response.Choices) == 0 {
+		return
+	}
+
+	// 遍历所有choices，对每个Delta使用统一的泛型函数进行转换
+	for i := range response.Choices {
+		choice := &response.Choices[i]
+		ConvertReasoningField(&choice.Delta)
+	}
 }
