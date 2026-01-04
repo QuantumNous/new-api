@@ -160,6 +160,9 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "$VERSION" > VERSION
 
+      - name: Normalize GHCR repository
+        run: echo "GHCR_REPOSITORY=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -170,13 +173,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.GHCR_REPOSITORY }}
+
       - name: Build & push to GHCR
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/zhaolion/newapi:${{ env.VERSION }}
+          tags: |
+            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.VERSION }}
+            ghcr.io/${{ env.GHCR_REPOSITORY }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
