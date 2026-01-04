@@ -54,6 +54,7 @@ const (
 	ChannelTypeDoubaoVideo    = 54
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
+	ChannelTypeStreamLake     = 57
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -116,6 +117,7 @@ var ChannelBaseURLs = []string{
 	"https://ark.cn-beijing.volces.com",         //54
 	"https://api.openai.com",                    //55
 	"https://api.replicate.com",                 //56
+	"https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints", //57
 }
 
 var ChannelTypeNames = map[int]string{
