@@ -2582,6 +2582,12 @@
     "签到奖励的最小额度": "Minimum quota for check-in rewards",
     "签到最大额度": "Maximum check-in quota",
     "签到奖励的最大额度": "Maximum quota for check-in rewards",
-    "保存签到设置": "Save check-in settings"
+    "保存签到设置": "Save check-in settings",
+    "提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。": "Notice: This configuration only affects how models are displayed in the Model Marketplace and does not impact actual model invocation or routing. To configure real invocation behavior, please go to Channel Management.",
+    "确认关闭提示": "Confirm close",
+    "关闭后将不再显示此提示（仅对当前浏览器生效）。确定要关闭吗？": "After closing, this notice will no longer be shown (only for this browser). Are you sure you want to close it?",
+    "关闭提示": "Close notice",
+    "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Note: Tests on this page use non-streaming requests. If a channel only supports streaming responses, tests may fail. Please rely on actual usage.",
+    "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Notice: Endpoint mapping is for Model Marketplace display only and does not affect real model invocation. To configure real invocation, please go to Channel Management."
   }
 }

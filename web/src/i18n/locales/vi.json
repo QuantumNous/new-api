@@ -1547,7 +1547,6 @@
     "此项可选，用于覆盖请求头参数": "Tùy chọn, được sử dụng để ghi đè tham số tiêu đề yêu cầu.",
     "此项可选，用于通过自定义API地址来进行 API 调用，末尾不要带/v1和/": "Tùy chọn cho các cuộc gọi API thông qua địa chỉ API tùy chỉnh, không thêm /v1 và / ở cuối",
     "每容器GPU数": "GPUs per Container",
-    "每日签到": "Đăng nhập hàng ngày",
     "每日签到获得": "Nhận được từ đăng nhập hàng ngày",
     "每隔多少分钟测试一次所有通道": "Bao nhiêu phút kiểm tra tất cả các kênh một lần",
     "比率": "Tỷ lệ",
@@ -3137,7 +3136,6 @@
     "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
     "每日签到": "Đăng nhập hàng ngày",
     "今日已签到，累计签到": "Đã đăng nhập hôm nay, tổng số lần đăng nhập",
-    "天": "ngày",
     "每日签到可获得随机额度奖励": "Đăng nhập hàng ngày để nhận phần thưởng hạn mức ngẫu nhiên",
     "今日已签到": "Đã đăng nhập hôm nay",
     "立即签到": "Đăng nhập ngay",
@@ -3158,6 +3156,12 @@
     "签到奖励的最小额度": "Hạn mức tối thiểu cho phần thưởng đăng nhập",
     "签到最大额度": "Hạn mức đăng nhập tối đa",
     "签到奖励的最大额度": "Hạn mức tối đa cho phần thưởng đăng nhập",
-    "保存签到设置": "Lưu cài đặt đăng nhập"
+    "保存签到设置": "Lưu cài đặt đăng nhập",
+    "提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。": "Lưu ý: Cấu hình tại đây chỉ ảnh hưởng đến cách hiển thị trong \"Chợ mô hình\" và không ảnh hưởng đến việc gọi hoặc định tuyến thực tế. Nếu cần cấu hình hành vi gọi thực tế, vui lòng thiết lập trong \"Quản lý kênh\".",
+    "确认关闭提示": "Xác nhận đóng",
+    "关闭后将不再显示此提示（仅对当前浏览器生效）。确定要关闭吗？": "Sau khi đóng, thông báo này sẽ không còn hiển thị nữa (chỉ với trình duyệt này). Bạn có chắc muốn đóng không?",
+    "关闭提示": "Đóng thông báo",
+    "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Lưu ý: Bài kiểm tra trên trang này sử dụng yêu cầu không streaming. Nếu kênh chỉ hỗ trợ phản hồi streaming, bài kiểm tra có thể thất bại. Vui lòng dựa vào sử dụng thực tế.",
+    "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Lưu ý: Ánh xạ endpoint chỉ dùng để hiển thị trong \"Chợ mô hình\" và không ảnh hưởng đến việc gọi thực tế. Để cấu hình gọi thực tế, vui lòng vào \"Quản lý kênh\"."
   }
 }
