@@ -88,7 +88,7 @@ const RegisterForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
-  const [githubButtonText, setGithubButtonText] = useState('使用 GitHub 继续');
+  const [githubButtonText, setGithubButtonText] = useState(t('使用 GitHub 继续'));
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
 
