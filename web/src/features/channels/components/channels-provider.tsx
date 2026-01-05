@@ -11,6 +11,7 @@ type DialogType =
   | 'test-channel'
   | 'balance-query'
   | 'fetch-models'
+  | 'ollama-models'
   | 'multi-key-manage'
   | 'tag-batch-edit'
   | 'edit-tag'

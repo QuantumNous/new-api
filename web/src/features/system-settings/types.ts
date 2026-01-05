@@ -54,6 +54,9 @@ export type GeneralSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'checkin_setting.enabled': boolean
+  'checkin_setting.min_quota': number
+  'checkin_setting.max_quota': number
 }
 
 export type AuthSettings = {
@@ -138,6 +141,8 @@ export type IntegrationSettings = {
   AutomaticDisableKeywords: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'model_deployment.ionet.api_key': string
+  'model_deployment.ionet.enabled': boolean
   PayAddress: string
   EpayId: string
   EpayKey: string

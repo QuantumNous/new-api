@@ -46,7 +46,12 @@ export const channelFormSchema = z.object({
   // Type-specific settings (stored in settings JSON)
   is_enterprise_account: z.boolean().optional(), // OpenRouter specific
   vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
+  aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
   azure_responses_version: z.string().optional(), // Azure specific
+  // Field passthrough controls (stored in settings JSON)
+  allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
+  disable_store: z.boolean().optional(), // OpenAI only
+  allow_safety_identifier: z.boolean().optional(), // OpenAI only
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -91,7 +96,12 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
+  aws_key_type: 'ak_sk',
   azure_responses_version: '',
+  // Field passthrough controls
+  allow_service_tier: false,
+  disable_store: false,
+  allow_safety_identifier: false,
 }
 
 // ============================================================================
@@ -134,6 +144,10 @@ export function transformChannelToFormDefaults(
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
+  let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
+  let allowServiceTier = false
+  let disableStore = false
+  let allowSafetyIdentifier = false
 
   if (channel.settings) {
     try {
@@ -141,6 +155,10 @@ export function transformChannelToFormDefaults(
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
+      awsKeyType = parsed.aws_key_type || 'ak_sk'
+      allowServiceTier = parsed.allow_service_tier === true
+      disableStore = parsed.disable_store === true
+      allowSafetyIdentifier = parsed.allow_safety_identifier === true
     } catch (error) {
       console.error('Failed to parse channel settings:', error)
     }
@@ -178,6 +196,10 @@ export function transformChannelToFormDefaults(
     is_enterprise_account: isEnterpriseAccount,
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
+    aws_key_type: awsKeyType,
+    allow_service_tier: allowServiceTier,
+    disable_store: disableStore,
+    allow_safety_identifier: allowSafetyIdentifier,
   }
 }
 
@@ -214,16 +236,48 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   // Add vertex_key_type for Vertex AI channels (type 41)
   if (formData.type === 41) {
     settingsObj.vertex_key_type = formData.vertex_key_type || 'json'
+  } else if ('vertex_key_type' in settingsObj) {
+    delete settingsObj.vertex_key_type
   }
 
   // Add azure_responses_version for Azure channels (type 3)
   if (formData.type === 3 && formData.azure_responses_version) {
     settingsObj.azure_responses_version = formData.azure_responses_version
+  } else if ('azure_responses_version' in settingsObj) {
+    delete settingsObj.azure_responses_version
   }
 
   // Add enterprise account setting for OpenRouter (type 20)
   if (formData.type === 20) {
     settingsObj.openrouter_enterprise = formData.is_enterprise_account === true
+  } else if ('openrouter_enterprise' in settingsObj) {
+    delete settingsObj.openrouter_enterprise
+  }
+
+  // Add aws_key_type for AWS channels (type 33)
+  if (formData.type === 33) {
+    settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
+  } else if ('aws_key_type' in settingsObj) {
+    delete settingsObj.aws_key_type
+  }
+
+  // Field passthrough controls:
+  // - OpenAI (type 1) and Anthropic (type 14): allow_service_tier
+  // - OpenAI only: disable_store, allow_safety_identifier
+  if (formData.type === 1 || formData.type === 14) {
+    settingsObj.allow_service_tier = formData.allow_service_tier === true
+  } else if ('allow_service_tier' in settingsObj) {
+    delete settingsObj.allow_service_tier
+  }
+
+  if (formData.type === 1) {
+    settingsObj.disable_store = formData.disable_store === true
+    settingsObj.allow_safety_identifier =
+      formData.allow_safety_identifier === true
+  } else {
+    if ('disable_store' in settingsObj) delete settingsObj.disable_store
+    if ('allow_safety_identifier' in settingsObj)
+      delete settingsObj.allow_safety_identifier
   }
 
   return JSON.stringify(settingsObj)

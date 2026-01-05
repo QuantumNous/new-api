@@ -30,3 +30,19 @@ export const prefillGroupsQueryKeys = {
   lists: () => [...prefillGroupsQueryKeys.all, 'list'] as const,
   list: (type?: string) => [...prefillGroupsQueryKeys.lists(), type] as const,
 }
+
+/**
+ * React Query cache keys for deployments
+ */
+export const deploymentsQueryKeys = {
+  all: ['deployments'] as const,
+  lists: () => [...deploymentsQueryKeys.all, 'list'] as const,
+  list: (filters: {
+    keyword?: string
+    status?: string
+    p?: number
+    page_size?: number
+  }) => [...deploymentsQueryKeys.lists(), filters] as const,
+  detail: (id: string | number) =>
+    [...deploymentsQueryKeys.all, 'detail', id] as const,
+}

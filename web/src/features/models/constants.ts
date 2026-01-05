@@ -84,6 +84,49 @@ export function getSyncStatusOptions(t: TFunction) {
 }
 
 // ============================================================================
+// Deployment Status
+// ============================================================================
+
+export function getDeploymentStatusOptions(t: TFunction) {
+  return [
+    { label: t('All Status'), value: 'all' },
+    { label: t('Running'), value: 'running' },
+    { label: t('Completed'), value: 'completed' },
+    { label: t('Failed'), value: 'failed' },
+    { label: t('Deployment requested'), value: 'deployment requested' },
+    { label: t('Termination requested'), value: 'termination requested' },
+    { label: t('Destroyed'), value: 'destroyed' },
+  ] as const
+}
+
+export function getDeploymentStatusConfig(t: TFunction): Record<
+  string,
+  {
+    label: string
+    variant: 'success' | 'neutral' | 'warning' | 'danger'
+    showDot?: boolean
+  }
+> {
+  return {
+    running: { label: t('Running'), variant: 'success', showDot: true },
+    completed: { label: t('Completed'), variant: 'success' },
+    failed: { label: t('Failed'), variant: 'danger' },
+    error: { label: t('Failed'), variant: 'danger' },
+    destroyed: { label: t('Destroyed'), variant: 'danger' },
+    'deployment requested': {
+      label: t('Deployment requested'),
+      variant: 'warning',
+      showDot: true,
+    },
+    'termination requested': {
+      label: t('Termination requested'),
+      variant: 'warning',
+      showDot: true,
+    },
+  }
+}
+
+// ============================================================================
 // Quota Type
 // ============================================================================
 

@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
+    "i18n:sync": "node scripts/sync-i18n.mjs",
     "knip": "knip"
   },
   "dependencies": {

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type Row } from '@tanstack/react-table'
 import {
   MoreHorizontal,
+  Boxes,
   Pencil,
   TestTube,
   DollarSign,
@@ -67,6 +68,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setOpen('fetch-models')
   }
 
+  const handleManageOllamaModels = () => {
+    setCurrentRow(channel)
+    setOpen('ollama-models')
+  }
+
   const handleCopy = () => {
     setCurrentRow(channel)
     setOpen('copy-channel')
@@ -124,6 +130,16 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             <Download size={16} />
           </DropdownMenuShortcut>
         </DropdownMenuItem>
+
+        {/* Ollama Models (only for Ollama channels) */}
+        {channel.type === 4 && (
+          <DropdownMenuItem onClick={handleManageOllamaModels}>
+            {t('Manage Ollama Models')}
+            <DropdownMenuShortcut>
+              <Boxes size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
 

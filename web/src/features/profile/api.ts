@@ -5,6 +5,8 @@ import type {
   UpdateUserRequest,
   UpdateUserSettingsRequest,
   DeleteAccountRequest,
+  CheckinStatusResponse,
+  CheckinResponse,
 } from './types'
 
 // ============================================================================
@@ -92,5 +94,32 @@ export async function bindEmail(
  */
 export async function bindWeChat(code: string): Promise<ApiResponse> {
   const res = await api.get(`/api/oauth/wechat/bind?code=${code}`)
+  return res.data
+}
+
+// ============================================================================
+// Checkin APIs
+// ============================================================================
+
+/**
+ * Get checkin status for a specific month
+ */
+export async function getCheckinStatus(
+  month: string
+): Promise<ApiResponse<CheckinStatusResponse>> {
+  const res = await api.get(`/api/user/checkin?month=${month}`)
+  return res.data
+}
+
+/**
+ * Perform daily checkin
+ */
+export async function performCheckin(
+  turnstileToken?: string
+): Promise<ApiResponse<CheckinResponse>> {
+  const url = turnstileToken
+    ? `/api/user/checkin?turnstile=${encodeURIComponent(turnstileToken)}`
+    : '/api/user/checkin'
+  const res = await api.post(url)
   return res.data
 }

@@ -4,6 +4,7 @@ import { useAccordionState } from '../hooks/use-accordion-state'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { IntegrationSettings as IntegrationSettingsType } from '../types'
 import { EmailSettingsSection } from './email-settings-section'
+import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
 import { MonitoringSettingsSection } from './monitoring-settings-section'
 import { PaymentSettingsSection } from './payment-settings-section'
 import { WorkerSettingsSection } from './worker-settings-section'
@@ -25,6 +26,8 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   AutomaticDisableKeywords: '',
   'monitor_setting.auto_test_channel_enabled': false,
   'monitor_setting.auto_test_channel_minutes': 10,
+  'model_deployment.ionet.api_key': '',
+  'model_deployment.ionet.enabled': false,
   PayAddress: '',
   EpayId: '',
   EpayKey: '',
@@ -111,6 +114,13 @@ export function IntegrationSettings() {
               WorkerValidKey: settings.WorkerValidKey,
               WorkerAllowHttpImageRequestEnabled:
                 settings.WorkerAllowHttpImageRequestEnabled,
+            }}
+          />
+
+          <IoNetDeploymentSettingsSection
+            defaultValues={{
+              enabled: settings['model_deployment.ionet.enabled'],
+              apiKey: settings['model_deployment.ionet.api_key'],
             }}
           />
 

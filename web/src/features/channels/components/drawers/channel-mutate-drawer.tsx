@@ -121,6 +121,31 @@ type ModelMappingGuardrail = {
   exposedTargetModels: string[]
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function getErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error && typeof error.message === 'string') {
+    return error.message
+  }
+
+  if (!isRecord(error)) return undefined
+
+  const response = error.response
+  if (isRecord(response)) {
+    const data = response.data
+    if (isRecord(data)) {
+      const message = data.message
+      if (typeof message === 'string') return message
+    }
+  }
+
+  const message = error.message
+  if (typeof message === 'string') return message
+  return undefined
+}
+
 // Helper functions
 const createEmptyModelMappingGuardrail = (): ModelMappingGuardrail => ({
   invalidJson: false,
@@ -232,6 +257,7 @@ export function ChannelMutateDrawer({
   const currentBaseUrl = form.watch('base_url')
   const currentModels = form.watch('models')
   const currentModelMapping = form.watch('model_mapping')
+  const awsKeyType = form.watch('aws_key_type')
 
   // Helper computed values
   const isBatchMode =
@@ -548,8 +574,8 @@ export function ChannelMutateDrawer({
       } else {
         toast.error(t('No models fetched from upstream'))
       }
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || t('Failed to fetch models'))
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || t('Failed to fetch models'))
     } finally {
       setIsFetchingModels(false)
     }
@@ -730,14 +756,19 @@ export function ChannelMutateDrawer({
       try {
         if (isEditing && currentRow) {
           // Update existing channel
-          let payload = transformFormDataToUpdatePayload(data, currentRow.id)
+          const payload = transformFormDataToUpdatePayload(data, currentRow.id)
+          const payloadWithKeyMode =
+            isMultiKeyChannel && data.key_mode
+              ? {
+                  ...payload,
+                  key_mode: data.key_mode,
+                }
+              : payload
 
-          // Add key_mode for multi-key channels
-          if (isMultiKeyChannel && data.key_mode) {
-            payload = { ...payload, key_mode: data.key_mode } as any
-          }
-
-          const response = await updateChannel(currentRow.id, payload)
+          const response = await updateChannel(
+            currentRow.id,
+            payloadWithKeyMode
+          )
           if (response.success) {
             toast.success(SUCCESS_MESSAGES.UPDATED)
             handleSuccess()
@@ -751,10 +782,8 @@ export function ChannelMutateDrawer({
             handleSuccess()
           }
         }
-      } catch (error: any) {
-        toast.error(
-          error?.response?.data?.message || ERROR_MESSAGES.CREATE_FAILED
-        )
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error) || ERROR_MESSAGES.CREATE_FAILED)
       } finally {
         setIsSubmitting(false)
       }
@@ -1077,6 +1106,140 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* AWS (type 33) */}
+                {currentType === 33 && (
+                  <FormField
+                    control={form.control}
+                    name='aws_key_type'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('AWS Key Format')}</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={t('Select key format')}
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value='ak_sk'>
+                              {t('AccessKey / SecretAccessKey')}
+                            </SelectItem>
+                            <SelectItem value='api_key'>
+                              {t('API Key')}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {field.value === 'api_key'
+                            ? t('API Key mode: use APIKey|Region')
+                            : t(
+                                'AK/SK mode: use AccessKey|SecretAccessKey|Region'
+                              )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Field passthrough controls (OpenAI type 1 / Anthropic type 14) */}
+                {(currentType === 1 || currentType === 14) && (
+                  <div className='space-y-3 rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <p className='text-sm font-medium'>
+                        {t('Field passthrough controls')}
+                      </p>
+                      <p className='text-muted-foreground text-xs'>
+                        {t(
+                          'These toggles affect whether certain request fields are passed through to the upstream provider.'
+                        )}
+                      </p>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name='allow_service_tier'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                          <div className='space-y-0.5'>
+                            <FormLabel className='text-sm'>
+                              {t('Allow service_tier passthrough')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t('Pass through the service_tier field')}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    {currentType === 1 && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name='disable_store'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Disable store passthrough')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'When enabled, the store field will be blocked'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='allow_safety_identifier'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Allow safety_identifier passthrough')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Pass through the safety_identifier field'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* AI Proxy Library (type 21) */}
                 {currentType === 21 && (
                   <FormField
@@ -1231,6 +1394,72 @@ export function ChannelMutateDrawer({
                         </FormItem>
                       )}
                     />
+                    {form.watch('vertex_key_type') === 'json' && (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Service account JSON file(s)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='file'
+                            accept='.json,application/json'
+                            multiple={isBatchMode}
+                            onChange={async (e) => {
+                              const fileList = e.target.files
+                              const files = fileList ? Array.from(fileList) : []
+                              // allow re-selecting the same file
+                              e.target.value = ''
+
+                              if (files.length === 0) {
+                                toast.info(t('Please upload key file(s)'))
+                                return
+                              }
+
+                              const keys: unknown[] = []
+                              for (const file of files) {
+                                try {
+                                  const txt = await file.text()
+                                  keys.push(JSON.parse(txt))
+                                } catch {
+                                  toast.error(
+                                    t('Failed to parse JSON file: {{name}}', {
+                                      name: file.name,
+                                    })
+                                  )
+                                  return
+                                }
+                              }
+
+                              if (keys.length === 0) {
+                                toast.info(t('Please upload key file(s)'))
+                                return
+                              }
+
+                              const keyValue = isBatchMode
+                                ? JSON.stringify(keys)
+                                : JSON.stringify(keys[0])
+
+                              form.setValue('key', keyValue, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+
+                              toast.success(
+                                t('Parsed {{count}} service account file(s)', {
+                                  count: keys.length,
+                                })
+                              )
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {isBatchMode
+                            ? t('Upload multiple JSON files in batch modes')
+                            : t('Upload a single service account JSON file')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                     <FormField
                       control={form.control}
                       name='other'
@@ -1444,9 +1673,23 @@ export function ChannelMutateDrawer({
                           placeholder={
                             isEditing
                               ? 'Leave empty to keep existing key'
-                              : isBatchMode
-                                ? 'Enter one key per line for batch creation'
-                                : getKeyPromptForType(currentType)
+                              : currentType === 33
+                                ? awsKeyType === 'api_key'
+                                  ? isBatchMode
+                                    ? t(
+                                        'Enter API Key, one per line, format: APIKey|Region'
+                                      )
+                                    : t('Enter API Key, format: APIKey|Region')
+                                  : isBatchMode
+                                    ? t(
+                                        'Enter key, one per line, format: AccessKey|SecretAccessKey|Region'
+                                      )
+                                    : t(
+                                        'Enter key, format: AccessKey|SecretAccessKey|Region'
+                                      )
+                                : isBatchMode
+                                  ? 'Enter one key per line for batch creation'
+                                  : getKeyPromptForType(currentType)
                           }
                           rows={isBatchMode ? 8 : 4}
                           {...field}

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react'
 import type {
   Model,
+  ModelTabCategory,
   Vendor,
   SyncDiffData,
   SyncLocale,
@@ -42,6 +43,8 @@ type ModelsContextType = {
   setSyncWizardOptions: React.Dispatch<
     React.SetStateAction<{ locale: SyncLocale; source: SyncSource }>
   >
+  tabCategory: ModelTabCategory
+  setTabCategory: (category: ModelTabCategory) => void
 }
 
 // ============================================================================
@@ -73,6 +76,7 @@ export function ModelsProvider({ children }: { children: React.ReactNode }) {
     locale: 'zh',
     source: 'official',
   })
+  const [tabCategory, setTabCategory] = useState<ModelTabCategory>('metadata')
 
   return (
     <ModelsContext.Provider
@@ -91,6 +95,8 @@ export function ModelsProvider({ children }: { children: React.ReactNode }) {
         setUpstreamConflicts,
         syncWizardOptions,
         setSyncWizardOptions,
+        tabCategory,
+        setTabCategory,
       }}
     >
       {children}

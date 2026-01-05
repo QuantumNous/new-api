@@ -4,6 +4,7 @@ import { Accordion } from '@/components/ui/accordion'
 import { useAccordionState } from '../hooks/use-accordion-state'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { GeneralSettings } from '../types'
+import { CheckinSettingsSection } from './checkin-settings-section'
 import { PricingSection } from './pricing-section'
 import { QuotaSettingsSection } from './quota-settings-section'
 import { SystemBehaviorSection } from './system-behavior-section'
@@ -36,6 +37,9 @@ const defaultGeneralSettings: GeneralSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  'checkin_setting.enabled': false,
+  'checkin_setting.min_quota': 1000,
+  'checkin_setting.max_quota': 10000,
 }
 
 export function GeneralSettings() {
@@ -112,6 +116,14 @@ export function GeneralSettings() {
                   settings['general_setting.custom_currency_exchange_rate'] ??
                   1,
               },
+            }}
+          />
+
+          <CheckinSettingsSection
+            defaultValues={{
+              enabled: settings['checkin_setting.enabled'],
+              minQuota: settings['checkin_setting.min_quota'],
+              maxQuota: settings['checkin_setting.max_quota'],
             }}
           />
 

@@ -161,3 +161,51 @@ export interface TwoFASetupData {
   qr_code_data: string
   backup_codes: string[]
 }
+
+// ============================================================================
+// Checkin Type Definitions
+// ============================================================================
+
+/**
+ * Checkin record for a specific date
+ */
+export interface CheckinRecord {
+  /** Check-in date (YYYY-MM-DD) */
+  checkin_date: string
+  /** Quota awarded for this check-in */
+  quota_awarded: number
+}
+
+/**
+ * Checkin statistics
+ */
+export interface CheckinStats {
+  /** Whether user has checked in today */
+  checked_in_today: boolean
+  /** Total number of check-ins */
+  total_checkins: number
+  /** Total quota earned from check-ins */
+  total_quota: number
+  /** Current month check-in count */
+  checkin_count: number
+  /** Check-in records for the queried month */
+  records: CheckinRecord[]
+}
+
+/**
+ * Check-in status response
+ */
+export interface CheckinStatusResponse {
+  /** Whether check-in feature is enabled */
+  enabled: boolean
+  /** Check-in statistics */
+  stats: CheckinStats
+}
+
+/**
+ * Check-in action response
+ */
+export interface CheckinResponse {
+  /** Quota awarded for this check-in */
+  quota_awarded: number
+}

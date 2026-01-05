@@ -1,4 +1,6 @@
+import { useStatus } from '@/hooks/use-status'
 import { AppHeader, Main } from '@/components/layout'
+import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
@@ -12,6 +14,13 @@ import { useProfile } from './hooks'
 
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
+  const { status } = useStatus()
+
+  const checkinEnabled = status?.checkin_enabled === true
+  const turnstileEnabled = !!(
+    status?.turnstile_check && status?.turnstile_site_key
+  )
+  const turnstileSiteKey = status?.turnstile_site_key || ''
 
   return (
     <>
@@ -31,11 +40,20 @@ export function Profile() {
             </div>
 
             {/* Right Column - Settings */}
-            <ProfileSettingsCard
-              profile={profile}
-              loading={loading}
-              onProfileUpdate={refreshProfile}
-            />
+            <div className='space-y-6'>
+              {checkinEnabled && (
+                <CheckinCalendarCard
+                  checkinEnabled={checkinEnabled}
+                  turnstileEnabled={turnstileEnabled}
+                  turnstileSiteKey={turnstileSiteKey}
+                />
+              )}
+              <ProfileSettingsCard
+                profile={profile}
+                loading={loading}
+                onProfileUpdate={refreshProfile}
+              />
+            </div>
           </div>
         </div>
       </Main>

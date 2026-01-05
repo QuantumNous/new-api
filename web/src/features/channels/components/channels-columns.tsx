@@ -43,6 +43,22 @@ import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
+function parseIonetMeta(otherInfo: string | null | undefined): null | {
+  source?: string
+  deployment_id?: string
+} {
+  if (!otherInfo) return null
+  try {
+    const parsed = JSON.parse(otherInfo)
+    if (parsed && typeof parsed === 'object') {
+      return parsed
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 /**
  * Render limited items with "and X more" indicator
  */
@@ -434,6 +450,13 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             ? 'Multi-key: Random rotation'
             : 'Multi-key: Polling rotation'
 
+        const ionetMeta = parseIonetMeta(channel.other_info)
+        const isIonet = ionetMeta?.source === 'ionet'
+        const deploymentId =
+          typeof ionetMeta?.deployment_id === 'string'
+            ? ionetMeta?.deployment_id
+            : undefined
+
         return (
           <div className='flex items-center gap-2'>
             <div className='flex items-center gap-1.5'>
@@ -459,6 +482,45 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               size='sm'
               copyable={false}
             />
+            {isIonet && (
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className='cursor-pointer'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!deploymentId) return
+                        const targetUrl = `/console/deployment?deployment_id=${deploymentId}`
+                        window.open(targetUrl, '_blank', 'noopener')
+                      }}
+                    >
+                      <StatusBadge
+                        label='IO.NET'
+                        variant='purple'
+                        size='sm'
+                        copyable={false}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='top'>
+                    <div className='max-w-xs space-y-1'>
+                      <div className='text-xs'>
+                        {t('From IO.NET deployment')}
+                      </div>
+                      {deploymentId && (
+                        <div className='text-muted-foreground font-mono text-xs'>
+                          {t('Deployment ID')}: {deploymentId}
+                        </div>
+                      )}
+                      <div className='text-muted-foreground text-xs'>
+                        {t('Click to open deployment')}
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         )
       },
@@ -478,6 +540,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       cell: ({ row }) => {
         const isTagRow = (row.original as any).children !== undefined
         const status = row.getValue('status') as number
+        const channel = row.original as Channel
 
         // Tag row: show aggregated status
         if (isTagRow) {
@@ -511,9 +574,20 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           CHANNEL_STATUS_CONFIG[status as keyof typeof CHANNEL_STATUS_CONFIG] ||
           CHANNEL_STATUS_CONFIG[0]
 
+        const isMultiKey = isMultiKeyChannel(channel)
+        const keySize = channel.channel_info?.multi_key_size ?? 0
+        const disabledCount = channel.channel_info?.multi_key_status_list
+          ? Object.keys(channel.channel_info.multi_key_status_list).length
+          : 0
+        const enabledCount = Math.max(0, keySize - disabledCount)
+        const label =
+          isMultiKey && keySize > 0
+            ? `${config.label} (${enabledCount}/${keySize})`
+            : config.label
+
         return (
           <StatusBadge
-            label={config.label}
+            label={label}
             variant={config.variant}
             showDot={config.showDot}
             size='sm'

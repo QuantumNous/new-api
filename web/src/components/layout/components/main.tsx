@@ -7,6 +7,7 @@ type MainProps = React.HTMLAttributes<HTMLElement> & {
   fixed?: boolean
   /**
    * 是否使用流式布局（不限制最大宽度）
+   * - 默认开启（true）
    */
   fluid?: boolean
 }
@@ -14,9 +15,9 @@ type MainProps = React.HTMLAttributes<HTMLElement> & {
 /**
  * Main 内容区域组件
  * - fixed=true 时会使用 flexbox 布局并防止内容溢出
- * - fluid=true 时不会限制最大宽度
+ * - fluid=true 时不会限制最大宽度（默认）
  */
-export function Main({ fixed, className, fluid, ...props }: MainProps) {
+export function Main({ fixed, className, fluid = true, ...props }: MainProps) {
   return (
     <main
       data-layout={fixed ? 'fixed' : 'auto'}
