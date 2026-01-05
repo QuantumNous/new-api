@@ -47,7 +47,20 @@ const ModelSelectModal = ({
   onCancel,
 }) => {
   const { t } = useTranslation();
-  const [checkedList, setCheckedList] = useState(selected);
+
+  const getModelName = (model) => {
+    if (!model) return '';
+    if (typeof model === 'string') return model;
+    if (typeof model === 'object' && model.model_name) return model.model_name;
+    return String(model ?? '');
+  };
+
+  const normalizedSelected = useMemo(
+    () => (selected || []).map(getModelName),
+    [selected],
+  );
+
+  const [checkedList, setCheckedList] = useState(normalizedSelected);
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState('new');
 
@@ -105,9 +118,9 @@ const ModelSelectModal = ({
   // 同步外部选中值
   useEffect(() => {
     if (visible) {
-      setCheckedList(selected);
+      setCheckedList(normalizedSelected);
     }
-  }, [visible, selected]);
+  }, [visible, normalizedSelected]);
 
   // 当模型列表变化时，设置默认tab
   useEffect(() => {

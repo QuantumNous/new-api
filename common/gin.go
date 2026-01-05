@@ -40,7 +40,7 @@ func GetRequestBody(c *gin.Context) ([]byte, error) {
 		}
 	}
 	maxMB := constant.MaxRequestBodyMB
-	if maxMB < 0 {
+	if maxMB <= 0 {
 		// no limit
 		body, err := io.ReadAll(c.Request.Body)
 		_ = c.Request.Body.Close()

@@ -11,16 +11,18 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type OpenAIModel struct {
-	ID         string `json:"id"`
-	Object     string `json:"object"`
-	Created    int64  `json:"created"`
-	OwnedBy    string `json:"owned_by"`
+	ID         string         `json:"id"`
+	Object     string         `json:"object"`
+	Created    int64          `json:"created"`
+	OwnedBy    string         `json:"owned_by"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
 	Permission []struct {
 		ID                 string `json:"id"`
 		Object             string `json:"object"`
@@ -205,6 +207,57 @@ func FetchUpstreamModels(c *gin.Context) {
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
+	}
+
+	// 对于 Ollama 渠道，使用特殊处理
+	if channel.Type == constant.ChannelTypeOllama {
+		key := strings.Split(channel.Key, "\n")[0]
+		models, err := ollama.FetchOllamaModels(baseURL, key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Ollama模型失败: %s", err.Error()),
+			})
+			return
+		}
+
+		result := OpenAIModelsResponse{
+			Data: make([]OpenAIModel, 0, len(models)),
+		}
+
+		for _, modelInfo := range models {
+			metadata := map[string]any{}
+			if modelInfo.Size > 0 {
+				metadata["size"] = modelInfo.Size
+			}
+			if modelInfo.Digest != "" {
+				metadata["digest"] = modelInfo.Digest
+			}
+			if modelInfo.ModifiedAt != "" {
+				metadata["modified_at"] = modelInfo.ModifiedAt
+			}
+			details := modelInfo.Details
+			if details.ParentModel != "" || details.Format != "" || details.Family != "" || len(details.Families) > 0 || details.ParameterSize != "" || details.QuantizationLevel != "" {
+				metadata["details"] = modelInfo.Details
+			}
+			if len(metadata) == 0 {
+				metadata = nil
+			}
+
+			result.Data = append(result.Data, OpenAIModel{
+				ID:       modelInfo.Name,
+				Object:   "model",
+				Created:  0,
+				OwnedBy:  "ollama",
+				Metadata: metadata,
+			})
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    result.Data,
+		})
+		return
 	}
 
 	var url string
@@ -917,9 +970,6 @@ func UpdateChannel(c *gin.Context) {
 						// 单个JSON密钥
 						newKeys = []string{channel.Key}
 					}
-					// 合并密钥
-					allKeys := append(existingKeys, newKeys...)
-					channel.Key = strings.Join(allKeys, "\n")
 				} else {
 					// 普通渠道的处理
 					inputKeys := strings.Split(channel.Key, "\n")
@@ -929,10 +979,31 @@ func UpdateChannel(c *gin.Context) {
 							newKeys = append(newKeys, key)
 						}
 					}
-					// 合并密钥
-					allKeys := append(existingKeys, newKeys...)
-					channel.Key = strings.Join(allKeys, "\n")
 				}
+
+				seen := make(map[string]struct{}, len(existingKeys)+len(newKeys))
+				for _, key := range existingKeys {
+					normalized := strings.TrimSpace(key)
+					if normalized == "" {
+						continue
+					}
+					seen[normalized] = struct{}{}
+				}
+				dedupedNewKeys := make([]string, 0, len(newKeys))
+				for _, key := range newKeys {
+					normalized := strings.TrimSpace(key)
+					if normalized == "" {
+						continue
+					}
+					if _, ok := seen[normalized]; ok {
+						continue
+					}
+					seen[normalized] = struct{}{}
+					dedupedNewKeys = append(dedupedNewKeys, normalized)
+				}
+
+				allKeys := append(existingKeys, dedupedNewKeys...)
+				channel.Key = strings.Join(allKeys, "\n")
 			}
 		case "replace":
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
@@ -975,6 +1046,32 @@ func FetchModels(c *gin.Context) {
 		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
 
+	// remove line breaks and extra spaces.
+	key := strings.TrimSpace(req.Key)
+	key = strings.Split(key, "\n")[0]
+
+	if req.Type == constant.ChannelTypeOllama {
+		models, err := ollama.FetchOllamaModels(baseURL, key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Ollama模型失败: %s", err.Error()),
+			})
+			return
+		}
+
+		names := make([]string, 0, len(models))
+		for _, modelInfo := range models {
+			names = append(names, modelInfo.Name)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    names,
+		})
+		return
+	}
+
 	client := &http.Client{}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 
@@ -987,10 +1084,6 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	// remove line breaks and extra spaces.
-	key := strings.TrimSpace(req.Key)
-	// If the key contains a line break, only take the first part.
-	key = strings.Split(key, "\n")[0]
 	request.Header.Set("Authorization", "Bearer "+key)
 
 	response, err := client.Do(request)
@@ -1639,4 +1732,263 @@ func ManageMultiKeys(c *gin.Context) {
 		})
 		return
 	}
+}
+
+// OllamaPullModel 拉取 Ollama 模型
+func OllamaPullModel(c *gin.Context) {
+	var req struct {
+		ChannelID int    `json:"channel_id"`
+		ModelName string `json:"model_name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request parameters",
+		})
+		return
+	}
+
+	if req.ChannelID == 0 || req.ModelName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Channel ID and model name are required",
+		})
+		return
+	}
+
+	// 获取渠道信息
+	channel, err := model.GetChannelById(req.ChannelID, true)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Channel not found",
+		})
+		return
+	}
+
+	// 检查是否是 Ollama 渠道
+	if channel.Type != constant.ChannelTypeOllama {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "This operation is only supported for Ollama channels",
+		})
+		return
+	}
+
+	baseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.GetBaseURL() != "" {
+		baseURL = channel.GetBaseURL()
+	}
+
+	key := strings.Split(channel.Key, "\n")[0]
+	err = ollama.PullOllamaModel(baseURL, key, req.ModelName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("Failed to pull model: %s", err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Model %s pulled successfully", req.ModelName),
+	})
+}
+
+// OllamaPullModelStream 流式拉取 Ollama 模型
+func OllamaPullModelStream(c *gin.Context) {
+	var req struct {
+		ChannelID int    `json:"channel_id"`
+		ModelName string `json:"model_name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request parameters",
+		})
+		return
+	}
+
+	if req.ChannelID == 0 || req.ModelName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Channel ID and model name are required",
+		})
+		return
+	}
+
+	// 获取渠道信息
+	channel, err := model.GetChannelById(req.ChannelID, true)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Channel not found",
+		})
+		return
+	}
+
+	// 检查是否是 Ollama 渠道
+	if channel.Type != constant.ChannelTypeOllama {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "This operation is only supported for Ollama channels",
+		})
+		return
+	}
+
+	baseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.GetBaseURL() != "" {
+		baseURL = channel.GetBaseURL()
+	}
+
+	// 设置 SSE 头部
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	key := strings.Split(channel.Key, "\n")[0]
+
+	// 创建进度回调函数
+	progressCallback := func(progress ollama.OllamaPullResponse) {
+		data, _ := json.Marshal(progress)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", string(data))
+		c.Writer.Flush()
+	}
+
+	// 执行拉取
+	err = ollama.PullOllamaModelStream(baseURL, key, req.ModelName, progressCallback)
+
+	if err != nil {
+		errorData, _ := json.Marshal(gin.H{
+			"error": err.Error(),
+		})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
+	} else {
+		successData, _ := json.Marshal(gin.H{
+			"message": fmt.Sprintf("Model %s pulled successfully", req.ModelName),
+		})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", string(successData))
+	}
+
+	// 发送结束标志
+	fmt.Fprintf(c.Writer, "data: [DONE]\n\n")
+	c.Writer.Flush()
+}
+
+// OllamaDeleteModel 删除 Ollama 模型
+func OllamaDeleteModel(c *gin.Context) {
+	var req struct {
+		ChannelID int    `json:"channel_id"`
+		ModelName string `json:"model_name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request parameters",
+		})
+		return
+	}
+
+	if req.ChannelID == 0 || req.ModelName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Channel ID and model name are required",
+		})
+		return
+	}
+
+	// 获取渠道信息
+	channel, err := model.GetChannelById(req.ChannelID, true)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Channel not found",
+		})
+		return
+	}
+
+	// 检查是否是 Ollama 渠道
+	if channel.Type != constant.ChannelTypeOllama {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "This operation is only supported for Ollama channels",
+		})
+		return
+	}
+
+	baseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.GetBaseURL() != "" {
+		baseURL = channel.GetBaseURL()
+	}
+
+	key := strings.Split(channel.Key, "\n")[0]
+	err = ollama.DeleteOllamaModel(baseURL, key, req.ModelName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("Failed to delete model: %s", err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Model %s deleted successfully", req.ModelName),
+	})
+}
+
+// OllamaVersion 获取 Ollama 服务版本信息
+func OllamaVersion(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid channel id",
+		})
+		return
+	}
+
+	channel, err := model.GetChannelById(id, true)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Channel not found",
+		})
+		return
+	}
+
+	if channel.Type != constant.ChannelTypeOllama {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "This operation is only supported for Ollama channels",
+		})
+		return
+	}
+
+	baseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.GetBaseURL() != "" {
+		baseURL = channel.GetBaseURL()
+	}
+
+	key := strings.Split(channel.Key, "\n")[0]
+	version, err := ollama.FetchOllamaVersion(baseURL, key)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("获取Ollama版本失败: %s", err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"version": version,
+		},
+	})
 }

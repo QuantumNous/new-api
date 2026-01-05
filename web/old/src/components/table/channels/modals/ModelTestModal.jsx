@@ -265,6 +265,11 @@ const ModelTestModal = ({
               placeholder={t('选择端点类型')}
             />
           </div>
+          <Typography.Text type='tertiary' size='small' className='block mb-2'>
+            {t(
+              '说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。',
+            )}
+          </Typography.Text>
 
           {/* 搜索与操作按钮 */}
           <div className='flex items-center justify-end gap-2 w-full mb-2'>

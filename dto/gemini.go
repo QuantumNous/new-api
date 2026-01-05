@@ -22,6 +22,27 @@ type GeminiChatRequest struct {
 	CachedContent      string                     `json:"cachedContent,omitempty"`
 }
 
+// UnmarshalJSON allows GeminiChatRequest to accept both snake_case and camelCase fields.
+func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
+	type Alias GeminiChatRequest
+	var aux struct {
+		Alias
+		SystemInstructionSnake *GeminiChatContent `json:"system_instruction,omitempty"`
+	}
+
+	if err := common.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*r = GeminiChatRequest(aux.Alias)
+
+	if aux.SystemInstructionSnake != nil {
+		r.SystemInstructions = aux.SystemInstructionSnake
+	}
+
+	return nil
+}
+
 type ToolConfig struct {
 	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
 	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
@@ -105,7 +126,7 @@ func (r *GeminiChatRequest) SetModelName(modelName string) {
 
 func (r *GeminiChatRequest) GetTools() []GeminiChatTool {
 	var tools []GeminiChatTool
-	if strings.HasSuffix(string(r.Tools), "[") {
+	if strings.HasPrefix(string(r.Tools), "[") {
 		// is array
 		if err := common.Unmarshal(r.Tools, &tools); err != nil {
 			logger.LogError(nil, "error_unmarshalling_tools: "+err.Error())

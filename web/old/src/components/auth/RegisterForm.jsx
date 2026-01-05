@@ -57,6 +57,11 @@ import { SiDiscord } from 'react-icons/si';
 const RegisterForm = () => {
   let navigate = useNavigate();
   const { t } = useTranslation();
+  const githubButtonTextKeyByState = {
+    idle: '使用 GitHub 继续',
+    redirecting: '正在跳转 GitHub...',
+    timeout: '请求超时，请刷新页面后重新发起 GitHub 登录',
+  };
   const [inputs, setInputs] = useState({
     username: '',
     password: '',
@@ -88,9 +93,10 @@ const RegisterForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
-  const [githubButtonText, setGithubButtonText] = useState('使用 GitHub 继续');
+  const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
+  const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -251,13 +257,13 @@ const RegisterForm = () => {
     }
     setGithubLoading(true);
     setGithubButtonDisabled(true);
-    setGithubButtonText(t('正在跳转 GitHub...'));
+    setGithubButtonState('redirecting');
     if (githubTimeoutRef.current) {
       clearTimeout(githubTimeoutRef.current);
     }
     githubTimeoutRef.current = setTimeout(() => {
       setGithubLoading(false);
-      setGithubButtonText(t('请求超时，请刷新页面后重新发起 GitHub 登录'));
+      setGithubButtonState('timeout');
       setGithubButtonDisabled(true);
     }, 20000);
     try {

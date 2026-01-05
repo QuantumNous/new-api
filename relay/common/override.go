@@ -23,7 +23,7 @@ type ConditionOperation struct {
 
 type ParamOperation struct {
 	Path       string               `json:"path"`
-	Mode       string               `json:"mode"` // delete, set, move, prepend, append
+	Mode       string               `json:"mode"` // delete, set, move, copy, prepend, append, trim_prefix, trim_suffix, ensure_prefix, ensure_suffix, trim_space, to_lower, to_upper, replace, regex_replace
 	Value      interface{}          `json:"value"`
 	KeepOrigin bool                 `json:"keep_origin"`
 	From       string               `json:"from,omitempty"`
@@ -330,8 +330,6 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 		}
 		// 处理路径中的负数索引
 		opPath := processNegativeIndex(result, op.Path)
-		opFrom := processNegativeIndex(result, op.From)
-		opTo := processNegativeIndex(result, op.To)
 
 		switch op.Mode {
 		case "delete":
@@ -342,11 +340,38 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 			}
 			result, err = sjson.Set(result, opPath, op.Value)
 		case "move":
+			opFrom := processNegativeIndex(result, op.From)
+			opTo := processNegativeIndex(result, op.To)
 			result, err = moveValue(result, opFrom, opTo)
+		case "copy":
+			if op.From == "" || op.To == "" {
+				return "", fmt.Errorf("copy from/to is required")
+			}
+			opFrom := processNegativeIndex(result, op.From)
+			opTo := processNegativeIndex(result, op.To)
+			result, err = copyValue(result, opFrom, opTo)
 		case "prepend":
 			result, err = modifyValue(result, opPath, op.Value, op.KeepOrigin, true)
 		case "append":
 			result, err = modifyValue(result, opPath, op.Value, op.KeepOrigin, false)
+		case "trim_prefix":
+			result, err = trimStringValue(result, opPath, op.Value, true)
+		case "trim_suffix":
+			result, err = trimStringValue(result, opPath, op.Value, false)
+		case "ensure_prefix":
+			result, err = ensureStringAffix(result, opPath, op.Value, true)
+		case "ensure_suffix":
+			result, err = ensureStringAffix(result, opPath, op.Value, false)
+		case "trim_space":
+			result, err = transformStringValue(result, opPath, strings.TrimSpace)
+		case "to_lower":
+			result, err = transformStringValue(result, opPath, strings.ToLower)
+		case "to_upper":
+			result, err = transformStringValue(result, opPath, strings.ToUpper)
+		case "replace":
+			result, err = replaceStringValue(result, opPath, op.From, op.To)
+		case "regex_replace":
+			result, err = regexReplaceStringValue(result, opPath, op.From, op.To)
 		default:
 			return "", fmt.Errorf("unknown operation: %s", op.Mode)
 		}
@@ -367,6 +392,14 @@ func moveValue(jsonStr, fromPath, toPath string) (string, error) {
 		return "", err
 	}
 	return sjson.Delete(result, fromPath)
+}
+
+func copyValue(jsonStr, fromPath, toPath string) (string, error) {
+	sourceValue := gjson.Get(jsonStr, fromPath)
+	if !sourceValue.Exists() {
+		return jsonStr, fmt.Errorf("source path does not exist: %s", fromPath)
+	}
+	return sjson.Set(jsonStr, toPath, sourceValue.Value())
 }
 
 func modifyValue(jsonStr, path string, value interface{}, keepOrigin, isPrepend bool) (string, error) {
@@ -420,6 +453,88 @@ func modifyString(jsonStr, path string, value interface{}, isPrepend bool) (stri
 		newStr = current.String() + valueStr
 	}
 	return sjson.Set(jsonStr, path, newStr)
+}
+
+func trimStringValue(jsonStr, path string, value interface{}, isPrefix bool) (string, error) {
+	current := gjson.Get(jsonStr, path)
+	if current.Type != gjson.String {
+		return jsonStr, fmt.Errorf("operation not supported for type: %v", current.Type)
+	}
+
+	if value == nil {
+		return jsonStr, fmt.Errorf("trim value is required")
+	}
+	valueStr := fmt.Sprintf("%v", value)
+
+	var newStr string
+	if isPrefix {
+		newStr = strings.TrimPrefix(current.String(), valueStr)
+	} else {
+		newStr = strings.TrimSuffix(current.String(), valueStr)
+	}
+	return sjson.Set(jsonStr, path, newStr)
+}
+
+func ensureStringAffix(jsonStr, path string, value interface{}, isPrefix bool) (string, error) {
+	current := gjson.Get(jsonStr, path)
+	if current.Type != gjson.String {
+		return jsonStr, fmt.Errorf("operation not supported for type: %v", current.Type)
+	}
+
+	if value == nil {
+		return jsonStr, fmt.Errorf("ensure value is required")
+	}
+	valueStr := fmt.Sprintf("%v", value)
+	if valueStr == "" {
+		return jsonStr, fmt.Errorf("ensure value is required")
+	}
+
+	currentStr := current.String()
+	if isPrefix {
+		if strings.HasPrefix(currentStr, valueStr) {
+			return jsonStr, nil
+		}
+		return sjson.Set(jsonStr, path, valueStr+currentStr)
+	}
+
+	if strings.HasSuffix(currentStr, valueStr) {
+		return jsonStr, nil
+	}
+	return sjson.Set(jsonStr, path, currentStr+valueStr)
+}
+
+func transformStringValue(jsonStr, path string, transform func(string) string) (string, error) {
+	current := gjson.Get(jsonStr, path)
+	if current.Type != gjson.String {
+		return jsonStr, fmt.Errorf("operation not supported for type: %v", current.Type)
+	}
+	return sjson.Set(jsonStr, path, transform(current.String()))
+}
+
+func replaceStringValue(jsonStr, path, from, to string) (string, error) {
+	current := gjson.Get(jsonStr, path)
+	if current.Type != gjson.String {
+		return jsonStr, fmt.Errorf("operation not supported for type: %v", current.Type)
+	}
+	if from == "" {
+		return jsonStr, fmt.Errorf("replace from is required")
+	}
+	return sjson.Set(jsonStr, path, strings.ReplaceAll(current.String(), from, to))
+}
+
+func regexReplaceStringValue(jsonStr, path, pattern, replacement string) (string, error) {
+	current := gjson.Get(jsonStr, path)
+	if current.Type != gjson.String {
+		return jsonStr, fmt.Errorf("operation not supported for type: %v", current.Type)
+	}
+	if pattern == "" {
+		return jsonStr, fmt.Errorf("regex pattern is required")
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return jsonStr, err
+	}
+	return sjson.Set(jsonStr, path, re.ReplaceAllString(current.String(), replacement))
 }
 
 func mergeObjects(jsonStr, path string, value interface{}, keepOrigin bool) (string, error) {

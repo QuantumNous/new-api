@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/shopspring/decimal"
@@ -181,22 +182,25 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return newApiErr
 	}
 
-	if usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0 {
+	var containAudioTokens = usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0
+	var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
+
+	if containAudioTokens && containsAudioRatios {
 		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
 	} else {
-		postConsumeQuota(c, info, usage.(*dto.Usage), "")
+		postConsumeQuota(c, info, usage.(*dto.Usage))
 	}
 	return nil
 }
 
-func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent string) {
+func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent ...string) {
 	if usage == nil {
 		usage = &dto.Usage{
 			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
 			CompletionTokens: 0,
 			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
 		}
-		extraContent += "（可能是请求出错）"
+		extraContent = append(extraContent, "上游无计费信息")
 	}
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	promptTokens := usage.PromptTokens
@@ -246,8 +250,8 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 			dWebSearchQuota = decimal.NewFromFloat(webSearchPrice).
 				Mul(decimal.NewFromInt(int64(webSearchTool.CallCount))).
 				Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit)
-			extraContent += fmt.Sprintf("Web Search 调用 %d 次，上下文大小 %s，调用花费 %s",
-				webSearchTool.CallCount, webSearchTool.SearchContextSize, dWebSearchQuota.String())
+			extraContent = append(extraContent, fmt.Sprintf("Web Search 调用 %d 次，上下文大小 %s，调用花费 %s",
+				webSearchTool.CallCount, webSearchTool.SearchContextSize, dWebSearchQuota.String()))
 		}
 	} else if strings.HasSuffix(modelName, "search-preview") {
 		// search-preview 模型不支持 response api
@@ -258,8 +262,8 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 		webSearchPrice = operation_setting.GetWebSearchPricePerThousand(modelName, searchContextSize)
 		dWebSearchQuota = decimal.NewFromFloat(webSearchPrice).
 			Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit)
-		extraContent += fmt.Sprintf("Web Search 调用 1 次，上下文大小 %s，调用花费 %s",
-			searchContextSize, dWebSearchQuota.String())
+		extraContent = append(extraContent, fmt.Sprintf("Web Search 调用 1 次，上下文大小 %s，调用花费 %s",
+			searchContextSize, dWebSearchQuota.String()))
 	}
 	// claude web search tool 计费
 	var dClaudeWebSearchQuota decimal.Decimal
@@ -269,8 +273,8 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 		claudeWebSearchPrice = operation_setting.GetClaudeWebSearchPricePerThousand()
 		dClaudeWebSearchQuota = decimal.NewFromFloat(claudeWebSearchPrice).
 			Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit).Mul(decimal.NewFromInt(int64(claudeWebSearchCallCount)))
-		extraContent += fmt.Sprintf("Claude Web Search 调用 %d 次，调用花费 %s",
-			claudeWebSearchCallCount, dClaudeWebSearchQuota.String())
+		extraContent = append(extraContent, fmt.Sprintf("Claude Web Search 调用 %d 次，调用花费 %s",
+			claudeWebSearchCallCount, dClaudeWebSearchQuota.String()))
 	}
 	// file search tool 计费
 	var dFileSearchQuota decimal.Decimal
@@ -281,8 +285,8 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 			dFileSearchQuota = decimal.NewFromFloat(fileSearchPrice).
 				Mul(decimal.NewFromInt(int64(fileSearchTool.CallCount))).
 				Div(decimal.NewFromInt(1000)).Mul(dGroupRatio).Mul(dQuotaPerUnit)
-			extraContent += fmt.Sprintf("File Search 调用 %d 次，调用花费 %s",
-				fileSearchTool.CallCount, dFileSearchQuota.String())
+			extraContent = append(extraContent, fmt.Sprintf("File Search 调用 %d 次，调用花费 %s",
+				fileSearchTool.CallCount, dFileSearchQuota.String()))
 		}
 	}
 	var dImageGenerationCallQuota decimal.Decimal
@@ -290,7 +294,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	if ctx.GetBool("image_generation_call") {
 		imageGenerationCallPrice = operation_setting.GetGPTImage1PriceOnceCall(ctx.GetString("image_generation_call_quality"), ctx.GetString("image_generation_call_size"))
 		dImageGenerationCallQuota = decimal.NewFromFloat(imageGenerationCallPrice).Mul(dGroupRatio).Mul(dQuotaPerUnit)
-		extraContent += fmt.Sprintf("Image Generation Call 花费 %s", dImageGenerationCallQuota.String())
+		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", dImageGenerationCallQuota.String()))
 	}
 
 	var quotaCalculateDecimal decimal.Decimal
@@ -331,7 +335,7 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 				// 重新计算 base tokens
 				baseTokens = baseTokens.Sub(dAudioTokens)
 				audioInputQuota = decimal.NewFromFloat(audioInputPrice).Div(decimal.NewFromInt(1000000)).Mul(dAudioTokens).Mul(dGroupRatio).Mul(dQuotaPerUnit)
-				extraContent += fmt.Sprintf("Audio Input 花费 %s", audioInputQuota.String())
+				extraContent = append(extraContent, fmt.Sprintf("Audio Input 花费 %s", audioInputQuota.String()))
 			}
 		}
 		promptQuota := baseTokens.Add(cachedTokensWithRatio).
@@ -356,17 +360,25 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	// 添加 image generation call 计费
 	quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
 
+	if len(relayInfo.PriceData.OtherRatios) > 0 {
+		for key, otherRatio := range relayInfo.PriceData.OtherRatios {
+			dOtherRatio := decimal.NewFromFloat(otherRatio)
+			quotaCalculateDecimal = quotaCalculateDecimal.Mul(dOtherRatio)
+			extraContent = append(extraContent, fmt.Sprintf("其他倍率 %s: %f", key, otherRatio))
+		}
+	}
+
 	quota := int(quotaCalculateDecimal.Round(0).IntPart())
 	totalTokens := promptTokens + completionTokens
 
-	var logContent string
+	//var logContent string
 
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 {
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
-		logContent += fmt.Sprintf("（可能是上游超时）")
+		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
 			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
 	} else {
@@ -405,15 +417,13 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 	logModel := modelName
 	if strings.HasPrefix(logModel, "gpt-4-gizmo") {
 		logModel = "gpt-4-gizmo-*"
-		logContent += fmt.Sprintf("，模型 %s", modelName)
+		extraContent = append(extraContent, fmt.Sprintf("模型 %s", modelName))
 	}
 	if strings.HasPrefix(logModel, "gpt-4o-gizmo") {
 		logModel = "gpt-4o-gizmo-*"
-		logContent += fmt.Sprintf("，模型 %s", modelName)
+		extraContent = append(extraContent, fmt.Sprintf("模型 %s", modelName))
 	}
-	if extraContent != "" {
-		logContent += ", " + extraContent
-	}
+	logContent := strings.Join(extraContent, ", ")
 	other := service.GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if imageTokens != 0 {
 		other["image"] = true

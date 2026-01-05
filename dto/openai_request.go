@@ -23,6 +23,8 @@ type FormatJsonSchema struct {
 	Strict      json.RawMessage `json:"strict,omitempty"`
 }
 
+// GeneralOpenAIRequest represents a general request structure for OpenAI-compatible APIs.
+// 参数增加规范：无引用的参数必须使用json.RawMessage类型，并添加omitempty标签
 type GeneralOpenAIRequest struct {
 	Model               string            `json:"model,omitempty"`
 	Messages            []Message         `json:"messages,omitempty"`
@@ -82,8 +84,9 @@ type GeneralOpenAIRequest struct {
 	Reasoning json.RawMessage `json:"reasoning,omitempty"`
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
-	EnableThinking         any             `json:"enable_thinking,omitempty"`
+	EnableThinking         json.RawMessage `json:"enable_thinking,omitempty"`
 	ChatTemplateKwargs     json.RawMessage `json:"chat_template_kwargs,omitempty"`
+	EnableSearch           json.RawMessage `json:"enable_search,omitempty"`
 	// ollama Params
 	Think json.RawMessage `json:"think,omitempty"`
 	// baidu v2
