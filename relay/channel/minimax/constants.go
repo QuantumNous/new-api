@@ -14,6 +14,8 @@ var ModelList = []string{
 	"speech-02-turbo",
 	"speech-01-hd",
 	"speech-01-turbo",
+	"image-01",
+	"image-01-live",
 }
 
 var ChannelName = "minimax"
