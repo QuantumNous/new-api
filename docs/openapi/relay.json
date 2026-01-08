@@ -3733,6 +3733,11 @@
             "minimum": 0.25,
             "maximum": 4,
             "default": 1
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否以流式方式返回音频（通过 HTTP 分块传输返回原始音频字节流，非 SSE）"
           }
         }
       },
