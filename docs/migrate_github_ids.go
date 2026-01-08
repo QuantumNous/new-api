@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -203,7 +202,6 @@ func main() {
 	// 检查参数
 	dryRun := len(os.Args) > 1 && os.Args[1] == "--dry-run"
 	token := ""
-	tokenFromFile := false
 
 	// 检查环境变量中的GitHub token
 	if envToken := os.Getenv("GITHUB_TOKEN"); envToken != "" {
@@ -218,12 +216,10 @@ func main() {
 	for i, arg := range os.Args {
 		if arg == "--token" && i+1 < len(os.Args) {
 			token = os.Args[i+1]
-			tokenFromFile = true
 			break
 		}
 		if strings.HasPrefix(arg, "--token=") {
 			token = strings.TrimPrefix(arg, "--token=")
-			tokenFromFile = true
 			break
 		}
 	}
@@ -271,7 +267,7 @@ func main() {
 	}
 
 	// 初始化数据库连接
-	common.Setup()
+	model.InitDB()
 
 	// 查找所有需要迁移的用户
 	var users []model.User

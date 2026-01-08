@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -139,41 +138,24 @@ func GitHubOAuth(c *gin.Context) {
 			// 创建新账号，使用数字ID作为GitHub ID
 			user.GitHubId = numericId
 
-			// 使用重试机制避免用户名竞态条件
-			// 最多重试5次
-			maxRetries := 5
-			var insertErr error
-			for retry := 0; retry < maxRetries; retry++ {
-				// 生成唯一用户名
-				user.Username = "github_" + strconv.Itoa(model.GetMaxUserId()+1)
-				if githubUser.Name != "" {
-					user.DisplayName = githubUser.Name
-				} else {
-					user.DisplayName = "GitHub User"
-				}
-				user.Email = githubUser.Email
-				user.Role = common.RoleCommonUser
-				user.Status = common.UserStatusEnabled
-				affCode := session.Get("aff")
-				inviterId := 0
-				if affCode != nil {
-					inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
-				}
-
-				insertErr = user.Insert(inviterId)
-				// 如果不是唯一约束错误（用户名重复），直接返回错误
-				if insertErr != nil && !isDuplicateKeyError(insertErr) {
-					break
-				}
-				// 如果插入成功，跳出循环
-				if insertErr == nil {
-					break
-				}
-				// 用户名重复，重试
-				common.SysLog(fmt.Sprintf("用户名 %s 已存在，重试第 %d 次", user.Username, retry+1))
+			// 使用GitHub数字ID作为用户名后缀，确保唯一性且无竞态条件
+			// 格式: github_<github_numeric_id>
+			user.Username = "github_" + numericId
+			if githubUser.Name != "" {
+				user.DisplayName = githubUser.Name
+			} else {
+				user.DisplayName = "GitHub User"
+			}
+			user.Email = githubUser.Email
+			user.Role = common.RoleCommonUser
+			user.Status = common.UserStatusEnabled
+			affCode := session.Get("aff")
+			inviterId := 0
+			if affCode != nil {
+				inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
 			}
 
-			if insertErr != nil {
+			if err := user.Insert(inviterId); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -228,6 +210,7 @@ func GitHubBind(c *gin.Context) {
 	session := sessions.Default(c)
 	id := session.Get("id")
 	// id := c.GetInt("id")  // critical bug!
+	var user model.User
 	user.Id = id.(int)
 	err = user.FillUserById()
 	if err != nil {
@@ -265,36 +248,4 @@ func GenerateOAuthCode(c *gin.Context) {
 		"message": "",
 		"data":    state,
 	})
-}
-
-// isDuplicateKeyError 检查错误是否是数据库唯一约束冲突
-// 通过检测数据库特定的错误码或消息来精确识别
-func isDuplicateKeyError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := strings.ToLower(err.Error())
-
-	// MySQL: Error 1062: Duplicate entry
-	// 检查 "Duplicate entry" 或 "ER_DUP_ENTRY"
-	if strings.Contains(errMsg, "duplicate entry") || strings.Contains(errMsg, "er_dup_entry") {
-		return true
-	}
-
-	// PostgreSQL: SQLSTATE 23505 - unique_violation
-	// 检查 "duplicate key value violates unique constraint" 或 "23505"
-	if strings.Contains(errMsg, "duplicate key value violates unique constraint") ||
-		strings.Contains(errMsg, "sqlstate 23505") ||
-		strings.Contains(errMsg, "23505") {
-		return true
-	}
-
-	// SQLite: "UNIQUE constraint failed"
-	// 精确匹配 "UNIQUE constraint failed"
-	if strings.Contains(errMsg, "unique constraint failed") {
-		return true
-	}
-
-	return false
 }
