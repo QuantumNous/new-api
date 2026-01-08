@@ -247,6 +247,45 @@ func InitLogDB() (err error) {
 	return err
 }
 
+// fixModelNameCollation updates the model_name column to use case-sensitive collation in MySQL
+func fixModelNameCollation() error {
+	if !common.UsingMySQL {
+		return nil // Only needed for MySQL
+	}
+
+	// Fix models.model_name column
+	var modelCollation string
+	err := DB.Raw("SELECT COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'models' AND COLUMN_NAME = 'model_name'").Scan(&modelCollation).Error
+	if err != nil {
+		// Table might not exist yet, ignore error
+		common.SysLog(fmt.Sprintf("Could not check models.model_name collation: %v", err))
+	} else if !strings.HasSuffix(strings.ToLower(modelCollation), "_bin") {
+		common.SysLog("Updating models.model_name column to use case-sensitive collation (utf8mb4_bin)")
+		err = DB.Exec("ALTER TABLE models MODIFY COLUMN model_name VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL").Error
+		if err != nil {
+			return fmt.Errorf("failed to alter models.model_name column collation: %v", err)
+		}
+		common.SysLog("Successfully updated models.model_name column collation")
+	}
+
+	// Fix abilities.model column
+	var abilityCollation string
+	err = DB.Raw("SELECT COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'abilities' AND COLUMN_NAME = 'model'").Scan(&abilityCollation).Error
+	if err != nil {
+		// Table might not exist yet, ignore error
+		common.SysLog(fmt.Sprintf("Could not check abilities.model collation: %v", err))
+	} else if !strings.HasSuffix(strings.ToLower(abilityCollation), "_bin") {
+		common.SysLog("Updating abilities.model column to use case-sensitive collation (utf8mb4_bin)")
+		err = DB.Exec("ALTER TABLE abilities MODIFY COLUMN model VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL").Error
+		if err != nil {
+			return fmt.Errorf("failed to alter abilities.model column collation: %v", err)
+		}
+		common.SysLog("Successfully updated abilities.model column collation")
+	}
+
+	return nil
+}
+
 func migrateDB() error {
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -272,6 +311,13 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+
+	// Fix model_name column collation for case-sensitive comparison in MySQL
+	if err := fixModelNameCollation(); err != nil {
+		common.SysLog(fmt.Sprintf("Warning: failed to update model_name collation: %v", err))
+		// Don't return error, just log it as it's not critical for existing installations
+	}
+
 	return nil
 }
 
