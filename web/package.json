@@ -22,7 +22,7 @@
     "katex": "^0.16.27",
     "lucide-react": "^0.562.0",
     "marked": "^17.0.1",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.3.1",
     "mermaid": "^11.12.2",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
