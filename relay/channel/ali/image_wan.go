@@ -1,6 +1,7 @@
 package ali
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -39,7 +40,8 @@ func oaiImageGen2QwenImageGen(c *gin.Context, _ *relaycommon.RelayInfo, request 
 		return nil, err
 	}
 
-	logger.LogInfo(c, fmt.Sprintf("oaiImageGen2QwenImageGen %s body: %v", request.Model, imageRequest))
+	imageRequestBytes, _ := json.Marshal(imageRequest)
+	logger.LogInfo(c, fmt.Sprintf("oaiImageGen2QwenImageGen %s body: %v", request.Model, string(imageRequestBytes)))
 	return &imageRequest, nil
 }
 
