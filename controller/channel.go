@@ -11,8 +11,10 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -260,11 +262,28 @@ func FetchUpstreamModels(c *gin.Context) {
 		return
 	}
 
+	// 对于 Gemini 渠道，使用特殊处理（Gemini native API）
+	if channel.Type == constant.ChannelTypeGemini {
+		geminiModels, err := gemini.FetchModels(baseURL, channel.Key, channel.GetSetting().Proxy)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Gemini模型列表失败: %s", err.Error()),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": lo.Map(geminiModels.Models, func(item gemini.Model, index int) string {
+				return strings.TrimPrefix(item.Name, "models/")
+			}),
+		})
+		return
+	}
+
 	var url string
 	switch channel.Type {
-	case constant.ChannelTypeGemini:
-		// curl https://example.com/v1beta/models?key=$GEMINI_API_KEY
-		url = fmt.Sprintf("%s/v1beta/openai/models", baseURL) // Remove key in url since we need to use AuthHeader
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
 	case constant.ChannelTypeZhipu_v4:
@@ -324,9 +343,9 @@ func FetchUpstreamModels(c *gin.Context) {
 	var ids []string
 	for _, model := range result.Data {
 		id := model.ID
-		if channel.Type == constant.ChannelTypeGemini {
-			id = strings.TrimPrefix(id, "models/")
-		}
+		//if channel.Type == constant.ChannelTypeGemini {
+		//	id = strings.TrimPrefix(id, "models/")
+		//}
 		ids = append(ids, id)
 	}
 
