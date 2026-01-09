@@ -68,7 +68,7 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('temperature')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={disabled}
           />
         </div>
@@ -108,7 +108,7 @@ const ParameterControl = ({
               parameterEnabled.top_p ? <Check size={10} /> : <X size={10} />
             }
             onClick={() => onParameterToggle('top_p')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={disabled}
           />
         </div>
@@ -152,7 +152,7 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('frequency_penalty')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={disabled}
           />
         </div>
@@ -196,7 +196,7 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('presence_penalty')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={disabled}
           />
         </div>
@@ -237,7 +237,7 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('max_tokens')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={disabled}
           />
         </div>
@@ -249,7 +249,7 @@ const ParameterControl = ({
           defaultValue={0}
           value={inputs.max_tokens}
           onChange={(value) => onInputChange('max_tokens', value)}
-          className='!rounded-lg'
+          className='rounded-lg!'
           disabled={!parameterEnabled.max_tokens || disabled}
         />
       </div>
@@ -274,7 +274,7 @@ const ParameterControl = ({
             size='small'
             icon={parameterEnabled.seed ? <Check size={10} /> : <X size={10} />}
             onClick={() => onParameterToggle('seed')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='rounded-full! w-4! h-4! p-0! min-w-0!'
             disabled={disabled}
           />
         </div>
@@ -286,7 +286,7 @@ const ParameterControl = ({
           onChange={(value) =>
             onInputChange('seed', value === '' ? null : value)
           }
-          className='!rounded-lg'
+          className='rounded-lg!'
           disabled={!parameterEnabled.seed || disabled}
         />
       </div>

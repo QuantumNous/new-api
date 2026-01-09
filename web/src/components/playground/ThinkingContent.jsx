@@ -71,9 +71,9 @@ const ThinkingContent = ({
   }
 
   return (
-    <div className='rounded-xl sm:rounded-2xl mb-2 sm:mb-4 overflow-hidden shadow-sm backdrop-blur-sm'>
+    <div className='rounded-xl sm:rounded-2xl mb-2 sm:mb-4 overflow-hidden shadow-xs backdrop-blur-xs'>
       <div
-        className='flex items-center justify-between p-3 cursor-pointer hover:bg-gradient-to-r hover:from-white/20 hover:to-purple-50/30 transition-all'
+        className='flex items-center justify-between p-3 cursor-pointer hover:bg-linear-to-r hover:from-white/20 hover:to-purple-50/30 transition-all'
         style={{
           background:
             'linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%)',
@@ -148,13 +148,13 @@ const ThinkingContent = ({
           message.isReasoningExpanded
             ? 'max-h-96 opacity-100'
             : 'max-h-0 opacity-0'
-        } overflow-hidden bg-gradient-to-br from-purple-50 via-indigo-50 to-violet-50`}
+        } overflow-hidden bg-linear-to-br from-purple-50 via-indigo-50 to-violet-50`}
       >
         {message.isReasoningExpanded && (
           <div className='p-3 sm:p-5 pt-2 sm:pt-4'>
             <div
               ref={scrollRef}
-              className='bg-white/70 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 shadow-inner overflow-x-auto overflow-y-auto thinking-content-scroll'
+              className='bg-white/70 backdrop-blur-xs rounded-lg sm:rounded-xl p-2 shadow-inner overflow-x-auto overflow-y-auto thinking-content-scroll'
               style={{
                 maxHeight: '200px',
                 scrollbarWidth: 'thin',

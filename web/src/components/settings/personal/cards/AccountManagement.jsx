@@ -100,7 +100,7 @@ const AccountManagement = ({
     : t('尚未使用');
 
   return (
-    <Card className='!rounded-2xl'>
+    <Card className='rounded-2xl!'>
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
         <Avatar size='small' color='teal' className='mr-3 shadow-md'>
@@ -130,10 +130,10 @@ const AccountManagement = ({
           <div className='py-4'>
             <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
               {/* 邮箱绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <IconMail
                         size='default'
                         className='text-slate-600 dark:text-slate-300'
@@ -151,7 +151,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     <Button
                       type='primary'
                       theme='outline'
@@ -167,10 +167,10 @@ const AccountManagement = ({
               </Card>
 
               {/* 微信绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <SiWechat
                         size={20}
                         className='text-slate-600 dark:text-slate-300'
@@ -189,7 +189,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     <Button
                       type='primary'
                       theme='outline'
@@ -208,10 +208,10 @@ const AccountManagement = ({
               </Card>
 
               {/* GitHub绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <IconGithubLogo
                         size='default'
                         className='text-slate-600 dark:text-slate-300'
@@ -229,7 +229,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     <Button
                       type='primary'
                       theme='outline'
@@ -249,10 +249,10 @@ const AccountManagement = ({
               </Card>
 
               {/* Discord绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <SiDiscord
                         size={20}
                         className='text-slate-600 dark:text-slate-300'
@@ -270,7 +270,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     <Button
                       type='primary'
                       theme='outline'
@@ -290,10 +290,10 @@ const AccountManagement = ({
               </Card>
 
               {/* OIDC绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <IconShield
                         size='default'
                         className='text-slate-600 dark:text-slate-300'
@@ -311,7 +311,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     <Button
                       type='primary'
                       theme='outline'
@@ -333,10 +333,10 @@ const AccountManagement = ({
               </Card>
 
               {/* Telegram绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <SiTelegram
                         size={20}
                         className='text-slate-600 dark:text-slate-300'
@@ -354,7 +354,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     {status.telegram_oauth ? (
                       isBound(userState.user?.telegram_id) ? (
                         <Button
@@ -408,10 +408,10 @@ const AccountManagement = ({
               </Modal>
 
               {/* LinuxDO绑定 */}
-              <Card className='!rounded-xl'>
+              <Card className='rounded-xl!'>
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
-                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 shrink-0'>
                       <SiLinux
                         size={20}
                         className='text-slate-600 dark:text-slate-300'
@@ -429,7 +429,7 @@ const AccountManagement = ({
                       </div>
                     </div>
                   </div>
-                  <div className='flex-shrink-0'>
+                  <div className='shrink-0'>
                     <Button
                       type='primary'
                       theme='outline'
@@ -465,10 +465,10 @@ const AccountManagement = ({
             <div className='space-y-6'>
               <Space vertical className='w-full'>
                 {/* 系统访问令牌 */}
-                <Card className='!rounded-xl w-full'>
+                <Card className='rounded-xl! w-full'>
                   <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
                     <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 shrink-0'>
                         <IconKey size='large' className='text-slate-600' />
                       </div>
                       <div className='flex-1'>
@@ -495,7 +495,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='solid'
                       onClick={generateAccessToken}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      className='bg-slate-600! hover:bg-slate-700! w-full sm:w-auto'
                       icon={<IconKey />}
                     >
                       {systemToken ? t('重新生成') : t('生成令牌')}
@@ -504,10 +504,10 @@ const AccountManagement = ({
                 </Card>
 
                 {/* 密码管理 */}
-                <Card className='!rounded-xl w-full'>
+                <Card className='rounded-xl! w-full'>
                   <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
                     <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 shrink-0'>
                         <IconLock size='large' className='text-slate-600' />
                       </div>
                       <div>
@@ -523,7 +523,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='solid'
                       onClick={() => setShowChangePasswordModal(true)}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      className='bg-slate-600! hover:bg-slate-700! w-full sm:w-auto'
                       icon={<IconLock />}
                     >
                       {t('修改密码')}
@@ -532,10 +532,10 @@ const AccountManagement = ({
                 </Card>
 
                 {/* Passkey 设置 */}
-                <Card className='!rounded-xl w-full'>
+                <Card className='rounded-xl! w-full'>
                   <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
                     <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 shrink-0'>
                         <IconKey size='large' className='text-slate-600' />
                       </div>
                       <div>
@@ -588,7 +588,7 @@ const AccountManagement = ({
                             }
                           : onPasskeyRegister
                       }
-                      className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-slate-500 hover:!bg-slate-600' : ''}`}
+                      className={`w-full sm:w-auto ${passkeyEnabled ? 'bg-slate-500! hover:bg-slate-600!' : ''}`}
                       icon={<IconKey />}
                       disabled={!passkeySupported && !passkeyEnabled}
                       loading={
@@ -606,10 +606,10 @@ const AccountManagement = ({
                 <TwoFASetting t={t} />
 
                 {/* 危险区域 */}
-                <Card className='!rounded-xl w-full'>
+                <Card className='rounded-xl! w-full'>
                   <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
                     <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 shrink-0'>
                         <IconDelete size='large' className='text-slate-600' />
                       </div>
                       <div>
@@ -628,7 +628,7 @@ const AccountManagement = ({
                       type='danger'
                       theme='solid'
                       onClick={() => setShowAccountDeleteModal(true)}
-                      className='w-full sm:w-auto !bg-slate-500 hover:!bg-slate-600'
+                      className='w-full sm:w-auto bg-slate-500! hover:bg-slate-600!'
                       icon={<IconDelete />}
                     >
                       {t('删除账户')}

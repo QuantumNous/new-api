@@ -38,7 +38,7 @@ const StepNavigation = ({
     <div className='flex justify-between items-center pt-4'>
       {/* 上一步按钮 */}
       {currentStep > 0 && (
-        <Button onClick={prev} className='!rounded-lg'>
+        <Button onClick={prev} className='rounded-lg!'>
           {t('上一步')}
         </Button>
       )}
@@ -47,7 +47,7 @@ const StepNavigation = ({
 
       {/* 下一步按钮 */}
       {currentStep < steps.length - 1 && (
-        <Button type='primary' onClick={next} className='!rounded-lg'>
+        <Button type='primary' onClick={next} className='rounded-lg!'>
           {t('下一步')}
         </Button>
       )}
@@ -58,7 +58,7 @@ const StepNavigation = ({
           type='primary'
           onClick={onSubmit}
           loading={loading}
-          className='!rounded-lg'
+          className='rounded-lg!'
           icon={<IconCheckCircleStroked />}
         >
           {t('初始化系统')}

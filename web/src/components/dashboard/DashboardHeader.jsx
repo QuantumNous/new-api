@@ -29,7 +29,7 @@ const DashboardHeader = ({
   loading,
   t,
 }) => {
-  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
+  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 rounded-full!';
 
   return (
     <div className='flex items-center justify-between mb-4'>

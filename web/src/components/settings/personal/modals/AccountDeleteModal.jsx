@@ -54,7 +54,7 @@ const AccountDeleteModal = ({
           type='danger'
           description={t('您正在删除自己的帐户，将清空所有数据且不可恢复')}
           closeIcon={null}
-          className='!rounded-lg'
+          className='rounded-lg!'
         />
 
         <div>
@@ -71,7 +71,7 @@ const AccountDeleteModal = ({
               handleInputChange('self_account_deletion_confirmation', value)
             }
             size='large'
-            className='!rounded-lg'
+            className='rounded-lg!'
             prefix={<IconUser />}
           />
         </div>

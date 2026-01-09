@@ -96,7 +96,7 @@ const TwoFactorAuthModal = ({
         <div className='bg-blue-50 dark:bg-blue-900 rounded-lg p-4'>
           <div className='flex items-start'>
             <svg
-              className='w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 mr-3 flex-shrink-0'
+              className='w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 mr-3 shrink-0'
               fill='currentColor'
               viewBox='0 0 20 20'
             >

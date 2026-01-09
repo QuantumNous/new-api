@@ -320,7 +320,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           </span>
         }
         icon={
-          <div className='sidebar-icon-container flex-shrink-0'>
+          <div className='sidebar-icon-container shrink-0'>
             {getLucideIcon(item.itemKey, isSelected)}
           </div>
         }
@@ -348,7 +348,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </span>
           }
           icon={
-            <div className='sidebar-icon-container flex-shrink-0'>
+            <div className='sidebar-icon-container shrink-0'>
               {getLucideIcon(item.itemKey, isSelected)}
             </div>
           }

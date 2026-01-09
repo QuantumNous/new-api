@@ -22,6 +22,7 @@ import { defineConfig, transformWithEsbuild } from 'vite';
 import vitePluginSemi from '@douyinfe/vite-plugin-semi';
 import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
+import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -36,6 +37,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    tailwindcss(),
     codeInspectorPlugin({
       bundler: 'vite',
     }),

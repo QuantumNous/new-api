@@ -49,7 +49,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                   <p className='mt-2 text-sm opacity-80'>
                     <strong>{t('数据存储位置：')}</strong>
                     <br />
-                    <code className='bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded'>
+                    <code className='bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-sm'>
                       {window.electron.dataDir}
                     </code>
                   </p>
@@ -75,7 +75,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
               </div>
             )
           }
-          className='!rounded-lg'
+          className='rounded-lg!'
           fullMode={false}
           bordered
         />
@@ -96,7 +96,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
               </p>
             </div>
           }
-          className='!rounded-lg'
+          className='rounded-lg!'
           fullMode={false}
           bordered
         />
@@ -117,7 +117,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
               </p>
             </div>
           }
-          className='!rounded-lg'
+          className='rounded-lg!'
           fullMode={false}
           bordered
         />

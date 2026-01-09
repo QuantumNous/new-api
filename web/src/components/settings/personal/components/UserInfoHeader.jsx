@@ -53,7 +53,7 @@ const UserInfoHeader = ({ t, userState }) => {
 
   return (
     <Card
-      className='!rounded-2xl overflow-hidden'
+      className='rounded-2xl! overflow-hidden'
       cover={
         <div
           className='relative h-32'
@@ -126,10 +126,10 @@ const UserInfoHeader = ({ t, userState }) => {
         </Badge>
 
         {/* 桌面版统计信息（Semi UI 卡片） */}
-        <div className='hidden lg:block flex-shrink-0'>
+        <div className='hidden lg:block shrink-0'>
           <Card
             size='small'
-            className='!rounded-xl'
+            className='rounded-xl!'
             bodyStyle={{ padding: '12px 16px' }}
           >
             <div className='flex items-center gap-4'>
@@ -171,7 +171,7 @@ const UserInfoHeader = ({ t, userState }) => {
       <div className='lg:hidden mt-2'>
         <Card
           size='small'
-          className='!rounded-xl'
+          className='rounded-xl!'
           bodyStyle={{ padding: '12px 16px' }}
         >
           <div className='space-y-3'>

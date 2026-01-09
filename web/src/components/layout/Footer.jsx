@@ -48,7 +48,7 @@ const FooterBar = () => {
 
         {isDemoSiteMode && (
           <div className='flex flex-col md:flex-row justify-between w-full max-w-[1110px] mb-10 gap-8'>
-            <div className='flex-shrink-0'>
+            <div className='shrink-0'>
               <img
                 src={logo}
                 alt={systemName}
@@ -58,7 +58,7 @@ const FooterBar = () => {
 
             <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 w-full'>
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='text-semi-color-text-0! font-semibold mb-5'>
                   {t('关于我们')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -66,7 +66,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/wiki/project-introduction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     {t('关于项目')}
                   </a>
@@ -74,7 +74,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/support/community-interaction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     {t('联系我们')}
                   </a>
@@ -82,7 +82,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/wiki/features-introduction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     {t('功能特性')}
                   </a>
@@ -90,7 +90,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='text-semi-color-text-0! font-semibold mb-5'>
                   {t('文档')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -98,7 +98,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/getting-started/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     {t('快速开始')}
                   </a>
@@ -106,7 +106,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/installation/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     {t('安装指南')}
                   </a>
@@ -114,7 +114,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/api/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     {t('API 文档')}
                   </a>
@@ -122,7 +122,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='text-semi-color-text-0! font-semibold mb-5'>
                   {t('相关项目')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -130,7 +130,7 @@ const FooterBar = () => {
                     href='https://github.com/songquanpeng/one-api'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     One API
                   </a>
@@ -138,7 +138,7 @@ const FooterBar = () => {
                     href='https://github.com/novicezk/midjourney-proxy'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     Midjourney-Proxy
                   </a>
@@ -146,7 +146,7 @@ const FooterBar = () => {
                     href='https://github.com/Calcium-Ion/neko-api-key-tool'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     neko-api-key-tool
                   </a>
@@ -154,7 +154,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='text-semi-color-text-0! font-semibold mb-5'>
                   {t('友情链接')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -162,7 +162,7 @@ const FooterBar = () => {
                     href='https://github.com/Calcium-Ion/new-api-horizon'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     new-api-horizon
                   </a>
@@ -170,7 +170,7 @@ const FooterBar = () => {
                     href='https://github.com/coaidev/coai'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     CoAI
                   </a>
@@ -178,7 +178,7 @@ const FooterBar = () => {
                     href='https://www.gpt-load.com/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-semi-color-text-1!'
                   >
                     GPT-Load
                   </a>
@@ -190,20 +190,20 @@ const FooterBar = () => {
 
         <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Typography.Text className='text-sm !text-semi-color-text-1'>
+            <Typography.Text className='text-sm text-semi-color-text-1!'>
               © {currentYear} {systemName}. {t('版权所有')}
             </Typography.Text>
           </div>
 
           <div className='text-sm'>
-            <span className='!text-semi-color-text-1'>
+            <span className='text-semi-color-text-1!'>
               {t('设计与开发由')}{' '}
             </span>
             <a
               href='https://github.com/QuantumNous/new-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
+              className='text-semi-color-primary! font-medium'
             >
               New API
             </a>
@@ -226,13 +226,13 @@ const FooterBar = () => {
             className='custom-footer'
             dangerouslySetInnerHTML={{ __html: footer }}
           ></div>
-          <div className='absolute bottom-2 right-4 text-xs !text-semi-color-text-2 opacity-70'>
+          <div className='absolute bottom-2 right-4 text-xs text-semi-color-text-2! opacity-70'>
             <span>{t('设计与开发由')} </span>
             <a
               href='https://github.com/QuantumNous/new-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
+              className='text-semi-color-primary! font-medium'
             >
               New API
             </a>

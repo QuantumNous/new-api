@@ -54,7 +54,7 @@ const TransferModal = ({
           <Input
             value={renderQuota(userState?.user?.aff_quota)}
             disabled
-            className='!rounded-lg'
+            className='rounded-lg!'
           />
         </div>
         <div>
@@ -66,7 +66,7 @@ const TransferModal = ({
             max={userState?.user?.aff_quota || 0}
             value={transferAmount}
             onChange={(value) => setTransferAmount(value)}
-            className='w-full !rounded-lg'
+            className='w-full rounded-lg!'
           />
         </div>
       </div>

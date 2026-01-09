@@ -56,7 +56,7 @@ const COMPONENT_STYLES = {
     fontWeight: '500',
   },
   avatarContainer:
-    'w-16 h-16 rounded-2xl bg-white/90 shadow-md backdrop-blur-sm flex items-center justify-center',
+    'w-16 h-16 rounded-2xl bg-white/90 shadow-md backdrop-blur-xs flex items-center justify-center',
   titleText: { color: 'white' },
   descriptionText: { color: 'rgba(255,255,255,0.9)' },
 };
@@ -320,7 +320,7 @@ const PricingVendorIntro = memo(
     const renderHeaderCard = useCallback(
       ({ title, count, description, rightContent, primaryDarkerChannel }) => (
         <Card
-          className='!rounded-2xl shadow-sm border-0'
+          className='rounded-2xl! shadow-xs border-0'
           cover={
             <div
               className='relative h-full'
@@ -345,7 +345,7 @@ const PricingVendorIntro = memo(
                     </Tag>
                   </div>
                   <Paragraph
-                    className='text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
+                    className='text-xs sm:text-sm leading-relaxed mb-0! cursor-pointer'
                     style={COMPONENT_STYLES.descriptionText}
                     ellipsis={{ rows: 2 }}
                     onClick={() => handleOpenDescModal(description)}
@@ -354,7 +354,7 @@ const PricingVendorIntro = memo(
                   </Paragraph>
                 </div>
 
-                <div className='flex-shrink-0'>{rightContent}</div>
+                <div className='shrink-0'>{rightContent}</div>
               </div>
             </div>
           }

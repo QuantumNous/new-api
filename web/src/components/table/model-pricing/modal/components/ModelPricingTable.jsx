@@ -176,13 +176,13 @@ const ModelPricingTable = ({
         pagination={false}
         size='small'
         bordered={false}
-        className='!rounded-lg'
+        className='rounded-lg!'
       />
     );
   };
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='rounded-2xl! shadow-xs border-0'>
       <div className='flex items-center mb-4'>
         <Avatar size='small' color='orange' className='mr-2 shadow-md'>
           <IconCoinMoneyStroked size={16} />

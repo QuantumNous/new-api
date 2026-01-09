@@ -345,7 +345,7 @@ const NotificationSettings = ({
 
   return (
     <Card
-      className='!rounded-2xl shadow-sm border-0'
+      className='rounded-2xl! shadow-xs border-0'
       footer={
         <div className='flex justify-end gap-3'>
           {activeTabKey === 'sidebar' ? (
@@ -354,7 +354,7 @@ const NotificationSettings = ({
               <Button
                 type='tertiary'
                 onClick={resetSidebarModules}
-                className='!rounded-lg'
+                className='rounded-lg!'
               >
                 {t('重置为默认')}
               </Button>
@@ -362,7 +362,7 @@ const NotificationSettings = ({
                 type='primary'
                 onClick={saveSidebarSettings}
                 loading={sidebarLoading}
-                className='!rounded-lg'
+                className='rounded-lg!'
               >
                 {t('保存设置')}
               </Button>
@@ -592,7 +592,7 @@ const NotificationSettings = ({
                       <div className='text-sm text-gray-700 mb-3'>
                         <strong>{t('模板示例')}</strong>
                       </div>
-                      <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-sm mb-4'>
+                      <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-xs mb-4'>
                         https://api.day.app/yourkey/{'{{title}}'}/
                         {'{{content}}'}?sound=alarm&group=quota
                       </div>
@@ -859,7 +859,7 @@ const NotificationSettings = ({
                                 xl={8}
                               >
                                 <Card
-                                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                                  className={`rounded-xl! border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
                                     sidebarModulesUser[section.key]?.enabled !==
                                     false
                                       ? ''

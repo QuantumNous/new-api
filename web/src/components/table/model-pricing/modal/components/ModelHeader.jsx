@@ -78,7 +78,7 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
       {getModelIcon()}
       <div className='ml-3 font-normal'>
         <Paragraph
-          className='!mb-0 !text-lg !font-medium'
+          className='mb-0! text-lg! font-medium!'
           copyable={{
             content: modelData?.model_name || '',
             onCopy: () => Toast.success({ content: t('已复制模型名称') }),

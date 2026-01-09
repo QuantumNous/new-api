@@ -60,7 +60,7 @@ const ChangePasswordModal = ({
             value={inputs.original_password}
             onChange={(value) => handleInputChange('original_password', value)}
             size='large'
-            className='!rounded-lg'
+            className='rounded-lg!'
             prefix={<IconLock />}
           />
         </div>
@@ -76,7 +76,7 @@ const ChangePasswordModal = ({
             value={inputs.set_new_password}
             onChange={(value) => handleInputChange('set_new_password', value)}
             size='large'
-            className='!rounded-lg'
+            className='rounded-lg!'
             prefix={<IconLock />}
           />
         </div>
@@ -94,7 +94,7 @@ const ChangePasswordModal = ({
               handleInputChange('set_new_password_confirmation', value)
             }
             size='large'
-            className='!rounded-lg'
+            className='rounded-lg!'
             prefix={<IconLock />}
           />
         </div>

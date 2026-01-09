@@ -150,7 +150,7 @@ const SSEViewer = ({ sseData }) => {
             size='small'
             theme='borderless'
             onClick={() => handleCopySingle(item)}
-            className='absolute top-2 right-2 !bg-gray-800/80 !text-gray-300 hover:!bg-gray-700'
+            className='absolute top-2 right-2 bg-gray-800/80! text-gray-300! hover:bg-gray-700!'
           />
         </div>
 
@@ -189,7 +189,7 @@ const SSEViewer = ({ sseData }) => {
   return (
     <div className='h-full flex flex-col bg-gray-50 dark:bg-gray-900/50 rounded-lg'>
       {/* 头部工具栏 */}
-      <div className='flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0'>
+      <div className='flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 shrink-0'>
         <div className='flex items-center gap-3'>
           <Zap size={16} className='text-blue-500' />
           <Typography.Text strong>{t('SSE数据流')}</Typography.Text>

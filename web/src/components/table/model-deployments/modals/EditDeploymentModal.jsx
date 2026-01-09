@@ -198,7 +198,7 @@ const EditDeploymentModal = ({
               </Row>
 
               {isEdit && (
-                <div className='mt-4 p-3 bg-gray-50 rounded'>
+                <div className='mt-4 p-3 bg-gray-50 rounded-sm'>
                   <Text type='secondary'>{t('部署ID')}: </Text>
                   <Text code>{editingDeployment.id}</Text>
                   <br />

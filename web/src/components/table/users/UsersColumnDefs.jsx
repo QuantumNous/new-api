@@ -78,10 +78,10 @@ const renderUsername = (text, record) => {
     <Space spacing={2}>
       <span>{text}</span>
       <Tooltip content={remark} position='top' showArrow>
-        <Tag color='white' shape='circle' className='!text-xs'>
+        <Tag color='white' shape='circle' className='text-xs!'>
           <div className='flex items-center gap-1'>
             <div
-              className='w-2 h-2 flex-shrink-0 rounded-full'
+              className='w-2 h-2 shrink-0 rounded-full'
               style={{ backgroundColor: '#10b981' }}
             />
             {displayRemark}
@@ -177,13 +177,13 @@ const renderInviteInfo = (text, record, t) => {
   return (
     <div>
       <Space spacing={1}>
-        <Tag color='white' shape='circle' className='!text-xs'>
+        <Tag color='white' shape='circle' className='text-xs!'>
           {t('邀请')}: {renderNumber(record.aff_count)}
         </Tag>
-        <Tag color='white' shape='circle' className='!text-xs'>
+        <Tag color='white' shape='circle' className='text-xs!'>
           {t('收益')}: {renderQuota(record.aff_history_quota)}
         </Tag>
-        <Tag color='white' shape='circle' className='!text-xs'>
+        <Tag color='white' shape='circle' className='text-xs!'>
           {record.inviter_id === 0
             ? t('无邀请人')
             : `${t('邀请人')}: ${record.inviter_id}`}

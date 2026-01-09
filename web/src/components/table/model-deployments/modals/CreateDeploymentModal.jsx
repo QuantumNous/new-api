@@ -999,7 +999,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Option key={hardware.id} value={hardware.id}>
                         <div className='flex flex-col gap-1'>
                           <Text strong>{displayName}</Text>
-                          <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
+                          <div className='flex items-center gap-2 text-xs text-(--semi-color-text-2)'>
                             <span>
                               {t('最大GPU数量')}: {hardware.max_gpus}
                             </span>

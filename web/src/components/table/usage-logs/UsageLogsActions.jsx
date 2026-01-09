@@ -53,7 +53,7 @@ const LogsActions = ({
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
               padding: 13,
             }}
-            className='!rounded-lg'
+            className='rounded-lg!'
           >
             {t('消耗额度')}: {renderQuota(stat.quota)}
           </Tag>
@@ -64,7 +64,7 @@ const LogsActions = ({
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
               padding: 13,
             }}
-            className='!rounded-lg'
+            className='rounded-lg!'
           >
             RPM: {stat.rpm}
           </Tag>
@@ -76,7 +76,7 @@ const LogsActions = ({
               fontWeight: 500,
               padding: 13,
             }}
-            className='!rounded-lg'
+            className='rounded-lg!'
           >
             TPM: {stat.tpm}
           </Tag>

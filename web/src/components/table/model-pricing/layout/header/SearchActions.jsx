@@ -81,7 +81,7 @@ const SearchActions = memo(
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='bg-blue-500! hover:bg-blue-600! text-white! disabled:bg-gray-300! disabled:text-gray-500!'
         >
           {t('复制')}
         </Button>
@@ -120,7 +120,7 @@ const SearchActions = memo(
 
             {/* 视图模式切换按钮 */}
             <Button
-              theme={viewMode === 'table' ? 'solid' : 'outline'}
+              theme={viewMode === 'table' ? 'solid' : 'outline-solid'}
               type={viewMode === 'table' ? 'primary' : 'tertiary'}
               onClick={handleViewModeToggle}
             >
@@ -129,7 +129,7 @@ const SearchActions = memo(
 
             {/* Token单位切换按钮 */}
             <Button
-              theme={tokenUnit === 'K' ? 'solid' : 'outline'}
+              theme={tokenUnit === 'K' ? 'solid' : 'outline-solid'}
               type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
               onClick={handleTokenUnitToggle}
             >

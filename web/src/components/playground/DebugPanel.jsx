@@ -107,9 +107,9 @@ const DebugPanel = ({
         flexDirection: 'column',
       }}
     >
-      <div className='flex items-center justify-between mb-6 flex-shrink-0'>
+      <div className='flex items-center justify-between mb-6 shrink-0'>
         <div className='flex items-center'>
-          <div className='w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center mr-3'>
+          <div className='w-10 h-10 rounded-full bg-linear-to-r from-green-500 to-blue-500 flex items-center justify-center mr-3'>
             <Code size={20} className='text-white' />
           </div>
           <Typography.Title heading={5} className='mb-0'>
@@ -124,7 +124,7 @@ const DebugPanel = ({
             theme='borderless'
             type='tertiary'
             size='small'
-            className='!rounded-lg'
+            className='rounded-lg!'
           />
         )}
       </div>
@@ -206,7 +206,7 @@ const DebugPanel = ({
         </Tabs>
       </div>
 
-      <div className='flex items-center justify-between mt-4 pt-4 flex-shrink-0'>
+      <div className='flex items-center justify-between mt-4 pt-4 shrink-0'>
         {(debugData.timestamp || debugData.previewTimestamp) && (
           <div className='flex items-center gap-2'>
             <Clock size={14} className='text-gray-500' />

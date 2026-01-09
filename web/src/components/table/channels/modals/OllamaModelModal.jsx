@@ -628,7 +628,7 @@ const OllamaModelModal = ({
                       </div>
                     </div>
                   ) : (
-                    <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
+                    <div className='flex items-center gap-2 text-xs text-(--semi-color-text-2)'>
                       <Spin size='small' />
                       <span>{t('准备中...')}</span>
                     </div>

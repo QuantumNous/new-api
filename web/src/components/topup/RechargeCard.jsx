@@ -89,7 +89,7 @@ const RechargeCard = ({
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
   console.log(' enabled screem ?', enableCreemTopUp, ' products ?', creemProducts);
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='rounded-2xl! shadow-xs border-0'>
       {/* 卡片头部 */}
       <div className='flex items-center justify-between mb-4'>
         <div className='flex items-center'>
@@ -115,7 +115,7 @@ const RechargeCard = ({
       <Space vertical style={{ width: '100%' }}>
         {/* 统计数据 */}
         <Card
-          className='!rounded-xl w-full'
+          className='rounded-xl! w-full'
           cover={
             <div
               className='relative h-30'
@@ -324,7 +324,7 @@ const RechargeCard = ({
                                       />
                                     )
                                   }
-                                  className='!rounded-lg !px-4 !py-2'
+                                  className='rounded-lg! px-4! py-2!'
                                 >
                                   {payMethod.name}
                                 </Button>
@@ -493,7 +493,7 @@ const RechargeCard = ({
                         <Card
                           key={index}
                           onClick={() => creemPreTopUp(product)}
-                          className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-gray-200 hover:border-gray-300'
+                          className='cursor-pointer rounded-2xl! transition-all hover:shadow-md border-gray-200 hover:border-gray-300'
                           bodyStyle={{ textAlign: 'center', padding: '16px' }}
                         >
                           <div className='font-medium text-lg mb-2'>
@@ -518,7 +518,7 @@ const RechargeCard = ({
               description={t(
                 '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
               )}
-              className='!rounded-xl'
+              className='rounded-xl!'
               closeIcon={null}
             />
           )}
@@ -526,7 +526,7 @@ const RechargeCard = ({
 
         {/* 兑换码充值 */}
         <Card
-          className='!rounded-xl w-full'
+          className='rounded-xl! w-full'
           title={
             <Text type='tertiary' strong>
               {t('兑换码充值')}

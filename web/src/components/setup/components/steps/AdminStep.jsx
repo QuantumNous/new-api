@@ -44,7 +44,7 @@ const AdminStep = ({
               <span>{t('管理员账号已经初始化过，请继续设置其他参数')}</span>
             </div>
           }
-          className='!rounded-lg'
+          className='rounded-lg!'
         />
       ) : (
         <>

@@ -277,7 +277,7 @@ const UpstreamConflictModal = ({
         <Empty description={t('无冲突项')} className='p-6' />
       ) : (
         <>
-          <div className='mb-3 text-[var(--semi-color-text-2)]'>
+          <div className='mb-3 text-(--semi-color-text-2)'>
             {t('仅会覆盖你勾选的字段，未勾选的字段保持本地不变。')}
           </div>
           {/* 搜索框 */}
@@ -289,7 +289,7 @@ const UpstreamConflictModal = ({
                 setSearchKeyword(v);
                 setCurrentPage(1);
               }}
-              className='!w-full'
+              className='w-full!'
               prefix={<IconSearch />}
               showClear
             />

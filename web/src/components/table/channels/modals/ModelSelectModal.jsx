@@ -312,7 +312,7 @@ const ModelSelectModal = ({
           <Typography.Title heading={5} className='m-0'>
             {t('选择模型')}
           </Typography.Title>
-          <div className='flex-shrink-0'>
+          <div className='shrink-0'>
             <Tabs
               type='slash'
               size='small'

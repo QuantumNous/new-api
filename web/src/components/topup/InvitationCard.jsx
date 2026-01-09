@@ -40,7 +40,7 @@ const InvitationCard = ({
   handleAffLinkClick,
 }) => {
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='rounded-2xl! shadow-xs border-0'>
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
         <Avatar size='small' color='green' className='mr-3 shadow-md'>
@@ -58,7 +58,7 @@ const InvitationCard = ({
       <Space vertical style={{ width: '100%' }}>
         {/* 统计数据统一卡片 */}
         <Card
-          className='!rounded-xl w-full'
+          className='rounded-xl! w-full'
           cover={
             <div
               className='relative h-30'
@@ -85,7 +85,7 @@ const InvitationCard = ({
                       userState?.user?.aff_quota <= 0
                     }
                     onClick={() => setOpenTransfer(true)}
-                    className='!rounded-lg'
+                    className='rounded-lg!'
                   >
                     <Zap size={12} className='mr-1' />
                     {t('划转到余额')}
@@ -177,7 +177,7 @@ const InvitationCard = ({
           <Input
             value={affLink}
             readonly
-            className='!rounded-lg'
+            className='rounded-lg!'
             prefix={t('邀请链接')}
             suffix={
               <Button
@@ -185,7 +185,7 @@ const InvitationCard = ({
                 theme='solid'
                 onClick={handleAffLinkClick}
                 icon={<Copy size={14} />}
-                className='!rounded-lg'
+                className='rounded-lg!'
               >
                 {t('复制')}
               </Button>
@@ -195,7 +195,7 @@ const InvitationCard = ({
 
         {/* 奖励说明 */}
         <Card
-          className='!rounded-xl w-full'
+          className='rounded-xl! w-full'
           title={<Text type='tertiary'>{t('奖励说明')}</Text>}
         >
           <div className='space-y-3'>

@@ -39,7 +39,7 @@ const StatsCards = ({
           <Card
             key={idx}
             {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
+            className={`${group.color} border-0 rounded-2xl! w-full`}
             title={group.title}
           >
             <div className='space-y-4'>

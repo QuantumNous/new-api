@@ -35,7 +35,7 @@ const SearchModal = ({
   const formRef = useRef();
 
   const FORM_FIELD_PROPS = {
-    className: 'w-full mb-2 !rounded-lg',
+    className: 'w-full mb-2 rounded-lg!',
   };
 
   const createFormField = (Component, props) => (

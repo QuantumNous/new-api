@@ -384,7 +384,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
   const renderLogEntry = (line, index) => (
     <div
       key={`${index}-${line.slice(0, 20)}`}
-      className='py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words'
+      className='py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap wrap-break-word'
     >
       {line}
     </div>
@@ -411,7 +411,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
     >
       <div className='flex flex-col h-full max-h-[600px]'>
         {/* Controls */}
-        <Card className='mb-4 border-0 shadow-sm'>
+        <Card className='mb-4 border-0 shadow-xs'>
           <div className='flex items-center justify-between flex-wrap gap-3'>
             <Space wrap>
               <Select

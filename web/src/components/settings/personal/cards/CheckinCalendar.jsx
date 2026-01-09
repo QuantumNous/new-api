@@ -193,7 +193,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           position='top'
         >
           <div className='absolute inset-0 flex flex-col items-center justify-center cursor-pointer'>
-            <div className='w-6 h-6 rounded-full bg-green-500 flex items-center justify-center mb-0.5 shadow-sm'>
+            <div className='w-6 h-6 rounded-full bg-green-500 flex items-center justify-center mb-0.5 shadow-xs'>
               <Check size={14} className='text-white' strokeWidth={3} />
             </div>
             <div className='text-[10px] font-medium text-green-600 dark:text-green-400 leading-none'>
@@ -213,7 +213,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   };
 
   return (
-    <Card className='!rounded-2xl'>
+    <Card className='rounded-2xl!'>
       <Modal
         title='Security Check'
         visible={turnstileModalVisible}
@@ -276,7 +276,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           onClick={() => doCheckin()}
           loading={checkinLoading || !initialLoaded}
           disabled={!initialLoaded || checkinData.stats?.checked_in_today}
-          className='!bg-green-600 hover:!bg-green-700'
+          className='bg-green-600! hover:bg-green-700!'
         >
           {!initialLoaded
             ? t('加载中...')

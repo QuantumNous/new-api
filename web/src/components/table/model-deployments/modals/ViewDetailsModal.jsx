@@ -178,7 +178,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 <span>{t('基本信息')}</span>
               </div>
             }
-            className='border-0 shadow-sm'
+            className='border-0 shadow-xs'
           >
             <Descriptions
               data={[
@@ -234,7 +234,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 <span>{t('硬件与性能')}</span>
               </div>
             }
-            className='border-0 shadow-sm'
+            className='border-0 shadow-xs'
           >
             <div className='space-y-4'>
               <Descriptions
@@ -316,7 +316,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                   <span>{t('容器配置')}</span>
                 </div>
               }
-              className='border-0 shadow-sm'
+              className='border-0 shadow-xs'
             >
               <div className='space-y-3'>
                 <Descriptions
@@ -385,7 +385,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 <span>{t('容器实例')}</span>
               </div>
             }
-            className='border-0 shadow-sm'
+            className='border-0 shadow-xs'
           >
             {containersLoading ? (
               <div className='flex items-center justify-center py-6'>
@@ -488,7 +488,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                   <span>{t('部署位置')}</span>
                 </div>
               }
-              className='border-0 shadow-sm'
+              className='border-0 shadow-xs'
             >
               <div className='flex flex-wrap gap-2'>
                 {details.locations.map((location) => (
@@ -513,7 +513,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 <span>{t('费用信息')}</span>
               </div>
             }
-            className='border-0 shadow-sm'
+            className='border-0 shadow-xs'
           >
             <div className='space-y-3'>
               <div className='flex items-center justify-between p-3 bg-green-50 rounded-lg'>
@@ -556,7 +556,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 <span>{t('时间信息')}</span>
               </div>
             }
-            className='border-0 shadow-sm'
+            className='border-0 shadow-xs'
           >
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div className='space-y-2'>

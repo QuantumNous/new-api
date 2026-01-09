@@ -380,7 +380,7 @@ export const getDeploymentsColumns = ({
                 className='text-sm'
                 style={{ color: theme.iconColor }}
               />
-              <Typography.Text className='text-sm font-medium text-[var(--semi-color-text-0)]'>
+              <Typography.Text className='text-sm font-medium text-(--semi-color-text-0)'>
                 {timeDisplay}
               </Typography.Text>
               {showProgress && percentRemaining !== null ? (
@@ -394,7 +394,7 @@ export const getDeploymentsColumns = ({
               ) : null}
             </div>
             {showExtraInfo && (
-              <div className='flex items-center gap-3 text-[var(--semi-color-text-2)]'>
+              <div className='flex items-center gap-3 text-(--semi-color-text-2)'>
                 {humanReadable && (
                   <span className='flex items-center gap-1'>
                     <FaClock className='text-[11px]' />

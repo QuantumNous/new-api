@@ -57,7 +57,7 @@ const HeaderLogo = ({
           >
             <Typography.Title
               heading={4}
-              className='!text-lg !font-semibold !mb-0'
+              className='text-lg! font-semibold! mb-0!'
             >
               {systemName}
             </Typography.Title>
@@ -65,7 +65,7 @@ const HeaderLogo = ({
           {(isSelfUseMode || isDemoSiteMode) && !isLoading && (
             <Tag
               color={isSelfUseMode ? 'purple' : 'blue'}
-              className='text-xs px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm'
+              className='text-xs px-1.5 py-0.5 rounded-sm whitespace-nowrap shadow-xs'
               size='small'
               shape='circle'
             >

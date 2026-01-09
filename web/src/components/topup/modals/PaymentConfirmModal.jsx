@@ -61,7 +61,7 @@ const PaymentConfirmModal = ({
       confirmLoading={confirmLoading}
     >
       <div className='space-y-4'>
-        <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
+        <Card className='rounded-xl! border-0! bg-slate-50 dark:bg-slate-800'>
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
               <Text strong className='text-slate-700 dark:text-slate-200'>
