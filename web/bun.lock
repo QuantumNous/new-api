@@ -5,7 +5,7 @@
       "name": "react-template",
       "dependencies": {
         "@douyinfe/semi-icons": "^2.90.10",
-        "@douyinfe/semi-ui": "^2.90.10",
+        "@douyinfe/semi-ui-19": "^2.90.10",
         "@lobehub/icons": "^4.0.2",
         "@lobehub/ui": "^4.13.0",
         "@visactor/react-vchart": "^2.0.13",
@@ -189,7 +189,7 @@
 
     "@douyinfe/semi-theme-default": ["@douyinfe/semi-theme-default@2.90.10", "", {}, "sha512-q8liKStjQBuhGcADO5b86rvSW/ZxOhi5Ydgcr7D2/HyTsvkZA7R4spROAfwVGKGkc8juJvGqn2NirU2zwxAuMA=="],
 
-    "@douyinfe/semi-ui": ["@douyinfe/semi-ui@2.90.10", "", { "dependencies": { "@dnd-kit/core": "^6.0.8", "@dnd-kit/sortable": "^7.0.2", "@dnd-kit/utilities": "^3.2.1", "@douyinfe/semi-animation": "2.90.10", "@douyinfe/semi-animation-react": "2.90.10", "@douyinfe/semi-foundation": "2.90.10", "@douyinfe/semi-icons": "2.90.10", "@douyinfe/semi-illustrations": "2.90.10", "@douyinfe/semi-theme-default": "2.90.10", "@tiptap/core": "^3.10.7", "@tiptap/extension-document": "^3.10.7", "@tiptap/extension-hard-break": "^3.10.7", "@tiptap/extension-mention": "^3.10.7", "@tiptap/extension-paragraph": "^3.10.7", "@tiptap/extension-text": "^3.10.7", "@tiptap/extensions": "^3.10.7", "@tiptap/pm": "^3.10.7", "@tiptap/react": "^3.10.7", "async-validator": "^3.5.0", "classnames": "^2.2.6", "copy-text-to-clipboard": "^2.1.1", "date-fns": "^2.29.3", "date-fns-tz": "^1.3.8", "fast-copy": "^3.0.1 ", "jsonc-parser": "^3.3.1", "lodash": "^4.17.21", "prop-types": "^15.7.2", "prosemirror-state": "^1.4.3", "react-resizable": "^3.0.5", "react-window": "^1.8.2", "scroll-into-view-if-needed": "^2.2.24", "utility-types": "^3.10.0" }, "peerDependencies": { "react": ">=16.0.0", "react-dom": ">=16.0.0" } }, "sha512-BclA5Ir1OEzZpS965T/y51KLIxEwRpJlyV/E2Pljsm98keSpc/kkoh9fKFiPMqTafgiuuey8XWStyC88tYZGEg=="],
+    "@douyinfe/semi-ui-19": ["@douyinfe/semi-ui-19@2.90.10", "", { "dependencies": { "@dnd-kit/core": "^6.0.8", "@dnd-kit/sortable": "^7.0.2", "@dnd-kit/utilities": "^3.2.1", "@douyinfe/semi-animation": "2.90.10", "@douyinfe/semi-animation-react": "2.90.10", "@douyinfe/semi-foundation": "2.90.10", "@douyinfe/semi-icons": "2.90.10", "@douyinfe/semi-illustrations": "2.90.10", "@douyinfe/semi-theme-default": "2.90.10", "@tiptap/core": "^3.10.7", "@tiptap/extension-document": "^3.10.7", "@tiptap/extension-hard-break": "^3.10.7", "@tiptap/extension-mention": "^3.10.7", "@tiptap/extension-paragraph": "^3.10.7", "@tiptap/extension-text": "^3.10.7", "@tiptap/extensions": "^3.10.7", "@tiptap/pm": "^3.10.7", "@tiptap/react": "^3.10.7", "async-validator": "^3.5.0", "classnames": "^2.2.6", "copy-text-to-clipboard": "^2.1.1", "date-fns": "^2.29.3", "date-fns-tz": "^1.3.8", "fast-copy": "^3.0.1 ", "jsonc-parser": "^3.3.1", "lodash": "^4.17.21", "prop-types": "^15.7.2", "prosemirror-state": "^1.4.3", "react-resizable": "^3.0.5", "react-window": "^1.8.2", "scroll-into-view-if-needed": "^2.2.24", "utility-types": "^3.10.0" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-Cf1DI5SPnhgNioY7FmUGOKufK4CH6Niqv8etg/E3SqnOMKEQkURPex2hGUKnlwXqjeNlSURPaTsCU65dPSG9CQ=="],
 
     "@douyinfe/vite-plugin-semi": ["@douyinfe/vite-plugin-semi@2.74.3-alpha.2", "", { "dependencies": { "sass": "^1.85.1" }, "peerDependencies": { "vite": "5.1.0" } }, "sha512-ve0UtxESmLNrEoZNHHI97vU76hV8kxHVRtj7Y9367R0UbDuRFvhR1Y2M1ou99vs36GtbusySpGjTRDAe5IO7xg=="],
 
