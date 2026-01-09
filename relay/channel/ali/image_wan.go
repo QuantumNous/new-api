@@ -70,5 +70,9 @@ func isWanModel(modelName string) bool {
 }
 
 func isQWENImageModel(modelName string) bool {
-	return strings.Contains(modelName, "qwen-image")
+	if isWanModel(modelName) {
+		return false
+	}
+
+	return strings.Contains(modelName, "qwen") && strings.Contains(modelName, "image")
 }
