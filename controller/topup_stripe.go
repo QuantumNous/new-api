@@ -243,7 +243,8 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 
 	if setting.StripeManagedPaymentsEnabled {
 		params.AddExtra("managed_payments[enabled]", "true")
-		params.AddMetadata("preview_feature", "true")
+		// see: https://docs.stripe.com/payments/managed-payments/set-up?mode=payment
+		params.Params.Headers.Set("Stripe-Version", "2025-10-29.preview; managed_payments_preview=v1")
 	}
 
 	if setting.StripeAutoTaxEnabled {
